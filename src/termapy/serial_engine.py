@@ -238,6 +238,10 @@ class SerialEngine:
         # The reader thread this engine owns, so teardown can join it rather
         # than wait on an Event and proceed regardless.
         self._reader_thread: "threading.Thread | None" = None
+        # Monotonic stamp of the last chunk the reader actually received.
+        # ``SerialPort.wait_for_idle`` keys off this rather than the port's
+        # ``in_waiting``, which the reader keeps drained to zero.
+        self._last_rx_monotonic: float = time.monotonic()
         self._serial_claimed: bool = False
         self._rx_observers: list[Callable[[bytes], None]] = []
         self._tx_observers: list[Callable[[bytes], None]] = []
@@ -391,11 +395,15 @@ class SerialEngine:
             self.last_error = _classify_serial_error(e, self._cfg["serial"]["port"])
             return False
 
+        self._last_rx_monotonic = time.monotonic()
         self._serial_port = SerialPort(
             port=self._port_obj,
             rx_queue=self._rx_queue,
             log=self._log,
             encoding=self._cfg.get("encoding", "utf-8"),
+            # Lets wait_for_idle ask "when did the DEVICE last speak?" instead
+            # of inspecting a port buffer this engine keeps drained.
+            last_rx=lambda: self._last_rx_monotonic,
         )
         self._reader = SerialReader(
             encoding=self._cfg.get("encoding", "utf-8"),
@@ -537,6 +545,11 @@ class SerialEngine:
                     break
 
                 if data:
+                    # One authoritative "device last spoke" clock.  Consumers
+                    # cannot use the port's ``in_waiting`` for this: THIS loop
+                    # drains it to zero continuously, so a sample taken
+                    # mid-response reads 0 and looks like silence.
+                    self._last_rx_monotonic = time.monotonic()
                     self._rx_queue.put(data)
                     for rx_observer in self._rx_observers:
                         # RX observers are third-party callbacks;

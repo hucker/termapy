@@ -38,11 +38,13 @@ class SerialPort:
         rx_queue: "queue.Queue[bytes]",
         log: Callable[[str, str], None] | None = None,
         encoding: str = "utf-8",
+        last_rx: Callable[[], float] | None = None,
     ) -> None:
         self._port = port
         self._rx_queue = rx_queue
         self._log = log or (lambda _d, _t: None)
         self._encoding = encoding
+        self._last_rx = last_rx
 
     @property
     def port(self) -> object:
@@ -161,24 +163,56 @@ class SerialPort:
         return False
 
     def wait_for_idle(self, timeout_ms: int = 100, max_wait_s: float = 3.0) -> None:
-        """Wait until no serial data arrives for timeout_ms, or max_wait_s elapses.
+        """Wait until the device has been quiet for *timeout_ms*.
+
+        Keys off the reader's "device last spoke" clock when one was supplied
+        (``last_rx``), NOT off the port's ``in_waiting``.  With a background
+        reader running, ``in_waiting`` is drained to zero continuously, so a
+        sample taken between two lines of a streaming response sees 0 bytes
+        and reports idle while the response is still arriving -- callers using
+        this to sequence commands then send the next one too early.  ``cli.py``
+        hit exactly this and hand-rolled an rx-observer clock to avoid it
+        (docs/review/2026-08-19-v0.74.0-opus-5.md, finding T10).
+
+        Without a ``last_rx`` provider there is no reader draining the port, so
+        ``in_waiting`` *is* authoritative and is used instead.
 
         Args:
             timeout_ms: Silence period to consider idle (milliseconds).
             max_wait_s: Maximum total wait time (seconds).
         """
-        deadline = time.monotonic() + max_wait_s
+        gap = timeout_ms / 1000.0
+        started = time.monotonic()
+        deadline = started + max_wait_s
+        if self._last_rx is not None:
+            while time.monotonic() < deadline:
+                if not self.is_open:
+                    return
+                # ``max(..., started)`` is load-bearing in BOTH directions.
+                # The reader clock alone reports idle while a reply is merely
+                # not-yet-started -- it still holds the stamp from the PREVIOUS
+                # response -- so callers fire the next command over the top of
+                # the answer they are waiting for.  Flooring at the call time
+                # guarantees one full quiet gap after we were asked, while the
+                # reader clock extends that for as long as bytes keep arriving.
+                last = max(self._last_rx(), started)
+                if (time.monotonic() - last) >= gap:
+                    return
+                time.sleep(0.01)
+            return
+        # No reader in the picture: nothing else is consuming the port, so its
+        # own buffer is the honest signal.
         last_data = time.monotonic()
         while time.monotonic() < deadline:
             if not self.is_open:
                 return
             try:
                 waiting = self._port.in_waiting
-            except (OSError, Exception):
+            except (OSError, AttributeError):
                 return
             if waiting > 0:
                 last_data = time.monotonic()
-            elif (time.monotonic() - last_data) >= timeout_ms / 1000.0:
+            elif (time.monotonic() - last_data) >= gap:
                 return
             time.sleep(0.01)
 

@@ -1,6 +1,7 @@
 """Tests for SerialPort and SerialReader."""
 
 import queue
+import threading
 import time
 
 import pytest
@@ -772,3 +773,127 @@ class TestSerialReaderReset:
 
         # Assert
         assert result.lines == ["new"], "no leftover from before reset"
+
+
+class TestWaitForIdleUsesTheReaderClock:
+    """``in_waiting`` is not a silence signal while a reader is draining it.
+
+    The background reader consumes the port continuously, so between two
+    lines of a streaming response ``in_waiting`` reads 0 -- and the old
+    implementation counted that as silence and returned mid-response.
+    Callers sequencing commands on it then talked over the device
+    (docs/review/2026-08-19-v0.74.0-opus-5.md, finding T10).
+    """
+
+    def test_does_not_report_idle_while_data_is_still_arriving(self):
+        # Arrange -- a port whose in_waiting is ALWAYS 0 (a reader just drained
+        # it) while the device is in fact still streaming: the rx clock keeps
+        # advancing.
+        class DrainedPort:
+            is_open = True
+            in_waiting = 0
+
+            def write(self, data):
+                pass
+
+        now = [time.monotonic()]
+        sp = SerialPort(
+            port=DrainedPort(),
+            rx_queue=queue.Queue(),
+            last_rx=lambda: now[0],
+        )
+
+        def keep_streaming():
+            # Device still talking for ~0.3s, then goes quiet.
+            for _ in range(30):
+                now[0] = time.monotonic()
+                time.sleep(0.01)
+
+        streamer = threading.Thread(target=keep_streaming, daemon=True)
+        streamer.start()
+
+        # Act
+        started = time.monotonic()
+        sp.wait_for_idle(timeout_ms=100, max_wait_s=3.0)
+        elapsed = time.monotonic() - started
+        streamer.join(2)
+
+        # Assert -- must outlast the stream plus the silence gap, not return
+        # immediately on a drained buffer.
+        assert elapsed >= 0.3, (
+            f"returned after {elapsed:.3f}s while the device was still "
+            f"streaming; wait_for_idle must key off the reader's last-RX "
+            f"clock, not the drained in_waiting"
+        )
+
+    def test_waits_a_full_gap_even_when_the_reply_has_not_started(self):
+        """A stale clock must not be mistaken for silence.
+
+        The engine's last-RX stamp still holds the PREVIOUS response's time
+        when a command has been sent but the device has not begun answering.
+        Returning then makes the caller talk over the reply it is waiting
+        for -- the CLI gold file caught exactly that interleaving.
+        """
+        # Arrange -- clock is 5s stale; no reply has begun.
+        class DrainedPort:
+            is_open = True
+            in_waiting = 0
+
+            def write(self, data):
+                pass
+
+        stale = time.monotonic() - 5.0
+        sp = SerialPort(
+            port=DrainedPort(), rx_queue=queue.Queue(), last_rx=lambda: stale
+        )
+
+        # Act
+        started = time.monotonic()
+        sp.wait_for_idle(timeout_ms=150, max_wait_s=3.0)
+        elapsed = time.monotonic() - started
+
+        # Assert -- one full quiet gap measured from the CALL, not from the
+        # stale stamp.
+        assert elapsed >= 0.15, (
+            f"returned after {elapsed:.3f}s on a stale clock; wait_for_idle "
+            f"must floor the idle window at the call time so a reply that has "
+            f"not started yet is not read as silence"
+        )
+
+    def test_returns_once_the_device_goes_quiet(self):
+        # Arrange -- rx clock frozen in the past: already idle.
+        class DrainedPort:
+            is_open = True
+            in_waiting = 0
+
+            def write(self, data):
+                pass
+
+        stale = time.monotonic() - 1.0
+        sp = SerialPort(
+            port=DrainedPort(), rx_queue=queue.Queue(), last_rx=lambda: stale
+        )
+
+        # Act
+        started = time.monotonic()
+        sp.wait_for_idle(timeout_ms=100, max_wait_s=3.0)
+        elapsed = time.monotonic() - started
+
+        # Assert -- returns promptly rather than burning max_wait_s.
+        assert 0.1 <= elapsed < 0.6, (
+            f"should return one gap after the call once quiet, took {elapsed:.3f}s"
+        )
+
+    def test_without_a_reader_the_port_buffer_is_still_used(self):
+        # Arrange -- no last_rx provider means nothing is draining the port,
+        # so in_waiting is the honest signal and must still work.
+        fake = FakeSerial()
+        sp = SerialPort(port=fake, rx_queue=queue.Queue())
+
+        # Act
+        started = time.monotonic()
+        sp.wait_for_idle(timeout_ms=50, max_wait_s=1.0)
+        elapsed = time.monotonic() - started
+
+        # Assert
+        assert elapsed < 1.0, "an idle port should return before max_wait_s"

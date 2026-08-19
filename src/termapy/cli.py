@@ -752,14 +752,17 @@ class CLITerminal(TerminalHost):
         runaway device can't hang the pipeline indefinitely.
 
         Why an observer instead of ``serial_port.wait_for_idle()``:
-        ``wait_for_idle`` polls ``in_waiting`` on a 10ms timer.
-        Between lines of a streamed response, the reader has often
-        drained the OS buffer to 0 already, so a sample taken in
-        that window sees 0 bytes and the idle clock ages even though
-        the response is still in flight.  The observer fires on every
-        actual reader-thread read, so the clock resets on real
-        line-by-line streaming pacing -- matches the same pattern
-        ``/cap.wire`` uses.
+        NOT because ``wait_for_idle`` is broken any more -- it used to
+        poll ``in_waiting``, which the reader keeps drained to zero, and
+        so returned mid-response; it now keys off the same reader clock
+        this observer does (finding T10).  The remaining difference is
+        WHERE THE CLOCK STARTS.  This loop resets ``last_arrival`` at
+        dispatch time, so it always waits at least one idle gap for the
+        device to begin answering.  ``wait_for_idle`` reads the engine's
+        last-RX stamp, which may pre-date the command entirely -- on a
+        device that has not started replying yet it would return
+        immediately and truncate the piped output.  Swapping to it needs
+        a "not before now" floor first.  Same pattern ``/cap.wire`` uses.
 
         No "Disconnected." chrome banner -- exec mode is the piping
         mode, and chrome bytes corrupt captured stdout.

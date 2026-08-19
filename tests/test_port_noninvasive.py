@@ -36,7 +36,14 @@ class _FakePort:
 
 @pytest.fixture
 def probed(monkeypatch):
-    """Enumerate two fake ports; record any probe call, open nothing real."""
+    """Enumerate two fake ports; record any probe call, open nothing real.
+
+    Patches ``comports`` rather than passing ``source=``.  That is
+    deliberate and must stay: a substitute fleet replaces the whole
+    enumeration layer, so ``_check_in_use`` and ``_check_permissions``
+    would never run and these tests would prove nothing about probing.
+    Faking the OS boundary is the only way to watch what happens above it.
+    """
     ports = [
         _FakePort("COM3", serial_number="A1B2C3D4", vid=0x0403, pid=0x6001),
         _FakePort("COM7", serial_number="BG03U7VTA", vid=0x0403, pid=0x6001),

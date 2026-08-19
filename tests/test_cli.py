@@ -1051,10 +1051,14 @@ def _synthetic_facts(*entries):
 class TestPortsFlag:
     """Tests for --ports: print a one-line-per-port table and exit.
 
-    Uses the ``TERMAPY_DEMO_FLEET`` env var -- a production hook that
-    makes ``_gather_all_chip_facts()`` return a fixed synthetic fleet
-    (COM3 FTDI, COM4 Silicon Labs, COM7 Microsoft).  Users can set the
-    same var to demo the CLI without real hardware.
+    These drive ``main()`` with a patched ``sys.argv``, so they cover the
+    argparse-to-handler wiring rather than the listing behavior, and they
+    take their fleet from ``TERMAPY_DEMO_FLEET`` (COM3 FTDI, COM4 Silicon
+    Labs, COM7 Microsoft).  That is the right lever *here*: injection
+    cannot reach through a process entry point, which is the whole reason
+    the environment layer exists -- see ``port_control.resolve_port_source``.
+    Tests about what the listing does hand a fleet in through ``source=``
+    instead; see ``tests/test_cli_improvements.py``.
     """
 
     def test_ports_prints_header_and_one_row_per_port(self, capsys, monkeypatch):
@@ -1078,19 +1082,21 @@ class TestPortsFlag:
         assert "MSFT" in out, "Microsoft manufacturer gets aliased to MSFT"
         assert "FTDI FT232R" in out, "chip model rendered"
 
-    def test_ports_no_ports_exits_nonzero(self, capsys, monkeypatch):
-        # Arrange -- simulate no ports by returning an empty list
-        # from the underlying gather.  The DEMO_FLEET hook doesn't
-        # cover this case (it unconditionally returns 3 ports), so
-        # we still monkeypatch for this one.
-        monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
-        import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda *a, **k: [])
-        from termapy.entry import main
+    def test_ports_no_ports_exits_nonzero(self, capsys):
+        # Arrange -- an empty fleet.  The env hook can't express this
+        # case (it always returns three ports), so this one drives the
+        # handler directly and hands the emptiness in.
+        import argparse
+
+        from termapy import cli_flags
+
+        args = argparse.Namespace(
+            ports="*", json=False, vid=None, pid=None, mfg=None, sn=None
+        )
 
         # Act
         with pytest.raises(SystemExit) as exc:
-            main()
+            cli_flags.run_ports(args, source=lambda: [])
 
         # Assert
         out = capsys.readouterr().out
@@ -1198,26 +1204,17 @@ class TestWatchFlag:
     def test_watch_exits_cleanly_on_keyboard_interrupt(
         self, capsys, monkeypatch
     ):
-        # Arrange -- fixture emits one snapshot, then raises.
+        # Arrange -- this is the --watch wiring test, so it goes through
+        # main(); the fleet comes from the environment because injection
+        # cannot reach through a process entry point.  The first sleep
+        # ends the loop, standing in for the user's Ctrl+C.
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--watch"])
-        import termapy.port_control as pc
 
-        snapshots = [
-            _synthetic_facts(
-                ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "ABC"),
-            ),
-        ]
-        call_count = [0]
-
-        def _mock_gather(*args, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return snapshots[0]
+        def _interrupt(seconds):
             raise KeyboardInterrupt
 
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", _mock_gather)
-        # time.sleep must be a no-op or the test hangs.
-        monkeypatch.setattr("termapy.cli_flags.time.sleep", lambda s: None)
+        monkeypatch.setattr("termapy.cli_flags.time.sleep", _interrupt)
 
         from termapy.entry import main
 
@@ -1228,7 +1225,7 @@ class TestWatchFlag:
         # Assert
         out = capsys.readouterr().out
         assert exc.value.code == 0, "Ctrl+C exits 0"
-        assert "monitoring 1 port" in out, "baseline banner printed"
+        assert "monitoring 3 port" in out, "baseline banner printed"
         # Baseline rows have a blank event marker and the full state row.
         # State column shows "-" because fast-gather (used by --watch) skips
         # _check_in_use to keep the poll loop fast on multi-port systems.
@@ -1238,8 +1235,9 @@ class TestWatchFlag:
     def test_watch_emits_add_and_remove_events(self, capsys, monkeypatch):
         # Arrange -- scripted sequence: baseline (1 port), then second
         # snapshot adds COM4 and removes COM3, then KeyboardInterrupt.
-        monkeypatch.setattr("sys.argv", ["termapy", "--watch"])
-        import termapy.port_control as pc
+        import argparse
+
+        from termapy import cli_flags
 
         baseline = _synthetic_facts(
             ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "ABC"),
@@ -1249,7 +1247,7 @@ class TestWatchFlag:
         )
         call_count = [0]
 
-        def _mock_gather(*args, **kwargs):
+        def _snapshots():
             call_count[0] += 1
             if call_count[0] == 1:
                 return baseline
@@ -1257,14 +1255,12 @@ class TestWatchFlag:
                 return changed
             raise KeyboardInterrupt
 
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", _mock_gather)
+        # time.sleep must be a no-op or the test hangs.
         monkeypatch.setattr("termapy.cli_flags.time.sleep", lambda s: None)
-
-        from termapy.entry import main
 
         # Act
         with pytest.raises(SystemExit):
-            main()
+            cli_flags.run_watch(argparse.Namespace(), source=_snapshots)
 
         # Assert -- '+' marker line for COM4 add, '-' marker line for
         # COM3 remove.  The marker is the first non-timestamp char

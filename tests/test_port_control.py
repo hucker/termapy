@@ -789,6 +789,7 @@ from termapy.port_control import (  # noqa: E402
     MATCH_URL,
     AmbiguousSerialNumberError,
     ChipFacts,
+    _build_demo_fleet,
     _gather_all_chip_facts,
     chip_field,
     chip_info,
@@ -801,25 +802,23 @@ from termapy.port_control import (  # noqa: E402
 class TestResolvePort:
     """resolve_port() translates a port spec into a concrete device name.
 
-    These tests use the DEMO_FLEET env-var hook to install a
-    deterministic three-port fleet (FTDI COM3 SN A1B2C3D4, Silicon
-    Labs COM4 SN 0001, Microsoft COM7 SN 020026702RYN040952).
+    These tests hand in ``_build_demo_fleet`` -- the same deterministic
+    three-port roster the ``TERMAPY_DEMO_FLEET`` variable installs (FTDI
+    COM3 SN A1B2C3D4, Silicon Labs COM4 SN 0001, Microsoft COM7 SN
+    020026702RYN040952) -- so the fleet is visible in each call rather
+    than armed by an environment the test has to remember to set.
     """
-
-    @pytest.fixture(autouse=True)
-    def _use_demo_fleet(self, monkeypatch):
-        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
 
     def test_literal_device_name_unchanged(self):
         # Act
-        actual = resolve_port("COM3")
+        actual = resolve_port("COM3", source=_build_demo_fleet)
 
         # Assert
         assert actual == "COM3", "literal device match returns that device"
 
     def test_serial_number_resolves_to_device(self):
         # Act
-        actual = resolve_port("A1B2C3D4")
+        actual = resolve_port("A1B2C3D4", source=_build_demo_fleet)
 
         # Assert
         expected = "COM3"
@@ -828,7 +827,7 @@ class TestResolvePort:
 
     def test_serial_number_case_insensitive(self):
         # Act
-        actual = resolve_port("a1b2c3d4")
+        actual = resolve_port("a1b2c3d4", source=_build_demo_fleet)
 
         # Assert
         expected = "COM3"
@@ -837,7 +836,7 @@ class TestResolvePort:
 
     def test_pipe_fallback_first_candidate_wins(self):
         # Act -- SN resolves, COM7 fallback never tried
-        actual = resolve_port("A1B2C3D4|COM7")
+        actual = resolve_port("A1B2C3D4|COM7", source=_build_demo_fleet)
 
         # Assert -- note fleet has COM7 so COM7 would also resolve;
         # test still proves order by checking we got the SN match, not COM7
@@ -847,7 +846,7 @@ class TestResolvePort:
 
     def test_pipe_fallback_second_wins_when_first_missing(self):
         # Act
-        actual = resolve_port("BOGUS_NO_MATCH|COM4")
+        actual = resolve_port("BOGUS_NO_MATCH|COM4", source=_build_demo_fleet)
 
         # Assert
         expected = "COM4"
@@ -856,28 +855,28 @@ class TestResolvePort:
 
     def test_reserved_demo_passes_through(self):
         # Act -- DEMO bypasses enumeration even when DEMO_FLEET is set
-        actual = resolve_port("DEMO")
+        actual = resolve_port("DEMO", source=_build_demo_fleet)
 
         # Assert
         assert actual == "DEMO", "DEMO is a reserved name"
 
     def test_reserved_demo_fail_passes_through(self):
         # Act
-        actual = resolve_port("DEMO_FAIL")
+        actual = resolve_port("DEMO_FAIL", source=_build_demo_fleet)
 
         # Assert
         assert actual == "DEMO_FAIL", "DEMO_FAIL is a reserved name"
 
     def test_pyserial_url_passes_through(self):
         # Act
-        actual = resolve_port("rfc2217://host:2217")
+        actual = resolve_port("rfc2217://host:2217", source=_build_demo_fleet)
 
         # Assert
         assert actual == "rfc2217://host:2217", "URLs are passed through"
 
     def test_all_candidates_missing_returns_last(self):
         # Act
-        actual = resolve_port("NOPE1|NOPE2|NOPE3")
+        actual = resolve_port("NOPE1|NOPE2|NOPE3", source=_build_demo_fleet)
 
         # Assert -- last candidate is what ``open_serial()`` will show
         # in its "Cannot open <X>" error, which is what the user most
@@ -919,17 +918,14 @@ class TestChipInfoResolvesSnSpec:
     gather_chip_facts matches literal device names only, so without
     resolution these failed with "No port matching" under an SN-based
     config -- even while connected.  Uses the demo fleet (COM3 SN
-    A1B2C3D4, an FTDI FT232R).
+    A1B2C3D4, an FTDI FT232R), handed in rather than set in the
+    environment.
     """
-
-    @pytest.fixture(autouse=True)
-    def _use_demo_fleet(self, monkeypatch):
-        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
 
     def test_chip_info_resolves_serial_number(self):
         # Arrange -- SN-based config: current_port is the SN, nothing typed.
         # Act
-        msgs, _ = chip_info("", "A1B2C3D4", connected_port="COM3")
+        msgs, _ = chip_info("", "A1B2C3D4", connected_port="COM3", source=_build_demo_fleet)
 
         # Assert
         texts = [text for text, _ in msgs]
@@ -942,7 +938,7 @@ class TestChipInfoResolvesSnSpec:
 
     def test_chip_field_resolves_serial_number(self):
         # Act -- /port.chip.model under an SN config.
-        msgs, _ = chip_field("model", "", "A1B2C3D4", connected_port="COM3")
+        msgs, _ = chip_field("model", "", "A1B2C3D4", connected_port="COM3", source=_build_demo_fleet)
 
         # Assert
         texts = [text for text, _ in msgs]
@@ -955,15 +951,14 @@ class TestChipInfoResolvesSnSpec:
 
 
 class TestResolvePortTrace:
-    """resolve_port_trace() builds a per-candidate diagnostic trace."""
+    """resolve_port_trace() builds a per-candidate diagnostic trace.
 
-    @pytest.fixture(autouse=True)
-    def _use_demo_fleet(self, monkeypatch):
-        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+    Runs against the demo roster, handed in through ``source=``.
+    """
 
     def test_single_candidate_literal_match(self):
         # Act
-        actual = resolve_port_trace("COM3")
+        actual = resolve_port_trace("COM3", source=_build_demo_fleet)
 
         # Assert
         expected = [("COM3", MATCH_LITERAL)]
@@ -971,7 +966,7 @@ class TestResolvePortTrace:
 
     def test_single_candidate_sn_match(self):
         # Act
-        actual = resolve_port_trace("A1B2C3D4")
+        actual = resolve_port_trace("A1B2C3D4", source=_build_demo_fleet)
 
         # Assert
         expected = [("A1B2C3D4", MATCH_SERIAL)]
@@ -979,7 +974,7 @@ class TestResolvePortTrace:
 
     def test_single_candidate_reserved(self):
         # Act
-        actual = resolve_port_trace("DEMO")
+        actual = resolve_port_trace("DEMO", source=_build_demo_fleet)
 
         # Assert
         expected = [("DEMO", MATCH_RESERVED)]
@@ -987,7 +982,7 @@ class TestResolvePortTrace:
 
     def test_single_candidate_url(self):
         # Act
-        actual = resolve_port_trace("rfc2217://host:2217")
+        actual = resolve_port_trace("rfc2217://host:2217", source=_build_demo_fleet)
 
         # Assert
         expected = [("rfc2217://host:2217", MATCH_URL)]
@@ -995,7 +990,7 @@ class TestResolvePortTrace:
 
     def test_fallback_chain_with_first_miss(self):
         # Act
-        actual = resolve_port_trace("BOGUS|COM4")
+        actual = resolve_port_trace("BOGUS|COM4", source=_build_demo_fleet)
 
         # Assert -- None marks the miss so the caller can say
         # "BOGUS: not found" in the error message.
@@ -1004,7 +999,7 @@ class TestResolvePortTrace:
 
     def test_fallback_chain_all_miss(self):
         # Act
-        actual = resolve_port_trace("NOPE1|NOPE2")
+        actual = resolve_port_trace("NOPE1|NOPE2", source=_build_demo_fleet)
 
         # Assert
         expected = [("NOPE1", None), ("NOPE2", None)]
@@ -1027,8 +1022,6 @@ class TestResolvePortTrace:
         # Assert -- ambiguous first, then literal fallback.
         expected = [("0001", "ambiguous"), ("COM7", MATCH_LITERAL)]
         assert actual == expected, f"got {actual}"
-
-
 
 
 class TestPortSourceLayers:

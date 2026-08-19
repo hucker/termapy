@@ -20,7 +20,7 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from termapy import cli_flags, port_control
+from termapy import cli_flags
 from termapy.port_control import ChipFacts
 
 pytestmark = pytest.mark.slow  # subprocess-spawning CLI flag tests
@@ -125,23 +125,18 @@ def _make_facts(**kw) -> ChipFacts:
 
 
 class TestPortsJsonShape:
-    def _run_ports_json(self, monkeypatch, facts_list):
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: facts_list,
-        )
+    def _run_ports_json(self, facts_list):
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True))
+            cli_flags.run_ports(_ports_args(json=True), source=lambda: facts_list)
         return buf.getvalue(), exc.value.code
 
-    def test_full_record_shape(self, monkeypatch):
+    def test_full_record_shape(self):
         # Arrange
         facts = _make_facts()
 
         # Act
-        out, code = self._run_ports_json(monkeypatch, [facts])
+        out, code = self._run_ports_json([facts])
 
         # Assert
         records = json.loads(out)
@@ -158,12 +153,12 @@ class TestPortsJsonShape:
             f"every documented field present; got {sorted(actual)}"
         )
 
-    def test_vid_pid_split_to_ints(self, monkeypatch):
+    def test_vid_pid_split_to_ints(self):
         # Arrange
         facts = _make_facts(vid_pid="0403:6001")
 
         # Act
-        out, _ = self._run_ports_json(monkeypatch, [facts])
+        out, _ = self._run_ports_json([facts])
 
         # Assert
         record = json.loads(out)[0]
@@ -171,35 +166,35 @@ class TestPortsJsonShape:
         assert record["pid"] == 0x6001, "pid as int"
         assert record["vid_pid"] == "0403:6001", "formatted vid_pid lowercase"
 
-    def test_in_use_is_boolean(self, monkeypatch):
+    def test_in_use_is_boolean(self):
         # Arrange -- ChipFacts.in_use is a string ("yes"/"no"/"yes (this session)").
         # The JSON record exposes a clean boolean.
         facts_yes = _make_facts(in_use="yes")
         facts_no = _make_facts(device="COM5", in_use="no")
 
         # Act
-        out, _ = self._run_ports_json(monkeypatch, [facts_yes, facts_no])
+        out, _ = self._run_ports_json([facts_yes, facts_no])
 
         # Assert
         records = json.loads(out)
         assert records[0]["in_use"] is True, "yes -> True"
         assert records[1]["in_use"] is False, "no -> False"
 
-    def test_no_ports_returns_empty_array_and_exits_1(self, monkeypatch):
+    def test_no_ports_returns_empty_array_and_exits_1(self):
         # Arrange + Act
-        out, code = self._run_ports_json(monkeypatch, [])
+        out, code = self._run_ports_json([])
 
         # Assert
         actual = json.loads(out)
         assert actual == [], "empty array on no ports"
         assert code == 1, "exit 1 when nothing matched"
 
-    def test_unknown_chip_serializes_as_null(self, monkeypatch):
+    def test_unknown_chip_serializes_as_null(self):
         # Arrange
         facts = _make_facts(model="unknown")
 
         # Act
-        out, _ = self._run_ports_json(monkeypatch, [facts])
+        out, _ = self._run_ports_json([facts])
 
         # Assert -- "unknown" becomes null so consumers can do
         # `select(.chip != null)` instead of string-matching the sentinel.
@@ -234,7 +229,7 @@ class TestChipsJsonShape:
 
 class TestMultiAxisFilters:
     @pytest.fixture
-    def fleet(self, monkeypatch):
+    def fleet(self):
         """Three mock ports across two manufacturers + chip types."""
         ftdi = _make_facts(
             device="COM3", manufacturer="FTDI",
@@ -248,47 +243,42 @@ class TestMultiAxisFilters:
             device="COM5", manufacturer="WCH",
             vid_pid="1A86:7523", serial="CH03", model="CH340",
         )
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [ftdi, cp210, ch340],
-        )
         return [ftdi, cp210, ch340]
 
-    def _run(self, **flags):
+    def _run(self, fleet, **flags):
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True, **flags))
+            cli_flags.run_ports(_ports_args(json=True, **flags), source=lambda: fleet)
         return json.loads(buf.getvalue())
 
     def test_vid_filter_hex(self, fleet):
-        actual = self._run(vid="0403")
+        actual = self._run(fleet, vid="0403")
         assert len(actual) == 1, "single match"
         assert actual[0]["device"] == "COM3", "FTDI matched"
 
     def test_vid_filter_with_0x_prefix(self, fleet):
-        actual = self._run(vid="0x10C4")
+        actual = self._run(fleet, vid="0x10C4")
         assert len(actual) == 1, "single match with 0x prefix"
         assert actual[0]["device"] == "COM4", "Silabs matched"
 
     def test_pid_filter(self, fleet):
-        actual = self._run(pid="7523")
+        actual = self._run(fleet, pid="7523")
         assert len(actual) == 1, "single PID match"
         assert actual[0]["device"] == "COM5", "CH340 matched"
 
     def test_mfg_substring_case_insensitive(self, fleet):
-        actual = self._run(mfg="silabs")
+        actual = self._run(fleet, mfg="silabs")
         assert len(actual) == 1, "case-insensitive match"
         assert actual[0]["manufacturer"] == "Silabs", "Silabs row"
 
     def test_sn_exact_match_case_insensitive(self, fleet):
-        actual = self._run(sn="ch03")
+        actual = self._run(fleet, sn="ch03")
         assert len(actual) == 1, "single SN match"
         assert actual[0]["serial_number"] == "CH03", "WCH row"
 
     def test_filters_and_together(self, fleet):
         # Arrange + Act -- vid AND mfg both narrow; both must match.
-        actual = self._run(vid="0403", mfg="ftdi")
+        actual = self._run(fleet, vid="0403", mfg="ftdi")
 
         # Assert
         assert len(actual) == 1, "AND of two filters"
@@ -298,7 +288,9 @@ class TestMultiAxisFilters:
         # Arrange + Act
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True, vid="dead"))
+            cli_flags.run_ports(
+                _ports_args(json=True, vid="dead"), source=lambda: fleet
+            )
 
         # Assert
         assert exc.value.code == 1, "exit 1 on no match"
@@ -308,7 +300,9 @@ class TestMultiAxisFilters:
     def test_invalid_vid_exits_2(self, fleet):
         # Arrange + Act
         with pytest.raises(SystemExit) as exc:
-            cli_flags.run_ports(_ports_args(json=True, vid="not-hex"))
+            cli_flags.run_ports(
+                _ports_args(json=True, vid="not-hex"), source=lambda: fleet
+            )
 
         # Assert -- exit 2 distinguishes "bad input" from "no match" (1).
         assert exc.value.code == 2, "exit 2 on invalid input"
@@ -349,19 +343,14 @@ class TestDriverColumn:
         # Assert
         assert "driver" not in actual, "driver column dropped when all blank"
 
-    def test_driver_appears_in_json(self, monkeypatch):
+    def test_driver_appears_in_json(self):
         # Arrange
         facts = _make_facts(driver="ftdi_sio")
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [facts],
-        )
 
         # Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True))
+            cli_flags.run_ports(_ports_args(json=True), source=lambda: [facts])
 
         # Assert
         record = json.loads(buf.getvalue())[0]
@@ -379,36 +368,22 @@ class TestReservedPortSynthesis:
     enumerated.
     """
 
-    def test_demo_not_in_unfiltered_listing(self, monkeypatch):
-        # Arrange -- no real ports; nothing should appear bare.
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [],
-        )
-
-        # Act
+    def test_demo_not_in_unfiltered_listing(self):
+        # Arrange + Act -- no real ports; nothing should appear bare.
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True))
+            cli_flags.run_ports(_ports_args(json=True), source=lambda: [])
 
         # Assert
         actual = json.loads(buf.getvalue())
         assert actual == [], "DEMO is not enumerated by default"
         assert exc.value.code == 1, "exit 1 on empty listing"
 
-    def test_demo_synthesized_when_named(self, monkeypatch):
-        # Arrange -- no real ports, but user names DEMO explicitly.
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [],
-        )
-
-        # Act
+    def test_demo_synthesized_when_named(self):
+        # Arrange + Act -- no real ports, but user names DEMO explicitly.
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True, ports="DEMO"))
+            cli_flags.run_ports(_ports_args(json=True, ports="DEMO"), source=lambda: [])
 
         # Assert
         records = json.loads(buf.getvalue())
@@ -422,36 +397,22 @@ class TestReservedPortSynthesis:
         assert actual["pid"] is None, "no PID for virtual port"
         assert actual["in_use"] is False, "synthesized as not-in-use"
 
-    def test_demo_fail_synthesized_when_named(self, monkeypatch):
-        # Arrange
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [],
-        )
-
-        # Act
+    def test_demo_fail_synthesized_when_named(self):
+        # Arrange + Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True, ports="DEMO_FAIL"))
+            cli_flags.run_ports(_ports_args(json=True, ports="DEMO_FAIL"), source=lambda: [])
 
         # Assert
         records = json.loads(buf.getvalue())
         assert len(records) == 1, "one synthetic record"
         assert records[0]["device"] == "DEMO_FAIL", "DEMO_FAIL preserved"
 
-    def test_unknown_reserved_name_still_errors(self, monkeypatch):
-        # Arrange -- a fake name that isn't reserved should not synthesize.
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [],
-        )
-
-        # Act
+    def test_unknown_reserved_name_still_errors(self):
+        # Arrange + Act -- a fake name that isn't reserved should not synthesize.
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True, ports="NOPE"))
+            cli_flags.run_ports(_ports_args(json=True, ports="NOPE"), source=lambda: [])
 
         # Assert -- empty array, exit 1; the synthesis only triggers for
         # the reserved names DEMO and DEMO_FAIL.
@@ -459,22 +420,17 @@ class TestReservedPortSynthesis:
         assert actual == [], "no synthesis for arbitrary names"
         assert exc.value.code == 1, "exit 1 on no match"
 
-    def test_demo_real_port_takes_precedence(self, monkeypatch):
+    def test_demo_real_port_takes_precedence(self):
         # Arrange -- if the OS somehow enumerates a port named "DEMO"
         # (shouldn't happen, but fence it), the real one wins.
         real_demo = _make_facts(
             device="DEMO", manufacturer="real-vendor", driver="usbser"
         )
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [real_demo],
-        )
 
         # Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True, ports="DEMO"))
+            cli_flags.run_ports(_ports_args(json=True, ports="DEMO"), source=lambda: [real_demo])
 
         # Assert -- real port's manufacturer wins, not the synthesized "termapy".
         record = json.loads(buf.getvalue())[0]
@@ -576,20 +532,15 @@ class TestLocationField:
     ``LocationInformation`` from the device's Enum registry key.
     """
 
-    def test_location_present_in_json_record(self, monkeypatch):
+    def test_location_present_in_json_record(self):
         # Arrange
         facts = _make_facts(device="COM7")
         facts.location = "1-2.3"
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [facts],
-        )
 
         # Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True))
+            cli_flags.run_ports(_ports_args(json=True), source=lambda: [facts])
 
         # Assert
         record = json.loads(buf.getvalue())[0]
@@ -597,20 +548,15 @@ class TestLocationField:
         expected = "1-2.3"
         assert actual == expected, "location surfaced in JSON"
 
-    def test_location_null_when_unknown(self, monkeypatch):
+    def test_location_null_when_unknown(self):
         # Arrange
         facts = _make_facts()
         facts.location = None
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [facts],
-        )
 
         # Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True))
+            cli_flags.run_ports(_ports_args(json=True), source=lambda: [facts])
 
         # Assert
         record = json.loads(buf.getvalue())[0]
@@ -641,7 +587,7 @@ class TestVendorLookup:
         assert vendor_for(0xDEAD) is None, "unknown VID -> None"
         assert vendor_for(None) is None, "None VID -> None"
 
-    def test_microchip_via_microsoft_driver(self, monkeypatch):
+    def test_microchip_via_microsoft_driver(self):
         """The breadcrumb case: descriptor says Microsoft (driver INF),
         VID 0x04D8 says Microchip (silicon).  JSON exposes both so the
         engineer can see the layering.
@@ -659,16 +605,11 @@ class TestVendorLookup:
             in_use="no",
             driver="usbser",
         )
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [facts],
-        )
 
         # Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True))
+            cli_flags.run_ports(_ports_args(json=True), source=lambda: [facts])
 
         # Assert -- all three fields visible, telling the full story.
         record = json.loads(buf.getvalue())[0]
@@ -682,7 +623,7 @@ class TestVendorLookup:
             "silicon vendor from VID lookup"
         )
 
-    def test_ftdi_all_three_fields_agree(self, monkeypatch):
+    def test_ftdi_all_three_fields_agree(self):
         # Arrange -- FTDI port: descriptor says FTDI, alias short-forms
         # to FTDI, VID 0x0403 also resolves to FTDI.  All three agree.
         from termapy.port_control import ChipFacts
@@ -696,16 +637,11 @@ class TestVendorLookup:
             in_use="no",
             driver="FTSER2K",
         )
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [facts],
-        )
 
         # Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True))
+            cli_flags.run_ports(_ports_args(json=True), source=lambda: [facts])
 
         # Assert
         record = json.loads(buf.getvalue())[0]
@@ -743,7 +679,7 @@ class TestVendorLookup:
         actual2 = _normalize_windows_location("1-8.3:x.1")
         assert actual2 == "1-8.3:x.1", "non-Windows format unchanged"
 
-    def test_silicon_labs_short_form_via_alias(self, monkeypatch):
+    def test_silicon_labs_short_form_via_alias(self):
         # Arrange -- USB_VENDORS uses the canonical "Silicon Labs", but
         # narrow-column display goes through usb_mfg.mfg() which folds
         # it to "SiLabs".  Verify the JSON record's `manufacturer` (the
@@ -759,16 +695,11 @@ class TestVendorLookup:
             model="CP2102",
             in_use="no",
         )
-        monkeypatch.setattr(
-            port_control,
-            "_gather_all_chip_facts",
-            lambda *a, **kw: [facts],
-        )
 
         # Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True))
+            cli_flags.run_ports(_ports_args(json=True), source=lambda: [facts])
 
         # Assert
         record = json.loads(buf.getvalue())[0]

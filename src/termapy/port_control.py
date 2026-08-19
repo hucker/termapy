@@ -295,7 +295,7 @@ def _result(msgs: list[Msg], **side_effects: Any) -> Result:
     return msgs, side_effects
 
 
-def list_ports() -> Result:
+def list_ports(*, source: PortSource | None = None) -> Result:
     """List available serial ports as a picker-style table.
 
     Output matches the TUI port picker and the ``--ports`` CLI flag:
@@ -303,6 +303,10 @@ def list_ports() -> Result:
     VID:PID / SN columns.  Width adapts to the current terminal so
     low-priority columns (speed, chip, vid_pid) drop before the row
     wraps.
+
+    Args:
+        source: Substitute port list to render instead of enumerating.
+            See ``resolve_port_source``.
 
     Returns:
         Messages: header, separator, then one row per port.
@@ -313,7 +317,7 @@ def list_ports() -> Result:
 
     # fast=True: the /port.list table has no in_use column, so don't run
     # the invasive probe just to discard the result.
-    facts_list = _gather_all_chip_facts(fast=True)
+    facts_list = _gather_all_chip_facts(fast=True, source=source)
     if not facts_list:
         return _result([_msg("No serial ports found", "yellow")])
     row_width = shutil.get_terminal_size((80, 24)).columns
@@ -908,11 +912,16 @@ def resolve_port_source(
        for.
     3. **Real hardware** -- returning None here means "go enumerate".
 
-    ``trust_env`` is what keeps layer 2 honest.  An environment variable
-    is process-global, so under a parallel test run one test setting it
-    changes what every other test in that worker sees.  A caller that
-    needs determinism passes ``trust_env=False`` (or an explicit
-    *source*) rather than manipulating global state.
+    ``trust_env`` is what keeps layer 2 honest: a caller that needs to
+    reach real hardware while the variable happens to be set opts out
+    here rather than deleting someone else's environment.
+
+    **Surfaces above this one take *source* only, not *trust_env*.**
+    ``list_ports``, ``chip_info``, ``chip_field``, ``port_info`` and the
+    ``cli_flags.run_*`` handlers all forward a *source* down to here and
+    leave layer 2 alone.  Deciding whether the environment may speak is
+    this layer's job; the layers above only need to be able to hand a
+    fleet down, and an injected one outranks the variable anyway.
 
     Args:
         source: Caller-supplied port list factory, or None.
@@ -1298,7 +1307,13 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
     return msgs
 
 
-def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
+def chip_info(
+    arg: str,
+    current_port: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
+) -> Result:
     """Show full chip info for one port, all ports, or the current port.
 
     Args:
@@ -1307,6 +1322,8 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
         current_port: The port name from ``cfg["serial"]["port"]``, used when arg
             is empty.
         connected_port: The port termapy currently has open, if any.
+        source: Substitute port list to report on instead of enumerating.
+            See ``resolve_port_source``.
 
     Returns:
         Messages with per-port chip information.
@@ -1315,7 +1332,7 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
 
     # All-ports mode
     if arg == "*":
-        all_facts = _gather_all_chip_facts(connected_port)
+        all_facts = _gather_all_chip_facts(connected_port, source=source)
         if not all_facts:
             return _result([_msg("No serial ports found", "yellow")])
         msgs: list[Msg] = []
@@ -1334,14 +1351,23 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
     # only, so without this /port.chip fails under an SN-based config even
     # while connected (port_info already resolves; this brings /port.chip
     # into line).
-    facts = gather_chip_facts(resolve_port(target, connected_port), connected_port)
+    facts = gather_chip_facts(
+        resolve_port(target, connected_port, source=source),
+        connected_port,
+        source=source,
+    )
     if facts is None:
         return _result([_msg(f"No port matching {target!r}", "yellow")])
     return _result(_format_facts_full(facts))
 
 
 def chip_field(
-    field: str, arg: str, current_port: str, connected_port: str = ""
+    field: str,
+    arg: str,
+    current_port: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
 ) -> Result:
     """Show a single field's value for one or more ports.
 
@@ -1351,6 +1377,9 @@ def chip_field(
             ``"*"`` for all connected ports.
         current_port: The port name from ``cfg["serial"]["port"]``, used when arg
             is empty.
+        connected_port: The port termapy currently has open, if any.
+        source: Substitute port list to query instead of enumerating.
+            See ``resolve_port_source``.
 
     Returns:
         Messages with one line per port (just the value if a single
@@ -1362,7 +1391,7 @@ def chip_field(
     arg = arg.strip()
 
     if arg == "*":
-        all_facts = _gather_all_chip_facts(connected_port)
+        all_facts = _gather_all_chip_facts(connected_port, source=source)
         if not all_facts:
             return _result([_msg("No serial ports found", "yellow")])
         msgs: list[Msg] = []
@@ -1377,7 +1406,11 @@ def chip_field(
         return _result([_msg("No current port set.", "red")])
     # Resolve SN / fallback specs before the literal-name lookup (see
     # chip_info -- keeps /port.chip.<field> working under an SN config).
-    facts = gather_chip_facts(resolve_port(target, connected_port), connected_port)
+    facts = gather_chip_facts(
+        resolve_port(target, connected_port, source=source),
+        connected_port,
+        source=source,
+    )
     if facts is None:
         return _result([_msg(f"No port matching {target!r}", "yellow")])
     value = getattr(facts, field)
@@ -1385,7 +1418,12 @@ def chip_field(
     return _result([_msg(display)])
 
 
-def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
+def port_info(
+    cfg: Mapping[str, Any],
+    ser: Any | None,
+    *,
+    source: PortSource | None = None,
+) -> Result:
     """Format comprehensive port status, frame, USB chip info, and live signals.
 
     Output is organized into three sections:
@@ -1402,6 +1440,8 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     Args:
         cfg: Config dict.
         ser: Serial-like object, or None if disconnected.
+        source: Substitute port list to resolve and report against instead
+            of enumerating.  See ``resolve_port_source``.
     """
     connected = ser is not None
     state = "connected" if connected else "disconnected"
@@ -1418,7 +1458,7 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
         actual = getattr(ser, "port", spec) or spec
     else:
         try:
-            actual = resolve_port(spec)
+            actual = resolve_port(spec, source=source)
         except AmbiguousSerialNumberError:
             actual = spec  # stay honest; chip section will skip
 
@@ -1460,7 +1500,7 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     port_name = actual
     connected_port = port_name if ser is not None else ""
     if port_name:
-        facts = gather_chip_facts(port_name, connected_port)
+        facts = gather_chip_facts(port_name, connected_port, source=source)
         if facts is not None:
             msgs.append(_msg(""))
             chip_rows: list[tuple[str, str]] = []

@@ -183,9 +183,13 @@ Issues = "https://github.com/hucker/termapy/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --cov=termapy --cov-report=term-missing -n auto"
+# loadgroup == load, except it honors @pytest.mark.xdist_group.  Needed so
+# tests sharing an exclusive resource (the hardware loopback: one process may
+# hold the port) land on a single worker instead of skipping each other out.
+addopts = "-v --cov=termapy --cov-report=term-missing -n auto --dist loadgroup"
 markers = [
     "slow: subprocess-spawning, real-serial-loopback, or sleep-based test (~80s of full-suite runtime).  Skip during fast iteration with -m 'not slow'.",
+    "hardware: needs a TX-RX-jumpered USB-serial adapter attached; found by serial number (TERMAPY_LOOPBACK_SN, default BG03U7VTA) and SKIPPED when absent, so CI and other machines are unaffected.  Run just these with -m hardware.",
 ]
 
 [tool.ty.environment]

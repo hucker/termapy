@@ -48,7 +48,14 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     from termapy.builtins.commands.var import _VARS
 
     ev = getattr(ctx.internal, "script_stop_event", None)
-    if ev is not None:
+    # The stop flag is the SCRIPT's, not ours.  Clearing it is only correct
+    # when /repeat is itself the outermost cancellable operation -- typed at
+    # the prompt, where a stale set() from an earlier Escape would otherwise
+    # abort this run before it starts.  Inside a script, clearing erases a
+    # stop the user just asked for: the UI acknowledges it, /repeat swallows
+    # it, and the script runs to completion anyway.
+    in_script = bool(ctx.internal.in_script())
+    if ev is not None and not in_script:
         ev.clear()
 
     stopped = False
@@ -69,7 +76,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         _VARS.pop(var_name, None)
 
     if stopped:
-        if ev is not None:
+        # Same rule on the way out: inside a script the stop must survive so
+        # the enclosing run aborts too (repl.run_script checks it before each
+        # line).  Interactively there is no enclosing run, so consume it.
+        if ev is not None and not in_script:
             ev.clear()
         ctx.io.result(f"Repeat stopped after {ran}/{count} iterations.")
         # Return how many iterations actually ran so scripts can detect

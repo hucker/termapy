@@ -9,6 +9,7 @@ serial-debugging work.
 
 | Date | Version | Commit | Reviewer(s) | Verdict (one line) |
 |---|---|---|---|---|
+| [2026-08-19](2026-08-19-v0.74.0-opus-5.md) | 0.74.0 | `1ee85bb` | Claude Opus 5 + 6 finders + 19 verifiers | Threading pass: design sound (non-blocking dispatch lock deadlock-free, RX batching well-tuned, no reader/transfer port contention); 3 mechanism gaps — unowned shared handles, teardown-by-timeout instead of join, global cancellation tokens. 1 reproduced data-integrity bug (stale reader closes the next connection's port); 2 shutdown hangs; documented threading model is inverted. |
 | [2026-07-14](2026-07-14-v0.72.0-opus-4.8.md) | 0.72.0 | `6dc5d72` | Claude Opus 4.8 + 3 Explore agents | Code-quality pass: core invariants intact (no layering leaks, value= contract 100%); debts localized — app.py size, /proto usage-string drift, ~12 helper-extraction duplications, 25/31 hardcoded prefixes; 2 minor bugs ({{filename}} synopsis, history-fallback divergence). Root cause: missing single owners; remediation is mechanism-first. |
 | [2026-07-03](2026-07-03-v0.71.1-fable-5.md) | 0.71.1 | `cc58a45` | Claude Fable 5 (finders) + orchestrator | Real tool, strong engine; **partial pass** — 1 killer (invasive port probe can reset boards) + parity/CI gaps to fix before "goto tool" claims. |
 | [2026-06-20](2026-06-20-v0.71.1-opus-4.8.md) | 0.71.1 | — | Claude Opus 4.8 (5 agents) | Remediation tracker: top-10 findings, most since fixed; open items 7 + A–F. |

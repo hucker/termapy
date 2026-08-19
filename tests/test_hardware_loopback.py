@@ -75,7 +75,15 @@ def loopback_device() -> str:
     Verifies the port genuinely echoes before handing it over -- see the
     SAFETY note in the module docstring.
     """
-    device = resolve_port(LOOPBACK_SN)
+    from termapy.port_control import AmbiguousSerialNumberError
+
+    try:
+        device = resolve_port(LOOPBACK_SN)
+    except AmbiguousSerialNumberError as exc:
+        # Two adapters advertising the same serial number.  Rare, but it must
+        # SKIP rather than error: absent-or-unusable hardware may never turn a
+        # run red on a machine that simply isn't the rig.
+        pytest.skip(f"serial number {LOOPBACK_SN!r} is ambiguous: {exc}")
     if device == LOOPBACK_SN:
         # resolve_port returns the spec verbatim when nothing matched.
         pytest.skip(f"no serial adapter with serial number {LOOPBACK_SN!r} attached")

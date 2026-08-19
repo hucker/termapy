@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
+import serial
 
 from termapy.defaults import DEFAULT_CFG
 
@@ -664,5 +666,128 @@ class TestSerialRxHandoff:
                     "it, not wait on an Event and proceed"
                 )
                 assert pilot.app._engine.is_connected is False, "engine disconnected"
+
+        _run(scenario)
+
+
+class _RaisingPort:
+    """A SerialPort whose write() fails, e.g. the adapter is unplugged mid-send.
+
+    Shaped like ``SerialPort`` for the two members ``_serial_write`` touches.
+    """
+
+    def __init__(self) -> None:
+        self.writes = 0
+
+    def write(self, data: bytes) -> None:
+        self.writes += 1
+        raise serial.SerialException("simulated unplug")
+
+
+class TestSharedStateRaces:
+    """Fields the reader thread nulls under the main thread's feet.
+
+    Each of these methods used to read a shared field, pass a truth check,
+    and then use the field -- so a teardown landing in that gap produced an
+    exception the handler did not catch.  The fixes bind the field to a
+    local and widen the caught set; these tests drive the *observable* half
+    (a handle that is closed, a widget that is gone, a port that fails),
+    which is what the uncaught exception rode in on.
+    """
+
+    def test_write_failure_is_reported_not_raised(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- a port that fails the way an unplugged adapter does
+                port = _RaisingPort()
+                app._engine._serial_port = port
+
+                # Act -- the send path every typed line and script uses
+                app._serial_write(b"AT\r")
+                await pilot.pause()
+
+                # Assert
+                assert port.writes == 1, "the write was attempted on the bound port"
+                text = app._get_screen_text()
+                assert "Write failed" in text, (
+                    "a failed send must be reported, not raised into the "
+                    f"dispatch worker. Screen was: {text!r}"
+                )
+                assert app.is_running, "a failed write must not kill the app"
+
+        _run(scenario)
+
+    def test_missing_port_logs_instead_of_writing(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- exactly what the reader's finally leaves behind
+                app._engine._serial_port = None
+                app._open_log()
+
+                # Act
+                app._serial_write(b"\x01\x02")
+                await pilot.pause()
+
+                # Assert
+                logged = Path(app._log_path()).read_text(encoding="utf-8")
+                assert "01 02" in logged, (
+                    "with no port the bytes go to the log as hex, not to a "
+                    f"None write. Log was: {logged!r}"
+                )
+
+        _run(scenario)
+
+    def test_log_line_survives_a_handle_closed_under_it(self, app_factory):
+        """``/log.delete`` closes ``log_fh`` from a dispatch worker.
+
+        The reader thread can already be inside ``_log_line`` when that
+        happens: the write then lands on a closed file, which raises
+        ``ValueError`` -- not the ``OSError`` the handler used to catch.
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app._open_log()
+                assert app.log_fh is not None, "a config on disk opens a log"
+                app.log_fh.close()  # the close half of /log.delete
+
+                # Act / Assert -- reaching the next line is the assertion
+                app._log_line("<", "arrives after the close")
+                await pilot.pause()
+                assert app.is_running, (
+                    "a log handle closed under the writer must be swallowed, "
+                    "not raised onto the reader thread"
+                )
+
+        _run(scenario)
+
+    def test_markup_write_survives_a_missing_output_widget(self, app_factory):
+        """``_write_output_markup`` was the one output helper with no guard.
+
+        Its siblings (``_status``, ``_set_status_bar``) already caught the
+        shutdown race; this one queried ``#output`` bare, so a plugin writing
+        markup during teardown raised ``NoMatches``.
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- the widget is gone, as during teardown
+                from textual.widgets import RichLog
+                await app.query_one("#output", RichLog).remove()
+                await pilot.pause()
+
+                # Act / Assert -- reaching the next line is the assertion
+                app._write_output_markup("[green]late markup[/green]")
+                assert app.is_running, (
+                    "markup written after #output is gone must be dropped, "
+                    "not raised"
+                )
 
         _run(scenario)

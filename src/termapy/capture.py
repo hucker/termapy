@@ -88,6 +88,11 @@ class CaptureEngine:
         self._raw: bool = False
         self._bytes: int = 0
         self._target: int = 0
+        # Latches when the byte target is hit.  The host stops the capture
+        # asynchronously (the reader posts "capdone" rather than blocking on
+        # the main thread), so without this the reader would keep appending
+        # past the target in the gap before ``stop()`` actually runs.
+        self._target_done: bool = False
         self._end: float = 0.0
         self._total: float = 0.0
         self._columns: list = []
@@ -231,6 +236,11 @@ class CaptureEngine:
         """
         if not self._fh or self._mode != "bin":
             return False
+        if self._target_done:
+            # Target already met; the pending stop simply has not run yet.
+            # Discarding here is what keeps "capture N bytes" exact now that
+            # the stop is asynchronous.
+            return True
 
         if self._hex_mode:
             text = data.decode("utf-8", errors="replace")
@@ -249,6 +259,7 @@ class CaptureEngine:
         if self._target and len(self._buf) >= self._target:
             self._buf = self._buf[: self._target]
             self._flush_bin()
+            self._target_done = True
             return True  # caller should call stop()
 
         if len(self._buf) >= 4096:
@@ -352,6 +363,7 @@ class CaptureEngine:
         self._raw = False
         self._bytes = 0
         self._target = 0
+        self._target_done = False
         self._end = 0.0
         self._total = 0.0
         self._columns = []

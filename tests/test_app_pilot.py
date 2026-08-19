@@ -505,3 +505,133 @@ class TestFindBar:
                 )
 
         _run(scenario)
+
+
+class TestSerialRxHandoff:
+    """The reader hands RX to the main thread WITHOUT blocking on it.
+
+    Blocking was the root of three defects: the reader stalled long enough for
+    the driver to silently drop bytes, and ``disconnect()`` waited on the
+    reader from the very thread the reader was waiting for, so teardown was
+    guaranteed to time out (docs/review/2026-08-19-v0.74.0-opus-5.md, T2/T15).
+    """
+
+    def test_enqueue_never_blocks_and_posts_one_wakeup(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- simulate the reader thread queueing three chunks
+                # back to back with no drain in between.
+                for i in range(3):
+                    pilot.app._rx_enqueue(("lines", [f"line {i}"]))
+
+                # Assert -- all three are buffered, but only ONE wake-up is
+                # in flight; that conflation is what bounds the message queue.
+                assert len(pilot.app._rx_events) == 3, "every event is retained"
+                assert pilot.app._rx_posted is True, "a wake-up is pending"
+
+                # Act -- let the handler run.
+                await pilot.pause()
+
+                # Assert
+                assert pilot.app._rx_events == [], "handler drained the buffer"
+                assert pilot.app._rx_posted is False, "re-armed for the next event"
+                text = pilot.app._get_screen_text()
+                for i in range(3):
+                    assert f"line {i}" in text, f"line {i} should have rendered"
+
+        _run(scenario)
+
+    def test_clear_does_not_overtake_the_lines_before_it(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- ordering across event KINDS is the reason they
+                # share one list: a clear-screen escape must wipe the lines
+                # queued before it and keep the ones after.
+                pilot.app._rx_enqueue(("lines", ["BEFORE-CLEAR"]))
+                pilot.app._rx_enqueue(("clear",))
+                pilot.app._rx_enqueue(("lines", ["AFTER-CLEAR"]))
+
+                # Act
+                await pilot.pause()
+
+                # Assert
+                text = pilot.app._get_screen_text()
+                assert "AFTER-CLEAR" in text, "post-clear output must survive"
+                assert "BEFORE-CLEAR" not in text, (
+                    "the clear must be applied AFTER the lines queued before "
+                    "it, not reordered ahead of them"
+                )
+
+        _run(scenario)
+
+    def test_backlog_is_bounded_and_the_drop_is_reported(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- a main thread far enough behind that the backlog
+                # exceeds the cap.  Unlike the driver-level loss this design
+                # replaced, the drop must be counted and surfaced.
+                limit = pilot.app._RX_EVENT_LIMIT
+                for i in range(limit + 50):
+                    pilot.app._rx_enqueue(("lines", [f"flood {i}"]))
+
+                # Assert -- bounded before any drain happens.
+                actual = len(pilot.app._rx_events)
+                assert actual == limit, f"backlog capped at {limit}, got {actual}"
+                assert pilot.app._rx_dropped == 50, "dropped lines are counted"
+
+                # Act
+                await pilot.pause()
+
+                # Assert -- the newest data survives and the loss is visible.
+                text = pilot.app._get_screen_text()
+                assert "fell behind" in text, (
+                    "dropping display data must be reported, never silent"
+                )
+                assert f"flood {limit + 49}" in text, "newest lines are kept"
+
+        _run(scenario)
+
+    def test_device_output_reaches_the_screen_through_the_real_reader(
+        self, app_factory
+    ):
+        """End-to-end: read_loop -> on_lines -> _rx_enqueue -> handler -> RichLog.
+
+        The other tests in this class drive ``_rx_enqueue`` directly, so they
+        would still pass if the reader were wired to the wrong callback. This
+        one connects the real DEMO device and waits for its reply to render.
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- real connect, real reader thread.
+                connected = pilot.app._connect()
+                assert connected is True, "DEMO port should connect"
+                await pilot.pause()
+
+                # Act -- ask the simulated device something it answers.
+                pilot.app._serial_write(b"AT\r")
+
+                # Assert -- poll rather than sleep a fixed time: passes the
+                # instant the line lands, and only fails on a real stall.
+                deadline = asyncio.get_running_loop().time() + 5.0
+                text = ""
+                while asyncio.get_running_loop().time() < deadline:
+                    await pilot.pause()
+                    text = pilot.app._get_screen_text()
+                    if "OK" in text:
+                        break
+                    await asyncio.sleep(0.02)
+                assert "OK" in text, (
+                    "device reply never reached the screen -- the reader's "
+                    f"non-blocking handoff is broken. Screen was: {text!r}"
+                )
+                pilot.app._disconnect()
+
+        _run(scenario)

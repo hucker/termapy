@@ -27,14 +27,16 @@ from termapy.serial_port import SerialPort, SerialReader
 # its own generation (see ``_reader_gen``), so a reader that outlives this
 # wait can no longer close a newer connection's port.
 #
-# This wait is therefore a courtesy, not a correctness gate -- it lets the
-# common case hand off cleanly.  Do NOT restore a timing-based argument for
-# it: the reader's stall is bounded by MAIN-THREAD AVAILABILITY, not by
-# ``config.SERIAL_READ_TIMEOUT_S``, because ``on_lines`` blocks in
-# ``call_from_thread``.  A disconnect issued from the main thread blocks that
-# very thread, so whenever RX is in flight this wait is guaranteed to expire.
-# Fixing that means making ``on_lines`` non-blocking and joining the reader
-# thread outright; until then, expect the full wait on a busy disconnect.
+# The wait itself is now a courtesy rather than a correctness gate.  It used
+# to be neither: the reader's stall was bounded by MAIN-THREAD AVAILABILITY,
+# not by ``config.SERIAL_READ_TIMEOUT_S``, because every RX callback blocked in
+# ``call_from_thread`` -- and a disconnect issued from the main thread blocks
+# that very thread, so with RX in flight this wait was *guaranteed* to expire.
+# The frontends now hand RX off without blocking (see ``app._rx_enqueue``), so
+# the reader can always reach its stop check within one read timeout and the
+# original ``SERIAL_READ_TIMEOUT_S << READER_STOP_WAIT_S`` reasoning holds
+# again.  Any new callback added to ``read_loop`` MUST NOT block on the main
+# thread, or both this wait and the teardown join regress.
 READER_STOP_WAIT_S = 0.3
 
 

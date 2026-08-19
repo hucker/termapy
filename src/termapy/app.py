@@ -163,6 +163,15 @@ PALETTE_HOTKEY = "Alt+P" if os.environ.get("TERM_PROGRAM") == "vscode" else "Ctr
 class SerialTerminal(TerminalHost, App):
     """Textual app: scrolling output + local input line."""
 
+    class SerialRx(Message):
+        """Posted when the reader has queued RX events to render.
+
+        Carries no payload: the events live in ``_rx_events`` and the
+        handler drains whatever has accumulated.  This conflation is the
+        point -- at most one of these is ever in flight, so a slow main
+        thread cannot make the message queue grow without bound.
+        """
+
     class ScriptStarted(Message):
         """Posted when a script starts or nests deeper."""
 
@@ -471,6 +480,18 @@ class SerialTerminal(TerminalHost, App):
         self._show_line_numbers: bool = cfg.get("line_no", False)
         self._line_counter: int = 0
         self._xfer_cancel = threading.Event()
+        # RX handoff, reader thread -> main thread.  The reader appends
+        # ordered events here and posts at most ONE SerialRx message; the
+        # handler drains the lot.  Deliberately NOT call_from_thread: that
+        # blocks the reader until the event loop services it, which (a) stalls
+        # the reader long enough for the driver to silently drop bytes (see
+        # config.SERIAL_RX_BUFFER_BYTES) and (b) deadlocks teardown, because
+        # disconnect() waits on the reader from the very thread the reader is
+        # waiting for.  Fire-and-forget removes both.
+        self._rx_lock = threading.Lock()
+        self._rx_events: list[tuple] = []
+        self._rx_posted = False
+        self._rx_dropped = 0
         # Serializes command execution.  Every command path -- typed input,
         # UI buttons, palette, and each script line -- funnels through
         # _dispatch_single / _dispatch_quiet, which both mutate shared
@@ -2523,6 +2544,89 @@ class SerialTerminal(TerminalHost, App):
         self._disconnect()
         self.exit()
 
+    # Cap on RX events held between drains.  Reached only when the main
+    # thread is far enough behind that the display could never show the
+    # backlog anyway (RichLog's own max_lines is 10_000), so dropping the
+    # OLDEST pending events loses nothing a user could have read -- and
+    # unlike the driver-level loss this fix removes, it is counted and
+    # reported rather than silent.
+    _RX_EVENT_LIMIT = 2000
+
+    def _rx_enqueue(self, event: tuple) -> None:
+        """Queue an ordered RX event for the main thread.  Reader thread only.
+
+        Never blocks: appends under a short lock and posts a wake-up only
+        when one is not already pending.  Ordering across event kinds is
+        preserved because they share this one list -- a clear-screen must
+        not overtake the lines it was meant to follow.
+
+        Args:
+            event: ``("lines", [...])``, ``("clear",)`` or ``("capdone",)``.
+        """
+        post = False
+        with self._rx_lock:
+            self._rx_events.append(event)
+            overflow = len(self._rx_events) - self._RX_EVENT_LIMIT
+            if overflow > 0:
+                dropped = self._rx_events[:overflow]
+                del self._rx_events[:overflow]
+                self._rx_dropped += sum(
+                    len(e[1]) if e[0] == "lines" else 1 for e in dropped
+                )
+            if not self._rx_posted:
+                self._rx_posted = True
+                post = True
+        if not post:
+            return
+        try:
+            # Returns False (rather than raising) once the pump is closing.
+            delivered = self.post_message(self.SerialRx())
+        except RuntimeError:
+            # Pump gone during teardown -- same guard as the script lifecycle
+            # posts use.
+            delivered = False
+        if not delivered:
+            # Nothing will drain us, so clear the latch: leaving it set would
+            # suppress every future wake-up if the app outlives this.
+            with self._rx_lock:
+                self._rx_posted = False
+
+    @on(SerialRx)
+    def _on_serial_rx(self) -> None:
+        """Drain queued RX events on the main thread, in arrival order.
+
+        Consecutive ``lines`` events are merged into one ``_write_batch``
+        call, so falling behind produces FEWER, larger renders rather than a
+        growing backlog of small ones.
+        """
+        with self._rx_lock:
+            events, self._rx_events = self._rx_events, []
+            self._rx_posted = False
+            dropped, self._rx_dropped = self._rx_dropped, 0
+        if self._shutting_down:
+            return
+        if dropped:
+            self._status(
+                f"Display fell behind -- dropped {dropped} lines "
+                f"(data was received; the terminal could not keep up)",
+                "yellow",
+            )
+        pending: list[str] = []
+        for event in events:
+            if event[0] == "lines":
+                pending.extend(event[1])
+                continue
+            # A non-line event must observe everything queued before it.
+            if pending:
+                self._write_batch(pending)
+                pending = []
+            if event[0] == "clear":
+                self._clear_output()
+            elif event[0] == "capdone":
+                self._cap_stop()
+        if pending:
+            self._write_batch(pending)
+
     @work(thread=True)
     def _run_reader(self) -> None:
         """Background thread: delegates to SerialEngine.read_loop."""
@@ -2543,9 +2647,9 @@ class SerialTerminal(TerminalHost, App):
 
         try:
             self._engine.read_loop(
-                on_lines=lambda lines: self.call_from_thread(self._write_batch, lines),
-                on_clear=lambda: self.call_from_thread(self._clear_output),
-                on_capture_done=lambda: self.call_from_thread(self._cap_stop),
+                on_lines=lambda lines: self._rx_enqueue(("lines", lines)),
+                on_clear=lambda: self._rx_enqueue(("clear",)),
+                on_capture_done=lambda: self._rx_enqueue(("capdone",)),
                 on_error=on_error,
                 on_disconnect=on_disconnect,
             )

@@ -121,6 +121,74 @@ class TestDrain:
         assert actual == 5, "3 + 2 bytes drained"
         assert rx_queue.empty(), "queue is empty"
 
+    def test_drain_purges_the_driver_buffer_too(self):
+        """Emptying the queue alone leaves the driver's backlog to arrive later.
+
+        The reader thread only moves bytes into the queue when it runs, so
+        anything parked in the driver survives a queue-only drain and lands in
+        the caller's next reply.  Measured at ~128 KB of stale bytes on real
+        hardware before this purge existed
+        (docs/review/2026-08-19-v0.74.0-opus-5.md).
+        """
+        # Arrange -- a port that records whether it was purged.
+        class RecordingPort:
+            is_open = True
+
+            def __init__(self):
+                self.purged = 0
+
+            def write(self, data):
+                pass
+
+            def reset_input_buffer(self):
+                self.purged += 1
+
+        port = RecordingPort()
+        rx_queue: queue.Queue[bytes] = queue.Queue()
+        rx_queue.put(b"stale")
+        sp = SerialPort(port=port, rx_queue=rx_queue)
+
+        # Act
+        actual = sp.drain()
+
+        # Assert
+        assert actual == 5, "queue bytes are still counted"
+        assert port.purged == 1, (
+            "drain must purge the driver buffer, or pre-drain bytes arrive "
+            "afterwards and corrupt the next request/response reply"
+        )
+
+    def test_drain_tolerates_a_port_that_cannot_purge(self):
+        # Arrange -- duck-typed ports need not implement the full pyserial API.
+        class MinimalPort:
+            is_open = True
+
+            def write(self, data):
+                pass
+
+        rx_queue: queue.Queue[bytes] = queue.Queue()
+        rx_queue.put(b"ab")
+        sp = SerialPort(port=MinimalPort(), rx_queue=rx_queue)
+
+        # Act / Assert -- must not raise.
+        actual = sp.drain()
+        assert actual == 2, "queue still drains when the port cannot purge"
+
+    def test_drain_clears_pending_demo_output(self):
+        # Arrange -- FakeSerial implements the purge, so the demo device
+        # behaves like a real one rather than replaying pre-drain output.
+        fake = FakeSerial()
+        fake.write(b"AT\r")
+        assert fake.in_waiting > 0, "demo device should have queued a reply"
+        sp = SerialPort(port=fake, rx_queue=queue.Queue())
+
+        # Act
+        sp.drain()
+
+        # Assert
+        actual = fake.in_waiting
+        assert actual == 0, "drain should discard the demo device's pending bytes"
+
 
 # -- Read Raw ------------------------------------------------------------------
 

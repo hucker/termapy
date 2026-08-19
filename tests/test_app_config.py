@@ -1137,3 +1137,87 @@ class TestOpenSerialUrl:
 
         # Assert
         assert data == b"test\r", "loopback returns written bytes"
+
+
+class TestOpenSerialRxBuffer:
+    """pyserial hardcodes a 4 KB driver RX buffer on Windows.
+
+    That is small enough that any main-thread stall longer than
+    ``4096 / (baud / 10)`` ms makes the driver silently discard the overflow.
+    Measured on a hardware loopback: a 60 ms stall at 921600 lost 21% of the
+    stream, 0% after widening the buffer
+    (docs/review/2026-08-19-v0.74.0-opus-5.md).
+    """
+
+    def test_buffer_is_widened_when_the_port_supports_it(self):
+        # Arrange -- stand in for serialwin32, the only backend with the API.
+        from termapy.config import SERIAL_RX_BUFFER_BYTES, request_rx_buffer
+
+        class WinLikePort:
+            def __init__(self):
+                self.rx_size = None
+
+            def set_buffer_size(self, rx_size=4096, tx_size=None):
+                self.rx_size = rx_size
+
+        port = WinLikePort()
+
+        # Act
+        accepted = request_rx_buffer(port)
+
+        # Assert
+        assert accepted is True, "a port exposing the API should be widened"
+        actual = port.rx_size
+        assert actual == SERIAL_RX_BUFFER_BYTES, (
+            "must widen past pyserial's 4 KB default, or a stalled main "
+            "thread silently drops received bytes"
+        )
+
+    def test_driver_refusal_is_reported_not_raised(self):
+        # Arrange -- best-effort: the port is usable at the default size, so a
+        # refusal must not propagate and fail the open.
+        from termapy.config import request_rx_buffer
+
+        class RefusingPort:
+            def set_buffer_size(self, rx_size=4096, tx_size=None):
+                raise OSError("driver refused")
+
+        # Act
+        actual = request_rx_buffer(RefusingPort())
+
+        # Assert
+        assert actual is False, "a refused request reports False rather than raising"
+
+    def test_port_without_the_api_is_left_alone(self):
+        # Arrange -- set_buffer_size exists only on serialwin32; POSIX and URL
+        # backends must be untouched rather than erroring.
+        from termapy.config import request_rx_buffer
+
+        class PosixLikePort:
+            pass
+
+        # Act
+        actual = request_rx_buffer(PosixLikePort())
+
+        # Assert
+        assert actual is False, "no API means no request, and no exception"
+
+    def test_real_url_port_still_opens_and_works(self):
+        # Arrange -- end-to-end through open_serial on a backend with no
+        # set_buffer_size, proving the guard does not break normal opens.
+        cfg = _cfg_with(port="loop://", baud_rate=115200)
+
+        # Act
+        ser = open_serial(cfg)
+        try:
+            has_api = hasattr(ser, "set_buffer_size")
+            ser.write(b"ok")
+            import time
+            time.sleep(0.05)
+            data = ser.read(2)
+        finally:
+            ser.close()
+
+        # Assert
+        assert has_api is False, "loop:// has no set_buffer_size -- guard is required"
+        assert data == b"ok", "port still usable without the buffer request"

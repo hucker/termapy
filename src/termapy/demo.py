@@ -268,6 +268,16 @@ class FakeSerial:
                 return b""
             time.sleep(0.001)
 
+    def reset_input_buffer(self) -> None:
+        """Discard simulated bytes not yet read (pyserial API parity).
+
+        ``SerialPort.drain`` calls this so a drain really does clear
+        everything pending; without it the demo device would keep handing
+        back pre-drain output and behave unlike a real port.
+        """
+        with self._lock:
+            self._output_buf.clear()
+
     def close(self) -> None:
         """Close the simulated port."""
         self._is_open = False

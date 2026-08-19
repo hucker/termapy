@@ -102,10 +102,24 @@ class SerialPort:
         return collector.flush(time.monotonic()) or b""
 
     def drain(self) -> int:
-        """Discard all pending bytes in the raw RX queue.
+        """Discard all pending input, in the RX queue AND in the driver.
+
+        Emptying the queue alone is not enough: the reader thread only moves
+        bytes into it when it runs, so anything still parked in the driver's
+        RX buffer survives the drain and arrives afterwards -- landing in
+        whatever reply the caller goes on to read.  Every request/response
+        path (``/ping``, ``/proto.*``, profiles) drains first precisely to
+        get a clean slate, so the driver buffer has to go too.
+
+        Measured on a hardware loopback with the reader stalled: draining the
+        queue alone let ~5 KB of stale bytes hit the next reply at pyserial's
+        4 KB default, and ~128 KB at the buffer size termapy now requests.
+        Purging drops both to zero.  Bytes still in flight on the wire at
+        purge time cannot be caught by any buffer policy and still arrive.
 
         Returns:
-            Number of bytes discarded.
+            Number of bytes discarded from the queue.  Driver-side bytes are
+            purged without being counted -- they were never handed to us.
         """
         count = 0
         while not self._rx_queue.empty():
@@ -113,6 +127,15 @@ class SerialPort:
                 count += len(self._rx_queue.get_nowait())
             except queue.Empty:
                 break
+        # Duck-typed ports (FakeSerial and friends) may not implement it;
+        # a port that cannot purge is not a reason to fail the drain.
+        reset = getattr(self._port, "reset_input_buffer", None)
+        if reset is not None:
+            import serial as _serial
+            try:
+                reset()
+            except (OSError, _serial.SerialException):
+                pass
         return count
 
     def wait_for_data(self, timeout_ms: int = 250) -> bool:

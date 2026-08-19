@@ -91,6 +91,9 @@ class MCPHost(TerminalHost):
     # loop is alive at that moment, not to import time).  Declared
     # here so type checkers can see the attribute.
     _run_lock: asyncio.Lock | None = None
+    # Lazily attached by ``_command_executor``: ONE dispatch worker for the
+    # life of the host.  See that function for why it is not per-call.
+    _cmd_executor: ThreadPoolExecutor | None = None
 
     def __init__(
         self,
@@ -698,14 +701,19 @@ class MCPHost(TerminalHost):
                         self.ctx._call_level = saved_call_level
 
                 ctx_snapshot = contextvars.copy_context()
-                with ThreadPoolExecutor(max_workers=1) as ex:
-                    fut = loop.run_in_executor(ex, ctx_snapshot.run, _run_sync)
-                    try:
-                        result = await asyncio.wait_for(fut, timeout=timeout_s)
-                    except (asyncio.TimeoutError, FutTimeout):
-                        result = CmdResult.fail(
-                            msg=f"timeout after {format_duration(timeout_s)}"
-                        )
+                fut = loop.run_in_executor(
+                    _command_executor(self), ctx_snapshot.run, _run_sync
+                )
+                try:
+                    result = await asyncio.wait_for(fut, timeout=timeout_s)
+                except (asyncio.TimeoutError, FutTimeout):
+                    # The worker keeps running -- a blocking dispatch cannot
+                    # be cancelled.  timeout_s bounds the CALLER's wait, not
+                    # the device operation; the shared worker keeps the next
+                    # dispatch from overlapping this one.
+                    result = CmdResult.fail(
+                        msg=f"timeout after {format_duration(timeout_s)}"
+                    )
             finally:
                 output_lines = _buffer.get() or []
                 _buffer.reset(token)
@@ -918,6 +926,38 @@ def _build_server(host: MCPHost) -> Any:
 # stays focused on lifecycle / sinks.  The async lock + dispatch + buffer
 # pattern is MCP-specific glue; keeping it adjacent to the server wiring
 # above makes the data flow easier to follow.
+
+
+def _command_executor(host: MCPHost) -> ThreadPoolExecutor:
+    """Lazily attach (and reuse) the host's single dispatch worker.
+
+    Deliberately NOT a per-call ``with ThreadPoolExecutor(...)``, which is
+    what this was:
+
+    1. ``__exit__`` calls ``shutdown(wait=True)``, which **joins the worker
+       on the event-loop thread** -- after ``asyncio.wait_for`` has already
+       given up on it.  The worker is running a blocking dispatch that
+       nothing can cancel, so the join lasts as long as the command does:
+       ``timeout_s`` returned the right shape arbitrarily late, and every
+       other MCP call plus the async_events pipeline starved behind it.
+       (``tests/test_mcp_server.py`` carried ``@pytest.mark.slow  # ~5s``
+       on a ``timeout_s=0.3`` call -- the symptom, annotated as expected.)
+    2. Abandoning a per-call executor instead would leave the timed-out
+       dispatch running while the NEXT call started its own worker --
+       concurrent dispatch against a single-threaded ReplEngine.  One
+       shared worker queues them instead, which is the same serialization
+       the join provided, without blocking the loop to get it.
+
+    The worker is not shut down explicitly: it lives as long as the host,
+    and a dispatch still in flight at exit is joined by the interpreter's
+    own atexit hook -- the same wait the old ``__exit__`` did, but at
+    process end rather than in the middle of a live session.
+    """
+    ex = getattr(host, "_cmd_executor", None)
+    if ex is None:
+        ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mcp-cmd")
+        host._cmd_executor = ex
+    return ex
 
 
 def _serialize_lock(host: MCPHost) -> asyncio.Lock:

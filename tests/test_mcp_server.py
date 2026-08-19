@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -391,13 +392,61 @@ class TestRunCommandErrors:
         assert result["success"] is False, "no port = no send"
         assert "Not connected" in result["error"], "error says disconnected"
 
-    @pytest.mark.slow  # ~5s: the /delay actually sleeps in the worker thread
     def test_timeout_returns_failure(self, host):
-        # Arrange / Act — /delay 5s with timeout_s=0.3
-        result = asyncio.run(host.run_command_async("/delay 5s", "normal", 0.3))
+        """No longer slow: the timeout used to be followed by a join.
+
+        This carried ``@pytest.mark.slow  # ~5s`` for a ``timeout_s=0.3``
+        call -- the executor's ``__exit__`` joined the worker on the event
+        loop, so the call returned only when the /delay finished.  The
+        symptom was annotated rather than diagnosed (T11).
+        """
+        # Arrange / Act -- /delay 1s with timeout_s=0.2
+        started = time.monotonic()
+        result = asyncio.run(host.run_command_async("/delay 1s", "normal", 0.2))
+        elapsed = time.monotonic() - started
+
         # Assert
         assert result["success"] is False, "timeout fails"
         assert "timeout" in result["error"].lower(), "error names timeout"
+        assert elapsed < 0.7, (
+            "the call must return on its timeout, not when the abandoned "
+            f"dispatch finishes; took {elapsed:.2f}s for a 0.2s timeout"
+        )
+
+    def test_the_event_loop_keeps_running_during_a_timeout(self, host):
+        """The join starved everything else on the loop, not just the caller.
+
+        async_events, other tool calls, and the MCP transport itself all
+        share this event loop.
+        """
+        async def scenario():
+            ticks = 0
+
+            async def ticker() -> None:
+                nonlocal ticks
+                while True:
+                    await asyncio.sleep(0.05)
+                    ticks += 1
+
+            beat = asyncio.create_task(ticker())
+            started = time.monotonic()
+            result = await host.run_command_async("/delay 1s", "normal", 0.3)
+            elapsed = time.monotonic() - started
+            beat.cancel()
+            return result, ticks, elapsed
+
+        # Act
+        result, ticks, elapsed = asyncio.run(scenario())
+
+        # Assert -- density, not count.  A count alone proves nothing: the
+        # ticks earned before the timeout satisfy it whether or not the loop
+        # then froze for the rest of the call.
+        possible = elapsed / 0.05
+        assert result["success"] is False, "the call still times out"
+        assert ticks >= possible * 0.5, (
+            "the loop must stay live for the WHOLE call; got {} ticks in "
+            "{:.2f}s, which allows about {:.0f}".format(ticks, elapsed, possible)
+        )
 
 
 # ── Capture artifact tracking ───────────────────────────────────────────────

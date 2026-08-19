@@ -896,3 +896,139 @@ class TestDispatchContention:
                 )
 
         _run(scenario)
+
+
+class TestMarshalling:
+    """Every worker-thread path onto a widget must go through the main thread."""
+
+    def test_the_app_owns_its_main_thread_id(self, app_factory):
+        """D4: the marshalling decision no longer reads Textual private API.
+
+        ``App._thread_id`` is private, set by ``_thread_init`` and zeroed
+        after shutdown; four output helpers branch on it.
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Assert -- on_mount stamped the loop thread, which is the
+                # thread this scenario runs on.
+                actual = app._main_thread_id
+                expected = threading.get_ident()
+                assert actual == expected, (
+                    "on_mount runs on the event-loop thread, so that is the "
+                    f"id to compare against; got {actual} vs {expected}"
+                )
+
+        _run(scenario)
+
+    def test_status_from_a_worker_reaches_the_screen(self, app_factory):
+        """The id is only useful if it still routes a worker's output."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- exactly what a dispatch worker does
+                done = threading.Event()
+
+                def worker() -> None:
+                    app._status("from a worker", "green")
+                    done.set()
+
+                threading.Thread(target=worker, daemon=True).start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while not done.is_set() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await pilot.pause()
+
+                # Assert
+                assert done.is_set(), "the worker's status call must not park"
+                text = app._get_screen_text()
+                assert "from a worker" in text, (
+                    f"off-main status must marshal onto #output, got {text!r}"
+                )
+
+        _run(scenario)
+
+    def test_find_bar_updates_are_marshalled(self, app_factory):
+        """T12: the one internal-handle slot wired without marshalling.
+
+        ``/find`` runs on a dispatch worker and mutates widgets, while
+        ``_write_batch`` auto-dismisses the overlay from the main thread.
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                internal = app.repl.ctx.internal
+
+                # Assert -- the slot is a marshalling wrapper, not the bare
+                # method.  This is the defect itself: every sibling slot
+                # forwards through _on_main or call_later.
+                assert internal.update_find_bar != app._update_find_bar, (
+                    "update_find_bar must be wired through the main-thread "
+                    "forwarder, not bound straight to the widget mutator"
+                )
+
+                # Act -- drive it from a worker, as /find does
+                done = threading.Event()
+                threading.Thread(
+                    target=lambda: (internal.update_find_bar(None), done.set()),
+                    daemon=True,
+                ).start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while not done.is_set() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await pilot.pause()
+
+                # Assert
+                assert done.is_set(), "the worker's find-bar update must not park"
+                from textual.widgets import RichLog
+                assert app.query_one("#output", RichLog).display is True, (
+                    "a None state hides the frozen view and restores #output"
+                )
+
+        _run(scenario)
+
+
+class TestConfirmIsStopAware:
+    """T14: ``_confirm`` parked on an unbounded ``event.wait()``.
+
+    The dialog's own bindings cover the normal path, but a stop or a
+    shutdown with the modal up left the worker waiting forever -- and
+    teardown joins the threads workers run on.
+    """
+
+    def test_a_script_stop_releases_a_waiting_confirm(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- a worker parked on the dialog, as /confirm is
+                box: list = []
+                worker = threading.Thread(
+                    target=lambda: box.append(app._confirm("Proceed?")),
+                    daemon=True,
+                )
+                worker.start()
+                await asyncio.sleep(0.3)
+                assert box == [], "precondition: the confirm is still waiting"
+
+                # Act -- the user stops the script while the modal is up
+                app.repl._script_stop.set()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while not box and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.05)
+                worker.join(2)
+
+                # Assert
+                assert box, (
+                    "a stopped run must release the confirm; an unbounded "
+                    "wait here is a worker teardown can never join"
+                )
+                assert box[0] is False, "an abandoned confirm fails closed"
+                app.repl._script_stop.clear()
+
+        _run(scenario)

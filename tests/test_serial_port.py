@@ -8,6 +8,7 @@ import pytest
 
 from termapy.demo import FakeSerial
 from termapy.serial_port import (
+    RX_LINE_MAX_CHARS,
     SerialPort,
     SerialReader,
     apply_backspace,
@@ -897,3 +898,49 @@ class TestWaitForIdleUsesTheReaderClock:
 
         # Assert
         assert elapsed < 1.0, "an idle port should return before max_wait_s"
+
+
+class TestUnterminatedStreamIsBounded:
+    """E4: a stream that never terminates a line made every chunk cost more.
+
+    ``apply_backspace``, the clear-screen search and ``split_rx_lines`` each
+    walk the whole pending buffer, so an undelimited stream is quadratic in
+    the bytes received -- on the reader thread, where a stall costs data.
+    """
+
+    def test_the_buffer_flushes_at_the_cap(self):
+        # Arrange
+        reader = SerialReader()
+        chunk = b"A" * 4096
+        sent = 0
+
+        # Act -- stream past the cap with no terminator anywhere
+        emitted: list[str] = []
+        while sent < RX_LINE_MAX_CHARS + 8192:
+            emitted.extend(reader.process(chunk).lines)
+            sent += len(chunk)
+
+        # Assert
+        assert emitted, (
+            "an undelimited stream must surface as lines at the cap, not "
+            "accumulate forever in the reader's buffer"
+        )
+        actual = len(emitted[0])
+        assert actual == RX_LINE_MAX_CHARS, (
+            f"the flushed line should be exactly the cap, got {actual}"
+        )
+        assert len(reader._buf) < RX_LINE_MAX_CHARS, (
+            "what is left over after a flush is below the cap again, so the "
+            "per-chunk scan stays bounded"
+        )
+
+    def test_terminated_lines_are_untouched(self):
+        # Arrange -- the ordinary case must not change
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"alpha\r\nbeta\r\n")
+
+        # Assert
+        assert result.lines == ["alpha", "beta"], "normal splitting is unaffected"
+        assert reader._buf == "", "nothing pending after a clean terminator"

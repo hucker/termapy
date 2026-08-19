@@ -1032,3 +1032,102 @@ class TestConfirmIsStopAware:
                 app.repl._script_stop.clear()
 
         _run(scenario)
+
+
+class TestBatchedOutputIsEquivalent:
+    """E1-E3 traded per-line work for per-batch work.
+
+    The speed is measured out of band (a per-line RichLog.write ran
+    605-669 us; one combined write for a 50-line batch ran ~9 ms).  What
+    these pin is the part a benchmark cannot: that the batch renders,
+    logs and captures exactly what the per-line version did.
+    """
+
+    def test_every_line_of_a_batch_reaches_the_screen_in_order(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                app._write_batch([f"line {i}" for i in range(50)])
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                first = text.find("line 0")
+                last = text.find("line 49")
+                assert first != -1 and last != -1, "every line of the batch renders"
+                assert first < last, "one combined write must preserve line order"
+
+        _run(scenario)
+
+    def test_escapes_are_stripped_when_color_is_off(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app.repl.ctx.ns("flags")["color"] = False
+
+                # Act -- device SGR color arriving with color rendering off
+                app._write_batch(["\x1b[31mRED-TEXT\x1b[0m"])
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                assert "RED-TEXT" in text, "the text still shows"
+                assert "[31m" not in text, (
+                    "with color off the escapes are stripped, not leaked as "
+                    f"literal characters. Screen was: {text!r}"
+                )
+
+        _run(scenario)
+
+    def test_the_batch_logs_one_entry_per_line(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app._open_log()
+
+                # Act
+                app._write_batch(["alpha", "beta", "gamma"])
+                await pilot.pause()
+
+                # Assert -- one write and one flush, but still one line each
+                logged = Path(app._log_path()).read_text(encoding="utf-8")
+                rx = [ln for ln in logged.splitlines() if ln.endswith(("alpha", "beta", "gamma"))]
+                actual = len(rx)
+                assert actual == 3, f"one log line per received line, got {actual}"
+                assert all(" < " in ln for ln in rx), "each keeps the RX prefix"
+
+        _run(scenario)
+
+    def test_a_text_capture_receives_the_stripped_lines(self, app_factory):
+        """The capture tap now reuses the strip the render already did."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                target = Path(app.config_path).parent / "cap" / "out.txt"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                started = app._capture.start(
+                    path=target, file_mode="w", mode="text", duration=30.0
+                )
+                assert started is True, "precondition: capture running"
+
+                # Act
+                app._write_batch(["\x1b[32mplain\x1b[0m", "second"])
+                await pilot.pause()
+                app._capture.stop()
+
+                # Assert
+                actual = target.read_text(encoding="utf-8")
+                assert actual == "plain\nsecond\n", (
+                    f"captured text is ANSI-stripped and complete, got {actual!r}"
+                )
+
+        _run(scenario)

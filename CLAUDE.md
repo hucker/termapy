@@ -159,6 +159,7 @@ uv run termapy --cfg-dir . # use cwd for configs
 - Non-trivial: use `actual`/`expected` variables
 - Multiple checks: `actual_x == expected_x` pattern
 - Avoid mocking and monkey-patching.  Confirmation required!
+- **Port enumeration takes `source=` / `trust_env=`** (`port_control.resolve_port_source`). Hand a fleet in rather than monkeypatching `_gather_all_chip_facts` or setting `TERMAPY_DEMO_FLEET`: the env var is process-global, so under `-n auto` one test's `setenv` changes what every other test in that worker sees, and a patched stub breaks the moment the real signature changes (it did). Three layers, highest first: explicit `source=`, then the env var unless `trust_env=False`, then real hardware. The env layer stays because the party wanting fake ports is usually not the calling code -- a CI job, a screenshot run, a docs build.
 
 ## CLI Gold Test
 

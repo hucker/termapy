@@ -789,8 +789,10 @@ from termapy.port_control import (  # noqa: E402
     MATCH_URL,
     AmbiguousSerialNumberError,
     ChipFacts,
+    _gather_all_chip_facts,
     chip_field,
     chip_info,
+    gather_chip_facts,
     resolve_port,
     resolve_port_trace,
 )
@@ -884,13 +886,11 @@ class TestResolvePort:
         assert actual == expected, \
             f"last candidate returned on total miss; got {actual}"
 
-    def test_ambiguous_sn_raises(self, monkeypatch):
-        # Arrange -- monkeypatch _gather_all_chip_facts with a fleet
-        # containing two devices sharing the same SN "0001" (a common
-        # burn-in on cheap CP2102 / CH340 clones).
-        import termapy.port_control as pc
-
-        def _ambiguous_fleet(connected_port: str = "", *, fast: bool = False):
+    def test_ambiguous_sn_raises(self):
+        # Arrange -- a fleet with two devices sharing the same SN "0001"
+        # (a common burn-in on cheap CP2102 / CH340 clones), handed in
+        # through source= rather than patched over the gather function.
+        def _ambiguous_fleet():
             return [
                 ChipFacts(
                     device="COM3", manufacturer="CH340", serial="0001",
@@ -902,11 +902,9 @@ class TestResolvePort:
                 ),
             ]
 
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", _ambiguous_fleet)
-
         # Act + Assert
         with pytest.raises(AmbiguousSerialNumberError) as exc:
-            resolve_port("0001")
+            resolve_port("0001", source=_ambiguous_fleet)
         assert exc.value.matches == ["COM3", "COM7"], \
             "both colliding devices named in exception"
         assert "0001" in str(exc.value), "SN named in exception message"
@@ -1012,26 +1010,136 @@ class TestResolvePortTrace:
         expected = [("NOPE1", None), ("NOPE2", None)]
         assert actual == expected, f"got {actual}"
 
-    def test_ambiguous_sn_reported_not_raised(self, monkeypatch):
+    def test_ambiguous_sn_reported_not_raised(self):
         # Arrange -- same duplicate-SN fleet as the raises test.
         # trace()'s contract is to NEVER raise, so the caller can build
         # one coherent error message even when one of multiple
         # candidates is ambiguous.
-        import termapy.port_control as pc
-
-        def _ambiguous_fleet(connected_port: str = "", *, fast: bool = False):
+        def _ambiguous_fleet():
             return [
                 ChipFacts(device="COM3", serial="0001"),
                 ChipFacts(device="COM7", serial="0001"),
             ]
 
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", _ambiguous_fleet)
-
         # Act
-        actual = resolve_port_trace("0001|COM7")
+        actual = resolve_port_trace("0001|COM7", source=_ambiguous_fleet)
 
         # Assert -- ambiguous first, then literal fallback.
         expected = [("0001", "ambiguous"), ("COM7", MATCH_LITERAL)]
         assert actual == expected, f"got {actual}"
 
 
+
+
+class TestPortSourceLayers:
+    """Where ports come from: injection, then the environment, then hardware.
+
+    The environment layer is deliberate -- the party that wants fake ports
+    is usually not the calling code (a CI job, a screenshot run, a docs
+    build), and injection alone cannot fake ports underneath a program you
+    do not control.  ``trust_env`` is what keeps it honest: an env var is
+    process-global, so a caller that needs determinism opts out instead of
+    manipulating global state.
+    """
+
+    def _fleet(self):
+        """Two ports that could not be mistaken for the demo fleet."""
+        return [
+            ChipFacts(device="COM9", serial="INJECTED-9", manufacturer="Acme"),
+            ChipFacts(device="COM8", serial="INJECTED-8", manufacturer="Acme"),
+        ]
+
+    def test_an_injected_source_is_used(self):
+        # Act -- no env var, no hardware
+        actual = _gather_all_chip_facts(source=self._fleet)
+
+        # Assert
+        devices = [f.device for f in actual]
+        assert devices == ["COM8", "COM9"], (
+            f"the injected fleet is returned, sorted by device; got {devices}"
+        )
+
+    def test_injection_wins_over_the_environment(self, monkeypatch):
+        # Arrange -- both layers armed at once
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+        # Act
+        actual = _gather_all_chip_facts(source=self._fleet)
+
+        # Assert
+        devices = [f.device for f in actual]
+        assert devices == ["COM8", "COM9"], (
+            "an explicit source outranks the environment, so a test never "
+            f"has to unset the variable first; got {devices}"
+        )
+
+    def test_the_environment_is_honored_by_default(self, monkeypatch):
+        # Arrange
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+        # Act -- no source: the operator's variable decides
+        actual = _gather_all_chip_facts()
+
+        # Assert
+        devices = [f.device for f in actual]
+        assert devices == ["COM3", "COM4", "COM7"], (
+            f"the demo fleet still works with no code change; got {devices}"
+        )
+
+    def test_trust_env_false_ignores_the_variable(self, monkeypatch):
+        # Arrange -- the variable is set, but this caller wants determinism
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+        # Act -- real enumeration; what it finds depends on the machine, so
+        # assert only that the SYNTHETIC record is not what came back.
+        actual = gather_chip_facts("COM3", trust_env=False)
+
+        # Assert
+        serial = actual.serial if actual else None
+        assert serial != "A1B2C3D4", (
+            "trust_env=False must reach real hardware, not the fleet the "
+            "environment is offering"
+        )
+
+    def test_a_named_port_missing_from_a_fleet_is_not_invented(self):
+        # Act -- a substitute fleet is authoritative: no reserved-name
+        # fallback behind its back.
+        actual = gather_chip_facts("DEMO", source=self._fleet)
+
+        # Assert
+        assert actual is None, (
+            "a fleet that does not list the port means the port is absent, "
+            "not that a synthetic record should be conjured"
+        )
+
+    def test_resolution_runs_against_an_injected_fleet(self):
+        """The payoff: resolve by serial number with no hardware, no env var."""
+        # Act
+        actual = resolve_port("INJECTED-9", source=self._fleet)
+
+        # Assert
+        assert actual == "COM9", (
+            f"SN INJECTED-9 should resolve to COM9, got {actual}"
+        )
+
+    def test_the_trace_reports_how_an_injected_candidate_matched(self):
+        # Act
+        actual = resolve_port_trace("INJECTED-8|COM9", source=self._fleet)
+
+        # Assert
+        assert actual == [("INJECTED-8", MATCH_SERIAL), ("COM9", MATCH_LITERAL)], (
+            f"both candidates resolve against the injected fleet; got {actual}"
+        )
+
+    def test_ambiguity_still_raises_against_an_injected_fleet(self):
+        # Arrange -- two ports burned with the same serial number
+        def twins():
+            return [
+                ChipFacts(device="COM8", serial="SAME"),
+                ChipFacts(device="COM9", serial="SAME"),
+            ]
+
+        # Act / Assert -- the safety rule is a property of resolution, not
+        # of where the ports came from.
+        with pytest.raises(AmbiguousSerialNumberError):
+            resolve_port("SAME", source=twins)

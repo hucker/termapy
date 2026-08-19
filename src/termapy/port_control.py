@@ -16,7 +16,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from termapy.defaults import (
     VALID_BYTE_SIZES,
@@ -833,7 +833,12 @@ def _facts_from_port_info(
 
 
 def gather_chip_facts(
-    port_name: str, connected_port: str = "", *, fast: bool = False
+    port_name: str,
+    connected_port: str = "",
+    *,
+    fast: bool = False,
+    source: PortSource | None = None,
+    trust_env: bool = True,
 ) -> ChipFacts | None:
     """Look up the named port and return all known facts about it.
 
@@ -842,18 +847,25 @@ def gather_chip_facts(
     surface that doesn't display ``in_use`` so single-port lookups stay
     non-invasive.
 
-    Honors ``TERMAPY_DEMO_FLEET``: when set, searches the synthetic
-    fleet instead of real enumeration.  See ``_build_demo_fleet``.
+    Port discovery follows the three layers described on
+    ``resolve_port_source``.  A substitute fleet (injected or from the
+    environment) is authoritative: a name it doesn't list returns None
+    without falling back to the reserved-port synthesis below.
 
     Args:
         port_name: Exact device name (e.g. ``COM3`` or ``/dev/ttyUSB0``).
         connected_port: The port termapy currently has open, if any.
+        fast: Skip the in_use/permissions probe.
+        source: Callable returning a substitute port list; wins over the
+            environment and over real hardware.
+        trust_env: Whether the environment may supply a fleet.
 
     Returns:
         ChipFacts on success, or None if no connected port matches.
     """
-    if os.environ.get(_DEMO_FLEET_ENV):
-        for facts in _build_demo_fleet():
+    fleet = resolve_port_source(source, trust_env)
+    if fleet is not None:
+        for facts in fleet:
             if facts.device == port_name:
                 return facts
         return None
@@ -868,12 +880,53 @@ def gather_chip_facts(
     return synthetic_facts_for_reserved(port_name)
 
 
-# ─ Demo fleet ─────────────────────────────────────────────────────────────
-# When TERMAPY_DEMO_FLEET is set, _gather_all_chip_facts() returns these
-# synthetic ports instead of calling comports().  Useful for screenshots,
-# docs, hardware-free demos, and cross-platform tests.  Sibling hooks:
-# cfg["serial"]["port"] = "DEMO" (fake open) and "DEMO_FAIL" (raise on open).
+# ─ Where ports come from ──────────────────────────────────────────────────
+# Three layers, in order: an explicitly injected source, then the
+# environment, then real hardware.  Sibling hooks: cfg["serial"]["port"] =
+# "DEMO" (fake open) and "DEMO_FAIL" (raise on open).
 _DEMO_FLEET_ENV = "TERMAPY_DEMO_FLEET"
+
+# A callable that returns a substitute port list.
+PortSource = Callable[[], list[ChipFacts]]
+
+
+def resolve_port_source(
+    source: PortSource | None, trust_env: bool
+) -> list[ChipFacts] | None:
+    """Return a substitute port list, or None to enumerate real hardware.
+
+    Three layers, highest priority first:
+
+    1. **An explicit source.** The caller hands over a callable and gets
+       exactly what it returns.  Deterministic, visible in the call, and
+       safe under parallel tests -- nothing global is touched.
+    2. **The environment** (``TERMAPY_DEMO_FLEET``), unless *trust_env*
+       is False.  This layer exists because the party who wants fake
+       ports is usually NOT the calling code: a CI job, a screenshot
+       run, a docs build.  Injection alone cannot fake ports underneath
+       a program you don't control, which is most of what the hook is
+       for.
+    3. **Real hardware** -- returning None here means "go enumerate".
+
+    ``trust_env`` is what keeps layer 2 honest.  An environment variable
+    is process-global, so under a parallel test run one test setting it
+    changes what every other test in that worker sees.  A caller that
+    needs determinism passes ``trust_env=False`` (or an explicit
+    *source*) rather than manipulating global state.
+
+    Args:
+        source: Caller-supplied port list factory, or None.
+        trust_env: Whether the environment may supply a fleet.
+
+    Returns:
+        A list of ChipFacts to use instead of real ports, or None when
+        the caller should enumerate the machine.
+    """
+    if source is not None:
+        return list(source())
+    if trust_env and os.environ.get(_DEMO_FLEET_ENV):
+        return _build_demo_fleet()
+    return None
 
 
 def _build_demo_fleet() -> list[ChipFacts]:
@@ -915,7 +968,11 @@ def _build_demo_fleet() -> list[ChipFacts]:
 
 
 def _gather_all_chip_facts(
-    connected_port: str = "", *, fast: bool = False
+    connected_port: str = "",
+    *,
+    fast: bool = False,
+    source: PortSource | None = None,
+    trust_env: bool = True,
 ) -> list[ChipFacts]:
     """Return ChipFacts for every connected port, sorted by device name.
 
@@ -925,12 +982,20 @@ def _gather_all_chip_facts(
     enumerated.  Records returned in fast mode have ``in_use=None``
     and ``permissions=None``.
 
-    Honors the ``TERMAPY_DEMO_FLEET`` env var: when set to any
-    non-empty value, returns a fixed synthetic fleet instead of
-    enumerating real ports.  See ``_build_demo_fleet`` for the roster.
+    Port discovery follows the three layers described on
+    ``resolve_port_source``.  A substitute fleet is sorted the same way
+    real enumeration is, so the sort contract holds on every path.
+
+    Args:
+        connected_port: The port termapy currently has open, if any.
+        fast: Skip the per-port in_use/permissions probe.
+        source: Callable returning a substitute port list; wins over the
+            environment and over real hardware.
+        trust_env: Whether the environment may supply a fleet.
     """
-    if os.environ.get(_DEMO_FLEET_ENV):
-        return _build_demo_fleet()
+    fleet = resolve_port_source(source, trust_env)
+    if fleet is not None:
+        return sorted(fleet, key=lambda f: f.device or "")
     from serial.tools.list_ports import comports
 
     return [
@@ -1076,7 +1141,13 @@ def _match_candidate(
     return None
 
 
-def resolve_port(spec: str, connected_port: str = "") -> str:
+def resolve_port(
+    spec: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
+    trust_env: bool = True,
+) -> str:
     """Resolve a port spec string to an actual device name.
 
     The spec is a ``|``-separated list of candidates; each candidate is
@@ -1084,8 +1155,10 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
     the *last* candidate is returned verbatim so the downstream
     ``open_serial()`` failure message refers to the user's intended spec.
 
-    Honors ``TERMAPY_DEMO_FLEET`` automatically because
-    ``_gather_all_chip_facts()`` does.
+    Port discovery follows the three layers described on
+    ``resolve_port_source``; *source* and *trust_env* are forwarded
+    straight through.  Resolving against an injected fleet needs no
+    hardware and no environment variable.
 
     Uses ``fast=True``: resolution matches on identity fields only
     (``device`` / ``serial`` -- see ``_match_candidate``) and must never
@@ -1100,6 +1173,9 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
         spec: The raw ``cfg["serial"]["port"]`` value, post-env-expansion.
         connected_port: The currently-connected port.  With ``fast=True``
             this is unused by resolution (kept for signature stability).
+        source: Callable returning a substitute port list; wins over the
+            environment and over real hardware.
+        trust_env: Whether the environment may supply a fleet.
 
     Returns:
         A device name suitable for opening (e.g. ``"COM3"``,
@@ -1111,7 +1187,9 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
             more connected devices.  The caller is expected to surface
             this as a user-facing error rather than silently picking one.
     """
-    facts = _gather_all_chip_facts(connected_port, fast=True)
+    facts = _gather_all_chip_facts(
+        connected_port, fast=True, source=source, trust_env=trust_env
+    )
     candidates = spec.split("|")
     for candidate in candidates:
         result = _match_candidate(candidate, facts)
@@ -1123,7 +1201,11 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
 
 
 def resolve_port_trace(
-    spec: str, connected_port: str = ""
+    spec: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
+    trust_env: bool = True,
 ) -> list[tuple[str, str | None]]:
     """Return per-candidate resolution results for error reporting.
 
@@ -1140,7 +1222,9 @@ def resolve_port_trace(
     # fast=True for the same safety reason as resolve_port: tracing must
     # not open bystander ports (identity fields are all _match_candidate
     # reads).
-    facts = _gather_all_chip_facts(connected_port, fast=True)
+    facts = _gather_all_chip_facts(
+        connected_port, fast=True, source=source, trust_env=trust_env
+    )
     trace: list[tuple[str, str | None]] = []
     for candidate in spec.split("|"):
         try:

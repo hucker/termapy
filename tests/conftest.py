@@ -69,3 +69,47 @@ def _fix_msys2_path_on_windows() -> None:
 
 
 _fix_msys2_path_on_windows()
+
+
+def pytest_addoption(parser) -> None:
+    """Add ``--run-hardware`` (see ``tests/test_hardware_loopback.py``)."""
+    parser.addoption(
+        "--run-hardware",
+        action="store_true",
+        default=False,
+        help=(
+            "Run the real-hardware loopback tests.  Needs a TX-RX-jumpered "
+            "USB-serial adapter (found by serial number, TERMAPY_LOOPBACK_SN). "
+            "Off by default because their measurements are only valid when "
+            "they are not competing for CPU -- run with -n 0."
+        ),
+    )
+
+
+def pytest_collection_modifyitems(config, items) -> None:
+    """Deselect hardware tests unless ``--run-hardware`` was passed.
+
+    An opt-in FLAG rather than a marker filter, because pytest's ``-m`` is a
+    single expression: a ``-m 'not hardware'`` default in ``addopts`` is
+    silently replaced by any ``-m`` on the command line, so ``-m slow`` would
+    quietly pull the hardware tests back in.  A flag composes with every
+    ``-m`` the project already documents.
+
+    Why they are off by default at all: they measure DATA LOSS at 921600 with
+    a deliberately slow consumer.  Run alongside a full ``-n auto`` suite, CPU
+    contention starves the reader hard enough to lose ~18% -- indistinguishable
+    from the ~22% regression signature they exist to catch.  The loss there is
+    host-load-induced at the USB layer, not a termapy defect, so including them
+    in the parallel suite would produce a confidently wrong red.
+    """
+    import pytest
+
+    if config.getoption("--run-hardware"):
+        return
+    skip = pytest.mark.skip(
+        reason="needs --run-hardware (and a loopback adapter); "
+               "run: uv run pytest --run-hardware -m hardware -n 0"
+    )
+    for item in items:
+        if "hardware" in item.keywords:
+            item.add_marker(skip)

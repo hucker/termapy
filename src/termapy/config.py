@@ -42,11 +42,32 @@ _LOCAL_DIR_NAME = "termapy_cfg"
 
 # Read timeout for every opened serial port.  Deliberately small so the
 # reader loop's blocking ``read()`` returns promptly and can notice the
-# stop signal.  This bound is load-bearing for teardown correctness: it
-# must stay well below ``serial_engine.READER_STOP_WAIT_S`` (see the
-# teardown note in serial_engine.disconnect).  ``test_serial_engine``
-# pins the margin so a future change here cannot silently arm the race.
+# stop signal.  This sets how long teardown takes: ``disconnect`` joins the
+# reader thread, and the reader can only reach its stop check once ``read()``
+# returns -- so this is the latency of a disconnect, not a race window.  It
+# no longer needs to beat any other constant (the old timing contract against
+# ``READER_STOP_WAIT_S`` is gone; teardown is a join).  Raising it slows
+# disconnects proportionally.
 SERIAL_READ_TIMEOUT_S = 0.05
+
+# Driver-side RX buffer requested for every real port we open.
+#
+# pyserial hardcodes a 4 KB buffer on Windows (``SetupComm(handle, 4096,
+# 4096)`` in ``serialwin32.Serial.open``).  That is small enough to matter:
+# whenever the main thread stalls longer than ``4096 / (baud / 10)`` ms, the
+# driver silently DISCARDS the overflow -- no exception, no gap marker,
+# nothing visible in ``in_waiting``.  Measured on a hardware loopback, a
+# 60 ms stall at 921600 lost 21% of the stream, and a 500 ms stall at
+# 115200 lost 22%.  Both go to 0% at this size.  For reference, one
+# 50-line RichLog batch costs ~40 ms, and 921600's threshold is ~44 ms.
+#
+# 256 KB buys ~22 s of slack at 115200 and ~2.8 s at 921600, costs a
+# quarter-megabyte of non-paged pool per open port, and is not clamped by
+# the drivers tested.  It is a REQUEST -- a driver may honor less.
+#
+# Windows-only: ``set_buffer_size`` exists solely on ``serialwin32``.  POSIX
+# tty buffering is a different mechanism and is NOT addressed here.
+SERIAL_RX_BUFFER_BYTES = 262144
 
 
 def _os_default_cfg_dir() -> Path:
@@ -690,6 +711,32 @@ def open_with_system(path: str) -> None:
     threading.Thread(target=_launch_and_reap, daemon=True).start()
 
 
+def request_rx_buffer(port: Any) -> bool:
+    """Ask the driver for a wider RX buffer than pyserial's 4 KB default.
+
+    Best-effort by design.  ``set_buffer_size`` exists only on
+    ``serialwin32``, and even there the driver may refuse or clamp -- neither
+    is a reason to fail an otherwise good open, since the port works fine at
+    the default size (it just loses bytes sooner under a main-thread stall;
+    see ``SERIAL_RX_BUFFER_BYTES``).
+
+    Args:
+        port: An open port object, real or duck-typed.
+
+    Returns:
+        True if the request was made and accepted, False if the port has no
+        such API or the driver refused.
+    """
+    setter = getattr(port, "set_buffer_size", None)
+    if setter is None:
+        return False
+    try:
+        setter(rx_size=SERIAL_RX_BUFFER_BYTES)
+    except (OSError, serial.SerialException, ValueError):
+        return False
+    return True
+
+
 def open_serial(cfg: dict) -> Any:
     """Open serial port from config dict.
 
@@ -741,7 +788,7 @@ def open_serial(cfg: dict) -> Any:
     fc = serial_cfg["flow_control"]
     # serial_for_url handles both plain ports ("COM3", "/dev/ttyUSB0")
     # and URLs ("rfc2217://host:port", "socket://host:port", "loop://").
-    return serial.serial_for_url(
+    port = serial.serial_for_url(
         resolved,
         baudrate=serial_cfg["baud_rate"],
         bytesize=serial_cfg["byte_size"],
@@ -751,6 +798,8 @@ def open_serial(cfg: dict) -> Any:
         xonxoff=(fc == "xonxoff"),
         timeout=SERIAL_READ_TIMEOUT_S,
     )
+    request_rx_buffer(port)
+    return port
 
 
 def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:

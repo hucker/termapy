@@ -10,6 +10,7 @@ from __future__ import annotations
 import queue
 import subprocess
 import sys
+import threading
 import time
 from threading import Event
 from typing import Any, Callable
@@ -18,21 +19,24 @@ from termapy.capture import CaptureEngine
 from termapy.plugins import BoundaryException
 from termapy.serial_port import SerialPort, SerialReader
 
-# How long ``disconnect`` (and the app's reconnect gate) waits for the
-# reader loop to signal ``reader_stopped`` before closing the port.
+# Upper bound on ``disconnect``'s join.  Teardown is a real
+# ``Thread.join()`` -- the engine owns the reader thread (``start_reader``),
+# so there is a thread to join rather than an Event to gamble on.
 #
-# Teardown-ownership contract: ``disconnect`` and the reader's ``finally``
-# both close/null the *shared* ``_port_obj``, so exactly one must win.  The
-# reader wins because it always signals ``reader_stopped`` within roughly
-# one ``config.SERIAL_READ_TIMEOUT_S`` (a blocking ``read()`` cannot stall
-# longer) plus a little line processing -- comfortably inside this window.
-# The invariant that keeps this race unreachable is therefore
-# ``SERIAL_READ_TIMEOUT_S << READER_STOP_WAIT_S``; ``test_serial_engine``
-# pins the margin.  If that ever inverts, ``disconnect`` could close the
-# handle while the reader is still mid-read and, after a reconnect, a stale
-# reader's ``finally`` could close a *newer* port -- switch to a real
-# reader-thread join before raising the read timeout.
-READER_STOP_WAIT_S = 0.3
+# This number is a safety net, not a contract: the reader reaches its stop
+# check within one ``config.SERIAL_READ_TIMEOUT_S`` (50 ms) because no reader
+# callback may block on another thread.  That is the ONE invariant this
+# depends on -- any new ``read_loop`` callback that blocks (a bare
+# ``call_from_thread``, a lock the main thread holds) reintroduces the
+# deadlock this replaced, where teardown waited on the reader from the very
+# thread the reader was waiting for.  Hand work off without blocking; see
+# ``app._rx_enqueue``.
+#
+# Degrades safely if it ever expires: ownership is established by IDENTITY
+# (``_reader_gen`` + the ``self._port_obj is port`` check in ``read_loop``'s
+# finally), so a reader that outlives its join can only ever close the handle
+# it read from -- never a newer connection's.
+READER_JOIN_TIMEOUT_S = 2.0
 
 
 def _find_port_holder(port_name: str) -> str | None:
@@ -228,6 +232,12 @@ class SerialEngine:
         self._stop_event = Event()
         self._reader_stopped = Event()
         self._reader_stopped.set()
+        # Bumped by every ``connect()``.  Identifies which reader generation
+        # owns the shared port handle and the ``_reader_stopped`` signal.
+        self._reader_gen: int = 0
+        # The reader thread this engine owns, so teardown can join it rather
+        # than wait on an Event and proceed regardless.
+        self._reader_thread: "threading.Thread | None" = None
         self._serial_claimed: bool = False
         self._rx_observers: list[Callable[[bytes], None]] = []
         self._tx_observers: list[Callable[[bytes], None]] = []
@@ -395,22 +405,79 @@ class SerialEngine:
             rx_newline=self._cfg.get("eol_rx", "auto"),
         )
         self._stop_event.clear()
-        self._reader_stopped.clear()
+        # New reader generation.  ``read_loop`` captures this at entry and
+        # compares it on the way out, so a reader that outlived its own
+        # teardown cannot report *this* generation as stopped.  Deliberately
+        # NOT clearing ``_reader_stopped`` here: no reader is running yet, and
+        # claiming otherwise is what used to force ``_on_connect_failed`` to
+        # set it back by hand.  ``start_reader`` clears it.
+        self._reader_gen += 1
         return True
 
-    def disconnect(self) -> None:
-        """Signal the reader to stop, wait, and close the port.
+    def start_reader(self, **callbacks: Any) -> None:
+        """Run ``read_loop`` on a thread this engine owns.
 
-        Normally the reader observes ``_stop_event`` and closes ``_port_obj``
-        itself within one read-timeout, so the wait below returns with the
-        handle already gone and the ``if self._port_obj`` branch is skipped.
-        Closing here is the fallback for the reader-never-started case.  See
-        ``READER_STOP_WAIT_S`` for the timing contract that keeps these two
-        closers from racing.
+        The engine creates the thread so ``disconnect`` has something real to
+        join.  Previously each frontend spun up its own -- the TUI via a
+        Textual ``@work``, the CLI via a thread it dropped on the floor, MCP
+        via one it kept -- so teardown could only wait on an Event and hope.
+
+        Args:
+            **callbacks: Passed straight to ``read_loop`` (``on_lines``,
+                ``on_clear``, ``on_capture_done``, ``on_error``,
+                ``on_disconnect``).  None of them may block on another
+                thread; see ``READER_JOIN_TIMEOUT_S``.
+        """
+        self.stop_reader()
+        self._stop_event.clear()
+        self._reader_stopped.clear()
+        thread = threading.Thread(
+            target=self.read_loop,
+            kwargs=callbacks,
+            name=f"termapy-reader-{self._reader_gen}",
+            daemon=True,
+        )
+        self._reader_thread = thread
+        thread.start()
+
+    def stop_reader(self) -> bool:
+        """Stop the reader thread and wait for it to actually exit.
+
+        Idempotent, and safe to call when no reader is running.
+
+        Returns:
+            True if no reader is left running.  False means the join expired
+            -- see ``READER_JOIN_TIMEOUT_S`` for why that degrades safely
+            rather than corrupting the next connection.
+        """
+        self._stop_event.set()
+        thread = self._reader_thread
+        if thread is None:
+            return True
+        if thread is threading.current_thread():
+            # A reader callback is tearing down its own engine; joining here
+            # would deadlock on itself.  The loop is already unwinding.
+            return True
+        thread.join(timeout=READER_JOIN_TIMEOUT_S)
+        alive = thread.is_alive()
+        if not alive:
+            self._reader_thread = None
+        else:
+            self.last_error = (
+                f"reader thread did not exit within {READER_JOIN_TIMEOUT_S}s "
+                f"-- a read_loop callback is blocking"
+            )
+        return not alive
+
+    def disconnect(self) -> None:
+        """Stop the reader, then close the port.
+
+        The reader normally closes its own handle on the way out, so the
+        close below is the fallback for the reader-never-started case (and
+        for a join that expired).
         """
         import serial as _serial
-        self._stop_event.set()
-        self._reader_stopped.wait(timeout=READER_STOP_WAIT_S)
+        self.stop_reader()
         if self._port_obj:
             # Close can raise if the device already vanished; nothing
             # to recover from during disconnect, just drop the handle.
@@ -445,6 +512,7 @@ class SerialEngine:
         """
         reader = self._reader
         port = self._port_obj
+        generation = self._reader_gen
         if not reader or not port:
             self._reader_stopped.set()
             return
@@ -497,19 +565,28 @@ class SerialEngine:
                 if not data:
                     time.sleep(0.01)
         finally:
-            # Primary closer of the shared handle: on the normal stop path
-            # the reader reaches here first and ``disconnect`` finds nothing
-            # to close.  Safe only while READER_STOP_WAIT_S dominates the read
-            # timeout (see that constant); the trailing ``reader_stopped.set``
-            # is what releases the waiter in ``disconnect``.
-            if self._port_obj:
-                try:
-                    self._port_obj.close()
-                except (OSError, _serial.SerialException):
-                    pass
+            # Close only the handle THIS loop read from -- ``port`` is the
+            # local captured at entry, never the shared field.  A reader can
+            # outlive its own teardown (``disconnect`` waits on a timeout, it
+            # does not join), and by the time it lands here ``_port_obj`` may
+            # already belong to a newer connection.  Closing the shared field
+            # would kill that new port; closing our own local is always right,
+            # and double-close is a no-op.
+            try:
+                port.close()
+            except (OSError, _serial.SerialException):
+                pass
+            # Disown the shared fields only while they still point at OUR
+            # port.  Once a later connect() has replaced them they belong to
+            # that generation.
+            if self._port_obj is port:
                 self._port_obj = None
                 self._serial_port = None
-            self._reader_stopped.set()
+            # Same ownership rule for the stopped signal: a stale generation
+            # reporting "reader stopped" would disarm the gate that the
+            # CURRENT generation's disconnect/connect relies on.
+            if generation == self._reader_gen:
+                self._reader_stopped.set()
 
     # -- Hardware signal control ------------------------------------------------
 

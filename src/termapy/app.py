@@ -87,7 +87,7 @@ from termapy.plugins import (
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
-from termapy.serial_engine import READER_STOP_WAIT_S, SerialEngine
+from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 from termapy.terminal_host import TerminalHost
 from termapy.widgets import CommandSuggester, StatusBar
@@ -162,6 +162,15 @@ PALETTE_HOTKEY = "Alt+P" if os.environ.get("TERM_PROGRAM") == "vscode" else "Ctr
 
 class SerialTerminal(TerminalHost, App):
     """Textual app: scrolling output + local input line."""
+
+    class SerialRx(Message):
+        """Posted when the reader has queued RX events to render.
+
+        Carries no payload: the events live in ``_rx_events`` and the
+        handler drains whatever has accumulated.  This conflation is the
+        point -- at most one of these is ever in flight, so a slow main
+        thread cannot make the message queue grow without bound.
+        """
 
     class ScriptStarted(Message):
         """Posted when a script starts or nests deeper."""
@@ -471,6 +480,18 @@ class SerialTerminal(TerminalHost, App):
         self._show_line_numbers: bool = cfg.get("line_no", False)
         self._line_counter: int = 0
         self._xfer_cancel = threading.Event()
+        # RX handoff, reader thread -> main thread.  The reader appends
+        # ordered events here and posts at most ONE SerialRx message; the
+        # handler drains the lot.  Deliberately NOT call_from_thread: that
+        # blocks the reader until the event loop services it, which (a) stalls
+        # the reader long enough for the driver to silently drop bytes (see
+        # config.SERIAL_RX_BUFFER_BYTES) and (b) deadlocks teardown, because
+        # disconnect() waits on the reader from the very thread the reader is
+        # waiting for.  Fire-and-forget removes both.
+        self._rx_lock = threading.Lock()
+        self._rx_events: list[tuple] = []
+        self._rx_posted = False
+        self._rx_dropped = 0
         # Serializes command execution.  Every command path -- typed input,
         # UI buttons, palette, and each script line -- funnels through
         # _dispatch_single / _dispatch_quiet, which both mutate shared
@@ -1217,12 +1238,14 @@ class SerialTerminal(TerminalHost, App):
         self._shutting_down = True
         self.repl.fire_lifecycle("on_app_stop")
         self._save_history()
+        # Stop background work unconditionally: _disconnect() early-returns
+        # when not connected, so relying on it left the auto-reconnect worker
+        # spinning and a parked script alive after the TUI was gone (T4/T5).
+        self._engine.stop_event.set()
+        self.repl._script_stop.set()
         self._disconnect()
-        # Shutdown drain: _disconnect already waited on the reader; this is a
-        # short final settle before we close the log fh, not the reconnect
-        # correctness gate (that one is _connect below, keyed off the contract
-        # constant).  The process is exiting either way.
-        self._engine.reader_stopped.wait(timeout=0.2)
+        # No settle needed: _disconnect joins the reader, so by here it has
+        # genuinely exited rather than probably-exited.
         if self.log_fh:
             self.log_fh.close()
             self.log_fh = None
@@ -1230,10 +1253,11 @@ class SerialTerminal(TerminalHost, App):
     def _connect(self, port: str | None = None) -> bool:
         if self.is_connected:
             return False
-        # Reconnect correctness gate: wait for any prior reader to fully stop
-        # (and release the shared port handle) before opening a new one.  Keyed
-        # off the same contract constant as engine teardown.
-        self._engine.reader_stopped.wait(timeout=READER_STOP_WAIT_S)
+        # Reconnect correctness gate: a prior reader must be GONE, not
+        # probably-gone, before we open a new handle.  start_reader joins any
+        # previous thread, so this is a real barrier rather than a timed wait
+        # that used to expire whenever RX was in flight.
+        self._engine.stop_reader()
         return super()._connect(port)
 
     def _on_connected(self, message: str) -> None:
@@ -1258,7 +1282,9 @@ class SerialTerminal(TerminalHost, App):
 
     def _on_connect_failed(self) -> None:
         """TUI post-connect failure: update status, auto-reconnect."""
-        self._engine.reader_stopped.set()
+        # No reader_stopped.set() here any more: connect() no longer clears
+        # the flag for a reader it hasn't started, so there is nothing to
+        # undo on the failure path.
         self._set_conn_status("Disconnected")
         if self.cfg.get("auto_reconnect"):
             self._auto_reconnect()
@@ -2523,34 +2549,124 @@ class SerialTerminal(TerminalHost, App):
         self._disconnect()
         self.exit()
 
-    @work(thread=True)
-    def _run_reader(self) -> None:
-        """Background thread: delegates to SerialEngine.read_loop."""
+    # Cap on RX events held between drains.  Reached only when the main
+    # thread is far enough behind that the display could never show the
+    # backlog anyway (RichLog's own max_lines is 10_000), so dropping the
+    # OLDEST pending events loses nothing a user could have read -- and
+    # unlike the driver-level loss this fix removes, it is counted and
+    # reported rather than silent.
+    _RX_EVENT_LIMIT = 2000
 
-        def on_error(detail: str) -> None:
-            self.call_from_thread(self._status, f"Serial read error: {detail}", "red")
+    def _rx_enqueue(self, event: tuple) -> None:
+        """Queue an ordered RX event for the main thread.  Reader thread only.
 
-        def on_disconnect() -> None:
-            self.call_from_thread(
-                self.notify,
-                "Serial disconnected",
-                severity="warning",
-                timeout=1.5,
-            )
-            self.call_from_thread(self._set_conn_status, "Disconnected")
-            if self.cfg.get("auto_reconnect"):
-                self.call_from_thread(self._auto_reconnect)
+        Never blocks: appends under a short lock and posts a wake-up only
+        when one is not already pending.  Ordering across event kinds is
+        preserved because they share this one list -- a clear-screen must
+        not overtake the lines it was meant to follow.
 
+        Args:
+            event: ``("lines", [...])``, ``("clear",)`` or ``("capdone",)``.
+        """
+        post = False
+        with self._rx_lock:
+            self._rx_events.append(event)
+            overflow = len(self._rx_events) - self._RX_EVENT_LIMIT
+            if overflow > 0:
+                dropped = self._rx_events[:overflow]
+                del self._rx_events[:overflow]
+                self._rx_dropped += sum(
+                    len(e[1]) if e[0] == "lines" else 1 for e in dropped
+                )
+            if not self._rx_posted:
+                self._rx_posted = True
+                post = True
+        if not post:
+            return
         try:
-            self._engine.read_loop(
-                on_lines=lambda lines: self.call_from_thread(self._write_batch, lines),
-                on_clear=lambda: self.call_from_thread(self._clear_output),
-                on_capture_done=lambda: self.call_from_thread(self._cap_stop),
-                on_error=on_error,
-                on_disconnect=on_disconnect,
-            )
+            # Returns False (rather than raising) once the pump is closing.
+            delivered = self.post_message(self.SerialRx())
         except RuntimeError:
-            pass  # call_from_thread fails during app shutdown
+            # Pump gone during teardown -- same guard as the script lifecycle
+            # posts use.
+            delivered = False
+        if not delivered:
+            # Nothing will drain us, so clear the latch: leaving it set would
+            # suppress every future wake-up if the app outlives this.
+            with self._rx_lock:
+                self._rx_posted = False
+
+    @on(SerialRx)
+    def _on_serial_rx(self) -> None:
+        """Drain queued RX events on the main thread, in arrival order.
+
+        Consecutive ``lines`` events are merged into one ``_write_batch``
+        call, so falling behind produces FEWER, larger renders rather than a
+        growing backlog of small ones.
+        """
+        with self._rx_lock:
+            events, self._rx_events = self._rx_events, []
+            self._rx_posted = False
+            dropped, self._rx_dropped = self._rx_dropped, 0
+        if self._shutting_down:
+            return
+        if dropped:
+            self._status(
+                f"Display fell behind -- dropped {dropped} lines "
+                f"(data was received; the terminal could not keep up)",
+                "yellow",
+            )
+        pending: list[str] = []
+        for event in events:
+            if event[0] == "lines":
+                pending.extend(event[1])
+                continue
+            # A non-line event must observe everything queued before it.
+            if pending:
+                self._write_batch(pending)
+                pending = []
+            if event[0] == "clear":
+                self._clear_output()
+            elif event[0] == "capdone":
+                self._cap_stop()
+            elif event[0] == "error":
+                self._on_rx_error(event[1])
+            elif event[0] == "disconnect":
+                self._on_rx_disconnect()
+        if pending:
+            self._write_batch(pending)
+
+    def _run_reader(self) -> None:
+        """Start the engine-owned reader thread with the TUI's callbacks.
+
+        Every callback goes through ``_rx_enqueue`` -- none may block on the
+        main thread.  That is what lets ``disconnect`` JOIN the reader instead
+        of waiting on an Event: a callback blocked in ``call_from_thread``
+        would deadlock against a teardown running on the very thread it waits
+        for.  Errors and disconnects ride the same ordered queue as lines so
+        "Serial disconnected" still lands after the output that preceded it.
+        """
+        self._engine.start_reader(
+            on_lines=lambda lines: self._rx_enqueue(("lines", lines)),
+            on_clear=lambda: self._rx_enqueue(("clear",)),
+            on_capture_done=lambda: self._rx_enqueue(("capdone",)),
+            on_error=lambda detail: self._rx_enqueue(("error", detail)),
+            on_disconnect=lambda: self._rx_enqueue(("disconnect",)),
+        )
+
+    def _on_rx_error(self, detail: str) -> None:
+        """Main thread: report a serial read error."""
+        self._status(f"Serial read error: {detail}", "red")
+
+    def _on_rx_disconnect(self) -> None:
+        """Main thread: surface an unexpected disconnect and maybe reconnect."""
+        try:
+            self.notify("Serial disconnected", severity="warning", timeout=1.5)
+        except SHUTDOWN_RACE:
+            return
+        self._set_conn_status("Disconnected")
+        if self.cfg.get("auto_reconnect"):
+            self._auto_reconnect()
 
     def _clear_output(self) -> None:
         if self._shutting_down:

@@ -477,10 +477,13 @@ SerialEngine.read_loop() [background thread]
     → binary capture active? → CaptureEngine.feed_bytes() → skip display
     → proto_active? → suppress display
     → decode(encoding) → split on \n → batch lines
-  → callbacks: on_lines → call_from_thread → RichLog
-               on_clear → clear screen
-               on_capture_done → stop capture
-               on_error → status message
+  → callbacks (NONE may block on another thread):
+               on_lines        → _rx_enqueue("lines")   ┐
+               on_clear        → _rx_enqueue("clear")   │ ordered buffer +
+               on_capture_done → _rx_enqueue("capdone") │ ONE post_message
+               on_error        → _rx_enqueue("error")   │
+               on_disconnect   → _rx_enqueue("disconnect")┘
+                 → SerialRx → _on_serial_rx [main] → _write_batch → RichLog
 ```
 
 ### Command dispatch (user input or script)
@@ -562,14 +565,16 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 │ (async)             │  dispatch, modals, button handlers,
 │                     │  Message handlers (ScriptStarted, etc.)
 ├─────────────────────┤
-│ _run_reader()       │  Long-lived background thread
-│ @work(thread=True)  │  Calls SerialEngine.read_loop()
-│                     │  Callbacks post to main via call_from_thread
+│ reader thread       │  Long-lived; OWNED BY SerialEngine
+│ engine.start_reader │  (start_reader / stop_reader), so teardown
+│                     │  can Thread.join() it.  Callbacks hand off
+│                     │  via _rx_enqueue and NEVER block on main.
 ├─────────────────────┤
 │ _run_script()       │  Short-lived per script/command
-│ @work(thread=True)  │  Blocking commands (/delay, /confirm)
-│                     │  must run here, not on main thread
-│                     │  Nested /run executes inline (same thread)
+│ @work(thread=True)  │  /delay, /confirm, /expect, /run are run
+│                     │  here by the script runner itself -- they
+│                     │  need ScriptCtx or _script_stop, not a
+│                     │  particular thread.  Nested /run is inline.
 ├─────────────────────┤
 │ _auto_reconnect()   │  Short-lived, retries connection
 │ _send_test()        │  Short-lived, protocol test case
@@ -577,7 +582,16 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 └─────────────────────┘
 ```
 
-At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread. `post_message` is used for script lifecycle events (thread-safe).
+At most two workers run concurrently: the serial reader plus one command/script/test worker.
+
+Two different hand-off mechanisms, and the difference is load-bearing. Output
+helpers called from a worker (`_status`, `_set_status_bar`,
+`_write_output_markup`, `_on_main`) marshal via `call_from_thread`, which
+**blocks** the caller until the event loop services it. The serial reader may
+not use it: blocking there deadlocks teardown (`disconnect()` joins the reader
+from the very thread it would wait for) and stalls the reader long enough for
+the driver to drop bytes. RX and script lifecycle therefore use `post_message`,
+which is fire-and-forget.
 
 ## Built-in plugins
 

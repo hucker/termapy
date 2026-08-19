@@ -201,12 +201,14 @@ uv run termapy --cfg-dir . # use cwd for configs
 
 ## Threading
 
-- `read_serial()` runs on a background thread via `@work(thread=True)`
-- `run_script()` in `repl.py` runs on a background thread via `_run_script` wrapper
-- Script commands are dispatched to the main thread via `call_from_thread`
-- Commands that **block** or **use `call_from_thread` internally** (e.g. `/delay`, `/confirm`) must NOT be dispatched to the main thread — handle them as special cases directly in `run_script()`'s background thread
-- `_confirm()` blocks with `event.wait()` and posts a dialog via `call_from_thread` — must always be called from a background thread
-- When refactoring dispatch paths, verify that blocking commands still run on background threads
+- The serial reader runs on a thread **`SerialEngine` owns** (`start_reader` / `stop_reader`), not one the frontends create. Teardown is a real `Thread.join()`; `READER_JOIN_TIMEOUT_S` is a safety net, not a contract.
+- `run_script()` in `repl.py` runs on a background thread via the `_run_script` wrapper.
+- **Every command runs off the main thread, and none of them is marshalled to it.** Typed input, buttons, and palette entries each get their own `@work(thread=True)` worker (`app._dispatch_on_thread*`); script lines run on the script's own `_run_script` worker. Both paths land in `app._dispatch_single`, which calls `repl.dispatch_full` **inline on the calling thread** — there is no hand-off to main anywhere in dispatch. (This bullet used to claim the opposite, and that false version was the stated rationale for a live design decision, so treat it as load-bearing documentation.)
+- **Output helpers marshal themselves.** `_status`, `_set_status_bar`, `_write_output_markup`, and `_on_main` compare `self._thread_id` and forward when off-main. Anything reached from a worker that touches widgets must go through one of those — never touch a widget directly.
+- **No `read_loop` callback may block on another thread.** RX reaches the UI through `app._rx_enqueue` (append to an ordered buffer + at most one `post_message`), never a blocking `call_from_thread`. A blocking callback deadlocks teardown — `disconnect()` joins the reader from the very thread the callback waits for — and stalls the reader long enough for the driver to silently drop bytes (see `config.SERIAL_RX_BUFFER_BYTES`).
+- `_dispatch_guard` is a **non-blocking** `RLock`: one dispatch at a time, a second is refused with "Busy" rather than queued. Non-blocking is required — the main thread must never park on a lock a worker holds, or it deadlocks a worker waiting on `call_from_thread`. Re-entrant so nested `ctx.dispatch` on the same thread is allowed.
+- `_confirm()` blocks with `event.wait()` and posts a dialog via `call_from_thread` — must always be called from a background thread; main-thread misuse fails closed.
+- `_BLOCKING_COMMANDS` in `repl.py` is **not** a threading mechanism despite its name. Those commands are intercepted because they need the `ScriptCtx` or must set `_script_stop` to abort the run — see the comment at its definition. The test for adding one is "does it need sctx or `_script_stop`?", never "does it block?".
 
 ## Exception Safety
 

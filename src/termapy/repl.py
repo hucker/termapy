@@ -1658,9 +1658,28 @@ class ReplEngine:
         # ``$(LINE) <- /expect ready.quiet``.
         return CmdResult.ok(value=match)
 
-    # Blocking commands - must run on the script's background thread because
-    # they block (sleep, wait for serial, show dialog). Regular commands are
-    # dispatched to the main thread via call_from_thread.
+    # Commands the script runner handles ITSELF instead of dispatching.
+    #
+    # NOT a threading mechanism, despite the historical name.  Nothing here is
+    # about which thread runs what: every script line already runs on the
+    # script's own worker thread, because ``app._dispatch_single`` calls
+    # ``repl.dispatch_full`` INLINE on the caller (see CLAUDE.md "Threading").
+    # These are intercepted because ``dispatch`` cannot give them what they
+    # need -- the ScriptCtx, or control over the run itself:
+    #
+    #   /delay              waits on ``_script_stop`` so Escape interrupts it,
+    #                       and drives ``sctx.delay_progress`` for the overlay
+    #   /expect             ABORTS the run (sets ``_script_stop``) on timeout,
+    #                       and reports through ``sctx.w``
+    #   /confirm            ABORTS the run when the user declines
+    #   /run, /run.profile  must execute the nested script INLINE, inheriting
+    #                       the parent's writer / dispatch_fn / progress /
+    #                       on_nest / verbose.  Dispatching ``/run`` instead
+    #                       schedules a SECOND worker -- that is the path that
+    #                       yields two scripts running at one device.
+    #
+    # So the test for adding an entry is "does it need sctx or _script_stop?",
+    # never "does it block?".
     _BLOCKING_COMMANDS: dict[str, Callable] = {
         "delay": _script_delay,
         "delay.silent": _script_delay,

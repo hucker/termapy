@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -788,6 +790,109 @@ class TestSharedStateRaces:
                 assert app.is_running, (
                     "markup written after #output is gone must be dropped, "
                     "not raised"
+                )
+
+        _run(scenario)
+
+
+class TestDispatchContention:
+    """D3: a refused dispatch is not a delayed command, it is a lost one.
+
+    The guard must stay non-blocking on the MAIN thread -- a worker holding
+    it can be parked in ``call_from_thread``, so a main thread that waits
+    closes the cycle.  Off main there is no cycle, so a worker waits rather
+    than dropping the line on the floor.
+    """
+
+    def test_a_worker_waits_for_the_guard_instead_of_dropping_the_line(
+        self, app_factory
+    ):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- another thread holds the guard, the way a
+                # command still running holds it.
+                held = threading.Event()
+                release = threading.Event()
+
+                def holder() -> None:
+                    app._dispatch_guard.acquire()
+                    held.set()
+                    release.wait(5)
+                    app._dispatch_guard.release()
+
+                keeper = threading.Thread(target=holder)
+                keeper.start()
+                assert held.wait(5), "precondition: the guard is held"
+
+                # Act -- a dispatch worker asks for it mid-hold
+                box: list = []
+                worker = threading.Thread(
+                    target=lambda: box.append(app._dispatch_single("/print waited"))
+                )
+                worker.start()
+                await asyncio.sleep(0.2)
+
+                # Assert -- waiting, not refused.  The main thread stayed
+                # responsive throughout (this await proves it).
+                assert box == [], (
+                    "an off-main dispatch must wait for the guard, not skip "
+                    f"the line, got {box}"
+                )
+
+                # Act -- the holder finishes
+                release.set()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while not box and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                worker.join(5)
+                keeper.join(5)
+
+                # Assert
+                assert box and box[0].success is True, (
+                    "the line must run once the guard frees; on a serial tool "
+                    f"a skipped line never reaches the device. Got {box}"
+                )
+
+        _run(scenario)
+
+    def test_the_main_thread_is_refused_immediately(self, app_factory):
+        """Deadlock-freedom, pinned.
+
+        If main ever waits for the guard it can park behind a worker that is
+        itself parked in ``call_from_thread`` waiting for main.
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                held = threading.Event()
+                release = threading.Event()
+
+                def holder() -> None:
+                    app._dispatch_guard.acquire()
+                    held.set()
+                    release.wait(5)
+                    app._dispatch_guard.release()
+
+                keeper = threading.Thread(target=holder)
+                keeper.start()
+                assert held.wait(5), "precondition: the guard is held"
+
+                # Act -- main asks for a guard it cannot afford to wait on
+                t0 = time.monotonic()
+                result = app._dispatch_single("/print main")
+                elapsed = time.monotonic() - t0
+                release.set()
+                keeper.join(5)
+
+                # Assert
+                assert result.success is False, "main is refused, never queued"
+                assert elapsed < app._DISPATCH_WAIT_S / 2, (
+                    "the main thread must be refused immediately, not after "
+                    f"the off-main wait; took {elapsed:.2f}s"
                 )
 
         _run(scenario)

@@ -6,6 +6,7 @@ from folders by app.py. The engine owns state (seq counters, echo, etc.)
 and exposes it through PluginContext lambdas.
 """
 
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -258,6 +259,12 @@ class ReplEngine:
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
         self._max_script_depth: int = 5
+        # Thread id of the run in progress, or None when idle.  A script is
+        # a single-threaded sequence over ONE device and ONE shared
+        # PluginContext, so a second outermost run is refused rather than
+        # interleaved -- see start_script.  Nesting is allowed because a
+        # nested /run executes inline on this same thread.
+        self._script_owner: int | None = None
         # echo_repl is forced off for the duration of the outermost
         # script (see _prepare_script / _script_session) and the user's
         # interactive value restored on exit; this holds that value.
@@ -1523,9 +1530,21 @@ class ReplEngine:
             return None, CmdResult.fail(
                 msg=f"Script nesting too deep ({self._max_script_depth} levels). Use /stop first."
             )
+        # One outermost script at a time.  A nested /run reaches here on
+        # the SAME thread as the run in progress (it executes inline via
+        # _script_run), so thread identity separates legitimate nesting
+        # from a second launch -- the picker, a button, another frontend --
+        # which would interleave two command streams onto one device and
+        # one shared PluginContext.
+        if self._script_depth > 0 and threading.get_ident() != self._script_owner:
+            running = self._script_stack[0] if self._script_stack else "a script"
+            return None, CmdResult.fail(
+                msg=f"A script is already running ({running}). Use /stop first."
+            )
         outermost = self._script_depth == 0
         if outermost:
             self._script_stop.clear()
+            self._script_owner = threading.get_ident()
         self._script_depth += 1
         self._script_stack.append(path.name)
         if outermost:
@@ -1766,6 +1785,7 @@ class ReplEngine:
             if self._script_stack:
                 self._script_stack.pop()
             if self._script_depth == 0:
+                self._script_owner = None
                 self.fire_lifecycle("on_script_stop")
                 # Outermost script done -- restore the user's interactive
                 # echo_repl (forced off for the script in _prepare_script).
@@ -1800,6 +1820,7 @@ class ReplEngine:
             if self._script_stack:
                 self._script_stack.pop()
             if self._script_depth == 0:
+                self._script_owner = None
                 self.fire_lifecycle("on_script_stop")
                 # Outermost script done -- restore the user's interactive
                 # echo_repl (forced off for the script in _prepare_script).
@@ -1835,6 +1856,12 @@ class ReplEngine:
                 final tick so the UI can restore state.
         """
         w = write or self.write
+        # The frontend may hand the run to a different thread than the one
+        # that called start_script -- the TUI dispatches /run on a worker
+        # and then runs the script on a @work thread.  Ownership follows the
+        # thread that actually executes, so a nested /run is recognized as
+        # nesting and any other thread's launch is refused.
+        self._script_owner = threading.get_ident()
         with self._script_session(
             path, w, dispatch, profile, verbose, progress, on_nest, delay_progress
         ) as sctx:

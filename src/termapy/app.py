@@ -2967,6 +2967,28 @@ class SerialTerminal(TerminalHost, App):
         return CmdResult.ok(value=text)
 
     _BUSY_MSG = "Busy - a command is still running."
+    # How long an off-main dispatch waits for the guard before giving up.
+    _DISPATCH_WAIT_S = 2.0
+
+    def _acquire_dispatch_guard(self) -> bool:
+        """Take the dispatch guard: wait briefly off-main, never on main.
+
+        Non-blocking on the MAIN thread is a hard requirement, not a
+        preference: a worker holding the guard may be parked inside
+        ``call_from_thread`` waiting for main, so a main thread that waits
+        for the guard closes the cycle and deadlocks both.
+
+        Off main there is no such cycle -- the holder's marshalling still
+        runs -- so a worker waits instead of dropping the line.  That
+        matters here more than in most apps: a refused dispatch is not a
+        delayed command, it is a command that never reached the device.
+
+        Returns:
+            True if the guard was acquired (the caller must release it).
+        """
+        if self._thread_id == threading.get_ident():
+            return self._dispatch_guard.acquire(blocking=False)
+        return self._dispatch_guard.acquire(timeout=self._DISPATCH_WAIT_S)
 
     def _dispatch_single(self, cmd: str) -> CmdResult:
         """Dispatch a single command (delegates to repl.dispatch_full).
@@ -2977,7 +2999,7 @@ class SerialTerminal(TerminalHost, App):
         refused rather than corrupting the shared PluginContext; nested
         ctx.dispatch on the same thread re-enters freely.
         """
-        if not self._dispatch_guard.acquire(blocking=False):
+        if not self._acquire_dispatch_guard():
             self._status(self._BUSY_MSG, "yellow")
             return CmdResult.fail(msg=self._BUSY_MSG)
         try:
@@ -3005,7 +3027,7 @@ class SerialTerminal(TerminalHost, App):
         _dispatch_single so a button press during a running command is
         refused instead of racing it.
         """
-        if not self._dispatch_guard.acquire(blocking=False):
+        if not self._acquire_dispatch_guard():
             self._status(self._BUSY_MSG, "yellow")
             return CmdResult.fail(msg=self._BUSY_MSG)
         try:

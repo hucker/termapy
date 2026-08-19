@@ -1,6 +1,7 @@
 """Tests for ReplEngine internals: start_script, run_script, properties."""
 
 import json
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -1238,3 +1239,187 @@ class TestDispatchCapabilities:
         assert result.success is False, "sandbox gates the command"
         assert "serial_io" in result.error, "reports baseline gap"
         assert called == [], "handler never invoked"
+
+
+class TestOneScriptAtATime:
+    """T6: two outermost scripts must not run against one device.
+
+    ``_run_script`` is a non-exclusive worker and the picker launch path
+    took no lock, so a second launch simply started a second run -- two
+    command streams interleaving on one port and one shared
+    ``PluginContext``.  The engine now owns the rule for every frontend:
+    the thread executing the run owns it, nesting is that same thread, and
+    anyone else is refused.
+    """
+
+    def _engine(self, tmp_path, script_text="/print hi\n"):
+        """A run-ready engine at depth 0 with operator filesystem caps."""
+        # Reuse the run_script harness -- same engine shape, same script on
+        # disk.  It pre-sets depth=1 so run_script can be driven in
+        # isolation; these tests drive the real outermost entry instead.
+        eng, output, writes, script = TestRunScript()._make_engine(
+            tmp_path, script_text
+        )
+        eng._script_depth = 0
+        caps = CapabilitySet(filesystem_unconfined=True)
+        eng.ctx.capabilities = caps
+        eng.ctx.fs.capabilities = caps
+        return eng, output, script
+
+    def test_a_second_launch_from_another_thread_is_refused(self, tmp_path):
+        # Arrange -- a run in progress, owned by this thread
+        eng, _, script = self._engine(tmp_path)
+        path, first = eng.start_script(str(script))
+        assert first.success and path is not None, "precondition: first run started"
+
+        # Act -- the picker path, a button, or another frontend
+        box: list = []
+        other = threading.Thread(target=lambda: box.append(eng.start_script(str(script))))
+        other.start()
+        other.join(5)
+
+        # Assert
+        second_path, second = box[0]
+        assert second_path is None, "the second launch must not get a script path"
+        assert second.success is False, (
+            "a second outermost script would interleave two command streams "
+            "onto one device"
+        )
+        assert "already running" in second.error, (
+            f"the refusal should say why, got {second.error!r}"
+        )
+        assert eng._script_depth == 1, "the refused launch must not bump the depth"
+
+    def test_nesting_on_the_owning_thread_is_allowed(self, tmp_path):
+        # Arrange
+        eng, _, script = self._engine(tmp_path)
+        eng.start_script(str(script))
+
+        # Act -- what a nested /run does: same thread, inline
+        nested_path, nested = eng.start_script(str(script))
+
+        # Assert
+        assert nested.success is True, "a nested /run on the owning thread is legal"
+        assert nested_path is not None, "nesting resolves the script path"
+        actual = eng._script_depth
+        assert actual == 2, f"nesting deepens the run, got depth {actual}"
+
+    def test_ownership_is_released_when_the_run_ends(self, tmp_path):
+        # Arrange -- one complete run, start to finish
+        eng, _, script = self._engine(tmp_path)
+        path, _ = eng.start_script(str(script))
+        eng.run_script(path)
+        assert eng._script_depth == 0, "precondition: the run finished"
+
+        # Act -- a different thread launches the next one
+        box: list = []
+        other = threading.Thread(target=lambda: box.append(eng.start_script(str(script))))
+        other.start()
+        other.join(5)
+
+        # Assert
+        _, result = box[0]
+        assert result.success is True, (
+            "ownership must be released at the end of the run, or the first "
+            "script permanently locks out every later one"
+        )
+
+    def test_the_running_thread_owns_the_run_not_the_launching_one(self, tmp_path):
+        """The TUI launches on a worker and runs on a @work thread.
+
+        If ownership stayed with the launching thread, every nested ``/run``
+        would be refused as a second script.
+        """
+        # Arrange
+        eng, _, script = self._engine(tmp_path, "/print outer\n")
+        path, _ = eng.start_script(str(script))  # launched on THIS thread
+
+        # Act -- the run happens somewhere else, then nests from there
+        nested: list = []
+
+        def run_elsewhere() -> None:
+            eng.run_script(path)
+            # depth is back to 0 here; nesting mid-run is covered above.
+            nested.append(eng.start_script(str(script)))
+
+        worker = threading.Thread(target=run_elsewhere)
+        worker.start()
+        worker.join(5)
+
+        # Assert
+        _, result = nested[0]
+        assert result.success is True, (
+            "the thread that executes the script owns it; a launch from that "
+            "thread must not be mistaken for a competing frontend"
+        )
+
+
+def _wire_script_slots(eng) -> None:
+    """Wire the ctx.internal script slots a real host provides.
+
+    ``TestRunScript._make_engine`` builds a PluginContext with the io and
+    serial handles only, so ``ctx.internal`` keeps its inert defaults --
+    ``in_script`` always False and ``script_stop`` a no-op.  ``/stop`` and
+    ``/repeat`` both read those, so without this they cannot interact at
+    all.  These three lines are exactly what
+    ``TerminalHost._build_internal_handle`` sets in production.
+    """
+    internal = eng.ctx.internal
+    internal.in_script = lambda: eng.in_script
+    internal.script_stop = lambda: eng._script_stop.set()
+    internal.script_stop_event = eng._script_stop
+    # /repeat re-dispatches its cmd= through ctx.dispatch, which is an inert
+    # lambda on a bare engine; route it back into the engine the way
+    # dispatch_full does for a slash command.
+    eng.ctx.dispatch = lambda line: eng.dispatch(
+        line[len(eng.prefix):] if line.startswith(eng.prefix) else line
+    )
+
+
+class TestRepeatDoesNotEraseAScriptStop:
+    """T3: ``/repeat`` cleared the engine's shared stop event.
+
+    A stop requested mid-repeat was acknowledged in the UI, erased by
+    ``/repeat`` on its way out, and the enclosing script ran to completion.
+    """
+
+    def test_a_stop_inside_repeat_aborts_the_script(self, tmp_path):
+        # Arrange -- /stop fires on the first iteration; the line after the
+        # repeat must never run.
+        eng, output, writes, script = TestRunScript()._make_engine(
+            tmp_path, "/repeat count=5 cmd=/stop\n/print SHOULD-NOT-RUN\n"
+        )
+        _wire_script_slots(eng)
+
+        # Act
+        eng.run_script(script)
+
+        # Assert
+        text = " ".join(t for t, _ in output)
+        assert "SHOULD-NOT-RUN" not in text, (
+            "/repeat must leave the script's stop flag set so the enclosing "
+            f"run aborts. Output was: {text!r}"
+        )
+        assert eng._script_stop.is_set(), (
+            "the stop belongs to the script; /repeat must not consume it"
+        )
+
+    def test_interactive_repeat_still_clears_a_stale_stop(self, tmp_path):
+        """Outside a script /repeat IS the outermost cancellable operation.
+
+        A stale ``set()`` from an earlier Escape would otherwise abort the
+        next ``/repeat`` before its first iteration.
+        """
+        # Arrange -- no script running, stop flag left set by an earlier run
+        eng, output, writes, _ = TestRunScript()._make_engine(tmp_path, "")
+        _wire_script_slots(eng)
+        eng._script_depth = 0
+        eng._script_stop.set()
+
+        # Act
+        result = eng.dispatch("repeat count=2 cmd=/print tick")
+
+        # Assert
+        assert result.success is True, "an interactive repeat runs"
+        actual = result.value
+        assert actual == "2", f"both iterations should run, got {actual!r}"

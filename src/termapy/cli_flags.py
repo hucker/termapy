@@ -159,10 +159,18 @@ def _facts_to_json_record(facts) -> dict:
         "serial_number": facts.serial,
         "in_use": (facts.in_use or "").startswith("yes"),
         "driver": facts.driver,
-        # Bus location (e.g. "1-2.3" on Linux, "Port_#0003.Hub_#0008"
-        # on Windows).  Disambiguates two devices with the same VID/PID
-        # and serial number -- the cheap-clone scenario.
+        # Physical bus location, "1-2.3" -- bus, then one hop per hub
+        # tier.  Disambiguates two devices with the same VID/PID and
+        # serial number, the cheap-clone scenario.  Falls back to the
+        # Windows registry's "Hub_#0011.Port_#0003" when the topology
+        # can't be read.
         "location": facts.location,
+        # bInterfaceNumber, for a device exposing more than one function
+        # (a debugger with a CDC port alongside it, or one channel of a
+        # multi-port FTDI chip).  null when there is nothing to
+        # disambiguate.  Kept separate from location so that field is
+        # always just the path.
+        "interface_number": facts.interface_number,
     }
 
 

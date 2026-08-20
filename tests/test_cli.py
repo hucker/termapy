@@ -1201,21 +1201,24 @@ class TestChipsFlag:
 class TestWatchFlag:
     """Tests for --watch: event-line monitor with Ctrl+C exit."""
 
-    def test_watch_exits_cleanly_on_keyboard_interrupt(
-        self, capsys, monkeypatch
-    ):
-        # Arrange -- this is the --watch wiring test, so it goes through
-        # main(); the fleet comes from the environment because injection
-        # cannot reach through a process entry point.  The first sleep
-        # ends the loop, standing in for the user's Ctrl+C.
-        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+    def test_the_watch_flag_reaches_the_handler(self, monkeypatch):
+        # Arrange -- the wiring half: argparse to run_watch, and nothing
+        # more.  A recorder stands in for the handler because the real
+        # one loops until interrupted, and the only lever that could stop
+        # it from out here is time.sleep -- which is the SHARED module
+        # object, so patching it reaches every thread in the process.  A
+        # reader thread in a parallel test slept on it and took the
+        # KeyboardInterrupt meant for this loop.
+        from termapy import cli_flags
+
         monkeypatch.setattr("sys.argv", ["termapy", "--watch"])
+        seen = []
 
-        def _interrupt(seconds):
-            raise KeyboardInterrupt
+        def _record(args, **kwargs):
+            seen.append(args)
+            raise SystemExit(0)  # the real handler always exits
 
-        monkeypatch.setattr("termapy.cli_flags.time.sleep", _interrupt)
-
+        monkeypatch.setattr(cli_flags, "run_watch", _record)
         from termapy.entry import main
 
         # Act
@@ -1223,9 +1226,38 @@ class TestWatchFlag:
             main()
 
         # Assert
+        assert exc.value.code == 0, "--watch exits 0"
+        assert len(seen) == 1, f"--watch dispatches to run_watch once; got {seen}"
+
+    def test_watch_exits_cleanly_on_keyboard_interrupt(self, capsys, monkeypatch):
+        # Arrange -- the behavior half: drive the handler directly with a
+        # fleet that raises on the second look, standing in for the
+        # user's Ctrl+C.  The poll interval is set to zero rather than
+        # patching time.sleep, which would be global.
+        import argparse
+
+        from termapy import cli_flags
+
+        monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
+        baseline = _synthetic_facts(
+            ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "ABC"),
+        )
+        looks = [0]
+
+        def _snapshots():
+            looks[0] += 1
+            if looks[0] == 1:
+                return baseline
+            raise KeyboardInterrupt
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            cli_flags.run_watch(argparse.Namespace(), source=_snapshots)
+
+        # Assert
         out = capsys.readouterr().out
         assert exc.value.code == 0, "Ctrl+C exits 0"
-        assert "monitoring 3 port" in out, "baseline banner printed"
+        assert "monitoring 1 port" in out, "baseline banner printed"
         # Baseline rows have a blank event marker and the full state row.
         # State column shows "-" because fast-gather (used by --watch) skips
         # _check_in_use to keep the poll loop fast on multi-port systems.
@@ -1255,8 +1287,9 @@ class TestWatchFlag:
                 return changed
             raise KeyboardInterrupt
 
-        # time.sleep must be a no-op or the test hangs.
-        monkeypatch.setattr("termapy.cli_flags.time.sleep", lambda s: None)
+        # Zero the poll interval rather than patching time.sleep, which
+        # is the shared module object and would reach other threads.
+        monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
 
         # Act
         with pytest.raises(SystemExit):

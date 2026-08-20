@@ -52,24 +52,33 @@ one disappear) to identify which COM port belongs to which physical
 device — no need to close and re-open.  The Quick Setup dialog (used
 when creating a new config) refreshes the same way.
 
-### Reading the LOCATION column
+### Reading the LOCATION and IF columns
 
 Location is *where the device is plugged in*, not what it is, so it is
 the one field that survives a firmware reflash, a serial-number change,
-or a COM renumber.  It reads `bus-port` with a dot per hub tier:
+or a COM renumber.  It reads `bus-port`, with a dot per hub tier:
 
 ```
-1-8.2    bus 1, root-hub port 8, then port 2 of the hub plugged in there
-1-8.3    same hub, next port along
-1-8.4:x.1  same hub again; ":x.1" is interface 1 of a composite device
+LOCATION  IF
+1-8.2         bus 1, root-hub port 8, then port 2 of the hub plugged in there
+1-8.3         same hub, next port along
+1-8.4      1  same hub again -- and this port is function 1 of that device
 ```
 
-So ports sharing a `1-8.` prefix are on the same physical hub, and
-moving a cable to a different socket changes the number.  This is the
-same notation pyserial reports on Linux and macOS.  FTDI's Windows
-driver hides the topology from the port itself, so termapy reads it from
-the parent USB device instead -- without that, every FTDI port on
-Windows would show a blank location.
+Ports sharing a `1-8.` prefix are on the same physical hub, and moving a
+cable to a different socket changes the number.
+
+**IF** is the USB interface, and it is empty for most devices.  It fills
+in only when one physical device exposes more than one function and the
+location alone would be ambiguous -- a debugger with a serial port
+alongside it, or a multi-channel chip like an FT4232 whose four ports
+all share one location.  If no connected device is like that, the column
+isn't shown at all.
+
+This is the same notation pyserial reports on Linux and macOS, with one
+wrinkle: FTDI's Windows driver hides the topology from the port itself,
+so termapy reads it from the parent USB device instead.  Without that,
+every FTDI port on Windows shows a blank location.
 
 ## The bundled USB vendor database
 

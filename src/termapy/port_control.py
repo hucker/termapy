@@ -336,6 +336,7 @@ CHIP_FIELDS: tuple[str, ...] = (
     "product",
     "serial",
     "location",
+    "interface_number",
     "interface",
     "vid_pid",
     "model",
@@ -358,6 +359,7 @@ CHIP_FIELD_LABELS: dict[str, str] = {
     "product": "Product",
     "serial": "Serial",
     "location": "Location",
+    "interface_number": "Interface #",
     "interface": "Interface",
     "vid_pid": "VID:PID",
     "model": "Model",
@@ -386,6 +388,10 @@ class ChipFacts:
     product: str | None = None
     serial: str | None = None
     location: str | None = None
+    # bInterfaceNumber, split out of the location string so ``location``
+    # is the physical path and nothing else.  Only multi-function
+    # devices have one -- see ``split_location_interface``.
+    interface_number: str | None = None
     interface: str | None = None
     vid_pid: str | None = None
     model: str | None = None
@@ -682,6 +688,49 @@ def parse_location_paths(paths: str) -> str | None:
     if interface:
         chain.append(f":x.{interface.group(1)}")
     return "".join(chain)
+
+
+# A location's optional "<config>.<interface>" tail.  Linux names the
+# real configuration value (":1.1"); pyserial hardcodes "x" on Windows
+# because it can't read one, and so do we.  Either way the part after
+# the dot is bInterfaceNumber.
+_LOCATION_INTERFACE_RE = re.compile(r"^(?P<path>[^:]+):\w+\.(?P<interface>\d+)$")
+
+
+def split_location_interface(location: str | None) -> tuple[str | None, str | None]:
+    """Separate a location string into physical path and interface number.
+
+    Every backend spells a location the same way -- ``bus-port.port``,
+    with an optional ``:<config>.<interface>`` tail naming one function
+    of a multi-function device.  Only devices that HAVE more than one
+    function carry the tail, so the raw string changes shape from row to
+    row: a plain adapter reads ``1-8.3`` while a debugger with a CDC
+    function alongside it reads ``1-8.4:x.1``.
+
+    Splitting here means the two facts are displayed in their own
+    columns, so every location cell holds the same kind of value and
+    ports can be compared down the column.  It runs on whatever ended up
+    in the field, whichever backend produced it -- pyserial on Linux
+    (``1-8.4:1.1``), pyserial on Windows and ``parse_location_paths``
+    (``1-8.4:x.1``), or macOS, which never appends a tail at all.
+
+    A string that doesn't match the pattern is returned untouched, which
+    covers the registry hub/port fallback (``Hub_#0011.Port_#0003``) and
+    anything a future backend invents.
+
+    Args:
+        location: Raw location, or None.
+
+    Returns:
+        ``(path, interface_number)``; the second is None when the device
+        has nothing to disambiguate.
+    """
+    if not location:
+        return None, None
+    match = _LOCATION_INTERFACE_RE.match(location)
+    if match is None:
+        return location, None
+    return match.group("path"), match.group("interface")
 
 
 def _windows_location_chain(device_id: str) -> str | None:
@@ -1032,6 +1081,11 @@ def _facts_from_port_info(
             and facts.model.startswith("FT")
         ):
             facts.latency_timer = "n/a (Windows - check Device Manager)"
+    # Last, because enrichment above may have supplied the location that
+    # pyserial couldn't.  Splitting whatever ended up in the field keeps
+    # `location` to the physical path on every platform and every path
+    # through this function.
+    facts.location, facts.interface_number = split_location_interface(facts.location)
     return facts
 
 

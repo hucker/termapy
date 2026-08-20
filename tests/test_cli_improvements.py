@@ -147,7 +147,7 @@ class TestPortsJsonShape:
             "device", "manufacturer", "manufacturer_raw", "vendor",
             "description", "chip", "speed",
             "vid", "pid", "vid_pid", "serial_number", "in_use", "driver",
-            "location",
+            "location", "interface_number",
         }
         assert set(actual.keys()) == expected_keys, (
             f"every documented field present; got {sorted(actual)}"
@@ -709,4 +709,65 @@ class TestVendorLookup:
         )
         assert record["vendor"] == "Silicon Labs", (
             "vendor stays canonical for machine consumers"
+        )
+
+
+# ── Interface column behavior in port_format ──────────────────────────────────
+
+
+class TestInterfaceColumn:
+    """The interface splits out of the location so LOCATION holds one
+    kind of value on every row -- the physical path -- and a device that
+    exposes several functions names which one this port is in its own
+    column.
+    """
+
+    def test_the_column_appears_when_a_device_has_functions_to_tell_apart(self):
+        # Arrange -- a composite device (a debugger with a CDC port
+        # alongside it) next to a plain adapter.
+        from termapy.port_format import active_columns, row_from_facts
+
+        rows = [
+            row_from_facts(_make_facts(device="COM3", interface_number="1")),
+            row_from_facts(_make_facts(device="COM4", interface_number=None)),
+        ]
+
+        # Act
+        actual = active_columns(rows)
+
+        # Assert
+        assert "interface_number" in actual, (
+            "the column is kept when any row has an interface to name"
+        )
+
+    def test_the_column_vanishes_when_no_device_has_one(self):
+        # Arrange -- the ordinary case: every port is a single-function
+        # adapter, so there is nothing to disambiguate anywhere.
+        from termapy.port_format import active_columns, row_from_facts
+
+        rows = [
+            row_from_facts(_make_facts(device="COM4", interface_number=None)),
+            row_from_facts(_make_facts(device="COM7", interface_number=None)),
+        ]
+
+        # Act
+        actual = active_columns(rows)
+
+        # Assert
+        assert "interface_number" not in actual, (
+            "no interfaces anywhere means the column is not shown at all"
+        )
+
+    def test_an_absent_interface_renders_blank_not_unknown(self):
+        # Arrange
+        from termapy.port_format import row_from_facts
+
+        # Act
+        _, row = row_from_facts(_make_facts(interface_number=None))
+
+        # Assert -- "?" would claim the interface exists and could not be
+        # read.  A single-function device simply has none.
+        actual = row["interface_number"]
+        assert actual == "", (
+            f"absent is blank, not the unknown marker; got {actual!r}"
         )

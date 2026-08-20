@@ -798,6 +798,7 @@ from termapy.port_control import (  # noqa: E402
     parse_location_paths,
     resolve_port,
     resolve_port_trace,
+    split_location_interface,
 )
 
 
@@ -1255,3 +1256,56 @@ class TestWindowsLocationChain:
 
         # Assert
         assert actual == "1-8.3", f"no interface, no suffix; got {actual!r}"
+
+
+class TestSplitLocationInterface:
+    """A location carries two facts; they belong in two fields.
+
+    Only a multi-function device has the ``:<config>.<interface>`` tail,
+    so leaving it inline makes the raw string change shape from row to
+    row and stops ports being compared down a column.
+    """
+
+    def test_a_windows_composite_location_splits(self):
+        # Act -- the "x" is pyserial's placeholder for a configuration
+        # value Windows won't yield; the interface after it is real.
+        actual = split_location_interface("1-8.4:x.1")
+
+        # Assert
+        assert actual == ("1-8.4", "1"), f"path and interface; got {actual}"
+
+    def test_a_linux_location_splits_the_same_way(self):
+        # Act -- Linux names the real configuration value, so the tail
+        # reads ":1.1" rather than ":x.1".  Same shape, same split.
+        actual = split_location_interface("1-8.4:1.1")
+
+        # Assert
+        assert actual == ("1-8.4", "1"), (
+            f"the config value differs by platform, the split doesn't; got {actual}"
+        )
+
+    def test_a_single_function_location_has_no_interface(self):
+        # Act
+        actual = split_location_interface("1-8.3")
+
+        # Assert
+        assert actual == ("1-8.3", None), (
+            f"nothing to split, and None marks that; got {actual}"
+        )
+
+    def test_the_registry_fallback_is_left_alone(self):
+        # Act -- the Windows hub/port fallback has dots but no tail, and
+        # must not be mistaken for one.
+        actual = split_location_interface("Hub_#0011.Port_#0003")
+
+        # Assert
+        assert actual == ("Hub_#0011.Port_#0003", None), (
+            f"a non-matching notation passes through whole; got {actual}"
+        )
+
+    def test_no_location_splits_into_no_facts(self):
+        # Act
+        actual = split_location_interface(None)
+
+        # Assert
+        assert actual == (None, None), f"None in, None out; got {actual}"

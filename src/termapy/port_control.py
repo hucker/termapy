@@ -733,28 +733,21 @@ def split_location_interface(location: str | None) -> tuple[str | None, str | No
     return match.group("path"), match.group("interface")
 
 
-def _windows_location_chain(device_id: str) -> str | None:
-    """Return the USB bus-port chain for a Windows device instance.
+def _windows_location_paths(device_id: str, *, walk: bool = True) -> str | None:
+    """Return the raw LOCATION_PATHS property for a device instance.
 
-    Walks up from the named devnode until one reports LOCATION_PATHS,
-    then parses it with ``parse_location_paths``.  The walk is the whole
-    point: pyserial reads LOCATION_PATHS off the port's *own* node, and
-    an FTDIBUS node doesn't have it -- pyserial's source says so outright
-    ("USB location is hidden by FDTI driver :(") and gives up.  The
-    parent USB node one hop up does have it, so an FTDI port can be
-    reported in the same notation as every other port instead of blank.
-
-    LOCATION_PATHS is a synthesized PnP property rather than a stored
-    registry value, which is why this goes through cfgmgr32 instead of
-    winreg like its neighbors here.
+    With *walk* (the default) the search climbs to the nearest ancestor
+    that has the property, which is what an FTDIBUS node needs since it
+    has none of its own.  Enumerating the bus wants the opposite: read it
+    at the node or not at all, because inheriting an ancestor's path
+    would file two devices under one position.
 
     Args:
-        device_id: Device instance ID, i.e. the Enum path components
-            joined -- bus, hardware ID, then instance.
+        device_id: Device instance ID.
+        walk: Climb to an ancestor when this node has no property.
 
     Returns:
-        A chain like ``1-8.3``, or None on any failure.  This is
-        best-effort enrichment and never the reason a lookup fails.
+        The raw property string, or None.
     """
     bound = _cfgmgr32()
     if bound is None:
@@ -781,12 +774,41 @@ def _windows_location_chain(device_id: str) -> str | None:
             0,
         )
         if got == _CR_SUCCESS and buf.value:
-            return parse_location_paths(buf.value)
+            return buf.value
+        if not walk:
+            return None
         parent = DWORD()
         if get_parent(ctypes.byref(parent), devinst, 0) != _CR_SUCCESS:
             return None
         devinst = parent
     return None
+
+
+def _windows_location_chain(device_id: str) -> str | None:
+    """Return the USB bus-port chain for a Windows device instance.
+
+    Reads LOCATION_PATHS (climbing to an ancestor if this node has none)
+    and parses it with ``parse_location_paths``.  The climb is the whole
+    point: pyserial reads the property off the port's *own* node, and an
+    FTDIBUS node doesn't have it -- pyserial's source says so outright
+    ("USB location is hidden by FDTI driver :(") and gives up.  The parent
+    USB node one hop up does have it, so an FTDI port can be reported in
+    the same notation as every other port instead of blank.
+
+    LOCATION_PATHS is a synthesized PnP property rather than a stored
+    registry value, which is why this goes through cfgmgr32 instead of
+    winreg like its neighbors here.
+
+    Args:
+        device_id: Device instance ID, i.e. the Enum path components
+            joined -- bus, hardware ID, then instance.
+
+    Returns:
+        A chain like ``1-8.3``, or None on any failure.  This is
+        best-effort enrichment and never the reason a lookup fails.
+    """
+    paths = _windows_location_paths(device_id)
+    return parse_location_paths(paths) if paths else None
 
 
 def _windows_match_inst(

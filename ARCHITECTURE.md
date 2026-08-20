@@ -123,6 +123,7 @@ src/termapy/
 ├── serial_engine.py        # (606 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py          # (451 lines)  Serial I/O wrapper + SerialReader data processor
 ├── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
+├── usb_tree.py             # (553 lines)  Whole USB topology - hubs, devices, interfaces (Textual-free)
 └── vt100.py                # (173 lines)  --vt100 ANSI passthrough - raw serial <-> host terminal via miniterm
 ```
 

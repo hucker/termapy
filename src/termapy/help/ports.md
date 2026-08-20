@@ -80,6 +80,40 @@ wrinkle: FTDI's Windows driver hides the topology from the port itself,
 so termapy reads it from the parent USB device instead.  Without that,
 every FTDI port on Windows shows a blank location.
 
+## Seeing the whole bus: `/port.usb`
+
+`/port.list` shows serial ports and nothing else, on purpose -- a listing
+that included keyboards and webcams would stop being a port listing.
+When you need the other view, `/port.usb` (or `termapy --usb`) draws the
+entire USB tree and marks the nodes that carry a serial port:
+
+```text
+1                       USB Root Hub (USB 3.0)  USBHUB3
++-- 1-8                 Generic USB Hub  2109:2817  USBHUB3
+|   +-- 1-8.2           USB Serial Converter  0403:6001  FTDIBUS  -> COM7
+|   +-- 1-8.3           USB Serial Converter  0403:6015  FTDIBUS  -> COM4
+|   `-- 1-8.4           USB Composite Device  04D8:9036  usbccgp
+|       +-- :0          MPLAB PICkit5 In-Circuit Debugger  WINUSB
+|       `-- :1          USB Serial Device  usbser  -> COM3
+`-- 1-10                Intel(R) Wireless Bluetooth(R)  8087:0026
+```
+
+That answers questions the port table can't.  All three adapters are on
+one hub.  COM3 isn't a serial adapter at all -- it's the CDC function of
+a PICkit debugger, sharing a device with the debug interface.  And if a
+port vanishes, the tree shows whether the hub is still there.
+
+A `:N` child is **interface N of the device above it**, not another hub
+tier.  That distinction is why it's drawn as a child rather than spelled
+into the path: `.` already means "one tier deeper", so `1-8.4.1` is a
+device plugged into a hub at `1-8.4`, and writing an interface that way
+would claim a hub exists where there isn't one.
+
+`termapy --usb --json` emits the same tree as nested records for
+scripting.  Windows and Linux only; macOS reports that it isn't
+supported rather than printing an empty tree, which would read as "no
+devices".
+
 ## The bundled USB vendor database
 
 Termapy ships the **full canonical USB vendor table** — more than

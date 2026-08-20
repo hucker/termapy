@@ -354,6 +354,47 @@ _WATCH_WIDTHS = {
 }
 
 
+def run_usb(args: argparse.Namespace, *, source=None) -> None:
+    """Print the whole USB tree to stdout and exit.
+
+    Every hub, device and interface as physically connected, with the
+    nodes that carry a serial port marked.  This is the counterpart to
+    ``--ports``, which shows only serial ports and deliberately keeps it
+    that way -- a listing that included keyboards would stop being a
+    port listing.
+
+    ``--json`` emits the same tree as nested records instead.
+
+    Exits 0 when at least one device was found, 1 when the bus is empty
+    or the platform has no backend.
+
+    Args:
+        args: Parsed CLI namespace; only ``json`` is read.
+        source: Callable returning UsbRecords, used instead of
+            enumerating.  Nothing on the command line sets it.
+    """
+    from termapy.usb_tree import (
+        UnsupportedPlatform,
+        gather_usb_tree,
+        render_tree,
+        to_json_records,
+    )
+
+    try:
+        roots = gather_usb_tree(source=source)
+    except UnsupportedPlatform as exc:
+        print(f"termapy: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if getattr(args, "json", False):
+        print(json.dumps(to_json_records(roots), indent=2))
+        sys.exit(0 if roots else 1)
+
+    for line in render_tree(roots):
+        print(line)
+    sys.exit(0 if roots else 1)
+
+
 def run_watch(
     args: argparse.Namespace, *, source: PortSource | None = None
 ) -> None:

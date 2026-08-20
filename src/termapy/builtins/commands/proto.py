@@ -1793,8 +1793,8 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
         # so a holdout can opt in: resolve each frame token here, exactly as
         # the param binder would, so a captured frame containing whitespace
         # still counts as ONE packet.
-        from termapy.builtins.commands.var import deref_ref
         from termapy.plugins.params import resolve_deref
+        from termapy.variables import deref_ref
         for token in rest_tokens:
             ok, resolved = resolve_deref(token, deref_ref)
             if not ok:

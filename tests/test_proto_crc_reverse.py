@@ -195,7 +195,7 @@ class TestReverseDeref:
 
     def test_references_match_literals(self):
         # Arrange -- the same three packets, expressed both ways
-        from termapy.builtins.commands import var
+        from termapy import variables as var
         engine = self._engine()
         var._VARS.update({"p1": self.P1, "p2": self.P2, "p3": self.P3})
 
@@ -219,7 +219,7 @@ class TestReverseDeref:
         # Arrange -- the case the primitive exists for.  Spliced with $(NAME)
         # these would fork into 14 one-byte tokens; dereferenced they are three
         # packets, so the result must match the unspaced literals.
-        from termapy.builtins.commands import var
+        from termapy import variables as var
         engine = self._engine()
         var._VARS.update({
             "s1": "01 02 03 AA 55",

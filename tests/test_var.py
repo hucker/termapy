@@ -6,19 +6,21 @@ import re
 import pytest
 
 from termapy.builtins.commands.var import (
+    check_bare_dollar,
+    rewrite_assignment,
+)
+from termapy.plugins import DirectiveInfo, DirectiveResult
+from termapy.repl import ReplEngine
+from termapy.variables import (
     _FROZEN_MOMENTS,
     _VAR_REF_RE,
     _VARS,
-    check_bare_dollar,
     clear_vars,
     deref_ref,
     expand_vars,
     resolve_one,
-    rewrite_assignment,
     set_start_time_vars,
 )
-from termapy.plugins import DirectiveInfo, DirectiveResult
-from termapy.repl import ReplEngine
 
 
 @pytest.fixture(autouse=True)
@@ -818,7 +820,7 @@ class TestCfgContextVars:
     def _restore_context_vars(self):
         # register_cfg_vars mutates the module-global _CONTEXT_VARS; snapshot
         # and restore so we don't leak our stub get_cfg into other tests.
-        import termapy.builtins.commands.var as var_mod
+        import termapy.variables as var_mod
         saved = dict(var_mod._CONTEXT_VARS)
         yield var_mod
         var_mod._CONTEXT_VARS.clear()
@@ -953,7 +955,7 @@ class TestResolveOne:
 
     def test_resolve_context_var(self):
         # Arrange
-        from termapy.builtins.commands.var import set_context_var
+        from termapy.variables import set_context_var
         set_context_var("TEST_CTX", lambda: "ctx_value")
 
         # Act

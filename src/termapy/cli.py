@@ -238,12 +238,12 @@ class CLITerminal(TerminalHost):
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status)
 
-        from termapy.builtins.commands.var import (
+        from termapy.config import cfg_log_path
+        from termapy.variables import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,
         )
-        from termapy.config import cfg_log_path
 
         set_launch_var("FRONT_END", "cli")
         set_context_var(
@@ -824,7 +824,7 @@ class CLITerminal(TerminalHost):
         def _loop() -> None:
             while True:
                 try:
-                    from termapy.builtins.commands.var import expand_vars
+                    from termapy.variables import expand_vars
 
                     prompt = expand_vars(self.cfg.get("cli_prompt", "> "))
                     s = self._session

@@ -1097,7 +1097,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _setup_vars(self) -> None:
         """Set launch/context variables for plugin use."""
-        from termapy.builtins.commands.var import (
+        from termapy.variables import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,
@@ -2831,8 +2831,8 @@ class SerialTerminal(TerminalHost, App):
         if self._find_overlay_active:
             self._find_restore_scroll_on_close = False
             try:
-                from termapy.builtins.commands.find import _handler_clear
-                _handler_clear(self.repl.ctx, "")
+                from termapy.builtins.commands.find import dismiss
+                dismiss(self.repl.ctx)
             except Exception:
                 # Defensive: a broken plugin must not block live data.
                 self._find_overlay_active = False

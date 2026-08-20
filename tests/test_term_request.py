@@ -31,7 +31,7 @@ def repl_env(tmp_path, monkeypatch):
     bleed in and trigger the MCP-mode write_markup gate in
     _exec_request_mode.
     """
-    from termapy.builtins.commands import var as _var_mod
+    from termapy import variables as _var_mod
     monkeypatch.setattr(_var_mod, "_LAUNCH_VARS", dict(_var_mod._LAUNCH_VARS))
     _var_mod._LAUNCH_VARS.pop("FRONT_END", None)
 

@@ -198,15 +198,24 @@ class CmdResult:
     success: bool = True
     error: str = ""
     elapsed_s: float = 0.0
-    # ``value`` is loosely typed because most handlers return strings
-    # (scripting/quiet-mode reads it as text), but profile-aware MCP
-    # dispatches return shaped data (dicts, lists, numbers) per the
-    # device profile's response schema.  Callers that stringify must
-    # do so explicitly.
+    # ``value`` is the scriptable SCALAR: what ``$(X) <- cmd`` captures and
+    # what quiet-mode scripts read.  Keep it a string (or number) -- shaped
+    # structures belong in ``data``.  (Historically profile executors put
+    # dicts here; that traffic moved to ``data`` when the MCP envelope was
+    # unified.)
     value: Any = ""
+    # ``data`` is the STRUCTURED view of the same result: a JSON-shaped
+    # dict/list/scalar for agent consumers (MCP, ``--json``).  ``None``
+    # means "this command has no structured form" -- a legitimate permanent
+    # state for side-effect and prose-page commands.  Never put a prose
+    # string here; that is what ``value``/``output_lines`` are for.
+    # Handlers producing large listings should build EITHER the prose OR
+    # ``data``, branching on ``ctx.wants_data``, so neither audience pays
+    # for the other's rendering.
+    data: Any = None
 
     @classmethod
-    def ok(cls, *, value: Any) -> "CmdResult":
+    def ok(cls, *, value: Any, data: Any = None) -> "CmdResult":
         """Return a successful result with a value.
 
         ``value`` is REQUIRED -- pass ``value=""`` explicitly for
@@ -216,9 +225,9 @@ class CmdResult:
         catch silent gaps where a handler computes something but
         forgets to expose it via ``CmdResult.value``.
 
-        ``value`` is typically a string (script-readable), but profile
-        executors pass typed shapes (dict/list/number) that survive
-        through to the MCP response.
+        ``value`` is the scriptable scalar (script-readable text or a
+        number).  ``data`` is the optional structured twin -- JSON-shaped,
+        for agent consumers; see the field comment for the contract.
 
         **Path values auto-resolve to absolute strings.** When ``value``
         is a ``pathlib.Path``, it is converted via ``str(value.resolve())``
@@ -234,16 +243,18 @@ class CmdResult:
 
         if isinstance(value, Path):
             value = str(value.resolve())
-        return cls(value=value)
+        return cls(value=value, data=data)
 
     @classmethod
-    def fail(cls, msg: str = "", *, value: Any = "") -> "CmdResult":
+    def fail(cls, msg: str = "", *, value: Any = "", data: Any = None) -> "CmdResult":
         """Return a failure result with an error message.
 
         ``value`` is optional; profile executors set it on parse-failure
         so the LLM still sees the raw response text alongside the error.
+        ``data`` is optional structured detail about the failure (same
+        contract as on success -- never a prose string).
         """
-        return cls(success=False, error=msg, value=value)
+        return cls(success=False, error=msg, value=value, data=data)
 
     @property
     def err_msg(self) -> str:

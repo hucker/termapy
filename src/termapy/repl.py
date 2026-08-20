@@ -604,20 +604,21 @@ class ReplEngine:
         return collected
 
     def _exec_request_mode(self, command: str) -> CmdResult:
-        """Send a bare device command and return its response as JSON.
+        """Send a bare device command and return its response.
 
         Used when ``cfg["request_mode"]`` is true -- ``/term.request on``.
         The rule is dead simple:
 
-        - JSON-native device responds with JSON  → ``value`` is the
-          parsed JSON, passed through directly.
-        - Text device responds with plain text   → ``value`` is
-          ``{"result": "<stripped text>"}``.
+        - ``value`` is the device's response text (the scriptable
+          scalar), empty on error.
+        - JSON-native device responds with a JSON object or array →
+          ``data`` is the parsed structure, raw text still in ``value``.
+        - Text device responds with plain text → ``data`` is ``None``.
 
-        That's it.  No duplicated ``cmd/success/error/elapsed_s`` --
-        those live in the outer ``CmdResult`` (and the outer MCP
-        envelope when running ``--mcp``).  ``elapsed_s`` is on
-        ``CmdResult`` itself, accessible to all callers.
+        No duplicated ``cmd/success/error/elapsed_s`` anywhere --
+        those live on the ``CmdResult`` (and the outer MCP envelope
+        when running ``--mcp``); TUI/CLI scrollback shows them via the
+        rendered JSON display line.
 
         Input is symmetric: a JSON object with a string ``cmd`` field
         is unwrapped, so callers can send either plain text
@@ -658,16 +659,18 @@ class ReplEngine:
                     err_msg = (
                         'Invalid JSON input: "cmd" must be a non-empty string'
                     )
-                    envelope = {
-                        "cmd": cmd_text,
-                        "success": False,
-                        "error": err_msg,
-                        "elapsed_s": 0.0,
-                        "result": "",
-                    }
+                    # The rendered envelope is the human display format
+                    # only; the CmdResult carries the error, and in MCP
+                    # the outer response envelope is built from it.
                     if not _is_mcp:
-                        self.ctx.io.result_markup(_json.dumps(envelope))
-                    return CmdResult.fail(msg=err_msg, value=envelope)
+                        self.ctx.io.result_markup(_json.dumps({
+                            "cmd": cmd_text,
+                            "success": False,
+                            "error": err_msg,
+                            "elapsed_s": 0.0,
+                            "result": "",
+                        }))
+                    return CmdResult.fail(msg=err_msg)
 
         # Symmetric request-side echo: render the canonical post-unwrap
         # form so TUI/CLI scrollback shows what was sent.  Routed
@@ -734,32 +737,43 @@ class ReplEngine:
                         "yellow",
                     )
 
-        # ONE envelope is the canonical /term.request shape, returned
-        # in CmdResult.value.  In TUI/CLI it's ALSO rendered through
-        # ``result_markup`` for scrollback visibility -- it IS the
-        # command's answer, gated at quiet+ so --silent suppresses it.
-        # In MCP the model already has the envelope in value (lifted
-        # by run_command_async); rendering it here too would put the
-        # same JSON into ``output_lines``, the duplication we set out
-        # to avoid.  _is_mcp was computed at the top of this function.
+        # The JSON line rendered here is the HUMAN display format for
+        # request mode -- scrollback shows one self-contained record per
+        # exchange, gated at quiet+ so --silent suppresses it.  It is
+        # display only: the CmdResult carries the same facts (error,
+        # elapsed_s, response text in ``value``), and in MCP the outer
+        # response envelope is built from them -- rendering here too
+        # would duplicate that envelope into ``output_lines``, which is
+        # why _is_mcp (computed at the top of this function) gates it.
         success = not error
-        envelope = {
-            "cmd": command,
-            "success": success,
-            "error": error,
-            "elapsed_s": round(elapsed, 4),
-            # When a device error was detected, the text *is* the error
-            # message.  Keep result empty so the reader (human or model)
-            # doesn't see the same string in two fields.
-            "result": "" if error else text,
-        }
         if not _is_mcp:
-            self.ctx.io.result_markup(_json.dumps(envelope))
+            self.ctx.io.result_markup(_json.dumps({
+                "cmd": command,
+                "success": success,
+                "error": error,
+                "elapsed_s": round(elapsed, 4),
+                # When a device error was detected, the text *is* the
+                # error message.  Keep result empty so the reader doesn't
+                # see the same string in two fields.
+                "result": "" if error else text,
+            }))
 
         if error:
-            result = CmdResult.fail(msg=error, value=envelope)
+            result = CmdResult.fail(msg=error)
         else:
-            result = CmdResult.ok(value=envelope)
+            # ``value`` is the scalar: the device's response text.
+            # JSON-native devices (the reply parses as a JSON object or
+            # array) additionally get the parsed structure in ``data`` --
+            # the json-to-json path, with the raw text kept for fidelity.
+            data = None
+            if text.startswith(("{", "[")):
+                try:
+                    parsed = _json.loads(text)
+                except (ValueError, _json.JSONDecodeError):
+                    parsed = None
+                if isinstance(parsed, (dict, list)):
+                    data = parsed
+            result = CmdResult.ok(value=text, data=data)
         result.elapsed_s = elapsed
         return result
 

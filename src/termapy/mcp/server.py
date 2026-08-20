@@ -389,6 +389,12 @@ class MCPHost(TerminalHost):
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
         )
+        # The MCP consumer is an agent: it reads ``CmdResult.data``
+        # structure, not rendered prose.  Handlers that branch on this
+        # skip building their big prose tables entirely -- the response
+        # carries ``data`` and ``output_lines`` stays empty rather than
+        # doubling the payload.
+        self.ctx.wants_data = True
         self.ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
         self.repl.set_context(self.ctx)
         # MCP runs without echoing typed input (there's no human typing):
@@ -769,30 +775,20 @@ class MCPHost(TerminalHost):
             pending_async = list(self._async_events)
             self._async_events.clear()
 
-            # If value is a self-describing envelope (carries cmd/success/
-            # error/elapsed_s itself, as /term.request produces), don't
-            # duplicate those keys at the outer wire level -- the model
-            # already has them in value.  Plain commands (whose value is
-            # raw data, not a full envelope) get the standard outer wrap
-            # so cmd/success/error/elapsed_s are still discoverable.
-            is_self_describing = (
-                isinstance(value, dict)
-                and "cmd" in value
-                and "success" in value
-                and "error" in value
-            )
-            if is_self_describing:
-                return {
-                    "value": value,
-                    "output_lines": output_lines,
-                    "captured_artifacts": artifacts,
-                    "async_events": pending_async,
-                }
+            # ONE envelope, unconditionally.  The self-describing special
+            # case (skip the outer wrap when value carried its own cmd/
+            # success/error envelope) is gone: shaped responses now ride in
+            # ``data`` and ``value`` is back to a scalar, so there is
+            # nothing to duplicate and an agent codes against exactly one
+            # response schema.  ``data`` is None for commands with no
+            # structured form -- their information is in ``value`` and
+            # ``output_lines`` as always.
             return {
                 "cmd": command,
                 "success": bool(result.success),
                 "error": result.error or "",
                 "value": value,
+                "data": result.data,
                 "elapsed_s": float(result.elapsed_s or 0.0),
                 "output_lines": output_lines,
                 "captured_artifacts": artifacts,
@@ -1260,14 +1256,12 @@ def _dispatch_via_profile(
                     f"Expected no response from {name!r}, got: "
                     f"{preview!r}{extra}"
                 ),
-                value={
-                    "unexpected_output": meaningful,
-                    "command": name,
-                },
+                value="\n".join(meaningful),
+                data={"unexpected_output": meaningful},
             )
             result.elapsed_s = elapsed
             return result
-        result = CmdResult.ok(value={"sent": True, "cmd": name})
+        result = CmdResult.ok(value="", data={"sent": True})
         result.elapsed_s = elapsed
         return result
 
@@ -1276,7 +1270,7 @@ def _dispatch_via_profile(
         result.elapsed_s = elapsed
         return result
 
-    value = parse_response(
+    parsed = parse_response(
         text,
         fmt,
         pattern=response.get("pattern", ""),
@@ -1285,16 +1279,24 @@ def _dispatch_via_profile(
         line_types=response.get("line_types"),
         terminator=response.get("terminator", ""),
     )
-    if value is None:
+    if parsed is None:
         # Parser refused the text (regex didn't match, JSON didn't parse).
-        # Surface raw text so the LLM can still see what came back.
+        # The raw text rides in ``value`` so the LLM still sees what came
+        # back; there is no structure to put in ``data``.
         result = CmdResult.fail(
             msg=f"Response did not match {fmt} format",
-            value={"raw": text, "cmd": name},
+            value=text,
         )
         result.elapsed_s = elapsed
         return result
-    result = CmdResult.ok(value=value)
+    # ``value`` is the scalar view, ``data`` the structured one.  A string
+    # parse (fmt "text") IS the scalar -- putting prose in ``data`` is the
+    # anti-goal.  Shaped parses (dict/list/number per the profile's
+    # response schema) go to ``data`` with the raw wire text as the scalar.
+    if isinstance(parsed, str):
+        result = CmdResult.ok(value=parsed)
+    else:
+        result = CmdResult.ok(value=text, data=parsed)
     result.elapsed_s = elapsed
     return result
 

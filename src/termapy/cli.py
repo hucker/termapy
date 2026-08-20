@@ -221,7 +221,16 @@ class CLITerminal(TerminalHost):
         # Rich console for colored output
         from rich.console import Console
 
-        self.console = Console(no_color=no_color, highlight=False, width=term_width)
+        # soft_wrap: never inject hard newlines into long lines.  On a live
+        # terminal the emulator wraps visually (looks identical); piped
+        # output keeps each logical line intact, which is what makes
+        # ``-e "/port.list --json" | jq`` (and grep over long device
+        # lines) work.  Tables are pre-fitted to term_width upstream, so
+        # their rendering is unchanged.
+        self.console = Console(
+            no_color=no_color, highlight=False, width=term_width,
+            soft_wrap=True,
+        )
 
         # Engines
         self.capture = CaptureEngine(

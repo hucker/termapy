@@ -142,6 +142,27 @@ def _strip_level_flags(args: str) -> tuple[str, str | None]:
     return " ".join(remaining), level
 
 
+def _strip_json_flag(args: str) -> tuple[str, bool]:
+    """Strip the universal ``--json`` flag from args.
+
+    Like the level flags, ``--json`` is accepted by every command and
+    parsed by the dispatcher before per-command flag parsing.  It flips
+    ``ctx.wants_data`` for the one call and renders the result as a JSON
+    envelope instead of prose -- the terminal-side door to the same
+    structured channel the MCP host reads.
+
+    Returns:
+        ``(remaining_args, wants_json)``.
+    """
+    if not args or "--json" not in args:
+        return args, False
+    tokens = args.split()
+    remaining = [token for token in tokens if token != "--json"]
+    if len(remaining) == len(tokens):
+        return args, False
+    return " ".join(remaining), True
+
+
 def _closest_flag(needle: str, candidates: list[str]) -> str | None:
     """Return the nearest declared flag by edit distance, or None."""
     best: tuple[int, str] | None = None
@@ -1262,6 +1283,11 @@ class ReplEngine:
         raw_args = parts[1] if len(parts) > 1 else ""
         args = self._expand_template(raw_args)
 
+        # Universal --json flag: stripped before the plugin lookup (unlike
+        # the level flags) so an unknown command still answers with a JSON
+        # envelope rather than leaking the flag into the error message.
+        args, wants_json = _strip_json_flag(args)
+
         # Universal level-suffix modifier: any command can be invoked as
         # ``<cmd>.<level>`` (silent/quiet/normal/verbose) to override the
         # output level for that one call.  We only fall back to this if
@@ -1360,6 +1386,13 @@ class ReplEngine:
             saved_call_level = self.ctx._call_level
             if call_level is not None:
                 self.ctx._call_level = call_level
+            # wants_data follows the same save/restore discipline: nested
+            # dispatch inside the handler inherits this call's preference,
+            # and the outer value (True for the whole session under MCP)
+            # is restored on the way out.
+            saved_wants_data = self.ctx.wants_data
+            if wants_json:
+                self.ctx.wants_data = True
             try:
                 t0 = time.perf_counter()
                 if self.ctx.output_level == "silent":
@@ -1406,6 +1439,7 @@ class ReplEngine:
                 self.ctx.active_flags = set()
                 self.ctx.bound_params = saved_bound_params
                 self.ctx._call_level = saved_call_level
+                self.ctx.wants_data = saved_wants_data
         else:
             suggestion = _suggest_command(name, self._plugins, self.prefix)
             if suggestion:
@@ -1414,6 +1448,35 @@ class ReplEngine:
                 )
             else:
                 result = CmdResult.fail(msg=f"Unknown command: {name}")
+        if wants_json:
+            # The JSON envelope IS the command's answer in --json mode --
+            # the terminal twin of the MCP response, minus the three
+            # host-collected keys (output_lines / captured_artifacts /
+            # async_events), which have no collector here.  It replaces
+            # the red error line too: error is a field, not a second
+            # rendering.  Emitted on the result channel (quiet+), so
+            # ``--json --silent`` stays silent and scripts still read
+            # ``value``.  The per-call level was restored in the finally
+            # above, so re-apply it around the emission or the silent/
+            # quiet override wouldn't reach this write.
+            import json as _json
+
+            envelope = {
+                "cmd": f"{self.prefix}{name} {args}".rstrip(),
+                "success": result.success,
+                "error": result.error or "",
+                "value": result.value,
+                "data": result.data,
+                "elapsed_s": round(result.elapsed_s, 4),
+            }
+            saved_emit_level = self.ctx._call_level
+            if call_level is not None:
+                self.ctx._call_level = call_level
+            try:
+                self.ctx.io.result(_json.dumps(envelope, default=str))
+            finally:
+                self.ctx._call_level = saved_emit_level
+            return result
         if not result.success and result.error:
             self.write(result.err_msg, "red")
         return result

@@ -1423,3 +1423,102 @@ class TestRepeatDoesNotEraseAScriptStop:
         assert result.success is True, "an interactive repeat runs"
         actual = result.value
         assert actual == "2", f"both iterations should run, got {actual!r}"
+
+
+# -- Universal --json flag --------------------------------------------------
+
+
+class TestJsonFlag:
+    """``--json`` on any command renders the result as a JSON envelope."""
+
+    def _last_envelope(self, output):
+        """Parse the last written line as the JSON envelope."""
+        assert output, "an envelope line was written"
+        text, _color = output[-1]
+        return json.loads(text)
+
+    def test_converted_command_envelope(self, engine):
+        # Arrange
+        eng, output = engine
+        eng.dispatch("var.set PORT COM9")
+        output.clear()
+
+        # Act
+        result = eng.dispatch("var --json")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        expected_keys = {"cmd", "success", "error", "value", "data", "elapsed_s"}
+        assert set(envelope.keys()) == expected_keys, (
+            "terminal envelope is the fixed six-key core"
+        )
+        assert envelope["success"] is True, "dispatch succeeded"
+        assert envelope["data"]["user"] == {"PORT": "COM9"}, (
+            "structured namespaces in data"
+        )
+        assert result.data is not None, "CmdResult carries data too"
+
+    def test_unknown_command_is_enveloped(self, engine):
+        # Arrange
+        eng, output = engine
+
+        # Act
+        result = eng.dispatch("nope_not_a_command --json")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        assert envelope["success"] is False, "failure carried in the field"
+        assert "Unknown command" in envelope["error"], "error in the field"
+        assert envelope["data"] is None, "no data for a failed lookup"
+        assert not any(
+            color == "red" for _text, color in output
+        ), "no separate red error line: error is a field, not a second render"
+        assert result.success is False, "CmdResult still reports failure"
+
+    def test_flag_stripped_from_args(self, engine):
+        # Arrange -- /print echoes its args; the flag must not be in them
+        eng, output = engine
+
+        # Act
+        eng.dispatch("print hello --json")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        assert envelope["value"] == "hello", "--json removed before the handler"
+        assert "--json" not in envelope["cmd"], "cmd shows the effective call"
+
+    def test_wants_data_restored_after_dispatch(self, engine):
+        # Arrange
+        eng, output = engine
+
+        # Act
+        eng.dispatch("var --json")
+
+        # Assert
+        assert eng.ctx.wants_data is False, (
+            "per-call flag restored; the session default is prose"
+        )
+
+    def test_silent_suppresses_the_envelope(self, engine):
+        # Arrange
+        eng, output = engine
+        output.clear()
+
+        # Act -- silent gates the result channel the envelope rides on
+        result = eng.dispatch("var --json --silent")
+
+        # Assert
+        assert output == [], "--silent wins: nothing rendered"
+        assert result.data is not None, "the data still exists on the result"
+
+    def test_quiet_still_emits_the_envelope(self, engine):
+        # Arrange -- result channel shows at quiet+
+        eng, output = engine
+        output.clear()
+
+        # Act
+        eng.dispatch("var --json --quiet")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        assert envelope["success"] is True, "envelope rides the result channel"

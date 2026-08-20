@@ -734,8 +734,7 @@ demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
   Poll complete (3 samples)
 demo> /cap.poll fmt=bogus cmd=AT
   Error: /cap.poll: invalid fmt: 'bogus' (expected one of: csv, json)
-  Usage: /cap.poll {count=<N>} {delay=<dur>} {file=<path>} {labels=<value>} {regex=<value>} {fmt=csv|json}
-{timeout=<dur>} cmd=<command>
+  Usage: /cap.poll {count=<N>} {delay=<dur>} {file=<path>} {labels=<value>} {regex=<value>} {fmt=csv|json} {timeout=<dur>} cmd=<command>
 demo> /print === section: repeat ===
   === section: repeat ===
 demo> /repeat count=3 cmd=/print hello

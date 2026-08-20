@@ -52,6 +52,68 @@ one disappear) to identify which COM port belongs to which physical
 device — no need to close and re-open.  The Quick Setup dialog (used
 when creating a new config) refreshes the same way.
 
+### Reading the LOCATION and IF columns
+
+Location is *where the device is plugged in*, not what it is, so it is
+the one field that survives a firmware reflash, a serial-number change,
+or a COM renumber.  It reads `bus-port`, with a dot per hub tier:
+
+```
+LOCATION  IF
+1-8.2         bus 1, root-hub port 8, then port 2 of the hub plugged in there
+1-8.3         same hub, next port along
+1-8.4      1  same hub again -- and this port is function 1 of that device
+```
+
+Ports sharing a `1-8.` prefix are on the same physical hub, and moving a
+cable to a different socket changes the number.
+
+**IF** is the USB interface, and it is empty for most devices.  It fills
+in only when one physical device exposes more than one function and the
+location alone would be ambiguous -- a debugger with a serial port
+alongside it, or a multi-channel chip like an FT4232 whose four ports
+all share one location.  If no connected device is like that, the column
+isn't shown at all.
+
+This is the same notation pyserial reports on Linux and macOS, with one
+wrinkle: FTDI's Windows driver hides the topology from the port itself,
+so termapy reads it from the parent USB device instead.  Without that,
+every FTDI port on Windows shows a blank location.
+
+## Seeing the whole bus: `/port.usb`
+
+`/port.list` shows serial ports and nothing else, on purpose -- a listing
+that included keyboards and webcams would stop being a port listing.
+When you need the other view, `/port.usb` (or `termapy --usb`) draws the
+entire USB tree and marks the nodes that carry a serial port:
+
+```text
+1                       USB Root Hub (USB 3.0)  USBHUB3
++-- 1-8                 Generic USB Hub  2109:2817  USBHUB3
+|   +-- 1-8.2           USB Serial Converter  0403:6001  FTDIBUS  -> COM7
+|   +-- 1-8.3           USB Serial Converter  0403:6015  FTDIBUS  -> COM4
+|   `-- 1-8.4           USB Composite Device  04D8:9036  usbccgp
+|       +-- :0          MPLAB PICkit5 In-Circuit Debugger  WINUSB
+|       `-- :1          USB Serial Device  usbser  -> COM3
+`-- 1-10                Intel(R) Wireless Bluetooth(R)  8087:0026
+```
+
+That answers questions the port table can't.  All three adapters are on
+one hub.  COM3 isn't a serial adapter at all -- it's the CDC function of
+a PICkit debugger, sharing a device with the debug interface.  And if a
+port vanishes, the tree shows whether the hub is still there.
+
+A `:N` child is **interface N of the device above it**, not another hub
+tier.  That distinction is why it's drawn as a child rather than spelled
+into the path: `.` already means "one tier deeper", so `1-8.4.1` is a
+device plugged into a hub at `1-8.4`, and writing an interface that way
+would claim a hub exists where there isn't one.
+
+`termapy --usb --json` emits the same tree as nested records for
+scripting.  Windows and Linux only; macOS reports that it isn't
+supported rather than printing an empty tree, which would read as "no
+devices".
+
 ## The bundled USB vendor database
 
 Termapy ships the **full canonical USB vendor table** — more than
@@ -165,8 +227,12 @@ auto-reset.  So termapy never opens a port you didn't ask about:
 
 - **Listing and connecting never open bystander ports.**  `/port.list`,
   plain `termapy --ports`, the port picker, and resolving a config's
-  port (including the auto-reconnect loop) read identity only and open
-  nothing.
+  port (including the auto-reconnect loop) open nothing at all.  The
+  three listing surfaces do still read driver and location -- those come
+  from sysfs on Linux and the registry on Windows, which costs a few
+  milliseconds per port and opens no device.  Resolution and the
+  reconnect loop skip even that: they match on device name and serial
+  number, so there is nothing else to look up.
 - **Linux / macOS:** in-use is read from `lsof` -- it inspects the
   kernel's open-file table without opening the port, so it is always
   safe *and* it names the holder (e.g. `yes (python (PID 8842))`, i.e.

@@ -310,17 +310,17 @@ class TestClassifySerialErrorWithSpec:
     the spec is a multi-candidate chain.
     """
 
-    def test_not_found_with_fallback_chain_lists_candidates(
-        self, tmp_path, monkeypatch
-    ):
-        # Arrange -- DEMO_FLEET gives known enumeration, spec names
+    def test_not_found_with_fallback_chain_lists_candidates(self, tmp_path):
+        # Arrange -- the demo roster gives known enumeration, spec names
         # two non-existent candidates.
-        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        from termapy.port_control import _build_demo_fleet
         from termapy.serial_engine import _classify_serial_error
 
         # Act -- synthesize a FileNotFoundError-like error.
         exc = FileNotFoundError("no such port")
-        actual = _classify_serial_error(exc, "BOGUS1|BOGUS2")
+        actual = _classify_serial_error(
+            exc, "BOGUS1|BOGUS2", source=_build_demo_fleet
+        )
 
         # Assert
         assert "BOGUS1" in actual, f"first candidate named; got {actual!r}"
@@ -328,7 +328,7 @@ class TestClassifySerialErrorWithSpec:
         assert "not found" in actual.lower(), (
             f"each should be marked not found; got {actual!r}"
         )
-        # DEMO_FLEET gives COM3, COM4, COM7 -- at least one should show
+        # The roster is COM3, COM4, COM7 -- at least one should show
         # in the "Currently connected" list.
         assert "COM3" in actual or "COM4" in actual or "COM7" in actual, (
             f"should list currently-connected ports; got {actual!r}"

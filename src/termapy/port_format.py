@@ -57,6 +57,7 @@ PORT_COLUMNS: tuple[str, ...] = (
     "sn",
     "driver",
     "location",
+    "interface_number",
 )
 
 # Header labels shown in the table header row.  MANUFACTURER is
@@ -74,6 +75,10 @@ COLUMN_HEADERS: dict[str, str] = {
     "sn": "SN",
     "driver": "DRIVER",
     "location": "LOCATION",
+    # Two chars wide: bInterfaceNumber, present only for a device that
+    # exposes more than one function.  Its own column so LOCATION holds
+    # nothing but the physical path and reads the same on every row.
+    "interface_number": "IF",
 }
 
 # Column separator between adjacent fields.
@@ -91,8 +96,11 @@ _COL_SEP = "  "
 #   - sn and location are the disambiguators for identical adapters,
 #     which matters more than chip / speed / driver when the user
 #     has duplicate hardware plugged in.
+#   - interface_number drops just before location: it qualifies the
+#     path, so the path is the more useful of the two to keep.
 DROP_ORDER: tuple[str, ...] = (
-    "speed", "chip", "vid_pid", "driver", "vendor", "sn", "location",
+    "speed", "chip", "vid_pid", "driver", "vendor", "sn",
+    "interface_number", "location",
 )
 
 
@@ -135,6 +143,9 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     # consistent ("Silicon Labs" -> "SiLabs", "Microchip" -> "Microchip").
     vendor = _mfg_alias(facts.vendor) or _EMPTY
     location = facts.location or _EMPTY
+    # Blank, not "?": a single-function device has no interface to name,
+    # which is different from one whose interface we failed to read.
+    interface_number = facts.interface_number or ""
 
     return port, {
         "port": port,
@@ -147,6 +158,7 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
         "sn": sn,
         "driver": driver,
         "location": location,
+        "interface_number": interface_number,
     }
 
 
@@ -158,7 +170,8 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
 def active_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
     """Drop purely-blank optional columns from the display list.
 
-    ``sn``, ``driver``, ``vendor``, and ``location`` are optional: if
+    ``sn``, ``driver``, ``vendor``, ``location`` and
+    ``interface_number`` are optional: if
     every port reports ``?`` for one of them (common on built-in
     COM1/stock adapters, on macOS where ``driver`` isn't gathered
     yet, or for non-USB ports where ``vendor`` doesn't apply), we
@@ -167,9 +180,9 @@ def active_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
     ports but are informative enough to always show.
     """
     cols = list(PORT_COLUMNS)
-    optional = ("sn", "driver", "vendor", "location")
+    optional = ("sn", "driver", "vendor", "location", "interface_number")
     for col in optional:
-        if rows and all(row[col] == _EMPTY for _, row in rows):
+        if rows and all(not row[col] or row[col] == _EMPTY for _, row in rows):
             cols.remove(col)
     return tuple(cols)
 

@@ -13,11 +13,14 @@ import sys
 import threading
 import time
 from threading import Event
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from termapy.capture import CaptureEngine
 from termapy.plugins import BoundaryException
 from termapy.serial_port import SerialPort, SerialReader
+
+if TYPE_CHECKING:
+    from termapy.port_control import PortSource
 
 # Upper bound on ``disconnect``'s join.  Teardown is a real
 # ``Thread.join()`` -- the engine owns the reader thread (``start_reader``),
@@ -91,7 +94,9 @@ def _find_port_holder(port_name: str) -> str | None:
     return None
 
 
-def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
+def _classify_serial_error(
+    exc: Exception, port_name: str = "", *, source: PortSource | None = None
+) -> str:
     """Turn a serial open exception into a user-friendly message.
 
     If a ``port_name`` is provided and the error looks like "port in
@@ -110,6 +115,12 @@ def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
     ``raise ... from ...``, so ``exc.__cause__`` is None and we have
     to fall back to substring matching on the message itself to
     recognize PermissionError / FileNotFoundError cases.
+
+    ``source`` is forwarded to the trace and the currently-connected
+    listing (see ``port_control.resolve_port_source``).  ``connect()``
+    never sets it -- a real failure is always classified against real
+    hardware -- so it exists to make the diagnostic reproducible against
+    a known fleet.
     """
     msg = str(exc)
     cause = exc.__cause__ or exc.__context__
@@ -139,7 +150,7 @@ def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
             _gather_all_chip_facts,
             resolve_port_trace,
         )
-        trace = resolve_port_trace(port_name)
+        trace = resolve_port_trace(port_name, source=source)
         lines = [f"Cannot open {port_name!r}. Tried each candidate:"]
         for candidate, reason in trace:
             if reason is None:
@@ -151,7 +162,7 @@ def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
         # fast=True: this builds a "what's plugged in" hint after a failed
         # connect and reads only identity fields -- never probe (opening
         # every port here would disturb bystander boards mid-error).
-        facts = _gather_all_chip_facts(fast=True)
+        facts = _gather_all_chip_facts(fast=True, source=source)
         if facts:
             conn = ", ".join(
                 f"{fact.device} ({fact.manufacturer or '?'}, SN {fact.serial or 'n/a'})"

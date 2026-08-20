@@ -49,7 +49,12 @@ def _populate_port_option_list(
     # fast=True: the picker table has no in_use column, and this runs on
     # the Textual main thread -- probing here would both freeze the UI and
     # (on Windows) open every listed port, pulsing DTR on auto-reset boards.
-    facts_list = [port_control.gather_chip_facts(port.device, fast=True) for port in ports]
+    # enrich=True: the picker DOES show location and driver; those come from
+    # sysfs / the registry and open nothing, for single-digit ms per port.
+    facts_list = [
+        port_control.gather_chip_facts(port.device, fast=True, enrich=True)
+        for port in ports
+    ]
     facts_list = [fact for fact in facts_list if fact is not None]
     # Always offer the pyserial loopback as a selectable virtual port,
     # appended below real hardware.  It echoes writes back -- handy for

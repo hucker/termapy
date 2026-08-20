@@ -12,11 +12,12 @@ Side effects dict keys:
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import sys
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from termapy.defaults import (
     VALID_BYTE_SIZES,
@@ -295,7 +296,7 @@ def _result(msgs: list[Msg], **side_effects: Any) -> Result:
     return msgs, side_effects
 
 
-def list_ports() -> Result:
+def list_ports(*, source: PortSource | None = None) -> Result:
     """List available serial ports as a picker-style table.
 
     Output matches the TUI port picker and the ``--ports`` CLI flag:
@@ -303,6 +304,10 @@ def list_ports() -> Result:
     VID:PID / SN columns.  Width adapts to the current terminal so
     low-priority columns (speed, chip, vid_pid) drop before the row
     wraps.
+
+    Args:
+        source: Substitute port list to render instead of enumerating.
+            See ``resolve_port_source``.
 
     Returns:
         Messages: header, separator, then one row per port.
@@ -312,8 +317,9 @@ def list_ports() -> Result:
     from termapy.port_format import format_table
 
     # fast=True: the /port.list table has no in_use column, so don't run
-    # the invasive probe just to discard the result.
-    facts_list = _gather_all_chip_facts(fast=True)
+    # the invasive probe just to discard the result.  enrich=True: it DOES
+    # have location and driver columns, and filling those opens no port.
+    facts_list = _gather_all_chip_facts(fast=True, enrich=True, source=source)
     if not facts_list:
         return _result([_msg("No serial ports found", "yellow")])
     row_width = shutil.get_terminal_size((80, 24)).columns
@@ -330,6 +336,7 @@ CHIP_FIELDS: tuple[str, ...] = (
     "product",
     "serial",
     "location",
+    "interface_number",
     "interface",
     "vid_pid",
     "model",
@@ -352,6 +359,7 @@ CHIP_FIELD_LABELS: dict[str, str] = {
     "product": "Product",
     "serial": "Serial",
     "location": "Location",
+    "interface_number": "Interface #",
     "interface": "Interface",
     "vid_pid": "VID:PID",
     "model": "Model",
@@ -380,6 +388,10 @@ class ChipFacts:
     product: str | None = None
     serial: str | None = None
     location: str | None = None
+    # bInterfaceNumber, split out of the location string so ``location``
+    # is the physical path and nothing else.  Only multi-function
+    # devices have one -- see ``split_location_interface``.
+    interface_number: str | None = None
     interface: str | None = None
     vid_pid: str | None = None
     model: str | None = None
@@ -553,7 +565,12 @@ def _gather_windows_extras(facts: ChipFacts, device: str) -> None:
                     with hwid_key:
                         for inst in _enum_subkeys(winreg, hwid_key):
                             if _windows_match_inst(
-                                winreg, hwid_key, inst, device, facts
+                                winreg,
+                                hwid_key,
+                                inst,
+                                device,
+                                facts,
+                                _DEVICE_ID_SEP.join([bus, hwid, inst]),
                             ):
                                 return
     finally:
@@ -573,14 +590,250 @@ def _enum_subkeys(winreg_mod, key) -> list[str]:
     return names
 
 
+# Windows device instance IDs are backslash-joined, e.g.
+# FTDIBUS\VID_0403+PID_6015+D20JSV68A\0000
+_DEVICE_ID_SEP = "\\"
+
+# cfgmgr32 constants (cfgmgr32.h).  CM_DRP_* are the SPDRP_* value + 1.
+_CM_LOCATE_DEVNODE_NORMAL = 0
+_CM_DRP_LOCATION_PATHS = 0x24
+_CR_SUCCESS = 0
+# USB allows at most 7 tiers of hubs, so the node that knows the topology
+# is always a few hops up.  Bound the walk anyway.
+_MAX_DEVNODE_HOPS = 8
+
+
+@functools.lru_cache(maxsize=1)
+def _cfgmgr32():
+    """Bind the three cfgmgr32 calls the location walk needs, once.
+
+    Lazy and cached because ``port_control`` sits on the CLI's fast path
+    (``termapy --ports`` exists to be quick), so the DLL is not loaded
+    unless a Windows location is actually asked for.
+
+    Returns:
+        A tuple of (ctypes, DWORD, ULONG, locate, get_parent, get_prop),
+        or None off Windows or if the bindings cannot be made.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes.wintypes import DWORD, PWCHAR, ULONG
+
+        cfgmgr = ctypes.WinDLL("cfgmgr32")
+        locate = cfgmgr.CM_Locate_DevNodeW
+        locate.argtypes = [ctypes.POINTER(DWORD), PWCHAR, ULONG]
+        locate.restype = ctypes.c_long
+        get_parent = cfgmgr.CM_Get_Parent
+        get_parent.argtypes = [ctypes.POINTER(DWORD), DWORD, ULONG]
+        get_parent.restype = ctypes.c_long
+        get_prop = cfgmgr.CM_Get_DevNode_Registry_PropertyW
+        get_prop.argtypes = [
+            DWORD,
+            ULONG,
+            ctypes.POINTER(ULONG),
+            ctypes.c_void_p,
+            ctypes.POINTER(ULONG),
+            ULONG,
+        ]
+        get_prop.restype = ctypes.c_long
+        return ctypes, DWORD, ULONG, locate, get_parent, get_prop
+    except (ImportError, OSError, AttributeError):
+        return None
+
+
+def parse_location_paths(paths: str) -> str | None:
+    """Turn a Windows LOCATION_PATHS string into a USB bus-port chain.
+
+    This is pyserial's own rule, reproduced deliberately so that both
+    ways termapy can learn a location produce the same spelling -- see
+    the "calculate a location string" block in
+    ``vendor/serial/tools/list_ports_windows.py``.  ``USBROOT(n)`` is the
+    bus, numbered from 1; each ``USB(n)`` is one hop, joined by ``-`` at
+    the first level and ``.`` below it.
+
+    ``PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)`` becomes ``1-8.3``.
+
+    A trailing ``USBMI(n)`` names one interface of a multi-function
+    device and becomes the ``:x.n`` suffix, matching what pyserial
+    appends for a composite device (the ``x`` stands in for a
+    configuration value neither of us can read on Windows -- pyserial
+    hardcodes it too).  Reading it here is what keeps the channels of a
+    multi-port chip apart: an FT2232H's two COM ports hang off one
+    shared parent USB node, so the hop chain alone is identical for
+    both, and only the interface distinguishes them.  pyserial ignores
+    this token because it takes the number from the hardware ID instead,
+    which is a route a devnode walk doesn't have.
+
+    ``...#USB(8)#USB(4)#USBMI(1)`` becomes ``1-8.4:x.1``.
+
+    Args:
+        paths: One LOCATION_PATHS entry.
+
+    Returns:
+        The chain, or None if the string names no USB hop at all (a
+        non-USB serial port -- PCI, Bluetooth, a virtual pair).
+    """
+    chain: list[str] = []
+    for match in re.finditer(r"USBROOT\((\w+)\)|#USB\((\w+)\)", paths):
+        if match.group(1):
+            chain.append(f"{int(match.group(1)) + 1:d}")
+        else:
+            chain.append("." if len(chain) > 1 else "-")
+            chain.append(match.group(2))
+    if not chain:
+        return None
+    interface = re.search(r"#USBMI\((\w+)\)", paths)
+    if interface:
+        chain.append(f":x.{interface.group(1)}")
+    return "".join(chain)
+
+
+# A location's optional "<config>.<interface>" tail.  Linux names the
+# real configuration value (":1.1"); pyserial hardcodes "x" on Windows
+# because it can't read one, and so do we.  Either way the part after
+# the dot is bInterfaceNumber.
+_LOCATION_INTERFACE_RE = re.compile(r"^(?P<path>[^:]+):\w+\.(?P<interface>\d+)$")
+
+
+def split_location_interface(location: str | None) -> tuple[str | None, str | None]:
+    """Separate a location string into physical path and interface number.
+
+    Every backend spells a location the same way -- ``bus-port.port``,
+    with an optional ``:<config>.<interface>`` tail naming one function
+    of a multi-function device.  Only devices that HAVE more than one
+    function carry the tail, so the raw string changes shape from row to
+    row: a plain adapter reads ``1-8.3`` while a debugger with a CDC
+    function alongside it reads ``1-8.4:x.1``.
+
+    Splitting here means the two facts are displayed in their own
+    columns, so every location cell holds the same kind of value and
+    ports can be compared down the column.  It runs on whatever ended up
+    in the field, whichever backend produced it -- pyserial on Linux
+    (``1-8.4:1.1``), pyserial on Windows and ``parse_location_paths``
+    (``1-8.4:x.1``), or macOS, which never appends a tail at all.
+
+    A string that doesn't match the pattern is returned untouched, which
+    covers the registry hub/port fallback (``Hub_#0011.Port_#0003``) and
+    anything a future backend invents.
+
+    Args:
+        location: Raw location, or None.
+
+    Returns:
+        ``(path, interface_number)``; the second is None when the device
+        has nothing to disambiguate.
+    """
+    if not location:
+        return None, None
+    match = _LOCATION_INTERFACE_RE.match(location)
+    if match is None:
+        return location, None
+    return match.group("path"), match.group("interface")
+
+
+def _windows_location_paths(device_id: str, *, walk: bool = True) -> str | None:
+    """Return the raw LOCATION_PATHS property for a device instance.
+
+    With *walk* (the default) the search climbs to the nearest ancestor
+    that has the property, which is what an FTDIBUS node needs since it
+    has none of its own.  Enumerating the bus wants the opposite: read it
+    at the node or not at all, because inheriting an ancestor's path
+    would file two devices under one position.
+
+    Args:
+        device_id: Device instance ID.
+        walk: Climb to an ancestor when this node has no property.
+
+    Returns:
+        The raw property string, or None.
+    """
+    bound = _cfgmgr32()
+    if bound is None:
+        return None
+    ctypes, DWORD, ULONG, locate, get_parent, get_prop = bound
+    devinst = DWORD()
+    located = locate(
+        ctypes.byref(devinst),
+        ctypes.create_unicode_buffer(device_id),
+        _CM_LOCATE_DEVNODE_NORMAL,
+    )
+    if located != _CR_SUCCESS:
+        return None
+    for _ in range(_MAX_DEVNODE_HOPS):
+        buf = ctypes.create_unicode_buffer(1024)
+        size = ULONG(ctypes.sizeof(buf))
+        reg_type = ULONG(0)
+        got = get_prop(
+            devinst,
+            _CM_DRP_LOCATION_PATHS,
+            ctypes.byref(reg_type),
+            ctypes.byref(buf),
+            ctypes.byref(size),
+            0,
+        )
+        if got == _CR_SUCCESS and buf.value:
+            return buf.value
+        if not walk:
+            return None
+        parent = DWORD()
+        if get_parent(ctypes.byref(parent), devinst, 0) != _CR_SUCCESS:
+            return None
+        devinst = parent
+    return None
+
+
+def _windows_location_chain(device_id: str) -> str | None:
+    """Return the USB bus-port chain for a Windows device instance.
+
+    Reads LOCATION_PATHS (climbing to an ancestor if this node has none)
+    and parses it with ``parse_location_paths``.  The climb is the whole
+    point: pyserial reads the property off the port's *own* node, and an
+    FTDIBUS node doesn't have it -- pyserial's source says so outright
+    ("USB location is hidden by FDTI driver :(") and gives up.  The parent
+    USB node one hop up does have it, so an FTDI port can be reported in
+    the same notation as every other port instead of blank.
+
+    LOCATION_PATHS is a synthesized PnP property rather than a stored
+    registry value, which is why this goes through cfgmgr32 instead of
+    winreg like its neighbors here.
+
+    Args:
+        device_id: Device instance ID, i.e. the Enum path components
+            joined -- bus, hardware ID, then instance.
+
+    Returns:
+        A chain like ``1-8.3``, or None on any failure.  This is
+        best-effort enrichment and never the reason a lookup fails.
+    """
+    paths = _windows_location_paths(device_id)
+    return parse_location_paths(paths) if paths else None
+
+
 def _windows_match_inst(
-    winreg_mod, parent_key, inst: str, device: str, facts: ChipFacts
+    winreg_mod,
+    parent_key,
+    inst: str,
+    device: str,
+    facts: ChipFacts,
+    device_id: str = "",
 ) -> bool:
     """Check one Enum instance node for a PortName match; populate
     ``facts.driver`` and (if pyserial didn't already) ``facts.location``.
 
-    Returns True if the instance owns ``device`` (the caller stops
-    walking).  False otherwise.
+    Args:
+        winreg_mod: The ``winreg`` module, passed in so the import stays
+            at the caller.
+        parent_key: Open handle to the hardware-ID key being walked.
+        inst: Instance subkey name under *parent_key*.
+        device: The COM port being looked for, e.g. ``"COM4"``.
+        facts: Record to populate in place.
+        device_id: Full device instance ID of this node, used to locate
+            the devnode for the location walk.  Empty skips that walk.
+
+    Returns:
+        True if the instance owns ``device`` (the caller stops walking).
     """
     try:
         inst_key = winreg_mod.OpenKey(parent_key, inst)
@@ -612,9 +865,14 @@ def _windows_match_inst(
         # (FTDI presents both an FTDIBUS\... port node and a USB\...
         # bus node; LocationInformation lives on the USB side).
         if not facts.location:
-            facts.location = _windows_lookup_location(
-                winreg_mod, inst_key
-            )
+            # Preferred: the same bus-port chain pyserial reports for
+            # every port it can manage one for, so the LOCATION column
+            # speaks one language.  Fallback: the hub/port pair from the
+            # registry -- a different addressing scheme, but better than
+            # blank if the devnode walk comes up empty.
+            facts.location = (
+                _windows_location_chain(device_id) if device_id else None
+            ) or _windows_lookup_location(winreg_mod, inst_key)
         return True
 
 
@@ -770,16 +1028,30 @@ def _check_permissions(device: str) -> str:
 
 
 def _facts_from_port_info(
-    p: Any, connected_port: str = "", *, fast: bool = False
+    p: Any, connected_port: str = "", *, fast: bool = False, enrich: bool = False
 ) -> ChipFacts:
     """Build a ChipFacts from a pyserial ListPortInfo plus platform extras.
 
-    ``fast=True`` skips the per-port ``_check_in_use`` probe (which
-    opens each port to detect contention -- ~250 ms per port on
-    Windows).  Used by ``--watch`` so the poll loop doesn't scale
-    linearly with port count.  Fast-gathered records have
+    Two independent costs live below, and they are gated separately
+    because they are not the same kind of expensive:
+
+    ``fast=True`` skips the ``in_use``/``permissions`` probe.  That probe
+    *opens the port* on Windows (~250 ms each, and it pulses DTR/RTS,
+    which resets auto-reset boards), so it stays off for every surface
+    that does not display in-use.  Fast-gathered records have
     ``in_use=None`` and ``permissions=None`` so callers can tell the
     field is missing rather than False.
+
+    ``enrich=True`` adds the platform metadata lookup -- driver,
+    location, latency timer, negotiated speed -- from sysfs on Linux and
+    the registry on Windows.  It opens nothing and costs single-digit
+    milliseconds per port, so any surface that *displays* those columns
+    should ask for it even in fast mode.  It defaults off because the
+    hot callers (``resolve_port`` and the 2.5 s reconnect loop) read
+    identity fields only.
+
+    Enrichment also happens implicitly when ``fast=False``: a caller
+    paying for the probe has already accepted a far larger cost.
     """
     facts = ChipFacts(
         device=p.device,
@@ -815,11 +1087,13 @@ def _facts_from_port_info(
     if not fast:
         facts.permissions = _check_permissions(p.device)
         facts.in_use = _check_in_use(p.device, connected_port)
-        # Per-port enrichment (driver, latency_timer, negotiated speed)
-        # reads sysfs / the registry.  Cheap relative to _check_in_use
-        # but unnecessary for --watch's plug-event detection, which
-        # reads only the always-populated identity fields (device,
-        # description, model, vid_pid, serial).
+    if enrich or not fast:
+        # sysfs / registry reads only -- no port is opened here, which is
+        # why this is NOT gated on `fast`.  Bundling it with the probe is
+        # what silently emptied the LOCATION and DRIVER columns of the
+        # --ports table, /port.list and the picker (they display both and
+        # gather fast).  --watch and resolution stay unenriched: they read
+        # identity only and run on a timer.
         _gather_linux_extras(facts, p.device)
         _gather_windows_extras(facts, p.device)
         if (
@@ -829,31 +1103,52 @@ def _facts_from_port_info(
             and facts.model.startswith("FT")
         ):
             facts.latency_timer = "n/a (Windows - check Device Manager)"
+    # Last, because enrichment above may have supplied the location that
+    # pyserial couldn't.  Splitting whatever ended up in the field keeps
+    # `location` to the physical path on every platform and every path
+    # through this function.
+    facts.location, facts.interface_number = split_location_interface(facts.location)
     return facts
 
 
 def gather_chip_facts(
-    port_name: str, connected_port: str = "", *, fast: bool = False
+    port_name: str,
+    connected_port: str = "",
+    *,
+    fast: bool = False,
+    enrich: bool = False,
+    source: PortSource | None = None,
+    trust_env: bool = True,
 ) -> ChipFacts | None:
     """Look up the named port and return all known facts about it.
 
     ``fast=True`` skips the ``in_use``/``permissions`` probe (which opens
     the port on Windows -- see ``_check_in_use``).  Pass it from any
     surface that doesn't display ``in_use`` so single-port lookups stay
-    non-invasive.
+    non-invasive.  ``enrich=True`` still fills in driver / location /
+    latency from sysfs or the registry, which opens nothing -- pass it
+    from any surface that displays those.  See ``_facts_from_port_info``.
 
-    Honors ``TERMAPY_DEMO_FLEET``: when set, searches the synthetic
-    fleet instead of real enumeration.  See ``_build_demo_fleet``.
+    Port discovery follows the three layers described on
+    ``resolve_port_source``.  A substitute fleet (injected or from the
+    environment) is authoritative: a name it doesn't list returns None
+    without falling back to the reserved-port synthesis below.
 
     Args:
         port_name: Exact device name (e.g. ``COM3`` or ``/dev/ttyUSB0``).
         connected_port: The port termapy currently has open, if any.
+        fast: Skip the in_use/permissions probe.
+        enrich: Look up driver / location / latency anyway.
+        source: Callable returning a substitute port list; wins over the
+            environment and over real hardware.
+        trust_env: Whether the environment may supply a fleet.
 
     Returns:
         ChipFacts on success, or None if no connected port matches.
     """
-    if os.environ.get(_DEMO_FLEET_ENV):
-        for facts in _build_demo_fleet():
+    fleet = resolve_port_source(source, trust_env)
+    if fleet is not None:
+        for facts in fleet:
             if facts.device == port_name:
                 return facts
         return None
@@ -861,19 +1156,67 @@ def gather_chip_facts(
 
     for port in comports():
         if port.device == port_name:
-            return _facts_from_port_info(port, connected_port, fast=fast)
+            return _facts_from_port_info(
+                port, connected_port, fast=fast, enrich=enrich
+            )
     # OS didn't enumerate it; fall back to synthesizing a record for
     # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
     # `termapy --info DEMO` work without hardware.
     return synthetic_facts_for_reserved(port_name)
 
 
-# ─ Demo fleet ─────────────────────────────────────────────────────────────
-# When TERMAPY_DEMO_FLEET is set, _gather_all_chip_facts() returns these
-# synthetic ports instead of calling comports().  Useful for screenshots,
-# docs, hardware-free demos, and cross-platform tests.  Sibling hooks:
-# cfg["serial"]["port"] = "DEMO" (fake open) and "DEMO_FAIL" (raise on open).
+# ─ Where ports come from ──────────────────────────────────────────────────
+# Three layers, in order: an explicitly injected source, then the
+# environment, then real hardware.  Sibling hooks: cfg["serial"]["port"] =
+# "DEMO" (fake open) and "DEMO_FAIL" (raise on open).
 _DEMO_FLEET_ENV = "TERMAPY_DEMO_FLEET"
+
+# A callable that returns a substitute port list.
+PortSource = Callable[[], list[ChipFacts]]
+
+
+def resolve_port_source(
+    source: PortSource | None, trust_env: bool
+) -> list[ChipFacts] | None:
+    """Return a substitute port list, or None to enumerate real hardware.
+
+    Three layers, highest priority first:
+
+    1. **An explicit source.** The caller hands over a callable and gets
+       exactly what it returns.  Deterministic, visible in the call, and
+       safe under parallel tests -- nothing global is touched.
+    2. **The environment** (``TERMAPY_DEMO_FLEET``), unless *trust_env*
+       is False.  This layer exists because the party who wants fake
+       ports is usually NOT the calling code: a CI job, a screenshot
+       run, a docs build.  Injection alone cannot fake ports underneath
+       a program you don't control, which is most of what the hook is
+       for.
+    3. **Real hardware** -- returning None here means "go enumerate".
+
+    ``trust_env`` is what keeps layer 2 honest: a caller that needs to
+    reach real hardware while the variable happens to be set opts out
+    here rather than deleting someone else's environment.
+
+    **Surfaces above this one take *source* only, not *trust_env*.**
+    ``list_ports``, ``chip_info``, ``chip_field``, ``port_info`` and the
+    ``cli_flags.run_*`` handlers all forward a *source* down to here and
+    leave layer 2 alone.  Deciding whether the environment may speak is
+    this layer's job; the layers above only need to be able to hand a
+    fleet down, and an injected one outranks the variable anyway.
+
+    Args:
+        source: Caller-supplied port list factory, or None.
+        trust_env: Whether the environment may supply a fleet.
+
+    Returns:
+        A list of ChipFacts to use instead of real ports, or None when
+        the caller should enumerate the machine.
+    """
+    if source is not None:
+        return list(source())
+    if trust_env and os.environ.get(_DEMO_FLEET_ENV):
+        return _build_demo_fleet()
+    return None
 
 
 def _build_demo_fleet() -> list[ChipFacts]:
@@ -915,7 +1258,12 @@ def _build_demo_fleet() -> list[ChipFacts]:
 
 
 def _gather_all_chip_facts(
-    connected_port: str = "", *, fast: bool = False
+    connected_port: str = "",
+    *,
+    fast: bool = False,
+    enrich: bool = False,
+    source: PortSource | None = None,
+    trust_env: bool = True,
 ) -> list[ChipFacts]:
     """Return ChipFacts for every connected port, sorted by device name.
 
@@ -925,16 +1273,30 @@ def _gather_all_chip_facts(
     enumerated.  Records returned in fast mode have ``in_use=None``
     and ``permissions=None``.
 
-    Honors the ``TERMAPY_DEMO_FLEET`` env var: when set to any
-    non-empty value, returns a fixed synthetic fleet instead of
-    enumerating real ports.  See ``_build_demo_fleet`` for the roster.
+    ``enrich=True`` fills in driver / location / latency from sysfs or
+    the registry without opening anything, for surfaces that display
+    those columns.  See ``_facts_from_port_info`` for why the two are
+    separate knobs.
+
+    Port discovery follows the three layers described on
+    ``resolve_port_source``.  A substitute fleet is sorted the same way
+    real enumeration is, so the sort contract holds on every path.
+
+    Args:
+        connected_port: The port termapy currently has open, if any.
+        fast: Skip the per-port in_use/permissions probe.
+        enrich: Look up driver / location / latency anyway.
+        source: Callable returning a substitute port list; wins over the
+            environment and over real hardware.
+        trust_env: Whether the environment may supply a fleet.
     """
-    if os.environ.get(_DEMO_FLEET_ENV):
-        return _build_demo_fleet()
+    fleet = resolve_port_source(source, trust_env)
+    if fleet is not None:
+        return sorted(fleet, key=lambda f: f.device or "")
     from serial.tools.list_ports import comports
 
     return [
-        _facts_from_port_info(p, connected_port, fast=fast)
+        _facts_from_port_info(p, connected_port, fast=fast, enrich=enrich)
         for p in sorted(comports(), key=lambda x: x.device)
     ]
 
@@ -1076,7 +1438,13 @@ def _match_candidate(
     return None
 
 
-def resolve_port(spec: str, connected_port: str = "") -> str:
+def resolve_port(
+    spec: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
+    trust_env: bool = True,
+) -> str:
     """Resolve a port spec string to an actual device name.
 
     The spec is a ``|``-separated list of candidates; each candidate is
@@ -1084,8 +1452,10 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
     the *last* candidate is returned verbatim so the downstream
     ``open_serial()`` failure message refers to the user's intended spec.
 
-    Honors ``TERMAPY_DEMO_FLEET`` automatically because
-    ``_gather_all_chip_facts()`` does.
+    Port discovery follows the three layers described on
+    ``resolve_port_source``; *source* and *trust_env* are forwarded
+    straight through.  Resolving against an injected fleet needs no
+    hardware and no environment variable.
 
     Uses ``fast=True``: resolution matches on identity fields only
     (``device`` / ``serial`` -- see ``_match_candidate``) and must never
@@ -1100,6 +1470,9 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
         spec: The raw ``cfg["serial"]["port"]`` value, post-env-expansion.
         connected_port: The currently-connected port.  With ``fast=True``
             this is unused by resolution (kept for signature stability).
+        source: Callable returning a substitute port list; wins over the
+            environment and over real hardware.
+        trust_env: Whether the environment may supply a fleet.
 
     Returns:
         A device name suitable for opening (e.g. ``"COM3"``,
@@ -1111,7 +1484,9 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
             more connected devices.  The caller is expected to surface
             this as a user-facing error rather than silently picking one.
     """
-    facts = _gather_all_chip_facts(connected_port, fast=True)
+    facts = _gather_all_chip_facts(
+        connected_port, fast=True, source=source, trust_env=trust_env
+    )
     candidates = spec.split("|")
     for candidate in candidates:
         result = _match_candidate(candidate, facts)
@@ -1123,7 +1498,11 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
 
 
 def resolve_port_trace(
-    spec: str, connected_port: str = ""
+    spec: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
+    trust_env: bool = True,
 ) -> list[tuple[str, str | None]]:
     """Return per-candidate resolution results for error reporting.
 
@@ -1140,7 +1519,9 @@ def resolve_port_trace(
     # fast=True for the same safety reason as resolve_port: tracing must
     # not open bystander ports (identity fields are all _match_candidate
     # reads).
-    facts = _gather_all_chip_facts(connected_port, fast=True)
+    facts = _gather_all_chip_facts(
+        connected_port, fast=True, source=source, trust_env=trust_env
+    )
     trace: list[tuple[str, str | None]] = []
     for candidate in spec.split("|"):
         try:
@@ -1214,7 +1595,13 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
     return msgs
 
 
-def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
+def chip_info(
+    arg: str,
+    current_port: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
+) -> Result:
     """Show full chip info for one port, all ports, or the current port.
 
     Args:
@@ -1223,6 +1610,8 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
         current_port: The port name from ``cfg["serial"]["port"]``, used when arg
             is empty.
         connected_port: The port termapy currently has open, if any.
+        source: Substitute port list to report on instead of enumerating.
+            See ``resolve_port_source``.
 
     Returns:
         Messages with per-port chip information.
@@ -1231,7 +1620,7 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
 
     # All-ports mode
     if arg == "*":
-        all_facts = _gather_all_chip_facts(connected_port)
+        all_facts = _gather_all_chip_facts(connected_port, source=source)
         if not all_facts:
             return _result([_msg("No serial ports found", "yellow")])
         msgs: list[Msg] = []
@@ -1250,14 +1639,23 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
     # only, so without this /port.chip fails under an SN-based config even
     # while connected (port_info already resolves; this brings /port.chip
     # into line).
-    facts = gather_chip_facts(resolve_port(target, connected_port), connected_port)
+    facts = gather_chip_facts(
+        resolve_port(target, connected_port, source=source),
+        connected_port,
+        source=source,
+    )
     if facts is None:
         return _result([_msg(f"No port matching {target!r}", "yellow")])
     return _result(_format_facts_full(facts))
 
 
 def chip_field(
-    field: str, arg: str, current_port: str, connected_port: str = ""
+    field: str,
+    arg: str,
+    current_port: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
 ) -> Result:
     """Show a single field's value for one or more ports.
 
@@ -1267,6 +1665,9 @@ def chip_field(
             ``"*"`` for all connected ports.
         current_port: The port name from ``cfg["serial"]["port"]``, used when arg
             is empty.
+        connected_port: The port termapy currently has open, if any.
+        source: Substitute port list to query instead of enumerating.
+            See ``resolve_port_source``.
 
     Returns:
         Messages with one line per port (just the value if a single
@@ -1278,7 +1679,7 @@ def chip_field(
     arg = arg.strip()
 
     if arg == "*":
-        all_facts = _gather_all_chip_facts(connected_port)
+        all_facts = _gather_all_chip_facts(connected_port, source=source)
         if not all_facts:
             return _result([_msg("No serial ports found", "yellow")])
         msgs: list[Msg] = []
@@ -1293,7 +1694,11 @@ def chip_field(
         return _result([_msg("No current port set.", "red")])
     # Resolve SN / fallback specs before the literal-name lookup (see
     # chip_info -- keeps /port.chip.<field> working under an SN config).
-    facts = gather_chip_facts(resolve_port(target, connected_port), connected_port)
+    facts = gather_chip_facts(
+        resolve_port(target, connected_port, source=source),
+        connected_port,
+        source=source,
+    )
     if facts is None:
         return _result([_msg(f"No port matching {target!r}", "yellow")])
     value = getattr(facts, field)
@@ -1301,7 +1706,12 @@ def chip_field(
     return _result([_msg(display)])
 
 
-def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
+def port_info(
+    cfg: Mapping[str, Any],
+    ser: Any | None,
+    *,
+    source: PortSource | None = None,
+) -> Result:
     """Format comprehensive port status, frame, USB chip info, and live signals.
 
     Output is organized into three sections:
@@ -1318,6 +1728,8 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     Args:
         cfg: Config dict.
         ser: Serial-like object, or None if disconnected.
+        source: Substitute port list to resolve and report against instead
+            of enumerating.  See ``resolve_port_source``.
     """
     connected = ser is not None
     state = "connected" if connected else "disconnected"
@@ -1334,7 +1746,7 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
         actual = getattr(ser, "port", spec) or spec
     else:
         try:
-            actual = resolve_port(spec)
+            actual = resolve_port(spec, source=source)
         except AmbiguousSerialNumberError:
             actual = spec  # stay honest; chip section will skip
 
@@ -1376,7 +1788,7 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     port_name = actual
     connected_port = port_name if ser is not None else ""
     if port_name:
-        facts = gather_chip_facts(port_name, connected_port)
+        facts = gather_chip_facts(port_name, connected_port, source=source)
         if facts is not None:
             msgs.append(_msg(""))
             chip_rows: list[tuple[str, str]] = []

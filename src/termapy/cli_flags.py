@@ -23,6 +23,12 @@ Signatures are intentionally uniform: ``_run_*(args) -> None`` where
 ``args`` is the ``argparse.Namespace``.  Each calls ``sys.exit(...)``
 directly rather than returning a status code so callers never have to
 remember to propagate the exit.
+
+The port-facing handlers additionally accept a keyword-only ``source``
+that is forwarded to port discovery unchanged -- see
+``port_control.resolve_port_source``.  Nothing on the command line sets
+it; it exists so a caller can drive one of these handlers against a
+known fleet without owning the machine's real ports.
 """
 
 from __future__ import annotations
@@ -37,7 +43,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import argparse
 
-    from termapy.port_control import ChipFacts
+    from termapy.port_control import ChipFacts, PortSource
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -45,7 +51,9 @@ if TYPE_CHECKING:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def run_info(args: argparse.Namespace) -> None:
+def run_info(
+    args: argparse.Namespace, *, source: PortSource | None = None
+) -> None:
     """Print serial port chip info to stdout and exit.
 
     Calls ``port_control.chip_info()`` directly -- the underlying
@@ -63,7 +71,7 @@ def run_info(args: argparse.Namespace) -> None:
     """
     from termapy import port_control
 
-    msgs, _ = port_control.chip_info(args.info, current_port="")
+    msgs, _ = port_control.chip_info(args.info, current_port="", source=source)
     error = False
     for text, color in msgs:
         print(text)
@@ -151,10 +159,18 @@ def _facts_to_json_record(facts) -> dict:
         "serial_number": facts.serial,
         "in_use": (facts.in_use or "").startswith("yes"),
         "driver": facts.driver,
-        # Bus location (e.g. "1-2.3" on Linux, "Port_#0003.Hub_#0008"
-        # on Windows).  Disambiguates two devices with the same VID/PID
-        # and serial number -- the cheap-clone scenario.
+        # Physical bus location, "1-2.3" -- bus, then one hop per hub
+        # tier.  Disambiguates two devices with the same VID/PID and
+        # serial number, the cheap-clone scenario.  Falls back to the
+        # Windows registry's "Hub_#0011.Port_#0003" when the topology
+        # can't be read.
         "location": facts.location,
+        # bInterfaceNumber, for a device exposing more than one function
+        # (a debugger with a CDC port alongside it, or one channel of a
+        # multi-port FTDI chip).  null when there is nothing to
+        # disambiguate.  Kept separate from location so that field is
+        # always just the path.
+        "interface_number": facts.interface_number,
     }
 
 
@@ -233,7 +249,9 @@ def _pid_of(facts) -> int | None:
     return None
 
 
-def run_ports(args: argparse.Namespace) -> None:
+def run_ports(
+    args: argparse.Namespace, *, source: PortSource | None = None
+) -> None:
     """List serial ports one line per port and exit.
 
     With ``args.ports == "*"`` (the argparse ``const`` when the flag
@@ -256,7 +274,11 @@ def run_ports(args: argparse.Namespace) -> None:
     # The table has no in_use column; only --json surfaces it.  So probe
     # (fast=False) only for --json -- non-invasive via lsof on POSIX, and
     # a hardened opt-in open on Windows.  Plain --ports never opens a port.
-    all_facts = port_control._gather_all_chip_facts(fast=not getattr(args, "json", False))
+    # It does show LOCATION and DRIVER though, so it asks for enrichment --
+    # sysfs / registry reads, no port opened.
+    all_facts = port_control._gather_all_chip_facts(
+        fast=not getattr(args, "json", False), enrich=True, source=source
+    )
 
     if args.ports and args.ports != "*":
         all_facts = [fact for fact in all_facts if fact.device == args.ports]
@@ -332,7 +354,50 @@ _WATCH_WIDTHS = {
 }
 
 
-def run_watch(args: argparse.Namespace) -> None:
+def run_usb(args: argparse.Namespace, *, source=None) -> None:
+    """Print the whole USB tree to stdout and exit.
+
+    Every hub, device and interface as physically connected, with the
+    nodes that carry a serial port marked.  This is the counterpart to
+    ``--ports``, which shows only serial ports and deliberately keeps it
+    that way -- a listing that included keyboards would stop being a
+    port listing.
+
+    ``--json`` emits the same tree as nested records instead.
+
+    Exits 0 when at least one device was found, 1 when the bus is empty
+    or the platform has no backend.
+
+    Args:
+        args: Parsed CLI namespace; only ``json`` is read.
+        source: Callable returning UsbRecords, used instead of
+            enumerating.  Nothing on the command line sets it.
+    """
+    from termapy.usb_tree import (
+        UnsupportedPlatform,
+        gather_usb_tree,
+        render_tree,
+        to_json_records,
+    )
+
+    try:
+        roots = gather_usb_tree(source=source)
+    except UnsupportedPlatform as exc:
+        print(f"termapy: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if getattr(args, "json", False):
+        print(json.dumps(to_json_records(roots), indent=2))
+        sys.exit(0 if roots else 1)
+
+    for line in render_tree(roots):
+        print(line)
+    sys.exit(0 if roots else 1)
+
+
+def run_watch(
+    args: argparse.Namespace, *, source: PortSource | None = None
+) -> None:
     """Monitor serial ports and print changes as log lines.  Ctrl+C to exit.
 
     Output is a uniform log: every line begins with ``[HH:MM:SS]`` and
@@ -373,7 +438,7 @@ def run_watch(args: argparse.Namespace) -> None:
     # with no device name has nothing to key, display, or diff on.
     initial = {
         f.device: f
-        for f in port_control._gather_all_chip_facts(fast=watch_fast)
+        for f in port_control._gather_all_chip_facts(fast=watch_fast, source=source)
         if f.device is not None
     }
     note = " (in-use not shown on Windows)" if watch_fast else ""
@@ -389,7 +454,9 @@ def run_watch(args: argparse.Namespace) -> None:
             time.sleep(_WATCH_INTERVAL_S)
             current = {
                 f.device: f
-                for f in port_control._gather_all_chip_facts(fast=watch_fast)
+                for f in port_control._gather_all_chip_facts(
+                    fast=watch_fast, source=source
+                )
                 if f.device is not None
             }
             _emit_diff(previous, current)

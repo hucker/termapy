@@ -321,6 +321,7 @@ SUBCOMMANDS
   /port.ri              Show Ring Indicator state (read-only).
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
+  /port.usb             Show the whole USB tree, with serial ports marked.
 demo> /print === section: line endings ===
   === section: line endings ===
 demo> /show_line_endings on
@@ -424,6 +425,7 @@ SUBCOMMANDS
   /port.ri              Show Ring Indicator state (read-only).
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
+  /port.usb             Show the whole USB tree, with serial ports marked.
 demo> /help cfg
 NAME
   /cfg - Show or set config values.

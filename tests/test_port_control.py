@@ -789,35 +789,39 @@ from termapy.port_control import (  # noqa: E402
     MATCH_URL,
     AmbiguousSerialNumberError,
     ChipFacts,
+    _build_demo_fleet,
+    _gather_all_chip_facts,
+    _windows_location_chain,
     chip_field,
     chip_info,
+    gather_chip_facts,
+    parse_location_paths,
     resolve_port,
     resolve_port_trace,
+    split_location_interface,
 )
 
 
 class TestResolvePort:
     """resolve_port() translates a port spec into a concrete device name.
 
-    These tests use the DEMO_FLEET env-var hook to install a
-    deterministic three-port fleet (FTDI COM3 SN A1B2C3D4, Silicon
-    Labs COM4 SN 0001, Microsoft COM7 SN 020026702RYN040952).
+    These tests hand in ``_build_demo_fleet`` -- the same deterministic
+    three-port roster the ``TERMAPY_DEMO_FLEET`` variable installs (FTDI
+    COM3 SN A1B2C3D4, Silicon Labs COM4 SN 0001, Microsoft COM7 SN
+    020026702RYN040952) -- so the fleet is visible in each call rather
+    than armed by an environment the test has to remember to set.
     """
-
-    @pytest.fixture(autouse=True)
-    def _use_demo_fleet(self, monkeypatch):
-        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
 
     def test_literal_device_name_unchanged(self):
         # Act
-        actual = resolve_port("COM3")
+        actual = resolve_port("COM3", source=_build_demo_fleet)
 
         # Assert
         assert actual == "COM3", "literal device match returns that device"
 
     def test_serial_number_resolves_to_device(self):
         # Act
-        actual = resolve_port("A1B2C3D4")
+        actual = resolve_port("A1B2C3D4", source=_build_demo_fleet)
 
         # Assert
         expected = "COM3"
@@ -826,7 +830,7 @@ class TestResolvePort:
 
     def test_serial_number_case_insensitive(self):
         # Act
-        actual = resolve_port("a1b2c3d4")
+        actual = resolve_port("a1b2c3d4", source=_build_demo_fleet)
 
         # Assert
         expected = "COM3"
@@ -835,7 +839,7 @@ class TestResolvePort:
 
     def test_pipe_fallback_first_candidate_wins(self):
         # Act -- SN resolves, COM7 fallback never tried
-        actual = resolve_port("A1B2C3D4|COM7")
+        actual = resolve_port("A1B2C3D4|COM7", source=_build_demo_fleet)
 
         # Assert -- note fleet has COM7 so COM7 would also resolve;
         # test still proves order by checking we got the SN match, not COM7
@@ -845,7 +849,7 @@ class TestResolvePort:
 
     def test_pipe_fallback_second_wins_when_first_missing(self):
         # Act
-        actual = resolve_port("BOGUS_NO_MATCH|COM4")
+        actual = resolve_port("BOGUS_NO_MATCH|COM4", source=_build_demo_fleet)
 
         # Assert
         expected = "COM4"
@@ -854,28 +858,28 @@ class TestResolvePort:
 
     def test_reserved_demo_passes_through(self):
         # Act -- DEMO bypasses enumeration even when DEMO_FLEET is set
-        actual = resolve_port("DEMO")
+        actual = resolve_port("DEMO", source=_build_demo_fleet)
 
         # Assert
         assert actual == "DEMO", "DEMO is a reserved name"
 
     def test_reserved_demo_fail_passes_through(self):
         # Act
-        actual = resolve_port("DEMO_FAIL")
+        actual = resolve_port("DEMO_FAIL", source=_build_demo_fleet)
 
         # Assert
         assert actual == "DEMO_FAIL", "DEMO_FAIL is a reserved name"
 
     def test_pyserial_url_passes_through(self):
         # Act
-        actual = resolve_port("rfc2217://host:2217")
+        actual = resolve_port("rfc2217://host:2217", source=_build_demo_fleet)
 
         # Assert
         assert actual == "rfc2217://host:2217", "URLs are passed through"
 
     def test_all_candidates_missing_returns_last(self):
         # Act
-        actual = resolve_port("NOPE1|NOPE2|NOPE3")
+        actual = resolve_port("NOPE1|NOPE2|NOPE3", source=_build_demo_fleet)
 
         # Assert -- last candidate is what ``open_serial()`` will show
         # in its "Cannot open <X>" error, which is what the user most
@@ -884,13 +888,11 @@ class TestResolvePort:
         assert actual == expected, \
             f"last candidate returned on total miss; got {actual}"
 
-    def test_ambiguous_sn_raises(self, monkeypatch):
-        # Arrange -- monkeypatch _gather_all_chip_facts with a fleet
-        # containing two devices sharing the same SN "0001" (a common
-        # burn-in on cheap CP2102 / CH340 clones).
-        import termapy.port_control as pc
-
-        def _ambiguous_fleet(connected_port: str = "", *, fast: bool = False):
+    def test_ambiguous_sn_raises(self):
+        # Arrange -- a fleet with two devices sharing the same SN "0001"
+        # (a common burn-in on cheap CP2102 / CH340 clones), handed in
+        # through source= rather than patched over the gather function.
+        def _ambiguous_fleet():
             return [
                 ChipFacts(
                     device="COM3", manufacturer="CH340", serial="0001",
@@ -902,11 +904,9 @@ class TestResolvePort:
                 ),
             ]
 
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", _ambiguous_fleet)
-
         # Act + Assert
         with pytest.raises(AmbiguousSerialNumberError) as exc:
-            resolve_port("0001")
+            resolve_port("0001", source=_ambiguous_fleet)
         assert exc.value.matches == ["COM3", "COM7"], \
             "both colliding devices named in exception"
         assert "0001" in str(exc.value), "SN named in exception message"
@@ -921,17 +921,14 @@ class TestChipInfoResolvesSnSpec:
     gather_chip_facts matches literal device names only, so without
     resolution these failed with "No port matching" under an SN-based
     config -- even while connected.  Uses the demo fleet (COM3 SN
-    A1B2C3D4, an FTDI FT232R).
+    A1B2C3D4, an FTDI FT232R), handed in rather than set in the
+    environment.
     """
-
-    @pytest.fixture(autouse=True)
-    def _use_demo_fleet(self, monkeypatch):
-        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
 
     def test_chip_info_resolves_serial_number(self):
         # Arrange -- SN-based config: current_port is the SN, nothing typed.
         # Act
-        msgs, _ = chip_info("", "A1B2C3D4", connected_port="COM3")
+        msgs, _ = chip_info("", "A1B2C3D4", connected_port="COM3", source=_build_demo_fleet)
 
         # Assert
         texts = [text for text, _ in msgs]
@@ -944,7 +941,7 @@ class TestChipInfoResolvesSnSpec:
 
     def test_chip_field_resolves_serial_number(self):
         # Act -- /port.chip.model under an SN config.
-        msgs, _ = chip_field("model", "", "A1B2C3D4", connected_port="COM3")
+        msgs, _ = chip_field("model", "", "A1B2C3D4", connected_port="COM3", source=_build_demo_fleet)
 
         # Assert
         texts = [text for text, _ in msgs]
@@ -957,15 +954,14 @@ class TestChipInfoResolvesSnSpec:
 
 
 class TestResolvePortTrace:
-    """resolve_port_trace() builds a per-candidate diagnostic trace."""
+    """resolve_port_trace() builds a per-candidate diagnostic trace.
 
-    @pytest.fixture(autouse=True)
-    def _use_demo_fleet(self, monkeypatch):
-        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+    Runs against the demo roster, handed in through ``source=``.
+    """
 
     def test_single_candidate_literal_match(self):
         # Act
-        actual = resolve_port_trace("COM3")
+        actual = resolve_port_trace("COM3", source=_build_demo_fleet)
 
         # Assert
         expected = [("COM3", MATCH_LITERAL)]
@@ -973,7 +969,7 @@ class TestResolvePortTrace:
 
     def test_single_candidate_sn_match(self):
         # Act
-        actual = resolve_port_trace("A1B2C3D4")
+        actual = resolve_port_trace("A1B2C3D4", source=_build_demo_fleet)
 
         # Assert
         expected = [("A1B2C3D4", MATCH_SERIAL)]
@@ -981,7 +977,7 @@ class TestResolvePortTrace:
 
     def test_single_candidate_reserved(self):
         # Act
-        actual = resolve_port_trace("DEMO")
+        actual = resolve_port_trace("DEMO", source=_build_demo_fleet)
 
         # Assert
         expected = [("DEMO", MATCH_RESERVED)]
@@ -989,7 +985,7 @@ class TestResolvePortTrace:
 
     def test_single_candidate_url(self):
         # Act
-        actual = resolve_port_trace("rfc2217://host:2217")
+        actual = resolve_port_trace("rfc2217://host:2217", source=_build_demo_fleet)
 
         # Assert
         expected = [("rfc2217://host:2217", MATCH_URL)]
@@ -997,7 +993,7 @@ class TestResolvePortTrace:
 
     def test_fallback_chain_with_first_miss(self):
         # Act
-        actual = resolve_port_trace("BOGUS|COM4")
+        actual = resolve_port_trace("BOGUS|COM4", source=_build_demo_fleet)
 
         # Assert -- None marks the miss so the caller can say
         # "BOGUS: not found" in the error message.
@@ -1006,32 +1002,310 @@ class TestResolvePortTrace:
 
     def test_fallback_chain_all_miss(self):
         # Act
-        actual = resolve_port_trace("NOPE1|NOPE2")
+        actual = resolve_port_trace("NOPE1|NOPE2", source=_build_demo_fleet)
 
         # Assert
         expected = [("NOPE1", None), ("NOPE2", None)]
         assert actual == expected, f"got {actual}"
 
-    def test_ambiguous_sn_reported_not_raised(self, monkeypatch):
+    def test_ambiguous_sn_reported_not_raised(self):
         # Arrange -- same duplicate-SN fleet as the raises test.
         # trace()'s contract is to NEVER raise, so the caller can build
         # one coherent error message even when one of multiple
         # candidates is ambiguous.
-        import termapy.port_control as pc
-
-        def _ambiguous_fleet(connected_port: str = "", *, fast: bool = False):
+        def _ambiguous_fleet():
             return [
                 ChipFacts(device="COM3", serial="0001"),
                 ChipFacts(device="COM7", serial="0001"),
             ]
 
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", _ambiguous_fleet)
-
         # Act
-        actual = resolve_port_trace("0001|COM7")
+        actual = resolve_port_trace("0001|COM7", source=_ambiguous_fleet)
 
         # Assert -- ambiguous first, then literal fallback.
         expected = [("0001", "ambiguous"), ("COM7", MATCH_LITERAL)]
         assert actual == expected, f"got {actual}"
 
 
+class TestPortSourceLayers:
+    """Where ports come from: injection, then the environment, then hardware.
+
+    The environment layer is deliberate -- the party that wants fake ports
+    is usually not the calling code (a CI job, a screenshot run, a docs
+    build), and injection alone cannot fake ports underneath a program you
+    do not control.  ``trust_env`` is what keeps it honest: an env var is
+    process-global, so a caller that needs determinism opts out instead of
+    manipulating global state.
+    """
+
+    def _fleet(self):
+        """Two ports that could not be mistaken for the demo fleet."""
+        return [
+            ChipFacts(device="COM9", serial="INJECTED-9", manufacturer="Acme"),
+            ChipFacts(device="COM8", serial="INJECTED-8", manufacturer="Acme"),
+        ]
+
+    def test_an_injected_source_is_used(self):
+        # Act -- no env var, no hardware
+        actual = _gather_all_chip_facts(source=self._fleet)
+
+        # Assert
+        devices = [f.device for f in actual]
+        assert devices == ["COM8", "COM9"], (
+            f"the injected fleet is returned, sorted by device; got {devices}"
+        )
+
+    def test_injection_wins_over_the_environment(self, monkeypatch):
+        # Arrange -- both layers armed at once
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+        # Act
+        actual = _gather_all_chip_facts(source=self._fleet)
+
+        # Assert
+        devices = [f.device for f in actual]
+        assert devices == ["COM8", "COM9"], (
+            "an explicit source outranks the environment, so a test never "
+            f"has to unset the variable first; got {devices}"
+        )
+
+    def test_the_environment_is_honored_by_default(self, monkeypatch):
+        # Arrange
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+        # Act -- no source: the operator's variable decides
+        actual = _gather_all_chip_facts()
+
+        # Assert
+        devices = [f.device for f in actual]
+        assert devices == ["COM3", "COM4", "COM7"], (
+            f"the demo fleet still works with no code change; got {devices}"
+        )
+
+    def test_trust_env_false_ignores_the_variable(self, monkeypatch):
+        # Arrange -- the variable is set, but this caller wants determinism
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+        # Act -- real enumeration; what it finds depends on the machine, so
+        # assert only that the SYNTHETIC record is not what came back.
+        actual = gather_chip_facts("COM3", trust_env=False)
+
+        # Assert
+        serial = actual.serial if actual else None
+        assert serial != "A1B2C3D4", (
+            "trust_env=False must reach real hardware, not the fleet the "
+            "environment is offering"
+        )
+
+    def test_a_named_port_missing_from_a_fleet_is_not_invented(self):
+        # Act -- a substitute fleet is authoritative: no reserved-name
+        # fallback behind its back.
+        actual = gather_chip_facts("DEMO", source=self._fleet)
+
+        # Assert
+        assert actual is None, (
+            "a fleet that does not list the port means the port is absent, "
+            "not that a synthetic record should be conjured"
+        )
+
+    def test_resolution_runs_against_an_injected_fleet(self):
+        """The payoff: resolve by serial number with no hardware, no env var."""
+        # Act
+        actual = resolve_port("INJECTED-9", source=self._fleet)
+
+        # Assert
+        assert actual == "COM9", (
+            f"SN INJECTED-9 should resolve to COM9, got {actual}"
+        )
+
+    def test_the_trace_reports_how_an_injected_candidate_matched(self):
+        # Act
+        actual = resolve_port_trace("INJECTED-8|COM9", source=self._fleet)
+
+        # Assert
+        assert actual == [("INJECTED-8", MATCH_SERIAL), ("COM9", MATCH_LITERAL)], (
+            f"both candidates resolve against the injected fleet; got {actual}"
+        )
+
+    def test_ambiguity_still_raises_against_an_injected_fleet(self):
+        # Arrange -- two ports burned with the same serial number
+        def twins():
+            return [
+                ChipFacts(device="COM8", serial="SAME"),
+                ChipFacts(device="COM9", serial="SAME"),
+            ]
+
+        # Act / Assert -- the safety rule is a property of resolution, not
+        # of where the ports came from.
+        with pytest.raises(AmbiguousSerialNumberError):
+            resolve_port("SAME", source=twins)
+
+
+class TestParseLocationPaths:
+    """The Windows LOCATION_PATHS -> bus-port chain rule.
+
+    Pure string work, so it is tested directly and on every platform.
+    The cfgmgr32 devnode walk that feeds it is thin glue over three OS
+    calls and is exercised live rather than here; what is worth pinning
+    is that termapy's spelling of a location matches pyserial's, since
+    the whole point of deriving one for FTDI ports is that the LOCATION
+    column reads as one notation.
+    """
+
+    def test_a_hub_port_becomes_a_dotted_chain(self):
+        # Arrange -- a real path from an FTDI adapter's parent USB node.
+        paths = "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)"
+
+        # Act
+        actual = parse_location_paths(paths)
+
+        # Assert
+        assert actual == "1-8.3", (
+            f"bus 1, hub port 8, device port 3; got {actual!r}"
+        )
+
+    def test_a_port_directly_on_the_root_hub_has_no_dot(self):
+        # Act -- one hop: the separator is '-', and '.' never appears.
+        actual = parse_location_paths("PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)")
+
+        # Assert
+        assert actual == "1-8", f"single hop keeps the dash form; got {actual!r}"
+
+    def test_each_further_hop_adds_a_dot(self):
+        # Act -- a hub behind a hub behind a hub.
+        actual = parse_location_paths(
+            "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(4)#USB(2)"
+        )
+
+        # Assert
+        assert actual == "1-8.4.2", f"one dot per extra tier; got {actual!r}"
+
+    def test_the_bus_is_numbered_from_one(self):
+        # Act -- USBROOT is 0-based in the registry, 1-based on display.
+        # This is pyserial's convention, and matching it is the point.
+        actual = parse_location_paths("PCIROOT(0)#USBROOT(1)#USB(2)")
+
+        # Assert
+        assert actual == "2-2", f"USBROOT(1) is bus 2; got {actual!r}"
+
+    def test_a_non_usb_path_has_no_chain(self):
+        # Act -- a PCI serial card names no USB hop.
+        actual = parse_location_paths("PCIROOT(0)#PCI(1C00)#PCI(0000)")
+
+        # Assert
+        assert actual is None, (
+            f"None, not an empty string, so callers can fall back; got {actual!r}"
+        )
+
+    def test_an_empty_path_has_no_chain(self):
+        # Act
+        actual = parse_location_paths("")
+
+        # Assert
+        assert actual is None, f"nothing in, nothing out; got {actual!r}"
+
+
+class TestWindowsLocationChain:
+    """The devnode walk is best-effort and must never raise."""
+
+    def test_an_unknown_device_yields_no_location(self):
+        # Act -- no such devnode.  Off Windows there are no bindings at
+        # all, and the answer is the same: None, not an exception.
+        actual = _windows_location_chain("NOSUCHDEVICE")
+
+        # Assert
+        assert actual is None, (
+            f"enrichment must degrade to blank, never fail a lookup; got {actual!r}"
+        )
+
+    def test_a_composite_interface_becomes_the_suffix(self):
+        # Arrange -- the real path from a composite debugger+CDC device,
+        # whose COM port is interface 1.
+        paths = "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(4)#USBMI(1)"
+
+        # Act
+        actual = parse_location_paths(paths)
+
+        # Assert -- same spelling pyserial produces for the same device.
+        assert actual == "1-8.4:x.1", (
+            f"interface 1 of the device at 1-8.4; got {actual!r}"
+        )
+
+    def test_channels_of_one_chip_are_told_apart(self):
+        # Arrange -- an FT2232H's two channels share a parent USB node,
+        # so the hop chain alone is identical for both.  Only the
+        # interface separates them, which is the whole reason USBMI is
+        # read rather than ignored.
+        base = "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)"
+
+        # Act
+        first = parse_location_paths(base + "#USBMI(0)")
+        second = parse_location_paths(base + "#USBMI(1)")
+
+        # Assert
+        assert (first, second) == ("1-8.3:x.0", "1-8.3:x.1"), (
+            f"two ports on one chip must not collide; got {first!r} and {second!r}"
+        )
+
+    def test_a_single_function_device_gets_no_suffix(self):
+        # Act -- no USBMI token means nothing to disambiguate, and
+        # pyserial omits the suffix in that case on every platform.
+        actual = parse_location_paths(
+            "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)"
+        )
+
+        # Assert
+        assert actual == "1-8.3", f"no interface, no suffix; got {actual!r}"
+
+
+class TestSplitLocationInterface:
+    """A location carries two facts; they belong in two fields.
+
+    Only a multi-function device has the ``:<config>.<interface>`` tail,
+    so leaving it inline makes the raw string change shape from row to
+    row and stops ports being compared down a column.
+    """
+
+    def test_a_windows_composite_location_splits(self):
+        # Act -- the "x" is pyserial's placeholder for a configuration
+        # value Windows won't yield; the interface after it is real.
+        actual = split_location_interface("1-8.4:x.1")
+
+        # Assert
+        assert actual == ("1-8.4", "1"), f"path and interface; got {actual}"
+
+    def test_a_linux_location_splits_the_same_way(self):
+        # Act -- Linux names the real configuration value, so the tail
+        # reads ":1.1" rather than ":x.1".  Same shape, same split.
+        actual = split_location_interface("1-8.4:1.1")
+
+        # Assert
+        assert actual == ("1-8.4", "1"), (
+            f"the config value differs by platform, the split doesn't; got {actual}"
+        )
+
+    def test_a_single_function_location_has_no_interface(self):
+        # Act
+        actual = split_location_interface("1-8.3")
+
+        # Assert
+        assert actual == ("1-8.3", None), (
+            f"nothing to split, and None marks that; got {actual}"
+        )
+
+    def test_the_registry_fallback_is_left_alone(self):
+        # Act -- the Windows hub/port fallback has dots but no tail, and
+        # must not be mistaken for one.
+        actual = split_location_interface("Hub_#0011.Port_#0003")
+
+        # Assert
+        assert actual == ("Hub_#0011.Port_#0003", None), (
+            f"a non-matching notation passes through whole; got {actual}"
+        )
+
+    def test_no_location_splits_into_no_facts(self):
+        # Act
+        actual = split_location_interface(None)
+
+        # Assert
+        assert actual == (None, None), f"None in, None out; got {actual}"

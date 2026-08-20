@@ -64,6 +64,24 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=_joined_value(result))
 
 
+def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
+    from termapy.usb_tree import (
+        UnsupportedPlatform,
+        gather_usb_tree,
+        render_tree,
+    )
+
+    try:
+        roots = gather_usb_tree()
+    except UnsupportedPlatform as exc:
+        ctx.io.output(str(exc), "yellow")
+        return CmdResult.fail(msg=str(exc))
+    lines = render_tree(roots)
+    for line in lines:
+        ctx.io.output(line)
+    return CmdResult.ok(value="\n".join(lines))
+
+
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
     if err:
@@ -425,6 +443,27 @@ COMMAND = Command(
         "list": Command(
             help="List available serial ports.",
             handler=_handler_list,
+        ),
+        "usb": Command(
+            help="Show the whole USB tree, with serial ports marked.",
+            long_help=(
+                "Draw every USB hub, device and interface as it is\n"
+                "physically connected, and mark the nodes that carry a\n"
+                "serial port.\n"
+                "\n"
+                "Use it to answer questions /port.list cannot: which hub\n"
+                "is this adapter on, is that COM port one function of a\n"
+                "larger device, did the cable move.  Non-serial devices\n"
+                "are shown here and deliberately never in /port.list.\n"
+                "\n"
+                "A path reads bus-port, one dot per hub tier: 1-8.4 is\n"
+                "bus 1, root-hub port 8, then port 4 of the hub there.\n"
+                "A ':N' child is interface N of the device above it, not\n"
+                "another tier.\n"
+                "\n"
+                "Windows and Linux only.\n"
+            ),
+            handler=_handler_usb,
         ),
         "help": Command(
             help="Show /port help.",

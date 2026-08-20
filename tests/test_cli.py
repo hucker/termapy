@@ -1051,10 +1051,14 @@ def _synthetic_facts(*entries):
 class TestPortsFlag:
     """Tests for --ports: print a one-line-per-port table and exit.
 
-    Uses the ``TERMAPY_DEMO_FLEET`` env var -- a production hook that
-    makes ``_gather_all_chip_facts()`` return a fixed synthetic fleet
-    (COM3 FTDI, COM4 Silicon Labs, COM7 Microsoft).  Users can set the
-    same var to demo the CLI without real hardware.
+    These drive ``main()`` with a patched ``sys.argv``, so they cover the
+    argparse-to-handler wiring rather than the listing behavior, and they
+    take their fleet from ``TERMAPY_DEMO_FLEET`` (COM3 FTDI, COM4 Silicon
+    Labs, COM7 Microsoft).  That is the right lever *here*: injection
+    cannot reach through a process entry point, which is the whole reason
+    the environment layer exists -- see ``port_control.resolve_port_source``.
+    Tests about what the listing does hand a fleet in through ``source=``
+    instead; see ``tests/test_cli_improvements.py``.
     """
 
     def test_ports_prints_header_and_one_row_per_port(self, capsys, monkeypatch):
@@ -1078,19 +1082,21 @@ class TestPortsFlag:
         assert "MSFT" in out, "Microsoft manufacturer gets aliased to MSFT"
         assert "FTDI FT232R" in out, "chip model rendered"
 
-    def test_ports_no_ports_exits_nonzero(self, capsys, monkeypatch):
-        # Arrange -- simulate no ports by returning an empty list
-        # from the underlying gather.  The DEMO_FLEET hook doesn't
-        # cover this case (it unconditionally returns 3 ports), so
-        # we still monkeypatch for this one.
-        monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
-        import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda *a, **k: [])
-        from termapy.entry import main
+    def test_ports_no_ports_exits_nonzero(self, capsys):
+        # Arrange -- an empty fleet.  The env hook can't express this
+        # case (it always returns three ports), so this one drives the
+        # handler directly and hands the emptiness in.
+        import argparse
+
+        from termapy import cli_flags
+
+        args = argparse.Namespace(
+            ports="*", json=False, vid=None, pid=None, mfg=None, sn=None
+        )
 
         # Act
         with pytest.raises(SystemExit) as exc:
-            main()
+            cli_flags.run_ports(args, source=lambda: [])
 
         # Assert
         out = capsys.readouterr().out
@@ -1195,35 +1201,58 @@ class TestChipsFlag:
 class TestWatchFlag:
     """Tests for --watch: event-line monitor with Ctrl+C exit."""
 
-    def test_watch_exits_cleanly_on_keyboard_interrupt(
-        self, capsys, monkeypatch
-    ):
-        # Arrange -- fixture emits one snapshot, then raises.
+    def test_the_watch_flag_reaches_the_handler(self, monkeypatch):
+        # Arrange -- the wiring half: argparse to run_watch, and nothing
+        # more.  A recorder stands in for the handler because the real
+        # one loops until interrupted, and the only lever that could stop
+        # it from out here is time.sleep -- which is the SHARED module
+        # object, so patching it reaches every thread in the process.  A
+        # reader thread in a parallel test slept on it and took the
+        # KeyboardInterrupt meant for this loop.
+        from termapy import cli_flags
+
         monkeypatch.setattr("sys.argv", ["termapy", "--watch"])
-        import termapy.port_control as pc
+        seen = []
 
-        snapshots = [
-            _synthetic_facts(
-                ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "ABC"),
-            ),
-        ]
-        call_count = [0]
+        def _record(args, **kwargs):
+            seen.append(args)
+            raise SystemExit(0)  # the real handler always exits
 
-        def _mock_gather(*args, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return snapshots[0]
-            raise KeyboardInterrupt
-
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", _mock_gather)
-        # time.sleep must be a no-op or the test hangs.
-        monkeypatch.setattr("termapy.cli_flags.time.sleep", lambda s: None)
-
+        monkeypatch.setattr(cli_flags, "run_watch", _record)
         from termapy.entry import main
 
         # Act
         with pytest.raises(SystemExit) as exc:
             main()
+
+        # Assert
+        assert exc.value.code == 0, "--watch exits 0"
+        assert len(seen) == 1, f"--watch dispatches to run_watch once; got {seen}"
+
+    def test_watch_exits_cleanly_on_keyboard_interrupt(self, capsys, monkeypatch):
+        # Arrange -- the behavior half: drive the handler directly with a
+        # fleet that raises on the second look, standing in for the
+        # user's Ctrl+C.  The poll interval is set to zero rather than
+        # patching time.sleep, which would be global.
+        import argparse
+
+        from termapy import cli_flags
+
+        monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
+        baseline = _synthetic_facts(
+            ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "ABC"),
+        )
+        looks = [0]
+
+        def _snapshots():
+            looks[0] += 1
+            if looks[0] == 1:
+                return baseline
+            raise KeyboardInterrupt
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            cli_flags.run_watch(argparse.Namespace(), source=_snapshots)
 
         # Assert
         out = capsys.readouterr().out
@@ -1238,8 +1267,9 @@ class TestWatchFlag:
     def test_watch_emits_add_and_remove_events(self, capsys, monkeypatch):
         # Arrange -- scripted sequence: baseline (1 port), then second
         # snapshot adds COM4 and removes COM3, then KeyboardInterrupt.
-        monkeypatch.setattr("sys.argv", ["termapy", "--watch"])
-        import termapy.port_control as pc
+        import argparse
+
+        from termapy import cli_flags
 
         baseline = _synthetic_facts(
             ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "ABC"),
@@ -1249,7 +1279,7 @@ class TestWatchFlag:
         )
         call_count = [0]
 
-        def _mock_gather(*args, **kwargs):
+        def _snapshots():
             call_count[0] += 1
             if call_count[0] == 1:
                 return baseline
@@ -1257,14 +1287,13 @@ class TestWatchFlag:
                 return changed
             raise KeyboardInterrupt
 
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", _mock_gather)
-        monkeypatch.setattr("termapy.cli_flags.time.sleep", lambda s: None)
-
-        from termapy.entry import main
+        # Zero the poll interval rather than patching time.sleep, which
+        # is the shared module object and would reach other threads.
+        monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
 
         # Act
         with pytest.raises(SystemExit):
-            main()
+            cli_flags.run_watch(argparse.Namespace(), source=_snapshots)
 
         # Assert -- '+' marker line for COM4 add, '-' marker line for
         # COM3 remove.  The marker is the first non-timestamp char

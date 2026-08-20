@@ -187,6 +187,12 @@ def _build_parser() -> argparse.ArgumentParser:
              "(presence, in-use, serial number) as events.  Ctrl+C to exit.",
     )
     parser.add_argument(
+        "--usb",
+        action="store_true",
+        help="Show the whole USB tree -- every hub, device and "
+             "interface -- with serial ports marked.  Windows and Linux.",
+    )
+    parser.add_argument(
         "--chips",
         nargs="?",
         const="*",
@@ -316,6 +322,9 @@ def main() -> None:
     if args.watch:
         from termapy.cli_flags import run_watch
         run_watch(args)
+    if args.usb:
+        from termapy.cli_flags import run_usb
+        run_usb(args)
     if args.chips is not None:
         from termapy.cli_flags import run_chips
         run_chips(args)

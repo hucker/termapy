@@ -52,6 +52,25 @@ one disappear) to identify which COM port belongs to which physical
 device — no need to close and re-open.  The Quick Setup dialog (used
 when creating a new config) refreshes the same way.
 
+### Reading the LOCATION column
+
+Location is *where the device is plugged in*, not what it is, so it is
+the one field that survives a firmware reflash, a serial-number change,
+or a COM renumber.  It reads `bus-port` with a dot per hub tier:
+
+```
+1-8.2    bus 1, root-hub port 8, then port 2 of the hub plugged in there
+1-8.3    same hub, next port along
+1-8.4:x.1  same hub again; ":x.1" is interface 1 of a composite device
+```
+
+So ports sharing a `1-8.` prefix are on the same physical hub, and
+moving a cable to a different socket changes the number.  This is the
+same notation pyserial reports on Linux and macOS.  FTDI's Windows
+driver hides the topology from the port itself, so termapy reads it from
+the parent USB device instead -- without that, every FTDI port on
+Windows would show a blank location.
+
 ## The bundled USB vendor database
 
 Termapy ships the **full canonical USB vendor table** — more than

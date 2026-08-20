@@ -791,9 +791,11 @@ from termapy.port_control import (  # noqa: E402
     ChipFacts,
     _build_demo_fleet,
     _gather_all_chip_facts,
+    _windows_location_chain,
     chip_field,
     chip_info,
     gather_chip_facts,
+    parse_location_paths,
     resolve_port,
     resolve_port_trace,
 )
@@ -1136,3 +1138,81 @@ class TestPortSourceLayers:
         # of where the ports came from.
         with pytest.raises(AmbiguousSerialNumberError):
             resolve_port("SAME", source=twins)
+
+
+class TestParseLocationPaths:
+    """The Windows LOCATION_PATHS -> bus-port chain rule.
+
+    Pure string work, so it is tested directly and on every platform.
+    The cfgmgr32 devnode walk that feeds it is thin glue over three OS
+    calls and is exercised live rather than here; what is worth pinning
+    is that termapy's spelling of a location matches pyserial's, since
+    the whole point of deriving one for FTDI ports is that the LOCATION
+    column reads as one notation.
+    """
+
+    def test_a_hub_port_becomes_a_dotted_chain(self):
+        # Arrange -- a real path from an FTDI adapter's parent USB node.
+        paths = "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)"
+
+        # Act
+        actual = parse_location_paths(paths)
+
+        # Assert
+        assert actual == "1-8.3", (
+            f"bus 1, hub port 8, device port 3; got {actual!r}"
+        )
+
+    def test_a_port_directly_on_the_root_hub_has_no_dot(self):
+        # Act -- one hop: the separator is '-', and '.' never appears.
+        actual = parse_location_paths("PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)")
+
+        # Assert
+        assert actual == "1-8", f"single hop keeps the dash form; got {actual!r}"
+
+    def test_each_further_hop_adds_a_dot(self):
+        # Act -- a hub behind a hub behind a hub.
+        actual = parse_location_paths(
+            "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(4)#USB(2)"
+        )
+
+        # Assert
+        assert actual == "1-8.4.2", f"one dot per extra tier; got {actual!r}"
+
+    def test_the_bus_is_numbered_from_one(self):
+        # Act -- USBROOT is 0-based in the registry, 1-based on display.
+        # This is pyserial's convention, and matching it is the point.
+        actual = parse_location_paths("PCIROOT(0)#USBROOT(1)#USB(2)")
+
+        # Assert
+        assert actual == "2-2", f"USBROOT(1) is bus 2; got {actual!r}"
+
+    def test_a_non_usb_path_has_no_chain(self):
+        # Act -- a PCI serial card names no USB hop.
+        actual = parse_location_paths("PCIROOT(0)#PCI(1C00)#PCI(0000)")
+
+        # Assert
+        assert actual is None, (
+            f"None, not an empty string, so callers can fall back; got {actual!r}"
+        )
+
+    def test_an_empty_path_has_no_chain(self):
+        # Act
+        actual = parse_location_paths("")
+
+        # Assert
+        assert actual is None, f"nothing in, nothing out; got {actual!r}"
+
+
+class TestWindowsLocationChain:
+    """The devnode walk is best-effort and must never raise."""
+
+    def test_an_unknown_device_yields_no_location(self):
+        # Act -- no such devnode.  Off Windows there are no bindings at
+        # all, and the answer is the same: None, not an exception.
+        actual = _windows_location_chain("NOSUCHDEVICE")
+
+        # Assert
+        assert actual is None, (
+            f"enrichment must degrade to blank, never fail a lookup; got {actual!r}"
+        )

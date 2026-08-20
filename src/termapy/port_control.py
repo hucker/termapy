@@ -12,6 +12,7 @@ Side effects dict keys:
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import sys
@@ -558,7 +559,12 @@ def _gather_windows_extras(facts: ChipFacts, device: str) -> None:
                     with hwid_key:
                         for inst in _enum_subkeys(winreg, hwid_key):
                             if _windows_match_inst(
-                                winreg, hwid_key, inst, device, facts
+                                winreg,
+                                hwid_key,
+                                inst,
+                                device,
+                                facts,
+                                _DEVICE_ID_SEP.join([bus, hwid, inst]),
                             ):
                                 return
     finally:
@@ -578,14 +584,167 @@ def _enum_subkeys(winreg_mod, key) -> list[str]:
     return names
 
 
+# Windows device instance IDs are backslash-joined, e.g.
+# FTDIBUS\VID_0403+PID_6015+D20JSV68A\0000
+_DEVICE_ID_SEP = "\\"
+
+# cfgmgr32 constants (cfgmgr32.h).  CM_DRP_* are the SPDRP_* value + 1.
+_CM_LOCATE_DEVNODE_NORMAL = 0
+_CM_DRP_LOCATION_PATHS = 0x24
+_CR_SUCCESS = 0
+# USB allows at most 7 tiers of hubs, so the node that knows the topology
+# is always a few hops up.  Bound the walk anyway.
+_MAX_DEVNODE_HOPS = 8
+
+
+@functools.lru_cache(maxsize=1)
+def _cfgmgr32():
+    """Bind the three cfgmgr32 calls the location walk needs, once.
+
+    Lazy and cached because ``port_control`` sits on the CLI's fast path
+    (``termapy --ports`` exists to be quick), so the DLL is not loaded
+    unless a Windows location is actually asked for.
+
+    Returns:
+        A tuple of (ctypes, DWORD, ULONG, locate, get_parent, get_prop),
+        or None off Windows or if the bindings cannot be made.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes.wintypes import DWORD, PWCHAR, ULONG
+
+        cfgmgr = ctypes.WinDLL("cfgmgr32")
+        locate = cfgmgr.CM_Locate_DevNodeW
+        locate.argtypes = [ctypes.POINTER(DWORD), PWCHAR, ULONG]
+        locate.restype = ctypes.c_long
+        get_parent = cfgmgr.CM_Get_Parent
+        get_parent.argtypes = [ctypes.POINTER(DWORD), DWORD, ULONG]
+        get_parent.restype = ctypes.c_long
+        get_prop = cfgmgr.CM_Get_DevNode_Registry_PropertyW
+        get_prop.argtypes = [
+            DWORD,
+            ULONG,
+            ctypes.POINTER(ULONG),
+            ctypes.c_void_p,
+            ctypes.POINTER(ULONG),
+            ULONG,
+        ]
+        get_prop.restype = ctypes.c_long
+        return ctypes, DWORD, ULONG, locate, get_parent, get_prop
+    except (ImportError, OSError, AttributeError):
+        return None
+
+
+def parse_location_paths(paths: str) -> str | None:
+    """Turn a Windows LOCATION_PATHS string into a USB bus-port chain.
+
+    This is pyserial's own rule, reproduced deliberately so that both
+    ways termapy can learn a location produce the same spelling -- see
+    the "calculate a location string" block in
+    ``vendor/serial/tools/list_ports_windows.py``.  ``USBROOT(n)`` is the
+    bus, numbered from 1; each ``USB(n)`` is one hop, joined by ``-`` at
+    the first level and ``.`` below it.
+
+    ``PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)`` becomes ``1-8.3``.
+
+    Args:
+        paths: One LOCATION_PATHS entry.
+
+    Returns:
+        The chain, or None if the string names no USB hop at all (a
+        non-USB serial port -- PCI, Bluetooth, a virtual pair).
+    """
+    chain: list[str] = []
+    for match in re.finditer(r"USBROOT\((\w+)\)|#USB\((\w+)\)", paths):
+        if match.group(1):
+            chain.append(f"{int(match.group(1)) + 1:d}")
+        else:
+            chain.append("." if len(chain) > 1 else "-")
+            chain.append(match.group(2))
+    return "".join(chain) if chain else None
+
+
+def _windows_location_chain(device_id: str) -> str | None:
+    """Return the USB bus-port chain for a Windows device instance.
+
+    Walks up from the named devnode until one reports LOCATION_PATHS,
+    then parses it with ``parse_location_paths``.  The walk is the whole
+    point: pyserial reads LOCATION_PATHS off the port's *own* node, and
+    an FTDIBUS node doesn't have it -- pyserial's source says so outright
+    ("USB location is hidden by FDTI driver :(") and gives up.  The
+    parent USB node one hop up does have it, so an FTDI port can be
+    reported in the same notation as every other port instead of blank.
+
+    LOCATION_PATHS is a synthesized PnP property rather than a stored
+    registry value, which is why this goes through cfgmgr32 instead of
+    winreg like its neighbors here.
+
+    Args:
+        device_id: Device instance ID, i.e. the Enum path components
+            joined -- bus, hardware ID, then instance.
+
+    Returns:
+        A chain like ``1-8.3``, or None on any failure.  This is
+        best-effort enrichment and never the reason a lookup fails.
+    """
+    bound = _cfgmgr32()
+    if bound is None:
+        return None
+    ctypes, DWORD, ULONG, locate, get_parent, get_prop = bound
+    devinst = DWORD()
+    located = locate(
+        ctypes.byref(devinst),
+        ctypes.create_unicode_buffer(device_id),
+        _CM_LOCATE_DEVNODE_NORMAL,
+    )
+    if located != _CR_SUCCESS:
+        return None
+    for _ in range(_MAX_DEVNODE_HOPS):
+        buf = ctypes.create_unicode_buffer(1024)
+        size = ULONG(ctypes.sizeof(buf))
+        reg_type = ULONG(0)
+        got = get_prop(
+            devinst,
+            _CM_DRP_LOCATION_PATHS,
+            ctypes.byref(reg_type),
+            ctypes.byref(buf),
+            ctypes.byref(size),
+            0,
+        )
+        if got == _CR_SUCCESS and buf.value:
+            return parse_location_paths(buf.value)
+        parent = DWORD()
+        if get_parent(ctypes.byref(parent), devinst, 0) != _CR_SUCCESS:
+            return None
+        devinst = parent
+    return None
+
+
 def _windows_match_inst(
-    winreg_mod, parent_key, inst: str, device: str, facts: ChipFacts
+    winreg_mod,
+    parent_key,
+    inst: str,
+    device: str,
+    facts: ChipFacts,
+    device_id: str = "",
 ) -> bool:
     """Check one Enum instance node for a PortName match; populate
     ``facts.driver`` and (if pyserial didn't already) ``facts.location``.
 
-    Returns True if the instance owns ``device`` (the caller stops
-    walking).  False otherwise.
+    Args:
+        winreg_mod: The ``winreg`` module, passed in so the import stays
+            at the caller.
+        parent_key: Open handle to the hardware-ID key being walked.
+        inst: Instance subkey name under *parent_key*.
+        device: The COM port being looked for, e.g. ``"COM4"``.
+        facts: Record to populate in place.
+        device_id: Full device instance ID of this node, used to locate
+            the devnode for the location walk.  Empty skips that walk.
+
+    Returns:
+        True if the instance owns ``device`` (the caller stops walking).
     """
     try:
         inst_key = winreg_mod.OpenKey(parent_key, inst)
@@ -617,9 +776,14 @@ def _windows_match_inst(
         # (FTDI presents both an FTDIBUS\... port node and a USB\...
         # bus node; LocationInformation lives on the USB side).
         if not facts.location:
-            facts.location = _windows_lookup_location(
-                winreg_mod, inst_key
-            )
+            # Preferred: the same bus-port chain pyserial reports for
+            # every port it can manage one for, so the LOCATION column
+            # speaks one language.  Fallback: the hub/port pair from the
+            # registry -- a different addressing scheme, but better than
+            # blank if the devnode walk comes up empty.
+            facts.location = (
+                _windows_location_chain(device_id) if device_id else None
+            ) or _windows_lookup_location(winreg_mod, inst_key)
         return True
 
 

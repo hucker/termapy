@@ -127,6 +127,14 @@ src/termapy/
 └── vt100.py                # (173 lines)  --vt100 ANSI passthrough - raw serial <-> host terminal via miniterm
 ```
 
+**Ports and USB: engine in core, command surface in `builtins/`.** `port_control.py`,
+`port_format.py`, and `usb_tree.py` are engines. `builtins/commands/port.py` is the
+command surface built on them, and `cli_flags.py` calls the same engines directly for
+`--ports` / `--usb`, so they stay in core rather than moving into the plugin. `usb/` is a
+different kind of thing: a dependency-free table package kept separable for a possible
+standalone release, which is why live platform probing (winreg, cfgmgr32, sysfs) lives in
+`usb_tree.py` and not in it.
+
 ## The plugin system
 
 The plugin system is the central abstraction. Everything flows through it.

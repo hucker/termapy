@@ -446,14 +446,26 @@ def _looks_like_serial(inst: str) -> bool:
     return "&" not in inst
 
 
-def _linux_records() -> list[UsbRecord]:
+SYSFS_USB_ROOT = "/sys/bus/usb/devices"
+
+
+def _linux_records(root: str = SYSFS_USB_ROOT) -> list[UsbRecord]:
     """Enumerate the USB tree from sysfs.
 
     Linux does most of the work already: the directory names under
     ``/sys/bus/usb/devices`` *are* the topology.  ``1-8.4`` is a device,
     ``1-8.4:1.1`` is one of its interfaces, and ``usb1`` is a root hub.
+
+    Args:
+        root: Directory to read.  Overridable so the parse can be tested
+            against a synthesized tree -- otherwise this function is only
+            ever exercised on a Linux box with the right hardware
+            attached, which is to say almost never.
+
+    Returns:
+        Flat records, or an empty list when the directory is absent (a
+        kernel built without USB, or WSL without a device attached).
     """
-    root = "/sys/bus/usb/devices"
     if not os.path.isdir(root):
         return []
     records: list[UsbRecord] = []

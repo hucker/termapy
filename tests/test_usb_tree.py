@@ -12,6 +12,8 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
+import sys
 from contextlib import redirect_stdout
 
 import pytest
@@ -22,6 +24,7 @@ from termapy.usb_tree import (
     UsbRecord,
     _ascii_fold,
     _clean_desc,
+    _linux_records,
     _parent_path,
     build_tree,
     gather_usb_tree,
@@ -389,3 +392,143 @@ class TestNodeLabels:
         # distinction pyserial has to spell inline.
         actual = UsbNode(path="1-8.4", interface_number="1").label
         assert actual == ":1", f"got {actual!r}"
+
+
+def _sysfs(root, name, **fields):
+    """Create one fake sysfs node with attribute files."""
+    node = os.path.join(root, name)
+    os.makedirs(node, exist_ok=True)
+    for key, value in fields.items():
+        with open(os.path.join(node, key), "w", encoding="utf-8") as handle:
+            handle.write(value + "\n")
+    return node
+
+
+def _fake_sysfs(root):
+    """A root hub, a hub, an adapter, and a two-function device.
+
+    Names are the real sysfs spelling: ``usb1`` for a root hub, ``1-8.2``
+    for a device, ``1-8.2:1.0`` for one of its interfaces.
+    """
+    _sysfs(root, "usb1", product="xHCI Host Controller",
+           idVendor="1d6b", idProduct="0002")
+    _sysfs(root, "1-8", product="USB2.0 Hub", idVendor="2109", idProduct="2817")
+    _sysfs(root, "1-8.2", product="FT232R USB UART", idVendor="0403",
+           idProduct="6001", serial="BG03U7VTA")
+    _sysfs(root, "1-8.4", product="PICkit5", idVendor="04d8", idProduct="9036")
+    _sysfs(root, "1-8.2:1.0", interface="FT232R USB UART")
+    _sysfs(root, "1-8.4:1.0", interface="PICkit debug")
+    _sysfs(root, "1-8.4:1.1", interface="CDC data")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="a sysfs interface directory is named '1-8.2:1.0', and Windows "
+           "will not create a filename containing a colon",
+)
+class TestLinuxSysfsBackend:
+    """The sysfs parse, against a synthesized tree.
+
+    Linux names its directories after the topology, so this backend is
+    mostly a naming convention reader -- which means it can be checked
+    without a Linux box, provided the root is injectable.  Run for real
+    on Linux too: the fixture is written to disk exactly as sysfs lays
+    it out.
+    """
+
+    def test_devices_and_interfaces_are_told_apart_by_name(self, tmp_path):
+        # Arrange
+        root = str(tmp_path)
+        _fake_sysfs(root)
+
+        # Act
+        records = _linux_records(root)
+
+        # Assert -- "1-8.4" is a device, "1-8.4:1.1" is its interface 1.
+        devices = sorted(r.path for r in records if r.interface_number is None)
+        assert devices == ["1", "1-8", "1-8.2", "1-8.4"], (
+            f"a colon means interface, no colon means device; got {devices}"
+        )
+        interfaces = sorted(
+            (r.path, r.interface_number) for r in records
+            if r.interface_number is not None
+        )
+        assert interfaces == [("1-8.2", "0"), ("1-8.4", "0"), ("1-8.4", "1")], (
+            f"the interface number is the part after the dot; got {interfaces}"
+        )
+
+    def test_a_root_hub_is_named_for_its_bus(self, tmp_path):
+        # Arrange -- sysfs calls it usb1; the topology calls it 1.
+        root = str(tmp_path)
+        _fake_sysfs(root)
+
+        # Act
+        records = _linux_records(root)
+
+        # Assert
+        assert any(r.path == "1" for r in records), (
+            "usb1 becomes bus 1, so devices at 1-8 can find their parent"
+        )
+
+    def test_identity_comes_off_the_attribute_files(self, tmp_path):
+        # Arrange
+        root = str(tmp_path)
+        _fake_sysfs(root)
+
+        # Act
+        adapter = next(
+            r for r in _linux_records(root)
+            if r.path == "1-8.2" and r.interface_number is None
+        )
+
+        # Assert
+        assert adapter.vid_pid == "0403:6001", (
+            f"idVendor/idProduct are lowercase in sysfs and shown upper; "
+            f"got {adapter.vid_pid!r}"
+        )
+        assert adapter.serial == "BG03U7VTA", f"got {adapter.serial!r}"
+        assert adapter.description == "FT232R USB UART", f"got {adapter.description!r}"
+
+    def test_a_directory_that_is_not_a_usb_path_is_skipped(self, tmp_path):
+        # Arrange -- sysfs holds more than device nodes.
+        root = str(tmp_path)
+        _fake_sysfs(root)
+        _sysfs(root, "not-a-device", product="noise")
+
+        # Act
+        records = _linux_records(root)
+
+        # Assert
+        assert all(r.description != "noise" for r in records), (
+            "only names matching the topology pattern are devices"
+        )
+
+    def test_the_driver_is_read_from_the_symlink(self, tmp_path):
+        # Arrange -- sysfs points an interface at its driver by symlink.
+        root = str(tmp_path)
+        _fake_sysfs(root)
+        target = os.path.join(root, "_bus", "ftdi_sio")
+        os.makedirs(target)
+        try:
+            os.symlink(target, os.path.join(root, "1-8.2:1.0", "driver"))
+        except OSError:  # Windows without developer mode / admin
+            pytest.skip("this OS will not let the test create a symlink")
+
+        # Act
+        interface = next(
+            r for r in _linux_records(root)
+            if r.path == "1-8.2" and r.interface_number == "0"
+        )
+
+        # Assert -- the basename of the link target is the driver name.
+        assert interface.driver == "ftdi_sio", (
+            f"driver comes from the link, not a file; got {interface.driver!r}"
+        )
+
+    def test_an_absent_sysfs_root_is_not_an_error(self, tmp_path):
+        # Act -- a kernel built without USB, or WSL with nothing attached.
+        actual = _linux_records(str(tmp_path / "nope"))
+
+        # Assert -- an empty bus, not a crash.  gather_usb_tree turns this
+        # into "(no USB devices found)".
+        assert actual == [], f"missing sysfs reads as an empty bus; got {actual}"

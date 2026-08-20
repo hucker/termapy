@@ -29,9 +29,9 @@ from typing import TYPE_CHECKING
 
 from termapy.app import CONFIG_LOAD_ERRORS
 from termapy.builtins.commands.edit import (
-    _make_edit_handler,
-    _make_explore_handler,
-    _make_list_handler,
+    make_edit_handler,
+    make_explore_handler,
+    make_list_handler,
 )
 from termapy.config import open_with_system
 from termapy.defaults import cmd_prefix
@@ -589,7 +589,7 @@ def register_tui_hooks(app) -> None:
                 f"edit.{folder}",
                 "{filename}",
                 f"Open a {ext} file in the system editor.",
-                _make_edit_handler(get_dir, ext, pat),
+                make_edit_handler(get_dir, ext, pat),
                 source="app",
                 needs=CapabilitySet(gui_apps=True),
             )
@@ -599,14 +599,14 @@ def register_tui_hooks(app) -> None:
             f"edit.{folder}.list",
             "",
             f"List {ext} files.",
-            _make_list_handler(get_dir, pat),
+            make_list_handler(get_dir, pat),
             source="app",
         )
         app.repl.register_hook(
             f"edit.{folder}.explore",
             "",
             f"Open {folder}/ in file explorer.",
-            _make_explore_handler(get_dir),
+            make_explore_handler(get_dir),
             source="app",
             needs=CapabilitySet(gui_apps=True),
         )

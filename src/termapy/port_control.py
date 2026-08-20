@@ -649,6 +649,19 @@ def parse_location_paths(paths: str) -> str | None:
 
     ``PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)`` becomes ``1-8.3``.
 
+    A trailing ``USBMI(n)`` names one interface of a multi-function
+    device and becomes the ``:x.n`` suffix, matching what pyserial
+    appends for a composite device (the ``x`` stands in for a
+    configuration value neither of us can read on Windows -- pyserial
+    hardcodes it too).  Reading it here is what keeps the channels of a
+    multi-port chip apart: an FT2232H's two COM ports hang off one
+    shared parent USB node, so the hop chain alone is identical for
+    both, and only the interface distinguishes them.  pyserial ignores
+    this token because it takes the number from the hardware ID instead,
+    which is a route a devnode walk doesn't have.
+
+    ``...#USB(8)#USB(4)#USBMI(1)`` becomes ``1-8.4:x.1``.
+
     Args:
         paths: One LOCATION_PATHS entry.
 
@@ -663,7 +676,12 @@ def parse_location_paths(paths: str) -> str | None:
         else:
             chain.append("." if len(chain) > 1 else "-")
             chain.append(match.group(2))
-    return "".join(chain) if chain else None
+    if not chain:
+        return None
+    interface = re.search(r"#USBMI\((\w+)\)", paths)
+    if interface:
+        chain.append(f":x.{interface.group(1)}")
+    return "".join(chain)
 
 
 def _windows_location_chain(device_id: str) -> str | None:

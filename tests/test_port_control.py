@@ -1216,3 +1216,42 @@ class TestWindowsLocationChain:
         assert actual is None, (
             f"enrichment must degrade to blank, never fail a lookup; got {actual!r}"
         )
+
+    def test_a_composite_interface_becomes_the_suffix(self):
+        # Arrange -- the real path from a composite debugger+CDC device,
+        # whose COM port is interface 1.
+        paths = "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(4)#USBMI(1)"
+
+        # Act
+        actual = parse_location_paths(paths)
+
+        # Assert -- same spelling pyserial produces for the same device.
+        assert actual == "1-8.4:x.1", (
+            f"interface 1 of the device at 1-8.4; got {actual!r}"
+        )
+
+    def test_channels_of_one_chip_are_told_apart(self):
+        # Arrange -- an FT2232H's two channels share a parent USB node,
+        # so the hop chain alone is identical for both.  Only the
+        # interface separates them, which is the whole reason USBMI is
+        # read rather than ignored.
+        base = "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)"
+
+        # Act
+        first = parse_location_paths(base + "#USBMI(0)")
+        second = parse_location_paths(base + "#USBMI(1)")
+
+        # Assert
+        assert (first, second) == ("1-8.3:x.0", "1-8.3:x.1"), (
+            f"two ports on one chip must not collide; got {first!r} and {second!r}"
+        )
+
+    def test_a_single_function_device_gets_no_suffix(self):
+        # Act -- no USBMI token means nothing to disambiguate, and
+        # pyserial omits the suffix in that case on every platform.
+        actual = parse_location_paths(
+            "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)"
+        )
+
+        # Assert
+        assert actual == "1-8.3", f"no interface, no suffix; got {actual!r}"

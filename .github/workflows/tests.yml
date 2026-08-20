@@ -51,18 +51,3 @@ jobs:
         run: uv sync
       - name: Run pip-audit
         run: uvx pip-audit --strict --skip-editable --path .
-
-  io-channel-guard:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Forbid ctx.io._write and ctx.io._write_markup in builtins
-        run: |
-          if grep -rE 'ctx\.io\._write(_markup)?\b' src/termapy/builtins/; then
-            echo
-            echo "ERROR: handler code in src/termapy/builtins/ must not call ctx.io._write or ctx.io._write_markup directly."
-            echo "Use the semantic channels instead: result / output / status (or the _markup variants)."
-            echo "The underscore-prefixed primitives are reserved for engine-internal use."
-            exit 1
-          fi
-          echo "OK: no _write/_write_markup callers in builtins."

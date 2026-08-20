@@ -103,7 +103,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 # ── Folder subcommand factories ──────────────────────────────────────────────
 
 
-def _make_edit_handler(get_dir, ext, pattern):
+def make_edit_handler(get_dir, ext, pattern):
     """Create a handler that opens a file by name, or lists files if no name given.
 
     Returns the opened file path as ``CmdResult.value`` (or the list of
@@ -112,7 +112,7 @@ def _make_edit_handler(get_dir, ext, pattern):
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         name = args.strip()
         if not name:
-            return _make_list_handler(get_dir, pattern)(ctx, args)
+            return make_list_handler(get_dir, pattern)(ctx, args)
         folder = get_dir(ctx)
         if not name.endswith(ext):
             name += ext
@@ -124,7 +124,7 @@ def _make_edit_handler(get_dir, ext, pattern):
     return handler
 
 
-def _make_list_handler(get_dir, pattern):
+def make_list_handler(get_dir, pattern):
     """Create a handler that lists files in a folder.
 
     Returns the newline-joined list of file names as ``CmdResult.value``
@@ -148,7 +148,7 @@ def _make_list_handler(get_dir, pattern):
     return handler
 
 
-def _make_explore_handler(get_dir):
+def make_explore_handler(get_dir):
     """Create a handler that opens a folder in the system file explorer.
 
     Returns the opened folder path as ``CmdResult.value``.
@@ -177,18 +177,18 @@ def _build_folder_sub(get_dir, ext, pattern, kind=None, noun=None):
         args="{filename}",
         help=f"Open a {ext} file in the system editor.",
         long_help=long_help,
-        handler=_make_edit_handler(get_dir, ext, pattern),
+        handler=make_edit_handler(get_dir, ext, pattern),
         needs=CapabilitySet(gui_apps=True),
         sub_commands={
             "list": Command(
                 help=f"List {ext} files.",
                 long_help=long_help,
-                handler=_make_list_handler(get_dir, pattern),
+                handler=make_list_handler(get_dir, pattern),
             ),
             "explore": Command(
                 help="Open folder in file explorer.",
                 long_help=long_help,
-                handler=_make_explore_handler(get_dir),
+                handler=make_explore_handler(get_dir),
                 needs=CapabilitySet(gui_apps=True),
             ),
         },

@@ -640,8 +640,8 @@ class ReplEngine:
         # the same envelope through the output channel would put it
         # into ``output_lines`` too -- the exact duplication we set out
         # to avoid.  Computed once and reused below.
-        from termapy.builtins.commands.var import _LAUNCH_VARS as _lvars
-        _is_mcp = _lvars.get("FRONT_END") == "mcp"
+        from termapy.variables import launch_var
+        _is_mcp = launch_var("FRONT_END") == "mcp"
 
         # Symmetric input: unwrap {"cmd": "..."} into the cmd value.
         cmd_text = command.strip()
@@ -1065,7 +1065,7 @@ class ReplEngine:
             return CmdResult.fail(msg=result.payload)
 
         # Shared echo using echo_fmt for both REPL and serial
-        from termapy.builtins.commands.var import expand_vars
+        from termapy.variables import expand_vars
 
         def _echo_cmd(text: str) -> None:
             fmt = expand_vars(self.cfg.get("echo_fmt", "> {cmd}"))
@@ -1317,7 +1317,7 @@ class ReplEngine:
                 # arguments nor turn into a flag, keyword, or {seq} template.
                 # raw_args commands opt out -- their contract is that values
                 # arrive literal.  Lazy import: repl is core, var is a builtin.
-                from termapy.builtins.commands.var import deref_ref
+                from termapy.variables import deref_ref
                 bound_params, param_error = parse_params(
                     plugin.params,
                     args,

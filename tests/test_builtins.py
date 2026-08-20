@@ -19,7 +19,7 @@ def repl_env(tmp_path, monkeypatch):
     fixture targets non-MCP REPL behavior; bleed-through caused several
     intermittent failures while iterating on /term.request.
     """
-    from termapy.builtins.commands import var as _var_mod
+    from termapy import variables as _var_mod
     monkeypatch.setattr(_var_mod, "_LAUNCH_VARS", dict(_var_mod._LAUNCH_VARS))
     _var_mod._LAUNCH_VARS.pop("FRONT_END", None)
 
@@ -611,7 +611,7 @@ class TestVarHandlerValues:
     def test_var_lookup_returns_value_when_defined(self, repl_env):
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.builtins.commands.var import _VARS
+        from termapy.variables import _VARS
         _VARS["MY_VAR"] = "hello"
 
         # Act
@@ -639,7 +639,7 @@ class TestVarHandlerValues:
     def test_var_list_all_returns_joined_lines(self, repl_env):
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.builtins.commands.var import _VARS
+        from termapy.variables import _VARS
         _VARS["A"] = "1"
         _VARS["B"] = "2"
 
@@ -657,7 +657,7 @@ class TestVarHandlerValues:
     def test_var_set_returns_new_value(self, repl_env):
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.builtins.commands.var import _VARS
+        from termapy.variables import _VARS
         _VARS.clear()
 
         # Act
@@ -674,7 +674,7 @@ class TestVarHandlerValues:
     def test_var_clear_returns_count_cleared(self, repl_env):
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.builtins.commands.var import _VARS
+        from termapy.variables import _VARS
         _VARS["A"] = "1"
         _VARS["B"] = "2"
         _VARS["C"] = "3"
@@ -2707,7 +2707,7 @@ class TestRepeat:
 
     def test_sets_iteration_variable(self, repl_env):
         # Arrange
-        from termapy.builtins.commands.var import _VARS
+        from termapy.variables import _VARS
 
         engine, _, _, output = repl_env
         seen_values = []
@@ -2721,7 +2721,7 @@ class TestRepeat:
 
     def test_custom_variable_name(self, repl_env):
         # Arrange
-        from termapy.builtins.commands.var import _VARS
+        from termapy.variables import _VARS
 
         engine, _, _, output = repl_env
         seen_values = []
@@ -2735,7 +2735,7 @@ class TestRepeat:
 
     def test_variable_cleaned_up(self, repl_env):
         # Arrange
-        from termapy.builtins.commands.var import _VARS
+        from termapy.variables import _VARS
 
         engine, _, _, output = repl_env
         engine.ctx.dispatch = lambda cmd: None
@@ -2748,7 +2748,7 @@ class TestRepeat:
 
     def test_variable_cleaned_up_on_error(self, repl_env):
         # Arrange
-        from termapy.builtins.commands.var import _VARS
+        from termapy.variables import _VARS
 
         engine, _, _, output = repl_env
 

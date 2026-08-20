@@ -144,7 +144,7 @@ def on_script_picked(app, result: tuple | None) -> None:
         return
     action = result[0]
     if action == "run":
-        from termapy.builtins.commands.var import clear_vars, set_start_time_vars
+        from termapy.variables import clear_vars, set_start_time_vars
 
         clear_vars()
         set_start_time_vars()

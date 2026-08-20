@@ -45,7 +45,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     delay_s = ctx.arg("delay")  # float seconds (0.0 == no delay)
     var_name = ctx.arg("var")
 
-    from termapy.builtins.commands.var import _VARS
+    from termapy.variables import set_user_var, unset_user_var
 
     ev = getattr(ctx.internal, "script_stop_event", None)
     # The stop flag is the SCRIPT's, not ours.  Clearing it is only correct
@@ -65,7 +65,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             if _is_stopped(ctx):
                 stopped = True
                 break
-            _VARS[var_name] = str(i + 1)
+            set_user_var(var_name, str(i + 1))
             ctx.dispatch(cmd)
             ran += 1
             if i < count - 1 and delay_s > 0:
@@ -73,7 +73,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
                     stopped = True
                     break
     finally:
-        _VARS.pop(var_name, None)
+        unset_user_var(var_name)
 
     if stopped:
         # Same rule on the way out: inside a script the stop must survive so

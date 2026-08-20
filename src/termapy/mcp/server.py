@@ -157,12 +157,12 @@ class MCPHost(TerminalHost):
         self.repl = ReplEngine(cfg, config_path, write=self.write)
 
         # Var/cfg interpolation, matching CLITerminal.
-        from termapy.builtins.commands.var import (
+        from termapy.config import cfg_log_path
+        from termapy.variables import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,
         )
-        from termapy.config import cfg_log_path
 
         set_launch_var("FRONT_END", "mcp")
         set_context_var(

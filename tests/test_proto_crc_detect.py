@@ -13,7 +13,7 @@ input forms are mutually exclusive.
 """
 from __future__ import annotations
 
-from termapy.builtins.commands import var
+from termapy import variables as var
 from termapy.repl import ReplEngine
 
 # Modbus frames.  SPACED is the historical single-frame spelling; the unspaced

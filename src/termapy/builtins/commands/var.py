@@ -1,25 +1,33 @@
-"""Built-in plugin: user-defined variables with $(NAME) syntax."""
+"""Built-in plugin: user-defined variables with $(NAME) syntax.
+
+The command surface only.  The namespace itself -- storage, resolution, and
+``$(NAME)`` expansion -- lives in :mod:`termapy.variables`, because the REPL
+engine and every frontend need it and core must not import from ``builtins/``.
+This file owns ``/var`` and its subcommands, the ``$(NAME) = value`` directive,
+and the transform registration; it holds no state.
+"""
 
 from __future__ import annotations
 
 import re
-from datetime import datetime
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import compose, green
 from termapy.plugins import CmdResult, Command, Directive, DirectiveResult, Transform, UsageError
+from termapy.variables import (
+    clear_vars,
+    context_vars,
+    datetime_var_names,
+    expand_vars,
+    launch_var,
+    launch_vars,
+    resolve_datetime_var,
+    set_user_var,
+    user_vars,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
-
-# Module-level variable storage - cleared on script start.
-_VARS: dict[str, str] = {}
-
-# Match $(NAME) or $(NAME.SUB), with an optional :strftime format on
-# datetime-valued vars -- e.g. $(DATETIME:%Y%m%d_%H%M%S).  The format runs
-# to the closing paren and may itself contain colons (%H:%M:%S), so we split
-# on the FIRST colon only; group(2) is None when no format is given.
-_VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)(?::([^)]*))?\)")
 
 # Match $(NAME) = value assignment (with or without spaces around =)
 _VAR_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*(.+)$")
@@ -38,22 +46,6 @@ _EMPTY_CAPTURE_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*<-\s*$")
 
 # Match optional $(NAME) or bare NAME wrapper for user input stripping
 _STRIP_WRAPPER_RE = re.compile(r"^\$\((.+)\)$")
-
-
-def clear_vars() -> None:
-    """Clear all user variables."""
-    _VARS.clear()
-
-
-def set_start_time_vars() -> None:
-    """Freeze the SESSION_* datetime moment.
-
-    Called once when a top-level script starts (Scripts button / Run menu).
-    Frozen here and NOT refreshed by interactive ``/run`` calls, so
-    $(SESSION_DATE/TIME/DATETIME) reflect the original session start.  The
-    moment is stored raw; format is applied on read (default or ``:fmt``).
-    """
-    _FROZEN_MOMENTS["SESSION"] = datetime.now()
 
 
 def rewrite_assignment(line: str) -> str | None:
@@ -110,222 +102,6 @@ def check_bare_dollar(line: str) -> str | None:
     return None
 
 
-# Frozen datetime moments, keyed by concept.  LAUNCH is frozen when the
-# module loads (app start); SESSION is frozen by ``set_start_time_vars`` at
-# the top-level script boundary.  Each exposes $(<CONCEPT>_DATE/TIME/DATETIME)
-# and honors an optional :fmt override -- format is applied on read.
-_FROZEN_MOMENTS: dict[str, datetime] = {"LAUNCH": datetime.now()}
-
-# Non-datetime launch vars (plain strings, no :fmt).
-_LAUNCH_VARS: dict[str, str] = {
-    "FRONT_END": "unknown",
-}
-
-
-def set_launch_var(name: str, value: str) -> None:
-    """Set a launch-time variable (called by app.py/cli.py at startup)."""
-    _LAUNCH_VARS[name] = value
-
-
-def register_cfg_vars(
-    get_config_path: Callable[[], str],
-    get_cfg: Callable[[], dict],
-    get_log_path: Callable[[], str],
-) -> None:
-    """Register all CFG.* context variables.
-
-    Called by app.py and cli.py after config is loaded.
-
-    Args:
-        get_config_path: Returns the current config file path.
-        get_cfg: Returns the current config dict.
-        get_log_path: Returns the current log file path.
-    """
-    from pathlib import Path
-
-    from termapy.config import connection_string
-
-    def _resolve_cfg() -> Path:
-        return Path(get_config_path()).resolve() if get_config_path() else Path(".")
-
-    set_context_var("CFG.DIR", lambda: str(_resolve_cfg().parent))
-    set_context_var("CFG.FILE", lambda: str(_resolve_cfg()))
-    set_context_var("CFG.RUN_DIR", lambda: str(_resolve_cfg().parent / "run"))
-    set_context_var("CFG.PROTO_DIR", lambda: str(_resolve_cfg().parent / "proto"))
-    set_context_var("CFG.PLUGIN_DIR", lambda: str(_resolve_cfg().parent / "plugin"))
-    set_context_var("CFG.SS_DIR", lambda: str(_resolve_cfg().parent / "ss"))
-    set_context_var("CFG.CAP_DIR", lambda: str(_resolve_cfg().parent / "cap"))
-    set_context_var("CFG.PROF_DIR", lambda: str(_resolve_cfg().parent / "prof"))
-    set_context_var("CFG.VIZ_DIR", lambda: str(_resolve_cfg().parent / "viz"))
-    set_context_var("CFG.LOG_FILE", lambda: str(Path(get_log_path()).resolve()) if get_log_path() else "")
-    # port / baud_rate live under cfg["serial"] post-v22.
-    set_context_var("CFG.PORT", lambda: get_cfg().get("serial", {}).get("port", ""))
-    set_context_var(
-        "CFG.BAUD", lambda: str(get_cfg().get("serial", {}).get("baud_rate", ""))
-    )
-    set_context_var("CFG.PORT_CFG", lambda: connection_string(get_cfg(), "short"))
-    set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
-
-# Default strftime formats for the datetime vars.  A base name (DATE/TIME/
-# DATETIME) resolves to the current clock; a CONCEPT_ prefix (LAUNCH_/SESSION_)
-# resolves to that frozen moment.  All accept an optional :fmt override.
-_DT_DEFAULTS: dict[str, str] = {
-    "DATE": "%Y-%m-%d",
-    "TIME": "%H:%M:%S",
-    "DATETIME": "%Y-%m-%d %H:%M:%S",
-}
-
-
-def _resolve_datetime_var(name: str, fmt: str | None) -> str | None:
-    """Resolve a datetime var to a formatted string, or None if not one.
-
-    Handles the dynamic clock (``DATE``/``TIME``/``DATETIME`` -> now) and the
-    frozen moments (``LAUNCH_*`` / ``SESSION_*``).  ``fmt`` overrides the
-    per-base default when given.
-
-    Args:
-        name: The variable name (e.g. ``DATETIME``, ``SESSION_DATE``).
-        fmt: Optional strftime override; None uses the base default.
-
-    Returns:
-        The formatted timestamp, or None if ``name`` is not a datetime var.
-    """
-    base = _DT_DEFAULTS.get(name)
-    if base is not None:
-        return datetime.now().strftime(fmt or base)
-    concept, _, tail = name.partition("_")
-    default = _DT_DEFAULTS.get(tail)
-    moment = _FROZEN_MOMENTS.get(concept)
-    if default is not None and moment is not None:
-        return moment.strftime(fmt or default)
-    return None
-
-
-# Context variables - resolved via callable at expansion time.
-_CONTEXT_VARS: dict[str, Callable[[], str]] = {}
-
-
-def set_context_var(name: str, fn: Callable[[], str]) -> None:
-    """Register a context variable resolved by callable at expansion time."""
-    _CONTEXT_VARS[name] = fn
-
-
-_ESCAPE_SENTINEL = "\x00"
-
-# Retired ambient wall-clock placeholders -> their $() equivalents.  These
-# moved out of the {} scripting-template system when $() gained :fmt; the
-# rewrite happens here, at the head of the $() transform, so the emitted
-# $(TIME)/$(DATETIME:...) expands in the same pass and works transparently on
-# both REPL and device lines.  {seqN}/{starttime}/{elapsed} are NOT here --
-# they remain per-run stamps in the scripting layer.  Back-compat shim;
-# retire in a future major once the v24 migration has aged out.
-_RETIRED_PLACEHOLDERS = {
-    "{clock}": "$(TIME)",
-    "{datetime}": "$(DATETIME:%Y%m%d_%H%M%S)",
-}
-
-
-def resolve_one(name: str, fmt: str | None = None) -> str | None:
-    """Resolve a single variable name to its value, or return None if unknown.
-
-    Resolution order (no :fmt): user vars -> launch strings -> datetime vars
-    (dynamic clock + frozen LAUNCH_/SESSION_ moments) -> context vars -> None.
-    A ``:fmt`` suffix (e.g. ``DATETIME:%Y%m%d_%H%M%S``) applies only to
-    datetime vars; on any other name it returns None.
-
-    Shared by both the blanket $(NAME) transform and per-token $(*NAME)
-    dereference handlers that explicitly opt in.
-
-    Args:
-        name: Variable name (no $() delimiters, no :fmt suffix).
-        fmt: Optional strftime format suffix (for datetime vars only).
-
-    Returns:
-        Resolved value as a string, or None if unknown.
-    """
-    if fmt is not None:
-        # A :fmt suffix is only meaningful on datetime vars.
-        return _resolve_datetime_var(name, fmt)
-    val = _VARS.get(name)
-    if val is not None:
-        return val
-    val = _LAUNCH_VARS.get(name)
-    if val is not None:
-        return val
-    dt = _resolve_datetime_var(name, None)
-    if dt is not None:
-        return dt
-    ctx_fn = _CONTEXT_VARS.get(name)
-    if ctx_fn is not None:
-        return ctx_fn()
-    return None
-
-
-def deref_ref(ref: str) -> str | None:
-    """Resolve the inner text of one ``$(*NAME)`` / ``$(*NAME:fmt)`` reference.
-
-    The arity-1 counterpart to ``expand_vars``' 0..N splice: same namespace and
-    the same ``:fmt`` rule, but resolved per argument token by the param binder
-    (``plugins/params.resolve_deref``) instead of spliced into the line.  The
-    value it returns is data -- the binder never re-splits or re-scans it.
-
-    Args:
-        ref: The text between ``$(*`` and ``)`` -- ``NAME`` or ``NAME:fmt``.
-
-    Returns:
-        The resolved value, or None when the name is undefined.
-    """
-    name, sep, fmt = ref.partition(":")
-    return resolve_one(name, fmt if sep else None)
-
-
-def expand_vars(text: str) -> str:
-    """Expand $(NAME) references in a string.
-
-    Resolution order (no :fmt): user vars -> launch strings -> datetime vars
-    (dynamic clock + frozen LAUNCH_/SESSION_ moments) -> context vars -> left
-    literal.  A ``:fmt`` suffix (e.g. ``$(DATETIME:%Y%m%d_%H%M%S)``) applies
-    only to datetime vars; on any other name it is left literal.
-
-    Use ``\\$`` to escape a literal ``$`` (e.g. ``\\$(PORT)`` -> ``$(PORT)``).
-
-    Args:
-        text: String potentially containing $(NAME) references.
-
-    Returns:
-        String with known variables expanded.
-    """
-    # Back-compat: rewrite retired {clock}/{datetime} to their $() form first,
-    # so the emitted references expand below in this same pass.
-    if "{clock}" in text or "{datetime}" in text:
-        for old, new in _RETIRED_PLACEHOLDERS.items():
-            text = text.replace(old, new)
-    # Swap \$ -> sentinel so the regex doesn't see it as a var reference
-    text = text.replace("\\$", _ESCAPE_SENTINEL)
-
-    def _replace(m: re.Match) -> str:
-        name = m.group(1)
-        fmt = m.group(2)
-        val = resolve_one(name, fmt)
-        return val if val is not None else m.group(0)
-
-    text = _VAR_REF_RE.sub(_replace, text)
-    # Restore sentinel -> literal $
-    return text.replace(_ESCAPE_SENTINEL, "$")
-
-
-def _datetime_var_names() -> list[tuple[str, str]]:
-    """(name, tag) for every datetime var: dynamic clock + frozen moments.
-
-    Used by ``/var`` listing.  Frozen concepts appear only once frozen
-    (SESSION shows up after a top-level script starts).
-    """
-    names = [(base, "dynamic") for base in _DT_DEFAULTS]
-    for concept in sorted(_FROZEN_MOMENTS):
-        names.extend((f"{concept}_{base}", concept.lower()) for base in _DT_DEFAULTS)
-    return names
-
-
 # -- Handlers ----------------------------------------------------------------
 
 
@@ -339,14 +115,17 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     raw = args.strip()
     m = _STRIP_WRAPPER_RE.match(raw)
     name = m.group(1) if m else raw
+    users = user_vars()
+    launches = launch_vars()
+    contexts = context_vars()
     if name:
-        val = _VARS.get(name)
+        val = users.get(name)
         if val is None:
-            val = _LAUNCH_VARS.get(name)
+            val = launch_var(name)
         if val is None:
-            val = _resolve_datetime_var(name, None)
+            val = resolve_datetime_var(name, None)
         if val is None:
-            ctx_fn = _CONTEXT_VARS.get(name)
+            ctx_fn = contexts.get(name)
             if ctx_fn is not None:
                 val = ctx_fn()
         if val is not None:
@@ -355,18 +134,18 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(f"  $({name}) - not defined", "red")
         return CmdResult.ok(value="")
     lines: list[str] = []
-    for k in sorted(_VARS):
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{_VARS[k]}[/]")
-        lines.append(f"{k}={_VARS[k]}")
-    for k in sorted(_LAUNCH_VARS):
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{_LAUNCH_VARS[k]}[/]  [dim](launch)[/]")
-        lines.append(f"{k}={_LAUNCH_VARS[k]}")
-    for k, tag in _datetime_var_names():
-        rendered = _resolve_datetime_var(k, None) or ""
+    for k in sorted(users):
+        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{users[k]}[/]")
+        lines.append(f"{k}={users[k]}")
+    for k in sorted(launches):
+        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{launches[k]}[/]  [dim](launch)[/]")
+        lines.append(f"{k}={launches[k]}")
+    for k, tag in datetime_var_names():
+        rendered = resolve_datetime_var(k, None) or ""
         ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{rendered}[/]  [dim]({tag})[/]")
         lines.append(f"{k}={rendered}")
-    for k in sorted(_CONTEXT_VARS):
-        rendered = _CONTEXT_VARS[k]()
+    for k in sorted(contexts):
+        rendered = contexts[k]()
         ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{rendered}[/]  [dim](context)[/]")
         lines.append(f"{k}={rendered}")
     return CmdResult.ok(value="\n".join(lines))
@@ -387,7 +166,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
     value = parts[1]
-    _VARS[name] = value
+    set_user_var(name, value)
     ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
     return CmdResult.ok(value=value)
 
@@ -446,7 +225,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
         if not response:
             return CmdResult.fail(msg=f"No response from device: {cmd}")
         value = response.decode(encoding, errors="replace").strip()
-    _VARS[name] = value
+    set_user_var(name, value)
     ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
     return CmdResult.ok(value=value)
 
@@ -458,8 +237,7 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Unused.
     """
-    count = len(_VARS)
-    _VARS.clear()
+    count = clear_vars()
     ctx.io.output(f"Cleared {count} variable(s).", "green")
     return CmdResult.ok(value=str(count))
 
@@ -469,14 +247,14 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
 
 def _var_state_line(ctx: PluginContext) -> str:
     """Green one-liner: current user + launch + context var counts."""
-    # ctx is unused -- vars live in module-level storage, same across all
-    # PluginContexts within a session. Signature matches the dynamic
-    # long_help contract.
+    # ctx is unused -- vars live in termapy.variables' module-level storage,
+    # same across all PluginContexts within a session. Signature matches the
+    # dynamic long_help contract.
     _ = ctx
-    user = len(_VARS)
-    dt = len(_datetime_var_names())
-    ctxv = len(_CONTEXT_VARS)
-    launch = len(_LAUNCH_VARS)
+    user = len(user_vars())
+    dt = len(datetime_var_names())
+    ctxv = len(context_vars())
+    launch = len(launch_vars())
     return green(
         f"Currently defined: {user} user, {dt} datetime, "
         f"{ctxv} context, {launch} launch"

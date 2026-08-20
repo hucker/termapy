@@ -98,8 +98,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     global _active
     pattern = args.strip()
     if not pattern:
-        _active = None
-        _refresh(ctx)
+        dismiss(ctx)
         return CmdResult.ok(value="closed")
 
     prefix = cmd_prefix(ctx.cfg)
@@ -162,11 +161,26 @@ def _handler_prev(ctx: PluginContext, args: str) -> CmdResult:
     return _step(ctx, -1)
 
 
-def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
-    """``/find.clear`` -- close the find bar, drop the match list."""
+def dismiss(ctx: PluginContext) -> None:
+    """Close the find bar and drop the match list.
+
+    The published entry point for this action.  ``/find.clear`` is the
+    command form; ``app.py`` calls this directly when live data arrives on
+    ``#output``, which is the user's signal that they are done with the
+    frozen view.  Kept public so the app never has to reach for a private
+    handler.
+
+    Args:
+        ctx: Plugin context, used to refresh the find bar.
+    """
     global _active
     _active = None
     _refresh(ctx)
+
+
+def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
+    """``/find.clear`` -- close the find bar, drop the match list."""
+    dismiss(ctx)
     return CmdResult.ok(value="closed")
 
 

@@ -110,83 +110,6 @@ def _ports_row_width() -> int:
     return _PORTS_PIPED_ROW_WIDTH
 
 
-def _facts_to_json_record(facts) -> dict:
-    """Build a stable JSON record from a ChipFacts.
-
-    Field names are snake_case (matching pyserial convention) and the
-    schema is fixed: every record has every field, with ``null`` for
-    unknown values, so consumers can rely on the shape.  Numeric
-    ``vid``/``pid`` are kept alongside the formatted ``vid_pid`` so
-    consumers can do numeric or literal-string filtering.
-    """
-    # vid_pid on ChipFacts is "0403:6001" (uppercase hex); split it
-    # back to integers when present so consumers can do numeric ops.
-    vid: int | None = None
-    pid: int | None = None
-    vp = facts.vid_pid
-    if vp and ":" in vp:
-        try:
-            vid_s, pid_s = vp.split(":", 1)
-            vid = int(vid_s, 16)
-            pid = int(pid_s, 16)
-        except ValueError:
-            vid = pid = None
-    # Vendor info comes from two independent sources:
-    #   - manufacturer / manufacturer_raw: what the device descriptor
-    #     or driver INF reports.  manufacturer is the column-friendly
-    #     short form (via usb_mfg.mfg()); manufacturer_raw is the
-    #     literal string.
-    #   - vendor: the silicon-vendor name resolved from the VID per
-    #     USB-IF assignment.  Populated even when the (VID, PID) pair
-    #     isn't in our chip table; useful when manufacturer is generic
-    #     (e.g. "Microsoft" because the device uses usbser.sys).
-    # All three are exposed so engineers can see the full picture --
-    # they often agree, and when they disagree the disagreement is
-    # diagnostic information.
-    from termapy.usb import mfg as _mfg_alias
-    raw_mfg = facts.manufacturer
-    return {
-        "device": facts.device,
-        "manufacturer": _mfg_alias(raw_mfg) or None,
-        "manufacturer_raw": raw_mfg,
-        "vendor": facts.vendor,
-        "description": facts.description,
-        "chip": facts.model if facts.model and facts.model != "unknown" else None,
-        "speed": _normalize_speed(facts.usb_speed),
-        "vid": vid,
-        "pid": pid,
-        "vid_pid": vp.lower() if vp and ":" in vp else None,
-        "serial_number": facts.serial,
-        "in_use": (facts.in_use or "").startswith("yes"),
-        "driver": facts.driver,
-        # Physical bus location, "1-2.3" -- bus, then one hop per hub
-        # tier.  Disambiguates two devices with the same VID/PID and
-        # serial number, the cheap-clone scenario.  Falls back to the
-        # Windows registry's "Hub_#0011.Port_#0003" when the topology
-        # can't be read.
-        "location": facts.location,
-        # bInterfaceNumber, for a device exposing more than one function
-        # (a debugger with a CDC port alongside it, or one channel of a
-        # multi-port FTDI chip).  null when there is nothing to
-        # disambiguate.  Kept separate from location so that field is
-        # always just the path.
-        "interface_number": facts.interface_number,
-    }
-
-
-def _normalize_speed(usb_speed: str | None) -> str | None:
-    """Reduce the verbose usb_speed string to a short label or None."""
-    if not usb_speed:
-        return None
-    if "Full-Speed" in usb_speed:
-        return "Full-Speed"
-    if "High-Speed" in usb_speed:
-        return "High-Speed"
-    if "Super-Speed" in usb_speed:
-        return "Super-Speed"
-    return None
-
-
 def _filter_facts(args: argparse.Namespace, facts_list: list) -> list:
     """Apply --vid / --pid / --mfg / --sn filters.
 
@@ -297,7 +220,9 @@ def run_ports(
     facts_list = _filter_facts(args, all_facts)
 
     if args.json:
-        records = [_facts_to_json_record(fact) for fact in facts_list]
+        from termapy.port_format import facts_to_json_record
+
+        records = [facts_to_json_record(fact) for fact in facts_list]
         print(json.dumps(records, indent=2))
         sys.exit(0 if records else 1)
 

@@ -70,6 +70,7 @@ All paths relative to `src/termapy/`.
 - Subcommands = distinct operations (`port.list` vs `port.connect`)
 - Toggles/values = args (`echo on`, `cfg baudrate 9600`)
 - Handlers that produce scriptable data must return `CmdResult.ok(value=...)` — without it, scripts in quiet mode get nothing. See `CmdResult` docstring in `plugins.py`.
+- **`CmdResult.data` is the structured twin of `value`** — real JSON shape (dict/list/number) for agent consumers (MCP, `--json`); never a prose string. `value` stays the scriptable scalar. Optional: `data=None` is a legitimate permanent state (side-effect and prose-page commands); convert commands agents actually call, not all 185. Handlers with LARGE listings branch on `ctx.wants_data` and build either the prose or the records — never both (no doubled payload). Producers for `data` live in core beside the prose producers (`port_format.facts_to_json_record`, `usb_tree.to_json_records`, `variables.snapshot`), never inline in handlers.
 
 ## Declarative Command Parameters (`Command.params`) vs hand-rolled
 

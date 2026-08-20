@@ -1054,3 +1054,53 @@ class TestDerefRef:
         assert actual == "$(p1)", (
             "a resolved value is data, never re-expanded"
         )
+
+
+# ── snapshot ─────────────────────────────────────────────────────────────────
+
+
+class TestSnapshot:
+    """The structured view of the whole namespace (serves /var's data)."""
+
+    def test_namespaces_and_resolution(self):
+        # Arrange
+        from termapy.variables import set_context_var, snapshot
+        _VARS["PORT"] = "COM9"
+        set_context_var("SNAP_TEST", lambda: "ctx_value")
+
+        # Act
+        actual = snapshot()
+
+        # Assert
+        actual_namespaces = set(actual.keys())
+        expected_namespaces = {"user", "launch", "datetime", "context"}
+        assert actual_namespaces == expected_namespaces, (
+            "one sub-dict per namespace, no extras"
+        )
+        assert actual["user"] == {"PORT": "COM9"}, "user vars pass through"
+        assert actual["context"]["SNAP_TEST"] == "ctx_value", (
+            "context callables are resolved, not returned as callables"
+        )
+        # Value not pinned: FRONT_END is module-global session state that
+        # sibling frontend/MCP tests legitimately set on this worker.
+        assert "FRONT_END" in actual["launch"], (
+            "launch namespace present in the snapshot"
+        )
+        assert actual["datetime"]["DATE"], (
+            "datetime vars arrive formatted, not empty"
+        )
+
+    def test_session_moment_appears_only_once_frozen(self):
+        # Arrange -- no SESSION frozen (autouse fixture cleared it)
+        from termapy.variables import set_start_time_vars, snapshot
+
+        # Act / Assert
+        before = snapshot()
+        assert "SESSION_DATE" not in before["datetime"], (
+            "SESSION_* absent until a top-level script freezes the moment"
+        )
+        set_start_time_vars()
+        after = snapshot()
+        assert "SESSION_DATE" in after["datetime"], (
+            "freezing the moment surfaces SESSION_* in the snapshot"
+        )

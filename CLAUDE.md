@@ -24,6 +24,8 @@ All paths relative to `src/termapy/`.
 - `repl.py` bridges plugins and app via `PluginContext` callbacks
 - Load order: builtins → global → per-config → app hooks (later overrides earlier)
 - External plugins use `PluginContext` only. `InternalHandle` (`ctx.internal`) is internal/unstable.
+- **The reverse direction has a rule too: core may call INTO a plugin, but only its published surface.** Core (`app.py`, `cli.py`, `repl.py`, `mcp/server.py`, `pickers.py`, …) importing a *public* function from `builtins/` is fine — `app.py` calls `find.dismiss()` when live data should close the find bar, and that is the plugin's documented entry point. What is NOT fine is reaching for a private handler or private state (`_handler_clear`, `_VARS`), because a plugin's privates are free to change and the app has no contract with them.
+- **Infrastructure never lives under `builtins/`.** If core needs it at startup or on the dispatch path, it is core by definition, and a command that exposes it is a thin surface on top. `variables.py` (the `$(NAME)` namespace) ← `builtins/commands/var.py` (`/var`), exactly as `port_control.py` ← `builtins/commands/port.py`. The test is "who calls it": something every frontend and the REPL engine need is not a plugin, however natural the matching command feels. Getting this backwards is what put the variable engine under `builtins/` and made five core modules import from a plugin.
 
 ## Config
 

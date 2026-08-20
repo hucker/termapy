@@ -165,8 +165,12 @@ auto-reset.  So termapy never opens a port you didn't ask about:
 
 - **Listing and connecting never open bystander ports.**  `/port.list`,
   plain `termapy --ports`, the port picker, and resolving a config's
-  port (including the auto-reconnect loop) read identity only and open
-  nothing.
+  port (including the auto-reconnect loop) open nothing at all.  The
+  three listing surfaces do still read driver and location -- those come
+  from sysfs on Linux and the registry on Windows, which costs a few
+  milliseconds per port and opens no device.  Resolution and the
+  reconnect loop skip even that: they match on device name and serial
+  number, so there is nothing else to look up.
 - **Linux / macOS:** in-use is read from `lsof` -- it inspects the
   kernel's open-file table without opening the port, so it is always
   safe *and* it names the holder (e.g. `yes (python (PID 8842))`, i.e.

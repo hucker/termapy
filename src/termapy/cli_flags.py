@@ -266,8 +266,10 @@ def run_ports(
     # The table has no in_use column; only --json surfaces it.  So probe
     # (fast=False) only for --json -- non-invasive via lsof on POSIX, and
     # a hardened opt-in open on Windows.  Plain --ports never opens a port.
+    # It does show LOCATION and DRIVER though, so it asks for enrichment --
+    # sysfs / registry reads, no port opened.
     all_facts = port_control._gather_all_chip_facts(
-        fast=not getattr(args, "json", False), source=source
+        fast=not getattr(args, "json", False), enrich=True, source=source
     )
 
     if args.ports and args.ports != "*":

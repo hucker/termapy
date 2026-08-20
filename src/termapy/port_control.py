@@ -316,8 +316,9 @@ def list_ports(*, source: PortSource | None = None) -> Result:
     from termapy.port_format import format_table
 
     # fast=True: the /port.list table has no in_use column, so don't run
-    # the invasive probe just to discard the result.
-    facts_list = _gather_all_chip_facts(fast=True, source=source)
+    # the invasive probe just to discard the result.  enrich=True: it DOES
+    # have location and driver columns, and filling those opens no port.
+    facts_list = _gather_all_chip_facts(fast=True, enrich=True, source=source)
     if not facts_list:
         return _result([_msg("No serial ports found", "yellow")])
     row_width = shutil.get_terminal_size((80, 24)).columns
@@ -774,16 +775,30 @@ def _check_permissions(device: str) -> str:
 
 
 def _facts_from_port_info(
-    p: Any, connected_port: str = "", *, fast: bool = False
+    p: Any, connected_port: str = "", *, fast: bool = False, enrich: bool = False
 ) -> ChipFacts:
     """Build a ChipFacts from a pyserial ListPortInfo plus platform extras.
 
-    ``fast=True`` skips the per-port ``_check_in_use`` probe (which
-    opens each port to detect contention -- ~250 ms per port on
-    Windows).  Used by ``--watch`` so the poll loop doesn't scale
-    linearly with port count.  Fast-gathered records have
+    Two independent costs live below, and they are gated separately
+    because they are not the same kind of expensive:
+
+    ``fast=True`` skips the ``in_use``/``permissions`` probe.  That probe
+    *opens the port* on Windows (~250 ms each, and it pulses DTR/RTS,
+    which resets auto-reset boards), so it stays off for every surface
+    that does not display in-use.  Fast-gathered records have
     ``in_use=None`` and ``permissions=None`` so callers can tell the
     field is missing rather than False.
+
+    ``enrich=True`` adds the platform metadata lookup -- driver,
+    location, latency timer, negotiated speed -- from sysfs on Linux and
+    the registry on Windows.  It opens nothing and costs single-digit
+    milliseconds per port, so any surface that *displays* those columns
+    should ask for it even in fast mode.  It defaults off because the
+    hot callers (``resolve_port`` and the 2.5 s reconnect loop) read
+    identity fields only.
+
+    Enrichment also happens implicitly when ``fast=False``: a caller
+    paying for the probe has already accepted a far larger cost.
     """
     facts = ChipFacts(
         device=p.device,
@@ -819,11 +834,13 @@ def _facts_from_port_info(
     if not fast:
         facts.permissions = _check_permissions(p.device)
         facts.in_use = _check_in_use(p.device, connected_port)
-        # Per-port enrichment (driver, latency_timer, negotiated speed)
-        # reads sysfs / the registry.  Cheap relative to _check_in_use
-        # but unnecessary for --watch's plug-event detection, which
-        # reads only the always-populated identity fields (device,
-        # description, model, vid_pid, serial).
+    if enrich or not fast:
+        # sysfs / registry reads only -- no port is opened here, which is
+        # why this is NOT gated on `fast`.  Bundling it with the probe is
+        # what silently emptied the LOCATION and DRIVER columns of the
+        # --ports table, /port.list and the picker (they display both and
+        # gather fast).  --watch and resolution stay unenriched: they read
+        # identity only and run on a timer.
         _gather_linux_extras(facts, p.device)
         _gather_windows_extras(facts, p.device)
         if (
@@ -841,6 +858,7 @@ def gather_chip_facts(
     connected_port: str = "",
     *,
     fast: bool = False,
+    enrich: bool = False,
     source: PortSource | None = None,
     trust_env: bool = True,
 ) -> ChipFacts | None:
@@ -849,7 +867,9 @@ def gather_chip_facts(
     ``fast=True`` skips the ``in_use``/``permissions`` probe (which opens
     the port on Windows -- see ``_check_in_use``).  Pass it from any
     surface that doesn't display ``in_use`` so single-port lookups stay
-    non-invasive.
+    non-invasive.  ``enrich=True`` still fills in driver / location /
+    latency from sysfs or the registry, which opens nothing -- pass it
+    from any surface that displays those.  See ``_facts_from_port_info``.
 
     Port discovery follows the three layers described on
     ``resolve_port_source``.  A substitute fleet (injected or from the
@@ -860,6 +880,7 @@ def gather_chip_facts(
         port_name: Exact device name (e.g. ``COM3`` or ``/dev/ttyUSB0``).
         connected_port: The port termapy currently has open, if any.
         fast: Skip the in_use/permissions probe.
+        enrich: Look up driver / location / latency anyway.
         source: Callable returning a substitute port list; wins over the
             environment and over real hardware.
         trust_env: Whether the environment may supply a fleet.
@@ -877,7 +898,9 @@ def gather_chip_facts(
 
     for port in comports():
         if port.device == port_name:
-            return _facts_from_port_info(port, connected_port, fast=fast)
+            return _facts_from_port_info(
+                port, connected_port, fast=fast, enrich=enrich
+            )
     # OS didn't enumerate it; fall back to synthesizing a record for
     # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
     # `termapy --info DEMO` work without hardware.
@@ -980,6 +1003,7 @@ def _gather_all_chip_facts(
     connected_port: str = "",
     *,
     fast: bool = False,
+    enrich: bool = False,
     source: PortSource | None = None,
     trust_env: bool = True,
 ) -> list[ChipFacts]:
@@ -991,6 +1015,11 @@ def _gather_all_chip_facts(
     enumerated.  Records returned in fast mode have ``in_use=None``
     and ``permissions=None``.
 
+    ``enrich=True`` fills in driver / location / latency from sysfs or
+    the registry without opening anything, for surfaces that display
+    those columns.  See ``_facts_from_port_info`` for why the two are
+    separate knobs.
+
     Port discovery follows the three layers described on
     ``resolve_port_source``.  A substitute fleet is sorted the same way
     real enumeration is, so the sort contract holds on every path.
@@ -998,6 +1027,7 @@ def _gather_all_chip_facts(
     Args:
         connected_port: The port termapy currently has open, if any.
         fast: Skip the per-port in_use/permissions probe.
+        enrich: Look up driver / location / latency anyway.
         source: Callable returning a substitute port list; wins over the
             environment and over real hardware.
         trust_env: Whether the environment may supply a fleet.
@@ -1008,7 +1038,7 @@ def _gather_all_chip_facts(
     from serial.tools.list_ports import comports
 
     return [
-        _facts_from_port_info(p, connected_port, fast=fast)
+        _facts_from_port_info(p, connected_port, fast=fast, enrich=enrich)
         for p in sorted(comports(), key=lambda x: x.device)
     ]
 

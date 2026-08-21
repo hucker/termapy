@@ -155,6 +155,17 @@ class _FakeSerial:
         return self._response
 
 
+def _rendered_envelope(output):
+    """Parse the response envelope from the plain-output capture.
+
+    The unified emitter writes it via ``io.result`` (plain channel);
+    only the request-side ``{"cmd": ...}`` echo remains on markup.
+    """
+    assert output, "an envelope line was written to the plain channel"
+    text, _color = output[-1]
+    return json.loads(text)
+
+
 def _wire_fake_serial(ctx, fake):
     """Replace ctx serial callbacks with the fake's methods."""
     ctx.serial.claim = fake.claim
@@ -167,7 +178,7 @@ def _wire_fake_serial(ctx, fake):
 class TestExecRequestMode:
     def test_value_is_response_text_and_display_carries_envelope(self, repl_env):
         # Arrange
-        engine, ctx, _, _, markup = repl_env
+        engine, ctx, _, output, _ = repl_env
         fake = _FakeSerial(response=b"5.5\r\n")
         _wire_fake_serial(ctx, fake)
 
@@ -175,17 +186,17 @@ class TestExecRequestMode:
         result = engine._exec_request_mode("get_voltage")
 
         # Assert -- value is the scalar (the response text); the JSON
-        # envelope is the HUMAN display line, rendered to write_markup
+        # envelope renders on the plain result channel
         assert fake.writes == [b"get_voltage\r"], "command + line ending sent"
         assert fake.claimed is True, "serial port claimed (suppresses display)"
         assert fake.released is True, "serial port released after"
         assert result.success is True, "success on clean response"
         assert result.value == "5.5", "value is the decoded + stripped text"
         assert result.data is None, "plain-text response has no structure"
-        rendered = json.loads(markup[-1])
+        rendered = _rendered_envelope(output)
         assert rendered["cmd"] == "get_voltage", "display envelope: cmd"
         assert rendered["success"] is True, "display envelope: success"
-        assert rendered["result"] == "5.5", "display envelope: response text"
+        assert rendered["value"] == "5.5", "display envelope: response text"
         assert isinstance(rendered["elapsed_s"], float), "display: elapsed_s"
 
     def test_json_native_response_lands_in_data(self, repl_env):
@@ -245,26 +256,29 @@ class TestExecRequestMode:
 
     def test_envelope_rendered_to_terminal_as_single_line(self, repl_env):
         # Arrange
-        engine, ctx, _, _, markup = repl_env
+        engine, ctx, _, output, markup = repl_env
         fake = _FakeSerial(response=b"1.2.3")
         _wire_fake_serial(ctx, fake)
 
         # Act
         engine._exec_request_mode("AT+VER")
 
-        # Assert -- two markup lines: request envelope, then response.
-        # Both parse as JSON.  Same envelope shape is also in CmdResult.value.
-        assert len(markup) == 2, "request + response envelopes emitted"
+        # Assert -- the request echo rides markup; the response envelope
+        # renders as ONE line on the plain result channel, in the same
+        # dialect as every termapy command.
+        assert len(markup) == 1, "request echo emitted on markup"
         request_envelope = json.loads(markup[0])
-        response_envelope = json.loads(markup[1])
         assert request_envelope == {"cmd": "AT+VER"}, "request envelope shape"
+        response_envelope = _rendered_envelope(output)
         assert response_envelope["cmd"] == "AT+VER", "cmd in response envelope"
-        assert response_envelope["result"] == "1.2.3", "result in response envelope"
+        assert response_envelope["value"] == "1.2.3", "value in response envelope"
         assert response_envelope["success"] is True, "success in response envelope"
+        assert response_envelope["data"] is None, "plain text: no structure"
+        assert response_envelope["output_lines"] == [], "device path: no prose"
 
     def test_envelope_on_send_error(self, repl_env):
         # Arrange -- writer raises OSError
-        engine, ctx, _, _, markup = repl_env
+        engine, ctx, _, output, _ = repl_env
 
         class _BrokenSerial(_FakeSerial):
             def write(self, payload):
@@ -281,13 +295,13 @@ class TestExecRequestMode:
         assert "Send error" in result.error, "error describes send failure"
         assert "port disconnected" in result.error, "wraps OSError message"
         assert result.value == "", "no response text on send error"
-        rendered = json.loads(markup[-1])
+        rendered = _rendered_envelope(output)
         assert rendered["success"] is False, "display envelope: success=False"
-        assert rendered["result"] == "", "display envelope: empty result"
+        assert rendered["value"] == "", "display envelope: empty result"
 
     def test_empty_response_renders_empty_result(self, repl_env):
         # Arrange -- device timed out / no reply
-        engine, ctx, _, _, markup = repl_env
+        engine, ctx, _, output, _ = repl_env
         fake = _FakeSerial(response=b"")
         _wire_fake_serial(ctx, fake)
 
@@ -298,8 +312,8 @@ class TestExecRequestMode:
         assert result.success is True, "send succeeded; no exception"
         assert result.value == "", "empty bytes -> empty value"
         assert result.error == "", "no error on empty response"
-        rendered = json.loads(markup[-1])
-        assert rendered["result"] == "", "display envelope: empty result"
+        rendered = _rendered_envelope(output)
+        assert rendered["value"] == "", "display envelope: empty result"
 
     def test_decode_uses_configured_encoding(self, repl_env):
         # Arrange -- latin-1 encoded response
@@ -491,7 +505,7 @@ class TestDeviceErrorDetection:
 
     def test_device_error_display_envelope_shows_error(self, repl_env):
         # Arrange -- check the scrollback display reflects the device error
-        engine, ctx, cfg, _, markup = repl_env
+        engine, ctx, cfg, output, _ = repl_env
         cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
         fake = _FakeSerial(response=b"ERR: unknown command")
         _wire_fake_serial(ctx, fake)
@@ -501,11 +515,11 @@ class TestDeviceErrorDetection:
 
         # Assert -- TUI/CLI scrollback envelope shows success=false,
         # error=device text, empty result (no duplication)
-        response_envelope = json.loads(markup[1])
+        response_envelope = _rendered_envelope(output)
         assert response_envelope["success"] is False, "display success=false"
         assert response_envelope["error"] == "ERR: unknown command", \
             "display error is device text"
-        assert response_envelope["result"] == "", \
+        assert response_envelope["value"] == "", \
             "display result empty when device errored"
 
     def test_session_override_takes_precedence_over_cfg(self, repl_env):
@@ -639,7 +653,7 @@ class TestDispatchFullRequestMode:
 
     def test_request_mode_on_emits_envelope(self, repl_env):
         # Arrange
-        engine, ctx, cfg, _, markup = repl_env
+        engine, ctx, cfg, output, markup = repl_env
         cfg["request_mode"] = True
         fake = _FakeSerial(response=b"5.5")
         _wire_fake_serial(ctx, fake)
@@ -651,14 +665,14 @@ class TestDispatchFullRequestMode:
             is_connected=lambda: True,
         )
 
-        # Assert -- same envelope is the canonical shape; rendered to
-        # write_markup AND returned in CmdResult.value.
-        assert len(markup) == 2, "request + response envelopes rendered"
+        # Assert -- request echo on markup; the response envelope renders
+        # in the ONE dialect on the plain result channel.
+        assert len(markup) == 1, "request echo rendered"
         request_envelope = json.loads(markup[0])
-        response_envelope = json.loads(markup[1])
         assert request_envelope == {"cmd": "get_voltage"}, "request envelope"
+        response_envelope = _rendered_envelope(output)
         assert response_envelope["cmd"] == "get_voltage", "cmd in response"
-        assert response_envelope["result"] == "5.5", "result in response"
+        assert response_envelope["value"] == "5.5", "value in response"
         assert result.value == "5.5", "CmdResult.value is the response text"
 
 
@@ -810,22 +824,23 @@ class TestRequestEnvelopeEcho:
 
     def test_request_and_response_envelopes_always_render(self, repl_env):
         # Arrange -- request_mode is the only knob that matters
-        engine, ctx, cfg, _, markup = repl_env
+        engine, ctx, cfg, output, markup = repl_env
         fake = _FakeSerial(response=b"5.5")
         _wire_fake_serial(ctx, fake)
 
         # Act
         engine._exec_request_mode("get_voltage")
 
-        # Assert -- exactly two markup lines, both JSON, in order
-        assert len(markup) == 2, "exactly two envelope lines (request, response)"
+        # Assert -- request echo on markup; response envelope on the
+        # plain result channel, in the one dialect
+        assert len(markup) == 1, "exactly one request-echo line"
         request_envelope = json.loads(markup[0])
-        response_envelope = json.loads(markup[1])
         assert request_envelope == {"cmd": "get_voltage"}, (
             "request envelope is exactly {cmd: <text>}"
         )
+        response_envelope = _rendered_envelope(output)
         assert response_envelope["cmd"] == "get_voltage", "response cmd"
-        assert response_envelope["result"] == "5.5", "response result"
+        assert response_envelope["value"] == "5.5", "response value"
         assert response_envelope["success"] is True, "response success"
 
     def test_echo_input_off_does_not_suppress_request_envelope(self, repl_env):
@@ -840,7 +855,7 @@ class TestRequestEnvelopeEcho:
         engine._exec_request_mode("get_voltage")
 
         # Assert -- request envelope still renders despite echo_input=False
-        assert len(markup) == 2, (
+        assert len(markup) == 1, (
             "echo_input=false has no effect when request_mode is on"
         )
         request_envelope = json.loads(markup[0])
@@ -859,8 +874,8 @@ class TestRequestEnvelopeEcho:
         # Act
         engine._exec_request_mode("get_voltage")
 
-        # Assert -- still exactly two envelopes, not three
-        assert len(markup) == 2, "echo_input=True does not double the request"
+        # Assert -- still exactly one request echo, not two
+        assert len(markup) == 1, "echo_input=True does not double the request"
 
     def test_request_envelope_reflects_unwrapped_cmd_not_raw_input(self, repl_env):
         # Arrange -- JSON input gets unwrapped; the echo should show
@@ -873,7 +888,7 @@ class TestRequestEnvelopeEcho:
         engine._exec_request_mode('{"cmd":"reset","timeout_ms":5000,"x":"y"}')
 
         # Assert -- request envelope shows just {"cmd":"reset"}, no extras
-        assert len(markup) == 2, "request + response envelopes"
+        assert len(markup) == 1, "one request-echo line on markup"
         request_envelope = json.loads(markup[0])
         actual_keys = set(request_envelope.keys())
         expected_keys = {"cmd"}
@@ -940,13 +955,12 @@ class TestDispatchFullEchoGating:
         assert legacy_echos == [], (
             "legacy plain-text echo suppressed in request_mode"
         )
-        assert len(markup) == 2, "request + response envelopes rendered"
-        # Both lines parse as JSON.
+        assert len(markup) == 1, "request echo rendered on markup"
         request_envelope = json.loads(markup[0])
-        response_envelope = json.loads(markup[1])
         assert request_envelope == {"cmd": "AT+VER"}, (
-            "first markup line is the request envelope"
+            "the markup line is the request envelope"
         )
+        response_envelope = _rendered_envelope(output)
         assert response_envelope["cmd"] == "AT+VER", (
-            "second markup line is the response envelope"
+            "response envelope on the plain result channel"
         )

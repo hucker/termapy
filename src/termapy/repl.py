@@ -1288,6 +1288,22 @@ class ReplEngine:
         # envelope rather than leaking the flag into the error message.
         args, wants_json = _strip_json_flag(args)
 
+        # Request mode is the SESSION's structured dial, and from the
+        # user's seat the device/termapy demarcation is invisible: with
+        # ``/term.request on`` the whole session answers in JSON -- bare
+        # device commands as request/response envelopes (see
+        # ``_exec_request_mode``) and termapy commands as result
+        # envelopes here.  ``--json`` remains the per-call form of the
+        # same thing for a normal-mode session.  MCP is carved out of
+        # the RENDERING only: its host already delivers ``data`` on the
+        # outer response envelope, so printing a second envelope into
+        # ``output_lines`` would duplicate exactly what the unified
+        # envelope removed.
+        if not wants_json and self.cfg.get("request_mode"):
+            from termapy.variables import launch_var
+
+            wants_json = launch_var("FRONT_END") != "mcp"
+
         # Universal level-suffix modifier: any command can be invoked as
         # ``<cmd>.<level>`` (silent/quiet/normal/verbose) to override the
         # output level for that one call.  We only fall back to this if

@@ -98,10 +98,15 @@ call with `cmd --<level>` or `cmd.<level>`:
 Set the level at startup with `--silent`, `--quiet`, or `--verbose` on the
 `termapy` command line.
 
-## JSON output: `--json` on any command
+## JSON output: `/term.request on`, or `--json` per call
 
-Every command also accepts `--json`, which renders the result as one JSON
-envelope instead of prose:
+`/term.request on` is the session's structured dial: **everything** answers
+in JSON -- bare device commands as request/response envelopes, termapy
+commands as result envelopes.  The device/termapy demarcation is deliberately
+invisible; the session is either in JSON mode or in prose mode.
+
+For a single call in a prose-mode session, every command also accepts
+`--json`, which renders that one result as an envelope:
 
 ```text
 /port.list --json

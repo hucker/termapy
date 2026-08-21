@@ -447,8 +447,8 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: true, false",
     ),
     "request_mode": (
-        "Turn bare device commands into synchronous request/response.",
-        "true/false. On: replies become a JSON envelope. See /term.request.",
+        "Session JSON mode: device exchanges AND termapy commands.",
+        "true/false. On: everything answers as a JSON envelope. See /term.request.",
     ),
     "request_err_pattern": (
         "Regex on request_mode responses that flags a device-side error.",

@@ -1522,3 +1522,60 @@ class TestJsonFlag:
         # Assert
         envelope = self._last_envelope(output)
         assert envelope["success"] is True, "envelope rides the result channel"
+
+
+class TestRequestModeSessionJson:
+    """``request_mode`` is the session dial: termapy commands envelope too."""
+
+    def test_termapy_command_envelopes_without_flag(self, engine):
+        # Arrange
+        eng, output = engine
+        eng._apply_cfg("request_mode", True)
+        output.clear()
+
+        # Act -- no --json flag; the session mode alone does it
+        result = eng.dispatch("var")
+
+        # Assert
+        text, _color = output[-1]
+        envelope = json.loads(text)
+        assert envelope["success"] is True, "termapy command enveloped"
+        assert "data" in envelope, "structured data field present"
+        assert result.data is not None, "converted command produced data"
+
+    def test_off_returns_to_prose(self, engine):
+        # Arrange
+        eng, output = engine
+        eng._apply_cfg("request_mode", True)
+        eng._apply_cfg("request_mode", False)
+        output.clear()
+
+        # Act
+        eng.dispatch("print hello")
+
+        # Assert -- plain prose, not an envelope
+        text, _color = output[-1]
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(text)
+
+    def test_mcp_frontend_skips_the_render(self, engine, monkeypatch):
+        # Arrange -- MCP delivers data on its outer response envelope;
+        # rendering here too would duplicate it into output_lines.
+        from termapy import variables as _variables
+        eng, output = engine
+        monkeypatch.setattr(
+            _variables, "_LAUNCH_VARS", dict(_variables._LAUNCH_VARS)
+        )
+        _variables.set_launch_var("FRONT_END", "mcp")
+        eng._apply_cfg("request_mode", True)
+        output.clear()
+
+        # Act
+        result = eng.dispatch("var")
+
+        # Assert -- data still produced (wants_data is MCP's session
+        # default), but no envelope line printed by the dispatcher
+        assert all(
+            not text.lstrip().startswith("{") for text, _color in output
+        ), "no dispatcher-rendered envelope under MCP"
+        assert result.value, "value still flows to the MCP response"

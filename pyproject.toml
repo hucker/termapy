@@ -198,6 +198,17 @@ markers = [
 # matching the sys.path redirect that vendor/__init__.py does at runtime.
 extra-paths = ["src/termapy/vendor"]
 
+[tool.pyright]
+# The SAME vendored-pyserial facts, taught to Pylance/pyright (which do
+# not read [tool.ty.*]).  Without extraPaths, Pylance resolves `serial`
+# only from its bundled typeshed stubs and floods the serial-heavy
+# modules (port_control.py above all) with stub-vs-source and unknown-
+# attribute diagnostics that ty -- the gate that counts -- scores as 0.
+# exclude mirrors [tool.ty.src]: don't LINT the vendored code, but it
+# stays visible for import resolution.
+extraPaths = ["src/termapy/vendor"]
+exclude = ["src/termapy/vendor", "src/termapy/html"]
+
 [tool.ty.src]
 # Don't type-check the vendored code itself.  pyserial uses Linux-only
 # modules (fcntl, termios, select.POLL*) in its platform shims, and ty

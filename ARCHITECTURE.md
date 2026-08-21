@@ -660,6 +660,7 @@ carries the current count).  Representative files and what they cover:
 | test_cli_gold.py       | CLI gold-standard integration test             |
 | test_vfs.py            | Demo VFS: file list, info, delete, isolation   |
 | test_architecture.py   | Layer boundaries checked against the source    |
+| test_mcp_stdio.py      | MCP over real stdio: the wire a client speaks  |
 | test_xmodem.py         | XMODEM transfer, QueueByteReader, FakeSerial   |
 | test_crc_builtins.py   | sum8/sum16 checksum modules                    |
 | test_ymodem.py         | YMODEM transfer, batch send, FakeSerial        |

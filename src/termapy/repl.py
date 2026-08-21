@@ -640,6 +640,55 @@ class ReplEngine:
                 time.sleep(0.01)
         return collected
 
+    def _emit_json_envelope(
+        self,
+        cmd_text: str,
+        result: CmdResult,
+        output_lines: list[str],
+        *,
+        call_level: str | None = None,
+    ) -> None:
+        """Render the one JSON envelope shape to the terminal.
+
+        The single dialect: ``cmd, success, error, value, data,
+        output_lines, elapsed_s`` -- used by dispatch's finisher for
+        termapy commands AND by request mode for bare device exchanges,
+        so the session speaks one language regardless of which side of
+        the device boundary answered.  (The MCP response adds the two
+        host-collected keys on top; they have no collector here.)
+
+        Emitted on the result channel (quiet+), so ``--silent`` still
+        silences it.  ``call_level`` re-applies a per-call override that
+        dispatch's finally may already have restored.
+
+        Args:
+            cmd_text: The command as the user issued it (prefix included
+                for termapy commands, bare for device commands).
+            result: The finished CmdResult.
+            output_lines: Prose captured during the dispatch (empty for
+                device exchanges and converted commands).
+            call_level: Optional per-call output level to re-apply
+                around the emission.
+        """
+        import json as _json
+
+        envelope = {
+            "cmd": cmd_text,
+            "success": result.success,
+            "error": result.error or "",
+            "value": result.value,
+            "data": result.data,
+            "output_lines": output_lines,
+            "elapsed_s": round(result.elapsed_s, 4),
+        }
+        saved_emit_level = self.ctx._call_level
+        if call_level is not None:
+            self.ctx._call_level = call_level
+        try:
+            self.ctx.io.result(_json.dumps(envelope, default=str))
+        finally:
+            self.ctx._call_level = saved_emit_level
+
     def _exec_request_mode(self, command: str) -> CmdResult:
         """Send a bare device command and return its response.
 
@@ -696,18 +745,13 @@ class ReplEngine:
                     err_msg = (
                         'Invalid JSON input: "cmd" must be a non-empty string'
                     )
-                    # The rendered envelope is the human display format
-                    # only; the CmdResult carries the error, and in MCP
-                    # the outer response envelope is built from it.
+                    # Same envelope dialect as every other answer; MCP
+                    # skips the render because its outer response
+                    # envelope is built from the CmdResult.
+                    result = CmdResult.fail(msg=err_msg)
                     if not _is_mcp:
-                        self.ctx.io.result_markup(_json.dumps({
-                            "cmd": cmd_text,
-                            "success": False,
-                            "error": err_msg,
-                            "elapsed_s": 0.0,
-                            "result": "",
-                        }))
-                    return CmdResult.fail(msg=err_msg)
+                        self._emit_json_envelope(cmd_text, result, [])
+                    return result
 
         # Symmetric request-side echo: render the canonical post-unwrap
         # form so TUI/CLI scrollback shows what was sent.  Routed
@@ -774,27 +818,6 @@ class ReplEngine:
                         "yellow",
                     )
 
-        # The JSON line rendered here is the HUMAN display format for
-        # request mode -- scrollback shows one self-contained record per
-        # exchange, gated at quiet+ so --silent suppresses it.  It is
-        # display only: the CmdResult carries the same facts (error,
-        # elapsed_s, response text in ``value``), and in MCP the outer
-        # response envelope is built from them -- rendering here too
-        # would duplicate that envelope into ``output_lines``, which is
-        # why _is_mcp (computed at the top of this function) gates it.
-        success = not error
-        if not _is_mcp:
-            self.ctx.io.result_markup(_json.dumps({
-                "cmd": command,
-                "success": success,
-                "error": error,
-                "elapsed_s": round(elapsed, 4),
-                # When a device error was detected, the text *is* the
-                # error message.  Keep result empty so the reader doesn't
-                # see the same string in two fields.
-                "result": "" if error else text,
-            }))
-
         if error:
             result = CmdResult.fail(msg=error)
         else:
@@ -812,6 +835,17 @@ class ReplEngine:
                     data = parsed
             result = CmdResult.ok(value=text, data=data)
         result.elapsed_s = elapsed
+
+        # ONE dialect: the device exchange renders through the same
+        # envelope as every termapy command -- cmd/success/error/value/
+        # data/output_lines/elapsed_s.  (The retired request-mode shape
+        # carried a ``result`` key instead of value/data.)  Gated at
+        # quiet+ by the emitter; MCP skips the render because its outer
+        # response envelope is built from this CmdResult -- rendering
+        # here too would duplicate it into ``output_lines``, which is
+        # why _is_mcp (computed at the top of this function) gates it.
+        if not _is_mcp:
+            self._emit_json_envelope(command, result, [])
         return result
 
     def feed_lines(self, lines: list[str]) -> None:
@@ -1365,24 +1399,12 @@ class ReplEngine:
             ``json_output_lines`` at call time.
             """
             if wants_json:
-                import json as _json
-
-                envelope = {
-                    "cmd": f"{self.prefix}{name} {args}".rstrip(),
-                    "success": result.success,
-                    "error": result.error or "",
-                    "value": result.value,
-                    "data": result.data,
-                    "output_lines": json_output_lines,
-                    "elapsed_s": round(result.elapsed_s, 4),
-                }
-                saved_emit_level = self.ctx._call_level
-                if call_level is not None:
-                    self.ctx._call_level = call_level
-                try:
-                    self.ctx.io.result(_json.dumps(envelope, default=str))
-                finally:
-                    self.ctx._call_level = saved_emit_level
+                self._emit_json_envelope(
+                    f"{self.prefix}{name} {args}".rstrip(),
+                    result,
+                    json_output_lines,
+                    call_level=call_level,
+                )
                 return result
             if not result.success and result.error:
                 self.write(result.err_msg, "red")

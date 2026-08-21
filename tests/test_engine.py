@@ -1448,15 +1448,47 @@ class TestJsonFlag:
 
         # Assert
         envelope = self._last_envelope(output)
-        expected_keys = {"cmd", "success", "error", "value", "data", "elapsed_s"}
+        expected_keys = {
+            "cmd", "success", "error", "value", "data", "output_lines",
+            "elapsed_s",
+        }
         assert set(envelope.keys()) == expected_keys, (
-            "terminal envelope is the fixed six-key core"
+            "terminal envelope is the fixed seven-key core"
         )
         assert envelope["success"] is True, "dispatch succeeded"
         assert envelope["data"]["user"] == {"PORT": "COM9"}, (
             "structured namespaces in data"
         )
+        assert envelope["output_lines"] == [], (
+            "converted command: data only, no captured prose"
+        )
         assert result.data is not None, "CmdResult carries data too"
+
+    def test_unconverted_command_answer_is_captured(self, engine):
+        # Arrange -- /term.info has no data producer; in JSON mode its
+        # whole answer must arrive in the envelope, not print above it.
+        # (/help would be the natural pick but its landscape reads
+        # ctx.internal.plugins, which only a HOST wires -- empty in this
+        # bare engine.)
+        eng, output = engine
+        output.clear()
+
+        # Act
+        eng.dispatch("term.info --json")
+
+        # Assert
+        assert len(output) == 1, (
+            "one line total: the envelope IS the answer, no prose printed"
+        )
+        envelope = self._last_envelope(output)
+        assert envelope["data"] is None, "no structured form for /term.info"
+        assert len(envelope["output_lines"]) > 5, (
+            "the kv listing captured into the envelope"
+        )
+        assert any(
+            "echo" in line and "[" not in line
+            for line in envelope["output_lines"]
+        ), "captured lines are the real content with markup flattened"
 
     def test_unknown_command_is_enveloped(self, engine):
         # Arrange
@@ -1526,6 +1558,17 @@ class TestJsonFlag:
 
 class TestRequestModeSessionJson:
     """``request_mode`` is the session dial: termapy commands envelope too."""
+
+    @pytest.fixture(autouse=True)
+    def _front_end_not_mcp(self, monkeypatch):
+        """Isolate FRONT_END: a sibling MCP test file on this worker leaves
+        the module-global at "mcp", and the render gate would then skip the
+        envelope these tests assert on."""
+        from termapy import variables as _variables
+        monkeypatch.setattr(
+            _variables, "_LAUNCH_VARS", dict(_variables._LAUNCH_VARS)
+        )
+        _variables.set_launch_var("FRONT_END", "test")
 
     def test_termapy_command_envelopes_without_flag(self, engine):
         # Arrange

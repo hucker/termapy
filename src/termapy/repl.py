@@ -142,6 +142,22 @@ def _strip_level_flags(args: str) -> tuple[str, str | None]:
     return " ".join(remaining), level
 
 
+def _markup_to_plain(text: str) -> str:
+    """Flatten Rich markup to plain text for JSON ``output_lines``.
+
+    Rich tags are display syntax, not data; an envelope consumer should
+    see ``PORT`` where the terminal saw ``[cyan]PORT[/]``.  Falls back
+    to the raw string if Rich is unavailable (bare-engine hosts) or the
+    markup is malformed -- a decorated line beats a dropped one.
+    """
+    try:
+        from rich.text import Text
+
+        return Text.from_markup(text).plain
+    except Exception:  # noqa: BLE001 -- display-boundary best effort
+        return text
+
+
 def _strip_json_flag(args: str) -> tuple[str, bool]:
     """Strip the universal ``--json`` flag from args.
 
@@ -1303,6 +1319,11 @@ class ReplEngine:
             from termapy.variables import launch_var
 
             wants_json = launch_var("FRONT_END") != "mcp"
+        # Prose captured during a JSON-mode dispatch; ships in the
+        # envelope's ``output_lines``.  Stays empty for converted
+        # commands (they skip prose via wants_data) and on error paths
+        # that never ran the handler.
+        json_output_lines: list[str] = []
 
         # Universal level-suffix modifier: any command can be invoked as
         # ``<cmd>.<level>`` (silent/quiet/normal/verbose) to override the
@@ -1421,6 +1442,33 @@ class ReplEngine:
                     finally:
                         self.ctx.io._write = saved_write
                         self.ctx.io._write_markup = saved_write_markup
+                elif wants_json:
+                    # JSON mode's collector: the envelope must BE the whole
+                    # answer, so a handler's prose is captured into
+                    # ``output_lines`` instead of printing above the
+                    # envelope (an unconverted command like /help otherwise
+                    # answers half on screen, half in JSON -- with the half
+                    # in JSON empty).  Same swap discipline as silent mode;
+                    # markup is flattened to plain text, since Rich tags
+                    # are display syntax, not data.
+                    captured_lines: list[str] = []
+
+                    def _capture_plain(text, color=None):
+                        captured_lines.append(str(text))
+
+                    def _capture_markup(text):
+                        captured_lines.append(_markup_to_plain(str(text)))
+
+                    saved_write = self.ctx.io._write
+                    saved_write_markup = self.ctx.io._write_markup
+                    self.ctx.io._write = _capture_plain
+                    self.ctx.io._write_markup = _capture_markup
+                    try:
+                        result = plugin.handler(self.ctx, args)
+                    finally:
+                        self.ctx.io._write = saved_write
+                        self.ctx.io._write_markup = saved_write_markup
+                    json_output_lines = captured_lines
                 else:
                     result = plugin.handler(self.ctx, args)
                 if result is None:
@@ -1483,6 +1531,7 @@ class ReplEngine:
                 "error": result.error or "",
                 "value": result.value,
                 "data": result.data,
+                "output_lines": json_output_lines,
                 "elapsed_s": round(result.elapsed_s, 4),
             }
             saved_emit_level = self.ctx._call_level

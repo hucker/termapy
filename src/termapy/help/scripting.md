@@ -111,12 +111,14 @@ For a single call in a prose-mode session, every command also accepts
 ```text
 /port.list --json
 {"cmd": "/port.list", "success": true, "error": "", "value": "COM3,COM4",
- "data": [{"device": "COM3", ...}], "elapsed_s": 0.02}
+ "data": [{"device": "COM3", ...}], "output_lines": [], "elapsed_s": 0.02}
 ```
 
 `data` carries the structured form for commands that have one (`/port.list`,
-`/port.usb`, `/var`, profile-mapped device commands); for everything else it
-is `null` and the answer is in `value`.  Errors arrive in the `error` field
+`/port.usb`, `/var`, profile-mapped device commands).  For everything else it
+is `null` and the command's rendered answer arrives in `output_lines` (markup
+flattened to plain text) -- `/help --json` is one envelope containing the
+help text, nothing printed outside it.  Errors arrive in the `error` field
 rather than as a separate red line.  Composes with the level flags -- the
 envelope rides the result channel, so `--json --quiet` prints just the
 envelope and `--json --silent` prints nothing (scripts still read `value`).

@@ -255,6 +255,30 @@ def register_cfg_vars(
     set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
 
 
+def snapshot() -> dict[str, dict[str, str]]:
+    """Return every variable in every namespace, resolved, as plain data.
+
+    The structured view of the whole ``$(NAME)`` namespace -- what
+    ``/var`` renders as its listing, in machine shape: one sub-dict per
+    namespace, every value resolved at call time (context callables are
+    invoked, datetime vars formatted with their defaults).
+
+    Returns:
+        ``{"user": {...}, "launch": {...}, "datetime": {...},
+        "context": {...}}`` -- all values strings, sub-dicts empty when
+        the namespace is.
+    """
+    return {
+        "user": dict(_VARS),
+        "launch": dict(_LAUNCH_VARS),
+        "datetime": {
+            name: resolve_datetime_var(name, None) or ""
+            for name, _tag in datetime_var_names()
+        },
+        "context": {name: fn() for name, fn in _CONTEXT_VARS.items()},
+    }
+
+
 # ── Resolution and expansion ──────────────────────────────────────────────────
 
 

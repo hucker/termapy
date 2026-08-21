@@ -142,6 +142,43 @@ def _strip_level_flags(args: str) -> tuple[str, str | None]:
     return " ".join(remaining), level
 
 
+def _markup_to_plain(text: str) -> str:
+    """Flatten Rich markup to plain text for JSON ``output_lines``.
+
+    Rich tags are display syntax, not data; an envelope consumer should
+    see ``PORT`` where the terminal saw ``[cyan]PORT[/]``.  Falls back
+    to the raw string if Rich is unavailable (bare-engine hosts) or the
+    markup is malformed -- a decorated line beats a dropped one.
+    """
+    try:
+        from rich.text import Text
+
+        return Text.from_markup(text).plain
+    except Exception:  # noqa: BLE001 -- display-boundary best effort
+        return text
+
+
+def _strip_json_flag(args: str) -> tuple[str, bool]:
+    """Strip the universal ``--json`` flag from args.
+
+    Like the level flags, ``--json`` is accepted by every command and
+    parsed by the dispatcher before per-command flag parsing.  It flips
+    ``ctx.wants_data`` for the one call and renders the result as a JSON
+    envelope instead of prose -- the terminal-side door to the same
+    structured channel the MCP host reads.
+
+    Returns:
+        ``(remaining_args, wants_json)``.
+    """
+    if not args or "--json" not in args:
+        return args, False
+    tokens = args.split()
+    remaining = [token for token in tokens if token != "--json"]
+    if len(remaining) == len(tokens):
+        return args, False
+    return " ".join(remaining), True
+
+
 def _closest_flag(needle: str, candidates: list[str]) -> str | None:
     """Return the nearest declared flag by edit distance, or None."""
     best: tuple[int, str] | None = None
@@ -604,20 +641,21 @@ class ReplEngine:
         return collected
 
     def _exec_request_mode(self, command: str) -> CmdResult:
-        """Send a bare device command and return its response as JSON.
+        """Send a bare device command and return its response.
 
         Used when ``cfg["request_mode"]`` is true -- ``/term.request on``.
         The rule is dead simple:
 
-        - JSON-native device responds with JSON  → ``value`` is the
-          parsed JSON, passed through directly.
-        - Text device responds with plain text   → ``value`` is
-          ``{"result": "<stripped text>"}``.
+        - ``value`` is the device's response text (the scriptable
+          scalar), empty on error.
+        - JSON-native device responds with a JSON object or array →
+          ``data`` is the parsed structure, raw text still in ``value``.
+        - Text device responds with plain text → ``data`` is ``None``.
 
-        That's it.  No duplicated ``cmd/success/error/elapsed_s`` --
-        those live in the outer ``CmdResult`` (and the outer MCP
-        envelope when running ``--mcp``).  ``elapsed_s`` is on
-        ``CmdResult`` itself, accessible to all callers.
+        No duplicated ``cmd/success/error/elapsed_s`` anywhere --
+        those live on the ``CmdResult`` (and the outer MCP envelope
+        when running ``--mcp``); TUI/CLI scrollback shows them via the
+        rendered JSON display line.
 
         Input is symmetric: a JSON object with a string ``cmd`` field
         is unwrapped, so callers can send either plain text
@@ -658,16 +696,18 @@ class ReplEngine:
                     err_msg = (
                         'Invalid JSON input: "cmd" must be a non-empty string'
                     )
-                    envelope = {
-                        "cmd": cmd_text,
-                        "success": False,
-                        "error": err_msg,
-                        "elapsed_s": 0.0,
-                        "result": "",
-                    }
+                    # The rendered envelope is the human display format
+                    # only; the CmdResult carries the error, and in MCP
+                    # the outer response envelope is built from it.
                     if not _is_mcp:
-                        self.ctx.io.result_markup(_json.dumps(envelope))
-                    return CmdResult.fail(msg=err_msg, value=envelope)
+                        self.ctx.io.result_markup(_json.dumps({
+                            "cmd": cmd_text,
+                            "success": False,
+                            "error": err_msg,
+                            "elapsed_s": 0.0,
+                            "result": "",
+                        }))
+                    return CmdResult.fail(msg=err_msg)
 
         # Symmetric request-side echo: render the canonical post-unwrap
         # form so TUI/CLI scrollback shows what was sent.  Routed
@@ -734,32 +774,43 @@ class ReplEngine:
                         "yellow",
                     )
 
-        # ONE envelope is the canonical /term.request shape, returned
-        # in CmdResult.value.  In TUI/CLI it's ALSO rendered through
-        # ``result_markup`` for scrollback visibility -- it IS the
-        # command's answer, gated at quiet+ so --silent suppresses it.
-        # In MCP the model already has the envelope in value (lifted
-        # by run_command_async); rendering it here too would put the
-        # same JSON into ``output_lines``, the duplication we set out
-        # to avoid.  _is_mcp was computed at the top of this function.
+        # The JSON line rendered here is the HUMAN display format for
+        # request mode -- scrollback shows one self-contained record per
+        # exchange, gated at quiet+ so --silent suppresses it.  It is
+        # display only: the CmdResult carries the same facts (error,
+        # elapsed_s, response text in ``value``), and in MCP the outer
+        # response envelope is built from them -- rendering here too
+        # would duplicate that envelope into ``output_lines``, which is
+        # why _is_mcp (computed at the top of this function) gates it.
         success = not error
-        envelope = {
-            "cmd": command,
-            "success": success,
-            "error": error,
-            "elapsed_s": round(elapsed, 4),
-            # When a device error was detected, the text *is* the error
-            # message.  Keep result empty so the reader (human or model)
-            # doesn't see the same string in two fields.
-            "result": "" if error else text,
-        }
         if not _is_mcp:
-            self.ctx.io.result_markup(_json.dumps(envelope))
+            self.ctx.io.result_markup(_json.dumps({
+                "cmd": command,
+                "success": success,
+                "error": error,
+                "elapsed_s": round(elapsed, 4),
+                # When a device error was detected, the text *is* the
+                # error message.  Keep result empty so the reader doesn't
+                # see the same string in two fields.
+                "result": "" if error else text,
+            }))
 
         if error:
-            result = CmdResult.fail(msg=error, value=envelope)
+            result = CmdResult.fail(msg=error)
         else:
-            result = CmdResult.ok(value=envelope)
+            # ``value`` is the scalar: the device's response text.
+            # JSON-native devices (the reply parses as a JSON object or
+            # array) additionally get the parsed structure in ``data`` --
+            # the json-to-json path, with the raw text kept for fidelity.
+            data = None
+            if text.startswith(("{", "[")):
+                try:
+                    parsed = _json.loads(text)
+                except (ValueError, _json.JSONDecodeError):
+                    parsed = None
+                if isinstance(parsed, (dict, list)):
+                    data = parsed
+            result = CmdResult.ok(value=text, data=data)
         result.elapsed_s = elapsed
         return result
 
@@ -1248,6 +1299,32 @@ class ReplEngine:
         raw_args = parts[1] if len(parts) > 1 else ""
         args = self._expand_template(raw_args)
 
+        # Universal --json flag: stripped before the plugin lookup (unlike
+        # the level flags) so an unknown command still answers with a JSON
+        # envelope rather than leaking the flag into the error message.
+        args, wants_json = _strip_json_flag(args)
+
+        # Request mode is the SESSION's structured dial, and from the
+        # user's seat the device/termapy demarcation is invisible: with
+        # ``/term.request on`` the whole session answers in JSON -- bare
+        # device commands as request/response envelopes (see
+        # ``_exec_request_mode``) and termapy commands as result
+        # envelopes here.  ``--json`` remains the per-call form of the
+        # same thing for a normal-mode session.  MCP is carved out of
+        # the RENDERING only: its host already delivers ``data`` on the
+        # outer response envelope, so printing a second envelope into
+        # ``output_lines`` would duplicate exactly what the unified
+        # envelope removed.
+        if not wants_json and self.cfg.get("request_mode"):
+            from termapy.variables import launch_var
+
+            wants_json = launch_var("FRONT_END") != "mcp"
+        # Prose captured during a JSON-mode dispatch; ships in the
+        # envelope's ``output_lines``.  Stays empty for converted
+        # commands (they skip prose via wants_data) and on error paths
+        # that never ran the handler.
+        json_output_lines: list[str] = []
+
         # Universal level-suffix modifier: any command can be invoked as
         # ``<cmd>.<level>`` (silent/quiet/normal/verbose) to override the
         # output level for that one call.  We only fall back to this if
@@ -1267,6 +1344,50 @@ class ReplEngine:
                         call_level = level
                     break
 
+        def _finish(result: CmdResult) -> CmdResult:
+            """The single exit: envelope in JSON mode, red line otherwise.
+
+            EVERY dispatch return funnels through here -- capability gate,
+            flag/param errors, level conflicts, unknown commands, and the
+            normal path -- so JSON mode can never leak a prose error.  An
+            agent branches on the ``error`` field; a failure that answers
+            outside the envelope is invisible to it.
+
+            In JSON mode the envelope IS the command's answer -- the
+            terminal twin of the MCP response, minus the two host-collected
+            keys (captured_artifacts / async_events) that have no collector
+            here.  It replaces the red error line: error is a field, not a
+            second rendering.  Emitted on the result channel (quiet+), so
+            ``--json --silent`` stays silent and scripts still read
+            ``value``.  The per-call level may already have been restored
+            by dispatch's finally, so it is re-applied around the emission.
+            Reads ``wants_json`` / ``call_level`` / ``args`` /
+            ``json_output_lines`` at call time.
+            """
+            if wants_json:
+                import json as _json
+
+                envelope = {
+                    "cmd": f"{self.prefix}{name} {args}".rstrip(),
+                    "success": result.success,
+                    "error": result.error or "",
+                    "value": result.value,
+                    "data": result.data,
+                    "output_lines": json_output_lines,
+                    "elapsed_s": round(result.elapsed_s, 4),
+                }
+                saved_emit_level = self.ctx._call_level
+                if call_level is not None:
+                    self.ctx._call_level = call_level
+                try:
+                    self.ctx.io.result(_json.dumps(envelope, default=str))
+                finally:
+                    self.ctx._call_level = saved_emit_level
+                return result
+            if not result.success and result.error:
+                self.write(result.err_msg, "red")
+            return result
+
         if plugin:
             # Capability gate: every command declares the environment
             # capabilities its handler relies on via Command.needs.  Before
@@ -1275,12 +1396,10 @@ class ReplEngine:
             # rather than letting the handler hit a no-op lambda or crash.
             missing = plugin.needs.missing_from(self._effective_capabilities())
             if missing:
-                result = CmdResult.fail(
+                return _finish(CmdResult.fail(
                     msg=f"{self.prefix}{name} requires: {', '.join(missing)} "
                     f"(not available in this environment)"
-                )
-                self.write(result.err_msg, "red")
-                return result
+                ))
             # Universal level-flag pre-pass: strip --silent/--quiet/--normal/
             # --verbose before per-command flag parsing so every command
             # accepts them without declaring them.  Suffix and flag must
@@ -1288,12 +1407,10 @@ class ReplEngine:
             args, flag_level = _strip_level_flags(args)
             if flag_level is not None:
                 if call_level is not None and call_level != flag_level:
-                    result = CmdResult.fail(
+                    return _finish(CmdResult.fail(
                         msg=f"Conflicting output level: .{call_level} "
                         f"and --{flag_level}"
-                    )
-                    self.write(result.err_msg, "red")
-                    return result
+                    ))
                 call_level = flag_level
             # First-class flag parsing: strip declared flags from args and
             # record them on the context for the handler to read via
@@ -1301,9 +1418,7 @@ class ReplEngine:
             # (args passed through unchanged; set is empty).
             args, active_flags, flag_error = _parse_flags(args, plugin.flags)
             if flag_error:
-                result = CmdResult.fail(msg=flag_error)
-                self.write(result.err_msg, "red")
-                return result
+                return _finish(CmdResult.fail(msg=flag_error))
             # Declarative params: parse/coerce/validate before touching the
             # context, so a bad-argument failure returns without having
             # mutated ctx.  Commands with no declared params opt out entirely
@@ -1324,16 +1439,14 @@ class ReplEngine:
                     deref=None if plugin.raw_args else deref_ref,
                 )
                 if param_error:
-                    result = CmdResult.fail(
+                    return _finish(CmdResult.fail(
                         msg=format_usage(
                             self.prefix,
                             name,
                             plugin,
                             detail=f"{self.prefix}{name}: {param_error}",
                         )
-                    )
-                    self.write(result.err_msg, "red")
-                    return result
+                    ))
             self.ctx.active_flags = active_flags
             # Save+restore the level (rather than reset to None) so a
             # nested dispatch inside the handler -- e.g. /run cascading
@@ -1346,6 +1459,13 @@ class ReplEngine:
             saved_call_level = self.ctx._call_level
             if call_level is not None:
                 self.ctx._call_level = call_level
+            # wants_data follows the same save/restore discipline: nested
+            # dispatch inside the handler inherits this call's preference,
+            # and the outer value (True for the whole session under MCP)
+            # is restored on the way out.
+            saved_wants_data = self.ctx.wants_data
+            if wants_json:
+                self.ctx.wants_data = True
             try:
                 t0 = time.perf_counter()
                 if self.ctx.output_level == "silent":
@@ -1358,6 +1478,33 @@ class ReplEngine:
                     finally:
                         self.ctx.io._write = saved_write
                         self.ctx.io._write_markup = saved_write_markup
+                elif wants_json:
+                    # JSON mode's collector: the envelope must BE the whole
+                    # answer, so a handler's prose is captured into
+                    # ``output_lines`` instead of printing above the
+                    # envelope (an unconverted command like /help otherwise
+                    # answers half on screen, half in JSON -- with the half
+                    # in JSON empty).  Same swap discipline as silent mode;
+                    # markup is flattened to plain text, since Rich tags
+                    # are display syntax, not data.
+                    captured_lines: list[str] = []
+
+                    def _capture_plain(text, color=None):
+                        captured_lines.append(str(text))
+
+                    def _capture_markup(text):
+                        captured_lines.append(_markup_to_plain(str(text)))
+
+                    saved_write = self.ctx.io._write
+                    saved_write_markup = self.ctx.io._write_markup
+                    self.ctx.io._write = _capture_plain
+                    self.ctx.io._write_markup = _capture_markup
+                    try:
+                        result = plugin.handler(self.ctx, args)
+                    finally:
+                        self.ctx.io._write = saved_write
+                        self.ctx.io._write_markup = saved_write_markup
+                    json_output_lines = captured_lines
                 else:
                     result = plugin.handler(self.ctx, args)
                 if result is None:
@@ -1392,6 +1539,7 @@ class ReplEngine:
                 self.ctx.active_flags = set()
                 self.ctx.bound_params = saved_bound_params
                 self.ctx._call_level = saved_call_level
+                self.ctx.wants_data = saved_wants_data
         else:
             suggestion = _suggest_command(name, self._plugins, self.prefix)
             if suggestion:
@@ -1400,9 +1548,7 @@ class ReplEngine:
                 )
             else:
                 result = CmdResult.fail(msg=f"Unknown command: {name}")
-        if not result.success and result.error:
-            self.write(result.err_msg, "red")
-        return result
+        return _finish(result)
 
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
 

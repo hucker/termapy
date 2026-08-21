@@ -191,6 +191,25 @@ Scripts run in quiet mode (or via `$(VAR) <- /cmd`) read the `value`
 field; the type checker catches missing-`value=` calls so a "I forgot"
 gap can't ship silently.
 
+**`data=` is the optional structured twin of `value`.** Agent consumers
+(the MCP server, `--json`) read it as real JSON -- a dict, list, or
+number, never a prose string.  Most commands don't need it; listings and
+info commands benefit most.  Check `ctx.wants_data` and build *either*
+the prose *or* the records, not both, so a large listing isn't rendered
+twice:
+
+```python
+def _handler(ctx, args):
+    facts = gather()                        # one producer
+    if ctx.wants_data:
+        return CmdResult.ok(value=summary(facts), data=records(facts))
+    ctx.io.output(render_table(facts))      # human view
+    return CmdResult.ok(value=summary(facts))
+```
+
+Handlers that ignore `wants_data` keep working: their prose reaches
+structured consumers via the response's `output_lines`.
+
 ```python
 def _handler(ctx: PluginContext, args: str):
     temp = read_temperature()

@@ -1309,3 +1309,49 @@ class TestSplitLocationInterface:
 
         # Assert
         assert actual == (None, None), f"None in, None out; got {actual}"
+
+
+# ── list_port_records ────────────────────────────────────────────────────────
+
+
+class TestListPortRecords:
+    """The structured twin of list_ports (serves /port.list's data)."""
+
+    def test_records_from_injected_fleet(self):
+        # Arrange / Act
+        from termapy.port_control import _build_demo_fleet, list_port_records
+        actual = list_port_records(source=_build_demo_fleet)
+
+        # Assert
+        actual_devices = [record["device"] for record in actual]
+        expected_devices = [facts.device for facts in _build_demo_fleet()]
+        assert actual_devices == expected_devices, (
+            "one record per fleet port, order preserved"
+        )
+
+    def test_record_schema_is_fixed(self):
+        # Arrange / Act -- every record has every field (null for unknown),
+        # so consumers can rely on the shape without probing.
+        from termapy.port_control import _build_demo_fleet, list_port_records
+        records = list_port_records(source=_build_demo_fleet)
+
+        # Assert
+        expected_keys = {
+            "device", "manufacturer", "manufacturer_raw", "vendor",
+            "description", "chip", "speed", "vid", "pid", "vid_pid",
+            "serial_number", "in_use", "driver", "location",
+            "interface_number",
+        }
+        for record in records:
+            assert set(record.keys()) == expected_keys, (
+                f"fixed schema violated for {record.get('device')!r}"
+            )
+
+    def test_empty_fleet_gives_empty_list(self):
+        # Arrange / Act -- injection expresses "no ports", which the env
+        # layer cannot.
+        from termapy.port_control import list_port_records
+        actual = list_port_records(source=lambda: [])
+
+        # Assert
+        assert actual == [], "no ports -> empty list, not an error"

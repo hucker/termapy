@@ -165,7 +165,7 @@ def _wire_fake_serial(ctx, fake):
 
 
 class TestExecRequestMode:
-    def test_envelope_shape_on_success(self, repl_env):
+    def test_value_is_response_text_and_display_carries_envelope(self, repl_env):
         # Arrange
         engine, ctx, _, _, markup = repl_env
         fake = _FakeSerial(response=b"5.5\r\n")
@@ -174,17 +174,49 @@ class TestExecRequestMode:
         # Act
         result = engine._exec_request_mode("get_voltage")
 
-        # Assert -- one envelope is the canonical shape; same content
-        # in CmdResult.value AND rendered to write_markup
+        # Assert -- value is the scalar (the response text); the JSON
+        # envelope is the HUMAN display line, rendered to write_markup
         assert fake.writes == [b"get_voltage\r"], "command + line ending sent"
         assert fake.claimed is True, "serial port claimed (suppresses display)"
         assert fake.released is True, "serial port released after"
-        envelope = result.value
-        assert envelope["cmd"] == "get_voltage", "cmd field"
-        assert envelope["success"] is True, "success on clean response"
-        assert envelope["error"] == "", "no error"
-        assert envelope["result"] == "5.5", "decoded + stripped response"
-        assert isinstance(envelope["elapsed_s"], float), "elapsed_s float"
+        assert result.success is True, "success on clean response"
+        assert result.value == "5.5", "value is the decoded + stripped text"
+        assert result.data is None, "plain-text response has no structure"
+        rendered = json.loads(markup[-1])
+        assert rendered["cmd"] == "get_voltage", "display envelope: cmd"
+        assert rendered["success"] is True, "display envelope: success"
+        assert rendered["result"] == "5.5", "display envelope: response text"
+        assert isinstance(rendered["elapsed_s"], float), "display: elapsed_s"
+
+    def test_json_native_response_lands_in_data(self, repl_env):
+        # Arrange -- the device answers with a JSON object (json-to-json)
+        engine, ctx, _, _, _ = repl_env
+        fake = _FakeSerial(response=b'{"volts": 5.5, "ok": true}\r\n')
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("get_voltage")
+
+        # Assert
+        assert result.data == {"volts": 5.5, "ok": True}, (
+            "JSON reply parsed into data"
+        )
+        assert result.value == '{"volts": 5.5, "ok": true}', (
+            "raw wire text kept in value for fidelity"
+        )
+
+    def test_malformed_json_response_stays_text_only(self, repl_env):
+        # Arrange -- looks like JSON, isn't
+        engine, ctx, _, _, _ = repl_env
+        fake = _FakeSerial(response=b"{broken\r\n")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("q")
+
+        # Assert
+        assert result.data is None, "unparseable reply is not faked into data"
+        assert result.value == "{broken", "raw text still delivered in value"
 
     def test_strip_device_echo_removes_echoed_command(self, repl_env):
         # Arrange -- a half-duplex device echoes the command, then answers.
@@ -196,8 +228,8 @@ class TestExecRequestMode:
         # Act
         result = engine._exec_request_mode("AT+VER")
 
-        # Assert -- the echoed command line is dropped; result is the answer.
-        assert result.value["result"] == "1.2.3", "leading echo stripped"
+        # Assert -- the echoed command line is dropped; value is the answer.
+        assert result.value == "1.2.3", "leading echo stripped"
 
     def test_strip_device_echo_off_keeps_echo(self, repl_env):
         # Arrange -- default off: the echoed line stays in the response.
@@ -209,7 +241,7 @@ class TestExecRequestMode:
         result = engine._exec_request_mode("AT+VER")
 
         # Assert
-        assert "AT+VER" in result.value["result"], "echo kept when strip is off"
+        assert "AT+VER" in result.value, "echo kept when strip is off"
 
     def test_envelope_rendered_to_terminal_as_single_line(self, repl_env):
         # Arrange
@@ -244,13 +276,14 @@ class TestExecRequestMode:
         # Act
         result = engine._exec_request_mode("anything")
 
-        # Assert -- envelope present with error populated; result.success False
+        # Assert -- error on the CmdResult; the display envelope mirrors it
         assert result.success is False, "send failure -> CmdResult.fail"
-        envelope = result.value
-        assert "Send error" in envelope["error"], "error describes send failure"
-        assert "port disconnected" in envelope["error"], "wraps OSError message"
-        assert envelope["success"] is False, "success=False in envelope"
-        assert envelope["result"] == "", "no response text on send error"
+        assert "Send error" in result.error, "error describes send failure"
+        assert "port disconnected" in result.error, "wraps OSError message"
+        assert result.value == "", "no response text on send error"
+        rendered = json.loads(markup[-1])
+        assert rendered["success"] is False, "display envelope: success=False"
+        assert rendered["result"] == "", "display envelope: empty result"
 
     def test_empty_response_renders_empty_result(self, repl_env):
         # Arrange -- device timed out / no reply
@@ -261,11 +294,12 @@ class TestExecRequestMode:
         # Act
         result = engine._exec_request_mode("noisy_silence")
 
-        # Assert -- envelope still emitted; success=True; result=""
-        envelope = result.value
-        assert envelope["success"] is True, "send succeeded; no exception"
-        assert envelope["result"] == "", "empty bytes -> empty result"
-        assert envelope["error"] == "", "no error on empty response"
+        # Assert -- success with an empty scalar; display line still emitted
+        assert result.success is True, "send succeeded; no exception"
+        assert result.value == "", "empty bytes -> empty value"
+        assert result.error == "", "no error on empty response"
+        rendered = json.loads(markup[-1])
+        assert rendered["result"] == "", "display envelope: empty result"
 
     def test_decode_uses_configured_encoding(self, repl_env):
         # Arrange -- latin-1 encoded response
@@ -278,8 +312,7 @@ class TestExecRequestMode:
         result = engine._exec_request_mode("name?")
 
         # Assert
-        envelope = result.value
-        assert envelope["result"] == "café", "latin-1 decoded correctly"
+        assert result.value == "café", "latin-1 decoded correctly"
 
     def test_strip_trims_whitespace_in_result(self, repl_env):
         # Arrange -- response has leading/trailing whitespace + line endings
@@ -291,8 +324,7 @@ class TestExecRequestMode:
         result = engine._exec_request_mode("get_voltage")
 
         # Assert -- whitespace trimmed
-        envelope = result.value
-        assert envelope["result"] == "5.5", "result stripped"
+        assert result.value == "5.5", "value stripped"
 
     def test_read_window_uses_cfg_default_response_timeout(self, repl_env):
         # Arrange -- cfg carries a non-default response window.
@@ -338,14 +370,12 @@ class TestDeviceErrorDetection:
         # Act
         result = engine._exec_request_mode("foo")
 
-        # Assert -- CmdResult.fail with device error promoted to envelope
+        # Assert -- CmdResult.fail with the device text as the error
         assert result.success is False, "device error -> CmdResult.fail"
-        envelope = result.value
-        assert envelope["success"] is False, "envelope success=False"
-        assert envelope["error"] == "ERR: unknown command: foo", \
-            "envelope error is device text"
-        assert envelope["result"] == "", \
-            "envelope result empty (text moved to error)"
+        assert result.error == "ERR: unknown command: foo", \
+            "error is device text"
+        assert result.value == "", \
+            "value empty (text moved to error)"
 
     def test_default_pattern_matches_error_prefix(self, repl_env):
         # Arrange
@@ -399,8 +429,7 @@ class TestDeviceErrorDetection:
 
         # Assert
         assert result.success is True, "OK response is not an error"
-        envelope = result.value
-        assert "OK" in envelope["result"], "response captured normally"
+        assert "OK" in result.value, "response captured normally"
 
     def test_word_boundary_avoids_false_positives(self, repl_env):
         # Arrange -- a response starting with "ERRATIC" shouldn't trip
@@ -428,9 +457,8 @@ class TestDeviceErrorDetection:
 
         # Assert -- detection disabled; treated as normal text response
         assert result.success is True, "empty pattern disables detection"
-        envelope = result.value
-        assert envelope["result"] == "ERR: foo", "treated as text"
-        assert envelope["error"] == "", "no error claimed"
+        assert result.value == "ERR: foo", "treated as text"
+        assert result.error == "", "no error claimed"
 
     def test_custom_pattern_override(self, repl_env):
         # Arrange -- user provided a different error convention
@@ -444,9 +472,8 @@ class TestDeviceErrorDetection:
 
         # Assert
         assert result.success is False, "custom pattern matches FAILED"
-        envelope = result.value
-        assert envelope["error"] == "FAILED: bad", "error captured"
-        assert envelope["result"] == "", "result empty when errored"
+        assert result.error == "FAILED: bad", "error captured"
+        assert result.value == "", "value empty when errored"
 
     def test_malformed_pattern_does_not_crash(self, repl_env):
         # Arrange -- broken regex (unclosed bracket) shouldn't crash
@@ -460,8 +487,7 @@ class TestDeviceErrorDetection:
 
         # Assert -- treated as success (no detection) instead of crashing
         assert result.success is True, "malformed regex falls back to success"
-        envelope = result.value
-        assert envelope["result"] == "OK"
+        assert result.value == "OK", "response delivered despite bad pattern"
 
     def test_device_error_display_envelope_shows_error(self, repl_env):
         # Arrange -- check the scrollback display reflects the device error
@@ -496,9 +522,8 @@ class TestDeviceErrorDetection:
 
         # Assert -- session override (empty -> disable) beats cfg default
         assert result.success is True, "session override disables detection"
-        envelope = result.value
-        assert envelope["result"] == "ERR: foo", "treated as normal text"
-        assert envelope["error"] == "", "no error claimed"
+        assert result.value == "ERR: foo", "treated as normal text"
+        assert result.error == "", "no error claimed"
 
     def test_session_override_can_set_custom_pattern(self, repl_env):
         # Arrange -- cfg says no detection (empty); session sets ^FAIL
@@ -513,9 +538,8 @@ class TestDeviceErrorDetection:
 
         # Assert -- session override wins; FAIL prefix detected
         assert result.success is False, "session override matches FAIL"
-        envelope = result.value
-        assert envelope["error"] == "FAIL: nope"
-        assert envelope["result"] == ""
+        assert result.error == "FAIL: nope", "device text is the error"
+        assert result.value == "", "value empty when device errored"
 
 
 class TestTermRequestCommand:
@@ -635,7 +659,7 @@ class TestDispatchFullRequestMode:
         assert request_envelope == {"cmd": "get_voltage"}, "request envelope"
         assert response_envelope["cmd"] == "get_voltage", "cmd in response"
         assert response_envelope["result"] == "5.5", "result in response"
-        assert result.value["cmd"] == "get_voltage", "envelope in CmdResult.value"
+        assert result.value == "5.5", "CmdResult.value is the response text"
 
 
 # ── Symmetric JSON input: {"cmd": "..."} unwrapped ──────────────────────────
@@ -653,9 +677,10 @@ class TestJsonInputUnwrapping:
 
         # Assert -- send happened with unwrapped command, not the JSON literal
         assert fake.writes == [b"AT+VER\r"], "unwrapped cmd sent to device"
-        # Envelope cmd reflects the unwrapped value, not the JSON wrapper
-        assert result.value["cmd"] == "AT+VER", "envelope cmd is unwrapped"
-        assert result.value["result"] == "1.2.3", "device response captured"
+        # Display envelope cmd reflects the unwrapped value, not the wrapper
+        rendered = json.loads(markup[-1])
+        assert rendered["cmd"] == "AT+VER", "display cmd is unwrapped"
+        assert result.value == "1.2.3", "device response captured in value"
 
     def test_json_object_with_extra_fields_unwrapped_extras_ignored(self, repl_env):
         # Arrange -- v1 ignores extra top-level fields; only `cmd` is read
@@ -714,9 +739,9 @@ class TestJsonInputUnwrapping:
         # Act
         result = engine._exec_request_mode("get_volt")
 
-        # Assert -- sent verbatim, envelope cmd matches input
+        # Assert -- sent verbatim; value is the device's response text
         assert fake.writes == [b"get_volt\r"], "plain text sent verbatim"
-        assert result.value["cmd"] == "get_volt", "envelope cmd matches input"
+        assert result.value == "value=42", "response text in value"
 
     def test_json_with_null_cmd_returns_error_envelope(self, repl_env):
         # Arrange -- explicit error path: cmd field present but null
@@ -730,7 +755,7 @@ class TestJsonInputUnwrapping:
         # Assert -- explicit failure; nothing sent to device
         assert result.success is False, "null cmd produces failure"
         assert fake.writes == [], "no bytes sent on bad cmd"
-        assert "non-empty string" in result.value["error"], (
+        assert "non-empty string" in result.error, (
             "error names the requirement"
         )
 

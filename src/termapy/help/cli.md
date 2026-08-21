@@ -252,6 +252,10 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 | `--quiet`         | Output level: command results only.                           |
 | `--verbose`       | Output level: results + data + progress chatter.              |
 
+Any REPL command also accepts `--json` to render its result as a JSON
+envelope -- `termapy --cli -e "/port.list --json"` pipes cleanly to `jq`.
+See [Scripting](scripting.md#json-output---json-on-any-command).
+
 `termapy --help` has the full list.
 
 ## One-shot exec: `-e` / `--exec`

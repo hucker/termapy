@@ -51,6 +51,10 @@ def _run_cli_script(
 
 _VERBOSE_RE = re.compile(r"^\s*\[\d+/\d+\]")
 
+# JSON envelopes carry wall-clock timing; mask it so the json-mode gold
+# section stays deterministic.  Everything else in an envelope is exact.
+_ELAPSED_RE = re.compile(r'"elapsed_s": \d+(?:\.\d+)?')
+
 
 def _normalize(text: str) -> list[str]:
     """Normalize output for comparison.
@@ -58,6 +62,7 @@ def _normalize(text: str) -> list[str]:
     Strips:
     - 'Running script:' lines (path varies by platform/location)
     - Verbose timing lines like '[1/3] AT (0.015s)' (nondeterministic)
+    - ``"elapsed_s": <n>`` inside JSON envelopes -> ``"elapsed_s": 0``
     - Absolute paths replaced with <CFG_DIR>/demo/
     - Trailing whitespace
     """
@@ -71,6 +76,7 @@ def _normalize(text: str) -> list[str]:
             continue
         if _VERBOSE_RE.match(line):
             continue
+        line = _ELAPSED_RE.sub('"elapsed_s": 0', line)
         lines.append(line.rstrip())
     # Remove trailing empty lines
     while lines and not lines[-1]:

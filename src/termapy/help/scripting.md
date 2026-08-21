@@ -98,6 +98,32 @@ call with `cmd --<level>` or `cmd.<level>`:
 Set the level at startup with `--silent`, `--quiet`, or `--verbose` on the
 `termapy` command line.
 
+## JSON output: `/term.request on`, or `--json` per call
+
+`/term.request on` is the session's structured dial: **everything** answers
+in JSON -- bare device commands as request/response envelopes, termapy
+commands as result envelopes.  The device/termapy demarcation is deliberately
+invisible; the session is either in JSON mode or in prose mode.
+
+For a single call in a prose-mode session, every command also accepts
+`--json`, which renders that one result as an envelope:
+
+```text
+/port.list --json
+{"cmd": "/port.list", "success": true, "error": "", "value": "COM3,COM4",
+ "data": [{"device": "COM3", ...}], "output_lines": [], "elapsed_s": 0.02}
+```
+
+`data` carries the structured form for commands that have one (`/port.list`,
+`/port.usb`, `/var`, profile-mapped device commands).  For everything else it
+is `null` and the command's rendered answer arrives in `output_lines` (markup
+flattened to plain text) -- `/help --json` is one envelope containing the
+help text, nothing printed outside it.  Errors arrive in the `error` field
+rather than as a separate red line.  Composes with the level flags -- the
+envelope rides the result channel, so `--json --quiet` prints just the
+envelope and `--json --silent` prints nothing (scripts still read `value`).
+From a shell, `termapy --cli -e "/port.list --json"` pipes cleanly to `jq`.
+
 For plugin authors: `ctx.result()` is the answer, `ctx.output()` is bulk
 data, `ctx.status()` is progress chatter. Each gates on the active level.
 Handlers that produce scriptable data must call `CmdResult.ok(value=...)`

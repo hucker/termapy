@@ -183,11 +183,12 @@ class TestRegexFormat:
         _reply_after_send(host, ["23.4C"])
         # Act
         result = asyncio.run(host.run_command_async("AT+TEMP", "normal", 5.0))
-        # Assert
-        actual = result["value"]
+        # Assert -- structure in data; raw wire text in value
+        actual = result["data"]
         expected = {"celsius": 23.4}
         assert result["success"] is True, "regex hit succeeds"
-        assert actual == expected, "named group coerced to float"
+        assert actual == expected, "named group coerced to float, in data"
+        assert result["value"] == "23.4C", "raw response text kept in value"
 
     def test_regex_no_match_fails_with_raw(self, host):
         # Arrange
@@ -207,7 +208,8 @@ class TestRegexFormat:
         result = asyncio.run(host.run_command_async("AT+TEMP", "normal", 5.0))
         # Assert
         assert result["success"] is False, "non-matching regex fails"
-        assert result["value"]["raw"] == "bogus", "raw text preserved on parse failure"
+        assert result["value"] == "bogus", "raw text preserved on parse failure"
+        assert result["data"] is None, "no structure faked from a failed parse"
 
 
 class TestLinesFormat:
@@ -226,8 +228,8 @@ class TestLinesFormat:
         _reply_after_send(host, ["model=DEMO", "version=1.0", "OK", "stale_after_ok"])
         # Act
         result = asyncio.run(host.run_command_async("AT+INFO", "normal", 5.0))
-        # Assert
-        actual = result["value"]
+        # Assert -- the line list is structure, so it lives in data
+        actual = result["data"]
         expected = ["model=DEMO", "version=1.0"]
         assert result["success"] is True, "lines collection succeeds"
         assert actual == expected, "terminator excluded; later lines dropped"
@@ -324,11 +326,14 @@ class TestJsonFormat:
         _reply_after_send(host, ['{"voltage": 1.2, "unit": "V"}'])
         # Act
         result = asyncio.run(host.run_command_async("GET_VOLT", "normal", 5.0))
-        # Assert
-        actual = result["value"]
+        # Assert -- structure in data, raw wire text in value
+        actual = result["data"]
         expected = {"voltage": 1.2, "unit": "V"}
         assert result["success"] is True, "json parse succeeds"
-        assert actual == expected, "json passed through as dict"
+        assert actual == expected, "json parsed into data as a dict"
+        assert result["value"] == '{"voltage": 1.2, "unit": "V"}', (
+            "raw response text kept in value"
+        )
 
 
 class TestNoneFormat:
@@ -343,10 +348,11 @@ class TestNoneFormat:
         }))
         # Act
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
-        # Assert
-        actual = result["value"]
+        # Assert -- the sent marker is structure, so it lives in data; the
+        # command name is the envelope's cmd, not duplicated in the marker
         assert result["success"] is True, "silence verified -> success"
-        assert actual == {"sent": True, "cmd": "RESET"}, "sent-marker shape"
+        assert result["data"] == {"sent": True}, "sent-marker shape"
+        assert result["cmd"] == "RESET", "command name on the envelope"
         assert host._sent == [b"RESET\r\n"], "bytes still went out"
 
     def test_unexpected_reply_fails_the_contract(self, host):
@@ -362,15 +368,15 @@ class TestNoneFormat:
         # Act
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
         # Assert
-        value = result["value"]
         assert result["success"] is False, "contract violation fails"
         assert "Expected no response" in result["error"], (
             "error names the violated contract"
         )
-        assert isinstance(value, dict), "structured failure value"
-        assert value["command"] == "RESET", "command name surfaced"
-        assert "OOPS unexpected" in value["unexpected_output"], (
-            "rejected output surfaced for the LLM"
+        assert "OOPS unexpected" in result["data"]["unexpected_output"], (
+            "rejected output surfaced structurally for the LLM"
+        )
+        assert "OOPS unexpected" in result["value"], (
+            "rejected output also readable as the scalar"
         )
 
     def test_timeout_zero_opts_out_of_silence_check(self, host):
@@ -390,8 +396,8 @@ class TestNoneFormat:
         assert result["success"] is True, (
             "timeout_ms=0 opts out of the silence verification"
         )
-        assert result["value"] == {"sent": True, "cmd": "RESET"}, (
-            "sent-marker still returned"
+        assert result["data"] == {"sent": True}, (
+            "sent-marker still returned, in data"
         )
 
     def test_whitespace_only_reply_does_not_fail(self, host):

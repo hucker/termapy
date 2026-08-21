@@ -56,7 +56,7 @@ Standard termapy [config](config.md).  The MCP-relevant slice (partial example -
 
 ### The profile file
 
-A device profile declares what commands the device understands and how its responses should be parsed.  Without a profile, MCP `run_command` works but returns raw text (legacy fallthrough).  With a profile, it returns typed JSON like `{"celsius": 23}`.
+A device profile declares what commands the device understands and how its responses should be parsed.  Every `run_command` reply uses one fixed envelope -- `cmd`, `success`, `error`, `value`, `data`, `elapsed_s`, `output_lines`, `captured_artifacts`, `async_events`.  Without a profile, the raw response text arrives in `value` and `data` is null (legacy fallthrough).  With a profile, `data` carries the typed structure, like `{"celsius": 23}`, with the raw wire text still in `value`.
 
 The authoritative, machine-readable schema ships inside the package as [`profile/schema.json`](https://github.com/hucker/termapy/blob/main/src/termapy/profile/schema.json) -- point an LLM at it (or feed it into your MCP client's context) to draft, audit, or validate profiles automatically.
 
@@ -103,7 +103,7 @@ Minimal example -- one parameter-less command and one with an enum-typed paramet
 }
 ```
 
-`temp` is parameter-less: the LLM calls `run_command("temp")`, termapy sends `temp\r\n` and waits for a reply like `Temperature: 23 C`.  The regex skips the prefix and unit, extracts the digits, the `types` map coerces them to `int`, and the call returns `value={"celsius": 23}`.
+`temp` is parameter-less: the LLM calls `run_command("temp")`, termapy sends `temp\r\n` and waits for a reply like `Temperature: 23 C`.  The regex skips the prefix and unit, extracts the digits, the `types` map coerces them to `int`, and the call's response carries `data={"celsius": 23}` (raw wire text in `value`).
 
 `set_led` takes one argument: the LLM calls `run_command("set_led", state="on")`, termapy formats the wire bytes via `send_template` (`led on\r\n`), waits for the literal `OK` reply, and returns success.  The `types` block declares the reusable `on_off` enum; `typed_args` references it, so the LLM sees `state: "on" | "off"` in the tool definition.  `safety: mutable` means it changes device state but doesn't trigger the destructive-confirmation gate.
 
@@ -202,7 +202,7 @@ Edit-restart-test cycle: edit termapy source, restart the MCP client, the new co
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Client shows no termapy tool                   | MCP client config not reloaded -- restart the client.  In Claude Code, also check the registration scope (see above)                                                     |
 | `--mcp requires the 'mcp' optional dependency` | Missing extra: `uv tool install "termapy[all]"`                                                                                                                          |
-| `run_command` returns raw text, not typed JSON | No profile loaded; legacy fallthrough is sending bytes but not shaping the response.  Check `/mcp.info` for the profile revision; if blank, the profile didn't auto-load |
+| `run_command` responses have `data: null`, raw text in `value` only | No profile loaded; legacy fallthrough is sending bytes but not shaping the response.  Check `/mcp.info` for the profile revision; if blank, the profile didn't auto-load |
 | Profile doesn't auto-load on connect           | Check the convention path (`<cfg_dir>/<cfg_name>.profile.json`) or set `profile_path` explicitly.  The session log will tell you                                         |
 | Need to see what the server is doing           | Add `--mcp-verbose` to args; tees the session log to stderr                                                                                                              |
 

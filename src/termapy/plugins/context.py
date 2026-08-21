@@ -200,6 +200,17 @@ class PluginContext:
     # constructing the context.
     capabilities: CapabilitySet = field(default_factory=CapabilitySet)
 
+    # ── Structured-output preference ─────────────────────────────────
+    # True when the consumer of this dispatch wants machine-readable
+    # structure (``CmdResult.data``) rather than rendered prose: the MCP
+    # host sets it for every call; the universal ``--json`` flag sets it
+    # for one dispatch (any frontend).  Handlers producing LARGE
+    # listings should branch on it and build either the prose or the
+    # ``data`` records -- not both -- so neither audience pays for the
+    # other's rendering.  Handlers that ignore it keep working: their
+    # prose reaches structured consumers via ``output_lines``.
+    wants_data: bool = False
+
     # ── Internal storage (not part of the plugin-author API) ─────────
     # Per-dispatch flag set populated by ReplEngine.dispatch.
     active_flags: set[str] = field(default_factory=set)

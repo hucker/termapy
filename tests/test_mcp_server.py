@@ -449,6 +449,108 @@ class TestRunCommandErrors:
         )
 
 
+# ── Unified envelope + data channel ─────────────────────────────────────────
+
+
+# The one response shape every run_command reply must have.  Set equality
+# (not subset) so an accidentally re-added special case -- the old
+# "self-describing value skips the outer wrap" duality -- fails loudly.
+ENVELOPE_KEYS = {
+    "cmd", "success", "error", "value", "data", "elapsed_s",
+    "output_lines", "captured_artifacts", "async_events",
+}
+
+
+class TestUnifiedEnvelope:
+    def test_plain_command_envelope_has_exactly_the_fixed_keys(self, host):
+        # Arrange / Act
+        result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
+        # Assert
+        actual_keys = set(result.keys())
+        assert actual_keys == ENVELOPE_KEYS, (
+            "an agent codes against ONE fixed envelope; shape drift breaks it"
+        )
+
+    def test_converted_command_keeps_the_outer_envelope(self, host):
+        # Arrange / Act -- /var attaches data; under the old duality a
+        # structured value dropped cmd/success/error from the wire.
+        result = asyncio.run(host.run_command_async("/var", "normal", 5.0))
+        # Assert
+        actual_keys = set(result.keys())
+        assert actual_keys == ENVELOPE_KEYS, (
+            "data-carrying commands get the SAME envelope, not a special case"
+        )
+        assert result["cmd"] == "/var", "outer cmd present even with data"
+
+    def test_mcp_context_wants_data(self, host):
+        # Assert -- the MCP consumer is an agent; the host must declare it.
+        assert host.ctx.wants_data is True, (
+            "MCP host sets wants_data so handlers build data, not prose"
+        )
+
+    def test_unconverted_command_has_data_none(self, host):
+        # Arrange / Act
+        result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
+        # Assert
+        assert result["data"] is None, (
+            "no structured form -> data is null, information stays in "
+            "value/output_lines"
+        )
+
+    def test_var_returns_namespace_snapshot_in_data(self, host):
+        # Arrange
+        asyncio.run(host.run_command_async("/var.set PORT COM9", "normal", 5.0))
+        # Act
+        result = asyncio.run(host.run_command_async("/var", "normal", 5.0))
+        # Assert
+        data = result["data"]
+        assert isinstance(data, dict), "structured listing, not prose"
+        actual_namespaces = set(data.keys())
+        expected_namespaces = {"user", "launch", "datetime", "context"}
+        assert actual_namespaces == expected_namespaces, (
+            "one sub-dict per variable namespace"
+        )
+        assert data["user"] == {"PORT": "COM9"}, "set variable visible in data"
+        assert data["launch"]["FRONT_END"] == "mcp", (
+            "launch namespace resolved into data"
+        )
+
+    def test_var_data_mode_emits_no_prose_even_at_verbose(self, host):
+        # Arrange / Act -- verbose is the loudest level; under wants_data
+        # the handler must still skip the markup listing, or a big
+        # namespace would ride the wire twice (once in data, once as
+        # prose in output_lines).
+        result = asyncio.run(host.run_command_async("/var", "verbose", 5.0))
+        # Assert
+        assert result["data"] is not None, "structured view present"
+        assert result["output_lines"] == [], (
+            "payload must not be doubled: data OR prose, never both"
+        )
+
+    def test_port_list_returns_records_in_data(self, host, monkeypatch):
+        # Arrange -- layer-2 fleet: the handler calls list_port_records()
+        # with no source arg, so injection can't reach it; the env layer
+        # exists exactly for a party outside the call (here, the test).
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        # Act
+        result = asyncio.run(host.run_command_async("/port.list", "normal", 5.0))
+        # Assert
+        data = result["data"]
+        assert isinstance(data, list), "one record per port"
+        actual_devices = [record["device"] for record in data]
+        assert "COM3" in actual_devices, "demo fleet port surfaced as a record"
+        assert result["output_lines"] == [], (
+            "table prose skipped for the structured consumer"
+        )
+        first = data[0]
+        assert "vid" in first and "serial_number" in first, (
+            "records carry the fixed facts_to_json_record schema"
+        )
+        assert result["value"] == ",".join(actual_devices), (
+            "value is the scriptable scalar: comma-joined device names"
+        )
+
+
 # ── Capture artifact tracking ───────────────────────────────────────────────
 
 

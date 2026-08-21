@@ -1423,3 +1423,202 @@ class TestRepeatDoesNotEraseAScriptStop:
         assert result.success is True, "an interactive repeat runs"
         actual = result.value
         assert actual == "2", f"both iterations should run, got {actual!r}"
+
+
+# -- Universal --json flag --------------------------------------------------
+
+
+class TestJsonFlag:
+    """``--json`` on any command renders the result as a JSON envelope."""
+
+    def _last_envelope(self, output):
+        """Parse the last written line as the JSON envelope."""
+        assert output, "an envelope line was written"
+        text, _color = output[-1]
+        return json.loads(text)
+
+    def test_converted_command_envelope(self, engine):
+        # Arrange
+        eng, output = engine
+        eng.dispatch("var.set PORT COM9")
+        output.clear()
+
+        # Act
+        result = eng.dispatch("var --json")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        expected_keys = {
+            "cmd", "success", "error", "value", "data", "output_lines",
+            "elapsed_s",
+        }
+        assert set(envelope.keys()) == expected_keys, (
+            "terminal envelope is the fixed seven-key core"
+        )
+        assert envelope["success"] is True, "dispatch succeeded"
+        assert envelope["data"]["user"] == {"PORT": "COM9"}, (
+            "structured namespaces in data"
+        )
+        assert envelope["output_lines"] == [], (
+            "converted command: data only, no captured prose"
+        )
+        assert result.data is not None, "CmdResult carries data too"
+
+    def test_unconverted_command_answer_is_captured(self, engine):
+        # Arrange -- /term.info has no data producer; in JSON mode its
+        # whole answer must arrive in the envelope, not print above it.
+        # (/help would be the natural pick but its landscape reads
+        # ctx.internal.plugins, which only a HOST wires -- empty in this
+        # bare engine.)
+        eng, output = engine
+        output.clear()
+
+        # Act
+        eng.dispatch("term.info --json")
+
+        # Assert
+        assert len(output) == 1, (
+            "one line total: the envelope IS the answer, no prose printed"
+        )
+        envelope = self._last_envelope(output)
+        assert envelope["data"] is None, "no structured form for /term.info"
+        assert len(envelope["output_lines"]) > 5, (
+            "the kv listing captured into the envelope"
+        )
+        assert any(
+            "echo" in line and "[" not in line
+            for line in envelope["output_lines"]
+        ), "captured lines are the real content with markup flattened"
+
+    def test_unknown_command_is_enveloped(self, engine):
+        # Arrange
+        eng, output = engine
+
+        # Act
+        result = eng.dispatch("nope_not_a_command --json")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        assert envelope["success"] is False, "failure carried in the field"
+        assert "Unknown command" in envelope["error"], "error in the field"
+        assert envelope["data"] is None, "no data for a failed lookup"
+        assert not any(
+            color == "red" for _text, color in output
+        ), "no separate red error line: error is a field, not a second render"
+        assert result.success is False, "CmdResult still reports failure"
+
+    def test_flag_stripped_from_args(self, engine):
+        # Arrange -- /print echoes its args; the flag must not be in them
+        eng, output = engine
+
+        # Act
+        eng.dispatch("print hello --json")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        assert envelope["value"] == "hello", "--json removed before the handler"
+        assert "--json" not in envelope["cmd"], "cmd shows the effective call"
+
+    def test_wants_data_restored_after_dispatch(self, engine):
+        # Arrange
+        eng, output = engine
+
+        # Act
+        eng.dispatch("var --json")
+
+        # Assert
+        assert eng.ctx.wants_data is False, (
+            "per-call flag restored; the session default is prose"
+        )
+
+    def test_silent_suppresses_the_envelope(self, engine):
+        # Arrange
+        eng, output = engine
+        output.clear()
+
+        # Act -- silent gates the result channel the envelope rides on
+        result = eng.dispatch("var --json --silent")
+
+        # Assert
+        assert output == [], "--silent wins: nothing rendered"
+        assert result.data is not None, "the data still exists on the result"
+
+    def test_quiet_still_emits_the_envelope(self, engine):
+        # Arrange -- result channel shows at quiet+
+        eng, output = engine
+        output.clear()
+
+        # Act
+        eng.dispatch("var --json --quiet")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        assert envelope["success"] is True, "envelope rides the result channel"
+
+
+class TestRequestModeSessionJson:
+    """``request_mode`` is the session dial: termapy commands envelope too."""
+
+    @pytest.fixture(autouse=True)
+    def _front_end_not_mcp(self, monkeypatch):
+        """Isolate FRONT_END: a sibling MCP test file on this worker leaves
+        the module-global at "mcp", and the render gate would then skip the
+        envelope these tests assert on."""
+        from termapy import variables as _variables
+        monkeypatch.setattr(
+            _variables, "_LAUNCH_VARS", dict(_variables._LAUNCH_VARS)
+        )
+        _variables.set_launch_var("FRONT_END", "test")
+
+    def test_termapy_command_envelopes_without_flag(self, engine):
+        # Arrange
+        eng, output = engine
+        eng._apply_cfg("request_mode", True)
+        output.clear()
+
+        # Act -- no --json flag; the session mode alone does it
+        result = eng.dispatch("var")
+
+        # Assert
+        text, _color = output[-1]
+        envelope = json.loads(text)
+        assert envelope["success"] is True, "termapy command enveloped"
+        assert "data" in envelope, "structured data field present"
+        assert result.data is not None, "converted command produced data"
+
+    def test_off_returns_to_prose(self, engine):
+        # Arrange
+        eng, output = engine
+        eng._apply_cfg("request_mode", True)
+        eng._apply_cfg("request_mode", False)
+        output.clear()
+
+        # Act
+        eng.dispatch("print hello")
+
+        # Assert -- plain prose, not an envelope
+        text, _color = output[-1]
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(text)
+
+    def test_mcp_frontend_skips_the_render(self, engine, monkeypatch):
+        # Arrange -- MCP delivers data on its outer response envelope;
+        # rendering here too would duplicate it into output_lines.
+        from termapy import variables as _variables
+        eng, output = engine
+        monkeypatch.setattr(
+            _variables, "_LAUNCH_VARS", dict(_variables._LAUNCH_VARS)
+        )
+        _variables.set_launch_var("FRONT_END", "mcp")
+        eng._apply_cfg("request_mode", True)
+        output.clear()
+
+        # Act
+        result = eng.dispatch("var")
+
+        # Assert -- data still produced (wants_data is MCP's session
+        # default), but no envelope line printed by the dispatcher
+        assert all(
+            not text.lstrip().startswith("{") for text, _color in output
+        ), "no dispatcher-rendered envelope under MCP"
+        assert result.value, "value still flows to the MCP response"

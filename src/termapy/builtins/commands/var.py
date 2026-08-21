@@ -23,6 +23,7 @@ from termapy.variables import (
     launch_vars,
     resolve_datetime_var,
     set_user_var,
+    snapshot as variables_snapshot,
     user_vars,
 )
 
@@ -129,10 +130,23 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
             if ctx_fn is not None:
                 val = ctx_fn()
         if val is not None:
-            ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{val}[/]")
+            if not ctx.wants_data:
+                ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{val}[/]")
             return CmdResult.ok(value=str(val))
-        ctx.io.output(f"  $({name}) - not defined", "red")
+        if not ctx.wants_data:
+            ctx.io.output(f"  $({name}) - not defined", "red")
         return CmdResult.ok(value="")
+    # Structured consumer: the resolved namespace snapshot, skipping the
+    # markup listing entirely.  ``value`` stays the flat name=value lines
+    # (the scriptable form) built from the same snapshot.
+    if ctx.wants_data:
+        snap = variables_snapshot()
+        flat = [
+            f"{name}={val}"
+            for namespace in ("user", "launch", "datetime", "context")
+            for name, val in sorted(snap[namespace].items())
+        ]
+        return CmdResult.ok(value="\n".join(flat), data=snap)
     lines: list[str] = []
     for k in sorted(users):
         ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{users[k]}[/]")

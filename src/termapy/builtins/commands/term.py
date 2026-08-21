@@ -699,18 +699,28 @@ COMMAND = Command(
         ),
         "request": Command(
             args="{on|off|toggle}",
-            help="Toggle request/response mode for bare device commands.",
+            help="Toggle the session's JSON request/response mode.",
             long_help=(
-                "When on, every bare device command (a line that doesn't\n"
-                "start with {prefix}) is sent through the request/response\n"
-                "executor and its reply is wrapped in a JSON envelope:\n"
+                "The session's structured dial: when on, EVERYTHING\n"
+                "answers in JSON -- the device/termapy demarcation is\n"
+                "deliberately invisible.\n"
+                "\n"
+                "Bare device commands (a line that doesn't start with\n"
+                "{prefix}) go through the request/response executor and\n"
+                "the exchange renders as a JSON envelope:\n"
                 "\n"
                 "  {\"cmd\":\"<text>\",\"success\":true,\"error\":\"\",\n"
                 "   \"elapsed_s\":0.065,\"result\":\"<response text>\"}\n"
                 "\n"
-                "The envelope is rendered to the terminal as a single\n"
-                "line and surfaces in CmdResult.value (visible to MCP\n"
-                "clients and scripts).\n"
+                "termapy commands ({prefix}var, {prefix}port.list, ...)\n"
+                "answer with a result envelope carrying the structured\n"
+                "``data`` when the command has one:\n"
+                "\n"
+                "  {\"cmd\":\"{prefix}var\",\"success\":true,\"error\":\"\",\n"
+                "   \"value\":\"...\",\"data\":{...},\"elapsed_s\":0.001}\n"
+                "\n"
+                "In a normal-mode session the per-call form of the same\n"
+                "thing is ``<cmd> --json``.\n"
                 "\n"
                 "Input is symmetric: a JSON object with a string ``cmd``\n"
                 "field is unwrapped, so callers can send either plain\n"

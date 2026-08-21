@@ -59,6 +59,17 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
+    # Structured consumer: records only, no table.  ``value`` is the
+    # comma-joined device names (the useful scalar for an agent or a
+    # capture) rather than the rendered table text the human branch
+    # returns -- the table is exactly the big prose ``wants_data``
+    # exists to skip.
+    if ctx.wants_data:
+        records = port_control.list_port_records()
+        return CmdResult.ok(
+            value=",".join(record["device"] or "" for record in records),
+            data=records,
+        )
     result = port_control.list_ports()
     _apply(ctx, result)
     return CmdResult.ok(value=_joined_value(result))
@@ -69,6 +80,7 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
         UnsupportedPlatform,
         gather_usb_tree,
         render_tree,
+        to_json_records,
     )
 
     try:
@@ -76,6 +88,10 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
     except UnsupportedPlatform as exc:
         ctx.io.output(str(exc), "yellow")
         return CmdResult.fail(msg=str(exc))
+    # Structured consumer: the nested record tree (same shape as
+    # ``--usb --json``), skipping the box-drawing render entirely.
+    if ctx.wants_data:
+        return CmdResult.ok(value="", data=to_json_records(roots))
     lines = render_tree(roots)
     for line in lines:
         ctx.io.output(line)

@@ -1,100 +1,149 @@
 Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
   === section: device commands ===
+  [1/150] /print === section: device commands === (374us)
 demo> AT
 OK
+  [2/150] AT (32us)
 demo> AT+PROD-ID
 +PROD-ID:BASSOMATIC-77
+  [3/150] AT+PROD-ID (44us)
 demo> AT+LED on
 OK
+  [4/150] AT+LED on (65us)
 demo> AT+LED off
 OK
+  [5/150] AT+LED off (38us)
 demo> AT+NAME?
 +NAME:Bassomatic v77
+  [6/150] AT+NAME? (49us)
 demo> AT+NAME=TestDevice
 OK
+  [7/150] AT+NAME=TestDevice (52us)
 demo> AT+NAME?
 +NAME:TestDevice
+  [8/150] AT+NAME? (35us)
 demo> AT+BAUD?
 +BAUD:115200
+  [9/150] AT+BAUD? (50us)
 demo> mem 0x1000 32
   00001000: 00 B1 62 13 C4 75 26 D7 88 39 EA 9B 4C FD AE 5F  ..b..u&..9..L.._
   00001010: 10 C1 72 23 D4 85 36 E7 98 49 FA AB 5C 0D BE 6F  ..r#..6..I..\..o
+  [10/150] mem 0x1000 32 (85us)
 demo> mem 0x2000 16
   00002000: 00 B1 62 13 C4 75 26 D7 88 39 EA 9B 4C FD AE 5F  ..b..u&..9..L.._
+  [11/150] mem 0x2000 16 (130us)
 demo> AT+TEXTDUMP 3
 [000000ms] temp=22.0C voltage=3.3V sample=0
 [000050ms] temp=22.7C voltage=3.43V sample=1
 [000100ms] temp=23.4C voltage=3.36V sample=2
+  [12/150] AT+TEXTDUMP 3 (70us)
 demo> BOGUS
 ERROR: Unknown command 'BOGUS'
+  [13/150] BOGUS (31us)
 demo> AT+LED on
 OK
+  [14/150] AT+LED on (30us)
 demo> AT+LED off
 OK
+  [15/150] AT+LED off (47us)
   === section: print and echo ===
+  [16/150] /print === section: print and echo === (193us)
   off
+  [17/150] /term.echo_repl off (145us)
   repl echo is off - this output appears, with no command-echo above it
+  [18/150] /print repl echo is off - this output appears, with no co... (139us)
   on
+  [19/150] /term.echo_repl on (128us)
 demo> /print repl echo is on - this output appears with its command-echo above it
   repl echo is on - this output appears with its command-echo above it
+  [20/150] /print repl echo is on - this output appears with its com... (200us)
 demo> /print === section: variables ===
   === section: variables ===
+  [21/150] /print === section: variables === (326us)
 > $(DEVICE) = BASSOMATIC
   $(DEVICE) = BASSOMATIC
+  [22/150] $(DEVICE) = BASSOMATIC (569us)
 > $(PORT_NUM) = 42
   $(PORT_NUM) = 42
+  [23/150] $(PORT_NUM) = 42 (385us)
 demo> /print device=$(DEVICE) port=$(PORT_NUM)
   device=BASSOMATIC port=42
+  [24/150] /print device=$(DEVICE) port=$(PORT_NUM) (151us)
 demo> /var DEVICE
   $(DEVICE) = BASSOMATIC
+  [25/150] /var DEVICE (207us)
 demo> /var PORT_NUM
   $(PORT_NUM) = 42
+  [26/150] /var PORT_NUM (157us)
 demo> /var.set DEVICE updated_value
   $(DEVICE) = updated_value
+  [27/150] /var.set DEVICE updated_value (150us)
 demo> /var DEVICE
   $(DEVICE) = updated_value
+  [28/150] /var DEVICE (144us)
 > $(BAUD) <- /port.baud_rate
   $(BAUD) = 115200
+  [29/150] $(BAUD) <- /port.baud_rate (239us)
 demo> /var BAUD
   $(BAUD) = 115200
+  [30/150] /var BAUD (202us)
 demo> /var.clear
   Cleared 3 variable(s).
+  [31/150] /var.clear (141us)
 demo> /var DEVICE
     $(DEVICE) - not defined
+  [32/150] /var DEVICE (164us)
 demo> /print === section: config read ===
   === section: config read ===
+  [33/150] /print === section: config read === (114us)
 demo> /cfg baud_rate
   115200
+  [34/150] /cfg baud_rate (117us)
 demo> /cfg encoding
   utf-8
+  [35/150] /cfg encoding (111us)
 demo> /cfg eol
 
+  [36/150] /cfg eol (99us)
 demo> /cfg parity
   N
+  [37/150] /cfg parity (136us)
 demo> /cfg byte_size
   8
+  [38/150] /cfg byte_size (108us)
 demo> /cfg stop_bits
   1
+  [39/150] /cfg stop_bits (103us)
 demo> /cfg flow_control
   none
+  [40/150] /cfg flow_control (103us)
 demo> /cfg echo
   True
+  [41/150] /cfg echo (102us)
 demo> /cfg send_bare_enter
   False
+  [42/150] /cfg send_bare_enter (103us)
 demo> /cfg cmd_prefix
   /
+  [43/150] /cfg cmd_prefix (110us)
 demo> /print === section: config auto-set ===
   === section: config auto-set ===
+  [44/150] /print === section: config auto-set === (106us)
 demo> /cfg.auto echo true
   echo = True  (session)
+  [45/150] /cfg.auto echo true (119us)
 demo> /cfg echo
   True
+  [46/150] /cfg echo (106us)
 demo> /cfg.auto echo false
   echo = False  (session)
+  [47/150] /cfg.auto echo false (216us)
 demo> /cfg echo
   False
+  [48/150] /cfg echo (120us)
 demo> /print === section: config dump ===
   === section: config dump ===
+  [49/150] /print === section: config dump === (106us)
 demo> /cfg.dump
   {
       "config_version": 29,
@@ -188,8 +237,10 @@ demo> /cfg.dump
           }
       ]
   }
+  [50/150] /cfg.dump (2ms)
 demo> /print === section: config folders ===
   === section: config folders ===
+  [51/150] /print === section: config folders === (116us)
 demo> /run.list
     run/
       at_demo.run          --  AT Command Demo -- Walks through all demo device commands
@@ -201,35 +252,49 @@ demo> /run.list
       status_check.run     --  Quick status check
       var_demo.run         --  Variable Demo -- Set variables and use them in commands
       welcome.run          --  Welcome script -- Runs on connect via on_connect_cmd config
+  [52/150] /run.list (10ms)
 demo> /proto.list
     proto/
       at_test.pro
       bitfield_inline.pro
       modbus_inline.pro
+  [53/150] /proto.list (630us)
 demo> /print === section: port read ===
   === section: port read ===
+  [54/150] /print === section: port read === (168us)
 demo> /port.baud_rate
   115200
+  [55/150] /port.baud_rate (144us)
 demo> /port.parity
   N
+  [56/150] /port.parity (130us)
 demo> /port.byte_size
   8
+  [57/150] /port.byte_size (113us)
 demo> /port.stop_bits
   1
+  [58/150] /port.stop_bits (113us)
 demo> /port.flow_control
   none
+  [59/150] /port.flow_control (113us)
 demo> /port.dtr
   1
+  [60/150] /port.dtr (113us)
 demo> /port.rts
   1
+  [61/150] /port.rts (111us)
 demo> /port.cts
   1
+  [62/150] /port.cts (120us)
 demo> /port.dsr
   1
+  [63/150] /port.dsr (113us)
 demo> /port.ri
   0
+  [64/150] /port.ri (110us)
 demo> /port.cd
   1
+  [65/150] /port.cd (107us)
 demo> /port.info
   Port        : DEMO  (connected)
   Baud rate   : 115200
@@ -251,38 +316,55 @@ demo> /port.info
   DSR: 1
   RI : 0
   CD : 1
+  [66/150] /port.info (7ms)
 demo> /print === section: port modify ===
   === section: port modify ===
+  [67/150] /print === section: port modify === (117us)
 demo> /port.dtr 0
   DTR -> 0
+  [68/150] /port.dtr 0 (127us)
 demo> /port.dtr
   0
+  [69/150] /port.dtr (112us)
 demo> /port.dtr 1
   DTR -> 1
+  [70/150] /port.dtr 1 (124us)
 demo> /port.dtr
   1
+  [71/150] /port.dtr (121us)
 demo> /port.rts 0
   RTS -> 0
+  [72/150] /port.rts 0 (123us)
 demo> /port.rts
   0
+  [73/150] /port.rts (117us)
 demo> /print === section: port disconnect/connect ===
   === section: port disconnect/connect ===
+  [74/150] /print === section: port disconnect/connect === (106us)
 demo> /port.disconnect
 Disconnected: DEMO
+  [75/150] /port.disconnect (4ms)
 demo> /port.baud_rate
   115200 (disconnected)
+  [76/150] /port.baud_rate (127us)
 demo> /port.connect
 Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
+  [77/150] /port.connect (5ms)
 demo> /port.baud_rate
   115200
+  [78/150] /port.baud_rate (135us)
 demo> /print === section: port break ===
   === section: port break ===
+  [79/150] /print === section: port break === (115us)
 demo> /port.break
   Break sent (250ms)
+  [80/150] /port.break (192us)
 demo> /port.break 100
   Break sent (100ms)
+  [81/150] /port.break 100 (316us)
 demo> /print === section: port subcommands ===
   === section: port subcommands ===
+  [82/150] /print === section: port subcommands === (183us)
 demo> /port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
@@ -292,7 +374,7 @@ SYNOPSIS
 
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
-
+  
   Connect to, disconnect from, list, or configure the serial
   port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
   USB chip identification (/port.chip.*), and the four mode
@@ -322,31 +404,43 @@ SUBCOMMANDS
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
   /port.usb             Show the whole USB tree, with serial ports marked.
+  [83/150] /port (4ms)
 demo> /print === section: line endings ===
   === section: line endings ===
+  [84/150] /print === section: line endings === (118us)
 demo> /show_line_endings on
     Note: /show_line_endings is legacy; use /term.line_endings.
   eol_markers = True  (session)
   on
+  [85/150] /show_line_endings on (373us)
 demo> /show_line_endings off
   eol_markers = False  (session)
   off
+  [86/150] /show_line_endings off (231us)
 demo> /print === section: seq ===
   === section: seq ===
+  [87/150] /print === section: seq === (106us)
 demo> /seq
   No counters set.
+  [88/150] /seq (117us)
 demo> /print seq1={seq1+} seq2={seq2+}
   seq1=1 seq2=1
+  [89/150] /print seq1={seq1+} seq2={seq2+} (123us)
 demo> /print seq1={seq1+} seq2={seq2}
   seq1=2 seq2=0
+  [90/150] /print seq1={seq1+} seq2={seq2} (128us)
 demo> /seq
   Counters: seq1=2, seq2=0
+  [91/150] /seq (119us)
 demo> /seq.reset
   Sequence counters reset.
+  [92/150] /seq.reset (113us)
 demo> /seq
   No counters set.
+  [93/150] /seq (109us)
 demo> /print === section: proto crc ===
   === section: proto crc ===
+  [94/150] /print === section: proto crc === (114us)
 demo> /proto.crc.info crc16-modbus
     crc16-modbus
     Modbus RTU serial protocol
@@ -358,25 +452,30 @@ demo> /proto.crc.info crc16-modbus
   XorOut: 0x0000
   Check : 0x4B37  (CRC of '123456789')
   Spec  : CRC:crc16-modbus_le  or  CRC:crc16-modbus_be
+  [95/150] /proto.crc.info crc16-modbus (1ms)
 demo> /proto.crc.calc crc16-modbus 01 03 00 00 00 0A
     Algorithm: crc16-modbus
     Data:      01 03 00 00 00 0A  (6 bytes)
     CRC:       0xCDC5
     Bytes LE:  C5 CD
     Bytes BE:  CD C5
+  [96/150] /proto.crc.calc crc16-modbus 01 03 00 00 00 0A (2ms)
 demo> /proto.crc.calc crc8-maxim 48 65 6C 6C 6F
     Algorithm: crc8-maxim
     Data:      48 65 6C 6C 6F  (5 bytes)
     CRC:       0xEB
     Byte:      EB
+  [97/150] /proto.crc.calc crc8-maxim 48 65 6C 6C 6F (531us)
 demo> /proto.crc.calc crc32 01 02 03 04
     Algorithm: crc32
     Data:      01 02 03 04  (4 bytes)
     CRC:       0xB63CFBCD
     Bytes LE:  CD FB 3C B6
     Bytes BE:  B6 3C FB CD
+  [98/150] /proto.crc.calc crc32 01 02 03 04 (1ms)
 demo> /print === section: help ===
   === section: help ===
+  [99/150] /print === section: help === (235us)
 demo> /help echo
 NAME
   /echo - Toggle echo of device commands sent to the wire. Use /echo.silent to set without echoing.
@@ -387,6 +486,7 @@ SYNOPSIS
 AVAILABLE
   TUI: yes   CLI: yes   MCP: no
   (MCP does not provide: interactive)
+  [100/150] /help echo (2ms)
 demo> /help port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
@@ -396,7 +496,7 @@ SYNOPSIS
 
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
-
+  
   Connect to, disconnect from, list, or configure the serial
   port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
   USB chip identification (/port.chip.*), and the four mode
@@ -426,6 +526,7 @@ SUBCOMMANDS
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
   /port.usb             Show the whole USB tree, with serial ports marked.
+  [101/150] /help port (4ms)
 demo> /help cfg
 NAME
   /cfg - Show or set config values.
@@ -435,16 +536,16 @@ SYNOPSIS
 
 DESCRIPTION
   Active cfg = demo (1 config available)
-
+  
   Three modes:
     /cfg                  - TUI: open Cfg picker.  CLI: show this help.
     /cfg baud_rate        - show current value of 'baud_rate'
     /cfg baud_rate 115200 - change with confirmation dialog
-
+  
   Type is auto-detected from the existing value (int, float,
   bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
   Changes are saved to the JSON config file.
-
+  
   Use /cfg.dump to print every key/value pair as JSON.
   Use /cfg.auto to set values without confirmation (for scripts).
 
@@ -461,6 +562,7 @@ SUBCOMMANDS
   /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (hot-swap).
   /cfg.show       Open the current config file in the system viewer.
+  [102/150] /help cfg (4ms)
 demo> /help var
 NAME
   /var - List user variables, or show one by name.
@@ -470,18 +572,18 @@ SYNOPSIS
 
 DESCRIPTION
   Currently defined: 0 user, 6 datetime, 15 context, 1 launch
-
+  
   User-defined variables use $(NAME) syntax (case-sensitive).
-
+  
   Setting variables (no / prefix needed):
     $(PORT) = COM7                - store literal value
     $(BAUD) <- /port.baud_rate    - capture REPL command output
     $(TEMP) <- AT+TEMP            - capture device response
-
+  
   Using variables in commands:
     /print $(PORT)
     AT+PORT=$(PORT)
-
+  
   Commands:
     /var                   - list all variables
     /var PORT              - show one variable (bare name or $(PORT))
@@ -489,27 +591,27 @@ DESCRIPTION
     /var.set PORT val      - set a variable (literal string)
     /var.capture NAME cmd  - run cmd and store its result as NAME
     /var.clear             - clear all variables
-
+  
   Dynamic variables (current clock at point of use):
     $(DATE)              - current date (YYYY-MM-DD)
     $(TIME)              - current time (HH:MM:SS)
     $(DATETIME)          - current date and time
-
+  
   Custom format (any datetime variable, strftime after a colon):
     $(DATETIME:%Y%m%d_%H%M%S)  - filename-safe stamp (colon-free)
     $(TIME:%H%M)               - hour+minute only
     $(SESSION_DATE:%d-%b)      - works on frozen vars too
-
+  
   Launch variables (frozen when the app starts):
     $(LAUNCH_DATE)       - app start date
     $(LAUNCH_TIME)       - app start time
     $(LAUNCH_DATETIME)   - app start date and time
-
+  
   Session variables (set once per script launch, frozen):
     $(SESSION_DATE)      - script start date
     $(SESSION_TIME)      - script start time
     $(SESSION_DATETIME)  - script start date and time
-
+  
   Config variables (resolved paths from current config):
     $(CFG)               - config name (e.g. demo)
     $(CFG.DIR)           - config directory (resolved)
@@ -526,11 +628,11 @@ DESCRIPTION
     $(CFG.BAUD)          - baud rate
     $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
     $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
-
+  
   Escaping (when your data contains literal $):
     \$(PORT)           - literal $(PORT) (not expanded)
     /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
-
+  
   Scope: variables persist for the session. They are cleared
   automatically when a script is launched from the Scripts button
   or the Run menu, but NOT when /run is typed interactively.
@@ -544,6 +646,7 @@ SUBCOMMANDS
   /var.clear      Clear all user variables.
   /var.list       Explicit alias for bare /var.
   /var.set        Set a user variable to a literal value.
+  [103/150] /help var (7ms)
 demo> /help cap
 NAME
   /cap - Data capture tools.
@@ -567,6 +670,7 @@ SUBCOMMANDS
   /cap.struct     Capture raw bytes, decode with format spec to CSV.
   /cap.text       Capture serial text to a file for a timed duration.
   /cap.wire       Run a command and show TX/RX bytes as inline hex + repr.
+  [104/150] /help cap (3ms)
 demo> /help ss
 NAME
   /ss - Screenshot tools: save SVG/text, manage folder.
@@ -584,35 +688,36 @@ SUBCOMMANDS
   /ss.show       Open the newest file in ss/ with the system viewer.
   /ss.svg        Save an SVG screenshot of the terminal.
   /ss.txt        Save a text screenshot (optionally last/first N lines).
+  [105/150] /help ss (2ms)
 demo> /help proto
 NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
 
 DESCRIPTION
   3 scripts in proto/
-
+  
   Send examples:
     /proto.send 01 02 03         - send three hex bytes
     /proto.send "AT\r"           - send text with carriage return
     /proto.send 0x01 "hello" 0D  - mix hex and text
     /proto.send 00 ~25ms "AT\r"  - wake byte, 25ms pause, then command
     /proto.send ~500us 01 02     - 500us delay before data
-
+  
   Inline delays use ~duration syntax (us, ms, s). Delays under
   1ms use spin-wait for precision. Delays >= 1ms use OS sleep.
-
+  
   Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
     /proto.send crc16-modbus 01 03 00 00 00 0A            - append LE CRC (default)
     /proto.send crc16-modbus_be 01 03 00 00 00 0A         - append BE CRC
     /proto.send crc16-modbus_ascii "READ 0000"             - append CRC as hex text
     /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
-
+  
   CRC tools:
     /proto.crc.list              - list all 100+ algorithms
     /proto.crc.list *modbus*     - filter by glob pattern
     /proto.crc.info crc16-modbus - show parameters for Modbus CRC
     /proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
-
+  
   Script files (.pro) support TOML format with [] sections
   or flat format with send:/expect: directives. Scripts are found
   in the proto/ subfolder of your config directory.
@@ -632,6 +737,7 @@ SUBCOMMANDS
   /proto.run        Run a protocol test script.
   /proto.send       Send raw bytes (with optional CRC), show response.
   /proto.show       Open the newest file in proto/ with the system viewer.
+  [106/150] /help proto (4ms)
 demo> /help plugin
 NAME
   /plugin - Plugin-folder tools: list, explore, show, dump.
@@ -644,6 +750,7 @@ SUBCOMMANDS
   /plugin.explore    Open plugin/ in the system file explorer.
   /plugin.list       List files in plugin/.
   /plugin.show       Open the newest file in plugin/ with the system viewer.
+  [107/150] /help plugin (1ms)
 demo> /help run
 NAME
   /run - Run a script file, or list available scripts.
@@ -663,12 +770,14 @@ SUBCOMMANDS
   /run.profile    Run a script with per-line timing.
   /run.record     Record commands to a .run script (bare /run.record stops).
   /run.show       Open the newest file in run/ with the system viewer.
+  [108/150] /help run (3ms)
 demo> /print === section: help.run ===
   === section: help.run ===
+  [109/150] /print === section: help.run === (162us)
 demo> /help.run
 -- Scripts --
   /run at_demo                  Walks through all demo device commands
-  /run crc_tour
+  /run crc_tour                 
   /run doc_screenshots          Generate documentation images
   /run expect_test              Expect command test
   /run gps_demo                 Query simulated GPS receiver
@@ -677,8 +786,10 @@ demo> /help.run
   /run var_demo                 Set variables and use them in commands
   /run welcome                  Runs on connect via on_connect_cmd config
   9 scripts.
+  [110/150] /help.run (3ms)
 demo> /print === section: help.plugin ===
   === section: help.plugin ===
+  [111/150] /print === section: help.plugin === (125us)
 demo> /help.plugin
 -- Application --
   /cli        Already in CLI mode.
@@ -724,19 +835,24 @@ demo> /help.plugin
   /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
   /expect     Wait for text in serial output (blocks until match or timeout).
   38 commands.
+  [112/150] /help.plugin (6ms)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
+  [113/150] /print === section: cap.poll === (134us)
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
     counter     AT+RAMP
           1         0.0
           2         0.1
           3         0.2
   Poll complete (3 samples)
+  [114/150] /cap.poll count=3 delay=0 --notime cmd=AT+RAMP (203ms)
 demo> /cap.poll fmt=bogus cmd=AT
   Error: /cap.poll: invalid fmt: 'bogus' (expected one of: csv, json)
   Usage: /cap.poll {count=<N>} {delay=<dur>} {file=<path>} {labels=<value>} {regex=<value>} {fmt=csv|json} {timeout=<dur>} cmd=<command>
+  [115/150] /cap.poll fmt=bogus cmd=AT (2ms)
 demo> /print === section: repeat ===
   === section: repeat ===
+  [116/150] /print === section: repeat === (315us)
 demo> /repeat count=3 cmd=/print hello
 demo> /print hello
   hello
@@ -744,6 +860,7 @@ demo> /print hello
   hello
 demo> /print hello
   hello
+  [117/150] /repeat count=3 cmd=/print hello (1ms)
 demo> /repeat count=3 var=I cmd=/print iteration $(I)
 demo> /print iteration $(I)
   iteration 1
@@ -751,52 +868,110 @@ demo> /print iteration $(I)
   iteration 2
 demo> /print iteration $(I)
   iteration 3
+  [118/150] /repeat count=3 var=I cmd=/print iteration $(I) (922us)
 demo> /repeat cmd=AT
   Error: /repeat: missing required parameter 'count'
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+  [119/150] /repeat cmd=AT (366us)
 demo> /repeat count=0 cmd=AT
   Error: /repeat: count must be >= 1 (got 0)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+  [120/150] /repeat count=0 cmd=AT (368us)
 demo> /repeat count=abc cmd=AT
   Error: /repeat: invalid count: 'abc' (expected an integer)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+  [121/150] /repeat count=abc cmd=AT (346us)
 demo> /repeat count=1 delay=xyz cmd=AT
   Error: /repeat: invalid delay: 'xyz' (expected duration, e.g. 500ms, 1.5s)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+  [122/150] /repeat count=1 delay=xyz cmd=AT (381us)
 demo> /repeat foo count=1 cmd=AT
   Error: /repeat: unexpected argument: 'foo'
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+  [123/150] /repeat foo count=1 cmd=AT (331us)
 demo> /print === section: env vars ===
   === section: env vars ===
+  [124/150] /print === section: env vars === (127us)
 demo> /env.set TEST_VAR hello_world
     TEST_VAR=hello_world
+  [125/150] /env.set TEST_VAR hello_world (123us)
 demo> /env.list TEST_VAR
     TEST_VAR=hello_world
+  [126/150] /env.list TEST_VAR (114us)
 demo> /env.set TEST_VAR updated
     TEST_VAR=updated
+  [127/150] /env.set TEST_VAR updated (125us)
 demo> /env.list TEST_VAR
     TEST_VAR=updated
+  [128/150] /env.list TEST_VAR (133us)
 demo> /print === section: errors ===
   === section: errors ===
+  [129/150] /print === section: errors === (125us)
 demo> /nonexistent_command
   Error: Unknown command: nonexistent_command
+  [130/150] /nonexistent_command (17ms)
 demo> /cfg nonexistent_key
   Error: Unknown config key: nonexistent_key
+  [131/150] /cfg nonexistent_key (8us)
 demo> /port.baud_rate not_a_number
   Invalid baud rate: not_a_number
+  [132/150] /port.baud_rate not_a_number (141us)
 demo> /port.parity X
   Invalid parity: X (use E, M, N, O, S)
+  [133/150] /port.parity X (143us)
 demo> /port.dtr maybe
   Invalid DTR value: maybe (use 0/1/on/off)
+  [134/150] /port.dtr maybe (126us)
 demo> /port.break -5
   Invalid duration (use milliseconds, e.g. 250)
+  [135/150] /port.break -5 (120us)
 demo> /print === section: capability gates (tui_mode + screen_capture) ===
   === section: capability gates (tui_mode + screen_capture) ===
+  [136/150] /print === section: capability gates (tui_mode + screen_c... (127us)
 demo> /line_no on
     Note: /line_no is legacy; use /term.line_no.
   Error: /term.line_no requires: tui_mode (not available in this environment)
+  [137/150] /line_no on (248us)
 demo> /ss.svg
   Error: /ss.svg requires: screen_capture (not available in this environment)
+  [138/150] /ss.svg (269us)
 demo> /ss.txt
   Error: /ss.txt requires: screen_capture (not available in this environment)
+  [139/150] /ss.txt (271us)
+demo> /print === section: json mode ===
+  === section: json mode ===
+  [140/150] /print === section: json mode === (153us)
+demo> /term.line_no --json
+  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0.0}
+  [141/150] /term.line_no --json (314us)
+demo> /term.request on
+  request_mode = True  (session)
+  on
+  [142/150] /term.request on (223us)
+demo> /print hello enveloped
+  {"cmd": "/print hello enveloped", "success": true, "error": "", "value": "hello enveloped", "data": null, "output_lines": ["hello enveloped"], "elapsed_s": 0.0}
+  [143/150] /print hello enveloped (9us)
+demo> /var.set GOLD 42
+  {"cmd": "/var.set GOLD 42", "success": true, "error": "", "value": "42", "data": null, "output_lines": ["  $(GOLD) = 42"], "elapsed_s": 0.0}
+  [144/150] /var.set GOLD 42 (49us)
+demo> /var GOLD
+  {"cmd": "/var GOLD", "success": true, "error": "", "value": "42", "data": null, "output_lines": [], "elapsed_s": 0.0}
+  [145/150] /var GOLD (8us)
+{"cmd": "AT"}
+{"cmd": "AT", "success": true, "error": "", "elapsed_s": 0.0658, "result": "OK"}
+  [146/150] AT (66ms)
+{"cmd": "AT+PROD-ID"}
+{"cmd": "AT+PROD-ID", "success": true, "error": "", "elapsed_s": 0.0611, "result": "+PROD-ID:BASSOMATIC-77"}
+  [147/150] AT+PROD-ID (61ms)
+demo> /nope_bogus_cmd
+  {"cmd": "/nope_bogus_cmd", "success": false, "error": "Unknown command: nope_bogus_cmd", "value": "", "data": null, "output_lines": [], "elapsed_s": 0.0}
+  [148/150] /nope_bogus_cmd (9ms)
+demo> /term.request off
+  request_mode = False  (session)
+  {"cmd": "/term.request off", "success": true, "error": "", "value": "off", "data": null, "output_lines": ["off"], "elapsed_s": 0.0002}
+  [149/150] /term.request off (151us)
+demo> /print prose is back
+  prose is back
+  [150/150] /print prose is back (106us)
+  Script cli_test.run done (2.62s)
 Disconnected: DEMO

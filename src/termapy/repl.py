@@ -1344,6 +1344,50 @@ class ReplEngine:
                         call_level = level
                     break
 
+        def _finish(result: CmdResult) -> CmdResult:
+            """The single exit: envelope in JSON mode, red line otherwise.
+
+            EVERY dispatch return funnels through here -- capability gate,
+            flag/param errors, level conflicts, unknown commands, and the
+            normal path -- so JSON mode can never leak a prose error.  An
+            agent branches on the ``error`` field; a failure that answers
+            outside the envelope is invisible to it.
+
+            In JSON mode the envelope IS the command's answer -- the
+            terminal twin of the MCP response, minus the two host-collected
+            keys (captured_artifacts / async_events) that have no collector
+            here.  It replaces the red error line: error is a field, not a
+            second rendering.  Emitted on the result channel (quiet+), so
+            ``--json --silent`` stays silent and scripts still read
+            ``value``.  The per-call level may already have been restored
+            by dispatch's finally, so it is re-applied around the emission.
+            Reads ``wants_json`` / ``call_level`` / ``args`` /
+            ``json_output_lines`` at call time.
+            """
+            if wants_json:
+                import json as _json
+
+                envelope = {
+                    "cmd": f"{self.prefix}{name} {args}".rstrip(),
+                    "success": result.success,
+                    "error": result.error or "",
+                    "value": result.value,
+                    "data": result.data,
+                    "output_lines": json_output_lines,
+                    "elapsed_s": round(result.elapsed_s, 4),
+                }
+                saved_emit_level = self.ctx._call_level
+                if call_level is not None:
+                    self.ctx._call_level = call_level
+                try:
+                    self.ctx.io.result(_json.dumps(envelope, default=str))
+                finally:
+                    self.ctx._call_level = saved_emit_level
+                return result
+            if not result.success and result.error:
+                self.write(result.err_msg, "red")
+            return result
+
         if plugin:
             # Capability gate: every command declares the environment
             # capabilities its handler relies on via Command.needs.  Before
@@ -1352,12 +1396,10 @@ class ReplEngine:
             # rather than letting the handler hit a no-op lambda or crash.
             missing = plugin.needs.missing_from(self._effective_capabilities())
             if missing:
-                result = CmdResult.fail(
+                return _finish(CmdResult.fail(
                     msg=f"{self.prefix}{name} requires: {', '.join(missing)} "
                     f"(not available in this environment)"
-                )
-                self.write(result.err_msg, "red")
-                return result
+                ))
             # Universal level-flag pre-pass: strip --silent/--quiet/--normal/
             # --verbose before per-command flag parsing so every command
             # accepts them without declaring them.  Suffix and flag must
@@ -1365,12 +1407,10 @@ class ReplEngine:
             args, flag_level = _strip_level_flags(args)
             if flag_level is not None:
                 if call_level is not None and call_level != flag_level:
-                    result = CmdResult.fail(
+                    return _finish(CmdResult.fail(
                         msg=f"Conflicting output level: .{call_level} "
                         f"and --{flag_level}"
-                    )
-                    self.write(result.err_msg, "red")
-                    return result
+                    ))
                 call_level = flag_level
             # First-class flag parsing: strip declared flags from args and
             # record them on the context for the handler to read via
@@ -1378,9 +1418,7 @@ class ReplEngine:
             # (args passed through unchanged; set is empty).
             args, active_flags, flag_error = _parse_flags(args, plugin.flags)
             if flag_error:
-                result = CmdResult.fail(msg=flag_error)
-                self.write(result.err_msg, "red")
-                return result
+                return _finish(CmdResult.fail(msg=flag_error))
             # Declarative params: parse/coerce/validate before touching the
             # context, so a bad-argument failure returns without having
             # mutated ctx.  Commands with no declared params opt out entirely
@@ -1401,16 +1439,14 @@ class ReplEngine:
                     deref=None if plugin.raw_args else deref_ref,
                 )
                 if param_error:
-                    result = CmdResult.fail(
+                    return _finish(CmdResult.fail(
                         msg=format_usage(
                             self.prefix,
                             name,
                             plugin,
                             detail=f"{self.prefix}{name}: {param_error}",
                         )
-                    )
-                    self.write(result.err_msg, "red")
-                    return result
+                    ))
             self.ctx.active_flags = active_flags
             # Save+restore the level (rather than reset to None) so a
             # nested dispatch inside the handler -- e.g. /run cascading
@@ -1512,39 +1548,7 @@ class ReplEngine:
                 )
             else:
                 result = CmdResult.fail(msg=f"Unknown command: {name}")
-        if wants_json:
-            # The JSON envelope IS the command's answer in --json mode --
-            # the terminal twin of the MCP response, minus the three
-            # host-collected keys (output_lines / captured_artifacts /
-            # async_events), which have no collector here.  It replaces
-            # the red error line too: error is a field, not a second
-            # rendering.  Emitted on the result channel (quiet+), so
-            # ``--json --silent`` stays silent and scripts still read
-            # ``value``.  The per-call level was restored in the finally
-            # above, so re-apply it around the emission or the silent/
-            # quiet override wouldn't reach this write.
-            import json as _json
-
-            envelope = {
-                "cmd": f"{self.prefix}{name} {args}".rstrip(),
-                "success": result.success,
-                "error": result.error or "",
-                "value": result.value,
-                "data": result.data,
-                "output_lines": json_output_lines,
-                "elapsed_s": round(result.elapsed_s, 4),
-            }
-            saved_emit_level = self.ctx._call_level
-            if call_level is not None:
-                self.ctx._call_level = call_level
-            try:
-                self.ctx.io.result(_json.dumps(envelope, default=str))
-            finally:
-                self.ctx._call_level = saved_emit_level
-            return result
-        if not result.success and result.error:
-            self.write(result.err_msg, "red")
-        return result
+        return _finish(result)
 
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
 

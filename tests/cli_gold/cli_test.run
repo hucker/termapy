@@ -196,3 +196,21 @@ $(BAUD) <- /port.baud_rate
 /line_no on
 /ss.svg
 /ss.txt
+
+# ── JSON mode (session dial + per-call flag) ────────────────────────────────
+# The session is either in JSON mode or prose mode; /term.request on flips
+# EVERYTHING to envelopes -- termapy commands and bare device commands
+# alike.  Deterministic subset only: bare /var (datetime values) and
+# /port.list (real hardware) stay out; single-name /var and the demo
+# device's fixed replies are exact.  elapsed_s is masked by the harness.
+/print === section: json mode ===
+/term.line_no --json
+/term.request on
+/print hello enveloped
+/var.set GOLD 42
+/var GOLD
+AT
+AT+PROD-ID
+/nope_bogus_cmd
+/term.request off
+/print prose is back

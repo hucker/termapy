@@ -24,7 +24,7 @@ a quick-setup dialog where you pick a name, a serial port, and a baud
 rate.  Hit **Connect** to save and connect, or **Advanced** to drop into
 the full JSON editor for fine-grained control.
 
-![New config quick-setup dialog](img/new_cfg.png)
+![New config quick-setup dialog](img/doc_30_new_cfg.png)
 
 ## JSON config file
 

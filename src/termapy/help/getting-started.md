@@ -5,7 +5,7 @@ tried the demo yet, start with [Installation](installation.md).
 
 ## Quick setup
 
-![New Config dialog](img/new_cfg.png)
+![New Config dialog](img/doc_30_new_cfg.png)
 
 On first run or when clicking **New** in the config picker, the Quick Setup
 dialog lets you pick a port, baud rate, and config name in one step.
@@ -75,7 +75,7 @@ CLI mode includes built-in completion powered by prompt\_toolkit:
 - **Tab completion** -- press Tab to complete REPL commands, subcommands, and device commands
 - **Auto-suggest** -- recent history appears as gray text as you type; press Right arrow to accept
 
-![CLI completion](img/cli_completion.png)
+![CLI completion](img/doc_31_cli_completion.png)
 
 Toggle completion during a session with `/cli.completion on|off`, or
 disable it in your config:

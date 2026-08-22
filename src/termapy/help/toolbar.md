@@ -24,7 +24,7 @@ button.
 Hover over any of the config, port, or status buttons to see a detailed
 tooltip with current settings and chip information.
 
-![Port button tooltip with chip info](img/com_port_tooltip.png)
+![Port button tooltip with chip info](img/doc_33_port_tooltip.png)
 
 ### Port picker
 

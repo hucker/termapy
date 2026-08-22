@@ -37,6 +37,8 @@ is.  Use whichever entry point is convenient:
 | Shell           | `termapy --info`           | Same as `/port.chip *`, no TUI, pipe-friendly |
 | Shell           | `termapy --info=COM4`      | Same as `/port.chip COM4`, no TUI             |
 
+![Port table from /port.list](img/doc_14_port_list.svg)
+
 ## When you have multiple cables and don't know which is which
 
 Open the port picker (click the port name in the title bar) or run

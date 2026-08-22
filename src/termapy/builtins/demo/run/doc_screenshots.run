@@ -76,3 +76,48 @@ AT+STATUS
 /delay.silent 2s
 /ss.svg.silent doc_10_config_info
 /term.output normal
+
+# -- 11. Protocol test run: PASS/FAIL results --
+/cls
+/proto.run modbus_inline.pro
+/delay.silent 2s
+/ss.svg.silent doc_11_proto_run
+
+# -- 12. Structured capture decoded to CSV, echo on --
+/cls
+/cap.struct doc_cap_$(n000).csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 records=10 echo=on cmd=AT+BINDUMP 10
+/delay.silent 3s
+/ss.svg.silent doc_12_cap_struct
+
+# -- 13. (doc_13_cap_progress is NOT taken here: while a script runs,
+#        the script-progress bar owns the toolbar, so the capture
+#        overlay never shows.  Take it at idle instead:
+#          /cap.text doc_progress.txt timeout=15s
+#          /ss.svg.silent doc_13_cap_progress
+#          /cap.stop                                                --
+
+# -- 14. Port table (set TERMAPY_DEMO_FLEET=1 first for the fixed
+#        three-port synthetic fleet; otherwise your real ports show) --
+/cls
+/port.list
+/delay.silent 2s
+/ss.svg.silent doc_14_port_list
+
+# -- 15. XMODEM pull from the demo device's virtual filesystem --
+/cls
+AT+FS.LIST
+/delay.silent 1s
+AT+XMODEM=SEND device_log.txt
+/xfer.xmodem.recv doc_xfer_$(n000).bin
+/delay.silent 2s
+/ss.svg.silent doc_15_xfer
+
+# -- 16. (doc_16_toolbar is NOT taken here for the same reason as 13:
+#        the idle toolbar is replaced by the script bar during a run.
+#        Take it at idle: /cls then /ss.svg.silent doc_16_toolbar   --
+
+# -- 17. Interactive proto debug screen (kept last: it pushes a
+#        full-screen view that stays open when the script ends) --
+/proto.debug modbus_inline.pro
+/delay.silent 2s
+/ss.svg.silent doc_17_proto_debug

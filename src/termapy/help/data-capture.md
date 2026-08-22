@@ -44,6 +44,8 @@ Use `fmt=` with the format spec language to define the record structure.
 `/cap.struct` reads raw bytes; `/cap.hex` reads hex-encoded text lines.
 Byte ranges are 1-based. Omit names for unnamed columns.
 
+![Structured capture with echo](img/doc_12_cap_struct.svg)
+
 - `records=N`: number of records (record size derived from format spec)
 - `bytes=N`: alternative; total bytes (must be a multiple of record size)
 - `sep=comma|tab|space`: column separator (default comma, produces CSV)
@@ -139,5 +141,8 @@ tracks the last-used number across sessions, with rollover.
 ```
 
 Bare filenames are saved to the per-config `cap/` directory.
-A progress bar and Stop button overlay the toolbar during capture.
+A progress bar and Stop button overlay the toolbar during capture:
+
+![Capture in progress](img/doc_13_cap_progress.svg)
+
 The **Cap** button opens the cap/ folder.

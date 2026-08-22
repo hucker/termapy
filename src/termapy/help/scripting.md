@@ -1,7 +1,7 @@
 # Scripting
 
-Click the **Scripts** button or use `/run <filename>` to work with scripts.
-The script picker has four actions:
+Click the **Run** button in the title bar or use `/run <filename>` to work
+with scripts. The script picker has four actions:
 
 - **New:** create a new script (opens the editor with a template)
 - **Edit:** open the highlighted script in the editor

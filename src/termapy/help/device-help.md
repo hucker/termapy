@@ -19,6 +19,8 @@ that consults the active profile -- the MCP catalog, the dispatch
 executor's typed-arg validation, transport rules, error detection,
 `/help`, autocompletion -- sees the device's full contract.
 
+![Device target commands in /help.target](img/doc_09_target_help.svg)
+
 Once loaded, the active profile can be saved to disk with
 `/profile.save`; the default path is `<cfg_dir>/<cfg_name>.profile.json`
 so the next connect picks it up automatically via the `profile_path`

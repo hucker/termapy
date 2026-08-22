@@ -96,6 +96,8 @@ It drops down from the top-center of the window, like VS Code's
 command palette, with fuzzy filtering as you type and a most-recently-used
 list when opened with an empty query.
 
+![Command palette](img/doc_20_palette.svg)
+
 Quick access to:
 
 - Help

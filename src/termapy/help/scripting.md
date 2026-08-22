@@ -8,9 +8,13 @@ with scripts. The script picker has four actions:
 - **Run:** execute the highlighted script
 - **Cancel:** close the picker
 
+![Script picker](img/doc_21_script_picker.svg)
+
 The script editor provides syntax highlighting (bash-style) for comments
 and a name field. Scripts are saved with a `.run` extension in the per-config
 `run/` folder.
+
+![Script editor with template](img/doc_22_script_editor.svg)
 
 ## Script file format
 

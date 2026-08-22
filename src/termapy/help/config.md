@@ -197,6 +197,8 @@ The JSON editor provides:
 - **Save As:** save as a new config (creates a new subfolder)
 - **Cancel:** discard changes
 
+![Config JSON editor](img/doc_23_config_editor.svg)
+
 Invalid JSON is caught before saving, with the error shown inline.
 
 ---

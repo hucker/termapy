@@ -47,4 +47,7 @@ Each button object has these fields:
 - Mixed serial and REPL commands work: `"ATZ\n/delay 500ms\nAT+INFO"`
 
 Custom buttons appear in the toolbar between the hardware buttons and the
-system buttons (Log, SS, Cap, Exit), with a small gap separating them.
+system buttons (Log, SS, Cap), with a small gap separating them.  The demo
+config's five buttons (Demo Help through TempPlot):
+
+![Custom buttons in the demo toolbar](img/doc_16_toolbar.svg)

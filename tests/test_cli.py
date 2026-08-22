@@ -1482,3 +1482,131 @@ class TestPlainFileHistory:
         # Assert -- byte-level interop: TUI sees exactly the commands
         expected = ["/run at_demo", "/ping"]
         assert actual == expected, "TUI plain-lines loader sees CLI entries"
+
+
+class TestWatchPortWidth:
+    """Port-column width: platform floor grown to the initial fleet."""
+
+    def test_floor_wins_over_short_devices(self):
+        # Arrange / Act -- explicit floor so the test is platform-free
+        from termapy.cli_flags import _watch_port_width
+        actual = _watch_port_width(["COM3", "COM10"], floor=6)
+
+        # Assert
+        assert actual == 6, "short names never shrink below the floor"
+
+    def test_longest_device_wins_over_floor(self):
+        # Arrange / Act
+        from termapy.cli_flags import _watch_port_width
+        actual = _watch_port_width(
+            ["/dev/cu.Bluetooth-Incoming-Port", "/dev/ttyUSB0"], floor=6
+        )
+
+        # Assert
+        expected = len("/dev/cu.Bluetooth-Incoming-Port")
+        assert actual == expected, "fleet's longest name sets the width"
+
+    def test_empty_fleet_gives_the_floor(self):
+        # Arrange / Act -- watch can start with zero ports
+        from termapy.cli_flags import _watch_port_width
+        actual = _watch_port_width([], floor=32)
+
+        # Assert
+        assert actual == 32, "no ports -> floor, so later rows still pad"
+
+    def test_mac_shaped_fleet_aligns_columns(self, capsys, monkeypatch):
+        # Arrange -- the reported defect: macOS device names vary wildly
+        # in length (COMxxx never does), so the port column must be
+        # padded to the fleet max or every later column drifts per row.
+        import argparse
+
+        from termapy import cli_flags
+
+        fleet = _synthetic_facts(
+            ("/dev/cu.Bluetooth-Incoming-Port", "-", "-", "0000:0000", "-"),
+            ("/dev/cu.usbserial-BG03U7VT", "FTDI", "FTDI FT232R / FT245R",
+             "0403:6001", "BG03U7VT"),
+            ("/dev/cu.wlan-debug", "-", "-", "0000:0000", "-"),
+        )
+        monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
+        looks = [0]
+
+        def _snapshots():
+            looks[0] += 1
+            if looks[0] == 1:
+                return fleet
+            raise KeyboardInterrupt
+
+        # Act
+        with pytest.raises(SystemExit):
+            cli_flags.run_watch(argparse.Namespace(), source=_snapshots)
+
+        # Assert -- every state row's post-port columns start at the SAME
+        # offset.  The state column value is deterministic here ("-" or
+        # "closed"), but the alignment claim is about position, so anchor
+        # on the vid_pid column value, unique per row and present in all.
+        out = capsys.readouterr().out
+        rows = [line for line in out.splitlines() if "/dev/cu." in line]
+        assert len(rows) == 3, "one state row per fleet port"
+        vid_offsets = {
+            row.find("0403:6001") if "0403:6001" in row else row.find("0000:0000")
+            for row in rows
+        }
+        assert len(vid_offsets) == 1, (
+            f"vid_pid column at one offset across rows; got {sorted(vid_offsets)}"
+        )
+
+    def test_late_long_arrival_grows_the_column(self, capsys, monkeypatch):
+        # Arrange -- baseline is one short name; snapshot 2 adds a much
+        # longer one; snapshot 3 re-emits an event on the SHORT port
+        # (open-state flip).  Grow-only width means the snapshot-3 row
+        # must align with the long row, not with the baseline.
+        import argparse
+
+        from termapy import cli_flags
+        from termapy.port_control import ChipFacts
+
+        short = _synthetic_facts(
+            ("/dev/ttyUSB0", "FTDI", "FTDI FT232R", "0403:6001", "AAA"),
+        )
+        long_fleet = short + _synthetic_facts(
+            ("/dev/cu.usbserial-VERYLONGNAME0123456789", "FTDI",
+             "FTDI FT230X", "0403:6015", "BBB"),
+        )
+        flipped = [
+            ChipFacts(**{**vars(facts), "in_use": "yes"})
+            for facts in long_fleet
+        ]
+        monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
+        snapshots = [short, long_fleet, flipped]
+        looks = [0]
+
+        def _feed():
+            looks[0] += 1
+            if looks[0] <= len(snapshots):
+                return snapshots[looks[0] - 1]
+            raise KeyboardInterrupt
+
+        # Act
+        with pytest.raises(SystemExit):
+            cli_flags.run_watch(argparse.Namespace(), source=_feed)
+
+        # Assert -- rows printed AFTER the long arrival share one
+        # vid_pid offset (grown width); the baseline row keeps its
+        # smaller offset (append-only: the seam is expected).
+        out = capsys.readouterr().out
+        state_rows = [
+            line for line in out.splitlines()
+            if "0403:" in line
+        ]
+        assert len(state_rows) >= 3, f"baseline + add + flip rows; got:\n{out}"
+        baseline_offset = state_rows[0].index("0403:6001")
+        grown_offsets = {
+            row.index("0403:") for row in state_rows[1:]
+        }
+        assert len(grown_offsets) == 1, (
+            f"post-growth rows share one offset; got {sorted(grown_offsets)}"
+        )
+        assert grown_offsets.pop() > baseline_offset, (
+            "the seam: post-growth offset exceeds the baseline's"
+        )

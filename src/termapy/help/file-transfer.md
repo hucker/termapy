@@ -169,6 +169,8 @@ AT+XMODEM=SEND device_log.txt      device enters XMODEM send mode
 /xfer.xmodem.recv device_log.txt        termapy receives into cap/
 ```
 
+![XMODEM pull from the demo device](img/doc_15_xfer.svg)
+
 ### Example: push a file back via XMODEM
 
 After pulling a file (above), you can push it back under a new name.

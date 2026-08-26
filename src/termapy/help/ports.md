@@ -17,7 +17,7 @@ latency problem, a chip you don't recognize, a "permission denied"
 error. Skim the rest so you know it's here, then come back when you're
 stuck.
 
-![Port picker with chip info](img/com_port_select.png)
+![Port picker with chip info](img/doc_32_port_picker.png)
 
 ## When you hit a wall
 
@@ -36,6 +36,8 @@ is.  Use whichever entry point is convenient:
 | Shell           | `termapy --ports`          | Same chip-aware table, no TUI                 |
 | Shell           | `termapy --info`           | Same as `/port.chip *`, no TUI, pipe-friendly |
 | Shell           | `termapy --info=COM4`      | Same as `/port.chip COM4`, no TUI             |
+
+![Port table from /port.list](img/doc_14_port_list.svg)
 
 ## When you have multiple cables and don't know which is which
 
@@ -160,7 +162,7 @@ On Windows: Device Manager → Ports (COM & LPT) → right-click the FTDI
 device → Properties → Port Settings → Advanced → set "Latency Timer
 (msec)" to 1.  The change is persistent across reboots.
 
-![Windows FTDI latency timer setting](img/latency_picker.png)
+![Windows FTDI latency timer setting](img/doc_34_latency_timer.png)
 
 `/port.chip.latency_timer` shows the current value on Linux (Windows
 doesn't expose it via the same path).

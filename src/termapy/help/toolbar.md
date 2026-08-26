@@ -24,6 +24,8 @@ button.
 Hover over any of the config, port, or status buttons to see a detailed
 tooltip with current settings and chip information.
 
+![Port button tooltip with chip info](img/doc_33_port_tooltip.png)
+
 ### Port picker
 
 Clicking the port name in the title bar (or picking **Select Port**
@@ -39,17 +41,22 @@ of termapy's serial-port diagnostics, see [Serial ports](ports.md).
 
 The bottom bar has buttons. Some appear based on context:
 
+![Title bar and toolbar](img/doc_16_toolbar.svg)
+
 | Button      | When Visible                 | Action                                          |
 | ----------- | ---------------------------- | ----------------------------------------------- |
 | **/**       | Always                       | Show REPL command picker (filters as you type)  |
+| **\<Rec\>** | `record_enabled` (default)   | Record typed commands to a .run script          |
 | **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line                    |
 | **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line                    |
 | **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal                |
+| **Custom**  | `custom_buttons` enabled     | User-defined command buttons                    |
 | **Log**     | Always                       | Open the session log in your editor             |
 | **SS**      | Always                       | Open the screenshot folder                      |
 | **Cap**     | Always                       | Open the cap/ folder                            |
-| **Scripts** | Always                       | Pick, run, create, or edit a script             |
-| **Custom**  | `custom_buttons` enabled     | User-defined command buttons                    |
+
+Scripts are picked and run from the **Run** button in the title bar
+(or `/run`); quitting is the red **X** in the title bar (or Ctrl+Q).
 
 ## Keyboard shortcuts
 
@@ -88,6 +95,8 @@ VS Code's integrated terminal does) to open the command palette.
 It drops down from the top-center of the window, like VS Code's
 command palette, with fuzzy filtering as you type and a most-recently-used
 list when opened with an empty query.
+
+![Command palette](img/doc_20_palette.svg)
 
 Quick access to:
 

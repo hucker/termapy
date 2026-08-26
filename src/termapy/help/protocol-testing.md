@@ -31,6 +31,8 @@ expect: "V1." ** ** "\r"
 
 Run with `/proto.run example.pro`. Each step reports PASS/FAIL.
 
+![Protocol test results](img/doc_11_proto_run.svg)
+
 ## Script directives
 
 - `@timeout <duration>`: default expect timeout (default 1000ms)
@@ -49,6 +51,8 @@ Run with `/proto.run example.pro`. Each step reports PASS/FAIL.
 The proto debug screen uses pluggable visualizers to decode packet bytes into
 named columns. Built-in visualizers (Hex, Text, Modbus) ship with termapy. Add
 your own by dropping a `.py` file into `termapy_cfg/<config>/viz/`.
+
+![Interactive proto debug screen](img/doc_17_proto_debug.svg)
 
 Multiple visualizers can be active at once via the checklist. Enable "Show viz
 string" to display the raw format spec above each table.

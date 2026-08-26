@@ -1,16 +1,20 @@
 # Scripting
 
-Click the **Scripts** button or use `/run <filename>` to work with scripts.
-The script picker has four actions:
+Click the **Run** button in the title bar or use `/run <filename>` to work
+with scripts. The script picker has four actions:
 
 - **New:** create a new script (opens the editor with a template)
 - **Edit:** open the highlighted script in the editor
 - **Run:** execute the highlighted script
 - **Cancel:** close the picker
 
+![Script picker](img/doc_21_script_picker.svg)
+
 The script editor provides syntax highlighting (bash-style) for comments
 and a name field. Scripts are saved with a `.run` extension in the per-config
 `run/` folder.
+
+![Script editor with template](img/doc_22_script_editor.svg)
 
 ## Script file format
 

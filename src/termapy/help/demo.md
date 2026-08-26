@@ -29,6 +29,8 @@ VT100 passthrough renders that plain line output can't. Quit with Ctrl-]. See
 
 ## What you get
 
+![Demo session with temperature sparkline](img/doc_01_main_tui.svg)
+
 The demo creates a complete project at `termapy_cfg/demo/` with:
 
 - A simulated device called **[BASSOMATIC-77](https://en.wikipedia.org/wiki/Bass-O-Matic)** (the natural successor to Dan Aykroyd's '76) that responds to AT

@@ -24,7 +24,7 @@ a quick-setup dialog where you pick a name, a serial port, and a baud
 rate.  Hit **Connect** to save and connect, or **Advanced** to drop into
 the full JSON editor for fine-grained control.
 
-![New config quick-setup dialog](img/new_cfg.png)
+![New config quick-setup dialog](img/doc_30_new_cfg.png)
 
 ## JSON config file
 
@@ -196,6 +196,8 @@ The JSON editor provides:
 - **Save:** write changes to the current config file
 - **Save As:** save as a new config (creates a new subfolder)
 - **Cancel:** discard changes
+
+![Config JSON editor](img/doc_23_config_editor.svg)
 
 Invalid JSON is caught before saving, with the error shown inline.
 

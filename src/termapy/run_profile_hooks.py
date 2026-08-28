@@ -141,7 +141,7 @@ def _hook_run_profile_list(app, ctx, args: str) -> CmdResult:
         ctx.io.output("  (no profile files)")
         return CmdResult.ok(value="")
     for line in format_file_lines(profs):
-        ctx.io._write(f"  {line}")
+        ctx.io._write(f"  {line.rstrip()}")
     return CmdResult.ok(value=names)
 
 

@@ -91,10 +91,12 @@ def file_record(path: Path, *, now: float | None = None) -> dict[str, Any]:
 class FileColumns:
     """One listing row, pre-formatted and pre-padded: ``name  size  age``.
 
-    ``name`` is padded to the widest name in the batch and ``size`` is
-    right-aligned to the widest size, so a consumer that joins the three
-    with two spaces gets aligned columns; a consumer that styles them
-    (the TUI pickers dim the metadata) keeps the same alignment.
+    ``name`` and ``age`` are padded to the widest in the batch and ``size``
+    is right-aligned to the widest size, so a consumer that joins the three
+    with two spaces gets aligned columns -- and anything appended after
+    ``age`` (a docstring summary, a config's port) lines up too.  A
+    consumer that styles them (the TUI pickers dim the metadata) keeps the
+    same alignment.
     """
 
     name: str
@@ -121,8 +123,9 @@ def file_columns(files: list[Path]) -> list[FileColumns]:
         rows.append((file.name, format_size(st.st_size), format_age(st.st_mtime)))
     name_width = max(len(name) for name, _, _ in rows)
     size_width = max(len(size) for _, size, _ in rows)
+    age_width = max(len(age) for _, _, age in rows)
     return [
-        FileColumns(f"{name:<{name_width}}", f"{size:>{size_width}}", age)
+        FileColumns(f"{name:<{name_width}}", f"{size:>{size_width}}", f"{age:<{age_width}}")
         for name, size, age in rows
     ]
 
@@ -130,8 +133,9 @@ def file_columns(files: list[Path]) -> list[FileColumns]:
 def format_file_lines(files: list[Path]) -> list[str]:
     """``name  size  age`` listing lines, one per file, columns aligned.
 
-    Callers that add a trailing column (``/run.list`` appends the docstring
-    summary) get consistent alignment for free.
+    The age pad is kept so a caller that appends a trailing column
+    (``/run.list`` adds the docstring summary) gets it aligned; a caller
+    that prints the line as-is should ``rstrip()`` it.
     """
     return [f"{row.name}  {row.size}  {row.age}" for row in file_columns(files)]
 
@@ -164,7 +168,7 @@ def _make_list_handler(folder: str, pattern: str):
             return CmdResult.ok(value="")
         ctx.io._write(f"  {folder}/")
         for line in format_file_lines(files):
-            ctx.io._write(f"    {line}")
+            ctx.io._write(f"    {line.rstrip()}")
         return CmdResult.ok(value=names)
 
     return handler

@@ -134,7 +134,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 
     ctx.io.output("  run/")
     for line, summary in zip(format_file_lines(files), summaries, strict=True):
-        ctx.io.output(f"    {line}  --  {summary}" if summary else f"    {line}")
+        ctx.io.output(f"    {line}  --  {summary}" if summary else f"    {line.rstrip()}")
     return CmdResult.ok(value=value)
 
 

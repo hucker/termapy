@@ -154,9 +154,13 @@ def added_since(tag: str, repo_root: Path = REPO_ROOT) -> list[Suppression]:
     considered, so pre-existing suppressions in a touched file are ignored
     -- the gate is about what a change *introduces*.
     """
+    # Explicit UTF-8: the Windows Python defaults captured text to cp1252,
+    # and one non-decodable byte in the diff killed the reader thread and
+    # left ``stdout`` as None (a release run died here on a 0x90 byte).
     diff = subprocess.run(
         ["git", "diff", f"{tag}..HEAD", "--unified=0", "--", SRC_REL],
         cwd=repo_root, capture_output=True, text=True, check=True,
+        encoding="utf-8", errors="replace",
     ).stdout
     added: list[Suppression] = []
     cur_file: str | None = None

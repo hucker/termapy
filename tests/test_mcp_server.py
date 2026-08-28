@@ -418,6 +418,12 @@ class TestRunCommandErrors:
 
         async_events, other tool calls, and the MCP transport itself all
         share this event loop.
+
+        The window is a full second (not the 0.3 s the sibling test uses):
+        tick DENSITY is the assertion, and over 0.3 s the executor-thread
+        spin-up plus coverage tracing under eight xdist workers cost enough
+        ticks to fail a live loop (3 ticks in 0.40 s, needing 4).  A longer
+        window makes the steady state dominate the sample.
         """
         async def scenario():
             ticks = 0
@@ -430,7 +436,7 @@ class TestRunCommandErrors:
 
             beat = asyncio.create_task(ticker())
             started = time.monotonic()
-            result = await host.run_command_async("/delay 1s", "normal", 0.3)
+            result = await host.run_command_async("/delay 3s", "normal", 1.0)
             elapsed = time.monotonic() - started
             beat.cancel()
             return result, ticks, elapsed

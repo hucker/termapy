@@ -14,9 +14,14 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList
-from textual.widgets.option_list import Option
 
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.dialogs._common import (
+    _DISMISS_BINDINGS,
+    _FILE_PICKER_WIDTH,
+    _MODAL_BTN_CSS,
+    _populate_file_option_list,
+)
+from termapy.folder_ops import list_entries
 
 
 class ProtoPicker(ModalScreen[tuple | None]):
@@ -28,7 +33,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
     ProtoPicker {{ align: center middle; }}
     ProtoPicker Button {{ {_MODAL_BTN_CSS} }}
     #proto-dialog {{
-        width: 50; height: 18;
+        width: {_FILE_PICKER_WIDTH}; max-width: 100%; height: 18;
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #proto-title {{ height: 1; text-style: bold; }}
@@ -72,12 +77,11 @@ class ProtoPicker(ModalScreen[tuple | None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
 
-        protos = sorted(f for f in self.proto_dir.glob("*.pro") if f.is_file() and not f.name.startswith("."))
+        protos = list_entries(self.proto_dir, "*.pro")  # newest first
         with Vertical(id="proto-dialog"):
             yield Static("Select Protocol Script", id="proto-title")
             ol = OptionList(id="proto-list")
-            for f in protos:
-                ol.add_option(Option(f.name, id=str(f)))
+            _populate_file_option_list(ol, protos)
             if protos:
                 ol.highlighted = 0
             yield ol

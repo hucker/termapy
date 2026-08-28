@@ -24,6 +24,7 @@ folder operations per plugin.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -86,27 +87,53 @@ def file_record(path: Path, *, now: float | None = None) -> dict[str, Any]:
     }
 
 
-def format_file_lines(files: list[Path]) -> list[str]:
-    """Aligned ``name  size  age`` listing lines, one per file.
+@dataclass(frozen=True)
+class FileColumns:
+    """One listing row, pre-formatted and pre-padded: ``name  size  age``.
 
-    The prose twin of ``file_record``: name column padded to the longest
-    name, size right-aligned, age last so the ragged part is at the end.
-    Callers that add a trailing column (``/run.list`` appends the docstring
-    summary) get consistent alignment for free.
+    ``name`` is padded to the widest name in the batch and ``size`` is
+    right-aligned to the widest size, so a consumer that joins the three
+    with two spaces gets aligned columns; a consumer that styles them
+    (the TUI pickers dim the metadata) keeps the same alignment.
+    """
+
+    name: str
+    size: str
+    age: str
+
+
+def file_columns(files: list[Path]) -> list[FileColumns]:
+    """Aligned listing columns for ``files``, one row per file.
+
+    The prose twin of ``file_record``.  A file that vanishes between
+    glob and stat shows ``?`` for size and age rather than failing the
+    whole listing.
     """
     if not files:
         return []
-    name_width = max(len(file.name) for file in files)
-    lines: list[str] = []
+    rows: list[tuple[str, str, str]] = []
     for file in files:
         try:
             st = file.stat()
         except OSError:
-            lines.append(f"{file.name:<{name_width}}  {'?':>8}  ?")
+            rows.append((file.name, "?", "?"))
             continue
-        size = format_size(st.st_size)
-        lines.append(f"{file.name:<{name_width}}  {size:>8}  {format_age(st.st_mtime)}")
-    return lines
+        rows.append((file.name, format_size(st.st_size), format_age(st.st_mtime)))
+    name_width = max(len(name) for name, _, _ in rows)
+    size_width = max(len(size) for _, size, _ in rows)
+    return [
+        FileColumns(f"{name:<{name_width}}", f"{size:>{size_width}}", age)
+        for name, size, age in rows
+    ]
+
+
+def format_file_lines(files: list[Path]) -> list[str]:
+    """``name  size  age`` listing lines, one per file, columns aligned.
+
+    Callers that add a trailing column (``/run.list`` appends the docstring
+    summary) get consistent alignment for free.
+    """
+    return [f"{row.name}  {row.size}  {row.age}" for row in file_columns(files)]
 
 
 def _folder_path(ctx: PluginContext, folder: str) -> Path | None:

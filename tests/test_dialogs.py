@@ -10,11 +10,13 @@ conventions in CLAUDE.md) and had no tests pinning them.
 from __future__ import annotations
 
 import asyncio
+import os
+import time
 
 from textual.app import App
-from textual.widgets import Input
+from textual.widgets import Input, OptionList
 
-from termapy.dialogs import ConfirmDialog, FilenameDialog
+from termapy.dialogs import ConfirmDialog, FilenameDialog, ScriptPicker
 
 
 class _Host(App):
@@ -124,5 +126,47 @@ class TestFilenameDialog:
                 await pilot.press("escape")
                 await pilot.pause()
                 assert results == [None], "Escape cancels with None"
+
+        _run(scenario)
+
+
+class TestScriptPicker:
+    """The file pickers list newest first and show size, age, and a detail column."""
+
+    def test_rows_show_newest_first_with_size_age_and_summary(self, tmp_path):
+        async def scenario():
+            # Arrange -- the script that sorts FIRST by name is an hour old.
+            run_dir = tmp_path / "run"
+            run_dir.mkdir()
+            older = run_dir / "a_older.run"
+            older.write_bytes(b"# Old summary.\n/echo old\n")
+            hour_ago = time.time() - 3600
+            os.utime(older, (hour_ago, hour_ago))
+            newer = run_dir / "z_newer.run"
+            newer.write_bytes(b"/echo new\n")
+
+            app = _Host()
+            async with app.run_test() as pilot:
+                results: list = []
+                app.push_screen(ScriptPicker(run_dir), callback=results.append)
+                await pilot.pause()
+                ol = app.screen.query_one("#script-list", OptionList)
+                options = [ol.get_option_at_index(i) for i in range(ol.option_count)]
+                rows = [str(option.prompt) for option in options]
+
+                # Assert -- order, columns, and the id the app will act on
+                assert rows[0].startswith("z_newer.run"), (
+                    f"newest file lists first even though it sorts last by name: {rows}"
+                )
+                assert "10 B" in rows[0] and "just now" in rows[0], "size and age columns"
+                assert "1 hr ago" in rows[1] and rows[1].endswith("Old summary."), (
+                    "age plus the docstring summary as the detail column"
+                )
+                assert options[0].id == str(newer), "option id is the path the app runs"
+
+                # Act -- Enter runs the highlighted (newest) script
+                await pilot.press("enter")
+                await pilot.pause()
+                assert results == [("run", str(newer))], "Enter dismisses with the newest"
 
         _run(scenario)

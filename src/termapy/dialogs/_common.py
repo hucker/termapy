@@ -6,14 +6,69 @@ Underscore prefix marks this as package-private; consumers go through
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
+
+from rich.text import Text
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
+
+from termapy.folder_ops import file_columns
 
 # Shared CSS for modal dialog buttons.
 _MODAL_BTN_CSS = """
     min-width: 0; width: auto; height: 1; min-height: 1;
     border: none; margin: 0 0 0 1;
 """
+
+# Width of the three file pickers (script / proto / config).  Wide enough
+# for ``name  size  age`` plus a trailing detail column; ``max-width`` in
+# the picker CSS keeps it inside a narrow terminal, where the detail
+# column simply truncates harder.
+_FILE_PICKER_WIDTH = 84
+# Columns a row may use inside that dialog: border 2 + padding 4 + list's
+# thick border 2 + a scrollbar 2.
+_FILE_PICKER_ROW_WIDTH = _FILE_PICKER_WIDTH - 10
+_ELLIPSIS = "..."
+
+
+def _populate_file_option_list(
+    ol: OptionList,
+    files: list[Path],
+    *,
+    detail: Callable[[Path], str] | None = None,
+    label: Callable[[Path, str], str] | None = None,
+    row_width: int = _FILE_PICKER_ROW_WIDTH,
+) -> None:
+    """Fill an OptionList with one ``name  size  age  detail`` row per file.
+
+    Shared by the script, proto, and config pickers so a file looks the
+    same wherever it is picked.  ``files`` should already be in display
+    order (the pickers pass ``folder_ops.list_entries``, newest first).
+    The name is plain; size, age, and the optional detail are ``dim`` so
+    the eye lands on the name and reads the rest on demand.  A detail
+    that would overflow ``row_width`` is truncated with an ellipsis.
+
+    Args:
+        ol: The list to fill.
+        files: Files in display order.
+        detail: Optional per-file trailing text (a docstring summary, a
+            config's port).  Called once per file.
+        label: Optional ``(path, padded_name) -> str`` override for the
+            name column (the config picker shows the stem).
+    """
+    for path, row in zip(files, file_columns(files), strict=True):
+        name = label(path, row.name) if label else row.name
+        text = Text(name)
+        text.append(f"  {row.size}  {row.age}", style="dim")
+        extra = detail(path) if detail else ""
+        if extra:
+            room = row_width - text.cell_len - 2
+            if room > len(_ELLIPSIS):
+                if len(extra) > room:
+                    extra = extra[: room - len(_ELLIPSIS)] + _ELLIPSIS
+                text.append(f"  {extra}", style="dim")
+        ol.add_option(Option(text, id=str(path)))
 
 # Dismiss bindings shared by all modal dialogs.
 _DISMISS_BINDINGS = [

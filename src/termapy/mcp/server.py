@@ -322,42 +322,41 @@ class MCPHost(TerminalHost):
 
     def _start_reader(self) -> None:
         """Start the background serial reader thread."""
-
-        def on_lines(lines: list[str]) -> None:
-            # Inbound serial bytes -> feed the engine's expect-watcher
-            # ring buffer (so /expect sees them and request_response can
-            # consume them), log, and route to the right sink:
-            #   1. ``_buffer`` contextvar set -- we're inside a run_command
-            #      on the same thread; append to output_lines.
-            #   2. ``_call_active`` event set -- worker thread is mid-call;
-            #      the bytes are about to be consumed synchronously by
-            #      request_response (the profile path).  Suppress async
-            #      recording so command responses don't duplicate as
-            #      async_events.
-            #   3. Otherwise -- truly between calls; record as async event.
-            self.repl.feed_lines(lines)
-            buf = _buffer.get()
-            for line in lines:
-                text = self._rx_text(line)
-                self._log_line(f"< {text}")
-                if buf is not None:
-                    buf.append({"level": "rx", "text": text, "color": ""})
-                elif self._call_active.is_set():
-                    # Call in progress in another thread; the synchronous
-                    # reader will consume this line.  Don't double-record.
-                    pass
-                else:
-                    self._record_async_event(text, source="between_calls")
-
         # The engine owns the thread now (so disconnect() can join it); this
         # host no longer tracks its own handle.
         self.engine.start_reader(
-            on_lines=on_lines,
+            on_lines=self._on_lines,
             on_clear=lambda: None,
             on_capture_done=lambda: self._stop_capture(),
             on_error=lambda detail: self._log_line(f"! Serial error: {detail}"),
             on_disconnect=lambda: self._log_line("! Serial disconnected"),
         )
+
+    def _on_lines(self, lines: list[str]) -> None:
+        # Inbound serial bytes -> feed the engine's expect-watcher
+        # ring buffer (so /expect sees them and request_response can
+        # consume them), log, and route to the right sink:
+        #   1. ``_buffer`` contextvar set -- we're inside a run_command
+        #      on the same thread; append to output_lines.
+        #   2. ``_call_active`` event set -- worker thread is mid-call;
+        #      the bytes are about to be consumed synchronously by
+        #      request_response (the profile path).  Suppress async
+        #      recording so command responses don't duplicate as
+        #      async_events.
+        #   3. Otherwise -- truly between calls; record as async event.
+        self.repl.feed_lines(lines)
+        buf = _buffer.get()
+        for line in lines:
+            text = self._rx_text(line)
+            self._log_line(f"< {text}")
+            if buf is not None:
+                buf.append({"level": "rx", "text": text, "color": ""})
+            elif self._call_active.is_set():
+                # Call in progress in another thread; the synchronous
+                # reader will consume this line.  Don't double-record.
+                pass
+            else:
+                self._record_async_event(text, source="between_calls")
 
     def _confirm(self, message: str) -> bool:
         """No interactive UI in MCP mode -- destructive commands fail-fast."""

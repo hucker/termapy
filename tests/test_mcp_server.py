@@ -704,6 +704,64 @@ class TestColorStripping:
         # Assert
         assert actual == line, "ANSI passed through when color on"
 
+    # -- Integration: the real _on_lines sink -> output_lines / async_events --
+    # These drive the actual reader callback (not the _rx_text helper in
+    # isolation) with ANSI-bearing device lines and assert the strip lands in
+    # the fields the agent receives.  _buffer is the contextvar run_command
+    # sets before dispatch and drains into ``output_lines`` afterward.
+
+    def test_on_lines_strips_ansi_into_output_buffer_when_color_off(self, host):
+        # Arrange -- reproduce a run_command in flight: _buffer holds the
+        # rx entries that become output_lines.
+        from termapy.mcp.server import _buffer
+
+        token = _buffer.set([])
+        try:
+            # Act -- colored device lines arrive on the reader callback.
+            host._on_lines(["\x1b[32mgreen\x1b[0m", "plain line"])
+            buf = _buffer.get()
+        finally:
+            _buffer.reset(token)
+
+        # Assert -- the rx entries that become output_lines are escape-free.
+        rx_text = [entry["text"] for entry in buf if entry["level"] == "rx"]
+        assert rx_text == ["green", "plain line"], (
+            "device ANSI stripped from output_lines rx entries when color off"
+        )
+
+    def test_on_lines_keeps_ansi_in_output_buffer_when_color_on(self, host):
+        # Arrange -- /term.color on flips the flag to passthrough.
+        host.ctx.ns("flags")["color"] = True
+        from termapy.mcp.server import _buffer
+
+        token = _buffer.set([])
+        try:
+            # Act
+            host._on_lines(["\x1b[32mgreen\x1b[0m", "plain line"])
+            buf = _buffer.get()
+        finally:
+            _buffer.reset(token)
+
+        # Assert -- escapes pass through into output_lines.
+        rx_text = [entry["text"] for entry in buf if entry["level"] == "rx"]
+        assert rx_text == ["\x1b[32mgreen\x1b[0m", "plain line"], (
+            "device ANSI preserved in output_lines when color on"
+        )
+
+    def test_on_lines_strips_ansi_into_async_events_when_color_off(self, host):
+        # Arrange -- no _buffer, no active call: a colored line between calls
+        # becomes an async_event, which must also be escape-free.
+        host._async_events = []
+
+        # Act
+        host._on_lines(["\x1b[31mERR: bad\x1b[0m"])
+
+        # Assert
+        event_lines = [event["line"] for event in host._async_events]
+        assert event_lines == ["ERR: bad"], (
+            "device ANSI stripped from async_events when color off"
+        )
+
 
 # ── Catalog parity (resource vs /mcp.catalog REPL) ──────────────────────────
 

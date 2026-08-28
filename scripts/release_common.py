@@ -60,12 +60,17 @@ def run(
     the parent terminal.
     """
     cwd = cwd or REPO_ROOT
+    # Explicit UTF-8 for captured text: the Windows Python defaults to
+    # cp1252, where one stray byte in tool output raises in the reader
+    # thread and leaves ``.stdout`` as None instead of a string.
     return subprocess.run(
         cmd,
         check=check,
         cwd=cwd,
         text=True,
         capture_output=capture,
+        encoding="utf-8",
+        errors="replace",
     )
 
 

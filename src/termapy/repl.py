@@ -44,6 +44,7 @@ from termapy.scripting import (
     format_duration,
     parse_duration,
     parse_keywords,
+    strip_ansi,
     strip_leading_echo,
 )
 
@@ -775,6 +776,12 @@ class ReplEngine:
                 self.ctx.serial.write(payload)
                 response = self.ctx.serial.read_raw(timeout_ms=timeout_ms)
             text = response.decode(encoding, errors="replace").strip()
+            # request_mode output is a structured data value, not terminal
+            # display.  When color is off (the MCP default) strip device
+            # ANSI so escape codes don't land in value or corrupt the
+            # err-pattern / echo-strip matches below.
+            if text and not self.ctx.ns("flags").get("color", True):
+                text = strip_ansi(text)
             # Half-duplex devices echo the command back before answering.
             # When strip_device_echo is on, drop that leading echo line so
             # the response is just the answer (deterministic here -- the
@@ -857,8 +864,6 @@ class ReplEngine:
         before the predicate was set. If a predicate is active,
         each line is also tested for an immediate match.
         """
-        from termapy.scripting import strip_ansi
-
         for line in lines:
             clean = strip_ansi(line)
             # Always buffer - wait_for_match() scans this retroactively

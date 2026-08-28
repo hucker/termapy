@@ -47,7 +47,7 @@ from termapy.plugins import (
     PluginContext,
 )
 from termapy.repl import ReplEngine
-from termapy.scripting import format_duration
+from termapy.scripting import format_duration, strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
 
@@ -307,6 +307,19 @@ class MCPHost(TerminalHost):
         if len(self._async_events) > 50:
             self._async_events = self._async_events[-50:]
 
+    def _rx_text(self, line: str) -> str:
+        """Device line as it should appear in the MCP payload.
+
+        MCP defaults color off (``flags["color"]``); strip device ANSI so
+        escape codes don't leak into the JSON the agent receives (they
+        also corrupt downstream parsing).  ``/term.color on`` (or the
+        autostart) flips the flag to pass ANSI through -- for a faithful
+        capture or a client that renders it.
+        """
+        if self.ctx.ns("flags").get("color", True):
+            return line
+        return strip_ansi(line)
+
     def _start_reader(self) -> None:
         """Start the background serial reader thread."""
 
@@ -325,15 +338,16 @@ class MCPHost(TerminalHost):
             self.repl.feed_lines(lines)
             buf = _buffer.get()
             for line in lines:
-                self._log_line(f"< {line}")
+                text = self._rx_text(line)
+                self._log_line(f"< {text}")
                 if buf is not None:
-                    buf.append({"level": "rx", "text": line, "color": ""})
+                    buf.append({"level": "rx", "text": text, "color": ""})
                 elif self._call_active.is_set():
                     # Call in progress in another thread; the synchronous
                     # reader will consume this line.  Don't double-record.
                     pass
                 else:
-                    self._record_async_event(line, source="between_calls")
+                    self._record_async_event(text, source="between_calls")
 
         # The engine owns the thread now (so disconnect() can join it); this
         # host no longer tracks its own handle.
@@ -399,9 +413,11 @@ class MCPHost(TerminalHost):
         self.repl.set_context(self.ctx)
         # MCP runs without echoing typed input (there's no human typing):
         # REPL echo off, and device echo forced off regardless of cfg.
+        # Color defaults off so device ANSI is stripped from the JSON the
+        # agent receives (/term.color on, or the autostart, re-enables it).
         # Default output_level "quiet" so Claude gets results, not
         # progress chatter.  Per-call override via run_command(output=...).
-        self._init_flags(echo_repl=False, device_echo_allowed=False)
+        self._init_flags(echo_repl=False, device_echo_allowed=False, color=False)
         self.ctx.ns("flags")["output_level"] = "quiet"
         self._register_hooks()
 

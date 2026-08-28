@@ -254,6 +254,48 @@ class TestExecRequestMode:
         # Assert
         assert "AT+VER" in result.value, "echo kept when strip is off"
 
+    def test_ansi_stripped_from_value_when_color_off(self, repl_env):
+        # Arrange -- MCP defaults color off; device wraps its reply in SGR.
+        engine, ctx, _, _, _ = repl_env
+        ctx.ns("flags")["color"] = False
+        fake = _FakeSerial(response=b"\x1b[32m5.5\x1b[0m\r\n")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("get_voltage")
+
+        # Assert -- escape codes never reach the data value.
+        assert result.value == "5.5", "ANSI stripped from value when color off"
+
+    def test_ansi_kept_in_value_when_color_on(self, repl_env):
+        # Arrange -- color on (TUI/CLI default): passthrough preserved.
+        engine, ctx, _, _, _ = repl_env
+        ctx.ns("flags")["color"] = True
+        fake = _FakeSerial(response=b"\x1b[32m5.5\x1b[0m\r\n")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("get_voltage")
+
+        # Assert -- with color on the raw escape sequence rides through.
+        assert "\x1b[32m" in result.value, "ANSI preserved in value when color on"
+
+    def test_err_pattern_matches_through_stripped_ansi(self, repl_env):
+        # Arrange -- a colored error line must still match request_err_pattern
+        # because the strip runs before the match.
+        engine, ctx, cfg, _, _ = repl_env
+        ctx.ns("flags")["color"] = False
+        cfg["request_err_pattern"] = r"^ERR"
+        fake = _FakeSerial(response=b"\x1b[31mERR: bad\x1b[0m\r\n")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("do_thing")
+
+        # Assert -- detected as an error, and the message is escape-free.
+        assert result.success is False, "colored error line still triggers err-pattern"
+        assert result.error == "ERR: bad", "error text is ANSI-stripped"
+
     def test_envelope_rendered_to_terminal_as_single_line(self, repl_env):
         # Arrange
         engine, ctx, _, output, markup = repl_env

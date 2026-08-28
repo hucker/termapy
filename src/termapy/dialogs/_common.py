@@ -22,10 +22,11 @@ _MODAL_BTN_CSS = """
 """
 
 # Width of the three file pickers (script / proto / config).  Wide enough
-# for ``name  size  age`` plus a trailing detail column; ``max-width`` in
-# the picker CSS keeps it inside a narrow terminal, where the detail
-# column simply truncates harder.
-_FILE_PICKER_WIDTH = 84
+# for ``name  size  age`` plus a trailing detail column that, for configs,
+# holds a macOS-length port (``/dev/cu.usbserial-A50285BI @ 115200``) AND
+# the config's title; ``max-width`` in the picker CSS keeps it inside a
+# narrow terminal, where the detail column simply truncates harder.
+_FILE_PICKER_WIDTH = 104
 # Columns a row may use inside that dialog: border 2 + padding 4 + list's
 # thick border 2 + a scrollbar 2.
 _FILE_PICKER_ROW_WIDTH = _FILE_PICKER_WIDTH - 10

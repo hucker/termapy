@@ -29,15 +29,37 @@ from termapy.dialogs._common import (
 from termapy.folder_ops import list_entries
 
 
-def _config_detail(path: Path) -> str:
-    """``"COM4 @ 115200"`` for the picker row, or ``""`` if the file won't load."""
+def _config_info(path: Path) -> tuple[str, str]:
+    """``("COM4 @ 115200", "Bench board")`` for a picker row.
+
+    Both empty if the file won't load -- a broken cfg still deserves a
+    row (so it can be edited or deleted), just not a crash.
+    """
     try:
-        serial = load_config(str(path)).get("serial", {})
-    except Exception:  # noqa: BLE001 - a broken cfg still deserves a row
-        return ""
+        cfg = load_config(str(path))
+    except Exception:  # noqa: BLE001 - see docstring
+        return "", ""
+    serial = cfg.get("serial", {})
     port = serial.get("port") or ""
     baud = serial.get("baud_rate")
-    return f"{port} @ {baud}" if port and baud else port
+    port_text = f"{port} @ {baud}" if port and baud else port
+    title = str(cfg.get("title") or "")
+    # New configs are written with the config's own name as the title;
+    # that repeats the first column, so treat it as "no title given".
+    if title.strip().lower() == path.stem.lower():
+        title = ""
+    return port_text, title
+
+
+def _config_details(paths: list[Path]) -> dict[Path, str]:
+    """Per-config detail text: the port cell padded across the batch so the
+    titles line up as a column of their own."""
+    infos = {path: _config_info(path) for path in paths}
+    port_width = max((len(port) for port, _ in infos.values()), default=0)
+    return {
+        path: f"{port:<{port_width}}  {title}".rstrip()
+        for path, (port, title) in infos.items()
+    }
 
 
 class ConfigPicker(ModalScreen[tuple | None]):
@@ -92,13 +114,14 @@ class ConfigPicker(ModalScreen[tuple | None]):
         d = cfg_dir()
         migrate_json_to_cfg(d)
         json_files = list_entries(d, "*/*.cfg")  # newest first
+        details = _config_details(json_files)
         with Vertical(id="picker-dialog"):
             yield Static("Select Config", id="picker-title")
             ol = OptionList(id="picker-list")
             _populate_file_option_list(
                 ol,
                 json_files,
-                detail=_config_detail,
+                detail=details.__getitem__,
                 # Show the stem (the config's name), padded like the filename
                 # column so size/age still line up.
                 label=lambda path, padded: f"{path.stem:<{len(padded)}}",

@@ -40,7 +40,12 @@ from termapy.builtins.commands.help import (
     _show_command_help,
     append_files_section,
 )
-from termapy.folder_ops import build_folder_subcommands
+from termapy.folder_ops import (
+    build_folder_subcommands,
+    file_record,
+    format_file_lines,
+    list_entries,
+)
 from termapy.plugins import CmdResult, Command
 from termapy.run_docstring import extract_docstring
 
@@ -109,26 +114,28 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     scripts_dir = ctx.fs.scripts_dir
     if not scripts_dir.is_dir():
         return CmdResult.fail(msg="No config loaded.")
-    files = sorted(scripts_dir.glob("*.run"))
+    files = list_entries(scripts_dir, "*.run")
+    summaries = [extract_docstring(file)[0] for file in files]
+    value = "\n".join(
+        f"{file.name}\t{summary}" if summary else file.name
+        for file, summary in zip(files, summaries, strict=True)
+    )
+    if ctx.wants_data:
+        return CmdResult.ok(
+            value=value,
+            data=[
+                {**file_record(file), "summary": summary}
+                for file, summary in zip(files, summaries, strict=True)
+            ],
+        )
     if not files:
         ctx.io.output("  run/ (empty)")
         return CmdResult.ok(value="")
 
-    entries: list[tuple[str, str]] = [
-        (file.name, extract_docstring(file)[0]) for file in files
-    ]
-    name_width = max(len(n) for n, _ in entries)
-
     ctx.io.output("  run/")
-    out_lines: list[str] = []
-    for name, summary in entries:
-        if summary:
-            line = f"    {name:<{name_width}}  --  {summary}"
-        else:
-            line = f"    {name}"
-        ctx.io.output(line)
-        out_lines.append(f"{name}\t{summary}" if summary else name)
-    return CmdResult.ok(value="\n".join(out_lines))
+    for line, summary in zip(format_file_lines(files), summaries, strict=True):
+        ctx.io.output(f"    {line}  --  {summary}" if summary else f"    {line.rstrip()}")
+    return CmdResult.ok(value=value)
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
@@ -168,7 +175,7 @@ _FOLDER_SUBS = build_folder_subcommands("run")
 # operate on file content, not metadata.
 _FOLDER_SUBS["list"] = Command(
     args="",
-    help="List .run scripts with docstring summaries.",
+    help="List .run scripts, newest first, with size, age, and docstring summary.",
     handler=_handler_list,
 )
 

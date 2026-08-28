@@ -111,6 +111,7 @@ SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 from termapy.scripting import (  # noqa: E402
     ANSI_RE,
     filename_timestamp,
+    format_age,
     format_duration,
     format_timestamp,
 )
@@ -3292,39 +3293,55 @@ class SerialTerminal(TerminalHost, App):
             return 0
         return len(list(directory.glob(pattern)))
 
+    def _newest_age(self, directory: Path) -> str:
+        """``", newest 10 min ago"`` for a tooltip, or ``""`` when the folder is empty."""
+        newest = self._newest_file(directory)
+        if newest is None:
+            return ""
+        try:
+            return f", newest {format_age(newest.stat().st_mtime)}"
+        except OSError:
+            return ""
+
     def _sync_ss_button(self) -> None:
-        """Update the SS button tooltip with file counts."""
+        """Update the SS button tooltip with file counts and the newest file's age."""
         btn = self.query_one("#btn-ss-dir", Button)
         ss_dir = self.repl.ss_dir
         svgs = self._count_files(ss_dir, "*.svg")
         txts = self._count_files(ss_dir, "*.txt")
         if svgs or txts:
-            btn.tooltip = f"Open screenshot folder ({svgs} svg, {txts} txt)."
+            btn.tooltip = (
+                f"Open screenshot folder ({svgs} svg, {txts} txt{self._newest_age(ss_dir)})."
+            )
         else:
             btn.tooltip = "Open screenshot folder (empty)."
 
     def _sync_scripts_button(self) -> None:
-        """Update the Scripts button tooltip with file counts."""
+        """Update the Scripts button tooltip with file counts and the newest file's age."""
         btn = self.query_one("#btn-scripts", Button)
         count = self._count_files(self.repl.scripts_dir, FOLDER_PATTERNS["run"])
         hk = _hotkey_label("btn-scripts")
-        suffix = f"{count} available" if count else "empty"
+        suffix = (
+            f"{count} available{self._newest_age(self.repl.scripts_dir)}" if count else "empty"
+        )
         btn.tooltip = f"Run a script ({hk}, {suffix})."
 
     def _sync_proto_button(self) -> None:
-        """Update the Proto button tooltip with file counts."""
+        """Update the Proto button tooltip with file counts and the newest file's age."""
         btn = self.query_one("#btn-proto", Button)
         count = self._count_files(self.repl.proto_dir, FOLDER_PATTERNS["proto"])
         hk = _hotkey_label("btn-proto")
-        suffix = f"{count} available" if count else "empty"
+        suffix = (
+            f"{count} available{self._newest_age(self.repl.proto_dir)}" if count else "empty"
+        )
         btn.tooltip = f"Protocol test scripts ({hk}, {suffix})."
 
     def _sync_cap_button(self) -> None:
-        """Update the Captures button tooltip with file counts."""
+        """Update the Captures button tooltip with file counts and the newest file's age."""
         btn = self.query_one("#btn-cap-dir", Button)
         count = self._count_files(self.repl.cap_dir, FOLDER_PATTERNS["cap"])
         btn.tooltip = (
-            f"Open captures folder ({count} files)."
+            f"Open captures folder ({count} files{self._newest_age(self.repl.cap_dir)})."
             if count
             else "Open captures folder (empty)."
         )

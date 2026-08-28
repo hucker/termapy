@@ -1131,3 +1131,49 @@ class TestBatchedOutputIsEquivalent:
                 )
 
         _run(scenario)
+
+
+class TestDelayHook:
+    """``/delay`` of a second or more animates the bottom-bar progress bar.
+
+    ``_run_progress_bar`` became a free function in ``capture_view`` when
+    the capture view was extracted, but ``app_hooks._hook_delay`` kept
+    calling it as an app method -- every TUI ``/delay 1s`` crashed with
+    ``'SerialTerminal' object has no attribute '_run_progress_bar'`` and
+    nothing drove the path, so nothing noticed.  This does.
+    """
+
+    @pytest.mark.slow  # real 1 s wait: the progress path is the point
+    def test_one_second_delay_runs_the_progress_bar_to_done(self, app_factory):
+        async def scenario():
+            from termapy.app_hooks import _hook_delay
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                outcome: dict = {}
+
+                def run_hook():
+                    # The hook is written for a dispatch worker: it blocks
+                    # and marshals label writes via _on_main, so it must
+                    # not run on the event loop's thread.
+                    try:
+                        outcome["result"] = _hook_delay(app, app.repl.ctx, "1s")
+                    except Exception as exc:  # noqa: BLE001 - the assertion is the type
+                        outcome["error"] = exc
+
+                # Act
+                worker = threading.Thread(target=run_hook, daemon=True)
+                worker.start()
+                deadline = time.monotonic() + 5.0
+                while worker.is_alive() and time.monotonic() < deadline:
+                    await asyncio.sleep(0.1)  # keep the loop serving _on_main
+
+                # Assert
+                assert not worker.is_alive(), "the delay finished within the deadline"
+                assert "error" not in outcome, (
+                    f"the progress-bar path raised: {outcome.get('error')!r}"
+                )
+                assert outcome["result"].success, "/delay 1s reports success"
+                assert outcome["result"].value == "1.0", "value is the seconds waited"
+
+        _run(scenario)

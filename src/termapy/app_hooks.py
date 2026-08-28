@@ -189,7 +189,11 @@ def _hook_delay(app, ctx, args: str) -> CmdResult:
         time.sleep(seconds)
         app._on_main(app._status, f"Delay {args} done.")
         return CmdResult.ok(value=str(seconds))
-    app._run_progress_bar(seconds, args.strip())
+    # Free function since the capture-view extraction; it is not an app
+    # method (lazy import: capture_view is UI-layer, same as app.py does).
+    from termapy.capture_view import _run_progress_bar
+
+    _run_progress_bar(app, seconds, args.strip())
     return CmdResult.ok(value=str(seconds))
 
 

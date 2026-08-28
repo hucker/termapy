@@ -17,6 +17,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from termapy.folder_ops import file_record, list_entries
 from termapy.plugins import CapabilitySet, resolve_long_help
 from termapy.profile import TypeRegistry, typedef_to_catalog
 
@@ -246,20 +247,13 @@ def build_device_state(
         cap_dir = Path(ctx.fs.cap_dir) if ctx.fs.cap_dir else None
     else:
         cap_dir = Path(captures_dir) if captures_dir is not None else None
-    if cap_dir and cap_dir.exists():
-        for p in sorted(cap_dir.iterdir()):
-            if p.is_file():
-                try:
-                    size = p.stat().st_size
-                except OSError:
-                    size = 0
-                captures.append(
-                    {
-                        "name": p.name,
-                        "bytes": size,
-                        "uri": f"termapy://capture/{p.name}",
-                    }
-                )
+    if cap_dir:
+        # Newest first, with mtime / age_s so an agent can tell which
+        # capture is current without a second round trip.
+        captures = [
+            {**file_record(path), "uri": f"termapy://capture/{path.name}"}
+            for path in list_entries(cap_dir, "*")
+        ]
 
     return {
         "schema": DEVICE_STATE_SCHEMA_VERSION,

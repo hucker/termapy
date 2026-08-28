@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING
 from textual.css.query import NoMatches
 from textual.widgets import Button, Input, Static
 
+from termapy.scripting import format_duration, format_size
+
 # Mirror of the SHUTDOWN_RACE tuple in app.py.  Used by widget-touching
 # helpers here to swallow Textual teardown races (NoMatches when a
 # widget tree has been unmounted, RuntimeError when a worker thread
@@ -149,12 +151,12 @@ def _cap_update_progress(app) -> None:
     if prog.mode == "text":
         label.update(
             f" Capturing -> {prog.path_name}  [{prog.pct}%]  "
-            f"{prog.remaining_s:.1f}s left  {prog.bytes_captured} bytes"
+            f"{format_duration(prog.remaining_s)} left  {format_size(prog.bytes_captured)}"
         )
     else:
         label.update(
             f" Capturing -> {prog.path_name}  [{prog.pct}%]  "
-            f"{prog.bytes_captured}/{prog.target_bytes} bytes"
+            f"{format_size(prog.bytes_captured)} / {format_size(prog.target_bytes)}"
         )
 
 

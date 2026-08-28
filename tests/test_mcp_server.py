@@ -418,6 +418,12 @@ class TestRunCommandErrors:
 
         async_events, other tool calls, and the MCP transport itself all
         share this event loop.
+
+        The window is a full second (not the 0.3 s the sibling test uses):
+        tick DENSITY is the assertion, and over 0.3 s the executor-thread
+        spin-up plus coverage tracing under eight xdist workers cost enough
+        ticks to fail a live loop (3 ticks in 0.40 s, needing 4).  A longer
+        window makes the steady state dominate the sample.
         """
         async def scenario():
             ticks = 0
@@ -430,7 +436,7 @@ class TestRunCommandErrors:
 
             beat = asyncio.create_task(ticker())
             started = time.monotonic()
-            result = await host.run_command_async("/delay 1s", "normal", 0.3)
+            result = await host.run_command_async("/delay 3s", "normal", 1.0)
             elapsed = time.monotonic() - started
             beat.cancel()
             return result, ticks, elapsed
@@ -585,6 +591,9 @@ class TestCaptureArtifacts:
         assert diff[0]["name"] == "smoke.txt", "name preserved"
         assert diff[0]["uri"] == "termapy://capture/smoke.txt", "uri formed"
         assert diff[0]["bytes"] == 5, "size reported"
+        assert diff[0]["mtime"] and diff[0]["age_s"] >= 0, (
+            "recency fields present so an agent can order artifacts without re-listing"
+        )
 
 
 # ── Output buffer level tagging ─────────────────────────────────────────────

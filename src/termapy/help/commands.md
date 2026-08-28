@@ -94,7 +94,7 @@ synopsis, filtering as you type:
 | `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
 | `/proto.hex {on\|off\|toggle}`    | Toggle hex display mode for serial I/O                                      |
-| `/proto.list`             | List .pro files in the proto/ directory                                     |
+| `/proto.list`             | List .pro files in proto/, newest first, with size and age                  |
 | `/proto.load <file>`      | Run a protocol test script (same as /proto.run)                             |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
@@ -105,7 +105,7 @@ synopsis, filtering as you type:
 | `/run.edit <file>`        | Open a .run script in the system editor                                     |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
 | `/run.legacy {file\|*}`   | Find pre-0.63 command names in scripts; `--fix` rewrites in place           |
-| `/run.list`               | List .run files in the run/ directory                                       |
+| `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |
 | `/seq.reset`              | Reset all sequence counters to zero                                         |

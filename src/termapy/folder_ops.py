@@ -23,26 +23,121 @@ folder operations per plugin.
 
 from __future__ import annotations
 
+import time
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from termapy.config import open_with_system
 from termapy.folders import FOLDERS, FolderSpec
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.scripting import format_age, format_size
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _names(path: Path, pattern: str) -> list[str]:
-    """List filenames matching ``pattern`` in ``path``, sorted."""
+def _mtime(path: Path) -> float:
+    """Modification time, or 0.0 when the file vanished between glob and stat."""
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def list_entries(path: Path, pattern: str) -> list[Path]:
+    """Files matching ``pattern`` in ``path``, newest first (name breaks ties).
+
+    Dotfiles (``.cmd_history.txt``, ``.gitignore``) are never listed.
+    Newest-first is the order that answers "which one did I just make?",
+    the question every ``/x.list`` exists for.
+    """
     if not path.is_dir():
         return []
-    if pattern == "*":
-        matches = [match for match in path.glob(pattern) if match.is_file()]
-    else:
-        matches = list(path.glob(pattern))
-    return sorted(match.name for match in matches)
+    files = [
+        file for file in path.glob(pattern)
+        if file.is_file() and not file.name.startswith(".")
+    ]
+    return sorted(files, key=lambda file: (-_mtime(file), file.name))
+
+
+def file_record(path: Path, *, now: float | None = None) -> dict[str, Any]:
+    """Structured metadata for one file: the ``CmdResult.data`` twin of a listing line.
+
+    Shared by the ``/x.list`` handlers and the MCP capture records so every
+    structured consumer sees the same shape.  Numbers stay numbers -- the
+    humanized strings are prose-only.
+
+    Args:
+        path: The file.
+        now: Reference POSIX timestamp for ``age_s``; defaults to the current
+            time.  Exists so tests can pin the output.
+    """
+    try:
+        st = path.stat()
+    except OSError:
+        return {"name": path.name, "bytes": 0, "mtime": None, "age_s": None}
+    reference = time.time() if now is None else now
+    return {
+        "name": path.name,
+        "bytes": st.st_size,
+        "mtime": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+        "age_s": round(reference - st.st_mtime, 3),
+    }
+
+
+@dataclass(frozen=True)
+class FileColumns:
+    """One listing row, pre-formatted and pre-padded: ``name  size  age``.
+
+    ``name`` and ``age`` are padded to the widest in the batch and ``size``
+    is right-aligned to the widest size, so a consumer that joins the three
+    with two spaces gets aligned columns -- and anything appended after
+    ``age`` (a docstring summary, a config's port) lines up too.  A
+    consumer that styles them (the TUI pickers dim the metadata) keeps the
+    same alignment.
+    """
+
+    name: str
+    size: str
+    age: str
+
+
+def file_columns(files: list[Path]) -> list[FileColumns]:
+    """Aligned listing columns for ``files``, one row per file.
+
+    The prose twin of ``file_record``.  A file that vanishes between
+    glob and stat shows ``?`` for size and age rather than failing the
+    whole listing.
+    """
+    if not files:
+        return []
+    rows: list[tuple[str, str, str]] = []
+    for file in files:
+        try:
+            st = file.stat()
+        except OSError:
+            rows.append((file.name, "?", "?"))
+            continue
+        rows.append((file.name, format_size(st.st_size), format_age(st.st_mtime)))
+    name_width = max(len(name) for name, _, _ in rows)
+    size_width = max(len(size) for _, size, _ in rows)
+    age_width = max(len(age) for _, _, age in rows)
+    return [
+        FileColumns(f"{name:<{name_width}}", f"{size:>{size_width}}", f"{age:<{age_width}}")
+        for name, size, age in rows
+    ]
+
+
+def format_file_lines(files: list[Path]) -> list[str]:
+    """``name  size  age`` listing lines, one per file, columns aligned.
+
+    The age pad is kept so a caller that appends a trailing column
+    (``/run.list`` adds the docstring summary) gets it aligned; a caller
+    that prints the line as-is should ``rstrip()`` it.
+    """
+    return [f"{row.name}  {row.size}  {row.age}" for row in file_columns(files)]
 
 
 def _folder_path(ctx: PluginContext, folder: str) -> Path | None:
@@ -53,20 +148,28 @@ def _folder_path(ctx: PluginContext, folder: str) -> Path | None:
 
 
 def _make_list_handler(folder: str, pattern: str):
-    """Handler: list files in the folder (bare listing, one per line)."""
+    """Handler: list files in the folder, newest first, with size and age.
+
+    ``value`` is the newline-joined names (the scriptable scalar);
+    ``data`` is one ``file_record`` per file for structured consumers,
+    who skip the prose entirely.
+    """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
         if data_dir is None:
             return CmdResult.fail(msg="No config loaded.")
-        files = _names(data_dir, pattern)
+        files = list_entries(data_dir, pattern)
+        names = "\n".join(file.name for file in files)
+        if ctx.wants_data:
+            return CmdResult.ok(value=names, data=[file_record(file) for file in files])
         if not files:
             ctx.io.output(f"  {folder}/ (empty)")
             return CmdResult.ok(value="")
         ctx.io._write(f"  {folder}/")
-        for fname in files:
-            ctx.io._write(f"    {fname}")
-        return CmdResult.ok(value="\n".join(files))
+        for line in format_file_lines(files):
+            ctx.io._write(f"    {line.rstrip()}")
+        return CmdResult.ok(value=names)
 
     return handler
 
@@ -214,7 +317,7 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
 
     subs: dict[str, Command] = {
         "list": Command(
-            help=f"List files in {folder}/.",
+            help=f"List files in {folder}/, newest first, with size and age.",
             handler=_make_list_handler(folder, pattern),
         ),
         "explore": Command(

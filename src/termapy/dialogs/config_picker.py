@@ -7,18 +7,59 @@ the ``_common`` submodule for shared constants and helpers.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList
-from textual.widgets.option_list import Option
 
 from termapy.config import (
     cfg_dir,
+    load_config,
     migrate_json_to_cfg,
 )
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.dialogs._common import (
+    _DISMISS_BINDINGS,
+    _FILE_PICKER_WIDTH,
+    _MODAL_BTN_CSS,
+    _populate_file_option_list,
+)
+from termapy.folder_ops import list_entries
+
+
+def _config_info(path: Path) -> tuple[str, str]:
+    """``("COM4 @ 115200", "Bench board")`` for a picker row.
+
+    Both empty if the file won't load -- a broken cfg still deserves a
+    row (so it can be edited or deleted), just not a crash.
+    """
+    try:
+        cfg = load_config(str(path))
+    except Exception:  # noqa: BLE001 - see docstring
+        return "", ""
+    serial = cfg.get("serial", {})
+    port = serial.get("port") or ""
+    baud = serial.get("baud_rate")
+    port_text = f"{port} @ {baud}" if port and baud else port
+    title = str(cfg.get("title") or "")
+    # New configs are written with the config's own name as the title;
+    # that repeats the first column, so treat it as "no title given".
+    if title.strip().lower() == path.stem.lower():
+        title = ""
+    return port_text, title
+
+
+def _config_details(paths: list[Path]) -> dict[Path, str]:
+    """Per-config detail text: the port cell padded across the batch so the
+    titles line up as a column of their own."""
+    infos = {path: _config_info(path) for path in paths}
+    port_width = max((len(port) for port, _ in infos.values()), default=0)
+    return {
+        path: f"{port:<{port_width}}  {title}".rstrip()
+        for path, (port, title) in infos.items()
+    }
 
 
 class ConfigPicker(ModalScreen[tuple | None]):
@@ -30,7 +71,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
     ConfigPicker {{ align: center middle; }}
     ConfigPicker Button {{ {_MODAL_BTN_CSS} }}
     #picker-dialog {{
-        width: 50; height: 18;
+        width: {_FILE_PICKER_WIDTH}; max-width: 100%; height: 18;
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #picker-title {{ height: 1; text-style: bold; }}
@@ -72,15 +113,23 @@ class ConfigPicker(ModalScreen[tuple | None]):
 
         d = cfg_dir()
         migrate_json_to_cfg(d)
-        json_files = sorted(path for path in d.glob("*/*.cfg") if not path.name.startswith("."))
+        json_files = list_entries(d, "*/*.cfg")  # newest first
+        details = _config_details(json_files)
         with Vertical(id="picker-dialog"):
             yield Static("Select Config", id="picker-title")
             ol = OptionList(id="picker-list")
-            highlight_idx = None
-            for i, path in enumerate(json_files):
-                ol.add_option(Option(path.stem, id=str(path)))
-                if str(path) == self.current_path:
-                    highlight_idx = i
+            _populate_file_option_list(
+                ol,
+                json_files,
+                detail=details.__getitem__,
+                # Show the stem (the config's name), padded like the filename
+                # column so size/age still line up.
+                label=lambda path, padded: f"{path.stem:<{len(padded)}}",
+            )
+            highlight_idx = next(
+                (i for i, path in enumerate(json_files) if str(path) == self.current_path),
+                None,
+            )
             ol.highlighted = highlight_idx if highlight_idx is not None else 0
             yield ol
             has_configs = bool(json_files)

@@ -1,7 +1,9 @@
 """Tests for built-in REPL commands dispatched through ReplEngine."""
 
 import json
+import os
 import re as _re
+import time
 from pathlib import Path
 
 import pytest
@@ -315,6 +317,52 @@ class TestRunDocstring:
         assert any(
             "undocumented.run" in text and "--" not in text for text in texts
         ), "undocumented script listed without a summary separator"
+
+    def test_run_list_newest_first_with_size_and_age(self, repl_env, tmp_path):
+        # Arrange -- two scripts; the one that sorts FIRST by name is an hour old.
+        engine, _, _, output = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        older = scripts_dir / "a_older.run"
+        older.write_bytes(b"/echo old\n")
+        newer = scripts_dir / "z_newer.run"
+        newer.write_bytes(b"/echo new\n")
+        hour_ago = time.time() - 3600
+        os.utime(older, (hour_ago, hour_ago))
+
+        # Act
+        result = engine.dispatch("run.list")
+
+        # Assert
+        listed = [text.strip() for text, _ in output if ".run" in text]
+        assert listed[0].startswith("z_newer.run"), (
+            "newest file lists first even though it sorts last by name"
+        )
+        assert "10 B" in listed[1] and "1 hr ago" in listed[1], (
+            "each line carries the file's size and age"
+        )
+        assert result.value.splitlines()[0] == "z_newer.run", (
+            "the scriptable value follows the same newest-first order"
+        )
+
+    def test_run_list_wants_data_returns_records_without_prose(self, repl_env, tmp_path):
+        # Arrange
+        engine, _, _, output = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "documented.run").write_bytes(b"# Short summary.\n/echo hello\n")
+        engine.ctx.wants_data = True
+
+        # Act
+        result = engine.dispatch("run.list")
+
+        # Assert
+        record = result.data[0]
+        assert record["name"] == "documented.run"
+        assert record["bytes"] == 29, "raw byte count, not a humanized string"
+        assert record["summary"] == "Short summary."
+        assert record["mtime"] and record["age_s"] >= 0, "recency fields present"
+        assert not any(".run" in text for text, _ in output), (
+            "structured consumers get records only, never the listing prose"
+        )
 
     def test_run_help_script_prints_full_docstring(
         self, repl_env, tmp_path,

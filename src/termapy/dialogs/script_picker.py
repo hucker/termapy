@@ -14,9 +14,15 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList
-from textual.widgets.option_list import Option
 
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.dialogs._common import (
+    _DISMISS_BINDINGS,
+    _FILE_PICKER_WIDTH,
+    _MODAL_BTN_CSS,
+    _populate_file_option_list,
+)
+from termapy.folder_ops import list_entries
+from termapy.run_docstring import extract_docstring
 
 
 class ScriptPicker(ModalScreen[tuple | None]):
@@ -28,7 +34,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
     ScriptPicker {{ align: center middle; }}
     ScriptPicker Button {{ {_MODAL_BTN_CSS} }}
     #script-dialog {{
-        width: 50; height: 18;
+        width: {_FILE_PICKER_WIDTH}; max-width: 100%; height: 18;
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #script-title {{ height: 1; text-style: bold; }}
@@ -78,24 +84,21 @@ class ScriptPicker(ModalScreen[tuple | None]):
     def compose(self) -> ComposeResult:
         """Build the modal layout: title, file list, action buttons.
 
-        Files are listed alphabetically; dotfiles (e.g.
-        ``.cmd_history.txt``) are filtered out so they don't appear
-        as runnable scripts.  Run / Edit / Delete are disabled when
-        the directory is empty; Edit / Delete are also disabled in
-        read-only mode.
+        Files are listed newest first with size, age, and docstring
+        summary; dotfiles (e.g. ``.cmd_history.txt``) are filtered out
+        so they don't appear as runnable scripts.  Run / Edit / Delete
+        are disabled when the directory is empty; Edit / Delete are also
+        disabled in read-only mode.
         """
         from textual.widgets import Static
 
-        scripts = sorted(self.scripts_dir.glob("*"))
-        scripts = [
-            script for script in scripts
-            if script.is_file() and not script.name.startswith(".")
-        ]
+        scripts = list_entries(self.scripts_dir, "*")
         with Vertical(id="script-dialog"):
             yield Static("Select Run File", id="script-title")
             ol = OptionList(id="script-list")
-            for script in scripts:
-                ol.add_option(Option(script.name, id=str(script)))
+            _populate_file_option_list(
+                ol, scripts, detail=lambda script: extract_docstring(script)[0]
+            )
             if scripts:
                 ol.highlighted = 0
             yield ol

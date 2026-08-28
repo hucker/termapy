@@ -55,6 +55,15 @@ _VERBOSE_RE = re.compile(r"^\s*\[\d+/\d+\]")
 # section stays deterministic.  Everything else in an envelope is exact.
 _ELAPSED_RE = re.compile(r'"elapsed_s": \d+(?:\.\d+)?')
 
+# File listings (/run.list, /proto.list) show each file's size.  The demo
+# files are copied from the checkout, and a checkout is CRLF on Windows
+# (core.autocrlf) but LF on Linux CI, so the byte counts differ per
+# platform.  Mask the size column INCLUDING the padding in front of it (the
+# column is right-aligned, so "1.0 KB" and "990 B" pad differently); the
+# age column stays literal because --demo writes the files seconds before
+# the listing runs ("just now").
+_SIZE_RE = re.compile(r"\s+\d+(?:\.\d)? (?:B|KB|MB)\b")
+
 
 def _normalize(text: str) -> list[str]:
     """Normalize output for comparison.
@@ -63,6 +72,7 @@ def _normalize(text: str) -> list[str]:
     - 'Running script:' lines (path varies by platform/location)
     - Verbose timing lines like '[1/3] AT (0.015s)' (nondeterministic)
     - ``"elapsed_s": <n>`` inside JSON envelopes -> ``"elapsed_s": 0``
+    - File sizes in listings (``1.2 KB``) -> ``<SIZE>`` (CRLF/LF checkouts differ)
     - Absolute paths replaced with <CFG_DIR>/demo/
     - Trailing whitespace
     """
@@ -77,11 +87,35 @@ def _normalize(text: str) -> list[str]:
         if _VERBOSE_RE.match(line):
             continue
         line = _ELAPSED_RE.sub('"elapsed_s": 0', line)
+        line = _SIZE_RE.sub("  <SIZE>", line)
         lines.append(line.rstrip())
+    lines = _sort_listing_runs(lines)
     # Remove trailing empty lines
     while lines and not lines[-1]:
         lines.pop()
     return lines
+
+
+def _sort_listing_runs(lines: list[str]) -> list[str]:
+    """Sort each run of consecutive masked listing lines by name.
+
+    Listings are newest-first, but --demo writes every demo file in one
+    burst, so their relative mtimes are filesystem timing noise (the order
+    changed between two consecutive runs on NTFS).  On the information the
+    listing actually shows -- every age is "just now" -- they tie, so the
+    gold asserts the SET of lines in each listing, not their order.
+    """
+    out: list[str] = []
+    run: list[str] = []
+    for line in lines:
+        if "<SIZE>" in line:
+            run.append(line)
+            continue
+        out.extend(sorted(run))
+        run = []
+        out.append(line)
+    out.extend(sorted(run))
+    return out
 
 
 def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:

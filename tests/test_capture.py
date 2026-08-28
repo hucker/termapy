@@ -393,7 +393,7 @@ class TestCaptureResult:
         result = CaptureResult(path=Path("test.bin"), byte_count=500, raw=True)
 
         # Assert
-        assert result.size_label == "500 bytes", "size_label shows bytes"
+        assert result.size_label == "500 B", "size_label uses the shared format_size"
 
     def test_size_label_kb(self):
         # Arrange
@@ -409,13 +409,13 @@ class TestFormatCaptureResult:
 
     def test_complete_is_green(self):
         # Arrange
-        result = CaptureResult(path=Path("out.csv"), byte_count=2048, raw=False)
+        result = CaptureResult(path=Path("out.csv"), byte_count=2048, raw=False, elapsed_s=3.2)
 
         # Act
         text, color = format_capture_result(result)
 
         # Assert
-        assert text == "Capture complete: out.csv (2.0 KB)", "complete text"
+        assert text == "Capture complete: out.csv (2.0 KB in 3.2s)", "size and wall time"
         assert color == "green", "complete is green"
 
     def test_aborted_is_red(self):

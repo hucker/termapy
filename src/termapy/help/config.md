@@ -139,7 +139,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `on_connect_cmd`              | `""`                          | Commands to send after connecting (all frontends), separated by `\n` |
 | `tui_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in TUI mode (after `on_connect_cmd`) |
 | `cli_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in CLI mode (after `on_connect_cmd`) |
-| `mcp_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in MCP mode. Common: `echo off` to silence device |
+| `mcp_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in MCP mode. Common: `echo off` / `color off` to silence device at the source (MCP already strips ANSI; `/term.color on` re-enables) |
 | `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
 | `echo`                        | `false`                       | Echo device commands sent to the wire (bare + `/term.send`). Runtime: `/term.echo {on\|off\|toggle}` |
 | `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |

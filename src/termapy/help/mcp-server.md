@@ -113,6 +113,12 @@ Full schema, response formats (`none`, `literal`, `lines`, `regex`, `json`), the
 
 When the MCP server connects to its port, it auto-loads the profile from `profile_path` or the convention path.  On disconnect, device-specific state (active profile, catalog, event buffers) is wiped, so reconnecting cleanly re-loads the profile.
 
+### Output hygiene: color and echo
+
+An MCP client is an automated peer, not a terminal, so the session defaults to **color off**: device ANSI escape codes (SGR color, cursor moves) are stripped from `output_lines`, `async_events`, and `request_mode` values, and command echo is off.  This keeps escape codes out of the JSON the model parses.
+
+To pass ANSI through anyway -- for a faithful capture, or a client that renders it -- send `/term.color on`.  To silence color (or a half-duplex device's echo) at the *source*, put the device's own command in `mcp_on_connect_cmd` (e.g. `color off`, `echo off`); it runs automatically on connect.  Full-screen / VT100 output (cursor-addressed dashboards and menus) can't be represented as MCP text -- view those in the TUI.
+
 ### What an MCP client can and can't reach
 
 The MCP server runs with no interactive session, so termapy's capability gate blocks a whole class of host access that only makes sense for a human at a terminal:

@@ -671,6 +671,40 @@ class TestAsyncEventsDelivery:
         )
 
 
+# ── Color / ANSI stripping ──────────────────────────────────────────────────
+
+
+class TestColorStripping:
+    """MCP defaults color off so device ANSI never leaks into the JSON the
+    agent receives; ``/term.color on`` re-enables passthrough."""
+
+    def test_color_defaults_off_for_mcp(self, host):
+        # Assert -- MCP setup forces color off regardless of cfg.
+        actual = host.ctx.ns("flags").get("color")
+        assert actual is False, "MCP session defaults color off"
+
+    def test_rx_text_strips_ansi_when_color_off(self, host):
+        # Arrange -- default MCP state (color off).
+        line = "\x1b[32mOK\x1b[0m"
+
+        # Act
+        actual = host._rx_text(line)
+
+        # Assert
+        assert actual == "OK", "device ANSI stripped from rx line when color off"
+
+    def test_rx_text_keeps_ansi_when_color_on(self, host):
+        # Arrange -- /term.color on flips the flag; passthrough preserved.
+        host.ctx.ns("flags")["color"] = True
+        line = "\x1b[32mOK\x1b[0m"
+
+        # Act
+        actual = host._rx_text(line)
+
+        # Assert
+        assert actual == line, "ANSI passed through when color on"
+
+
 # ── Catalog parity (resource vs /mcp.catalog REPL) ──────────────────────────
 
 

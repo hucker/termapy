@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import IO, Any, Callable
 
 from termapy.protocol import apply_format, parse_hex
+from termapy.scripting import format_duration, format_size
 
 
 @dataclass
@@ -35,12 +36,12 @@ class CaptureResult:
     byte_count: int
     raw: bool
     error: str = ""  # non-empty if the capture aborted on a write failure
+    elapsed_s: float = 0.0  # wall time from start() to stop()
 
     @property
     def size_label(self) -> str:
-        if self.byte_count > 1024:
-            return f"{self.byte_count / 1024:.1f} KB"
-        return f"{self.byte_count} bytes"
+        """Humanized byte count (``'12.5 KB'``) via the shared size formatter."""
+        return format_size(self.byte_count)
 
 
 def format_capture_result(result: CaptureResult) -> tuple[str, str]:
@@ -52,7 +53,11 @@ def format_capture_result(result: CaptureResult) -> tuple[str, str]:
     """
     if result.error:
         return f"Capture aborted: {result.error} ({result.path})", "red"
-    return f"Capture complete: {result.path} ({result.size_label})", "green"
+    return (
+        f"Capture complete: {result.path} "
+        f"({result.size_label} in {format_duration(result.elapsed_s)})",
+        "green",
+    )
 
 
 class CaptureEngine:
@@ -95,6 +100,7 @@ class CaptureEngine:
         self._target_done: bool = False
         self._end: float = 0.0
         self._total: float = 0.0
+        self._started: float = 0.0  # monotonic clock at start(); feeds CaptureResult.elapsed_s
         self._columns: list = []
         self._record_size: int = 0
         self._sep: str = ","
@@ -187,6 +193,7 @@ class CaptureEngine:
         self._buf = bytearray()
         self._hex_mode = hex_mode
         self._hex_line_buf = ""
+        self._started = time.monotonic()
 
         if mode == "text":
             self._end = time.monotonic() + duration
@@ -215,6 +222,7 @@ class CaptureEngine:
         byte_count = self._bytes
         raw = self._raw
         error = self._write_error
+        elapsed_s = time.monotonic() - self._started
 
         try:
             self._fh.close()
@@ -223,7 +231,9 @@ class CaptureEngine:
 
         self._reset()
 
-        result = CaptureResult(path=path, byte_count=byte_count, raw=raw, error=error)
+        result = CaptureResult(
+            path=path, byte_count=byte_count, raw=raw, error=error, elapsed_s=elapsed_s
+        )
         if self._on_complete:
             self._on_complete(result)
         return result

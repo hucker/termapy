@@ -23,6 +23,7 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cmd_prefix
+from termapy.folder_ops import file_record, format_file_lines, list_entries
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 
 if TYPE_CHECKING:
@@ -127,21 +128,21 @@ def _hook_run_profile_explore(app, ctx, args: str) -> CmdResult:
 
 
 def _hook_run_profile_list(app, ctx, args: str) -> CmdResult:
-    """List .csv profile files in prof/."""
+    """List .csv profile files in prof/, newest first, with size and age."""
     prof_dir = app._prof_dir()
     if not prof_dir:
         ctx.io._write("No config loaded.", "red")
         return CmdResult.fail(msg="No config loaded.")
-    if not prof_dir.exists():
-        ctx.io.output("  (no profile files)")
-        return CmdResult.ok(value="")
-    profs = sorted(prof_dir.glob("*.csv"))
+    profs = list_entries(prof_dir, "*.csv")
+    names = "\n".join(prof.name for prof in profs)
+    if ctx.wants_data:
+        return CmdResult.ok(value=names, data=[file_record(prof) for prof in profs])
     if not profs:
         ctx.io.output("  (no profile files)")
         return CmdResult.ok(value="")
-    for f in profs:
-        ctx.io._write(f"  {f.name}")
-    return CmdResult.ok(value="\n".join(f.name for f in profs))
+    for line in format_file_lines(profs):
+        ctx.io._write(f"  {line}")
+    return CmdResult.ok(value=names)
 
 
 def register_run_profile_hooks(app) -> None:

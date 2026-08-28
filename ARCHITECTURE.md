@@ -119,7 +119,7 @@ src/termapy/
 ├── port_control.py         # (1584 lines) Pure serial port control functions - no Textual
 ├── proto_debug.py          # (1185 lines) Interactive protocol debug screen (Textual)
 ├── repl.py                 # (1918 lines) REPL engine - dispatch, scripting, transforms
-├── scripting.py            # (534 lines)  Pure functions - templates, duration parsing, ANSI
+├── scripting.py            # (534 lines)  Pure functions - templates, duration parsing, ANSI, size/age/duration display (frist)
 ├── serial_engine.py        # (606 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py          # (451 lines)  Serial I/O wrapper + SerialReader data processor
 ├── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext

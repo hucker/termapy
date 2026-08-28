@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from datetime import datetime
 
 import pytest
@@ -13,7 +14,9 @@ from termapy.scripting import (
     coerce_to_type,
     expand_template,
     filename_timestamp,
+    format_age,
     format_duration,
+    format_size,
     format_timestamp,
     next_in_cycle,
     parse_bool,
@@ -178,7 +181,7 @@ class TestExpandTemplate:
 
     def test_elapsed_placeholder(self):
         actual, _ = expand_template("t_{elapsed}", {}, elapsed_s=1.5)
-        assert actual == "t_1.50s", "{elapsed} renders elapsed_s via format_duration"
+        assert actual == "t_1.5s", "{elapsed} renders elapsed_s via format_duration"
 
     def test_elapsed_default_zero(self):
         actual, _ = expand_template("t_{elapsed}", {})
@@ -297,17 +300,84 @@ class TestFormatDuration:
     def test_milliseconds(self):
         assert format_duration(0.025) == "25ms", "sub-second renders as whole ms"
 
-    def test_seconds_two_decimals(self):
-        assert format_duration(1.5) == "1.50s", ">= 1s renders as 2dp seconds"
+    def test_seconds_three_significant(self):
+        assert format_duration(1.5) == "1.5s", ">= 1s renders to 3 significant figures"
+        assert format_duration(2.64) == "2.64s", "no trailing-zero padding"
 
     def test_boundary_one_millisecond(self):
         assert format_duration(0.001) == "1ms", "exactly 1ms crosses into the ms tier"
 
     def test_boundary_one_second(self):
-        assert format_duration(1.0) == "1.00s", "exactly 1s crosses into the s tier"
+        assert format_duration(1.0) == "1s", "exactly 1s crosses into the s tier"
 
     def test_zero(self):
         assert format_duration(0.0) == "0us", "zero renders as 0us"
+
+    def test_rounding_up_to_tier_edge_never_uses_exponent(self):
+        # 999.6 ms sits in the ms tier but rounds to 1000 at 3 significant
+        # figures; it must be written out, not as 1e+03ms.  (The us tier
+        # cannot hit this: frist resolves durations to whole microseconds.)
+        assert format_duration(0.9996) == "1000ms"
+
+    def test_under_a_minute_stays_seconds(self):
+        # Clock boundaries, not humanize's 45 s: 46 s must not become 0.77min.
+        assert format_duration(46) == "46s", "seconds tier runs to 60"
+
+    def test_minutes_hours_days(self):
+        assert format_duration(90) == "1.5min", "60 s crosses into minutes"
+        assert format_duration(7200) == "2hr", "60 min crosses into hours"
+        assert format_duration(86400 * 3) == "3days", "24 hr crosses into days and stays there"
+
+
+# ── format_size ──────────────────────────────────────────────────
+
+
+class TestFormatSize:
+    @pytest.mark.parametrize(
+        "byte_count, expected",
+        [
+            (0, "0 B"),
+            (512, "512 B"),
+            (1023, "1023 B"),
+            (1024, "1.0 KB"),
+            (4300, "4.2 KB"),
+            (48_000_000, "45.8 MB"),
+            (1 << 40, "1.0 TB"),
+            (1 << 50, "1.0 PB"),
+        ],
+    )
+    def test_tiers(self, byte_count, expected):
+        assert format_size(byte_count) == expected
+
+
+# ── format_age ───────────────────────────────────────────────────
+
+
+class TestFormatAge:
+    BASE = 1_700_000_000.0  # any fixed POSIX time; ``now`` is pinned relative to it
+
+    @pytest.mark.parametrize(
+        "delta_s, expected",
+        [
+            (10, "just now"),
+            (44.9, "just now"),
+            (-5, "just now"),  # mtime slightly in the future (clock skew) is not an error
+            (45, "1 min ago"),
+            (600, "10 min ago"),
+            (3600 * 3, "3 hr ago"),
+            (86400 * 1.4, "1 day ago"),
+            (86400 * 3, "3 days ago"),
+            (86400 * 40, "1 mo ago"),
+            (86400 * 400, "1 yr ago"),
+            (86400 * 800, "2 yr ago"),
+        ],
+    )
+    def test_compact_wording(self, delta_s, expected):
+        actual = format_age(self.BASE, now=self.BASE + delta_s)
+        assert actual == expected
+
+    def test_defaults_to_current_time(self):
+        assert format_age(time.time()) == "just now", "omitting now= measures against the clock"
 
 
 # ── format_timestamp ─────────────────────────────────────────────

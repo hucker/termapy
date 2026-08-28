@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any
 
 from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import open_serial
+from termapy.folder_ops import file_record
 from termapy.mcp.catalog import (
     catalog_json,
     device_state_json,
@@ -994,23 +995,17 @@ def _snapshot_cap_dir(cap_dir: Path) -> dict[str, float]:
 def _new_artifacts(
     before: dict[str, float], after: dict[str, float], cap_dir: Path
 ) -> list[dict[str, Any]]:
-    """Identify capture files added or modified during a dispatch."""
+    """Identify capture files added or modified during a dispatch.
+
+    Each record is a ``folder_ops.file_record`` (name / bytes / mtime /
+    age_s -- the same shape ``/cap.list`` and ``device_state.captures``
+    return) plus the resource ``uri``.
+    """
     out: list[dict[str, Any]] = []
     for name, mtime in sorted(after.items()):
         if before.get(name) == mtime:
             continue
-        path = cap_dir / name
-        try:
-            size = path.stat().st_size
-        except OSError:
-            size = 0
-        out.append(
-            {
-                "uri": f"termapy://capture/{name}",
-                "name": name,
-                "bytes": size,
-            }
-        )
+        out.append({"uri": f"termapy://capture/{name}", **file_record(cap_dir / name)})
     return out
 
 

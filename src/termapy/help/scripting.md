@@ -119,7 +119,9 @@ For a single call in a prose-mode session, every command also accepts
 ```
 
 `data` carries the structured form for commands that have one (`/port.list`,
-`/port.usb`, `/var`, profile-mapped device commands).  For everything else it
+`/port.usb`, `/var`, the folder listings `/run.list` / `/cap.list` / `/ss.list`
+/ `/proto.list` / `/plugin.list` as `{name, bytes, mtime, age_s}` records,
+profile-mapped device commands).  For everything else it
 is `null` and the command's rendered answer arrives in `output_lines` (markup
 flattened to plain text) -- `/help --json` is one envelope containing the
 help text, nothing printed outside it.  Errors arrive in the `error` field

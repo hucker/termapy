@@ -585,6 +585,9 @@ class TestCaptureArtifacts:
         assert diff[0]["name"] == "smoke.txt", "name preserved"
         assert diff[0]["uri"] == "termapy://capture/smoke.txt", "uri formed"
         assert diff[0]["bytes"] == 5, "size reported"
+        assert diff[0]["mtime"] and diff[0]["age_s"] >= 0, (
+            "recency fields present so an agent can order artifacts without re-listing"
+        )
 
 
 # ── Output buffer level tagging ─────────────────────────────────────────────

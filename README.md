@@ -195,7 +195,7 @@ The most common ones:
 | `/ss.dir`                            | Show the screenshot folder                                                    |
 | `/cls`                               | Clear the terminal screen                                                     |
 | `/run {filename} {-v}`               | Open Run picker (bare TUI), list scripts (bare CLI), or run; nests 5 deep     |
-| `/run.list`                          | List .run files in the run/ directory                                         |
+| `/run.list`                          | List .run files in run/, newest first, with size, age, and summary            |
 | `/run.load <filename>`               | Run a script file (same as /run)                                              |
 | `/run.help`                          | Same as `/help run`                                                           |
 | `/delay <duration>`                  | Wait for a duration (e.g. `500ms`, `1.5s`)                                    |
@@ -230,7 +230,7 @@ The most common ones:
 | `/proto.help`                        | Same as `/help proto`                                                         |
 | `/proto.send <hex>`                  | Send raw hex bytes and/or quoted text, display response as hex (see below)    |
 | `/proto.run <file>`                  | Run a binary protocol test script (.pro) with pass/fail                       |
-| `/proto.list`                        | List .pro files in the proto/ directory                                       |
+| `/proto.list`                        | List .pro files in proto/, newest first, with size and age                    |
 | `/proto.load <file>`                 | Run a protocol test script (same as /proto.run)                               |
 | `/proto.hex [on \| off]`             | Toggle hex display mode for serial I/O                                        |
 | `/proto.crc.list {pat}`              | List available CRC algorithms (optional glob filter)                          |

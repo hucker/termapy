@@ -16,19 +16,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from termapy.scripting import format_size
+
 # ── File metadata helpers (moved from cfg.py) ─────────────────────────────────
-
-
-def _human_size(n: int) -> str:
-    """Format byte count as '1.2 KB' / '45.8 MB' / etc."""
-    if n < 1024:
-        return f"{n} B"
-    f = float(n)
-    for unit in ("KB", "MB", "GB", "TB"):
-        f /= 1024
-        if f < 1024:
-            return f"{f:.1f} {unit}"
-    return f"{f:.1f} PB"
 
 
 def _fmt_time(ts: float) -> str:
@@ -62,7 +52,7 @@ def file_meta(path: Path) -> tuple[str, str, str]:
         st = path.stat()
     except OSError:
         return ("?", "?", "?")
-    return (_human_size(st.st_size), _fmt_time(_created_time(st)), _fmt_time(st.st_mtime))
+    return (format_size(st.st_size), _fmt_time(_created_time(st)), _fmt_time(st.st_mtime))
 
 
 # ── Tree renderer ─────────────────────────────────────────────────────────────

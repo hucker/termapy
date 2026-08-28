@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TypeVar
 
+from frist import Age
+
 # Shared ANSI escape regex - matches all CSI sequences (color, cursor, clear, etc.).
 # Use strip_ansi() to remove them from text.
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
@@ -253,11 +255,104 @@ def parse_duration_ms(text: str) -> int:
     return round(parse_duration(text, default_unit="ms") * 1000)
 
 
-def format_duration(seconds: float) -> str:
-    """Render a duration for humans: '480us', '25ms', or '1.50s'.
+# ── Human-readable sizes, ages, and durations ────────────────────────────────
+#
+# Three display formatters, one owner each.  ``frist`` is the engine for the
+# two time-based ones: its ``Age.AGE_UNITS`` (humanize thresholds, so "1 hr
+# ago" appears when a person would say it) and ``Age.DURATION_UNITS`` (clock
+# boundaries, so 46 s is "46s", never "0.77min") pick the unit, and ``Age``
+# does the math -- no ``/60`` / ``*1000`` conversions live in termapy.  Only
+# the LABELS are termapy's: compact forms for a 38-column picker.  Sizes are
+# not a datetime concern, so ``format_size`` stays a plain function.
+#
+# Ages and durations deliberately share the unit VOCABULARY (min / hr / days)
+# but not the rounding: an age is coarse by nature ("10 min ago"), a duration
+# is a measurement ("1.5s") that gets compared across runs.
 
-    Sub-millisecond values show whole microseconds, sub-second values show
-    whole milliseconds, and anything >= 1s shows seconds to two decimals.
+_AGE_LABELS = {"seconds": "s", "minutes": "min", "hours": "hr", "days": "day", "months": "mo"}
+_AGE_TIERS = tuple(
+    (threshold, _AGE_LABELS[unit], getter) for threshold, unit, getter in Age.AGE_UNITS
+)
+_DURATION_LABELS = {
+    "microseconds": "us",
+    "milliseconds": "ms",
+    "seconds": "s",
+    "minutes": "min",
+    "hours": "hr",
+    "days": "days",
+}
+_DURATION_TIERS = tuple(
+    (threshold, _DURATION_LABELS[unit], getter)
+    for threshold, unit, getter in Age.DURATION_UNITS
+)
+# Under this many seconds an age reads "just now" -- a presentation choice
+# (a file saved 30 s ago has no useful age), so it lives here, not in frist.
+_AGE_JUST_NOW_S = 45
+
+
+def format_size(byte_count: int) -> str:
+    """Render a byte count for humans: ``'512 B'``, ``'1.2 KB'``, ``'45.8 MB'``.
+
+    Binary (1024) steps, one decimal above bytes.  The single display
+    formatter for file sizes and capture progress; raw data fields
+    (``CmdResult.data`` ``bytes`` records) stay numeric.
+    """
+    if byte_count < 1024:
+        return f"{byte_count} B"
+    value = float(byte_count)
+    for unit in ("KB", "MB", "GB", "TB"):
+        value /= 1024
+        if value < 1024:
+            return f"{value:.1f} {unit}"
+    return f"{value / 1024:.1f} PB"
+
+
+def format_age(timestamp: float, *, now: float | None = None) -> str:
+    """Render how long ago ``timestamp`` was: ``'just now'``, ``'10 min ago'``.
+
+    Compact wording, one unit, whole numbers: ``just now`` (under 45 s),
+    ``10 min ago``, ``3 hr ago``, ``1 day ago`` / ``2 days ago``,
+    ``1 mo ago``, ``2 yr ago``.  The single display formatter for file
+    modification times ("which script did I edit last?"); raw data fields
+    (``mtime`` / ``age_s`` records) stay numeric.
+
+    Args:
+        timestamp: POSIX timestamp (e.g. ``path.stat().st_mtime``).
+        now: Reference POSIX timestamp; defaults to the current time.
+            Exists so tests can pin the output.
+    """
+    text = Age(timestamp, now).format(
+        units=_AGE_TIERS,
+        fmt="{value:.0f}|{unit}",
+        now=_AGE_JUST_NOW_S,
+        now_text="just now",
+    )
+    if text == "just now":
+        return text
+    value_text, unit = text.split("|")
+    if unit == "years":  # frist's fall-through tier past months
+        unit = "yr"
+    if unit == "day" and value_text != "1":
+        unit = "days"
+    return f"{value_text} {unit} ago"
+
+
+def _three_sig(value: float) -> str:
+    """Three significant figures without exponent notation.
+
+    ``{:.3g}`` is right for ``1.5`` / ``2.64`` / ``44`` but writes ``1e+03``
+    for a value that rounds up to its tier boundary; fall back to a whole
+    number there.
+    """
+    text = f"{value:.3g}"
+    return f"{value:.0f}" if "e" in text else text
+
+
+def format_duration(seconds: float) -> str:
+    """Render a duration for humans: ``'480us'``, ``'25ms'``, ``'1.5s'``, ``'2hr'``.
+
+    One unit, three significant figures, clock-boundary tiers
+    (us < 1000, ms < 1000, s < 60, min < 60, hr < 24, then days).
     This is the single display formatter for elapsed times, delays, and
     timeouts; raw data fields (``CmdResult.elapsed_s``, the ``.prof`` CSV,
     a results dict's ``elapsed_ms``) stay numeric.
@@ -268,11 +363,9 @@ def format_duration(seconds: float) -> str:
     Returns:
         A compact human-readable string with a unit suffix.
     """
-    if seconds < 0.001:
-        return f"{seconds * 1_000_000:.0f}us"
-    if seconds < 1.0:
-        return f"{seconds * 1000:.0f}ms"
-    return f"{seconds:.2f}s"
+    text = Age.from_seconds(seconds).format(units=_DURATION_TIERS, fmt="{value}|{unit}")
+    value_text, unit = text.split("|")
+    return f"{_three_sig(float(value_text))}{unit}"
 
 
 def format_timestamp(dt: datetime | None = None) -> str:

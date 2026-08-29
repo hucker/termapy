@@ -379,6 +379,33 @@ class TestRunDocstring:
             "the dispatcher renders usage from the declared params"
         )
 
+    def test_landscape_and_run_list_agree_on_the_summary(self, repl_env, tmp_path):
+        """One extractor for both: a docstring whose second line is a ``#``
+        continuation (crc_tour.run's shape) showed a summary in /run.list
+        and nothing in /help.run.  A leading ``<name> -- `` is dropped in
+        both, since the name already has its own column."""
+        # Arrange
+        engine, _, _, output = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "tour.run").write_bytes(
+            b"# tour.run -- the whole API in one screen\n#\n# More detail.\n/echo hi\n"
+        )
+
+        # Act
+        engine.dispatch("help.run")
+        landscape = [text for text, _ in output if "tour" in text]
+        output.clear()
+        engine.dispatch("run.list")
+        listing = [text for text, _ in output if "tour.run" in text]
+
+        # Assert
+        assert landscape and "the whole API in one screen" in landscape[0], (
+            f"/help.run shows the summary: {landscape}"
+        )
+        assert listing and listing[0].rstrip().endswith("--  the whole API in one screen"), (
+            f"/run.list shows the same summary without the filename prefix: {listing}"
+        )
+
     def test_run_list_wants_data_returns_records_without_prose(self, repl_env, tmp_path):
         # Arrange
         engine, _, _, output = repl_env

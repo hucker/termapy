@@ -52,7 +52,8 @@ def extract_docstring(path: Path) -> tuple[str, str]:
 
     Returns:
         Tuple of ``(summary, full)``.  ``summary`` is the first
-        comment line (stripped); ``full`` is the whole block joined
+        comment line (stripped, minus a leading ``<filename> -- ``);
+        ``full`` is the whole block joined
         with newlines, ``#`` and one leading space stripped from each
         line.  Both are ``""`` when the file has no leading docstring
         (no comment on line 1, missing file, read error, etc.).
@@ -76,4 +77,10 @@ def extract_docstring(path: Path) -> tuple[str, str]:
         return "", ""
     full = "\n".join(lines)
     summary = lines[0].strip()
+    # "crc_tour.run -- the whole API in one screen": a summary that opens
+    # with its own filename is a common convention, and every listing
+    # already prints the name in its own column, so drop the prefix.
+    prefix = f"{path.name} -- "
+    if summary.lower().startswith(prefix.lower()):
+        summary = summary[len(prefix):].strip()
     return summary, full

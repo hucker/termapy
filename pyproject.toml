@@ -280,7 +280,7 @@ dev = [
     # whatever ruff happened to be on PATH and `uvx ty` fetched the latest
     # release on every invocation.  Bump these deliberately, on a chore
     # branch, with the new findings reviewed -- never as a side effect.
-    "ruff==0.16.0",
+    "ruff==0.16.4",
     # ty is 0.0.x and ships near-daily; an unpinned check is a moving target.
     "ty==0.0.72",
 ]

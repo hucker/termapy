@@ -240,6 +240,12 @@ The most common ones:
 | `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, text, or file; omit data to verify check string   |
 | `/proto.crc.find <pkt>`              | Identify CRC algorithm from a captured packet (bin= hex or asc= text)         |
 | `/proto.info`                        | Print current protocol state                                                  |
+| `/sym <addr\|name>`                  | Symbol table: name to address, or address to `name+offset`                   |
+| `/sym.import <file> {format=<value>}` | Convert a linker map to `<cfg>.symbols.json` and load it                     |
+| `/sym.info`                          | Show the loaded symbol table: file, source, counts by section, range          |
+| `/sym.load {path}`                   | Load a symbol table (default: the cfg sidecar `/sym.import` writes)           |
+| `/sym.search <pattern>`              | Search symbols by name: exact, glob, regex, or substring                      |
+| `/sym.unload`                        | Clear the loaded symbol table                                                 |
 | `/var {name}`                        | List user variables, or show one by name                                      |
 | `/var.set <NAME> <value>`            | Set a user variable                                                           |
 | `/var.clear`                         | Clear all user variables                                                      |
@@ -272,6 +278,7 @@ termapy_cfg/
 ├── plugin/                             # global plugins (all configs)
 └── demo/
     ├── demo.cfg                        # config file
+    ├── demo.symbols.json               # symbol table for /sym (auto-loaded)
     ├── demo.log                        # session log
     ├── demo.history                    # command history
     ├── ss/                             # screenshots
@@ -1058,7 +1065,6 @@ See `examples/plugins/` for working examples:
 - **timestamp.py:** print the current date/time
 - **ping.py:** send a command and measure response time
 - **traffic.py:** passive RX/TX byte tap (count, hexdump, rate, snoop) -- also shipped with `--demo`
-- **pic_map.py:** decode a PIC memory map
 
 More complete examples ship with `--demo`: `probe.py` demonstrates the drain → write → read → parse cycle for device interaction; `traffic.py` (with `/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`) demonstrates the passive RX/TX observer pattern via the `ctx.serial.rx_observer()` / `ctx.serial.tx_observer()` context managers. Run `/help probe` or `/help traffic` to see the documentation, or `/help.dev <name>` for the source docstrings.
 

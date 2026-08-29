@@ -29,6 +29,7 @@ from termapy.folders import (
     HISTORY_FILE,
     HISTORY_SUFFIX,
     PROFILE_TMP_GLOB,
+    SYMBOLS_SUFFIX,
 )
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
@@ -143,6 +144,7 @@ def migrate_json_to_cfg(directory: Path) -> None:
     a config and is left strictly alone.  In particular:
 
       - ``<folder>/<folder>.profile.json``  (v2 device profile)
+      - ``<folder>/<folder>.symbols.json``  (symbol table for /sym.*)
       - ``<folder>/<folder>.schema.json``   (future schema-side data)
       - any ad-hoc ``.json`` a user dropped in the folder
 
@@ -908,6 +910,12 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     if force or not config_path.exists():
         src = pkg / "demo.cfg"
         config_path.write_bytes(src.read_bytes())
+
+    # Copy the symbol-table sidecar beside it (auto-loaded by /sym.*)
+    symbols_path = demo_dir / f"demo{SYMBOLS_SUFFIX}"
+    if force or not symbols_path.exists():
+        src = pkg / f"demo{SYMBOLS_SUFFIX}"
+        symbols_path.write_bytes(src.read_bytes())
 
     # Copy run scripts
     run_dir = demo_dir / "run"

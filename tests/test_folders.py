@@ -14,6 +14,7 @@ from termapy.folders import (
     PROFILE_TMP_GLOB,
     SEQ_FILE,
     SHOWABLE,
+    SYMBOLS_SUFFIX,
     FolderSpec,
 )
 
@@ -77,4 +78,7 @@ class TestFolders:
     def test_special_filenames(self):
         assert HISTORY_FILE == ".cmd_history.txt", "history file"
         assert SEQ_FILE == ".cap_seq", "sequence counter"
+        assert SYMBOLS_SUFFIX.startswith(".") and SYMBOLS_SUFFIX.endswith(".json"), (
+            "symbol sidecar is a dotted .json suffix beside the cfg"
+        )
         assert PROFILE_TMP_GLOB == "_profile_tmp_*.run", "temp profiles"

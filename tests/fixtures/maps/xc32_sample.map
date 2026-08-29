@@ -1,0 +1,66 @@
+Archive member included to satisfy reference by file (symbol)
+
+c:/tools/xc32/v5.00/lib/libpic32c.a(data_init.o)
+                              crt0.o (_data_init)
+
+Microchip PIC32 Memory-Usage Report
+
+ROM Program-Memory Usage
+section                    address  length [bytes]      (dec)  Description
+-------                 ----------  -------------------------  -----------
+.vectors                         0          0x15c         348
+.text                        0x15c           0x20          32  App's exec code
+.text.main                 0x10ffa          0x1ba         442
+.text.MonGpio               0xcac0          0x308         776
+.text.PinDiag_PinWrCmd      0x6b30          0x5ee        1518
+.text.SERCOM4_USART_Ser     0xec5c          0x260         608
+.text.u8PicAdcInternal_     0x16c1e           0xd4         212
+.text.u8PicAdcInternal_     0x187ea           0x98         152
+.rodata.sCmdTableA          0xc15c          0x334         820
+.rodata.str1.1              0xc490           0x40          64
+.bss.SERCOM4_USART_Writ 0x20000000         0x1400        5120
+.bss.sDispatch          0x200038a8          0x658        1624
+.data.sCurrentBaud      0x20006514            0x4           4
+.data.sFaultFn          0x20006530            0x4           4
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+rom              0x00000000         0x00080000         xrl
+ram              0x20000000         0x00010000         xw!r
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD c:/tools/xc32/v5.00/lib/crti.o
+
+.rodata.str1.1%1
+
+.text.u8PicAdcInternal_ReadBlockingAvg%358
+                0x00016c1e       0xd4
+
+.text.u8PicAdcInternal_EnableIfNeeded%398
+                0x000187ea       0x98
+ .text.u8PicAdcInternal_EnableIfNeeded
+                0x000187ea       0x98 build/src/adc.c.o
+
+.bss.SERCOM4_USART_WriteBuffer%6
+                0x20000000     0x1400
+
+.bss.sState%148
+                0x200062f2        0x1
+ .bss.sState
+                0x200062f2        0x1 build/src/mon.c.o
+
+.bss.sState%149
+                0x200062f3        0x1
+ .bss.sState    0x200062f3        0x1 build/src/adc.c.o
+
+.bss.sPacket.1%15
+                0x200062f4        0x8
+ .bss.sPacket.1
+                0x200062f4        0x8 build/src/mon.c.o
+
+                0x20005a58                sCal
+                0x200061d8                __stderr_used
+                0x20006214                f32Batt7Voltage

@@ -47,6 +47,12 @@ from termapy.scripting import (
     strip_ansi,
     strip_leading_echo,
 )
+from termapy.symbols import session as symbols_session
+
+# Lifecycle events with a CORE listener (symbol auto-load) that runs before
+# the plugin hooks: exactly the moments a config becomes current after the
+# context is wired, which every frontend already fires.
+_CORE_LIFECYCLE: frozenset[str] = frozenset({"on_app_start", "on_config_load"})
 
 
 def _resolve_flag(raw: str, declared: dict[str, str]) -> str | None:
@@ -908,9 +914,18 @@ class ReplEngine:
         later hooks from running.  Errors surface through ``ctx.io.status``
         so they are visible without crashing the app.
 
+        Core listeners (symbol auto-load) run before plugin hooks for
+        ``on_app_start`` / ``on_config_load``, so a plugin's own hook
+        already sees ``ctx.ns("symbols")``.  This is the one wiring for
+        every frontend -- not a plugin hook (which drifts per frontend) and
+        not a ``set_context`` / ``replace_cfg`` side effect (which
+        double-loads on the CLI/MCP config switch that rebuilds the ctx).
+
         Args:
             name: Hook name (must be in ``LIFECYCLE_HOOK_NAMES``).
         """
+        if name in _CORE_LIFECYCLE:
+            symbols_session.autoload(self.ctx, self.config_path)
         for hook in self._lifecycle_hooks:
             if hook.name != name:
                 continue

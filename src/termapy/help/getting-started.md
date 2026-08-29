@@ -115,6 +115,7 @@ termapy_cfg/
 │   ├── iot_device.cfg         # config file
 │   ├── iot_device.log         # session log
 │   ├── iot_device.history     # command history
+│   ├── iot_device.symbols.json  # symbol table (/sym.import)
 │   ├── ss/                    # screenshots
 │   ├── run/                   # script files
 │   ├── proto/                 # protocol test scripts (.pro)

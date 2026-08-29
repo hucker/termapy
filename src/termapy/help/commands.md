@@ -117,6 +117,12 @@ man-page detail for one.
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
 | `/ss.txt [name] [N]`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
+| `/sym <addr\|name>`       | Symbol table: name to address, or address to `name+offset`                  |
+| `/sym.import <file> {format=<value>}` | Convert a linker map to `<cfg>.symbols.json` and load it        |
+| `/sym.info`               | Show the loaded symbol table: file, source, counts by section, range        |
+| `/sym.load {path}`        | Load a symbol table (default: the cfg sidecar `/sym.import` writes)         |
+| `/sym.search <pattern>`   | Search symbols by name: exact, glob, regex, or substring                     |
+| `/sym.unload`             | Clear the loaded symbol table                                               |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.color {on\|off\|toggle}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |
 | `/term.echo {on\|off\|toggle}`    | Toggle local echo of device commands (see also `/term.echo_repl`)           |

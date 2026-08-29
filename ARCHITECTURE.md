@@ -108,6 +108,7 @@ src/termapy/
 ├── capture.py              # (422 lines)  Capture state machine - text, binary, format spec
 ├── cli.py                  # (1105 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
 ├── config.py               # (873 lines)  Config dirs, loading, validation, migration trigger
+├── credits_data.py         # (181 lines)  Dependency/attribution registry: one table behind the Help tooltip, /credits, acknowledgments.md
 ├── defaults.py             # (583 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
 ├── demo.py                 # (1873 lines) Simulated device for --demo mode (FakeSerial)
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)

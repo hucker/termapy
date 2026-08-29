@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -23,6 +24,13 @@ import pytest
 import serial
 
 from termapy.defaults import DEFAULT_CFG
+from termapy.folders import SYMBOLS_SUFFIX
+from termapy.plugins.command import LifecycleHook
+
+DEMO_SYMBOLS = (
+    Path(__file__).parent.parent / "src" / "termapy" / "builtins" / "demo" / f"demo{SYMBOLS_SUFFIX}"
+)
+DEMO_COUNT = 12
 
 
 def _run(scenario) -> None:
@@ -1204,5 +1212,80 @@ class TestDelayHook:
                 )
                 assert outcome["result"].success, "/delay 1s reports success"
                 assert outcome["result"].value == "1.0", "value is the seconds waited"
+
+        _run(scenario)
+
+
+class TestSymbolsAutoload:
+    """The symbol sidecar loads on mount, before the startup auto-connect.
+
+    test_sym_commands.py proves the engine's auto-load; the CLI gold proves
+    the CLI reaches it.  This is the TUI's wiring: ``on_mount`` fires
+    ``on_app_start`` BEFORE ``_run_startup``, so an ``auto_connect`` config's
+    ``on_connect`` hooks already see ``ctx.ns("symbols")``.
+    """
+
+    def test_sidecar_loads_on_mount_and_sym_resolves(self, app_factory):
+        async def scenario():
+            from textual.widgets import Input, RichLog
+
+            from termapy.symbols import get_table
+
+            # Arrange -- the demo table beside the cfg, as /sym.import writes it
+            app, _, path = app_factory()
+            shutil.copyfile(DEMO_SYMBOLS, Path(path).with_name(f"proj{SYMBOLS_SUFFIX}"))
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Assert -- mounted == loaded
+                table = get_table(app.repl.ctx)
+                assert table is not None, "the sidecar auto-loads on mount"
+                assert len(table) == DEMO_COUNT, "the whole demo table is installed"
+
+                # Act -- the user's path: type /sym and press enter
+                cmd_input = app.query_one("#cmd", Input)
+                cmd_input.value = "/sym main"
+                cmd_input.focus()
+                await pilot.pause()
+                await pilot.press("enter")
+                await app.workers.wait_for_complete()  # the dispatch worker
+                await pilot.pause()  # the marshalled write onto the RichLog
+
+                # Assert -- the lookup rendered in the output pane
+                lines = [strip.text for strip in app.query_one("#output", RichLog).lines]
+                assert any("0x00002000  main" in line for line in lines), (
+                    f"/sym main renders the address in the TUI, got {lines[-5:]}"
+                )
+
+        _run(scenario)
+
+    def test_on_connect_hook_sees_the_table_under_auto_connect(self, app_factory):
+        async def scenario():
+            from termapy.symbols import get_table
+
+            # Arrange -- auto_connect on the DEMO port connects synchronously
+            # inside _run_startup, so the hook fires during on_mount
+            app, _, path = app_factory(auto_connect=True)
+            shutil.copyfile(DEMO_SYMBOLS, Path(path).with_name(f"proj{SYMBOLS_SUFFIX}"))
+            seen: list[int] = []
+
+            def hook(ctx):
+                table = get_table(ctx)
+                seen.append(len(table) if table is not None else -1)
+
+            app.repl.register_lifecycle_hook(
+                LifecycleHook(name="on_connect", handler=hook, source="test", plugin="probe"),
+            )
+
+            # Act
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Assert
+                assert app.is_connected is True, "auto_connect opened the DEMO port"
+                assert seen == [DEMO_COUNT], (
+                    "on_app_start (symbol load) precedes the startup auto-connect, "
+                    "so on_connect already sees the table"
+                )
 
         _run(scenario)

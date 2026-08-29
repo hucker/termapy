@@ -13,6 +13,7 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
+from termapy.credits_data import tooltip_credits
 from termapy.update_check import cached_status
 
 
@@ -42,28 +43,22 @@ def build_help_tooltip(ver: str, hint: str = "") -> Group:
     else:
         status_line = Text.from_markup("[green]You have the latest version.[/]")
 
-    # crcglot (the CRC engine termapy calls) is built on the reveng
-    # catalogue (the algorithm source), so both are credited, adjacent,
-    # to show the lineage -- dropping either would erase a link.  The
-    # reveng URL sits on a second line inside its "role" cell so it
-    # aligns under "CRC algorithms"; Rich renders ``\n`` in a cell as
-    # multi-line and column widths still line up.
-    reveng_role = Text("CRC algorithms\n", style="white")
-    reveng_role.append("reveng.sourceforge.io", style="dim")
-
+    # The rows come from the dependency registry (credits_data.CREDITS,
+    # the records flagged in_tooltip) so this grid can never disagree
+    # with /credits or the acknowledgments page.  A record's role_detail
+    # (the reveng catalog URL) sits on a dim second line inside its
+    # "role" cell so it aligns under the role; Rich renders ``\n`` in a
+    # cell as multi-line and column widths still line up.
     grid = Table.grid(padding=(0, 2))
     grid.add_column(style="cyan")
     grid.add_column(style="white")
     grid.add_column(style="green")
-    grid.add_row("pyserial",         "serial I/O",     "Chris Liechti")
-    grid.add_row("Textual / Rich",   "TUI + output",   "Will McGugan")
-    grid.add_row("prompt_toolkit",   "CLI",            "Jonathan Slenders")
-    grid.add_row("crcglot",          "CRC engine",     "Chuck Bass")
-    grid.add_row("frist",            "ages, durations", "Chuck Bass")
-    grid.add_row("reveng catalog", reveng_role,      "Greg Cook")
-    grid.add_row("xmodem",           "file transfer",
-                 "Wijnand Modderman, Jeff Quast, Andrew Leech")
-    grid.add_row("ymodem",           "file transfer",  "alexwoo")
+    for credit in tooltip_credits():
+        role: RenderableType = credit.role
+        if credit.role_detail:
+            role = Text(f"{credit.role}\n", style="white")
+            role.append(credit.role_detail, style="dim")
+        grid.add_row(credit.display_name, role, credit.author)
 
     parts: list[RenderableType] = [
         Text.from_markup(f"[bold]Termapy v{ver}[/]  [dim]Show help guide{hint_str}.[/]"),

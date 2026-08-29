@@ -87,29 +87,35 @@ Termapy would not exist without a long tail of packages from PyPI.
 Each one below is a direct runtime dependency declared in
 ``pyproject.toml``:
 
-- [**pygments**](https://pygments.org/) -- syntax highlighting for
-  the in-app TextArea editors (config JSON, proto TOML, script
-  bash).  Started by **Georg Brandl** and now maintained by the
-  Pygments team.
-- [**tree-sitter**](https://tree-sitter.github.io/) + the JSON /
-  TOML / bash grammars -- incremental parsers powering the same
-  editors.  Tree-sitter itself was started by **Max Brunsfeld** at
-  GitHub; the grammar packages are community-maintained.
+<!-- deps:start (generated from src/termapy/credits_data.py by scripts/sync_acknowledgments.py; edit the registry, not this block) -->
+- [**pygments**](https://pygments.org/) -- syntax highlighting for the
+  in-app TextArea editors (config JSON, proto TOML, script bash).
+- [**tree-sitter**](https://tree-sitter.github.io/) -- plus the JSON /
+  TOML / bash grammars: the incremental parsers powering the same
+  editors.
 - [**packaging**](https://packaging.pypa.io/) -- PEP 440 version
-  comparison used by the update-check module to compare an installed
-  termapy version against the latest PyPI release.  Maintained by
-  the Python Packaging Authority (PyPA).
-- [**platformdirs**](https://github.com/platformdirs/platformdirs)
-  -- cross-platform user state / config directory resolution
-  (community fork of the original ``appdirs`` by ActiveState).
+  comparison for the update check, which compares the installed
+  termapy against the latest PyPI release.
+- [**platformdirs**](https://github.com/platformdirs/platformdirs) --
+  cross-platform user state / config directory resolution (community
+  fork of the original appdirs by ActiveState).
 - [**crcglot**](https://github.com/hucker/crcglot) -- the reveng CRC
   catalog, detection / reversal, and multi-language code generation
-  behind every ``/proto.crc.*`` command; extracted from termapy into
-  its own package.
+  behind every /proto.crc.* command; extracted from termapy into its
+  own package.
 - [**frist**](https://github.com/hucker/frist) -- the age and duration
   engine behind every "10 min ago" and "1.5s" termapy prints: unit
   selection and calendar-accurate months, so termapy owns only the
   labels.
+
+Optional extras (`pip install termapy[<extra>]`):
+
+- [**mcp**](https://github.com/modelcontextprotocol/python-sdk) (`mcp`
+  extra) -- the Model Context Protocol SDK that termapy --mcp is built
+  on.
+- [**textual-serve**](https://github.com/Textualize/textual-serve)
+  (`web` extra) -- serves the TUI to a browser for termapy --web.
+<!-- deps:end -->
 
 ## Vendored code
 

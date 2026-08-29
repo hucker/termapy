@@ -231,6 +231,15 @@ uv run termapy --cfg-dir . # use cwd for configs
 
 ## Precommit
 
+- **A new dependency gets a `Credit` record in `credits_data.py`.** That table
+  is the only place a dependency is described; the Help tooltip, `/credits`,
+  and `help/acknowledgments.md` all iterate it, and
+  `tests/test_credits_data.py` diffs it against `pyproject.toml` both ways
+  (plus the vendored tree), so a dep added without a record fails the suite.
+  After editing the table run `python scripts/sync_acknowledgments.py` to
+  regenerate the page block and `credits.py`. Same principle everywhere: when
+  three surfaces need the same facts, put the facts in one table and iterate
+  it — never keep parallel hand-written lists.
 - Update README.md and help/*.md
 - Update ARCHITECTURE.md if modules, plugins, or structure changed
 - **Do NOT hand-update the test/coverage/ty counts or badges on feature

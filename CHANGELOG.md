@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.76.0 (2026-08-28)
+
+A picker release: the Run, Proto, and Config dialogs get a header row,
+a Rename button, and the fixes that fell out of using them, followed by
+a full accuracy pass over the help pages and a dependency registry so
+the credits can never drift again.
+
+### Pickers: headers, rename, and two fixes
+
+The three file pickers now start with a header row -- `NAME  SIZE
+UPDATED  SUMMARY` for scripts, `NAME  SIZE  UPDATED  PORT  BAUD  TITLE`
+for configs -- with every header left-aligned at its column's edge.  The
+config picker shows the port and baud as separate columns and the
+config's title beside them; a title that only repeats the config's name
+is left blank.
+
+**Rename** joins Run / Edit / New / Delete.  For scripts and protocol
+files it is a command first -- `/run.rename <old> <new>` and
+`/proto.rename <old> <new>` (and the same `.rename` on every folder
+command) -- with one rule set: the name stays inside the folder, the
+extension is kept (a bare new name gets it appended, a different one is
+refused), and nothing is overwritten.  The button prefills the current
+name and dispatches that command, so the TUI, CLI, and MCP share the
+rules.  Renaming a config moves the `termapy_cfg/<name>/` folder and the
+`.cfg` inside it together (with the command history); renaming the
+active config reloads it.
+
+Two things the pickers exposed: the Run picker listed every file in
+`run/`, not just `.run` scripts, and with no config loaded it listed the
+current directory -- it filters now, and the Run / Proto buttons say
+`No config loaded.` instead of opening.
+
+### Help pages: an accuracy pass
+
+Every `/command` reference in the docs was diffed against the registered
+command set, every config key against the defaults, every link and image
+against disk, and the prose audited against the code.  Dead commands are
+gone (`/cfg.scripts`, `/cfg.configs`, `/ss.dir`, `/run.load`,
+`/proto.load`, `/proto.status`, `/term.echo.silent`, the retired
+`crc16m` aliases, ...), and the wrong facts are fixed: key bindings that
+never existed (F5/F6/F7, Ctrl+L), VT100 as the third UI mode, `/expect`'s
+default (5 s, not 250 ms), `$(CFG)` (it is fourteen `$(CFG.*)` names),
+`serial.port` nesting in every config example, the `.pro` format (TOML;
+the legacy flat form is now a footnote), the CRC find output and the
+eleven code-generation languages, and plugin samples that would not have
+run.  The README's hero and picker images are the current help SVGs.
+The generated `.gitignore` now ignores `*.history` as the docs always
+said it did.
+
+### One dependency registry
+
+`frist` shipped in 0.75.0 without appearing in the Help tooltip or the
+acknowledgments page, because those were separate hand-kept lists.  They
+are now generated from one table (`credits_data.CREDITS`): the tooltip
+renders it, `/credits` and `help/acknowledgments.md` are regenerated from
+it, and a test diffs it against `pyproject.toml` in both directions and
+against the vendored tree -- a dependency added without a credit fails
+the suite.
+
 ## 0.75.0 (2026-08-28)
 
 A serial-reliability release wrapped around three visible features: silent

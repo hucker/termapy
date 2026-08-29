@@ -61,7 +61,7 @@ src/termapy/
 │   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
 │   ├── demo/               #              Demo config, scripts, proto files, plugins
 │   └── viz/                #              Built-in packet visualizers (hex, text)
-├── dialogs/                # (2565 lines) Modal screens - one file per dialog
+├── dialogs/                # (2670 lines) Modal screens - one file per dialog
 │   ├── _common.py          #   Shared CSS, dismiss bindings, port-row helper
 │   ├── cfg_confirm.py      #   CfgConfirm
 │   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (the big one)
@@ -104,10 +104,10 @@ src/termapy/
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (3876 lines) Textual TUI - UI, modals, app hooks
+├── app.py                  # (3931 lines) Textual TUI - UI, modals, app hooks
 ├── capture.py              # (422 lines)  Capture state machine - text, binary, format spec
 ├── cli.py                  # (1105 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
-├── config.py               # (873 lines)  Config dirs, loading, validation, migration trigger
+├── config.py               # (952 lines)  Config dirs, loading, validation, migration trigger
 ├── credits_data.py         # (181 lines)  Dependency/attribution registry: one table behind the Help tooltip, /credits, acknowledgments.md
 ├── defaults.py             # (583 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
 ├── demo.py                 # (1873 lines) Simulated device for --demo mode (FakeSerial)

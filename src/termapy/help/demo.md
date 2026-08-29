@@ -39,6 +39,7 @@ The demo creates a complete project at `termapy_cfg/demo/` with:
 - **Scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo, expect_test, crc_tour, doc_screenshots
 - **Protocol test files**: at_test, bitfield_inline, modbus_inline
 - **Plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline), traffic (RX/TX byte tap)
+- **Symbol table**: demo.symbols.json, names for the `mem` addresses (try `/sym main`, `/sym 0x2010`, `/sym.search g*`)
 
 ## Device commands
 

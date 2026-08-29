@@ -55,6 +55,7 @@ src/termapy/
 │   │   ├── show.py     #  /show - show file contents
 │   │   ├── ss.py       #  /ss - screenshot commands (svg, txt + folder ops)
 │   │   ├── stop.py     #  /stop - abort a running script
+│   │   ├── sym.py      #  /sym.* - symbol table lookup, import, search
 │   │   ├── term.py     #  /term.* - terminal display / session toggles
 │   │   ├── var.py      #  /var - user-defined variables, $(NAME) syntax
 │   │   └── xfer.py     #  /xfer - file transfer (settings + XMODEM + YMODEM)
@@ -99,6 +100,13 @@ src/termapy/
 │   ├── crc.py              #   crcglot catalog shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
+├── symbols/                # (0 lines) Symbol tables (library-shaped, no Textual/pyserial): the JSON format, the address grammar, converter registry
+│   ├── table.py            #   Symbol, SymbolTable (lookup/search, load/save/validate), sidecar_path
+│   ├── address.py          #   The address grammar: 0x.., ..h, decimal, name, name+off, name@file; .suffix reserved
+│   ├── format.py           #   Prose renderers and their data= record twins
+│   ├── session.py          #   ctx.ns("symbols") owner + the auto-load rule fired by ReplEngine
+│   └── converters/         #   Registry (CONVERTERS, FORMATS, find_converter) + one module per toolchain
+│       └── xc32.py         #     Microchip XC32 (GNU ld) linker-map converter
 ├── usb/                    # (3911 lines) USB lookup tables (library-shaped)
 │   ├── _vendors_full.py    #   Generated USB-IF table (fallback)
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
@@ -136,8 +144,11 @@ engines; `builtins/commands/port.py` is the command surface built on them, and
 core rather than moving into the plugin. `variables.py` is the same shape: it owns the
 `$(NAME)` namespace that every frontend registers into at startup and that `repl.py`
 expands on the dispatch path, while `builtins/commands/var.py` is just `/var` and the
-`$(NAME) = value` directive. Infrastructure core needs does not live under `builtins/`,
-however natural the matching command feels.
+`$(NAME) = value` directive. `symbols/` <- `builtins/commands/sym.py` is the third example:
+the symbol table, its file format, the address grammar and the auto-load rule are core
+(`ReplEngine.fire_lifecycle` loads the sidecar), and `/sym.*` is the thin command surface.
+Infrastructure core needs does not live under `builtins/`, however natural the matching
+command feels.
 
 `usb/` is a different kind of thing: a dependency-free table package kept separable for a
 possible standalone release, which is why live platform probing (winreg, cfgmgr32, sysfs)
@@ -242,6 +253,7 @@ Built-ins use namespaces as worked examples of the pattern:
 ```text
 ctx.ns("seq")              - sequence counters, mutated by {seqN+} template expansion
 ctx.ns("active_profile")   - the loaded device profile (set by /profile.load)
+ctx.ns("symbols")          - the loaded symbol table (auto-loaded from <cfg>.symbols.json; set by /sym.import, /sym.load)
 ctx.ns("flags")            - engine-owned toggles: echo, echo_repl, color, output_level, hex
 ```
 
@@ -262,7 +274,7 @@ on_script_stop(ctx)   - when the outermost script ends, including on /stop or er
 
 Script hooks fire only at the top level - nested `/run` inside a running script does not re-fire `on_script_start`. A plugin that clears state in `on_script_start` will not have its state wiped by inner scripts. Plugins that need per-file nesting can track depth themselves via `ctx.internal.in_script()`.
 
-Hooks are stored in a flat list in load order (`ReplEngine._lifecycle_hooks`). `fire_lifecycle(name)` filters by name and calls matching handlers in registration order, catching exceptions per-hook so one bad plugin can't prevent later hooks from running. Errors surface through `ctx.status()`.
+Hooks are stored in a flat list in load order (`ReplEngine._lifecycle_hooks`). `fire_lifecycle(name)` filters by name and calls matching handlers in registration order, catching exceptions per-hook so one bad plugin can't prevent later hooks from running. Errors surface through `ctx.status()`. One core listener runs inside `fire_lifecycle` BEFORE the plugin hooks: the symbol auto-load (`symbols.session.autoload`) on `on_app_start` and `on_config_load`, so every frontend loads `<cfg>.symbols.json` at the same moment -- `on_app_start` fires BEFORE the startup auto-connect in the TUI, CLI and MCP server alike, so an `on_connect` hook or `on_connect_cmd` already has the table -- and a plugin's own hook already sees `ctx.ns("symbols")`. It is deliberately not a plugin hook (which would drift per frontend) and not a `set_context` / `replace_cfg` side effect (which double-loads on the CLI/MCP config switch that rebuilds the ctx).
 
 Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` and wires `on_script_start` to clear it, so scripts start with a clean counter set without `ReplEngine` knowing anything about sequence counters. This is the pattern to follow for any plugin with session-scoped state that needs lifecycle management.
 

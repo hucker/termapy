@@ -960,8 +960,11 @@ class SerialTerminal(TerminalHost, App):
         self._maybe_show_vscode_tip()
         self._register_tui_hooks()
         self._load_plugins()
-        self._run_startup()
+        # Before _run_startup: an auto_connect config fires on_connect from
+        # there, and the CLI/MCP order (on_app_start, then connect) means
+        # the symbol auto-load is already done when on_connect hooks run.
         self.repl.fire_lifecycle("on_app_start")
+        self._run_startup()
         self._check_for_updates()
 
     def _maybe_show_vscode_tip(self) -> None:
@@ -2603,6 +2606,7 @@ class SerialTerminal(TerminalHost, App):
         "scripting",
         "protocol-testing",
         "data-capture",
+        "symbols",
         "writing-plugins",
         "using-git",
         "demo",

@@ -1380,6 +1380,12 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
 
+    # Fire on_app_start lifecycle so plugins that registered hooks at
+    # plugin-load time get a chance to initialize.  Before the auto-connect,
+    # matching the CLI and TUI: the symbol auto-load runs here, so on_connect
+    # hooks already see the table.
+    host.repl.fire_lifecycle("on_app_start")
+
     # Auto-connect if a port is configured.  Failure to open a port
     # doesn't abort the server -- Claude can /port.connect later.
     if cfg["serial"]["port"]:
@@ -1389,10 +1395,6 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
             host._log_line(f"! Auto-connect failed: {exc}")
 
     server = _build_server(host)
-
-    # Fire on_app_start lifecycle so plugins that registered hooks at
-    # plugin-load time get a chance to initialize.
-    host.repl.fire_lifecycle("on_app_start")
 
     # SIGINT/SIGTERM handlers translate to KeyboardInterrupt so the SDK's
     # stdio loop unwinds cleanly through the finally block.  On Windows

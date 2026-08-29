@@ -350,6 +350,7 @@ def update_architecture_md() -> None:
         "src/termapy/mcp",          # package
         "src/termapy/profile",      # package
         "src/termapy/usb",          # package
+        "src/termapy/symbols",      # package
     ]
     missing: list[str] = []
     for rel in tracked:

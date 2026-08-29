@@ -32,6 +32,7 @@ nav:
   - Serial Tools: serial-tools.md
   - Protocol Testing: protocol-testing.md
   - Data Capture: data-capture.md
+  - Symbols: symbols.md
   - File Transfer: file-transfer.md
   - Writing Plugins: writing-plugins.md
   - Device Help: device-help.md

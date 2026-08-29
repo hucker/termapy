@@ -51,12 +51,12 @@ class PluginConfig:
     Usage::
 
         def _handler(ctx, args):
-            cfg = ctx.plugin_cfg("pic_map")
-            cfg["map_path"] = "/path/to/mem.map"
+            cfg = ctx.plugin_cfg("myplugin")
+            cfg["last_path"] = "/path/to/data.bin"
             cfg.save()
 
             # Read back
-            path = cfg.get("map_path", "")
+            path = cfg.get("last_path", "")
 
     The dict-like interface supports ``get()``, ``[]``, ``[]=``,
     ``pop()``, ``in``, ``del``, and iteration.
@@ -349,8 +349,8 @@ class PluginContext:
         Example::
 
             def _handler(ctx, args):
-                cfg = ctx.plugin_cfg("pic_map")
-                cfg["map_path"] = args.strip()
+                cfg = ctx.plugin_cfg("myplugin")
+                cfg["last_path"] = args.strip()
                 cfg.save()
 
         Args:

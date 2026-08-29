@@ -462,7 +462,8 @@ class LifecycleHook:
     Supported hook names (see :data:`LIFECYCLE_HOOK_NAMES`):
 
     - ``on_app_start``    - fires once after plugins are loaded and the
-                            context is wired, before first dispatch.
+                            context is wired, before first dispatch and
+                            before any startup auto-connect (every frontend).
     - ``on_app_stop``     - fires once during graceful shutdown.  Not
                             guaranteed on crash.
     - ``on_connect``      - fires after the serial port is successfully opened.
@@ -471,6 +472,10 @@ class LifecycleHook:
     - ``on_script_start`` - fires when a script begins executing.
     - ``on_script_stop``  - fires after a script finishes, including on
                             ``/stop`` or exception.  Mirrors ``on_script_start``.
+
+    Core listeners (symbol auto-load from ``<cfg>.symbols.json``) run inside
+    ``ReplEngine.fire_lifecycle`` BEFORE plugin hooks for ``on_app_start``
+    and ``on_config_load``, so a hook already sees ``ctx.ns("symbols")``.
 
     Attributes:
         name: The hook name (e.g. ``"on_app_start"``).

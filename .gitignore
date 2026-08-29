@@ -32,3 +32,4 @@ notes/
 .claude/
 todo.md
 *.map
+!tests/fixtures/maps/*.map

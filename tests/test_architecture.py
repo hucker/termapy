@@ -269,15 +269,20 @@ def test_ui_layer_list_has_no_stale_entries():
 
 
 def test_engine_modules_have_no_serial_dependency():
-    """The plugin system and the scripting helpers stay transport-agnostic.
+    """The plugin system, the scripting helpers and symbols/ stay transport-agnostic.
 
-    ``plugins/`` defines the command/context API and ``scripting.py`` is pure
-    functions; neither should know that a serial port exists.  Keeping pyserial
-    out of them is what lets a non-serial frontend reuse the whole command
-    layer.
+    ``plugins/`` defines the command/context API, ``scripting.py`` is pure
+    functions, and ``symbols/`` is library-shaped like ``protocol/`` (a symbol
+    table describes a firmware build, not a wire); none should know that a
+    serial port exists.  Keeping pyserial out of them is what lets a
+    non-serial frontend reuse the whole command layer.
     """
     # Arrange
-    targets = [*(SRC / "plugins").rglob("*.py"), SRC / "scripting.py"]
+    targets = [
+        *(SRC / "plugins").rglob("*.py"),
+        *(SRC / "symbols").rglob("*.py"),
+        SRC / "scripting.py",
+    ]
     offenders: list[str] = []
 
     # Act

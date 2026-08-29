@@ -1,0 +1,22 @@
+{
+  "symbols_version": 1,
+  "source": "demo firmware (hand-written)",
+  "imported": "2026-08-29T00:00:00",
+  "address_bits": 32,
+  "endian": "le",
+  "regions": [],
+  "symbols": [
+    {"name": "gTemp", "addr": "0x00001000", "size": 2, "section": "bss", "file": "sensor.c", "type": "u16"},
+    {"name": "gPressure", "addr": "0x00001002", "size": 4, "section": "bss", "file": "sensor.c", "type": "f32"},
+    {"name": "gFlags", "addr": "0x00001008", "size": 4, "section": "data", "file": "main.c", "type": "u32"},
+    {"name": "count.12", "addr": "0x0000100C", "size": 4, "section": "bss", "file": "main.c", "type": "u32"},
+    {"name": "tick", "addr": "0x00001010", "size": 4, "section": "bss", "file": "mon.c", "type": "u32"},
+    {"name": "tick", "addr": "0x00001014", "size": 4, "section": "bss", "file": "adc.c", "type": "u32"},
+    {"name": "sCal", "addr": "0x00001020", "size": 0, "section": "global"},
+    {"name": "main", "addr": "0x00002000", "size": 442, "section": "text", "file": "main.c"},
+    {"name": "MonGpio", "addr": "0x00002200", "size": 776, "section": "text", "file": "mon.c"},
+    {"name": "sCmdTable", "addr": "0x00003000", "size": 64, "section": "rodata", "file": "main.c"},
+    {"name": "U1MODE", "addr": "0xBF806000", "size": 4, "section": "sfr", "type": "ON:B1-4.15 UEN:B1-4.8-9 BRGH:B1-4.3"},
+    {"name": "U1STA", "addr": "0xBF806010", "size": 4, "section": "sfr", "type": "u32", "rmw": false}
+  ]
+}

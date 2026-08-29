@@ -1,5 +1,135 @@
 # Changelog
 
+## 0.75.0 (2026-08-28)
+
+A serial-reliability release wrapped around three visible features: silent
+RX data loss on Windows is fixed (measured, not theorized), the session has
+one JSON dial that covers device and termapy commands alike, and every file
+listing and picker now says how big a file is and how long ago it changed.
+Also a USB bus tree, comparable port locations for FTDI adapters, and a
+threading audit that closed seventeen findings.
+
+### Ages and sizes everywhere
+
+Every file listing answers "which one did I just make?" without being
+asked. `/run.list`, `/cap.list`, `/ss.list`, `/proto.list`, `/plugin.list`
+and `/run.profile.list` are newest-first and each line carries the file's
+size and age:
+
+```text
+run/
+  status_check.run       72 B  just now    --  Quick status check
+  gps_demo.run          622 B  10 min ago  --  GPS/NMEA Demo -- Query simulated GPS receiver
+```
+
+The Run, Proto and Config pickers show the same columns (metadata dimmed,
+newest first) plus a detail: the docstring summary for a script, and
+`port @ baud` and the config's title for a config -- a title that only
+repeats the config's name is shown blank. The dialogs widen to fit a
+macOS-length port name. Button tooltips say `7 available, newest 10 min
+ago`, and the live capture label counts in KB/MB with the completion line
+adding wall time (`2.0 KB in 3.2s`).
+
+Three display formatters own this -- `format_size`, `format_age`,
+`format_duration` -- with `frist` (new runtime dependency) picking the
+unit and doing the calendar math. **Display change:** durations of a
+second or more now render to three significant figures and roll over at
+clock boundaries: `1.5s` instead of `1.50s`, `2hr` instead of `7200.00s`;
+sub-second output is unchanged.
+
+Under `--json` (and over MCP) the listings return `{name, bytes, mtime,
+age_s}` records, and MCP capture artifacts carry `mtime` / `age_s`, so an
+agent can order captures by recency.
+
+### One JSON dial for the whole session
+
+Any command now accepts `--json` and answers with one envelope line in
+place of prose:
+
+```text
+/port.list --json
+{"cmd": "/port.list", "success": true, "error": "", "value": "COM3,COM4",
+ "data": [{"device": "COM3", ...}], "output_lines": [], "elapsed_s": 0.02}
+```
+
+`/term.request on` is the session-wide form: with it on, bare device
+commands render request/response envelopes and termapy commands render
+result envelopes -- the device/termapy demarcation is invisible, the
+session is simply in JSON mode. A command with no structured form still
+answers as an envelope, with its rendered text captured into
+`output_lines` rather than printed beside it. Errors arrive in the
+`error` field, never as a second red line, and the envelope composes with
+`--quiet` / `--silent`.
+
+`CmdResult.data` is the structured channel behind this: `/port.list`,
+`/port.usb`, `/var` and the folder listings return real JSON records;
+`value` stays the scriptable scalar. **Breaking (MCP wire):** every
+`run_command` response is the same nine keys -- profile-shaped and
+`/term.request` replies moved from `value` to `data`, and the
+self-describing unwrapped shape is gone. **Breaking (display):**
+request-mode scrollback lines now carry `value` / `data` /
+`output_lines` instead of `result`.
+
+Over MCP, device ANSI is stripped by default (`/term.color on` restores
+passthrough), so escape codes no longer leak into the JSON an agent
+receives or corrupt `request_err_pattern` matching. Piping CLI output no
+longer hard-wraps long lines at terminal width -- `termapy --cli -e
+"/port.list --json" | jq` works.
+
+### Serial reliability
+
+- **Silent RX data loss fixed (Windows).** pyserial opens every port
+  with a 4 KB driver buffer; a main-thread stall longer than
+  `4096 / (baud / 10)` ms overflowed it and the driver discarded the
+  excess with no error. Measured on a hardware loopback: 20.9% lost at
+  921600 with a 60 ms stall, 21.6% at 115200 with a 500 ms stall -- both
+  now 0.0%. The buffer is widened on open (`SERIAL_RX_BUFFER_BYTES`),
+  and RX reaches the UI through a non-blocking handoff so the reader
+  never waits on the main thread.
+- `drain()` now purges the driver buffer too, so stale bytes no longer
+  land in the next request/response reply.
+- A reader thread only tears down its own port: a stale reader can no
+  longer close the connection the user just opened.
+- `wait_for_idle` keys off when the device last spoke rather than a
+  buffer the reader keeps empty, so it no longer reports idle
+  mid-response.
+- `/cap.bin` byte targets above 4096 are reachable again (they could
+  never be met; the capture ran until stopped).
+- Teardown is a real thread join; `/delay` of a second or more no longer
+  crashes in the TUI; `/repeat` no longer erases a stop the user just
+  requested; one outermost script at a time is enforced in the engine
+  for every frontend; an MCP timeout no longer stalls the event loop
+  for the length of the abandoned command.
+
+A hardware loopback suite (`pytest -m hardware`, jumpered adapter found
+by serial number, skips cleanly when absent) now covers the defects that
+`FakeSerial` and `loop://` are structurally unable to show.
+
+### Ports and the USB bus
+
+`termapy --usb` / `/port.usb` draws the whole USB tree with serial ports
+marked (`--usb --json` for records) -- which hub an adapter is on, whether
+a COM port is one function of a composite device. On Windows, FTDI ports
+now show the same `1-8.3` bus-port chain as everything else instead of a
+registry hub/port pair, multi-channel FTDI chips keep their channels
+apart, and the interface number is its own `IF` column rather than a
+suffix that changed the shape of LOCATION. The DRIVER / LOCATION columns
+had been empty for FTDI devices since July's non-invasive probe change
+swept the registry lookup in with the port-opening probe; they are back,
+and the lookup opens nothing. `--watch` sizes its
+port column for POSIX device names.
+
+### Also
+
+- Help pages gained a set of scripted, regenerable screenshots (pickers,
+  editors, palette, capture, protocol debug, VT100 demo).
+- Port discovery takes an injectable `source=` (then
+  `TERMAPY_DEMO_FLEET`, then hardware); the `$(NAME)` variable engine
+  moved from a plugin into core; core-to-plugin imports and the io-channel
+  rule are enforced by `pytest` (AST, not grep).
+- Release scripts: the USB vendor refresh is idempotent and captured tool
+  output decodes as UTF-8 on Windows.
+
 ## 0.74.0 (2026-08-18)
 
 Two new argument primitives that any command can use, multi-frame CRC

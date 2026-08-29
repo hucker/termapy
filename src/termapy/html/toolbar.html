@@ -19,23 +19,23 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.55">
+      <meta name="generator" content="zensical-0.0.57">
     
     
       
-        <title>Toolbar and shortcuts - Termapy Help v0.74.0</title>
+        <title>Toolbar and shortcuts - Termapy Help v0.75.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.5da3a30f.min.css">
       
         
           
         
-        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.dfe2e883.min.css">
+        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.812a03bb.min.css">
       
       
 
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.74.0" class="md-header__button md-logo" aria-label="Termapy Help v0.74.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.74.0
+            Termapy Help v0.75.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.74.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.74.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.74.0
+    Termapy Help v0.75.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1142,6 +1142,7 @@ Typing the bare command (e.g. <code>/cfg</code>) is equivalent to clicking the
 button.</p>
 <p>Hover over any of the config, port, or status buttons to see a detailed
 tooltip with current settings and chip information.</p>
+<p><img alt="Port button tooltip with chip info" src="img/doc_33_port_tooltip.png" /></p>
 <h3 id="port-picker">Port picker<a class="headerlink" href="#port-picker" title="Permanent link">&para;</a></h3>
 <p>Clicking the port name in the title bar (or picking <strong>Select Port</strong>
 from the command palette) opens a dialog listing every connected
@@ -1153,6 +1154,7 @@ and <code>/port.chip</code> commands, the <code>termapy --info</code> CLI flag, 
 of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.</p>
 <h2 id="toolbar-buttons">Toolbar buttons<a class="headerlink" href="#toolbar-buttons" title="Permanent link">&para;</a></h2>
 <p>The bottom bar has buttons. Some appear based on context:</p>
+<p><img alt="Title bar and toolbar" src="img/doc_16_toolbar.svg" /></p>
 <table>
 <thead>
 <tr>
@@ -1166,6 +1168,11 @@ of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.
 <td><strong>/</strong></td>
 <td>Always</td>
 <td>Show REPL command picker (filters as you type)</td>
+</tr>
+<tr>
+<td><strong>\&lt;Rec&gt;</strong></td>
+<td><code>record_enabled</code> (default)</td>
+<td>Record typed commands to a .run script</td>
 </tr>
 <tr>
 <td><strong>DTR:0/1</strong></td>
@@ -1183,6 +1190,11 @@ of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.
 <td>Send a 250ms serial break signal</td>
 </tr>
 <tr>
+<td><strong>Custom</strong></td>
+<td><code>custom_buttons</code> enabled</td>
+<td>User-defined command buttons</td>
+</tr>
+<tr>
 <td><strong>Log</strong></td>
 <td>Always</td>
 <td>Open the session log in your editor</td>
@@ -1197,18 +1209,10 @@ of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.
 <td>Always</td>
 <td>Open the cap/ folder</td>
 </tr>
-<tr>
-<td><strong>Scripts</strong></td>
-<td>Always</td>
-<td>Pick, run, create, or edit a script</td>
-</tr>
-<tr>
-<td><strong>Custom</strong></td>
-<td><code>custom_buttons</code> enabled</td>
-<td>User-defined command buttons</td>
-</tr>
 </tbody>
 </table>
+<p>Scripts are picked and run from the <strong>Run</strong> button in the title bar
+(or <code>/run</code>); quitting is the red <strong>X</strong> in the title bar (or Ctrl+Q).</p>
 <h2 id="keyboard-shortcuts">Keyboard shortcuts<a class="headerlink" href="#keyboard-shortcuts" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1284,6 +1288,7 @@ VS Code's integrated terminal does) to open the command palette.
 It drops down from the top-center of the window, like VS Code's
 command palette, with fuzzy filtering as you type and a most-recently-used
 list when opened with an empty query.</p>
+<p><img alt="Command palette" src="img/doc_20_palette.svg" /></p>
 <p>Quick access to:</p>
 <ul>
 <li>Help</li>
@@ -1395,7 +1400,7 @@ list when opened with an empty query.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="./assets/javascripts/bundle.49251538.min.js"></script>
       
     
   </body>

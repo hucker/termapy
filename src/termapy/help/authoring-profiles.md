@@ -282,6 +282,18 @@ with the captured `message` group as the error string.  Wins over
 Documentation only: `name`, `vendor`, `model`, optional `prompt`
 string, optional `startup_banner` regex.
 
+### `memory`
+
+How `/mem.*` talks to the device's memory.  `dialect` names the wire
+grammar (`termapy` = the `MEM.R` / `MEM.W` / `MEM.INFO` spec in
+[Memory](memory.md)); `max_block`, `address_bits` and `endian` pin the
+facts a device without `MEM.INFO` cannot report.  Explicit values win
+over `MEM.INFO`, which wins over the defaults (64 / 32 / `le`).
+
+```json
+"memory": {"dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le"}
+```
+
 ## Authoring rules for LLMs drafting from a help dump
 
 When a user pastes a device help table and asks for a profile draft:

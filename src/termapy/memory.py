@@ -300,6 +300,81 @@ def assemble(
     return bytes(out)
 
 
+# ── Dump rows: the prose renderer and its data= twin, side by side ──────────
+
+
+@dataclass(frozen=True)
+class DumpRow:
+    """One hexdump row.
+
+    Attributes:
+        addr: Address of the first byte.
+        data: The row's bytes (up to the dump width).
+        label: Symbolic annotation for ``addr`` (``main+0x10``), or ``""``.
+    """
+
+    addr: int
+    data: bytes
+    label: str = ""
+
+    @property
+    def hex(self) -> str:
+        """``1B 00 40 06`` -- space-separated upper-case pairs."""
+        return " ".join(f"{byte:02X}" for byte in self.data)
+
+    @property
+    def ascii(self) -> str:
+        """Printable ASCII with ``.`` for everything else."""
+        return "".join(chr(byte) if 0x20 <= byte < 0x7F else "." for byte in self.data)
+
+
+def dump_rows(
+    addr: int,
+    data: bytes,
+    *,
+    width: int = 16,
+    label: Callable[[int], str] | None = None,
+) -> list[DumpRow]:
+    """Split a block into rows of ``width`` bytes.
+
+    Args:
+        addr: Address of ``data[0]``.
+        data: The block.
+        width: Bytes per row.
+        label: Optional ``addr -> annotation`` (the plugin passes the
+            symbol table's containing-symbol lookup); None = no labels.
+
+    Returns:
+        The rows, in address order.
+    """
+    return [
+        DumpRow(addr + offset, data[offset:offset + width], label(addr + offset) if label else "")
+        for offset in range(0, len(data), width)
+    ]
+
+
+def format_row(row: DumpRow, *, address_bits: int = DEFAULT_ADDRESS_BITS, width: int = 16) -> str:
+    """``00001000  1B 00 ...  |..@.|  gTemp`` -- one display line.
+
+    The hex column is padded to ``width`` bytes so the ASCII column lines
+    up on the short last row.
+    """
+    hex_width = width * 3 - 1
+    line = f"{hex_addr(row.addr, address_bits)}  {row.hex:<{hex_width}}  |{row.ascii}|"
+    return f"{line}  {row.label}" if row.label else line
+
+
+def row_record(row: DumpRow, *, address_bits: int = DEFAULT_ADDRESS_BITS) -> dict[str, Any]:
+    """The agent record for one row: the same facts as :func:`format_row`."""
+    return {
+        "addr": row.addr,
+        "addr_hex": hex_addr(row.addr, address_bits),
+        "hex": row.hex,
+        "ascii": row.ascii,
+        "symbolic": row.label,
+    }
+
+
 # ── The engine ──────────────────────────────────────────────────────────────
 
 

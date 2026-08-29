@@ -20,13 +20,17 @@ from termapy.memory import (
     DEFAULT_MAX_BLOCK,
     DIALECTS,
     DeviceMemoryError,
+    DumpRow,
     Memory,
     MemoryInfo,
     assemble,
+    dump_rows,
+    format_row,
     parse_reply,
     read_command,
     reply_complete,
     resolve_info,
+    row_record,
     validate_block,
     write_command,
 )
@@ -411,3 +415,39 @@ class TestValidateBlock:
 
     def test_dialects_table_is_the_vocabulary(self):
         assert "termapy" in DIALECTS, "the published dialect is registered"
+
+
+# ── Dump rows ───────────────────────────────────────────────────────────────
+
+
+class TestDumpRows:
+
+    def test_splits_by_width_with_short_tail(self):
+        rows = dump_rows(0x1000, bytes(range(20)), width=16)
+        assert [(row.addr, len(row.data)) for row in rows] == [(0x1000, 16), (0x1010, 4)], "16 then the tail"
+
+    def test_label_callback_per_row(self):
+        rows = dump_rows(0x1000, bytes(32), label=lambda addr: f"sym+0x{addr - 0x1000:X}")
+        assert [row.label for row in rows] == ["sym+0x0", "sym+0x10"], "the label sees each row's address"
+
+    def test_hex_and_ascii(self):
+        row = DumpRow(0x1000, b"AB\x00\x7f")
+        assert row.hex == "41 42 00 7F", "upper-case pairs"
+        assert row.ascii == "AB..", "non-printables become dots"
+
+    def test_format_row_pads_the_short_row(self):
+        # Arrange -- a 2-byte row on a 16-byte width
+        line = format_row(DumpRow(0x1000, b"\x1b\x00", "gTemp"), address_bits=32)
+
+        # Assert
+        assert line == "0x00001000  1B 00" + " " * 42 + "  |..|  gTemp", (
+            "hex column padded to 16 bytes so the ASCII column aligns; label last"
+        )
+
+    def test_format_row_without_label_has_no_trailing_spaces(self):
+        line = format_row(DumpRow(0x1000, bytes(16)))
+        assert line.endswith("|................|"), "no label, no trailing separator"
+
+    def test_row_record_shape(self):
+        record = row_record(DumpRow(0x1000, b"\x01", "main"), address_bits=16)
+        assert record == {"addr": 0x1000, "addr_hex": "0x1000", "hex": "01", "ascii": ".", "symbolic": "main"}

@@ -2607,6 +2607,7 @@ class SerialTerminal(TerminalHost, App):
         "protocol-testing",
         "data-capture",
         "symbols",
+        "memory",
         "writing-plugins",
         "using-git",
         "demo",

@@ -40,6 +40,7 @@ src/termapy/
 │   │   ├── help.py     #  /help - forgiving help with man-page detail view
 │   │   ├── log.py      #  /log.* - dump / fingerprint / show the session log
 │   │   ├── mcp.py      #  /mcp.* - MCP catalog, status, session log
+│   │   ├── mem.py      #  /mem.* - device memory dump/write over the MEM spec
 │   │   ├── os_cmd.py   #  /os - run a shell command (gated by TERMAPY_OS_CMD_ENABLED)
 │   │   ├── ping.py     #  /ping - measure serial response time
 │   │   ├── plugin.py   #  /plugin - plugin folder operations
@@ -124,6 +125,7 @@ src/termapy/
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
 ├── history_nav.py          #              REPL Up/Down history browsing cursor (Textual-free)
+├── memory.py               # (0 lines)  Device memory engine - the MEM wire dialect, chunking, continuity, dump rows (Textual-free)
 ├── migration.py            # (701 lines)  Config schema migration chain
 ├── port_control.py         # (2019 lines) Pure serial port control functions - no Textual
 ├── proto_debug.py          # (1185 lines) Interactive protocol debug screen (Textual)
@@ -147,6 +149,8 @@ expands on the dispatch path, while `builtins/commands/var.py` is just `/var` an
 `$(NAME) = value` directive. `symbols/` <- `builtins/commands/sym.py` is the third example:
 the symbol table, its file format, the address grammar and the auto-load rule are core
 (`ReplEngine.fire_lifecycle` loads the sidecar), and `/sym.*` is the thin command surface.
+`memory.py` <- `builtins/commands/mem.py` is the fourth: the wire dialect, chunking and
+continuity are core, `/mem.*` wires them to `ctx.serial` and renders.
 Infrastructure core needs does not live under `builtins/`, however natural the matching
 command feels.
 

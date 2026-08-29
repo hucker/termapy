@@ -130,6 +130,7 @@ yet. Producers may set them; consumers preserve and may surface them.
 | `error_detection` | object | Global error grammar, §8. |
 | `types` | object | Named argument types, §6. |
 | `commands` | object | The catalog, §5. Keys are command names exactly as the device expects them. |
+| `memory` | object | Memory access, §4.1. |
 
 A minimal valid profile — what tiny self-describing firmware should
 emit — is:
@@ -141,6 +142,25 @@ emit — is:
 
 Catalog and help work immediately; commands without a `response`
 contract fall through to the literal-write path.
+
+### 4.1 The `memory` block
+
+Declares how the bridge's `/mem.*` commands reach the device's memory.
+All fields are optional.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `dialect` | string | Wire grammar. Canonical: `termapy` (the `MEM.R` / `MEM.W` / `MEM.INFO` spec, help topic `memory`). An unrecognized value loads; `/mem.*` refuse until it is recognized (§3.3). |
+| `max_block` | integer >= 1 | Largest byte count per read or write exchange. |
+| `address_bits` | integer 8..64 | Address width; sets the printed hex width. |
+| `endian` | `le` \| `be` | Byte order of multi-byte values. Stored for typed views. |
+
+Precedence per field: an explicit profile value, then the device's
+`MEM.INFO` answer, then the defaults `64` / `32` / `le`. A value of the
+wrong type is a schema error like any other typed field; an unusable
+value of the right type (`max_block: 0`, `endian: "middle"`) degrades
+to the default with a warning. Template keys for devices with their
+own peek/poke grammar are reserved for a later revision.
 
 ## 5. Commands and matching
 

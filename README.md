@@ -240,6 +240,9 @@ The most common ones:
 | `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, text, or file; omit data to verify check string   |
 | `/proto.crc.find <pkt>`              | Identify CRC algorithm from a captured packet (bin= hex or asc= text)         |
 | `/proto.info`                        | Print current protocol state                                                  |
+| `/mem.dump <addr> {len}`             | Hexdump bytes at an address or symbol (default 64)                            |
+| `/mem.info`                          | Show how memory access is configured: dialect, block limit, width, endian     |
+| `/mem.write <addr> <hex>`            | Write hex bytes at an address or symbol (audited; destructive over MCP)       |
 | `/sym <addr\|name>`                  | Symbol table: name to address, or address to `name+offset`                   |
 | `/sym.import <file> {format=<value>}` | Convert a linker map to `<cfg>.symbols.json` and load it                     |
 | `/sym.info`                          | Show the loaded symbol table: file, source, counts by section, range          |

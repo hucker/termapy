@@ -161,6 +161,20 @@ $(BAUD) <- /port.baud_rate
 /sym gTemp
 /sym.load
 
+# ── REPL: memory (demo RAM behind MEM.R/MEM.W, deterministic seed) ─────────
+/print === section: memory ===
+/mem.info
+/mem.dump gTemp 16
+/mem.dump 0x2000 4
+/mem.dump main+0x10 8
+/mem.write gFlags 07000000
+/mem.dump gFlags 4
+/mem.dump U1MODE.ON 4
+/mem.dump nosuch
+/mem.dump 0x9000 4
+/mem.write 0x1000 ZZ
+/mem.dump 0x1000 0
+
 # ── REPL: help for specific commands ────────────────────────────────────────
 /print === section: help ===
 /help echo
@@ -172,6 +186,7 @@ $(BAUD) <- /port.baud_rate
 /help proto
 /help plugin
 /help sym
+/help mem
 /help run
 /print === section: help.run ===
 /help.run

@@ -61,6 +61,9 @@ man-page detail for one.
 | `/log.show`               | Open the session log in the system viewer                                   |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
 | `/mcp.info`               | Show MCP-mode status (catalog size, port, profile, captures)                |
+| `/mem.dump <addr> {len}`  | Hexdump bytes at an address or symbol (default 64)                          |
+| `/mem.info`               | Show how memory access is configured: dialect, block limit, width, endian   |
+| `/mem.write <addr> <hex>` | Write hex bytes at an address or symbol (audited; destructive over MCP)     |
 | `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list subcommands. With name: open it. |
 | `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |

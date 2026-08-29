@@ -33,6 +33,7 @@ nav:
   - Protocol Testing: protocol-testing.md
   - Data Capture: data-capture.md
   - Symbols: symbols.md
+  - Memory: memory.md
   - File Transfer: file-transfer.md
   - Writing Plugins: writing-plugins.md
   - Device Help: device-help.md

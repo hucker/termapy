@@ -104,6 +104,21 @@ class TestMcpGate:
         result = _run(host, "/zap.silent")
         assert result["value"]["needs_confirmation"] is True, "resolved like dispatch resolves it"
 
+    def test_mem_write_is_destructive(self, host):
+        # Act -- the real command that motivated the tier; no port needed,
+        # the gate runs before dispatch
+        result = _run(host, "/mem.write gTemp 1B00")
+
+        # Assert
+        assert result["value"]["needs_confirmation"] is True, "/mem.write pokes memory: confirm first"
+        assert result["value"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
+
+    def test_mem_dump_is_not_gated(self, host):
+        result = _run(host, "/mem.dump gTemp")
+        assert not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"], (
+            "a readonly command never asks for confirmation (it fails on 'not connected' instead)"
+        )
+
     def test_safe_command_ignores_confirm(self, host):
         result = _run(host, "/help")
         assert result["success"] is True, "a safe command needs no confirmation"

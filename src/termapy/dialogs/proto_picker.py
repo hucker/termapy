@@ -19,6 +19,7 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    _highlighted_file,
     _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
@@ -81,9 +82,9 @@ class ProtoPicker(ModalScreen[tuple | None]):
         with Vertical(id="proto-dialog"):
             yield Static("Select Protocol Script", id="proto-title")
             ol = OptionList(id="proto-list")
-            _populate_file_option_list(ol, protos)
+            first = _populate_file_option_list(ol, protos)
             if protos:
-                ol.highlighted = 0
+                ol.highlighted = first
             yield ol
             has_protos = bool(protos)
             with Horizontal(id="proto-buttons"):
@@ -119,10 +120,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
         Returns:
             Absolute path string, or None if nothing is highlighted.
         """
-        ol = self.query_one("#proto-list", OptionList)
-        if ol.highlighted is not None:
-            return str(ol.get_option_at_index(ol.highlighted).id)
-        return None
+        return _highlighted_file(self.query_one("#proto-list", OptionList))
 
     @on(Button.Pressed, "#proto-delete")
     def delete_proto(self) -> None:

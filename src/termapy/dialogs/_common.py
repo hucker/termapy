@@ -38,10 +38,11 @@ def _populate_file_option_list(
     files: list[Path],
     *,
     detail: Callable[[Path], str] | None = None,
+    detail_header: str = "",
     label: Callable[[Path, str], str] | None = None,
     row_width: int = _FILE_PICKER_ROW_WIDTH,
-) -> None:
-    """Fill an OptionList with one ``name  size  age  detail`` row per file.
+) -> int:
+    """Fill an OptionList with a header row and one ``name  size  age  detail`` row per file.
 
     Shared by the script, proto, and config pickers so a file looks the
     same wherever it is picked.  ``files`` should already be in display
@@ -50,15 +51,37 @@ def _populate_file_option_list(
     the eye lands on the name and reads the rest on demand.  A detail
     that would overflow ``row_width`` is truncated with an ellipsis.
 
+    OptionList has no header concept, so the header is a DISABLED first
+    option (the port picker does the same): it renders, the cursor skips
+    it, and it can never be selected.  Its cells use the same widths as
+    the rows.  No header when there are no files.
+
     Args:
         ol: The list to fill.
         files: Files in display order.
         detail: Optional per-file trailing text (a docstring summary, a
             config's port).  Called once per file.
+        detail_header: Header text for the detail column.
         label: Optional ``(path, padded_name) -> str`` override for the
             name column (the config picker shows the stem).
+
+    Returns:
+        The index of the first FILE option (past the header) -- what the
+        caller should highlight, offset for any index it computed over
+        ``files``.
     """
-    for path, row in zip(files, file_columns(files), strict=True):
+    rows = file_columns(files)
+    if not rows:
+        return 0
+    first = rows[0]
+    # "UPDATED" fits: the narrowest age string ("just now") is 8 cells.
+    header = Text(
+        f"{'NAME':<{len(first.name)}}  {'SIZE':>{len(first.size)}}  "
+        f"{'UPDATED':<{len(first.age)}}  {detail_header}".rstrip(),
+        style="bold",
+    )
+    ol.add_option(Option(header, disabled=True))
+    for path, row in zip(files, rows, strict=True):
         name = label(path, row.name) if label else row.name
         text = Text(name)
         text.append(f"  {row.size}  {row.age}", style="dim")
@@ -70,6 +93,20 @@ def _populate_file_option_list(
                     extra = extra[: room - len(_ELLIPSIS)] + _ELLIPSIS
                 text.append(f"  {extra}", style="dim")
         ol.add_option(Option(text, id=str(path)))
+    return 1
+
+
+def _highlighted_file(ol: OptionList) -> str | None:
+    """The path id of the highlighted option, or ``None``.
+
+    ``None`` covers "list is empty", "nothing highlighted", and the
+    disabled header row (which has no id) -- callers treat all three as
+    "no-op, don't dismiss".
+    """
+    if ol.highlighted is None:
+        return None
+    option_id = ol.get_option_at_index(ol.highlighted).id
+    return str(option_id) if option_id is not None else None
 
 # Dismiss bindings shared by all modal dialogs.
 _DISMISS_BINDINGS = [

@@ -19,6 +19,7 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    _highlighted_file,
     _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
@@ -96,11 +97,14 @@ class ScriptPicker(ModalScreen[tuple | None]):
         with Vertical(id="script-dialog"):
             yield Static("Select Run File", id="script-title")
             ol = OptionList(id="script-list")
-            _populate_file_option_list(
-                ol, scripts, detail=lambda script: extract_docstring(script)[0]
+            first = _populate_file_option_list(
+                ol,
+                scripts,
+                detail=lambda script: extract_docstring(script)[0],
+                detail_header="SUMMARY",
             )
             if scripts:
-                ol.highlighted = 0
+                ol.highlighted = first
             yield ol
             has_scripts = bool(scripts)
             with Horizontal(id="script-buttons"):
@@ -130,10 +134,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
         ``None`` covers both "list is empty" and "nothing highlighted"
         — callers should treat it as "no-op, don't dismiss."
         """
-        ol = self.query_one("#script-list", OptionList)
-        if ol.highlighted is not None:
-            return str(ol.get_option_at_index(ol.highlighted).id)
-        return None
+        return _highlighted_file(self.query_one("#script-list", OptionList))
 
     @on(Button.Pressed, "#script-delete")
     def delete_script(self) -> None:

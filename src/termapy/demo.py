@@ -10,6 +10,7 @@ perfect substitute.  Use real hardware for testing real projects.
 
 from __future__ import annotations
 
+import json
 import random
 import struct
 import threading
@@ -74,6 +75,10 @@ class FakeSerial:
 
         # Virtual filesystem (flat, in-memory)
         self._vfs: dict[str, bytes] = dict(self._DEFAULT_VFS)
+
+        # Device memory behind the native MEM.R / MEM.W / MEM.INFO spec:
+        # one bytearray per window, seeded deterministically (gold-stable).
+        self._ram: dict[int, bytearray] = self._initial_ram()
 
         # XMODEM state
         self._xmodem_state: str | None = None  # None, "recv", "send"
@@ -296,6 +301,23 @@ class FakeSerial:
     _STX = 0x02  # Start of 1024-byte block (YMODEM)
     _CAN = 0x18  # Cancel
 
+    # Memory windows (base, size) served by the native MEM.* commands.
+    # Together they cover every address in builtins/demo/demo.symbols.json:
+    # RAM / code / rodata from 0x1000, and the UART SFR window.
+    _RAM_WINDOWS: tuple[tuple[int, int], ...] = ((0x1000, 0x3000), (0xBF806000, 0x20))
+    _MEM_MAX_BLOCK: int = 64
+    # Seeded values so the symbol table's names read as something real
+    # (little-endian, matching demo.symbols.json).  Everything else is a
+    # fixed address-derived pattern.
+    _RAM_SEEDS: tuple[tuple[int, bytes], ...] = (
+        (0x1000, (27).to_bytes(2, "little")),            # gTemp      u16 = 27
+        (0x1002, struct.pack("<f", 1013.25)),             # gPressure  f32
+        (0x1008, (5).to_bytes(4, "little")),             # gFlags     u32
+        (0x100C, (12).to_bytes(4, "little")),            # count.12   u32
+        (0xBF806000, (0x8008).to_bytes(4, "little")),    # U1MODE: ON | BRGH
+        (0xBF806010, (0x0110).to_bytes(4, "little")),    # U1STA
+    )
+
     # Default virtual filesystem - pre-loaded demo files
     _DEFAULT_VFS: dict[str, bytes] = {
         "device_log.txt": b"2025-01-15 08:00:01 INFO  Boot OK\r\n2025-01-15 08:00:02 INFO  Sensor init\r\n2025-01-15 08:00:03 WARN  Battery 3.1V\r\n2025-01-15 08:00:04 INFO  Ready\r\n",
@@ -434,6 +456,7 @@ class FakeSerial:
             self._led_state = False
             self._start_time = time.time()
             self._connect_count += 1
+            self._ram = self._initial_ram()
             self._enqueue(b"")
             return (
                 b"Resetting...\r\n"
@@ -455,6 +478,10 @@ class FakeSerial:
 
         if upper == "AT+HELP":
             return self._help_text()
+
+        # Native memory spec (termapy dialect) before the legacy `mem` dump.
+        if upper.startswith("MEM."):
+            return self._handle_mem_native(cmd)
 
         if upper.startswith("MEM"):
             return self._handle_mem(cmd)
@@ -668,6 +695,22 @@ class FakeSerial:
                 "$GPGSA": {"help": "NMEA DOP and active satellites", "args": ""},
                 "$GPGSV": {"help": "NMEA satellites in view", "args": ""},
                 "mem": {"help": "Memory dump", "args": "<addr> {len}"},
+                "MEM.R": {
+                    "help": "Read a memory block (termapy MEM spec: rows + OK)",
+                    "args": "<addr> <len>",
+                    "safety": "readonly",
+                },
+                "MEM.W": {
+                    "help": "Write hex bytes to memory (termapy MEM spec)",
+                    "args": "<addr> <hex>",
+                    # Pokes RAM and SFRs: no undo.
+                    "safety": "destructive",
+                },
+                "MEM.INFO": {
+                    "help": "Memory access facts as one JSON line",
+                    "args": "",
+                    "safety": "readonly",
+                },
                 "AT+FS.LIST": {"help": "List files on device", "args": ""},
                 "AT+FS.INFO": {"help": "Filesystem summary", "args": ""},
                 "AT+FS.DELETE": {
@@ -707,6 +750,99 @@ class FakeSerial:
             "AT+HELP.JSON returns the same list as a machine-readable descriptor."
         )
         return ("\r\n".join(lines) + "\r\n").encode()
+
+    def _initial_ram(self) -> dict[int, bytearray]:
+        """Fresh memory windows: the address-derived pattern plus the seeds."""
+        ram = {
+            base: bytearray(((addr * 7) ^ (addr >> 8)) & 0xFF for addr in range(base, base + size))
+            for base, size in self._RAM_WINDOWS
+        }
+        for addr, data in self._RAM_SEEDS:
+            located = self._ram_window(addr, len(data))
+            assert located is not None, f"seed at 0x{addr:X} is outside every window"
+            base, offset = located
+            ram[base][offset:offset + len(data)] = data
+        return ram
+
+    def _ram_window(self, addr: int, length: int) -> tuple[int, int] | None:
+        """``(window base, offset)`` holding ``[addr, addr + length)``, or None."""
+        for base, size in self._RAM_WINDOWS:
+            if base <= addr and addr + length <= base + size:
+                return base, addr - base
+        return None
+
+    @staticmethod
+    def _parse_hex_addr(token: str) -> int | None:
+        """A hex address with or without ``0x`` (what strtoul(.., 16) takes)."""
+        text = token[2:] if token[:2].lower() == "0x" else token
+        try:
+            return int(text, 16) if text else None
+        except ValueError:
+            return None
+
+    def _handle_mem_native(self, cmd: str) -> bytes:
+        """``MEM.R`` / ``MEM.W`` / ``MEM.INFO`` -- termapy's published memory spec.
+
+        This is the reference implementation a firmware author mirrors:
+        rows of up to 16 bytes with an 8-digit hex address, an ``OK`` line
+        after every successful command, ``ERR <reason>`` otherwise.
+
+        Args:
+            cmd: The full command line.
+
+        Returns:
+            Response bytes.
+        """
+        parts = cmd.split()
+        verb = parts[0].upper()
+        if verb == "MEM.INFO":
+            info = {
+                "max_block": self._MEM_MAX_BLOCK,
+                "address_bits": 32,
+                "endian": "le",
+            }
+            return (json.dumps(info) + "\r\nOK\r\n").encode()
+        if verb == "MEM.R":
+            if len(parts) != 3:
+                return b"ERR usage\r\n"
+            addr = self._parse_hex_addr(parts[1])
+            try:
+                length = int(parts[2])
+            except ValueError:
+                return b"ERR usage\r\n"
+            if addr is None:
+                return b"ERR usage\r\n"
+            if not 1 <= length <= self._MEM_MAX_BLOCK:
+                return b"ERR length\r\n"
+            located = self._ram_window(addr, length)
+            if located is None:
+                return b"ERR range\r\n"
+            base, offset = located
+            data = self._ram[base][offset:offset + length]
+            rows = [
+                f"{addr + i:08X}: " + " ".join(f"{byte:02X}" for byte in data[i:i + 16])
+                for i in range(0, length, 16)
+            ]
+            return ("\r\n".join(rows) + "\r\nOK\r\n").encode()
+        if verb == "MEM.W":
+            if len(parts) < 3:
+                return b"ERR usage\r\n"
+            addr = self._parse_hex_addr(parts[1])
+            try:
+                data = bytes.fromhex("".join(parts[2:]))
+            except ValueError:
+                return b"ERR usage\r\n"
+            if addr is None or not data:
+                return b"ERR usage\r\n"
+            if len(data) > self._MEM_MAX_BLOCK:
+                return b"ERR length\r\n"
+            located = self._ram_window(addr, len(data))
+            if located is None:
+                return b"ERR range\r\n"
+            base, offset = located
+            self._ram[base][offset:offset + len(data)] = data
+            return b"OK\r\n"
+        return b"ERR usage\r\n"
 
     def _handle_mem(self, cmd: str) -> bytes:
         """Generate a deterministic hex dump for ``mem <addr> [len]``.

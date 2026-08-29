@@ -19,6 +19,13 @@
     "types": {"message": "str"}
   },
 
+  "memory": {
+    "dialect": "termapy",
+    "max_block": 64,
+    "address_bits": 32,
+    "endian": "le"
+  },
+
   "commands": {
     "AT": {
       "help": "Connectivity test (returns OK).",

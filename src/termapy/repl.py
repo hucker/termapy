@@ -1026,6 +1026,30 @@ class ReplEngine:
             if parent and name not in parent.children:
                 parent.children.append(name)
 
+    def plugin_for(self, repl_cmd: str) -> PluginInfo | None:
+        """The registered command a prefix-stripped line names, or None.
+
+        Mirrors dispatch's own resolution -- first token, lowercased, the
+        universal ``.<level>`` suffix stripped when no command claims it --
+        so a caller that must know what WILL run (the MCP safety gate)
+        cannot drift from what dispatch decides.
+
+        Args:
+            repl_cmd: The line without its REPL prefix.
+
+        Returns:
+            The PluginInfo, or None when nothing is registered by that name.
+        """
+        name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
+        plugin = self._plugins.get(name)
+        if plugin is not None:
+            return plugin
+        for level in OUTPUT_LEVELS:
+            suffix = "." + level
+            if name.endswith(suffix):
+                return self._plugins.get(name[: -len(suffix)])
+        return None
+
     def command_has_raw_args(self, repl_cmd: str) -> bool:
         """Check if the first command token has ``raw_args`` set.
 

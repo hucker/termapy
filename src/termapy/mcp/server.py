@@ -705,6 +705,13 @@ class MCPHost(TerminalHost):
                         # Returns None for slash commands, unmapped bare
                         # lines, or no active profile -- fall through to
                         # dispatch_full's literal-write behavior.
+                        # termapy's own commands carry the same tiers as
+                        # profile entries (Command.safety): a destructive
+                        # one (/mem.write) is refused here, before any
+                        # dispatch, unless the caller passed confirm=True.
+                        gated = _gate_slash_command(self, line, confirm=confirm)
+                        if gated is not None:
+                            return gated
                         profiled = _dispatch_via_profile(self, line, confirm=confirm)
                         if profiled is not None:
                             return profiled
@@ -859,7 +866,9 @@ def _build_server(host: MCPHost) -> Any:
                 ``safety: destructive`` in the active profile (e.g.
                 resets, factory wipes, flash erases) refuse to run
                 without it -- the server returns an error asking for
-                confirmation.  Safe and readonly commands ignore this
+                confirmation.  termapy's own commands carry the same
+                tier (``/mem.write`` is destructive) and are gated
+                identically.  Safe and readonly commands ignore this
                 parameter.
 
         Returns:
@@ -1012,6 +1021,70 @@ def _new_artifacts(
 # ── Profile-aware request/response dispatch ────────────────────────────────
 
 
+def _confirmation_required(
+    name: str, safety: str, help_text: str, *, confirm: bool,
+) -> CmdResult | None:
+    """The structured refusal for a destructive call made without confirm.
+
+    One rule for device commands (a profile entry's ``safety``) and for
+    termapy's own (``Command.safety``): ``destructive`` needs
+    ``confirm=True``, and so does any tier this build does not recognize
+    -- a future stronger-than-destructive tier must gate here, not run
+    silently (the fail-safe degrade).
+
+    Args:
+        name: The command as the caller would type it.
+        safety: Its declared tier.
+        help_text: One-line help, echoed in the marker for the client.
+        confirm: The caller's ``confirm=`` argument.
+
+    Returns:
+        The failure to hand back, or None when the call may proceed.
+    """
+    from termapy.profile import SAFETY_TIERS
+
+    unrecognized_tier = safety not in SAFETY_TIERS
+    if confirm or not (safety == "destructive" or unrecognized_tier):
+        return None
+    if unrecognized_tier:
+        msg = (
+            f"Confirmation required: {name!r} declares unrecognized "
+            f"safety tier {safety!r} (treated as destructive). "
+            "Re-call with confirm=true after the user has approved."
+        )
+    else:
+        msg = (
+            f"Confirmation required: {name!r} is destructive. "
+            "Re-call with confirm=true after the user has approved."
+        )
+    return CmdResult.fail(
+        msg=msg,
+        value={
+            "needs_confirmation": True,
+            "command": name,
+            "safety": safety,
+            "help": help_text,
+        },
+    )
+
+
+def _gate_slash_command(host: MCPHost, line: str, *, confirm: bool) -> CmdResult | None:
+    """Apply ``Command.safety`` to a slash command before it is dispatched.
+
+    Resolves the command the way dispatch will (``ReplEngine.plugin_for``),
+    so a ``.silent`` suffix or a subcommand cannot slip past the tier its
+    declaration carries.  Bare device lines are the profile gate's job.
+    """
+    if not line.startswith(host.prefix):
+        return None
+    plugin = host.repl.plugin_for(line[len(host.prefix):])
+    if plugin is None:
+        return None
+    return _confirmation_required(
+        host.prefix + plugin.name, plugin.safety, plugin.help, confirm=confirm,
+    )
+
+
 def _dispatch_via_profile(
     host: MCPHost, command_text: str, *, confirm: bool = False,
 ) -> CmdResult | None:
@@ -1094,34 +1167,9 @@ def _dispatch_via_profile(
     # handshake + a richer safety/hazard vocabulary in the profile schema
     # -- both device-agnostic mechanisms, not device policy in the bridge.)
     safety = spec.get("safety", "safe")
-    # Unrecognized tiers gate exactly like destructive (fail-safe
-    # degrade): a future stronger-than-destructive tier in a newer
-    # profile must require confirmation on this host, not silently run.
-    from termapy.profile import SAFETY_TIERS
-
-    unrecognized_tier = safety not in SAFETY_TIERS
-    if (safety == "destructive" or unrecognized_tier) and not confirm:
-        if unrecognized_tier:
-            msg = (
-                f"Confirmation required: {name!r} declares unrecognized "
-                f"safety tier {safety!r} (treated as destructive). "
-                "Re-call with confirm=true after the user has approved."
-            )
-        else:
-            msg = (
-                f"Confirmation required: {name!r} is destructive. "
-                "Re-call with confirm=true after the user has approved."
-            )
-        result = CmdResult.fail(
-            msg=msg,
-            value={
-                "needs_confirmation": True,
-                "command": name,
-                "safety": safety,
-                "help": spec.get("help", ""),
-            },
-        )
-        return result
+    gate = _confirmation_required(name, safety, spec.get("help", ""), confirm=confirm)
+    if gate is not None:
+        return gate
 
     # Typed-arg validation via the profile-local type registry.  Runs
     # after the disabled and destructive gates so those refusals win

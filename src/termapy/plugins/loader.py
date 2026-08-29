@@ -277,6 +277,7 @@ def _flatten_command(
         needs=node.needs,
         hidden=node.hidden,
         params=node.params,
+        safety=node.safety,
     )
     result.insert(0, info)
     return result

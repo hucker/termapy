@@ -242,6 +242,7 @@ def _known_keys() -> dict[str, frozenset[str]]:
             "root": frozenset(props.keys()),
             "device": _props_of(props.get("device", {})),
             "error_detection": _props_of(props.get("error_detection", {})),
+            "memory": _props_of(props.get("memory", {})),
             "command": _props_of(defs.get("command", {})),
             "typed_arg": _props_of(defs.get("typed_arg", {})),
             "type_def": _props_of(defs.get("type_def", {})),
@@ -369,6 +370,14 @@ def collect_warnings(profile: dict) -> list[str]:
                     f"args of this type refuse at dispatch"
                     f"{_suggest(kind, kinds)})"
                 )
+    memory = profile.get("memory")
+    if isinstance(memory, dict):
+        # The rules are the runtime resolver's own (termapy.memory), so a
+        # warning here always describes what /mem.* will actually do.
+        from termapy.memory import validate_block
+
+        _warn_unknown(memory, "memory", "memory", out)
+        out.extend(validate_block(memory))
     commands = profile.get("commands")
     if isinstance(commands, dict):
         for name, spec in commands.items():

@@ -269,12 +269,13 @@ def test_ui_layer_list_has_no_stale_entries():
 
 
 def test_engine_modules_have_no_serial_dependency():
-    """The plugin system, the scripting helpers and symbols/ stay transport-agnostic.
+    """plugins/, scripting.py, symbols/ and memory.py stay transport-agnostic.
 
     ``plugins/`` defines the command/context API, ``scripting.py`` is pure
-    functions, and ``symbols/`` is library-shaped like ``protocol/`` (a symbol
-    table describes a firmware build, not a wire); none should know that a
-    serial port exists.  Keeping pyserial out of them is what lets a
+    functions, ``symbols/`` is library-shaped like ``protocol/`` (a symbol
+    table describes a firmware build, not a wire), and ``memory.py`` moves
+    bytes over an injected exchange; none should know that a serial port
+    exists.  Keeping pyserial out of them is what lets a
     non-serial frontend reuse the whole command layer.
     """
     # Arrange
@@ -282,6 +283,7 @@ def test_engine_modules_have_no_serial_dependency():
         *(SRC / "plugins").rglob("*.py"),
         *(SRC / "symbols").rglob("*.py"),
         SRC / "scripting.py",
+        SRC / "memory.py",
     ]
     offenders: list[str] = []
 

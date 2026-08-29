@@ -76,6 +76,17 @@
       "type": "object",
       "additionalProperties": {"$ref": "#/$defs/command"}
     },
+    "memory": {
+      "description": "Device memory access for /mem.*. dialect names the wire grammar: 'termapy' is the published MEM.R / MEM.W / MEM.INFO spec (help topic 'memory'); an unrecognized dialect loads but /mem.* refuse until it is recognized. max_block, address_bits and endian override what the device's MEM.INFO reports; a device without MEM.INFO falls back to 64 / 32 / 'le'. Invalid values degrade to those defaults with a warning. Legacy-grammar template keys are reserved for a later revision. Unknown fields are ignored.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "dialect": {"description": "Wire grammar name. Canonical: termapy.", "type": "string"},
+        "max_block": {"description": "Largest byte count per MEM.R / MEM.W exchange.", "type": "integer"},
+        "address_bits": {"description": "Address width; sets the printed hex width.", "type": "integer"},
+        "endian": {"description": "Byte order of multi-byte values: le or be. Stored for typed views.", "type": "string"}
+      }
+    },
     "types": {
       "description": "Profile-local named types referenced by typed_args[i].type. Each key is a custom type name (must not collide with the builtin set: int, float, bool, hex, str). The value is a structured type definition keyed by 'kind'. Absent or empty = backward-compatible: typed_args fall back to the five builtin types only.",
       "type": "object",

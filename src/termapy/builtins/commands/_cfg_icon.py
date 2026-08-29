@@ -417,6 +417,29 @@ def remove_launcher_at(launcher_path: Path) -> None:
         launcher_path.unlink()
 
 
+def retire_launcher(cfg_path: Path) -> tuple[str, str] | None:
+    """Remove the launcher that points at ``cfg_path``, if there is one.
+
+    The one rule for a config that is deleted or renamed: a launcher
+    embedding the old path is a dead link, so it goes.  Best-effort --
+    a missing launcher is the common case and returns ``None``; a
+    permission failure is reported, not raised, so it never blocks the
+    delete or rename it rides along with.
+
+    Returns:
+        ``(message, color)`` for the caller's status line, or ``None``
+        when no launcher referenced the config.
+    """
+    launcher = find_launcher_for_cfg(cfg_path)
+    if launcher is None:
+        return None
+    try:
+        remove_launcher_at(launcher)
+    except OSError as e:
+        return f"Launcher cleanup failed: {e}", "yellow"
+    return f"Removed desktop launcher: {launcher.name}", "green"
+
+
 def _list(ctx: PluginContext) -> CmdResult:
     scan, where = _by_platform(
         (_scan_linux,  "~/.local/share/applications/"),

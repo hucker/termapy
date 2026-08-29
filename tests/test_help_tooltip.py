@@ -58,6 +58,7 @@ def test_credits_crcglot_alongside_reveng(tmp_path, monkeypatch):
     _seed_state(tmp_path, monkeypatch, latest_seen="1.0.0")
     out = _render(build_help_tooltip("1.0.0"))
     assert "crcglot" in out, "crcglot (the CRC engine) is credited"
+    assert "frist" in out, "frist (ages and durations) is credited beside it"
     assert "reveng" in out, "reveng (its algorithm source) is still credited"
 
 

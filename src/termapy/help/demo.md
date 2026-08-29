@@ -35,10 +35,10 @@ The demo creates a complete project at `termapy_cfg/demo/` with:
 
 - A simulated device called **[BASSOMATIC-77](https://en.wikipedia.org/wiki/Bass-O-Matic)** (the natural successor to Dan Aykroyd's '76) that responds to AT
   commands, GPS/NMEA queries, and binary Modbus RTU frames
-- **5 toolbar buttons**: Demo Help, AT Demo, Info, Probe, TempPlot
-- **7 scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo, crc_tour
-- **3 protocol test files**: at_test, bitfield_inline, modbus_inline
-- **4 plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline), traffic (RX/TX byte tap)
+- **Toolbar buttons**: Demo Help, AT Demo, Info, Probe, TempPlot
+- **Scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo, expect_test, crc_tour, doc_screenshots
+- **Protocol test files**: at_test, bitfield_inline, modbus_inline
+- **Plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline), traffic (RX/TX byte tap)
 
 ## Device commands
 
@@ -51,7 +51,7 @@ The simulated device supports three protocols:
 | `AT`                       | `OK` (connection test)                  |
 | `AT+INFO`                  | Device info, uptime, free memory        |
 | `AT+TEMP`                  | Simulated temperature reading (22-25C)  |
-| `AT+LED on\|off`           | Toggle LED state                        |
+| `AT+LED <on\|off> {--blink}` | Set the LED (optionally blinking)      |
 | `AT+STATUS`                | LED state, uptime, connections          |
 | `AT+NAME?` / `AT+NAME=val` | Query or set device name                |
 | `AT+BAUD?` / `AT+BAUD=val` | Query or set baud rate                  |
@@ -61,10 +61,13 @@ The simulated device supports three protocols:
 | `AT+HELP`                  | Command help (human-readable list)      |
 | `AT+HELP.JSON`             | Device command help (JSON)              |
 | `AT+TEXTDUMP <n>`          | Emit text readings                      |
-| `AT+BINDUMP <n>`           | Emit binary records                     |
-| `AT+RND`                   | Emit one random catalog-CRC packet    |
-| `AT+RND.CUSTOM`            | Emit one packet with a secret poly      |
-| `AT+RND.CUSTOM.REVEAL`     | Print the secret poly's Rocksoft params |
+| `AT+BINDUMP {type} <n> {--crc}` | Emit binary records                |
+| `AT+RAMP`                  | Deterministic saw-wave readings         |
+| `AT+FS.LIST` / `AT+FS.INFO` / `AT+FS.DELETE <file>` | Simulated file system (see [File transfer](file-transfer.md)) |
+| `AT+XMODEM=RECV\|SEND`, `AT+YMODEM=RECV\|SEND` | Start a transfer (see [File transfer](file-transfer.md)) |
+| `AT+RND`                   | Emit one random catalog-CRC packet (not listed in `AT+HELP`) |
+| `AT+RND.CUSTOM`            | Emit one packet with a secret poly (not listed in `AT+HELP`) |
+| `AT+RND.CUSTOM.REVEAL`     | Print the secret poly's Rocksoft params (not listed in `AT+HELP`) |
 | `mem <addr> [len]`         | Hex memory dump                         |
 
 ### GPS / NMEA
@@ -136,7 +139,7 @@ the byte stream without disrupting normal operation -- it demonstrates the
 Examples against the demo:
 
 ```text
-demo> /traffic.count AT+VER
+demo> /traffic.count AT+INFO
   TX: 7  RX: 12  bytes
 
 demo> /traffic.rate 3s
@@ -146,8 +149,8 @@ demo> /traffic.rate 3s
 
 demo> /traffic.hexdump capture.log 10s
 
-demo> /traffic.snoop 56 45 52 timeout=2s    # wait for "VER" in RX
-  Matched 565452 at offset 14
+demo> /traffic.snoop 4F 4B timeout=2s    # wait for "OK" in RX
+  Matched 4f4b at offset 14
 ```
 
 ---

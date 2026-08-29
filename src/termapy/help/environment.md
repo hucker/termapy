@@ -107,7 +107,7 @@ screenshot -- often more useful than a selection.
 ### Ctrl-key capture (Windows + Linux)
 
 VS Code's integrated terminal on Windows and Linux captures
-`Ctrl+P` (Quick Open), `Ctrl+S` (Save), and `Ctrl+T` (New Tab) before
+`Ctrl+P` (Quick Open), `Ctrl+S` (Save), and `Ctrl+T` (Go to Symbol in Workspace) before
 they reach the shell.  Inside termapy that means those shortcuts
 never fire unless you rebind them in VS Code.
 
@@ -234,7 +234,7 @@ node; group membership isn't needed if the container runs as root
 
 ### CI / headless
 
-`--check` and `--cli --run` work without an attached TTY.  Don't use
+`--check`, `--run`, and `-e`/`--exec` work without an attached TTY (`--run` and `--exec` imply `--cli`).  Don't use
 the TUI headlessly — it needs a real terminal to render into.
 
 ## Reporting environment issues
@@ -248,7 +248,7 @@ bundle is:
 - `echo $TERM`
 - `echo $TERM_PROGRAM` (empty on most terminals; `"vscode"` under
   VS Code; `"Apple_Terminal"` under Terminal.app; etc.)
-- Screenshot of the misbehaviour (`Ctrl+S` inside termapy saves an
+- Screenshot of the misbehavior (`Ctrl+S` inside termapy saves an
   SVG that captures the exact render)
 
 Most environment issues reduce to "terminal doesn't forward the key"

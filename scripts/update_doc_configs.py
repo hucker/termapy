@@ -173,7 +173,7 @@ def _fmt_default(v) -> str:
     if isinstance(v, dict):
         return "{...}"
     if isinstance(v, list):
-        return "[]"
+        return "[]" if not v else f"[{len(v)} entries]"
     if isinstance(v, str):
         return '""' if v == "" else v.encode("unicode_escape").decode("ascii")
     return str(v)

@@ -2,8 +2,9 @@
 
 Add custom buttons to the toolbar by configuring `custom_buttons`
 in your JSON config. Each button can send serial commands, run REPL commands,
-or execute scripts. The default config includes 4 disabled placeholders.
-Enable them and fill in the fields, or add more entries.
+or execute scripts. The default config includes one enabled button (**Info**, which runs
+`/cfg.info`) plus three disabled placeholders.  Enable them and fill in
+the fields, or add more entries.
 
 Each button object has these fields:
 

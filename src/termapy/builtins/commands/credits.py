@@ -102,12 +102,20 @@ Each one below is a direct runtime dependency declared in
 - [**platformdirs**](https://github.com/platformdirs/platformdirs)
   -- cross-platform user state / config directory resolution
   (community fork of the original ``appdirs`` by ActiveState).
+- [**crcglot**](https://github.com/hucker/crcglot) -- the reveng CRC
+  catalog, detection / reversal, and multi-language code generation
+  behind every ``/proto.crc.*`` command; extracted from termapy into
+  its own package.
+- [**frist**](https://github.com/hucker/frist) -- the age and duration
+  engine behind every "10 min ago" and "1.5s" termapy prints: unit
+  selection and calendar-accurate months, so termapy owns only the
+  labels.
 
 ## Vendored code
 
 Three packages are vendored under ``src/termapy/vendor/`` rather
 than being runtime dependencies -- see
-[vendor/LICENSES.md](src/termapy/vendor/LICENSES.md) for versions
+[vendor/LICENSES.md](https://github.com/hucker/termapy/blob/main/src/termapy/vendor/LICENSES.md) for versions
 and licenses:
 
 - **pyserial** -- vendored because upstream hasn't cut a release

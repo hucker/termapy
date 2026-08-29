@@ -6,10 +6,11 @@ The top bar has the title-bar buttons plus a centered config name:
 
 | Button          | Position    | Action                                          |
 | --------------- | ----------- | ----------------------------------------------- |
-| **Cfg**         | Top-left    | New / Edit / Load a config                      |
-| **Run**         | Top-left    | Pick, run, or create a script                   |
-| **Proto**       | Top-left    | Open a protocol test script                     |
 | **Help**        | Top-left    | Open this help guide                            |
+| **Cfg**         | Top-left    | Load / Edit / New / Rename / Delete a config    |
+| **Run**         | Top-left    | Run / Edit / New / Rename / Delete a script     |
+| **Proto**       | Top-left    | Run / Debug / Edit / New / Rename / Delete a .pro script |
+| **Update**      | Top-left    | Appears only when a newer termapy is on PyPI    |
 | **Config name** | Center      | Click to edit the currently-loaded config       |
 | **Port name**   | Top-right   | Click to open the serial port picker            |
 | **Status**      | Far-right   | Click to connect or disconnect                  |
@@ -19,7 +20,9 @@ The **X** sits top-left on macOS/Linux and top-right on Windows, matching
 each platform's window-control convention.  Cfg, Run, and Proto can be
 hidden per config via `cfg_enabled`, `run_enabled`, and `proto_enabled`.
 Typing the bare command (e.g. `/cfg`) is equivalent to clicking the
-button.
+button.  The Cfg, Run, and Proto pickers list files newest first with
+size and age columns under a header row; Run adds the script's
+docstring summary, Cfg the port, baud, and title.
 
 Hover over any of the config, port, or status buttons to see a detailed
 tooltip with current settings and chip information.
@@ -54,6 +57,7 @@ The bottom bar has buttons. Some appear based on context:
 | **Log**     | Always                       | Open the session log in your editor             |
 | **SS**      | Always                       | Open the screenshot folder                      |
 | **Cap**     | Always                       | Open the cap/ folder                            |
+| **^ v x**   | While `/find` is active      | Previous / next match, close the find bar       |
 
 Scripts are picked and run from the **Run** button in the title bar
 (or `/run`); quitting is the red **X** in the title bar (or Ctrl+Q).
@@ -65,18 +69,19 @@ Scripts are picked and run from the **Run** button in the title bar
 | **Ctrl+Q**             | Quit (also dismisses any open dialog)               |
 | **Escape**             | Dismiss dialog / clear input / exit history         |
 | **F1**–**F4**          | Help / Cfg / Run / Proto (same as the buttons)      |
+| **F10**                | Edit the current config                             |
 | **Ctrl+Shift+1**–**5** | Same four, plus Edit Config on **5**                |
-| **Ctrl+L**             | Clear screen                                        |
-| **Ctrl+P**             | Open command palette                                |
+| **Ctrl+P** / **Alt+P** | Open command palette                                |
+| **Ctrl+S** / **Alt+S** | Save SVG screenshot                                 |
+| **Ctrl+T** / **Alt+T** | Save text screenshot                                |
 | **Ctrl+C** / **Cmd+C** | Copy selected text to the clipboard                 |
-| **F5**                 | Save SVG screenshot                                 |
-| **F6**                 | Open screenshot folder                              |
-| **F7**                 | Save text screenshot                                |
 | **Up/Down**            | Cycle through command history                       |
 | **Right**              | Accept type-ahead suggestion                        |
 
-The `Ctrl+Shift+digit` aliases work inside VS Code's integrated
-terminal, which intercepts some F-keys.
+The `Ctrl+Shift+digit` and `Alt+letter` aliases work inside VS Code's
+integrated terminal, which intercepts some F-keys and Ctrl chords.
+Clearing the screen is `/cls` (or the palette's Clear Screen); the
+screenshot folder is the **SS** button (or `/ss.explore`).
 
 ## Copying text
 
@@ -98,7 +103,7 @@ list when opened with an empty query.
 
 ![Command palette](img/doc_20_palette.svg)
 
-Quick access to:
+Highlights include:
 
 - Help
 - Find in scrollback / Grep scrollback / Search command help

@@ -17,10 +17,12 @@ Select a topic:
 - [Custom buttons](custom-buttons.md): adding toolbar buttons
 - [Toolbar and shortcuts](toolbar.md): buttons, keyboard shortcuts, command palette
 - [REPL commands](commands.md): full command reference table
+- [Variables](variables.md): `$(NAME)` expansion, environment and date/time variables, `$(*NAME)` dereference
 - [Scripting](scripting.md): automating command sequences
-- [Protocol testing](protocol-testing.md): hex send/receive, .pro scripts, CRC, visualizers
+- [Serial tools](serial-tools.md): `/proto.send` raw bytes with inline delays, hex mode, the CRC catalog, detection and code generation
+- [Protocol testing](protocol-testing.md): `.pro` send/expect test scripts, the format-spec language, packet visualizers
 - [Data capture](data-capture.md): text and binary capture to files
-- [File transfer](file-transfer.md): XMODEM send and receive over serial
+- [File transfer](file-transfer.md): XMODEM and YMODEM send and receive over serial
 - [Writing plugins](writing-plugins.md): add custom commands with Python
 - [Device help](device-help.md): integrate your device's commands into termapy
 - [Authoring profiles](authoring-profiles.md): write the device profile that powers device help and MCP

@@ -32,10 +32,10 @@ termapy_cfg/
 │   ├── .gitignore              # auto-generated
 │   ├── main_board.cfg
 │   ├── main_board.log          # ignored
-│   ├── .cmd_history.txt        # ignored
+│   ├── main_board.history      # ignored
 │   ├── ss/                     # ignored
 │   ├── cap/                    # ignored
-│   ├── prof/                   
+│   ├── prof/                   # ignored
 │   ├── run/
 │   ├── proto/
 │   ├── viz/
@@ -44,10 +44,10 @@ termapy_cfg/
     ├── .gitignore              # auto-generated
     ├── aux_board.cfg
     ├── aux_board.log           # ignored
-    ├── .cmd_history.txt        # ignored
+    ├── aux_board.history       # ignored
     ├── ss/                     # ignored
     ├── cap/                    # ignored
-    ├── prof/                   
+    ├── prof/                   # ignored
     ├── run/
     ├── proto/
     ├── viz/
@@ -62,8 +62,7 @@ a fallback default so the same config works on every checkout:
 
 ```json
 {
-    "port": "$(env.MAIN_PORT|COM4)",
-    "baud_rate": 115200,
+    "serial": {"port": "$(env.MAIN_PORT|COM4)", "baud_rate": 115200},
     "default_ui": "$(env.TERMAPY_UI|tui)"
 }
 ```

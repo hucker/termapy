@@ -6,7 +6,7 @@ command hierarchy::
     from termapy.plugins import Command
 
     def _handler(ctx, args):
-        ctx.io._write("Hello from plugin!")
+        ctx.io.result("Hello from plugin!")
 
     COMMAND = Command(
         name="mycommand",

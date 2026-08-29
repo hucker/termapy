@@ -62,7 +62,7 @@ Byte ranges are 1-based. Omit names for unnamed columns.
 # Mixed-type record: string + integers + float (little-endian)
 /cap.struct mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 records=20 cmd=AT+BINDUMP 20
 
-# Hex dump of raw bytes
+# Raw-byte records rendered as hex columns (still /cap.struct)
 /cap.struct packets.csv fmt=Header:H1-4 Payload:H5-20 records=100 cmd=stream
 
 # Tab-separated with echo
@@ -145,4 +145,9 @@ A progress bar and Stop button overlay the toolbar during capture:
 
 ![Capture in progress](img/doc_13_cap_progress.svg)
 
-The **Cap** button opens the cap/ folder.
+When a capture ends, the completion line reports the file, its size, and
+the wall time it ran, e.g. `Capture complete: cap/log.txt (2.0 KB in 3.2s)`.
+
+`/cap.list` lists the folder newest first with size and age (records under
+`--json`), `/cap.rename <old> <new>` renames a file, and the **Cap** button
+opens the cap/ folder.

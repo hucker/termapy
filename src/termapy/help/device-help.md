@@ -51,7 +51,7 @@ Each command entry can carry:
 - `args` (optional) -- argument spec, for human display.
 - `long_help` (optional) -- multi-line prose for `/help <command>`.
 - `flags` (optional) -- flag map (canonical + alias entries).
-- `safety` (optional) -- `safe` / `readonly` / `mutable` / `destructive`.
+- `safety` (optional) -- `readonly` / `safe` / `mutable` / `destructive`, in increasing order of caution (see [Authoring profiles](authoring-profiles.md)).
 - `enabled` (optional, default true) -- audit gate.  Drafts emit false.
 - `send_template`, `typed_args`, `response` -- profile-aware
   dispatch fields.  See the authoring guide for details.
@@ -118,7 +118,7 @@ connects, put the `/profile.load cmd=...` step in your cfg's
 ```json
 {
     "on_connect_cmd": "/profile.load cmd=AT+HELP.JSON",
-    "port": "$(env.MAIN_PORT|COM4)"
+    "serial": {"port": "$(env.MAIN_PORT|COM4)"}
 }
 ```
 

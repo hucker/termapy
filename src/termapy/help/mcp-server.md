@@ -56,7 +56,7 @@ Standard termapy [config](config.md).  The MCP-relevant slice (partial example -
 
 ### The profile file
 
-A device profile declares what commands the device understands and how its responses should be parsed.  Every `run_command` reply uses one fixed envelope -- `cmd`, `success`, `error`, `value`, `data`, `elapsed_s`, `output_lines`, `captured_artifacts`, `async_events`.  Without a profile, the raw response text arrives in `value` and `data` is null (legacy fallthrough).  With a profile, `data` carries the typed structure, like `{"celsius": 23}`, with the raw wire text still in `value`.
+A device profile declares what commands the device understands and how its responses should be parsed.  Every `run_command` reply uses one fixed envelope -- `cmd`, `success`, `error`, `value`, `data`, `elapsed_s`, `output_lines`, `captured_artifacts`, `async_events` (the `--json` / `/term.request` envelope in a terminal carries the first seven; the last two are collected by the MCP host).  Without a profile, the raw response text arrives in `value` and `data` is null (legacy fallthrough).  With a profile, `data` carries the typed structure, like `{"celsius": 23}`, with the raw wire text still in `value`.
 
 The authoritative, machine-readable schema ships inside the package as [`profile/schema.json`](https://github.com/hucker/termapy/blob/main/src/termapy/profile/schema.json) -- point an LLM at it (or feed it into your MCP client's context) to draft, audit, or validate profiles automatically.
 
@@ -118,6 +118,16 @@ When the MCP server connects to its port, it auto-loads the profile from `profil
 An MCP client is an automated peer, not a terminal, so the session defaults to **color off**: device ANSI escape codes (SGR color, cursor moves) are stripped from `output_lines`, `async_events`, and `request_mode` values, and command echo is off.  This keeps escape codes out of the JSON the model parses.
 
 To pass ANSI through anyway -- for a faithful capture, or a client that renders it -- send `/term.color on`.  To silence color (or a half-duplex device's echo) at the *source*, put the device's own command in `mcp_on_connect_cmd` (e.g. `color off`, `echo off`); it runs automatically on connect.  Full-screen / VT100 output (cursor-addressed dashboards and menus) can't be represented as MCP text -- view those in the TUI.
+
+### Resources
+
+Besides the `run_command` tool, the server publishes three resources:
+
+- `termapy://commands.json` -- the command catalog (same content as `/mcp.catalog`).
+- `termapy://device_state.json` -- port, profile, last command, and the capture files, each as `{name, bytes, mtime, age_s, uri}`, newest first.
+- `termapy://capture/<name>` -- the body of one capture file.
+
+Every `run_command` reply's `captured_artifacts` lists the capture files a command created or changed, in the same `{uri, name, bytes, mtime, age_s}` shape, so an agent can order captures by recency without re-listing.
 
 ### What an MCP client can and can't reach
 

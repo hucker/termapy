@@ -59,6 +59,7 @@ def build_help_tooltip(ver: str, hint: str = "") -> Group:
     grid.add_row("Textual / Rich",   "TUI + output",   "Will McGugan")
     grid.add_row("prompt_toolkit",   "CLI",            "Jonathan Slenders")
     grid.add_row("crcglot",          "CRC engine",     "Chuck Bass")
+    grid.add_row("frist",            "ages, durations", "Chuck Bass")
     grid.add_row("reveng catalog", reveng_role,      "Greg Cook")
     grid.add_row("xmodem",           "file transfer",
                  "Wijnand Modderman, Jeff Quast, Andrew Leech")

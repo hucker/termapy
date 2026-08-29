@@ -56,7 +56,7 @@ the file.
 
 ## User interface modes
 
-Termapy has two interface modes that you can switch between at any time:
+Termapy has three interface modes that you can switch between at any time:
 
 **TUI mode** (default): a full-screen terminal UI built with Textual.
 Includes a title bar, toolbar buttons, scrollable output, command input
@@ -67,6 +67,10 @@ scripts, and more.
 stdin and writes to stdout. Useful for headless environments, SSH sessions,
 piping output, or when you prefer a minimal interface. Start with
 `termapy --cli` or set `"default_ui": "cli"` in your config.
+
+**VT100 mode:** raw ANSI passthrough for devices that draw their own
+screens (menus, cursor-addressed dashboards).  Start with `termapy --vt100`
+or `/vt100` from a session; see [VT100 mode](vt100.md).
 
 ### CLI completion
 
@@ -89,7 +93,7 @@ to keep the output clean.
 
 ### Switching modes
 
-Use the `/tui` and `/cli` REPL commands to switch modes during a session.
+Use the `/tui`, `/cli`, and `/vt100` REPL commands to switch modes during a session.
 The serial connection and config carry over; only the interface changes.
 
 You can also set the default mode in your config:
@@ -98,7 +102,7 @@ You can also set the default mode in your config:
 "default_ui": "tui"
 ```
 
-Set to `"cli"` to always start in CLI mode without the `--cli` flag.
+Set to `"cli"` or `"vt100"` to always start in that mode without the flag.
 
 ## Folder layout
 
@@ -110,11 +114,12 @@ termapy_cfg/
 ├── iot_device/
 │   ├── iot_device.cfg         # config file
 │   ├── iot_device.log         # session log
-│   ├── .cmd_history.txt       # command history
+│   ├── iot_device.history     # command history
 │   ├── ss/                    # screenshots
 │   ├── run/                   # script files
 │   ├── proto/                 # protocol test scripts (.pro)
 │   ├── cap/                   # data capture output files
+│   ├── prof/                  # script profiling CSVs (/run.profile)
 │   ├── viz/                   # per-config packet visualizers
 │   └── plugin/                # per-config plugins
 └── plugin/                    # global plugins (all configs)
@@ -124,10 +129,11 @@ termapy_cfg/
 
 The title bar buttons (left to right):
 
-- **Cfg** opens the config picker (New / Edit / Load / Cancel).
-- **Run** opens the script picker.
-- **Proto** opens the protocol test picker.
 - **Help** opens this help guide.
+- **Cfg** opens the config picker (Load / Edit / New / Rename / Delete / Cancel), listed newest first with size, age, port, baud, and title.
+- **Run** opens the script picker (Run / Edit / New / Rename / Delete / Cancel) with each script's docstring summary.
+- **Proto** opens the protocol test picker (Run / Debug / Edit / New / Rename / Delete / Cancel).
+- **Update** appears only when a newer termapy is available on PyPI.
 - **Title** shows the config name (or custom title). Click to edit the config.
 - **Port** shows the port name and baud rate. Click to pick a different serial port.
 - **Status** shows connection status: green **Connected** or red **Disconnected**. Click to toggle the connection.
@@ -164,7 +170,7 @@ The bottom bar contains a text input for sending commands to the serial device.
 - As you type, ghost-text suggestions appear from REPL commands and device history; press **Right** to accept.
 - Prefix a command with `/` to run a local REPL command instead of sending it to the device.
 
-Type `/help` to see all available REPL commands. Three ways to find
+Type `/help` to see all available REPL commands. Several ways to find
 things, man-inspired:
 
 - `/help`                  -- clean landscape of every command (name + one-liner).

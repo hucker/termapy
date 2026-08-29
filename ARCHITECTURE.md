@@ -40,7 +40,7 @@ src/termapy/
 │   │   ├── help.py     #  /help - forgiving help with man-page detail view
 │   │   ├── log.py      #  /log.* - dump / fingerprint / show the session log
 │   │   ├── mcp.py      #  /mcp.* - MCP catalog, status, session log
-│   │   ├── os_cmd.py   #  /os (/!) - run a shell command
+│   │   ├── os_cmd.py   #  /os - run a shell command (gated by TERMAPY_OS_CMD_ENABLED)
 │   │   ├── ping.py     #  /ping - measure serial response time
 │   │   ├── plugin.py   #  /plugin - plugin folder operations
 │   │   ├── port.py     #  /port - serial port list/connect/configure/signals
@@ -158,21 +158,21 @@ COMMAND = Command(
     handler=_handler,
     sub_commands={
         "auto": Command(args="<key> <value>", help="Set immediately.", handler=_handler_auto),
-        "configs": Command(help="List all config files.", handler=_handler_configs),
-        "ss": Command(help="List ss/ files.", handler=_handler_ss,
+        "list": Command(help="List all config files.", handler=_handler_list),
+        "icon": Command(help="Create a desktop launcher.", handler=_icon_handler,
             sub_commands={
-                "explore": Command(help="Open ss/ in explorer.", handler=...),
-                "clear": Command(help="Delete all ss/ files.", handler=...),
+                "remove": Command(help="Delete the launcher.", handler=...),
+                "list": Command(help="List every launcher.", handler=...),
             }),
     },
 )
 ```
 
-The subcommand tree is flattened at registration into dotted names (`cfg.auto`, `cfg.ss.explore`) that the dispatch system looks up directly. The `/help` command walks the tree to show hierarchical output.
+The subcommand tree is flattened at registration into dotted names (`cfg.auto`, `cfg.icon.remove`) that the dispatch system looks up directly. The `/help` command walks the tree to show hierarchical output.
 
 ### Hooks
 
-A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss`, `run`, `delay`, `cfg.load`, `help.open`, `log.clear` / `log.delete`.
+A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss.svg`, `run.profile.*`, `delay`, `cfg.load`, `help.open`, `log.delete`.
 
 Hooks and plugins share one registry and one dispatch path; a hook is just a late, host-supplied entry that can override a plugin of the same name (see [Loading order](#loading-order-later-overrides-earlier)). The rule of thumb: if a command can be expressed through `PluginContext`, it's a plugin (large, portable set); if it genuinely needs Textual/host state, it's a hook (small, frontend-bound set).
 
@@ -181,7 +181,7 @@ Hooks and plugins share one registry and one dispatch path; a hook is just a lat
 Every handler receives a `PluginContext`, the stable API boundary between plugins and the app. The context is a thin shell over five **handles** — four capability domains, plus `internal`, the privileged escape hatch that deliberately isn't a domain:
 
 - **`ctx.io`** — text in/out: the level-gated `result` / `output` / `status` channels (and their Rich-markup variants) plus the always-works `notify` / `status_bar` / `log` fallbacks.
-- **`ctx.serial`** — the serial connection: state (`is_connected`, `port`), lifecycle (`connect`, `disconnect`, `update_port`, `apply_port_effects`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`, `rx_queue`), and passive `rx` / `tx` byte observers.
+- **`ctx.serial`** — the serial connection: state (`is_connected`), lifecycle (`connect`, `disconnect`, `update_port`, `apply_port_effects`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`, `rx_queue`), and passive `rx` / `tx` byte observers.
 - **`ctx.fs`** — the filesystem layer: the config-dir folders (`ss_dir`, `scripts_dir`, `proto_dir`, `cap_dir`) and `open_file()`.
 - **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).
 - **`ctx.internal`** — the intentional escape hatch: an internal, unstable interface (`InternalHandle`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
@@ -240,7 +240,7 @@ Built-ins use namespaces as worked examples of the pattern:
 
 ```text
 ctx.ns("seq")              - sequence counters, mutated by {seqN+} template expansion
-ctx.ns("target_commands")  - device commands imported via /include
+ctx.ns("active_profile")   - the loaded device profile (set by /profile.load)
 ctx.ns("flags")            - engine-owned toggles: echo, echo_repl, color, output_level, hex
 ```
 
@@ -268,10 +268,10 @@ Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` 
 ### Loading order (later overrides earlier)
 
 ```text
-1. builtins/commands/         - 37 built-in commands (shipped with termapy)
-2. termapy_cfg/plugins/      - user plugins (all configs on this machine)
-3. termapy_cfg/<name>/plugins/ - per-config plugins (one config only)
-4. App hooks (app.py/cli.py) - commands needing frontend access (ss, run, delay, etc.)
+1. builtins/commands/        - built-in command plugins (one module per command family)
+2. termapy_cfg/plugin/       - user plugins (all configs on this machine)
+3. termapy_cfg/<name>/plugin/ - per-config plugins (one config only)
+4. App hooks (app.py/cli.py) - commands needing frontend access (ss.svg, delay, run.profile.*, etc.)
 ```
 
 A user plugin with the same name as a built-in replaces it. App hooks override everything; they need direct access to frontend-specific features (Textual widgets in TUI, readline in CLI).
@@ -387,9 +387,9 @@ Copy this shape for any plugin that needs per-session state with setup/reset sem
 │  app.py - Textual App                            │
 │  ┌─────────────┐ ┌──────────┐ ┌──────────────┐   │
 │  │ Title Bar   │ │ RichLog  │ │ Bottom Bar   │   │
-│  │ (?,#,Cfg,   │ │ (serial  │ │ (Input, SS,  │   │
-│  │  Port,      │ │  output) │ │  Scripts,Cap,│   │
-│  │  Status)    │ │          │ │  Proto,Exit) │   │
+│  │ (X,Help,Cfg,│ │ (serial  │ │ (/, Input,   │   │
+│  │  Run,Proto, │ │  output) │ │  <Rec>, find,│   │
+│  │  Port,Status│ │          │ │  DTR/RTS,Cap)│   │
 │  └─────────────┘ └──────────┘ └──────────────┘   │
 │  ┌──────────────────────────────────────────┐    │
 │  │ dialogs/ - Modal Screens (per-file pkg)  │    │
@@ -402,7 +402,7 @@ Copy this shape for any plugin that needs per-session state with setup/reset sem
 │  └──────────────────────────────────────────┘    │
 │  ┌──────────────────────────────────────────┐    │
 │  │ App Hooks - commands needing Textual     │    │
-│  │ ss, run, delay, cfg.load, edit, help.open│    │
+│  │ ss.svg, delay, cfg.load, edit, help.open │    │
 │  └──────────────────────────────────────────┘    │
 ├──────────────────────────────────────────────────┤
 │  serial_engine.py - SerialEngine                 │
@@ -433,7 +433,7 @@ Copy this shape for any plugin that needs per-session state with setup/reset sem
 │      dispatch/wait_for_match                     │
 │  • capabilities.py: CapabilitySet,               │
 │      MissingCapability                           │
-│  • handles/{io,serial,fs,ui,engine}.py:          │
+│  • handles/{io,serial,fs,ui,internal}.py:        │
 │      capability-domain handles attached to ctx   │
 │  • loader.py: load_plugins_from_dir, validation  │
 │  • output_levels.py: silent/quiet/normal/verbose │
@@ -468,7 +468,7 @@ Copy this shape for any plugin that needs per-session state with setup/reset sem
 | `ctx.internal.port`  | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |
 | `/delay`             | `set_timer()` (non-blocking) | `time.sleep()` + progress bar |
 
-CLI-specific features: readline tab completion, shared command history, `/color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer), no `/edit.cfg` (no config editor modal).
+CLI-specific features: prompt_toolkit tab completion, shared command history, `/term.color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer); `/edit.cfg` opens the system editor instead of the built-in modal editor.
 
 ## MCP mode (`mcp/server.py`)
 
@@ -544,21 +544,22 @@ Input.on_submit → _execute_command()
 
 ```text
 termapy_cfg/
-├── plugins/              # user plugins (all configs)
+├── plugin/               # user plugins (all configs)
 └── <name>/
     ├── <name>.cfg        # JSON config file
     ├── <name>.log        # session log
     ├── <name>.md         # info report (from /cfg.info)
-    ├── .cmd_history.txt  # command history
-    ├── plugins/          # per-config plugins
+    ├── <name>.history    # command history
+    ├── plugin/           # per-config plugins
     ├── ss/               # screenshots (SVG + TXT)
-    ├── scripts/          # .run script files
+    ├── run/              # .run script files
     ├── proto/            # .pro protocol test scripts
     ├── viz/              # per-config packet visualizers
-    └── cap/              # data capture output files
+    ├── cap/              # data capture output files
+    └── prof/             # /run.profile timing CSVs
 ```
 
-`cfg_data_dir()` auto-creates all subdirs on access. Old `captures/` folders are auto-renamed to `cap/`.
+`cfg_data_dir()` auto-creates all subdirs on access. Old folder names are auto-renamed (`captures/` → `cap/`, `scripts/` → `run/`, `plugins/` → `plugin/`).
 
 ## Config migration
 
@@ -630,7 +631,7 @@ files (see [Hooks](#hooks) for the host-registered exceptions).
 
 ## Suppressions
 
-28 lint/type/coverage pragmas in `src/termapy` (excluding vendor). Every one carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
+Every lint/type/coverage pragma in `src/termapy` (excluding vendor) carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
 
 ## Test coverage
 
@@ -665,4 +666,4 @@ carries the current count).  Representative files and what they cover:
 | test_crc_builtins.py   | sum8/sum16 checksum modules                    |
 | test_ymodem.py         | YMODEM transfer, batch send, FakeSerial        |
 
-`app.py`, `proto_debug.py`, and `dialogs/` are not unit tested; UI is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.
+`app.py` is driven headless by `tests/test_app_pilot.py` (Textual Pilot) and the dialogs by `tests/test_dialogs.py`; `proto_debug.py` is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.

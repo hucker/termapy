@@ -11,15 +11,15 @@ normative format specification (matching rules, timing semantics,
 and the forward-compatibility policy), see `docs/profile-spec.md`
 in the repository; this page is the practical guide.
 
-Note: AI such as Claude Code can do a pretty good job of sending commands interactively
-without a profile at all, just looking at any help text or sample responses that you give it. It
-can work with fairly well with a small amount of trial and error.  However, if you are going
-to use AI to interact with your device on an ongoing basis it is worth it to invest in creating
-a profile which reduces friction and gives you more robust control and better error handling
-because the LLM can understand the commands and the types.
+An AI client such as Claude Code can drive a device reasonably well with
+no profile at all, working from whatever help text or sample responses
+you give it.  For ongoing use a profile is worth the investment: it
+removes the trial and error, and gives the model typed commands and
+responses, so control is more robust and errors are handled better.
 
-IF you have control over the device firmware, build a command that returns the json profile directly from the device.  
-This way users of your device can be up and running with AI control in a few minutes.
+If you control the device firmware, add a command that returns the JSON
+profile directly; users of your device are then up and running with AI
+control in minutes.
 
 ## File layout
 
@@ -43,8 +43,8 @@ Only `commands` is strictly required.  Everything else is optional.
 byte size, parity, stop bits, flow control, encoding, and line
 ending are session properties — they depend on the user's USB
 adapter and hardware setup, not on the device contract.  Set them
-in your `termapy_cfg/<name>/<name>.cfg` file.  See `help config`
-for the field reference.  For NDJSON devices, set `cfg.protocol`
+in your `termapy_cfg/<name>/<name>.cfg` file.  See
+[Configuration](config.md) for the field reference.  For NDJSON devices, set `cfg.protocol`
 to `"ndjson"`; the default `"text"` covers most devices.
 
 ## Per-command schema

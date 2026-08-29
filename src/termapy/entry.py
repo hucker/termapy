@@ -205,7 +205,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Emit JSON instead of a column-aligned table.  "
-             "Applies to --ports and --chips.",
+             "Applies to --ports, --chips, and --usb.",
     )
     parser.add_argument(
         "--vid",

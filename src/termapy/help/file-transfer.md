@@ -120,6 +120,7 @@ Click the **Cap** button in the toolbar to open the `cap/` folder.
 
 ## Common details
 
+- Transfers need a connected port and an interactive session (TUI or CLI); they are not available over MCP
 - Serial display is suppressed during transfer and resumes afterward
 - Press **Esc** to cancel an active transfer
 - Progress reported during transfer

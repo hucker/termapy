@@ -92,14 +92,18 @@ value and cannot become a flag, a keyword, or a counter bump.
 | `$(DATE)`            | Dynamic | Current date (YYYY-MM-DD)          |
 | `$(TIME)`            | Dynamic | Current time (HH:MM:SS)            |
 | `$(DATETIME)`        | Dynamic | Current date and time              |
-| `$(CFG)`             | Context | Current config name                |
+| `$(CFG.DIR)`         | Context | Config folder (`termapy_cfg/<name>/`) |
+| `$(CFG.FILE)`        | Context | Config file path                   |
+| `$(CFG.RUN_DIR)`     | Context | `run/` folder (also `PROTO_DIR`, `PLUGIN_DIR`, `SS_DIR`, `CAP_DIR`, `PROF_DIR`, `VIZ_DIR`) |
+| `$(CFG.LOG_FILE)`    | Context | Session log path                   |
+| `$(CFG.PORT)`        | Context | Configured port (`CFG.BAUD` the baud; `CFG.PORT_CFG` / `CFG.PORT_FULL` the short / full connection strings) |
 | `$(LAUNCH_DATE)`     | Launch  | App start date (frozen)            |
 | `$(LAUNCH_TIME)`     | Launch  | App start time (frozen)            |
 | `$(LAUNCH_DATETIME)` | Launch  | App start date and time (frozen)   |
 | `$(SESSION_DATE)`    | Session | Script start date (frozen)         |
 | `$(SESSION_TIME)`    | Session | Script start time (frozen)         |
 | `$(SESSION_DATETIME)`| Session | Script start date and time (frozen)|
-| `$(FRONT_END)`       | Launch  | `textual` (TUI) or `cli`           |
+| `$(FRONT_END)`       | Launch  | `textual` (TUI), `cli`, or `mcp`   |
 
 **Dynamic** variables update each time they are expanded.
 **Launch** variables are frozen when the app starts.
@@ -126,11 +130,13 @@ Access OS environment variables with `$(env.NAME)` syntax. This is
 especially useful in config files for values that differ per machine:
 
 ```json
-"port": "$(env.TERMAPY_PORT|COM4)"
+"serial": {"port": "$(env.TERMAPY_PORT|COM4)"}
 ```
 
 The `|` inside the `$(env.NAME|...)` provides a fallback **when the
-env variable is unset**.
+env variable is unset**.  Without a fallback, a reference to an unset
+variable in a REPL command is an error; in a config value it is left
+as-is.
 
 ### Env expansion composes with port-resolution fallback
 
@@ -141,7 +147,7 @@ USB serial number) in order. These layers compose cleanly -- env
 expansion runs first, then port resolution:
 
 ```json
-"port": "$(env.DEVICE_SN)|COM3"
+"serial": {"port": "$(env.DEVICE_SN)|COM3"}
 ```
 
 - `$(env.DEVICE_SN)` expands to the env value (or stays as the
@@ -160,7 +166,7 @@ Both forms are valid and do slightly different things:
 ### Env vars never reach the wire automatically
 
 `$(env.NAME)` expands in config values (like `port` above) and in REPL
-commands (`/print $(env.HOME)`, `/var set x $(env.TOKEN)`), but **not in
+commands (`/print $(env.HOME)`, `/var.set x $(env.TOKEN)`), but **not in
 bare device commands** -- typing `AT+X=$(env.SECRET)` sends the literal
 text, never the value, so environment secrets stay off the serial wire.
 
@@ -204,7 +210,7 @@ AT+READ {seq2+}                  # independent counter
 | `{seqN+}`     | Increment counter N (1--9) and substitute the new value     |
 | `{seqN}`      | Substitute counter N without incrementing                   |
 | `{starttime}` | This run's start stamp, frozen at script (or app) start     |
-| `{elapsed}`   | Time since start (e.g. `1.50s`), via the duration formatter |
+| `{elapsed}`   | Time since start (e.g. `1.5s`, `2hr`), via the duration formatter |
 
 `seq1` is the top level; incrementing counter N resets all deeper
 (higher-numbered) counters to 0, so bumping an outer level restarts the inner

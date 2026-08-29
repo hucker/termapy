@@ -7,44 +7,73 @@ For interactive sending and CRC commands, see [Serial Tools](serial-tools.md).
 
 ## Protocol test scripts
 
-Create `.pro` files in the per-config `proto/` folder with send/expect sequences:
+Create `.pro` files in the per-config `proto/` folder.  A script is
+TOML: a header of defaults, then one `[[test]]` table per send/expect
+step.  The Proto picker lists them newest first with size and age, and
+`/proto.rename` renames one.
 
-```text
+```toml
 # example.pro
-@timeout 1000ms
-@frame_gap 50ms
+name = "Modbus smoke test"
+timeout = "1000ms"          # default expect timeout
+frame_gap = "50ms"          # silence that ends a frame
+setup = ["/term.hex on"]    # commands run before the first test
+teardown = ["/term.hex off"]
 
-label: Read registers
-send: 01 03 00 00 00 0A C5 CD
-expect: 01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
+[[test]]
+name = "Read registers"
+send = "01 03 00 00 00 0A C5 CD"
+expect = "01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **"
 
-label: Write register
-send: 01 06 00 01 00 03 98 0B
-expect: 01 06 00 01 00 03 98 0B
-timeout: 500ms
+[[test]]
+name = "Write register"
+send = "01 06 00 01 00 03 98 0B"
+expect = "01 06 00 01 00 03 98 0B"
+timeout = "500ms"           # per-test override
 
-# Text protocols work too
-label: AT query
-send: "AT+VERSION?\r"
-expect: "V1." ** ** "\r"
+# Text protocols work too: quote the text, \r \n escapes are honored
+[[test]]
+name = "AT query"
+send = '"AT+VERSION?\r"'
+expect = '"V1." ** ** "\r"'
+send_fmt = "Title:AT_Command Command:S1-*"      # optional inline format specs
+expect_fmt = "Title:AT_Response Response:S1-*"  # (see the format spec language below)
 ```
 
-Run with `/proto.run example.pro`. Each step reports PASS/FAIL.
+Run with `/proto.run example.pro`. Each test reports PASS/FAIL.
 
 ![Protocol test results](img/doc_11_proto_run.svg)
 
-## Script directives
+## Script keys
 
-- `@timeout <duration>`: default expect timeout (default 1000ms)
-- `@frame_gap <duration>`: silence gap to detect frame end (default 50ms)
-- `@strip_ansi`: strip ANSI escape sequences from responses before matching
-- `label: <text>`: name for the next step
-- `send: <hex or "text">`: transmit raw bytes (no line ending appended)
-- `expect: <pattern>`: wait for response and match (`**` = any byte)
-- `timeout: <duration>`: per-step timeout override
-- `delay: <duration>`: fixed sleep
-- `flush: <duration>`: wait for serial silence, then discard received bytes
-- `cmd: <text>`: send a plain text command with config line ending
+Header (defaults for every test):
+
+- `name`: script display name
+- `timeout`: default expect timeout (default 1000ms)
+- `frame_gap`: silence gap that ends a frame (default 50ms)
+- `strip_ansi`: strip ANSI escape sequences from responses before matching
+- `quiet`: hide setup/teardown output
+- `setup` / `teardown`: lists of commands run before the first test / after the last
+- `viz`: visualizer names allowed in the debug screen's dropdown (empty = all)
+- `send_fmt` / `expect_fmt`: default inline format specs for TX / RX data
+- `json_file`: write the results as JSON to this file after a run
+
+Per `[[test]]`:
+
+- `name`: test name
+- `send`: hex bytes (`01 03 ...`) or quoted text (`'"AT\r"'`); nothing is appended
+- `expect`: pattern to match (`**` = any byte); hex or quoted text
+- `timeout`: per-test override
+- `setup` / `teardown`: commands around this one test
+- `viz`: force one visualizer for this test in the debug screen
+- `send_fmt` / `expect_fmt`: inline format specs for this test
+
+### Legacy flat format
+
+Older scripts use a colon-keyed flat format (`@timeout 1000ms`,
+`label:`, `send:`, `expect:`, `timeout:`, `delay:`, `flush:`, `cmd:`).
+It is still parsed when a file is not valid TOML, but JSON result
+output (`json_file`, `--json`) needs the TOML form.
 
 ## Packet visualizers
 
@@ -63,7 +92,7 @@ Use `viz` in the script header to limit which visualizers appear in the dropdown
 Use `viz` in a `[[test]]` section to force that visualizer for the test:
 
 ```toml
-viz = ["Modbus"]          # header: only show Hex, Text, Modbus in dropdown
+viz = ["Modbus"]          # header: only offer Modbus in the dropdown
 
 [[test]]
 name = "Read registers"

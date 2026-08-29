@@ -89,8 +89,8 @@ init, reflection, and xor-out parameters for every standardized CRC
 in practical use, and our test suite verifies each one against its
 published `check` value on every commit.
 
-More than 100 algorithms are built in covering CRC-8, CRC-16, and
-CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).
+More than 100 algorithms are built in covering the CRC-8, CRC-16,
+CRC-32, and CRC-64 families (Modbus, XMODEM, CCITT, USB, and more).
 
 REPL commands:
 
@@ -120,7 +120,7 @@ speaks CRC-16/Modbus, you speak CRC-16/Modbus.
 ### Identifying a CRC from a captured packet
 
 `/proto.crc.find` takes the full packet you captured and figures out
-which catalog algorithm produced its CRC.  Two input forms:
+which catalog algorithm produced its CRC.  Three input forms:
 
 - `bin=<hex bytes>` -- raw binary packet.  The last 1 / 2 / 4 bytes
   are tried as the CRC field; both big- and little-endian are
@@ -128,31 +128,33 @@ which catalog algorithm produced its CRC.  Two input forms:
 - `asc=<text>` -- ASCII packet with a trailing hex-encoded CRC
   (common in NMEA-style protocols).  The last 2 / 4 / 8 characters
   are parsed as hex.
+- `cmd=<trigger>` -- send a trigger command to the connected device,
+  capture its reply, and identify the CRC in that.
 
-Every match reports the algorithm name, field width, byte order,
-expected value, and the length of the preceding data.  Catalog
-aliases (e.g. `crc16-modbus` / `crc16m`) are collapsed into a single
-line.  When exactly one algorithm matches, the output also includes
-the command to generate standalone source code.
+Optional filters narrow the search: `width=8|16|32|64`, `endian=be|le`,
+and `form=NAME` for a packet wrapped in a named framing.  Every match
+reports the algorithm name, field width, byte order, and the length of
+the preceding data, one line per match:
 
 ```text
 > /proto.crc.find bin=31 32 33 34 35 36 37 38 39 37 4B
-  1 match:
-  crc16-modbus  (aka crc16m)  width=16  field=last2  expected=0x4B37  endian=le  data=9 bytes
-
-  Generate source: /proto.crc.c crc16-modbus  (or .python / .rust)
+  crc16-modbus  width=16  field=last2  endian=little  data=9 bytes
 ```
+
+For a whole batch of frames at once, `/proto.crc.detect <frames>...`
+takes several packets and reports only the algorithms that fit all of
+them; `/proto.crc.verify` checks one frame against a named algorithm.
 
 Limits:
 
-- The search only covers the built-in catalog (CRC-8, CRC-16,
-  CRC-32 standard algorithms from the reveng catalog).  A truly
-  custom CRC with non-standard poly / init / refin / refout / xorout
-  will not match -- the parameter space is ~10^15 for 16-bit, so
-  brute-force is not tractable.  For custom CRCs, Greg Cook's
-  [reveng project](https://reveng.sourceforge.io) implements an
-  algebraic recovery approach that needs only a handful of matched
-  sample packets; it's the established tool for that job.
+- The search only covers the reveng catalog.  A custom CRC with a
+  non-standard poly / init / refin / refout / xorout will not match --
+  the parameter space is ~10^15 for 16-bit, so brute force is not
+  tractable.  For those, `/proto.crc.reverse` recovers the Rocksoft
+  parameters algebraically (the approach from Greg Cook's
+  [reveng project](https://reveng.sourceforge.io)): give it two or
+  more captured packets as hex, or `cmd=<trigger> count=<N>` to capture
+  them from the device.
 - The tool assumes the CRC field is at the end of the packet.
   Protocols with the CRC in the middle or as a non-contiguous
   checksum require a different approach.
@@ -160,7 +162,8 @@ Limits:
   disambiguate.  Capture a second packet with a different CRC and
   run find again; the intersection narrows the candidates.
 
-Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`.
+Algorithm names are the reveng catalog names (`crc16-modbus`,
+`crc16-xmodem`, `crc32`, ...); `/proto.crc.list` shows them all.
 
 In format specs and `/proto.send`, CRC algorithm names accept suffixes:
 `_le` (little-endian, default), `_be` (big-endian), `_ascii` (hex text).
@@ -169,19 +172,24 @@ In format specs and `/proto.send`, CRC algorithm names accept suffixes:
 
 ![CRC Python code generation](img/doc_07_crc_python.svg)
 
-Generate a standalone CRC function in C, Python, or Rust for any
-algorithm in the catalog. Three implementations available:
+Generate a standalone CRC function for any algorithm in the catalog,
+in C, C#, Go, Java, Lua, Python, Rust, TypeScript, Verilog, VHDL, or
+Zig (`/proto.crc.<language>`).  The bare command emits the fastest
+variant the language and width support; flags pin a variant:
 
 ```text
-/proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
-/proto.crc.python crc16-modbus --table   table-driven (fast, 256-entry lookup)
-/proto.crc.c crc16-xmodem               C bit-by-bit
-/proto.crc.c crc16-xmodem --table       C table-driven
-/proto.crc.c crc32 --slice8             C slice-by-8 (fastest, CRC-32/64 only)
-/proto.crc.rust crc32                    Rust bit-by-bit
-/proto.crc.rust crc32 --table           Rust table-driven
-/proto.crc.rust crc64-xz --slice8       Rust slice-by-8
+/proto.crc.python crc16-modbus           fastest for this language (default)
+/proto.crc.python crc16-modbus --small   bit-by-bit (small, no tables)
+/proto.crc.c crc16-xmodem --table        table-driven (256-entry lookup)
+/proto.crc.c crc32 --slice8              slice-by-8 (CRC-32/64 only)
+/proto.crc.rust crc64-xz                 Rust, fastest variant
+/proto.crc.c crc16-modbus crc32 file=my_crcs   several algorithms into one file
 ```
+
+`file=STEM` writes the source to a file instead of the screen,
+`symbol=NAME` renames the generated function, and `style=NAME` /
+`naming=NAME` pick the doc-comment and identifier conventions
+(`/help proto.crc.<language>` lists the values).
 
 **Bit-by-bit** -- compact code, zero RAM overhead. Best for
 microcontrollers with limited memory (PIC, ATtiny).
@@ -268,8 +276,8 @@ generated file embeds the test for exactly this purpose:
 | VHDL | Call `<fname>_self_test` (returns `boolean`) from a testbench process via `assert <fname>_self_test severity failure;`. Halts simulation on failure. |
 | Python | No separate test needed -- the generator runs the same interpreter you do, and our test suite execs every output. If `import` succeeds, the implementation matches the catalog check value (which the docstring lists, e.g. `check: crc(b'123456789') == 0xCBF43926`). |
 
-All four mechanisms compare `crc("123456789")` against the reveng-catalog
-canonical check value, baked into the generated source at emit time.  If
+Every generated file's self-test compares `crc("123456789")` against the
+reveng-catalog canonical check value, baked into the source at emit time.  If
 your compiler or target produces a different value, the self-test catches
 it -- you have an immediate, decisive signal that something in your build
 environment differs from ours, before the CRC ships into firmware.
@@ -312,7 +320,7 @@ with no self-test overhead and no streaming-vs-one-shot duplication.
 **Custom CRC plugins** for non-standard checksums:
 
 ```python
-# sum8.py - drop into builtins/crc/ or termapy_cfg/<name>/crc/
+# sum8.py - drop into termapy's builtins/crc/ folder
 NAME = "sum8"
 WIDTH = 1
 

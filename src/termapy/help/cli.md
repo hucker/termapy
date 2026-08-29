@@ -2,8 +2,10 @@
 
 Termapy is a TUI first, but a few things are easier from the shell: **listing
 what's plugged in, watching for changes, and inspecting a chip without
-launching the UI**. Every `--flag` below prints plain text to stdout and
-exits; none of them load the TUI.
+launching the UI**. Every flag in the inventory sections below prints
+plain text to stdout and exits; none of them load the TUI.  (The
+session flags at the end -- `--cli`, `--run`, `-e` -- start a session
+instead.)
 
 Because these flags skip the Textual import, they start fast — no
 config loading, no widget tree, no config directory scan.  Handy when
@@ -14,6 +16,7 @@ termapy --ports                 # one-line-per-port table
 termapy --watch                 # live log of plug/unplug/open/close
 termapy --info                  # full per-port chip dump
 termapy --info=COM4             # just COM4
+termapy --usb                   # the whole USB tree, serial ports marked
 ```
 
 ## `--ports`: what's plugged in right now
@@ -170,7 +173,7 @@ found or no ports are connected.
 | `--pid HEX` | Only USB devices matching this PID.                                 |
 | `--mfg STR` | Manufacturer substring match (case-insensitive).                    |
 | `--sn STR`  | Exact serial-number match (case-insensitive).                       |
-| `--json`    | Emit a JSON array instead of the column table; also for `--chips`.  |
+| `--json`    | Emit a JSON array instead of the column table; also for `--chips` and `--usb`. |
 
 Example:
 
@@ -243,7 +246,12 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 | ----------------- | ------------------------------------------------------------- |
 | `--chips`         | Dump the full USB-serial chip lookup table (VID:PID → model). |
 | `--chips=ftdi`    | Filter the table (case-insensitive substring match).          |
+| `--usb`           | Whole USB tree with serial ports marked (Windows and Linux); pairs with `--json`. |
 | `--check`         | Validate your config, print JSON status, exit.                |
+| `--version`       | Print the installed version and exit.                         |
+| `--demo`          | Set up (if needed) and start the demo device config.          |
+| `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
+| `--no-color`      | Plain output without ANSI color (implied by `-e`).            |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
 | `--cli`           | Plain-text mode instead of the TUI.  Default form is an interactive REPL; pair with `--run` or `--exec` for one-shot.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--run SCRIPT`    | Run a `.run` script headlessly, then exit.                    |
@@ -254,7 +262,7 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 
 Any REPL command also accepts `--json` to render its result as a JSON
 envelope -- `termapy --cli -e "/port.list --json"` pipes cleanly to `jq`.
-See [Scripting](scripting.md#json-output---json-on-any-command).
+See [Scripting](scripting.md#json-output-termrequest-on-or---json-per-call).
 
 `termapy --help` has the full list.
 
@@ -266,7 +274,7 @@ Run a single command, print its output to stdout, exit with status 0
 ```sh
 termapy --cli my_device -e "AT+VER"           # send a device command
 termapy --cli my_device -e "/help port"       # run a slash command
-termapy --cli my_device --exec "/proto.crc.calc CRC-16/MODBUS data=01 03 00 00 00 02"
+termapy --cli my_device --exec "/proto.crc.calc crc16-modbus 01 03 00 00 00 02"
 ```
 
 ### Worked example

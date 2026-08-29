@@ -82,12 +82,13 @@ device, read responses, write files, or chain other REPL commands.
 A minimal plugin:
 
 ```python
-from termapy.plugins import Command, PluginContext
+from termapy.plugins import CmdResult, Command, PluginContext
 
-def _handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Called when the user types /hello."""
     name = args.strip() or "world"
     ctx.io.result(f"Hello, {name}!")
+    return CmdResult.ok(value=f"Hello, {name}!")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
@@ -105,8 +106,9 @@ The `COMMAND` object must be defined after all the functions it references.
 ## The PluginContext shape
 
 The `ctx` object is a thin shell over **five handles** -- four capability
-domains plus the privileged `internal` escape hatch. Plugin authors see
-13 visible names on `ctx`:
+domains plus the privileged `internal` escape hatch -- with a few plain
+fields (`cfg`, `config_path`, `prefix`) and universal methods
+(`dispatch`, `ns`, `arg`, `flag`, `wait_for_match`) beside them:
 
 ```python
 def _handler(ctx, args):
@@ -126,7 +128,8 @@ def _handler(ctx, args):
     ctx.ui.confirm("Sure?")                   # TUI-only dialog (gated)
 
     ctx.dispatch("/var.set X 5")              # re-route a command
-    ctx.ns("my_plugin")["counter"] += 1       # session-scoped storage
+    ns = ctx.ns("my_plugin")                 # session-scoped storage (a dict)
+    ns["counter"] = ns.get("counter", 0) + 1
     ctx.io.output(f"Usage: {ctx.prefix}foo")  # active REPL prefix (from cfg)
 
     return CmdResult.ok(value=...)
@@ -227,7 +230,7 @@ Examples that should set `value=`:
 Examples that should not:
 
 - Pure side-effect commands (`/cls`, `/edit`, `/cap.stop`)
-- Commands that print multiple lines (`/cfg.configs`, `/help`)
+- Commands that print multiple lines (`/cfg.list`, `/help`)
 
 ## Usage errors: raise UsageError, never hand-write "Usage:" strings
 
@@ -265,6 +268,41 @@ The synopsis grammar is validated when your plugin loads: `""` = no args,
 nesting allowed. Square brackets, doubled `{{`, spaced ` | `, or unbalanced
 groups reject the plugin with a clear error instead of rendering wrong in
 `/help`.
+
+## Typed parameters: `params=`
+
+Instead of parsing `args` by hand, a command can declare its parameters
+and let the dispatcher parse, coerce, and validate them -- the synopsis,
+`/help` PARAMETERS block, usage errors, and the MCP tool schema are all
+synthesized from the same declaration:
+
+```python
+from termapy.plugins import CmdResult, Command, PluginContext
+from termapy.plugins.params import ParamSpec
+
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    count = ctx.arg("count")            # already an int, range-checked
+    delay = ctx.arg("delay")            # a duration in seconds
+    ...
+    return CmdResult.ok(value=count)
+
+COMMAND = Command(
+    name="blink",
+    help="Blink the LED.",
+    handler=_handler,
+    params=[
+        ParamSpec("count", "int", positional=True, required=True, min=1, max=100,
+                  help="how many blinks"),
+        ParamSpec("delay", "duration", default=0.5, help="gap between blinks"),
+    ],
+)
+```
+
+Positionals are matched by order, keywords as `name=value`; `rest=True`
+takes the remainder of the line (values with spaces), `variadic=True`
+binds a repeatable positional to a list.  `ctx.arg(name)` returns the
+coerced value and `ctx.flag(name)` a declared `--flag`.  A `$(*NAME)`
+reference resolves to exactly one argument whatever it holds.
 
 ## Setting commands: bare queries, never mutates
 
@@ -329,7 +367,7 @@ COMMAND = Command(
 )
 ```
 
-When the user runs `/help include`, the DESCRIPTION section calls this
+When the user runs `/help profile`, the DESCRIPTION section calls this
 function and the first line reflects the current state. No change to
 the rendering path, no extra registration - the `long_help` field just
 accepts either form.
@@ -394,7 +432,7 @@ def _handler(ctx: PluginContext, args: str):
 
     with ctx.serial.io():                # suppress terminal, claim serial
         ctx.serial.drain()               # discard stale bytes
-        ctx.serial.write(f"YOUR_COMMAND{line_ending}".encode(encoding))
+        ctx.serial.write(f"YOUR_COMMAND{eol}".encode(encoding))
         raw = ctx.serial.read_raw()      # read response with timeout
         text = raw.decode(encoding, errors="replace").strip()
 
@@ -540,6 +578,7 @@ the matching capability on `Command.needs`.
 
 | Member | Description |
 | --- | --- |
+| `ctx.arg(name)` / `ctx.flag(name)` | A declared parameter's coerced value / a declared flag's presence |
 | `ctx.dispatch(cmd)` | Run a REPL or serial command through the full pipeline |
 | `ctx.wait_for_match(predicate, timeout)` | Block until serial matches (gated on `block_until`) |
 | `ctx.ns(name)` | Get/create a session-scoped state dict |

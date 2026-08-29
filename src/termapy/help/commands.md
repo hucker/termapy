@@ -9,6 +9,11 @@ synopsis, filtering as you type:
 
 > **NOTE:** If the device you are communicating with uses `/` commands that conflict with termapy's, you can change the prefix by setting `cmd_prefix` in your config (e.g. `cmd_prefix: "!"`). With `!` as the prefix, `!help` runs the local help command and `/foo` gets sent verbatim to the device.
 
+A selection of the most-used commands.  `/help` prints the full landscape
+(every command, including the `/app.*`, `/mcp.*`, `/port.chip.*` and
+`/proto.crc.<language>` families not listed here) and `/help <cmd>` the
+man-page detail for one.
+
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
@@ -20,7 +25,6 @@ synopsis, filtering as you type:
 | `/cfg [key [value]]`      | TUI: open the Cfg picker. Bare in CLI: dump JSON. With args: get/set.       |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
 | `/cfg.list`               | List all config files                                                       |
-| `/cfg.info`               | Print project summary (tree + config + buttons)                                                 |
 | `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
 | `/cfg.info {--display}`   | Show project summary; `--display` opens full report                         |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
@@ -41,7 +45,7 @@ synopsis, filtering as you type:
 | `/exit`                   | Exit termapy                                                                |
 | `/expect {timeout} match=<text>`       | Wait for serial-output line containing text (blocks; needs block_until) |
 | `/expect.regex {timeout} match=<pat>`  | Wait for serial-output line matching regex                              |
-| `/find <pattern>`         | Navigate scrollback matches with an interactive find bar (TUI only)         |
+| `/find <pattern>`         | Navigate scrollback matches with an interactive find bar (not over MCP; use `/grep` there) |
 | `/find.next` / `/find.prev` | Step to next / previous find match                                        |
 | `/find.clear`             | Close the find bar (or run `/find` with no args)                            |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, prints the list)     |
@@ -93,9 +97,8 @@ synopsis, filtering as you type:
 | `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
 | `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
-| `/proto.hex {on\|off\|toggle}`    | Toggle hex display mode for serial I/O                                      |
+| `/proto.hex {on\|off\|toggle}`    | Toggle protocol-mode hex display for `/proto.send` responses               |
 | `/proto.list`             | List .pro files in proto/, newest first, with size and age                  |
-| `/proto.load <file>`      | Run a protocol test script (same as /proto.run)                             |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.info`             | Print current protocol mode state                                           |
@@ -104,14 +107,13 @@ synopsis, filtering as you type:
 | `/run {file} {-v}`        | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.edit <file>`        | Open a .run script in the system editor                                     |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
-| `/run.legacy {file\|*}`   | Find pre-0.63 command names in scripts; `--fix` rewrites in place           |
+| `/run.legacy {file\|*}`   | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
 | `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |
 | `/seq.reset`              | Reset all sequence counters to zero                                         |
 | `/show <name>`            | Show a file                                                                 |
 | `/show.cfg`               | Show the current config file                                                |
-| `/ss.explore`             | Open the screenshot folder in the file explorer                                                  |
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
 | `/ss.txt [name] [N]`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
@@ -127,7 +129,7 @@ synopsis, filtering as you type:
 | `/term.line_no {on\|off\|toggle}` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |
 | `/term.output {level\|cycle}` | Show, set, or cycle output level (silent/quiet/normal/verbose)                      |
-| `/term.request {on\|off\|toggle}` | Toggle request/response mode for bare device commands                       |
+| `/term.request {on\|off\|toggle}` | Session JSON dial: every answer (device or termapy command) becomes a JSON envelope; `<cmd> --json` is the per-call form |
 | `/term.send <text>`       | Send literal text to the serial port (with line ending; canonical name for the bare-line send) |
 | `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                     |
 | `/term.timestamps {on\|off\|toggle}` | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                 |
@@ -157,23 +159,27 @@ optional `N`. `N>0` saves/prints the **last N** lines (most recent),
 | `/run.profile.list`         | List profile files                                           |
 | `/run.profile.show`         | Open newest profile in system viewer                         |
 
-## Config file management
+## Per-folder file commands
 
-Each config subfolder has a consistent set of subcommands:
+Each per-config data folder has an owning top-level command (`/run` for
+`run/`, `/proto` for `proto/`, `/cap` for `cap/`, `/ss` for `ss/`,
+`/plugin` for `plugin/`, `/run.profile` for `prof/`) with one consistent
+family of file subcommands:
 
-| Subcommand     | Action                                   | Folders                                     |
-| -------------- | ---------------------------------------- | ------------------------------------------- |
-| `cfg.<folder>` | List files                               | scripts, proto, plugins, ss, viz, cap, prof |
-| `.explore`     | Open folder in file explorer             | all                                         |
-| `.show`        | Open newest file in system viewer        | all                                         |
-| `.dump {name}` | Print newest (or named) file to terminal | scripts, proto, plugins, viz, cap, prof     |
-| `.rename <old> <new>` | Rename a file (extension kept; never overwrites) | all                              |
-| `.clear`       | Delete all files                         | ss, cap, prof (generated output only)       |
+| Subcommand            | Action                                                  | Folders                        |
+| --------------------- | ------------------------------------------------------- | ------------------------------ |
+| `.list`               | List files, newest first, with size and age             | all                            |
+| `.explore`            | Open the folder in the system file explorer             | all                            |
+| `.show`               | Open the newest file in the system viewer               | all                            |
+| `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
+| `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | run, proto, plugin, ss, cap    |
+| `.clear`              | Delete all files                                        | ss, cap (generated output only) |
 
 Examples:
 
-- `/cfg.scripts`: list script files
-- `/cfg.scripts.dump`: print newest script to terminal
-- `/cfg.proto.show`: open newest .pro file in editor
-- `/cfg.cap.clear`: delete all capture files
-- `/cfg.prof.dump`: print newest profile CSV to terminal
+- `/run.list`: list scripts with size, age, and docstring summary
+- `/run.dump`: print the newest script to the terminal
+- `/proto.show`: open the newest .pro file in the system viewer
+- `/run.rename old.run new`: rename a script (`.run` is kept)
+- `/cap.clear`: delete all capture files
+- `/run.profile.dump`: print the newest profile CSV to the terminal

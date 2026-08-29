@@ -192,7 +192,8 @@ If your chip isn't in it, `/port.chip` reports `model: unknown` and
 `usb_speed: unknown (chip not in lookup table)` — the port still works,
 you just don't get the model name, speed class, or max-baud.  The VID:PID
 is printed so you can identify the chip manually against the USB-IF
-database (`https://the-sz.com/products/usbid/`).
+database (`https://github.com/usbids/usbids`, or the web lookup at
+`https://the-sz.com/products/usbid/`).
 
 **Why termapy carries this.**  A chip's USB speed class and datasheet
 max-baud aren't reported by pyserial — it surfaces the *port*, not the
@@ -239,11 +240,11 @@ auto-reset.  So termapy never opens a port you didn't ask about:
   kernel's open-file table without opening the port, so it is always
   safe *and* it names the holder (e.g. `yes (python (PID 8842))`, i.e.
   that MCP server).  It appears in `/port.info`, `/port.chip.in_use`,
-  `termapy --ports --json`, and live in `termapy --ports --watch`.
+  `termapy --ports --json`, and live in `termapy --watch`.
 - **Windows:** there is no non-invasive equivalent, so in-use is shown
   only on explicit request (`/port.info`, `/port.chip.in_use`,
   `--ports --json`) and the probe opens the port briefly with DTR/RTS
-  held de-asserted to minimize disturbance.  `--ports --watch` therefore
+  held de-asserted to minimize disturbance.  `--watch` therefore
   shows presence and identity but not in-use on Windows (it will not
   strobe DTR several times a second).
 

@@ -228,6 +228,7 @@ def cfg_data_dir(config_path: str) -> Path:
             "# Termapy - ignore transient/generated data\n"
             "*.log\n"
             ".cmd_history.txt\n"
+            "*.history\n"
             ".cap_seq\n"
             ".target_menu.json\n"
             "_profile_tmp_*\n"

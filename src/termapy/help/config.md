@@ -170,7 +170,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `proto_enabled`               | `true`                        | Show the Proto button in the title bar |
 | `record_enabled`              | `true`                        | Show the Record button next to the REPL prompt (toggles `/run.record`) |
 | `show_traceback`              | `false`                       | Show full stack trace on serial errors |
-| `custom_buttons`              | `[]`                          | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
+| `custom_buttons`              | `[4 entries]`                 | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
 <!-- config-reference:end -->
 
 ## Connection behavior
@@ -191,9 +191,9 @@ first with size, last-updated age, port, baud, and title.
 
 The picker's actions:
 
-- **New:** create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.
-- **Edit:** open the highlighted config in the JSON editor
 - **Load:** switch to the highlighted config. If the configured port is not available, a port picker is shown.
+- **Edit:** open the highlighted config in the JSON editor
+- **New:** create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.
 - **Rename:** rename the highlighted config. The `termapy_cfg/<name>/` folder and the `<name>.cfg` inside it move together (with the command history); renaming the active config reloads it.
 - **Delete:** delete the highlighted config file (asks for confirmation)
 - **Cancel:** close the picker

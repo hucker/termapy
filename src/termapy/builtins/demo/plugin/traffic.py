@@ -223,7 +223,7 @@ measured / logged / pattern-matched in the background.
 
 Examples:
 
-  {prefix}traffic.count AT+VER             - bytes used by one command
+  {prefix}traffic.count AT+INFO            - bytes used by one command
   {prefix}traffic.hexdump bug.log 30s      - capture 30s of wire-trace
   {prefix}traffic.rate 10s                 - 10s bytes/sec sample
   {prefix}traffic.snoop FF55 timeout=2s    - wait for sync sequence

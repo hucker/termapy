@@ -1,11 +1,15 @@
 # Scripting
 
 Click the **Run** button in the title bar or use `/run <filename>` to work
-with scripts. The script picker has four actions:
+with scripts (bare `/run` in the CLI lists them).  The picker lists
+scripts newest first with size, last-updated age, and each script's
+docstring summary, and has six actions:
 
-- **New:** create a new script (opens the editor with a template)
-- **Edit:** open the highlighted script in the editor
 - **Run:** execute the highlighted script
+- **Edit:** open the highlighted script in the editor
+- **New:** create a new script (opens the editor with a template)
+- **Rename:** rename the highlighted script (`.run` is kept; never overwrites)
+- **Delete:** delete the highlighted script (asks for confirmation)
 - **Cancel:** close the picker
 
 ![Script picker](img/doc_21_script_picker.svg)
@@ -22,7 +26,7 @@ and a name field. Scripts are saved with a `.run` extension in the per-config
 - `/` prefixed REPL commands (delays, screenshots, print, etc.)
 - Comments (lines starting with `#`)
 - Blank lines (ignored)
-- Sequence counters with `{+counter}` for auto-incrementing values
+- Sequence counters with `{seqN+}` for auto-incrementing values
 
 A leading `#` comment block (lines 1..N, ending at the first blank or
 non-comment line) is the script's docstring: the first line is the
@@ -50,11 +54,12 @@ in `/run.list` and `/run.help`.
 | Command | Description |
 |---------|-------------|
 | `/delay <duration>` | Pause execution (e.g. `500ms`, `2s`, `1.5s`) |
-| `/expect match=<pattern> {timeout=<dur>} {quiet=on}` | Wait for serial line containing pattern (default 250ms). Aborts on timeout. |
-| `/expect.regex match=<pattern> {timeout=<dur>} {quiet=on}` | Same but pattern is a regex. |
+| `/expect {timeout=<dur>} match=<text>` | Wait for a serial line containing `<text>` (default 5s). Fails on timeout. |
+| `/expect.regex {timeout=<dur>} match=<pattern>` | Same but the pattern is a regex. |
 | `/confirm {message}` | Show Yes/Cancel dialog. Canceling stops the script. |
 | `/run <script>` | Run a nested script (max 5 levels deep) |
 | `/run.profile <script>` | Run nested script with per-line timing |
+| `/run.rename <old> <new>` | Rename a script (`.run` is kept; never overwrites) |
 
 Keywords use `key=value` syntax (spaces around `=` are OK). `match=` must be
 last -- everything after it is the pattern.
@@ -96,7 +101,7 @@ call with `cmd --<level>` or `cmd.<level>`:
 /term.output quiet              # session default
 /cfg baud_rate                  # shows 115200
 /help port --verbose            # one call back to verbose
-/cap show capture.bin --silent  # run, drop output, only value returns
+/cap.dump capture.bin --silent  # run, drop output, only value returns
 ```
 
 Set the level at startup with `--silent`, `--quiet`, or `--verbose` on the
@@ -120,7 +125,8 @@ For a single call in a prose-mode session, every command also accepts
 
 `data` carries the structured form for commands that have one (`/port.list`,
 `/port.usb`, `/var`, the folder listings `/run.list` / `/cap.list` / `/ss.list`
-/ `/proto.list` / `/plugin.list` as `{name, bytes, mtime, age_s}` records,
+/ `/proto.list` / `/plugin.list` as `{name, bytes, mtime, age_s}` records
+(`mtime` is ISO-8601, `age_s` seconds),
 profile-mapped device commands).  For everything else it
 is `null` and the command's rendered answer arrives in `output_lines` (markup
 flattened to plain text) -- `/help --json` is one envelope containing the

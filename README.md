@@ -12,7 +12,7 @@ Runs on Windows, macOS, and Linux. A serial interface terminal like PuTTY or Ter
 
 Low time commitment: about 1 minute from scratch, or under 10 seconds if you already have [uv](https://docs.astral.sh/uv/) installed.
 
-![termapy screenshot](img/main.png)
+![termapy screenshot](src/termapy/help/img/doc_01_main_tui.svg)
 
 ## Install and connect
 
@@ -63,7 +63,7 @@ There's a lot more: scripting, binary protocol testing, every CRC algorithm in t
 
 1. **Connect:** click the port button in the title bar, pick your COM port, click the status button to connect (it turns green)
 2. **Type:** enter commands in the input box at the bottom and press Enter
-3. **Change settings:** click `Cfg` to edit port, baud rate, and other settings through the UI
+3. **Change settings:** click the config name in the title bar (or `Cfg` → `Edit`) to change port, baud rate, and other settings through the UI
 
 Everything works through the UI. No config files to edit unless you want to.
 
@@ -118,6 +118,7 @@ Termapy runs with your privileges and does whatever you — or a connected MCP c
 | Ctrl+S  | Save SVG screenshot                 |
 | Ctrl+T  | Save text screenshot                |
 | Ctrl+P  | Command palette                     |
+| F1–F4   | Help / Cfg / Run / Proto buttons (Ctrl+Shift+1–4 in VS Code); F10 edits the config |
 | Up/Down | Cycle through command history       |
 | Escape  | Clear input / exit history browsing |
 | Right   | Accept type-ahead suggestion        |
@@ -130,10 +131,11 @@ macOS Option-as-Meta, KVM cross-platform keyboards, etc.).
 
 | Button | Action                                                              |
 | ------ | ------------------------------------------------------------------- |
-| `?`    | Open the help guide                                                 |
-| `#`    | Toggle line numbers (green when active)                             |
-| `Cfg`  | Open the config picker                                              |
-| `Run`  | Open the script picker                                              |
+| `Help` | Open the help guide                                                 |
+| `Cfg`  | Open the config picker (Load / Edit / New / Rename / Delete)        |
+| `Run`  | Open the script picker (Run / Edit / New / Rename / Delete)         |
+| `Proto`| Open the protocol-test picker                                       |
+| `Update` | Appears only when a newer termapy is on PyPI                      |
 | Center | Click to edit the current config                                    |
 | Port   | Click to select a serial port                                       |
 | Status | Click to connect/disconnect (red = disconnected, green = connected) |
@@ -154,7 +156,7 @@ The most common ones:
 | `/ss.svg [name]`                     | Save SVG screenshot                                 |
 | `/cls`                               | Clear the terminal                                  |
 | `/run {filename}`                    | Open Run picker (bare TUI), or run a named script   |
-| `/term.echo [on \| off]`             | Toggle command echo                                 |
+| `/term.echo [on \| off]`             | Local echo of device commands sent to the wire      |
 | `/grep <pattern>`                    | Search scrollback                                   |
 | `/exit`                              | Exit termapy                                        |
 
@@ -186,17 +188,18 @@ The most common ones:
 | `/port.break {ms}`                   | Send break signal (default 250ms)                                             |
 | `/cfg [key [value]]`                 | Open Cfg picker (bare TUI), dump JSON (bare CLI), or get/set with args        |
 | `/cfg.auto <key> <value>`            | Set an in-memory config key immediately (no confirmation)                     |
-| `/cfg.configs`                       | List all config files                                                         |
+| `/cfg.list`                          | List all config files                                                         |
 | `/cfg.load <name>`                   | Switch to a different config by name                                          |
 | `/cfg.show`                          | Open the current config file in the system viewer                             |
 | `/cfg.help`                          | Same as `/help cfg`                                                           |
 | `/ss.svg [name]`                     | Save SVG screenshot                                                           |
 | `/ss.txt [name]`                     | Save text screenshot                                                          |
-| `/ss.dir`                            | Show the screenshot folder                                                    |
+| `/ss.list`                           | List screenshots, newest first, with size and age                             |
+| `/ss.explore`                        | Open the screenshot folder in the system file explorer                        |
 | `/cls`                               | Clear the terminal screen                                                     |
-| `/run {filename} {-v}`               | Open Run picker (bare TUI), list scripts (bare CLI), or run; nests 5 deep     |
+| `/run {filename}`                    | Open Run picker (bare TUI), list scripts (bare CLI), or run; nests 5 deep     |
 | `/run.list`                          | List .run files in run/, newest first, with size, age, and summary            |
-| `/run.load <filename>`               | Run a script file (same as /run)                                              |
+| `/run.rename <old> <new>`            | Rename a script (`.run` kept; never overwrites)                               |
 | `/run.help`                          | Same as `/help run`                                                           |
 | `/delay <duration>`                  | Wait for a duration (e.g. `500ms`, `1.5s`)                                    |
 | `/confirm {message}`                 | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)     |
@@ -209,8 +212,8 @@ The most common ones:
 | `/show.cfg`                          | Show the current config file                                                  |
 | `/term`                              | Terminal display / session toggles (echo, line_no, timestamps, ...)           |
 | `/term.info`                         | Snapshot the state of every `/term.*` toggle                                  |
-| `/term.echo [on \| off]`             | Toggle REPL command echo                                                      |
-| `/term.echo.silent <on \| off>`      | Set echo on/off without echoing the change (for scripts and on_connect_cmd)   |
+| `/term.echo [on \| off]`             | Local echo of device commands sent to the wire (persisted via cfg `echo`)     |
+| `/term.echo_repl [on \| off]`        | Local echo of REPL (slash) commands, session only; off inside scripts         |
 | `/term.line_no [on \| off]`          | Toggle line numbers in serial output (TUI only)                               |
 | `/term.eol.markers [on \| off]`      | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |
 | `/term.output {level}`               | Show or set output level (silent/quiet/normal/verbose)                        |
@@ -224,20 +227,19 @@ The most common ones:
 | `/edit.info`                         | Open the info report in the system viewer                                     |
 | `/os <cmd>`                          | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env) |
 | `/grep <pattern>`                    | Search scrollback for regex matches (case-insensitive, skips own output)      |
-| `/cfg.info {--display}`              | Show project summary; `--display` opens full report in system viewer          |
-| `/cfg.files`                         | Show project directory tree                                                   |
+| `/cfg.info {--display}`              | Show project summary (folder tree + config + buttons); `--display` opens the full report |
 | `/proto`                             | Open Proto picker (bare TUI) or show long-help (bare CLI)                     |
 | `/proto.help`                        | Same as `/help proto`                                                         |
 | `/proto.send <hex>`                  | Send raw hex bytes and/or quoted text, display response as hex (see below)    |
 | `/proto.run <file>`                  | Run a binary protocol test script (.pro) with pass/fail                       |
 | `/proto.list`                        | List .pro files in proto/, newest first, with size and age                    |
-| `/proto.load <file>`                 | Run a protocol test script (same as /proto.run)                               |
+| `/proto.rename <old> <new>`          | Rename a protocol script (`.pro` kept; never overwrites)                      |
 | `/proto.hex [on \| off]`             | Toggle hex display mode for serial I/O                                        |
 | `/proto.crc.list {pat}`              | List available CRC algorithms (optional glob filter)                          |
 | `/proto.crc.info <name>`             | Show CRC algorithm parameters and description                                 |
 | `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, text, or file; omit data to verify check string   |
 | `/proto.crc.find <pkt>`              | Identify CRC algorithm from a captured packet (bin= hex or asc= text)         |
-| `/proto.status`                      | Show current protocol mode state                                              |
+| `/proto.info`                        | Print current protocol state                                                  |
 | `/var {name}`                        | List user variables, or show one by name                                      |
 | `/var.set <NAME> <value>`            | Set a user variable                                                           |
 | `/var.clear`                         | Clear all user variables                                                      |
@@ -271,18 +273,21 @@ termapy_cfg/
 └── demo/
     ├── demo.cfg                        # config file
     ├── demo.log                        # session log
-    ├── .cmd_history.txt                # command history
+    ├── demo.history                    # command history
     ├── ss/                             # screenshots
     ├── run/                            # script files for /run
     │   ├── at_demo.run
     │   ├── smoke_test.run
-    │   └── status_check.run
+    │   ├── status_check.run
+    │   └── ...                         # gps_demo, var_demo, expect_test, crc_tour, ...
     ├── plugin/                         # per-config plugins
     │   ├── cmd.py
     │   ├── probe.py
     │   ├── temp_plot.py
     │   └── traffic.py
     ├── cap/                            # data capture output files
+    ├── prof/                           # /run.profile timing CSVs
+    ├── viz/                            # per-config packet visualizers
     └── proto/                          # protocol test scripts
         ├── at_test.pro
         ├── bitfield_inline.pro
@@ -380,7 +385,7 @@ Run `/run setup_modbus.run` then `/run test_registers.run`. The variables persis
 | `/var.set NAME val` | Set a variable (explicit command form) |
 | `/var.clear`        | Clear all variables                    |
 
-**Scope:** Variables persist for the interactive session. They are automatically cleared when a script is launched from the Scripts button or Run menu, but *not* when `/run` is typed interactively or called within a script. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
+**Scope:** Variables persist for the interactive session. They are automatically cleared when a script is launched from the Run picker, but *not* when `/run` is typed interactively or called within a script. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
 
 **Naming:** Variable names are case-sensitive (`$(PORT)` and `$(port)` are different variables). Names must start with a letter or underscore and contain only letters, digits, and underscores.
 
@@ -389,7 +394,7 @@ Run `/run setup_modbus.run` then `/run test_registers.run`. The variables persis
 | Variable              | Set when                                    | Updates?             |
 | --------------------- | ------------------------------------------- | -------------------- |
 | `$(LAUNCH_DATETIME)`  | App starts                                  | Never - frozen       |
-| `$(SESSION_DATETIME)` | Script launched (Scripts button / Run menu) | Per script launch    |
+| `$(SESSION_DATETIME)` | Script launched (Run picker)                | Per script launch    |
 | `$(DATETIME)`         | Every expansion                             | Always current clock |
 
 Each group also has `_DATE` and `_TIME` variants (e.g. `$(LAUNCH_DATE)`, `$(SESSION_TIME)`).
@@ -405,7 +410,7 @@ Add a `.gitignore` for session files you don't need to track:
 ```gitignore
 # termapy_cfg - keep configs and scripts, ignore session files
 termapy_cfg/*/*.log
-termapy_cfg/*/.cmd_history.txt
+termapy_cfg/*/*.history
 termapy_cfg/*/ss/
 ```
 
@@ -566,7 +571,7 @@ See the **[config field reference](src/termapy/help/config.md#config-field-refer
 
 **Note on `eol_markers`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `eol_markers` off when not actively debugging.
 
-**Note on device color (ANSI):** The TUI and CLI render ANSI color (SGR) from device output inline, so colored log lines appear colored. termapy is line-oriented by design and does **not** emulate cursor addressing or full-screen redraws in the TUI - for devices that drive the terminal that way (menus, `top`/`vi` on an embedded console, bootloader UIs), use `--vt100` (see the VT100 mode section below), which hands raw bytes to your own terminal to emulate. In the CLI, `--no-color` (or `/term.color off`) strips color for clean piping. Over MCP, color defaults **off** so device ANSI is stripped from the JSON an agent receives (`/term.color on` re-enables passthrough); silence it at the source with `color off` in `mcp_on_connect_cmd`.
+**Note on device color (ANSI):** The TUI and CLI render ANSI color (SGR) from device output inline, so colored log lines appear colored. termapy is line-oriented by design and does **not** emulate cursor addressing or full-screen redraws in the TUI - for devices that drive the terminal that way (menus, `top`/`vi` on an embedded console, bootloader UIs), use `--vt100` (see the VT100 mode section below), which hands raw bytes to your own terminal to emulate. In the CLI, `--no-color` (or `/term.color off`) strips color for clean piping. Over MCP, color defaults **off** so device ANSI is stripped from the JSON an agent receives (`/term.color on` re-enables passthrough); silence it at the source with the device's own `color off` in `mcp_on_connect_cmd`.
 
 </details>
 
@@ -575,9 +580,9 @@ See the **[config field reference](src/termapy/help/config.md#config-field-refer
 <details>
 <summary><strong>Scripting</strong> - automate command sequences with text files</summary>
 
-![Run menu / script picker dialog](img/run.png)
+![Run picker: newest first, with size, updated, and docstring summary](src/termapy/help/img/doc_21_script_picker.svg)
 
-Create text files with one command per line and run them from the Run button or with the `/run` or the Scripts button. IN the file ines starting with `/` are REPL commands, lines starting with `#` are comments and everything else is sent to the device.
+Create text files with one command per line and run them from the **Run** button or with `/run`. In the file, lines starting with `/` are REPL commands, lines starting with `#` are comments and everything else is sent to the device.
 
 ```text
 # Quick status check
@@ -797,7 +802,7 @@ Summary: 4/4 PASS (4 tests)
 
 ### CRC algorithms
 
-Every CRC algorithm in the [reveng catalog](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS](src/termapy/help/acknowledgments.md)) is built in, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalog check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
+Every CRC algorithm in the [reveng catalog](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS](src/termapy/help/acknowledgments.md)) is built in, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalog check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, C#, Go, Java, Lua, Python, Rust, TypeScript, Verilog, VHDL, or Zig source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
 
 </details>
 
@@ -861,9 +866,9 @@ Modbus RTU supports function 0x03 (read holding registers) and 0x06 (write singl
 
 The demo comes with everything wired up so you can try each feature:
 
-- **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`. Run via the Scripts button or `/run`.
+- **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`, `gps_demo.run`, `var_demo.run`, `expect_test.run`, `crc_tour.run`, and more. Run via the Run button or `/run`.
 - **Proto test files:** `at_test.pro`, `bitfield_inline.pro`, `modbus_inline.pro`. Run via the Proto button for pass/fail results.
-- **Plugins:** `/probe` sends a command sequence and reports results; `/cmd` adds a custom shortcut.
+- **Plugins:** `/probe` sends a command sequence and reports results; `/cmd` adds a custom shortcut; `/temp_plot` draws a sparkline; `/traffic.*` taps RX/TX bytes.
 
 </details>
 
@@ -889,16 +894,16 @@ Passing a `.run` file to `--cli` automatically infers the config from the file's
 
 **Features:**
 
-- Rich colored output (toggle with `/color on|off` or `--no-color`)
+- Rich colored output (toggle with `/term.color on|off` or `--no-color`)
 - Command history shared with TUI (up/down arrows, persisted across sessions)
 - Tab completion for REPL commands
 - Script execution with `/run` (same scripts work in both TUI and CLI)
-- `/delay` with progress bar for waits over 3 seconds (Ctrl+C to cancel)
+- `/delay` with progress bar for waits of a second or longer (Ctrl+C to cancel)
 - All `/port`, `/cfg`, `/var`, `/env`, `/proto.crc`, `/edit` commands work
 
 **TUI-only features** (not available in CLI mode):
 
-- `/ss.svg`, `/ss.txt` - screenshots (prints "not supported" message)
+- `/ss.svg`, `/ss.txt` - screenshots (fail the `screen_capture` capability gate with a clear error)
 - `/grep` - scrollback search (no scrollback buffer in CLI)
 - `/edit.cfg` - opens in system editor instead of built-in config editor
 - Mouse interaction, modal dialogs, custom buttons
@@ -1009,7 +1014,6 @@ The `ctx` object passed to every handler is a thin shell over **five capability 
 | `ctx.io.notify(text)`             | Always-works fallback notification (toast in TUI, plain in CLI)   |
 | `ctx.io.log(prefix, text)`        | Write to session log: `">"` TX, `"<"` RX, `"#"` status            |
 | `ctx.serial.is_connected`         | Bool: serial port is open                                         |
-| `ctx.serial.port`                 | The raw pyserial object, or `None` when disconnected              |
 | `ctx.serial.write(data)`          | Send bytes to the serial port (auto-logged as TX)                 |
 | `ctx.serial.read_raw(timeout_ms)` | Read raw bytes with timeout framing (returns `bytes`)             |
 | `ctx.serial.drain()`              | Drain pending RX data                                             |
@@ -1053,6 +1057,8 @@ See `examples/plugins/` for working examples:
 - **at_test.py:** send AT commands over serial
 - **timestamp.py:** print the current date/time
 - **ping.py:** send a command and measure response time
+- **traffic.py:** passive RX/TX byte tap (count, hexdump, rate, snoop) -- also shipped with `--demo`
+- **pic_map.py:** decode a PIC memory map
 
 More complete examples ship with `--demo`: `probe.py` demonstrates the drain → write → read → parse cycle for device interaction; `traffic.py` (with `/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`) demonstrates the passive RX/TX observer pattern via the `ctx.serial.rx_observer()` / `ctx.serial.tx_observer()` context managers. Run `/help probe` or `/help traffic` to see the documentation, or `/help.dev <name>` for the source docstrings.
 
@@ -1097,7 +1103,7 @@ Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
 | `F`    | IEEE 754 float   | `F1-4`             | `3.14`       |
 | `B`    | Bit field        | `B1.3`, `B1-2.7-9` | `1`, `5`     |
 | `_`    | Padding (hidden) | `_:_3-4`           | *(skipped)*  |
-| `crc*` | CRC verify       | `CRC:crc16m_le`    | pass/fail    |
+| `crc*` | CRC verify       | `CRC:crc16-modbus_le` | pass/fail |
 
 Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or 8-byte (F64).
 
@@ -1198,14 +1204,14 @@ Textual runs on a single async event loop. Termapy uses `@work(thread=True)` for
 
 | Worker              | Lifetime    | Purpose                                                 |
 | ------------------- | ----------- | ------------------------------------------------------- |
-| `read_serial()`     | Long-lived  | Reads serial data in a loop, posts lines to the RichLog |
-| `_auto_reconnect()` | Short-lived | Retries serial connection every 2.5s until success      |
+| `SerialEngine.read_loop()` | Long-lived | The reader thread (`start_reader` / `stop_reader`); hands RX to the UI without blocking |
+| `_run_reconnect()`  | Short-lived | Retries serial connection every 2.5s until success      |
 | `_run_lines()`      | Short-lived | Sends multiple commands with inter-command delay        |
 | `_run_script()`     | Short-lived | Executes a `.run` script file line by line              |
-| `_send_test()`      | Short-lived | Runs a single protocol test case (send/receive/match)   |
-| `_run_cmds()`       | Short-lived | Sends setup/teardown commands for protocol tests        |
+| `_send_test()`      | Short-lived | Runs a single protocol test case (`proto_debug.py`)     |
+| `_run_cmds()`       | Short-lived | Sends setup/teardown commands for protocol tests (`proto_debug.py`) |
 
-Only `read_serial()` is long-lived. At most two workers run concurrently: the serial reader plus one command/script/test worker.
+Only the reader is long-lived. At most two workers run concurrently: the serial reader plus one command/script/test worker.
 
 </details>
 
@@ -1227,7 +1233,7 @@ generator permutation.
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py`, `proto_debug.py`, and `dialogs/` are the Textual UI and are tested manually (Textual Pilot + the CLI gold test), not unit-tested. The headline coverage figure is **core-module** coverage, measured with `app.py`, `dialogs/`, and `builtins/` **omitted** (see `[tool.coverage.run]` in `pyproject.toml`) — so it is *not* whole-repo coverage. Counting the whole repo (only vendored third-party code omitted) is lower, and that gap is exactly this untested UI layer. The omit is deliberate — the focus has been on extracting business logic into unit-testable modules and keeping the UI as thin delegation — but the headline number is core-module, not overall.
+**UI code:** `app.py` is driven headless by `tests/test_app_pilot.py` (Textual Pilot boots the real app), and the dialogs have Pilot tests of their own; `proto_debug.py` is still exercised manually. The headline coverage figure is **core-module** coverage, measured with `dialogs/`, the `builtins/` package top level, and vendored code **omitted** (see `[tool.coverage.run]` in `pyproject.toml`) — so it is *not* whole-repo coverage. Counting the whole repo (only vendored third-party code omitted) is lower, and that gap is exactly this untested UI layer. The omit is deliberate — the focus has been on extracting business logic into unit-testable modules and keeping the UI as thin delegation — but the headline number is core-module, not overall.
 
 </details>
 

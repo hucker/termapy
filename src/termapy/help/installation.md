@@ -1,6 +1,6 @@
 # Installation
 
-Two commands for each package manager: one to install, one to upgrade.
+Install, upgrade, and uninstall for each package manager.
 We strongly recommend [uv](https://docs.astral.sh/uv/); pip works but
 installs into whichever Python interpreter you run it with.
 
@@ -47,7 +47,7 @@ pip install --upgrade "termapy[all]"
 have to think about it.  Lazy imports inside termapy mean unused deps
 cost nothing at runtime: TUI/CLI users never load pydantic, and `--mcp`
 users never load Textual.  The only tradeoff is disk footprint --
-`[all]` adds ~16 MB on top of the base install -- which is rounding
+`[all]` adds ~16 MB (almost all of it the `[mcp]` extra) on top of the base install -- which is rounding
 error on any modern dev machine.
 
 ## Slim installs

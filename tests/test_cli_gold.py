@@ -88,12 +88,28 @@ def _normalize(text: str) -> list[str]:
             continue
         line = _ELAPSED_RE.sub('"elapsed_s": 0', line)
         line = _SIZE_RE.sub("  <SIZE>", line)
+        line = _collapse_listing_header(line)
         lines.append(line.rstrip())
     lines = _sort_listing_runs(lines)
     # Remove trailing empty lines
     while lines and not lines[-1]:
         lines.pop()
     return lines
+
+
+def _collapse_listing_header(line: str) -> str:
+    """Collapse the padding inside a listing header (``NAME  SIZE  UPDATED``).
+
+    The header's column widths follow the widest size string in the
+    batch, and sizes are masked because they differ per platform (see
+    ``_SIZE_RE``); collapsing the header's internal runs of spaces keeps
+    it platform-proof the same way.  The indent is preserved.
+    """
+    stripped = line.lstrip()
+    if stripped.startswith("NAME") and "SIZE" in stripped and "UPDATED" in stripped:
+        indent = line[: len(line) - len(stripped)]
+        return indent + " ".join(stripped.split())
+    return line
 
 
 def _sort_listing_runs(lines: list[str]) -> list[str]:

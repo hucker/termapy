@@ -42,7 +42,9 @@ from termapy.builtins.commands.help import (
 )
 from termapy.folder_ops import (
     build_folder_subcommands,
+    file_columns,
     file_record,
+    format_file_header,
     format_file_lines,
     list_entries,
 )
@@ -133,8 +135,9 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value="")
 
     ctx.io.output("  run/")
+    ctx.io.output(f"    {format_file_header(file_columns(files), 'SUMMARY')}", "dim")
     for line, summary in zip(format_file_lines(files), summaries, strict=True):
-        ctx.io.output(f"    {line}  --  {summary}" if summary else f"    {line.rstrip()}")
+        ctx.io.output(f"    {line}  {summary}".rstrip())
     return CmdResult.ok(value=value)
 
 

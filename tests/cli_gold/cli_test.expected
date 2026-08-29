@@ -243,18 +243,20 @@ demo> /print === section: config folders ===
   [51/150] /print === section: config folders === (105us)
 demo> /run.list
     run/
-      at_demo.run  <SIZE>  just now  --  AT Command Demo -- Walks through all demo device commands
-      crc_tour.run  <SIZE>  just now  --  the whole /proto.crc.* API in one screen
-      doc_screenshots.run  <SIZE>  just now  --  Generate documentation images
-      expect_test.run  <SIZE>  just now  --  Expect command test
-      gps_demo.run  <SIZE>  just now  --  GPS/NMEA Demo -- Query simulated GPS receiver
-      smoke_test.run  <SIZE>  just now  --  Smoke test for demo device
-      status_check.run  <SIZE>  just now  --  Quick status check
-      var_demo.run  <SIZE>  just now  --  Variable Demo -- Set variables and use them in commands
-      welcome.run  <SIZE>  just now  --  Welcome script -- Runs on connect via on_connect_cmd config
+      NAME SIZE UPDATED SUMMARY
+      at_demo.run  <SIZE>  just now  AT Command Demo -- Walks through all demo device commands
+      crc_tour.run  <SIZE>  just now  the whole /proto.crc.* API in one screen
+      doc_screenshots.run  <SIZE>  just now  Generate documentation images
+      expect_test.run  <SIZE>  just now  Expect command test
+      gps_demo.run  <SIZE>  just now  GPS/NMEA Demo -- Query simulated GPS receiver
+      smoke_test.run  <SIZE>  just now  Smoke test for demo device
+      status_check.run  <SIZE>  just now  Quick status check
+      var_demo.run  <SIZE>  just now  Variable Demo -- Set variables and use them in commands
+      welcome.run  <SIZE>  just now  Welcome script -- Runs on connect via on_connect_cmd config
   [52/150] /run.list (11ms)
 demo> /proto.list
     proto/
+      NAME SIZE UPDATED
       at_test.pro  <SIZE>  just now
       bitfield_inline.pro  <SIZE>  just now
       modbus_inline.pro  <SIZE>  just now

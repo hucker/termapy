@@ -309,14 +309,20 @@ class TestRunDocstring:
         # Assert
         assert result.success, "/run.list succeeds"
         texts = [text for text, _ in output]
+        # A header labels the columns (the size/age pair reads as noise without one).
+        assert any(
+            text.strip().startswith("NAME") and text.rstrip().endswith("SUMMARY") for text in texts
+        ), f"header row NAME ... SUMMARY above the listing, got: {texts}"
         # Documented script: summary appears after the filename.
         assert any(
             "documented.run" in text and "Short summary" in text for text in texts
         ), f"summary should appear next to documented.run, got: {texts}"
-        # Undocumented script: still listed, but without a summary.
+        # Undocumented script: still listed, its line ends at the age column.
         assert any(
-            "undocumented.run" in text and "--" not in text for text in texts
-        ), "undocumented script listed without a summary separator"
+            "undocumented.run" in text and text.rstrip().endswith("ago") or
+            "undocumented.run" in text and text.rstrip().endswith("just now")
+            for text in texts
+        ), "undocumented script listed with no summary and no trailing padding"
 
     def test_run_list_newest_first_with_size_and_age(self, repl_env, tmp_path):
         # Arrange -- two scripts; the one that sorts FIRST by name is an hour old.
@@ -402,7 +408,7 @@ class TestRunDocstring:
         assert landscape and "the whole API in one screen" in landscape[0], (
             f"/help.run shows the summary: {landscape}"
         )
-        assert listing and listing[0].rstrip().endswith("--  the whole API in one screen"), (
+        assert listing and listing[0].rstrip().endswith("  the whole API in one screen"), (
             f"/run.list shows the same summary without the filename prefix: {listing}"
         )
 

@@ -2091,7 +2091,21 @@ class SerialTerminal(TerminalHost, App):
 
             self._serial_op("Break", _send)
 
+    def _require_config(self) -> bool:
+        """True when a config is loaded; otherwise say so and return False.
+
+        The per-config folders (run/, proto/) derive from ``config_path``
+        and fall back to the current directory when there is none -- a
+        picker opened then would list whatever the shell happens to be in.
+        """
+        if self.config_path:
+            return True
+        self._status("No config loaded.", "yellow")
+        return False
+
     def _btn_scripts(self) -> None:
+        if not self._require_config():
+            return
         self.push_screen(
             ScriptPicker(
                 self.repl.scripts_dir, read_only=self.cfg.get("config_read_only", False)
@@ -2100,6 +2114,8 @@ class SerialTerminal(TerminalHost, App):
         )
 
     def _btn_proto(self) -> None:
+        if not self._require_config():
+            return
         self.push_screen(
             ProtoPicker(
                 self.repl.proto_dir, read_only=self.cfg.get("config_read_only", False)

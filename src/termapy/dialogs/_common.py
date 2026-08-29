@@ -74,9 +74,12 @@ def _populate_file_option_list(
     if not rows:
         return 0
     first = rows[0]
-    # "UPDATED" fits: the narrowest age string ("just now") is 8 cells.
+    # Every header is left-aligned at its column's left edge, including the
+    # ones over right-aligned numbers -- one rule reads as a header row,
+    # per-column alignment reads as random.  "UPDATED" fits: the narrowest
+    # age string ("just now") is 8 cells.
     header = Text(
-        f"{'NAME':<{len(first.name)}}  {'SIZE':>{len(first.size)}}  "
+        f"{'NAME':<{len(first.name)}}  {'SIZE':<{len(first.size)}}  "
         f"{'UPDATED':<{len(first.age)}}  {detail_header}".rstrip(),
         style="bold",
     )

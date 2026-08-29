@@ -1133,6 +1133,35 @@ class TestBatchedOutputIsEquivalent:
         _run(scenario)
 
 
+class TestPickersNeedAConfig:
+    """With no config loaded, run/ and proto/ resolve to the current
+    directory, so the Run and Proto buttons (and bare ``/run`` / ``/proto``,
+    which route through the same methods) must refuse rather than list
+    whatever folder the shell is in."""
+
+    def test_run_and_proto_buttons_refuse_without_a_config(self, app_factory):
+        async def scenario():
+            from textual.screen import ModalScreen
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- the state after deleting the active config
+                app.config_path = ""
+
+                # Act
+                app._btn_scripts()
+                await pilot.pause()
+                app._btn_proto()
+                await pilot.pause()
+
+                # Assert
+                assert not isinstance(app.screen, ModalScreen), (
+                    "no picker opens when there is no config to list for"
+                )
+
+        _run(scenario)
+
+
 class TestDelayHook:
     """``/delay`` of a second or more animates the bottom-bar progress bar.
 

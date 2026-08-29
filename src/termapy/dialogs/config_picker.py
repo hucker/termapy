@@ -68,7 +68,9 @@ def _config_details(paths: list[Path]) -> tuple[dict[Path, str], str]:
         path: f"{port:<{port_width}}  {baud:>{baud_width}}  {title}".rstrip()
         for path, (port, baud, title) in infos.items()
     }
-    header = f"{'PORT':<{port_width}}  {'BAUD':>{baud_width}}  TITLE"
+    # Headers are all left-aligned (see _populate_file_option_list), even
+    # over the right-aligned baud numbers.
+    header = f"{'PORT':<{port_width}}  {'BAUD':<{baud_width}}  TITLE"
     return details, header
 
 

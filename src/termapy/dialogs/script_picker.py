@@ -23,6 +23,7 @@ from termapy.dialogs._common import (
     _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
+from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.run_docstring import extract_docstring
 
 
@@ -93,7 +94,9 @@ class ScriptPicker(ModalScreen[tuple | None]):
         """
         from textual.widgets import Static
 
-        scripts = list_entries(self.scripts_dir, "*")
+        # Only .run files: the folder can hold editor backups, notes, or --
+        # with no config loaded -- be the current directory.
+        scripts = list_entries(self.scripts_dir, FOLDER_PATTERNS[RUN])
         with Vertical(id="script-dialog"):
             yield Static("Select Run File", id="script-title")
             ol = OptionList(id="script-list")

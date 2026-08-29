@@ -147,6 +147,8 @@ class TestScriptPicker:
             os.utime(older, (hour_ago, hour_ago))
             newer = run_dir / "z_newer.run"
             newer.write_bytes(b"/echo new\n")
+            # Not a script: must not be offered, however new it is.
+            (run_dir / "notes.txt").write_bytes(b"remember to\n")
 
             app = _Host()
             async with app.run_test() as pilot:
@@ -158,6 +160,9 @@ class TestScriptPicker:
                 rows = [str(option.prompt) for option in options]
 
                 # Assert -- header, order, columns, and the id the app will act on
+                assert len(rows) == 3 and not any("notes.txt" in row for row in rows), (
+                    f"only .run files are listed: {rows}"
+                )
                 header, *rows = rows
                 assert header.startswith("NAME") and header.endswith("SUMMARY"), (
                     f"a header row names the columns: {header!r}"
@@ -165,8 +170,8 @@ class TestScriptPicker:
                 assert options[0].disabled and options[0].id is None, (
                     "the header is a disabled option: skipped by the cursor, never selected"
                 )
-                assert header.index("SIZE") + len("SIZE") == rows[0].index("10 B") + len("10 B"), (
-                    "SIZE is right-aligned over the size cells like the values"
+                assert header.index("SIZE") == rows[0].index("10 B"), (
+                    "SIZE starts at the size column's left edge"
                 )
                 assert header.index("UPDATED") == rows[0].index("just now"), (
                     "UPDATED sits over the age column"
@@ -225,9 +230,8 @@ class TestConfigPickerDetails:
         assert header.index("TITLE") == details[mac].index("Bench board"), (
             "the TITLE header sits over the title column"
         )
-        baud_end = details[mac].index("115200") + len("115200")
-        assert header.index("BAUD") + len("BAUD") == baud_end, (
-            "BAUD is right-aligned over the baud numbers"
+        assert header.index("BAUD") == details[mac].index("115200"), (
+            "BAUD starts at the baud column's left edge (values right-align within it)"
         )
         assert details[untitled].split() == ["COM7", "115200"], "port and baud, no title"
         assert not details[untitled].endswith(" "), "an empty title leaves no trailing padding"

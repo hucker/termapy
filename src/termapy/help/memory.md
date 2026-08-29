@@ -21,7 +21,7 @@ symbol that contains them when a table is loaded.
 
 | Command                   | Example                     | Does                                                        |
 |---------------------------|-----------------------------|-------------------------------------------------------------|
-| `/mem.dump <addr> {len}`  | `/mem.dump gTemp 16`        | Hexdump `len` bytes (default 64), rows annotated with symbols |
+| `/mem.dump <addr> {len}`  | `/mem.dump gTemp 0x10`      | Hexdump `len` bytes (default 64; `32`, `0x20` or `20h`), rows annotated with symbols |
 | `/mem.write <addr> <hex>` | `/mem.write gFlags 07000000` | Write hex bytes (`1B00`, `1B 00`, `0x1B 0x00`); audited     |
 | `/mem.info`               | `/mem.info`                 | Dialect, block limit, address width, byte order, and their sources |
 

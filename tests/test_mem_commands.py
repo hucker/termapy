@@ -122,10 +122,17 @@ class TestDump:
         assert not result.success, "refused"
         assert message in result.error, "the address grammar's / device's own message"
 
-    def test_length_below_one_is_a_usage_error(self, cli):
-        result = cli.repl.dispatch("mem.dump 0x1000 0")
-        assert not result.success, "min=1 enforced by the dispatcher"
-        assert "len" in result.error, "names the parameter"
+    @pytest.mark.parametrize("token, expected_len", [("16", 16), ("0x10", 16), ("10h", 16)])
+    def test_length_takes_the_address_grammar_numbers(self, cli, token, expected_len):
+        result = cli.repl.dispatch(f"mem.dump gTemp {token}")
+        assert result.success, result.error
+        assert len(result.value) == expected_len * 2, "decimal, 0x hex and h-suffix all mean sixteen"
+
+    @pytest.mark.parametrize("token", ["0", "zz", "-4", "1.5"])
+    def test_bad_length(self, cli, token):
+        result = cli.repl.dispatch(f"mem.dump 0x1000 {token}")
+        assert not result.success, "refused"
+        assert f"Invalid length: {token}" in result.error, "names the token"
 
     def test_bare_addr_is_usage(self, cli):
         result = cli.repl.dispatch("mem.dump")

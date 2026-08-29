@@ -35,7 +35,7 @@ from termapy.memory import (
 from termapy.plugins import CapabilitySet, CmdResult, Command, format_kv_lines
 from termapy.plugins.params import ParamSpec
 from termapy.protocol.core import parse_hex
-from termapy.symbols import Address, get_table, parse_address, symbolic_name
+from termapy.symbols import Address, get_table, parse_address, parse_number, symbolic_name
 from termapy.symbols.format import hex_addr
 from termapy.variables import launch_var
 
@@ -162,7 +162,12 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     parsed = _resolve(ctx, str(ctx.arg("addr")))
     if isinstance(parsed, CmdResult):
         return parsed
-    length = int(ctx.arg("len"))
+    # The address grammar's number rule (decimal, 0x hex, Nh), not a bare
+    # int: on a memory tool "0x10" is how people say sixteen.
+    raw_len = str(ctx.arg("len"))
+    length = parse_number(raw_len)
+    if length is None:
+        return CmdResult.fail(msg=f"Invalid length: {raw_len}")
     info = _memory_info(ctx)
     try:
         data = Memory(_exchange_factory(ctx), info).read(parsed.addr, length)
@@ -271,7 +276,7 @@ _LONG_HELP: Final[str] = (
     "after, origin).  Over MCP /mem.write is destructive: confirm=true.\n"
     "\n"
     "Commands:\n"
-    "  /mem.dump <addr> {len}   - hexdump len bytes (default 64)\n"
+    "  /mem.dump <addr> {len}   - hexdump len bytes (default 64; 32, 0x20 or 20h)\n"
     "  /mem.write <addr> <hex>  - write hex bytes (1B00, 1B 00, 0x1B 0x00)\n"
     "  /mem.info                - dialect, max_block, address_bits, endian"
 )
@@ -289,8 +294,8 @@ COMMAND = Command(
             params=[
                 ParamSpec("addr", "str", positional=True, required=True, help="address or symbol"),
                 ParamSpec(
-                    "len", "int", positional=True, default=_DEFAULT_DUMP_LEN, min=1,
-                    help="bytes to read",
+                    "len", "str", positional=True, default=str(_DEFAULT_DUMP_LEN),
+                    help="bytes to read: decimal, 0x hex, or Nh",
                 ),
             ],
             help="Hexdump bytes at an address or symbol (default 64).",

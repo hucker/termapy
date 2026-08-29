@@ -165,6 +165,7 @@ $(BAUD) <- /port.baud_rate
 /print === section: memory ===
 /mem.info
 /mem.dump gTemp 16
+/mem.dump gTemp 0x10
 /mem.dump 0x2000 4
 /mem.dump main+0x10 8
 /mem.write gFlags 07000000

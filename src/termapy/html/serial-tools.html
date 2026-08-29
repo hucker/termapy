@@ -23,7 +23,7 @@
     
     
       
-        <title>Serial tools - Termapy Help v0.75.0</title>
+        <title>Serial tools - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1316,8 +1316,8 @@ maintained by <strong>Greg Cook</strong>.  That catalog documents the polynomial
 init, reflection, and xor-out parameters for every standardized CRC
 in practical use, and our test suite verifies each one against its
 published <code>check</code> value on every commit.</p>
-<p>More than 100 algorithms are built in covering CRC-8, CRC-16, and
-CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).</p>
+<p>More than 100 algorithms are built in covering the CRC-8, CRC-16,
+CRC-32, and CRC-64 families (Modbus, XMODEM, CCITT, USB, and more).</p>
 <p>REPL commands:</p>
 <ul>
 <li><code>/proto.crc.list</code> - show all available algorithms</li>
@@ -1341,7 +1341,7 @@ bit-by-bit or table-driven in software regardless.</p>
 speaks CRC-16/Modbus, you speak CRC-16/Modbus.</p>
 <h3 id="identifying-a-crc-from-a-captured-packet">Identifying a CRC from a captured packet<a class="headerlink" href="#identifying-a-crc-from-a-captured-packet" title="Permanent link">&para;</a></h3>
 <p><code>/proto.crc.find</code> takes the full packet you captured and figures out
-which catalog algorithm produced its CRC.  Two input forms:</p>
+which catalog algorithm produced its CRC.  Three input forms:</p>
 <ul>
 <li><code>bin=&lt;hex bytes&gt;</code> -- raw binary packet.  The last 1 / 2 / 4 bytes
   are tried as the CRC field; both big- and little-endian are
@@ -1349,28 +1349,29 @@ which catalog algorithm produced its CRC.  Two input forms:</p>
 <li><code>asc=&lt;text&gt;</code> -- ASCII packet with a trailing hex-encoded CRC
   (common in NMEA-style protocols).  The last 2 / 4 / 8 characters
   are parsed as hex.</li>
+<li><code>cmd=&lt;trigger&gt;</code> -- send a trigger command to the connected device,
+  capture its reply, and identify the CRC in that.</li>
 </ul>
-<p>Every match reports the algorithm name, field width, byte order,
-expected value, and the length of the preceding data.  Catalog
-aliases (e.g. <code>crc16-modbus</code> / <code>crc16m</code>) are collapsed into a single
-line.  When exactly one algorithm matches, the output also includes
-the command to generate standalone source code.</p>
+<p>Optional filters narrow the search: <code>width=8|16|32|64</code>, <code>endian=be|le</code>,
+and <code>form=NAME</code> for a packet wrapped in a named framing.  Every match
+reports the algorithm name, field width, byte order, and the length of
+the preceding data, one line per match:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>&gt; /proto.crc.find bin=31 32 33 34 35 36 37 38 39 37 4B
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  1 match:
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  crc16-modbus  (aka crc16m)  width=16  field=last2  expected=0x4B37  endian=le  data=9 bytes
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  Generate source: /proto.crc.c crc16-modbus  (or .python / .rust)
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  crc16-modbus  width=16  field=last2  endian=little  data=9 bytes
 </span></code></pre></div>
+<p>For a whole batch of frames at once, <code>/proto.crc.detect &lt;frames&gt;...</code>
+takes several packets and reports only the algorithms that fit all of
+them; <code>/proto.crc.verify</code> checks one frame against a named algorithm.</p>
 <p>Limits:</p>
 <ul>
-<li>The search only covers the built-in catalog (CRC-8, CRC-16,
-  CRC-32 standard algorithms from the reveng catalog).  A truly
-  custom CRC with non-standard poly / init / refin / refout / xorout
-  will not match -- the parameter space is ~10^15 for 16-bit, so
-  brute-force is not tractable.  For custom CRCs, Greg Cook's
-  <a href="https://reveng.sourceforge.io">reveng project</a> implements an
-  algebraic recovery approach that needs only a handful of matched
-  sample packets; it's the established tool for that job.</li>
+<li>The search only covers the reveng catalog.  A custom CRC with a
+  non-standard poly / init / refin / refout / xorout will not match --
+  the parameter space is ~10^15 for 16-bit, so brute force is not
+  tractable.  For those, <code>/proto.crc.reverse</code> recovers the Rocksoft
+  parameters algebraically (the approach from Greg Cook's
+  <a href="https://reveng.sourceforge.io">reveng project</a>): give it two or
+  more captured packets as hex, or <code>cmd=&lt;trigger&gt; count=&lt;N&gt;</code> to capture
+  them from the device.</li>
 <li>The tool assumes the CRC field is at the end of the packet.
   Protocols with the CRC in the middle or as a non-contiguous
   checksum require a different approach.</li>
@@ -1378,22 +1379,27 @@ the command to generate standalone source code.</p>
   disambiguate.  Capture a second packet with a different CRC and
   run find again; the intersection narrows the candidates.</li>
 </ul>
-<p>Aliases: <code>crc16m</code> = <code>crc16-modbus</code>, <code>crc16x</code> = <code>crc16-xmodem</code>.</p>
+<p>Algorithm names are the reveng catalog names (<code>crc16-modbus</code>,
+<code>crc16-xmodem</code>, <code>crc32</code>, ...); <code>/proto.crc.list</code> shows them all.</p>
 <p>In format specs and <code>/proto.send</code>, CRC algorithm names accept suffixes:
 <code>_le</code> (little-endian, default), <code>_be</code> (big-endian), <code>_ascii</code> (hex text).</p>
 <h2 id="crc-code-generation">CRC code generation<a class="headerlink" href="#crc-code-generation" title="Permanent link">&para;</a></h2>
 <p><img alt="CRC Python code generation" src="img/doc_07_crc_python.svg" /></p>
-<p>Generate a standalone CRC function in C, Python, or Rust for any
-algorithm in the catalog. Three implementations available:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>/proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>/proto.crc.python crc16-modbus --table   table-driven (fast, 256-entry lookup)
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>/proto.crc.c crc16-xmodem               C bit-by-bit
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>/proto.crc.c crc16-xmodem --table       C table-driven
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>/proto.crc.c crc32 --slice8             C slice-by-8 (fastest, CRC-32/64 only)
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>/proto.crc.rust crc32                    Rust bit-by-bit
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>/proto.crc.rust crc32 --table           Rust table-driven
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>/proto.crc.rust crc64-xz --slice8       Rust slice-by-8
+<p>Generate a standalone CRC function for any algorithm in the catalog,
+in C, C#, Go, Java, Lua, Python, Rust, TypeScript, Verilog, VHDL, or
+Zig (<code>/proto.crc.&lt;language&gt;</code>).  The bare command emits the fastest
+variant the language and width support; flags pin a variant:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>/proto.crc.python crc16-modbus           fastest for this language (default)
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>/proto.crc.python crc16-modbus --small   bit-by-bit (small, no tables)
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>/proto.crc.c crc16-xmodem --table        table-driven (256-entry lookup)
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>/proto.crc.c crc32 --slice8              slice-by-8 (CRC-32/64 only)
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>/proto.crc.rust crc64-xz                 Rust, fastest variant
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>/proto.crc.c crc16-modbus crc32 file=my_crcs   several algorithms into one file
 </span></code></pre></div>
+<p><code>file=STEM</code> writes the source to a file instead of the screen,
+<code>symbol=NAME</code> renames the generated function, and <code>style=NAME</code> /
+<code>naming=NAME</code> pick the doc-comment and identifier conventions
+(<code>/help proto.crc.&lt;language&gt;</code> lists the values).</p>
 <p><strong>Bit-by-bit</strong> -- compact code, zero RAM overhead. Best for
 microcontrollers with limited memory (PIC, ATtiny).</p>
 <p><strong>Table-driven</strong> (<code>--table</code>) -- 4-8x faster. Pre-computes a
@@ -1482,8 +1488,8 @@ generated file embeds the test for exactly this purpose:</p>
 </tr>
 </tbody>
 </table>
-<p>All four mechanisms compare <code>crc("123456789")</code> against the reveng-catalog
-canonical check value, baked into the generated source at emit time.  If
+<p>Every generated file's self-test compares <code>crc("123456789")</code> against the
+reveng-catalog canonical check value, baked into the source at emit time.  If
 your compiler or target produces a different value, the self-test catches
 it -- you have an immediate, decisive signal that something in your build
 environment differs from ours, before the CRC ships into firmware.</p>
@@ -1540,7 +1546,7 @@ and has run <code>_self_test()</code> once at boot can compile-and-strip down to
 just <code>_init</code> + <code>_update</code> + <code>_finalize</code> + <code>crc32</code> in the final binary,
 with no self-test overhead and no streaming-vs-one-shot duplication.</p>
 <p><strong>Custom CRC plugins</strong> for non-standard checksums:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># sum8.py - drop into builtins/crc/ or termapy_cfg/&lt;name&gt;/crc/</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># sum8.py - drop into termapy's builtins/crc/ folder</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">NAME</span> <span class="o">=</span> <span class="s2">"sum8"</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">WIDTH</span> <span class="o">=</span> <span class="mi">1</span>
 </span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>

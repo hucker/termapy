@@ -23,7 +23,7 @@
     
     
       
-        <title>Variables - Termapy Help v0.75.0</title>
+        <title>Variables - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1373,9 +1373,29 @@ value and cannot become a flag, a keyword, or a counter bump.</p>
 <td>Current date and time</td>
 </tr>
 <tr>
-<td><code>$(CFG)</code></td>
+<td><code>$(CFG.DIR)</code></td>
 <td>Context</td>
-<td>Current config name</td>
+<td>Config folder (<code>termapy_cfg/&lt;name&gt;/</code>)</td>
+</tr>
+<tr>
+<td><code>$(CFG.FILE)</code></td>
+<td>Context</td>
+<td>Config file path</td>
+</tr>
+<tr>
+<td><code>$(CFG.RUN_DIR)</code></td>
+<td>Context</td>
+<td><code>run/</code> folder (also <code>PROTO_DIR</code>, <code>PLUGIN_DIR</code>, <code>SS_DIR</code>, <code>CAP_DIR</code>, <code>PROF_DIR</code>, <code>VIZ_DIR</code>)</td>
+</tr>
+<tr>
+<td><code>$(CFG.LOG_FILE)</code></td>
+<td>Context</td>
+<td>Session log path</td>
+</tr>
+<tr>
+<td><code>$(CFG.PORT)</code></td>
+<td>Context</td>
+<td>Configured port (<code>CFG.BAUD</code> the baud; <code>CFG.PORT_CFG</code> / <code>CFG.PORT_FULL</code> the short / full connection strings)</td>
 </tr>
 <tr>
 <td><code>$(LAUNCH_DATE)</code></td>
@@ -1410,7 +1430,7 @@ value and cannot become a flag, a keyword, or a counter bump.</p>
 <tr>
 <td><code>$(FRONT_END)</code></td>
 <td>Launch</td>
-<td><code>textual</code> (TUI) or <code>cli</code></td>
+<td><code>textual</code> (TUI), <code>cli</code>, or <code>mcp</code></td>
 </tr>
 </tbody>
 </table>
@@ -1430,17 +1450,19 @@ default <code>$(DATETIME)</code> (<code>2026-07-07 14:30:00</code>) contains col
 <h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
 <p>Access OS environment variables with <code>$(env.NAME)</code> syntax. This is
 especially useful in config files for values that differ per machine:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(env.TERMAPY_PORT|COM4)"</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">"serial"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(env.TERMAPY_PORT|COM4)"</span><span class="p">}</span>
 </span></code></pre></div>
 <p>The <code>|</code> inside the <code>$(env.NAME|...)</code> provides a fallback <strong>when the
-env variable is unset</strong>.</p>
+env variable is unset</strong>.  Without a fallback, a reference to an unset
+variable in a REPL command is an error; in a config value it is left
+as-is.</p>
 <h3 id="env-expansion-composes-with-port-resolution-fallback">Env expansion composes with port-resolution fallback<a class="headerlink" href="#env-expansion-composes-with-port-resolution-fallback" title="Permanent link">&para;</a></h3>
 <p>For the <code>port</code> field specifically there is a second, independent <code>|</code>
 that lives at the port-resolution layer: termapy splits the <code>port</code>
 value on <code>|</code> at open time and tries each candidate (device name or
 USB serial number) in order. These layers compose cleanly -- env
 expansion runs first, then port resolution:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(env.DEVICE_SN)|COM3"</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">"serial"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(env.DEVICE_SN)|COM3"</span><span class="p">}</span>
 </span></code></pre></div>
 <ul>
 <li><code>$(env.DEVICE_SN)</code> expands to the env value (or stays as the
@@ -1458,7 +1480,7 @@ expansion runs first, then port resolution:</p>
 </ul>
 <h3 id="env-vars-never-reach-the-wire-automatically">Env vars never reach the wire automatically<a class="headerlink" href="#env-vars-never-reach-the-wire-automatically" title="Permanent link">&para;</a></h3>
 <p><code>$(env.NAME)</code> expands in config values (like <code>port</code> above) and in REPL
-commands (<code>/print $(env.HOME)</code>, <code>/var set x $(env.TOKEN)</code>), but <strong>not in
+commands (<code>/print $(env.HOME)</code>, <code>/var.set x $(env.TOKEN)</code>), but <strong>not in
 bare device commands</strong> -- typing <code>AT+X=$(env.SECRET)</code> sends the literal
 text, never the value, so environment secrets stay off the serial wire.</p>
 <p>The <code>on_connect_cmd</code> family (<code>on_connect_cmd</code>, <code>tui_</code>/<code>cli_</code>/<code>mcp_on_connect_cmd</code>)
@@ -1529,7 +1551,7 @@ time. They are the counterpart to <code>$(NAME)</code> variables, which substitu
 </tr>
 <tr>
 <td><code>{elapsed}</code></td>
-<td>Time since start (e.g. <code>1.50s</code>), via the duration formatter</td>
+<td>Time since start (e.g. <code>1.5s</code>, <code>2hr</code>), via the duration formatter</td>
 </tr>
 </tbody>
 </table>

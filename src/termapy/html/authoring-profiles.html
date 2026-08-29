@@ -23,7 +23,7 @@
     
     
       
-        <title>Authoring device profiles - Termapy Help v0.75.0</title>
+        <title>Authoring device profiles - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1511,14 +1511,14 @@ one by hand, and LLMs drafting one from a help dump.  For the
 normative format specification (matching rules, timing semantics,
 and the forward-compatibility policy), see <code>docs/profile-spec.md</code>
 in the repository; this page is the practical guide.</p>
-<p>Note: AI such as Claude Code can do a pretty good job of sending commands interactively
-without a profile at all, just looking at any help text or sample responses that you give it. It
-can work with fairly well with a small amount of trial and error.  However, if you are going
-to use AI to interact with your device on an ongoing basis it is worth it to invest in creating
-a profile which reduces friction and gives you more robust control and better error handling
-because the LLM can understand the commands and the types.</p>
-<p>IF you have control over the device firmware, build a command that returns the json profile directly from the device.<br />
-This way users of your device can be up and running with AI control in a few minutes.</p>
+<p>An AI client such as Claude Code can drive a device reasonably well with
+no profile at all, working from whatever help text or sample responses
+you give it.  For ongoing use a profile is worth the investment: it
+removes the trial and error, and gives the model typed commands and
+responses, so control is more robust and errors are handled better.</p>
+<p>If you control the device firmware, add a command that returns the JSON
+profile directly; users of your device are then up and running with AI
+control in minutes.</p>
 <h2 id="file-layout">File layout<a class="headerlink" href="#file-layout" title="Permanent link">&para;</a></h2>
 <p>A profile is a JSON object with these top-level keys:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
@@ -1536,8 +1536,8 @@ This way users of your device can be up and running with AI control in a few min
 byte size, parity, stop bits, flow control, encoding, and line
 ending are session properties — they depend on the user's USB
 adapter and hardware setup, not on the device contract.  Set them
-in your <code>termapy_cfg/&lt;name&gt;/&lt;name&gt;.cfg</code> file.  See <code>help config</code>
-for the field reference.  For NDJSON devices, set <code>cfg.protocol</code>
+in your <code>termapy_cfg/&lt;name&gt;/&lt;name&gt;.cfg</code> file.  See
+<a href="config.html">Configuration</a> for the field reference.  For NDJSON devices, set <code>cfg.protocol</code>
 to <code>"ndjson"</code>; the default <code>"text"</code> covers most devices.</p>
 <h2 id="per-command-schema">Per-command schema<a class="headerlink" href="#per-command-schema" title="Permanent link">&para;</a></h2>
 <p>Each entry in <code>commands</code> describes one device command:</p>

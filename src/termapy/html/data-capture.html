@@ -23,7 +23,7 @@
     
     
       
-        <title>Data capture - Termapy Help v0.75.0</title>
+        <title>Data capture - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1135,7 +1135,7 @@ Byte ranges are 1-based. Omit names for unnamed columns.</p>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a># Mixed-type record: string + integers + float (little-endian)
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>/cap.struct mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 records=20 cmd=AT+BINDUMP 20
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a># Hex dump of raw bytes
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a># Raw-byte records rendered as hex columns (still /cap.struct)
 </span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>/cap.struct packets.csv fmt=Header:H1-4 Payload:H5-20 records=100 cmd=stream
 </span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
 </span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a># Tab-separated with echo
@@ -1244,7 +1244,11 @@ tracks the last-used number across sessions, with rollover.</p>
 <p>Bare filenames are saved to the per-config <code>cap/</code> directory.
 A progress bar and Stop button overlay the toolbar during capture:</p>
 <p><img alt="Capture in progress" src="img/doc_13_cap_progress.svg" /></p>
-<p>The <strong>Cap</strong> button opens the cap/ folder.</p>
+<p>When a capture ends, the completion line reports the file, its size, and
+the wall time it ran, e.g. <code>Capture complete: cap/log.txt (2.0 KB in 3.2s)</code>.</p>
+<p><code>/cap.list</code> lists the folder newest first with size and age (records under
+<code>--json</code>), <code>/cap.rename &lt;old&gt; &lt;new&gt;</code> renames a file, and the <strong>Cap</strong> button
+opens the cap/ folder.</p>
 
 
 

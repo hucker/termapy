@@ -23,7 +23,7 @@
     
     
       
-        <title>REPL commands - Termapy Help v0.75.0</title>
+        <title>REPL commands - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -548,10 +548,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#config-file-management" class="md-nav__link">
+  <a href="#per-folder-file-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Config file management
+        Per-folder file commands
       </span>
     </span>
   </a>
@@ -956,10 +956,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#config-file-management" class="md-nav__link">
+  <a href="#per-folder-file-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Config file management
+        Per-folder file commands
       </span>
     </span>
   </a>
@@ -989,6 +989,10 @@ synopsis, filtering as you type:</p>
 <blockquote>
 <p><strong>NOTE:</strong> If the device you are communicating with uses <code>/</code> commands that conflict with termapy's, you can change the prefix by setting <code>cmd_prefix</code> in your config (e.g. <code>cmd_prefix: "!"</code>). With <code>!</code> as the prefix, <code>!help</code> runs the local help command and <code>/foo</code> gets sent verbatim to the device.</p>
 </blockquote>
+<p>A selection of the most-used commands.  <code>/help</code> prints the full landscape
+(every command, including the <code>/app.*</code>, <code>/mcp.*</code>, <code>/port.chip.*</code> and
+<code>/proto.crc.&lt;language&gt;</code> families not listed here) and <code>/help &lt;cmd&gt;</code> the
+man-page detail for one.</p>
 <table>
 <thead>
 <tr>
@@ -1032,10 +1036,6 @@ synopsis, filtering as you type:</p>
 <tr>
 <td><code>/cfg.list</code></td>
 <td>List all config files</td>
-</tr>
-<tr>
-<td><code>/cfg.info</code></td>
-<td>Print project summary (tree + config + buttons)</td>
 </tr>
 <tr>
 <td><code>/cfg.help</code></td>
@@ -1119,7 +1119,7 @@ synopsis, filtering as you type:</p>
 </tr>
 <tr>
 <td><code>/find &lt;pattern&gt;</code></td>
-<td>Navigate scrollback matches with an interactive find bar (TUI only)</td>
+<td>Navigate scrollback matches with an interactive find bar (not over MCP; use <code>/grep</code> there)</td>
 </tr>
 <tr>
 <td><code>/find.next</code> / <code>/find.prev</code></td>
@@ -1327,15 +1327,11 @@ synopsis, filtering as you type:</p>
 </tr>
 <tr>
 <td><code>/proto.hex {on\|off\|toggle}</code></td>
-<td>Toggle hex display mode for serial I/O</td>
+<td>Toggle protocol-mode hex display for <code>/proto.send</code> responses</td>
 </tr>
 <tr>
 <td><code>/proto.list</code></td>
 <td>List .pro files in proto/, newest first, with size and age</td>
-</tr>
-<tr>
-<td><code>/proto.load &lt;file&gt;</code></td>
-<td>Run a protocol test script (same as /proto.run)</td>
 </tr>
 <tr>
 <td><code>/proto.run &lt;file&gt;</code></td>
@@ -1371,7 +1367,7 @@ synopsis, filtering as you type:</p>
 </tr>
 <tr>
 <td><code>/run.legacy {file\|*}</code></td>
-<td>Find pre-0.63 command names in scripts; <code>--fix</code> rewrites in place</td>
+<td>Find renamed (legacy) command names in scripts; <code>--fix</code> rewrites in place</td>
 </tr>
 <tr>
 <td><code>/run.list</code></td>
@@ -1396,10 +1392,6 @@ synopsis, filtering as you type:</p>
 <tr>
 <td><code>/show.cfg</code></td>
 <td>Show the current config file</td>
-</tr>
-<tr>
-<td><code>/ss.explore</code></td>
-<td>Open the screenshot folder in the file explorer</td>
 </tr>
 <tr>
 <td><code>/ss.svg [name]</code></td>
@@ -1463,7 +1455,7 @@ synopsis, filtering as you type:</p>
 </tr>
 <tr>
 <td><code>/term.request {on\|off\|toggle}</code></td>
-<td>Toggle request/response mode for bare device commands</td>
+<td>Session JSON dial: every answer (device or termapy command) becomes a JSON envelope; <code>&lt;cmd&gt; --json</code> is the per-call form</td>
 </tr>
 <tr>
 <td><code>/term.send &lt;text&gt;</code></td>
@@ -1557,8 +1549,11 @@ optional <code>N</code>. <code>N&gt;0</code> saves/prints the <strong>last N</st
 </tr>
 </tbody>
 </table>
-<h2 id="config-file-management">Config file management<a class="headerlink" href="#config-file-management" title="Permanent link">&para;</a></h2>
-<p>Each config subfolder has a consistent set of subcommands:</p>
+<h2 id="per-folder-file-commands">Per-folder file commands<a class="headerlink" href="#per-folder-file-commands" title="Permanent link">&para;</a></h2>
+<p>Each per-config data folder has an owning top-level command (<code>/run</code> for
+<code>run/</code>, <code>/proto</code> for <code>proto/</code>, <code>/cap</code> for <code>cap/</code>, <code>/ss</code> for <code>ss/</code>,
+<code>/plugin</code> for <code>plugin/</code>, <code>/run.profile</code> for <code>prof/</code>) with one consistent
+family of file subcommands:</p>
 <table>
 <thead>
 <tr>
@@ -1569,39 +1564,45 @@ optional <code>N</code>. <code>N&gt;0</code> saves/prints the <strong>last N</st
 </thead>
 <tbody>
 <tr>
-<td><code>cfg.&lt;folder&gt;</code></td>
-<td>List files</td>
-<td>scripts, proto, plugins, ss, viz, cap, prof</td>
+<td><code>.list</code></td>
+<td>List files, newest first, with size and age</td>
+<td>all</td>
 </tr>
 <tr>
 <td><code>.explore</code></td>
-<td>Open folder in file explorer</td>
+<td>Open the folder in the system file explorer</td>
 <td>all</td>
 </tr>
 <tr>
 <td><code>.show</code></td>
-<td>Open newest file in system viewer</td>
+<td>Open the newest file in the system viewer</td>
 <td>all</td>
 </tr>
 <tr>
 <td><code>.dump {name}</code></td>
-<td>Print newest (or named) file to terminal</td>
-<td>scripts, proto, plugins, viz, cap, prof</td>
+<td>Print the newest (or named) file to the terminal</td>
+<td>run, proto, plugin, cap, prof</td>
+</tr>
+<tr>
+<td><code>.rename &lt;old&gt; &lt;new&gt;</code></td>
+<td>Rename a file (extension kept; never overwrites)</td>
+<td>run, proto, plugin, ss, cap</td>
 </tr>
 <tr>
 <td><code>.clear</code></td>
 <td>Delete all files</td>
-<td>ss, cap, prof (generated output only)</td>
+<td>ss, cap (generated output only)</td>
 </tr>
 </tbody>
 </table>
 <p>Examples:</p>
 <ul>
-<li><code>/cfg.scripts</code>: list script files</li>
-<li><code>/cfg.scripts.dump</code>: print newest script to terminal</li>
-<li><code>/cfg.proto.show</code>: open newest .pro file in editor</li>
-<li><code>/cfg.cap.clear</code>: delete all capture files</li>
-<li><code>/cfg.prof.dump</code>: print newest profile CSV to terminal</li>
+<li><code>/run.list</code>: list scripts with size, age, and docstring summary</li>
+<li><code>/run.dump</code>: print the newest script to the terminal</li>
+<li><code>/proto.show</code>: open the newest .pro file in the system viewer</li>
+<li><code>/run.rename old.run new</code>: rename a script (<code>.run</code> is kept)</li>
+<li><code>/cap.clear</code>: delete all capture files</li>
+<li><code>/run.profile.dump</code>: print the newest profile CSV to the terminal</li>
 </ul>
 
 

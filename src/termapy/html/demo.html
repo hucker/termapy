@@ -23,7 +23,7 @@
     
     
       
-        <title>Demo mode - Termapy Help v0.75.0</title>
+        <title>Demo mode - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1285,10 +1285,10 @@ VT100 passthrough renders that plain line output can't. Quit with Ctrl-]. See
 <ul>
 <li>A simulated device called <strong><a href="https://en.wikipedia.org/wiki/Bass-O-Matic">BASSOMATIC-77</a></strong> (the natural successor to Dan Aykroyd's '76) that responds to AT
   commands, GPS/NMEA queries, and binary Modbus RTU frames</li>
-<li><strong>5 toolbar buttons</strong>: Demo Help, AT Demo, Info, Probe, TempPlot</li>
-<li><strong>7 scripts</strong>: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo, crc_tour</li>
-<li><strong>3 protocol test files</strong>: at_test, bitfield_inline, modbus_inline</li>
-<li><strong>4 plugins</strong>: cmd (custom shortcut), probe (device query), temp_plot (sparkline), traffic (RX/TX byte tap)</li>
+<li><strong>Toolbar buttons</strong>: Demo Help, AT Demo, Info, Probe, TempPlot</li>
+<li><strong>Scripts</strong>: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo, expect_test, crc_tour, doc_screenshots</li>
+<li><strong>Protocol test files</strong>: at_test, bitfield_inline, modbus_inline</li>
+<li><strong>Plugins</strong>: cmd (custom shortcut), probe (device query), temp_plot (sparkline), traffic (RX/TX byte tap)</li>
 </ul>
 <h2 id="device-commands">Device commands<a class="headerlink" href="#device-commands" title="Permanent link">&para;</a></h2>
 <p>The simulated device supports three protocols:</p>
@@ -1314,8 +1314,8 @@ VT100 passthrough renders that plain line output can't. Quit with Ctrl-]. See
 <td>Simulated temperature reading (22-25C)</td>
 </tr>
 <tr>
-<td><code>AT+LED on\|off</code></td>
-<td>Toggle LED state</td>
+<td><code>AT+LED &lt;on\|off&gt; {--blink}</code></td>
+<td>Set the LED (optionally blinking)</td>
 </tr>
 <tr>
 <td><code>AT+STATUS</code></td>
@@ -1354,20 +1354,32 @@ VT100 passthrough renders that plain line output can't. Quit with Ctrl-]. See
 <td>Emit text readings</td>
 </tr>
 <tr>
-<td><code>AT+BINDUMP &lt;n&gt;</code></td>
+<td><code>AT+BINDUMP {type} &lt;n&gt; {--crc}</code></td>
 <td>Emit binary records</td>
 </tr>
 <tr>
+<td><code>AT+RAMP</code></td>
+<td>Deterministic saw-wave readings</td>
+</tr>
+<tr>
+<td><code>AT+FS.LIST</code> / <code>AT+FS.INFO</code> / <code>AT+FS.DELETE &lt;file&gt;</code></td>
+<td>Simulated file system (see <a href="file-transfer.html">File transfer</a>)</td>
+</tr>
+<tr>
+<td><code>AT+XMODEM=RECV\|SEND</code>, <code>AT+YMODEM=RECV\|SEND</code></td>
+<td>Start a transfer (see <a href="file-transfer.html">File transfer</a>)</td>
+</tr>
+<tr>
 <td><code>AT+RND</code></td>
-<td>Emit one random catalog-CRC packet</td>
+<td>Emit one random catalog-CRC packet (not listed in <code>AT+HELP</code>)</td>
 </tr>
 <tr>
 <td><code>AT+RND.CUSTOM</code></td>
-<td>Emit one packet with a secret poly</td>
+<td>Emit one packet with a secret poly (not listed in <code>AT+HELP</code>)</td>
 </tr>
 <tr>
 <td><code>AT+RND.CUSTOM.REVEAL</code></td>
-<td>Print the secret poly's Rocksoft params</td>
+<td>Print the secret poly's Rocksoft params (not listed in <code>AT+HELP</code>)</td>
 </tr>
 <tr>
 <td><code>mem &lt;addr&gt; [len]</code></td>
@@ -1490,7 +1502,7 @@ the byte stream without disrupting normal operation -- it demonstrates the
 </tbody>
 </table>
 <p>Examples against the demo:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>demo&gt; /traffic.count AT+VER
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>demo&gt; /traffic.count AT+INFO
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  TX: 7  RX: 12  bytes
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 </span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>demo&gt; /traffic.rate 3s
@@ -1500,8 +1512,8 @@ the byte stream without disrupting normal operation -- it demonstrates the
 </span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
 </span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>demo&gt; /traffic.hexdump capture.log 10s
 </span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>demo&gt; /traffic.snoop 56 45 52 timeout=2s    # wait for "VER" in RX
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>  Matched 565452 at offset 14
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>demo&gt; /traffic.snoop 4F 4B timeout=2s    # wait for "OK" in RX
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>  Matched 4f4b at offset 14
 </span></code></pre></div>
 <hr />
 

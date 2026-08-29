@@ -23,7 +23,7 @@
     
     
       
-        <title>Device help integration - Termapy Help v0.75.0</title>
+        <title>Device help integration - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1113,7 +1113,7 @@ the minimum is:</p>
 <li><code>args</code> (optional) -- argument spec, for human display.</li>
 <li><code>long_help</code> (optional) -- multi-line prose for <code>/help &lt;command&gt;</code>.</li>
 <li><code>flags</code> (optional) -- flag map (canonical + alias entries).</li>
-<li><code>safety</code> (optional) -- <code>safe</code> / <code>readonly</code> / <code>mutable</code> / <code>destructive</code>.</li>
+<li><code>safety</code> (optional) -- <code>readonly</code> / <code>safe</code> / <code>mutable</code> / <code>destructive</code>, in increasing order of caution (see <a href="authoring-profiles.html">Authoring profiles</a>).</li>
 <li><code>enabled</code> (optional, default true) -- audit gate.  Drafts emit false.</li>
 <li><code>send_template</code>, <code>typed_args</code>, <code>response</code> -- profile-aware
   dispatch fields.  See the authoring guide for details.</li>
@@ -1203,7 +1203,7 @@ connects, put the <code>/profile.load cmd=...</code> step in your cfg's
 <code>on_connect_cmd</code> (or the MCP-specific variant):</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nt">"on_connect_cmd"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/profile.load cmd=AT+HELP.JSON"</span><span class="p">,</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(env.MAIN_PORT|COM4)"</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">"serial"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(env.MAIN_PORT|COM4)"</span><span class="p">}</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>Per-mode variants (<code>tui_on_connect_cmd</code>, <code>cli_on_connect_cmd</code>,

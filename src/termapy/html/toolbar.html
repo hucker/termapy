@@ -23,7 +23,7 @@
     
     
       
-        <title>Toolbar and shortcuts - Termapy Help v0.75.0</title>
+        <title>Toolbar and shortcuts - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1094,24 +1094,29 @@
 </thead>
 <tbody>
 <tr>
+<td><strong>Help</strong></td>
+<td>Top-left</td>
+<td>Open this help guide</td>
+</tr>
+<tr>
 <td><strong>Cfg</strong></td>
 <td>Top-left</td>
-<td>New / Edit / Load a config</td>
+<td>Load / Edit / New / Rename / Delete a config</td>
 </tr>
 <tr>
 <td><strong>Run</strong></td>
 <td>Top-left</td>
-<td>Pick, run, or create a script</td>
+<td>Run / Edit / New / Rename / Delete a script</td>
 </tr>
 <tr>
 <td><strong>Proto</strong></td>
 <td>Top-left</td>
-<td>Open a protocol test script</td>
+<td>Run / Debug / Edit / New / Rename / Delete a .pro script</td>
 </tr>
 <tr>
-<td><strong>Help</strong></td>
+<td><strong>Update</strong></td>
 <td>Top-left</td>
-<td>Open this help guide</td>
+<td>Appears only when a newer termapy is on PyPI</td>
 </tr>
 <tr>
 <td><strong>Config name</strong></td>
@@ -1139,7 +1144,9 @@
 each platform's window-control convention.  Cfg, Run, and Proto can be
 hidden per config via <code>cfg_enabled</code>, <code>run_enabled</code>, and <code>proto_enabled</code>.
 Typing the bare command (e.g. <code>/cfg</code>) is equivalent to clicking the
-button.</p>
+button.  The Cfg, Run, and Proto pickers list files newest first with
+size and age columns under a header row; Run adds the script's
+docstring summary, Cfg the port, baud, and title.</p>
 <p>Hover over any of the config, port, or status buttons to see a detailed
 tooltip with current settings and chip information.</p>
 <p><img alt="Port button tooltip with chip info" src="img/doc_33_port_tooltip.png" /></p>
@@ -1209,6 +1216,11 @@ of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.
 <td>Always</td>
 <td>Open the cap/ folder</td>
 </tr>
+<tr>
+<td><strong>^ v x</strong></td>
+<td>While <code>/find</code> is active</td>
+<td>Previous / next match, close the find bar</td>
+</tr>
 </tbody>
 </table>
 <p>Scripts are picked and run from the <strong>Run</strong> button in the title bar
@@ -1235,32 +1247,28 @@ of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.
 <td>Help / Cfg / Run / Proto (same as the buttons)</td>
 </tr>
 <tr>
+<td><strong>F10</strong></td>
+<td>Edit the current config</td>
+</tr>
+<tr>
 <td><strong>Ctrl+Shift+1</strong>–<strong>5</strong></td>
 <td>Same four, plus Edit Config on <strong>5</strong></td>
 </tr>
 <tr>
-<td><strong>Ctrl+L</strong></td>
-<td>Clear screen</td>
+<td><strong>Ctrl+P</strong> / <strong>Alt+P</strong></td>
+<td>Open command palette</td>
 </tr>
 <tr>
-<td><strong>Ctrl+P</strong></td>
-<td>Open command palette</td>
+<td><strong>Ctrl+S</strong> / <strong>Alt+S</strong></td>
+<td>Save SVG screenshot</td>
+</tr>
+<tr>
+<td><strong>Ctrl+T</strong> / <strong>Alt+T</strong></td>
+<td>Save text screenshot</td>
 </tr>
 <tr>
 <td><strong>Ctrl+C</strong> / <strong>Cmd+C</strong></td>
 <td>Copy selected text to the clipboard</td>
-</tr>
-<tr>
-<td><strong>F5</strong></td>
-<td>Save SVG screenshot</td>
-</tr>
-<tr>
-<td><strong>F6</strong></td>
-<td>Open screenshot folder</td>
-</tr>
-<tr>
-<td><strong>F7</strong></td>
-<td>Save text screenshot</td>
 </tr>
 <tr>
 <td><strong>Up/Down</strong></td>
@@ -1272,8 +1280,10 @@ of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.
 </tr>
 </tbody>
 </table>
-<p>The <code>Ctrl+Shift+digit</code> aliases work inside VS Code's integrated
-terminal, which intercepts some F-keys.</p>
+<p>The <code>Ctrl+Shift+digit</code> and <code>Alt+letter</code> aliases work inside VS Code's
+integrated terminal, which intercepts some F-keys and Ctrl chords.
+Clearing the screen is <code>/cls</code> (or the palette's Clear Screen); the
+screenshot folder is the <strong>SS</strong> button (or <code>/ss.explore</code>).</p>
 <h2 id="copying-text">Copying text<a class="headerlink" href="#copying-text" title="Permanent link">&para;</a></h2>
 <p>Drag across the main output window to select text, then press
 <strong>Ctrl+C</strong> (<strong>Cmd+C</strong> on macOS) to copy it to your clipboard.  The
@@ -1289,7 +1299,7 @@ It drops down from the top-center of the window, like VS Code's
 command palette, with fuzzy filtering as you type and a most-recently-used
 list when opened with an empty query.</p>
 <p><img alt="Command palette" src="img/doc_20_palette.svg" /></p>
-<p>Quick access to:</p>
+<p>Highlights include:</p>
 <ul>
 <li>Help</li>
 <li>Find in scrollback / Grep scrollback / Search command help</li>

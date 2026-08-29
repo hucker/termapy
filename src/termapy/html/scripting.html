@@ -23,7 +23,7 @@
     
     
       
-        <title>Scripting - Termapy Help v0.75.0</title>
+        <title>Scripting - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1093,11 +1093,15 @@
 
 <h1 id="scripting">Scripting<a class="headerlink" href="#scripting" title="Permanent link">&para;</a></h1>
 <p>Click the <strong>Run</strong> button in the title bar or use <code>/run &lt;filename&gt;</code> to work
-with scripts. The script picker has four actions:</p>
+with scripts (bare <code>/run</code> in the CLI lists them).  The picker lists
+scripts newest first with size, last-updated age, and each script's
+docstring summary, and has six actions:</p>
 <ul>
-<li><strong>New:</strong> create a new script (opens the editor with a template)</li>
-<li><strong>Edit:</strong> open the highlighted script in the editor</li>
 <li><strong>Run:</strong> execute the highlighted script</li>
+<li><strong>Edit:</strong> open the highlighted script in the editor</li>
+<li><strong>New:</strong> create a new script (opens the editor with a template)</li>
+<li><strong>Rename:</strong> rename the highlighted script (<code>.run</code> is kept; never overwrites)</li>
+<li><strong>Delete:</strong> delete the highlighted script (asks for confirmation)</li>
 <li><strong>Cancel:</strong> close the picker</li>
 </ul>
 <p><img alt="Script picker" src="img/doc_21_script_picker.svg" /></p>
@@ -1111,7 +1115,7 @@ and a name field. Scripts are saved with a <code>.run</code> extension in the pe
 <li><code>/</code> prefixed REPL commands (delays, screenshots, print, etc.)</li>
 <li>Comments (lines starting with <code>#</code>)</li>
 <li>Blank lines (ignored)</li>
-<li>Sequence counters with <code>{+counter}</code> for auto-incrementing values</li>
+<li>Sequence counters with <code>{seqN+}</code> for auto-incrementing values</li>
 </ul>
 <p>A leading <code>#</code> comment block (lines 1..N, ending at the first blank or
 non-comment line) is the script's docstring: the first line is the
@@ -1145,12 +1149,12 @@ in <code>/run.list</code> and <code>/run.help</code>.</p>
 <td>Pause execution (e.g. <code>500ms</code>, <code>2s</code>, <code>1.5s</code>)</td>
 </tr>
 <tr>
-<td><code>/expect match=&lt;pattern&gt; {timeout=&lt;dur&gt;} {quiet=on}</code></td>
-<td>Wait for serial line containing pattern (default 250ms). Aborts on timeout.</td>
+<td><code>/expect {timeout=&lt;dur&gt;} match=&lt;text&gt;</code></td>
+<td>Wait for a serial line containing <code>&lt;text&gt;</code> (default 5s). Fails on timeout.</td>
 </tr>
 <tr>
-<td><code>/expect.regex match=&lt;pattern&gt; {timeout=&lt;dur&gt;} {quiet=on}</code></td>
-<td>Same but pattern is a regex.</td>
+<td><code>/expect.regex {timeout=&lt;dur&gt;} match=&lt;pattern&gt;</code></td>
+<td>Same but the pattern is a regex.</td>
 </tr>
 <tr>
 <td><code>/confirm {message}</code></td>
@@ -1163,6 +1167,10 @@ in <code>/run.list</code> and <code>/run.help</code>.</p>
 <tr>
 <td><code>/run.profile &lt;script&gt;</code></td>
 <td>Run nested script with per-line timing</td>
+</tr>
+<tr>
+<td><code>/run.rename &lt;old&gt; &lt;new&gt;</code></td>
+<td>Rename a script (<code>.run</code> is kept; never overwrites)</td>
 </tr>
 </tbody>
 </table>
@@ -1255,7 +1263,7 @@ call with <code>cmd --&lt;level&gt;</code> or <code>cmd.&lt;level&gt;</code>:</p
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>/term.output quiet              # session default
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>/cfg baud_rate                  # shows 115200
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>/help port --verbose            # one call back to verbose
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>/cap show capture.bin --silent  # run, drop output, only value returns
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>/cap.dump capture.bin --silent  # run, drop output, only value returns
 </span></code></pre></div>
 <p>Set the level at startup with <code>--silent</code>, <code>--quiet</code>, or <code>--verbose</code> on the
 <code>termapy</code> command line.</p>
@@ -1272,7 +1280,8 @@ invisible; the session is either in JSON mode or in prose mode.</p>
 </span></code></pre></div>
 <p><code>data</code> carries the structured form for commands that have one (<code>/port.list</code>,
 <code>/port.usb</code>, <code>/var</code>, the folder listings <code>/run.list</code> / <code>/cap.list</code> / <code>/ss.list</code>
-/ <code>/proto.list</code> / <code>/plugin.list</code> as <code>{name, bytes, mtime, age_s}</code> records,
+/ <code>/proto.list</code> / <code>/plugin.list</code> as <code>{name, bytes, mtime, age_s}</code> records
+(<code>mtime</code> is ISO-8601, <code>age_s</code> seconds),
 profile-mapped device commands).  For everything else it
 is <code>null</code> and the command's rendered answer arrives in <code>output_lines</code> (markup
 flattened to plain text) -- <code>/help --json</code> is one envelope containing the

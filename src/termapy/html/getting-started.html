@@ -23,7 +23,7 @@
     
     
       
-        <title>Getting started - Termapy Help v0.75.0</title>
+        <title>Getting started - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1191,7 +1191,7 @@ the file.</p>
 <li>If no configs exist, the Quick Setup dialog appears.</li>
 </ul>
 <h2 id="user-interface-modes">User interface modes<a class="headerlink" href="#user-interface-modes" title="Permanent link">&para;</a></h2>
-<p>Termapy has two interface modes that you can switch between at any time:</p>
+<p>Termapy has three interface modes that you can switch between at any time:</p>
 <p><strong>TUI mode</strong> (default): a full-screen terminal UI built with Textual.
 Includes a title bar, toolbar buttons, scrollable output, command input
 with ghost-text suggestions, and modal dialogs for config, port selection,
@@ -1200,6 +1200,9 @@ scripts, and more.</p>
 stdin and writes to stdout. Useful for headless environments, SSH sessions,
 piping output, or when you prefer a minimal interface. Start with
 <code>termapy --cli</code> or set <code>"default_ui": "cli"</code> in your config.</p>
+<p><strong>VT100 mode:</strong> raw ANSI passthrough for devices that draw their own
+screens (menus, cursor-addressed dashboards).  Start with <code>termapy --vt100</code>
+or <code>/vt100</code> from a session; see <a href="vt100.html">VT100 mode</a>.</p>
 <h3 id="cli-completion">CLI completion<a class="headerlink" href="#cli-completion" title="Permanent link">&para;</a></h3>
 <p>CLI mode includes built-in completion powered by prompt_toolkit:</p>
 <ul>
@@ -1214,12 +1217,12 @@ disable it in your config:</p>
 <p>When output is piped to a file, completion is automatically disabled
 to keep the output clean.</p>
 <h3 id="switching-modes">Switching modes<a class="headerlink" href="#switching-modes" title="Permanent link">&para;</a></h3>
-<p>Use the <code>/tui</code> and <code>/cli</code> REPL commands to switch modes during a session.
+<p>Use the <code>/tui</code>, <code>/cli</code>, and <code>/vt100</code> REPL commands to switch modes during a session.
 The serial connection and config carry over; only the interface changes.</p>
 <p>You can also set the default mode in your config:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"default_ui"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tui"</span>
 </span></code></pre></div>
-<p>Set to <code>"cli"</code> to always start in CLI mode without the <code>--cli</code> flag.</p>
+<p>Set to <code>"cli"</code> or <code>"vt100"</code> to always start in that mode without the flag.</p>
 <h2 id="folder-layout">Folder layout<a class="headerlink" href="#folder-layout" title="Permanent link">&para;</a></h2>
 <p>All data for each config (logs, screenshots, scripts, command history,
 plugins) is stored alongside its JSON file in a subfolder:</p>
@@ -1227,22 +1230,24 @@ plugins) is stored alongside its JSON file in a subfolder:</p>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>├── iot_device/
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>│   ├── iot_device.cfg         # config file
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>│   ├── iot_device.log         # session log
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>│   ├── .cmd_history.txt       # command history
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>│   ├── iot_device.history     # command history
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>│   ├── ss/                    # screenshots
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>│   ├── run/                   # script files
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>│   ├── proto/                 # protocol test scripts (.pro)
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>│   ├── cap/                   # data capture output files
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>│   ├── viz/                   # per-config packet visualizers
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>│   └── plugin/                # per-config plugins
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>└── plugin/                    # global plugins (all configs)
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>│   ├── prof/                  # script profiling CSVs (/run.profile)
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>│   ├── viz/                   # per-config packet visualizers
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>│   └── plugin/                # per-config plugins
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>└── plugin/                    # global plugins (all configs)
 </span></code></pre></div>
 <h2 id="title-bar">Title bar<a class="headerlink" href="#title-bar" title="Permanent link">&para;</a></h2>
 <p>The title bar buttons (left to right):</p>
 <ul>
-<li><strong>Cfg</strong> opens the config picker (New / Edit / Load / Cancel).</li>
-<li><strong>Run</strong> opens the script picker.</li>
-<li><strong>Proto</strong> opens the protocol test picker.</li>
 <li><strong>Help</strong> opens this help guide.</li>
+<li><strong>Cfg</strong> opens the config picker (Load / Edit / New / Rename / Delete / Cancel), listed newest first with size, age, port, baud, and title.</li>
+<li><strong>Run</strong> opens the script picker (Run / Edit / New / Rename / Delete / Cancel) with each script's docstring summary.</li>
+<li><strong>Proto</strong> opens the protocol test picker (Run / Debug / Edit / New / Rename / Delete / Cancel).</li>
+<li><strong>Update</strong> appears only when a newer termapy is available on PyPI.</li>
 <li><strong>Title</strong> shows the config name (or custom title). Click to edit the config.</li>
 <li><strong>Port</strong> shows the port name and baud rate. Click to pick a different serial port.</li>
 <li><strong>Status</strong> shows connection status: green <strong>Connected</strong> or red <strong>Disconnected</strong>. Click to toggle the connection.</li>
@@ -1271,7 +1276,7 @@ path to open it in your default application.</p>
 <li>As you type, ghost-text suggestions appear from REPL commands and device history; press <strong>Right</strong> to accept.</li>
 <li>Prefix a command with <code>/</code> to run a local REPL command instead of sending it to the device.</li>
 </ul>
-<p>Type <code>/help</code> to see all available REPL commands. Three ways to find
+<p>Type <code>/help</code> to see all available REPL commands. Several ways to find
 things, man-inspired:</p>
 <ul>
 <li><code>/help</code>                  -- clean landscape of every command (name + one-liner).</li>

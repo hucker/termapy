@@ -23,7 +23,7 @@
     
     
       
-        <title>Configuration - Termapy Help v0.75.0</title>
+        <title>Configuration - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1463,7 +1463,7 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 </tr>
 <tr>
 <td><code>custom_buttons</code></td>
-<td><code>[]</code></td>
+<td><code>[4 entries]</code></td>
 <td>Custom button objects (see <a href="custom-buttons.html">Custom Buttons</a>)</td>
 </tr>
 </tbody>
@@ -1478,11 +1478,16 @@ a manual connect attempt fails -- it does not control startup behavior.
 While reconnecting, the title bar turns amber and shows a spinner.</p>
 <h2 id="config-management">Config management<a class="headerlink" href="#config-management" title="Permanent link">&para;</a></h2>
 <p>Click the <strong>Cfg</strong> button in the title bar, click the config name, or use the
-command palette to open the config picker. The picker has four actions:</p>
+command palette to open the config picker. Configs are listed newest
+first with size, last-updated age, port, baud, and title.</p>
+<p><img alt="Config picker" src="img/doc_37_config_picker.svg" /></p>
+<p>The picker's actions:</p>
 <ul>
-<li><strong>New:</strong> create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.</li>
-<li><strong>Edit:</strong> open the highlighted config in the JSON editor</li>
 <li><strong>Load:</strong> switch to the highlighted config. If the configured port is not available, a port picker is shown.</li>
+<li><strong>Edit:</strong> open the highlighted config in the JSON editor</li>
+<li><strong>New:</strong> create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.</li>
+<li><strong>Rename:</strong> rename the highlighted config. The <code>termapy_cfg/&lt;name&gt;/</code> folder and the <code>&lt;name&gt;.cfg</code> inside it move together (with the command history); renaming the active config reloads it.</li>
+<li><strong>Delete:</strong> delete the highlighted config file (asks for confirmation)</li>
 <li><strong>Cancel:</strong> close the picker</li>
 </ul>
 <p>The JSON editor provides:</p>

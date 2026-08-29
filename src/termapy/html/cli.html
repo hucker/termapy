@@ -23,7 +23,7 @@
     
     
       
-        <title>Command-line flags - Termapy Help v0.75.0</title>
+        <title>Command-line flags - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1240,8 +1240,10 @@
 <h1 id="command-line-flags">Command-line flags<a class="headerlink" href="#command-line-flags" title="Permanent link">&para;</a></h1>
 <p>Termapy is a TUI first, but a few things are easier from the shell: <strong>listing
 what's plugged in, watching for changes, and inspecting a chip without
-launching the UI</strong>. Every <code>--flag</code> below prints plain text to stdout and
-exits; none of them load the TUI.</p>
+launching the UI</strong>. Every flag in the inventory sections below prints
+plain text to stdout and exits; none of them load the TUI.  (The
+session flags at the end -- <code>--cli</code>, <code>--run</code>, <code>-e</code> -- start a session
+instead.)</p>
 <p>Because these flags skip the Textual import, they start fast — no
 config loading, no widget tree, no config directory scan.  Handy when
 you just want to answer "what's plugged in?" from the shell.</p>
@@ -1249,6 +1251,7 @@ you just want to answer "what's plugged in?" from the shell.</p>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>termapy<span class="w"> </span>--watch<span class="w">                 </span><span class="c1"># live log of plug/unplug/open/close</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>termapy<span class="w"> </span>--info<span class="w">                  </span><span class="c1"># full per-port chip dump</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>termapy<span class="w"> </span>--info<span class="o">=</span>COM4<span class="w">             </span><span class="c1"># just COM4</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>termapy<span class="w"> </span>--usb<span class="w">                   </span><span class="c1"># the whole USB tree, serial ports marked</span>
 </span></code></pre></div>
 <h2 id="-ports-whats-plugged-in-right-now"><code>--ports</code>: what's plugged in right now<a class="headerlink" href="#-ports-whats-plugged-in-right-now" title="Permanent link">&para;</a></h2>
 <p>A single-line-per-port table, same schema as the in-app port picker.</p>
@@ -1409,7 +1412,7 @@ found or no ports are connected.</p>
 </tr>
 <tr>
 <td><code>--json</code></td>
-<td>Emit a JSON array instead of the column table; also for <code>--chips</code>.</td>
+<td>Emit a JSON array instead of the column table; also for <code>--chips</code> and <code>--usb</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -1483,8 +1486,28 @@ pyserial's <code>loop://</code> URL handler is reachable but not enumerated.</p>
 <td>Filter the table (case-insensitive substring match).</td>
 </tr>
 <tr>
+<td><code>--usb</code></td>
+<td>Whole USB tree with serial ports marked (Windows and Linux); pairs with <code>--json</code>.</td>
+</tr>
+<tr>
 <td><code>--check</code></td>
 <td>Validate your config, print JSON status, exit.</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>Print the installed version and exit.</td>
+</tr>
+<tr>
+<td><code>--demo</code></td>
+<td>Set up (if needed) and start the demo device config.</td>
+</tr>
+<tr>
+<td><code>--vt100</code></td>
+<td>Start in VT100 passthrough mode (see <a href="vt100.html">VT100 mode</a>).</td>
+</tr>
+<tr>
+<td><code>--no-color</code></td>
+<td>Plain output without ANSI color (implied by <code>-e</code>).</td>
 </tr>
 <tr>
 <td><code>--cfg-dir PATH</code></td>
@@ -1518,14 +1541,14 @@ pyserial's <code>loop://</code> URL handler is reachable but not enumerated.</p>
 </table>
 <p>Any REPL command also accepts <code>--json</code> to render its result as a JSON
 envelope -- <code>termapy --cli -e "/port.list --json"</code> pipes cleanly to <code>jq</code>.
-See <a href="scripting.html#json-output---json-on-any-command">Scripting</a>.</p>
+See <a href="scripting.html#json-output-termrequest-on-or---json-per-call">Scripting</a>.</p>
 <p><code>termapy --help</code> has the full list.</p>
 <h2 id="one-shot-exec-e-exec">One-shot exec: <code>-e</code> / <code>--exec</code><a class="headerlink" href="#one-shot-exec-e-exec" title="Permanent link">&para;</a></h2>
 <p>Run a single command, print its output to stdout, exit with status 0
 (success) or 1 (failure):</p>
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>termapy<span class="w"> </span>--cli<span class="w"> </span>my_device<span class="w"> </span>-e<span class="w"> </span><span class="s2">"AT+VER"</span><span class="w">           </span><span class="c1"># send a device command</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>termapy<span class="w"> </span>--cli<span class="w"> </span>my_device<span class="w"> </span>-e<span class="w"> </span><span class="s2">"/help port"</span><span class="w">       </span><span class="c1"># run a slash command</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>termapy<span class="w"> </span>--cli<span class="w"> </span>my_device<span class="w"> </span>--exec<span class="w"> </span><span class="s2">"/proto.crc.calc CRC-16/MODBUS data=01 03 00 00 00 02"</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>termapy<span class="w"> </span>--cli<span class="w"> </span>my_device<span class="w"> </span>--exec<span class="w"> </span><span class="s2">"/proto.crc.calc crc16-modbus 01 03 00 00 00 02"</span>
 </span></code></pre></div>
 <h3 id="worked-example">Worked example<a class="headerlink" href="#worked-example" title="Permanent link">&para;</a></h3>
 <p>The general shape is <code>termapy &lt;cfg&gt; --cli -e "&lt;command&gt;"</code>.  For a

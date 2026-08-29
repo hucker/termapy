@@ -23,7 +23,7 @@
     
     
       
-        <title>Environment and compatibility - Termapy Help v0.75.0</title>
+        <title>Environment and compatibility - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1548,7 +1548,7 @@ anything longer, <code>Ctrl+S</code> saves an SVG screenshot and <code>Ctrl+T</c
 screenshot -- often more useful than a selection.</p>
 <h3 id="ctrl-key-capture-windows-linux">Ctrl-key capture (Windows + Linux)<a class="headerlink" href="#ctrl-key-capture-windows-linux" title="Permanent link">&para;</a></h3>
 <p>VS Code's integrated terminal on Windows and Linux captures
-<code>Ctrl+P</code> (Quick Open), <code>Ctrl+S</code> (Save), and <code>Ctrl+T</code> (New Tab) before
+<code>Ctrl+P</code> (Quick Open), <code>Ctrl+S</code> (Save), and <code>Ctrl+T</code> (Go to Symbol in Workspace) before
 they reach the shell.  Inside termapy that means those shortcuts
 never fire unless you rebind them in VS Code.</p>
 <p><strong>macOS VS Code</strong> uses <code>Cmd+*</code> for those shortcuts, so <code>Ctrl+*</code>
@@ -1673,7 +1673,7 @@ access.</p>
 node; group membership isn't needed if the container runs as root
 (which it does by default).</p>
 <h3 id="ci-headless">CI / headless<a class="headerlink" href="#ci-headless" title="Permanent link">&para;</a></h3>
-<p><code>--check</code> and <code>--cli --run</code> work without an attached TTY.  Don't use
+<p><code>--check</code>, <code>--run</code>, and <code>-e</code>/<code>--exec</code> work without an attached TTY (<code>--run</code> and <code>--exec</code> imply <code>--cli</code>).  Don't use
 the TUI headlessly — it needs a real terminal to render into.</p>
 <h2 id="reporting-environment-issues">Reporting environment issues<a class="headerlink" href="#reporting-environment-issues" title="Permanent link">&para;</a></h2>
 <p>If you hit something not documented here, the useful diagnostic
@@ -1685,7 +1685,7 @@ bundle is:</p>
 <li><code>echo $TERM</code></li>
 <li><code>echo $TERM_PROGRAM</code> (empty on most terminals; <code>"vscode"</code> under
   VS Code; <code>"Apple_Terminal"</code> under Terminal.app; etc.)</li>
-<li>Screenshot of the misbehaviour (<code>Ctrl+S</code> inside termapy saves an
+<li>Screenshot of the misbehavior (<code>Ctrl+S</code> inside termapy saves an
   SVG that captures the exact render)</li>
 </ul>
 <p>Most environment issues reduce to "terminal doesn't forward the key"

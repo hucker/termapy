@@ -23,7 +23,7 @@
     
     
       
-        <title>Protocol testing - Termapy Help v0.75.0</title>
+        <title>Protocol testing - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -652,13 +652,30 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#script-directives" class="md-nav__link">
+  <a href="#script-keys" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Script directives
+        Script keys
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Script keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#legacy-flat-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Legacy flat format
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1039,13 +1056,30 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#script-directives" class="md-nav__link">
+  <a href="#script-keys" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Script directives
+        Script keys
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Script keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#legacy-flat-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Legacy flat format
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1152,40 +1186,66 @@
 Each step sends data, waits for a response, and reports PASS/FAIL.</p>
 <p>For interactive sending and CRC commands, see <a href="serial-tools.html">Serial Tools</a>.</p>
 <h2 id="protocol-test-scripts">Protocol test scripts<a class="headerlink" href="#protocol-test-scripts" title="Permanent link">&para;</a></h2>
-<p>Create <code>.pro</code> files in the per-config <code>proto/</code> folder with send/expect sequences:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a># example.pro
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>@timeout 1000ms
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>@frame_gap 50ms
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>label: Read registers
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>send: 01 03 00 00 00 0A C5 CD
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>expect: 01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>label: Write register
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>send: 01 06 00 01 00 03 98 0B
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>expect: 01 06 00 01 00 03 98 0B
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>timeout: 500ms
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a># Text protocols work too
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>label: AT query
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>send: "AT+VERSION?\r"
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>expect: "V1." ** ** "\r"
+<p>Create <code>.pro</code> files in the per-config <code>proto/</code> folder.  A script is
+TOML: a header of defaults, then one <code>[[test]]</code> table per send/expect
+step.  The Proto picker lists them newest first with size and age, and
+<code>/proto.rename</code> renames one.</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># example.pro</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Modbus smoke test"</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"1000ms"</span><span class="w">          </span><span class="c1"># default expect timeout</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">frame_gap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"50ms"</span><span class="w">          </span><span class="c1"># silence that ends a frame</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">setup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"/term.hex on"</span><span class="p">]</span><span class="w">    </span><span class="c1"># commands run before the first test</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">teardown</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"/term.hex off"</span><span class="p">]</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">[[test]]</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Read registers"</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">send</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"01 03 00 00 00 0A C5 CD"</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">expect</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **"</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">[[test]]</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Write register"</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">send</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"01 06 00 01 00 03 98 0B"</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="n">expect</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"01 06 00 01 00 03 98 0B"</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"500ms"</span><span class="w">           </span><span class="c1"># per-test override</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># Text protocols work too: quote the text, \r \n escapes are honored</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="k">[[test]]</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"AT query"</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="n">send</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'"AT+VERSION?\r"'</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="n">expect</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'"V1." ** ** "\r"'</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="n">send_fmt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Title:AT_Command Command:S1-*"</span><span class="w">      </span><span class="c1"># optional inline format specs</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="n">expect_fmt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Title:AT_Response Response:S1-*"</span><span class="w">  </span><span class="c1"># (see the format spec language below)</span>
 </span></code></pre></div>
-<p>Run with <code>/proto.run example.pro</code>. Each step reports PASS/FAIL.</p>
+<p>Run with <code>/proto.run example.pro</code>. Each test reports PASS/FAIL.</p>
 <p><img alt="Protocol test results" src="img/doc_11_proto_run.svg" /></p>
-<h2 id="script-directives">Script directives<a class="headerlink" href="#script-directives" title="Permanent link">&para;</a></h2>
+<h2 id="script-keys">Script keys<a class="headerlink" href="#script-keys" title="Permanent link">&para;</a></h2>
+<p>Header (defaults for every test):</p>
 <ul>
-<li><code>@timeout &lt;duration&gt;</code>: default expect timeout (default 1000ms)</li>
-<li><code>@frame_gap &lt;duration&gt;</code>: silence gap to detect frame end (default 50ms)</li>
-<li><code>@strip_ansi</code>: strip ANSI escape sequences from responses before matching</li>
-<li><code>label: &lt;text&gt;</code>: name for the next step</li>
-<li><code>send: &lt;hex or "text"&gt;</code>: transmit raw bytes (no line ending appended)</li>
-<li><code>expect: &lt;pattern&gt;</code>: wait for response and match (<code>**</code> = any byte)</li>
-<li><code>timeout: &lt;duration&gt;</code>: per-step timeout override</li>
-<li><code>delay: &lt;duration&gt;</code>: fixed sleep</li>
-<li><code>flush: &lt;duration&gt;</code>: wait for serial silence, then discard received bytes</li>
-<li><code>cmd: &lt;text&gt;</code>: send a plain text command with config line ending</li>
+<li><code>name</code>: script display name</li>
+<li><code>timeout</code>: default expect timeout (default 1000ms)</li>
+<li><code>frame_gap</code>: silence gap that ends a frame (default 50ms)</li>
+<li><code>strip_ansi</code>: strip ANSI escape sequences from responses before matching</li>
+<li><code>quiet</code>: hide setup/teardown output</li>
+<li><code>setup</code> / <code>teardown</code>: lists of commands run before the first test / after the last</li>
+<li><code>viz</code>: visualizer names allowed in the debug screen's dropdown (empty = all)</li>
+<li><code>send_fmt</code> / <code>expect_fmt</code>: default inline format specs for TX / RX data</li>
+<li><code>json_file</code>: write the results as JSON to this file after a run</li>
 </ul>
+<p>Per <code>[[test]]</code>:</p>
+<ul>
+<li><code>name</code>: test name</li>
+<li><code>send</code>: hex bytes (<code>01 03 ...</code>) or quoted text (<code>'"AT\r"'</code>); nothing is appended</li>
+<li><code>expect</code>: pattern to match (<code>**</code> = any byte); hex or quoted text</li>
+<li><code>timeout</code>: per-test override</li>
+<li><code>setup</code> / <code>teardown</code>: commands around this one test</li>
+<li><code>viz</code>: force one visualizer for this test in the debug screen</li>
+<li><code>send_fmt</code> / <code>expect_fmt</code>: inline format specs for this test</li>
+</ul>
+<h3 id="legacy-flat-format">Legacy flat format<a class="headerlink" href="#legacy-flat-format" title="Permanent link">&para;</a></h3>
+<p>Older scripts use a colon-keyed flat format (<code>@timeout 1000ms</code>,
+<code>label:</code>, <code>send:</code>, <code>expect:</code>, <code>timeout:</code>, <code>delay:</code>, <code>flush:</code>, <code>cmd:</code>).
+It is still parsed when a file is not valid TOML, but JSON result
+output (<code>json_file</code>, <code>--json</code>) needs the TOML form.</p>
 <h2 id="packet-visualizers">Packet visualizers<a class="headerlink" href="#packet-visualizers" title="Permanent link">&para;</a></h2>
 <p>The proto debug screen uses pluggable visualizers to decode packet bytes into
 named columns. Built-in visualizers (Hex, Text, Modbus) ship with termapy. Add
@@ -1196,7 +1256,7 @@ string" to display the raw format spec above each table.</p>
 <p><strong>Selecting visualizers in .pro files:</strong></p>
 <p>Use <code>viz</code> in the script header to limit which visualizers appear in the dropdown.
 Use <code>viz</code> in a <code>[[test]]</code> section to force that visualizer for the test:</p>
-<div class="language-toml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">viz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"Modbus"</span><span class="p">]</span><span class="w">          </span><span class="c1"># header: only show Hex, Text, Modbus in dropdown</span>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">viz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"Modbus"</span><span class="p">]</span><span class="w">          </span><span class="c1"># header: only offer Modbus in the dropdown</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">[[test]]</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Read registers"</span>

@@ -23,7 +23,7 @@
     
     
       
-        <title>Installation - Termapy Help v0.75.0</title>
+        <title>Installation - Termapy Help v0.76.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-header__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.75.0
+            Termapy Help v0.76.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.75.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.75.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.75.0
+    Termapy Help v0.76.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1170,7 +1170,7 @@
                   
 
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
-<p>Two commands for each package manager: one to install, one to upgrade.
+<p>Install, upgrade, and uninstall for each package manager.
 We strongly recommend <a href="https://docs.astral.sh/uv/">uv</a>; pip works but
 installs into whichever Python interpreter you run it with.</p>
 <p>⚠️ <strong>Exit any running termapy before upgrading.</strong>  The running program
@@ -1200,7 +1200,7 @@ run the upgrade command, then relaunch.</p>
 have to think about it.  Lazy imports inside termapy mean unused deps
 cost nothing at runtime: TUI/CLI users never load pydantic, and <code>--mcp</code>
 users never load Textual.  The only tradeoff is disk footprint --
-<code>[all]</code> adds ~16 MB on top of the base install -- which is rounding
+<code>[all]</code> adds ~16 MB (almost all of it the <code>[mcp]</code> extra) on top of the base install -- which is rounding
 error on any modern dev machine.</p>
 <h2 id="slim-installs">Slim installs<a class="headerlink" href="#slim-installs" title="Permanent link">&para;</a></h2>
 <p>If you specifically need a smaller footprint (embedded targets, slim

@@ -1216,7 +1216,7 @@ Only the reader is long-lived. At most two workers run concurrently: the serial 
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 3363 tests, 72% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 3394 tests, 72% core-module coverage</summary>
 
 Run the full suite with `uv run pytest`. (The count above is the one place it
 is tracked; `release_prep` refreshes it each release.)

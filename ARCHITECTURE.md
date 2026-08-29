@@ -632,7 +632,7 @@ files (see [Hooks](#hooks) for the host-registered exceptions).
 
 ## Suppressions
 
-Every lint/type/coverage pragma in `src/termapy` (excluding vendor) carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
+28 lint/type/coverage pragmas in `src/termapy` (excluding vendor). Every one carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
 
 ## Test coverage
 

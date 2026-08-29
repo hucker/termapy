@@ -108,6 +108,9 @@ class ConfigPicker(ModalScreen[tuple | None]):
         self.query_one("#picker-new", Button).tooltip = (
             "Create a new config."
         )
+        self.query_one("#picker-rename", Button).tooltip = (
+            "Rename the selected config (its folder and .cfg move together)."
+        )
         self.query_one("#picker-delete", Button).tooltip = (
             "Delete the selected config (asks for confirmation)."
         )
@@ -162,6 +165,13 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 new_btn = Button("New", id="picker-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                rename_btn = Button(
+                    "Rename",
+                    id="picker-rename",
+                    disabled=not has_configs or self.read_only,
+                )
+                rename_btn.styles.background = "darkcyan"
+                yield rename_btn
                 yield Button(
                     "Delete",
                     id="picker-delete",
@@ -178,6 +188,12 @@ class ConfigPicker(ModalScreen[tuple | None]):
         path = self._selected_path()
         if path:
             self.dismiss(("delete", path))
+
+    @on(Button.Pressed, "#picker-rename")
+    def rename_config_btn(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("rename", path))
 
     @on(Button.Pressed, "#picker-new")
     def new_config(self) -> None:

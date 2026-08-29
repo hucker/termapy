@@ -344,6 +344,41 @@ class TestRunDocstring:
             "the scriptable value follows the same newest-first order"
         )
 
+    def test_run_rename_keeps_extension_and_never_overwrites(self, repl_env, tmp_path):
+        # Arrange
+        engine, _, _, output = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "old.run").write_bytes(b"/echo hi\n")
+        (scripts_dir / "taken.run").write_bytes(b"/echo no\n")
+
+        # Act -- bare new name gets .run appended
+        result = engine.dispatch("run.rename old.run fresh")
+
+        # Assert
+        assert result.success, result.error
+        assert (scripts_dir / "fresh.run").is_file() and not (scripts_dir / "old.run").exists()
+        assert Path(str(result.value)).name == "fresh.run", "value is the new path"
+        assert any("Renamed old.run -> fresh.run" in text for text, _ in output)
+
+        # Act / Assert -- refusals leave the tree untouched
+        assert not engine.dispatch("run.rename fresh.run taken").success, "no overwrite"
+        assert not engine.dispatch("run.rename fresh.run other.pro").success, (
+            "a different extension is refused"
+        )
+        assert not engine.dispatch("run.rename fresh.run ../escape").success, (
+            "a name that leaves run/ is refused"
+        )
+        assert not engine.dispatch("run.rename missing.run x").success, "missing file"
+        assert (scripts_dir / "fresh.run").is_file(), "refused renames changed nothing"
+
+    def test_run_rename_wrong_arity_is_a_usage_error(self, repl_env, tmp_path):
+        engine, _, _, _ = repl_env
+        self._wire_scripts_dir(engine, tmp_path)
+        result = engine.dispatch("run.rename only_one")
+        assert not result.success and "Usage" in result.error, (
+            "the dispatcher renders usage from the declared params"
+        )
+
     def test_run_list_wants_data_returns_records_without_prose(self, repl_env, tmp_path):
         # Arrange
         engine, _, _, output = repl_env

@@ -167,6 +167,7 @@ Each config subfolder has a consistent set of subcommands:
 | `.explore`     | Open folder in file explorer             | all                                         |
 | `.show`        | Open newest file in system viewer        | all                                         |
 | `.dump {name}` | Print newest (or named) file to terminal | scripts, proto, plugins, viz, cap, prof     |
+| `.rename <old> <new>` | Rename a file (extension kept; never overwrites) | all                              |
 | `.clear`       | Delete all files                         | ss, cap, prof (generated output only)       |
 
 Examples:

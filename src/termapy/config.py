@@ -244,6 +244,84 @@ def cfg_path_for_name(name: str) -> Path:
     return cfg_dir() / name / f"{name}.cfg"
 
 
+def validate_file_stem(name: str) -> str | None:
+    """Why ``name`` cannot be a file or config name, or ``None`` if it can.
+
+    One rule for every rename: a bare name, no path separators (so it
+    cannot escape its folder), no whitespace (command arguments split on
+    it), nothing hidden.
+    """
+    if not name:
+        return "Name is required"
+    if any(char in name for char in "/\\"):
+        return f"Name may not contain path separators: {name}"
+    if any(char.isspace() for char in name):
+        return f"Name may not contain spaces: {name}"
+    if name.startswith("."):
+        return f"Name may not start with a dot: {name}"
+    if name in (".", ".."):
+        return f"Invalid name: {name}"
+    return None
+
+
+def rename_config(config_path: str, new_name: str) -> str:
+    """Rename a config -- folder and ``.cfg`` together -- and return the new path.
+
+    A config is ``termapy_cfg/<name>/<name>.cfg``: the folder holds the
+    run/, proto/, cap/ ... data, so the two names must move together.
+    When the folder is named after the config (the standard layout) it is
+    renamed with the file; a non-standard layout (folder named differently)
+    renames only the file.  The ``<name>.history`` sidecar follows the
+    file.  Nothing is overwritten: an existing target folder or file is
+    an error, as is a name that fails ``validate_file_stem``.
+
+    Args:
+        config_path: The existing ``.cfg`` file.
+        new_name: The new config name (no extension).
+
+    Returns:
+        The new ``.cfg`` path as a string.
+
+    Raises:
+        ValueError: Invalid name, unchanged name, or target exists.
+        FileNotFoundError: ``config_path`` does not exist.
+        OSError: The rename itself failed.
+    """
+    old = Path(config_path)
+    if not old.is_file():
+        raise FileNotFoundError(f"Config not found: {config_path}")
+    # "xm.cfg" and "xm" mean the same thing; without this the user who
+    # types the extension ends up with xm.cfg/xm.cfg.cfg.
+    if new_name.endswith(old.suffix):
+        new_name = new_name[: -len(old.suffix)]
+    reason = validate_file_stem(new_name)
+    if reason:
+        raise ValueError(reason)
+    if new_name == old.stem:
+        raise ValueError(f"Config is already named {new_name}")
+    folder = old.parent
+    standard_layout = folder.name == old.stem
+    if standard_layout:
+        new_folder = folder.parent / new_name
+        if new_folder.exists():
+            raise ValueError(f"Config already exists: {new_name}")
+    else:
+        new_folder = folder
+    new_path = new_folder / f"{new_name}.cfg"
+    if new_path.exists():
+        raise ValueError(f"Config already exists: {new_name}")
+    # Rename the file (and its history sidecar) inside the old folder
+    # first, then the folder: if the folder move fails the config is
+    # still a consistent <folder>/<new>.cfg pair the resolver can find.
+    old.rename(folder / f"{new_name}.cfg")
+    history = folder / f"{old.stem}{HISTORY_SUFFIX}"
+    if history.exists():
+        history.rename(folder / f"{new_name}{HISTORY_SUFFIX}")
+    if standard_layout:
+        folder.rename(new_folder)
+    return str(new_path)
+
+
 def connection_string(
     cfg: dict, level: str = "medium", actual_port: str = ""
 ) -> str:

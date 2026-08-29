@@ -62,6 +62,9 @@ class ScriptPicker(ModalScreen[tuple | None]):
         self.query_one("#script-new", Button).tooltip = (
             "Create a new .run script."
         )
+        self.query_one("#script-rename", Button).tooltip = (
+            "Rename the selected script."
+        )
         self.query_one("#script-delete", Button).tooltip = (
             "Delete the selected script (asks for confirmation)."
         )
@@ -123,6 +126,13 @@ class ScriptPicker(ModalScreen[tuple | None]):
                 new_btn = Button("New", id="script-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                rename_btn = Button(
+                    "Rename",
+                    id="script-rename",
+                    disabled=not has_scripts or self.read_only,
+                )
+                rename_btn.styles.background = "darkcyan"
+                yield rename_btn
                 yield Button(
                     "Delete",
                     id="script-delete",
@@ -145,6 +155,13 @@ class ScriptPicker(ModalScreen[tuple | None]):
         path = self._selected_path()
         if path:
             self.dismiss(("delete", path))
+
+    @on(Button.Pressed, "#script-rename")
+    def rename_script(self) -> None:
+        """Dismiss with ``("rename", path)`` so the app can prompt for the new name."""
+        path = self._selected_path()
+        if path:
+            self.dismiss(("rename", path))
 
     @on(Button.Pressed, "#script-new")
     def new_script(self) -> None:

@@ -63,6 +63,9 @@ class ProtoPicker(ModalScreen[tuple | None]):
         self.query_one("#proto-new", Button).tooltip = (
             "Create a new protocol script."
         )
+        self.query_one("#proto-rename", Button).tooltip = (
+            "Rename the selected protocol script."
+        )
         self.query_one("#proto-delete", Button).tooltip = (
             "Delete the selected script (asks for confirmation)."
         )
@@ -106,6 +109,13 @@ class ProtoPicker(ModalScreen[tuple | None]):
                 new_btn = Button("New", id="proto-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                rename_btn = Button(
+                    "Rename",
+                    id="proto-rename",
+                    disabled=not has_protos or self.read_only,
+                )
+                rename_btn.styles.background = "darkcyan"
+                yield rename_btn
                 yield Button(
                     "Delete",
                     id="proto-delete",
@@ -127,6 +137,12 @@ class ProtoPicker(ModalScreen[tuple | None]):
         path = self._selected_path()
         if path:
             self.dismiss(("delete", path))
+
+    @on(Button.Pressed, "#proto-rename")
+    def rename_proto(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("rename", path))
 
     @on(Button.Pressed, "#proto-new")
     def new_proto(self) -> None:

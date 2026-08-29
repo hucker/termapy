@@ -29,9 +29,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from termapy.config import open_with_system
+from termapy.config import open_with_system, validate_file_stem
 from termapy.folders import FOLDERS, FolderSpec
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins.params import ParamSpec
 from termapy.scripting import format_age, format_size
 
 if TYPE_CHECKING:
@@ -287,6 +288,62 @@ def _make_clear_handler(folder: str, pattern: str):
     return handler
 
 
+def rename_file(data_dir: Path, old_name: str, new_name: str, ext: str) -> Path:
+    """Rename ``old_name`` to ``new_name`` inside ``data_dir``; return the new path.
+
+    The rules every frontend shares (the pickers dispatch the same
+    command a CLI or MCP caller types):
+
+    - both names stay inside the folder (no separators, no ``..``);
+    - the extension is kept: a bare new name gets ``ext`` appended, a
+      different extension is refused (``ext="*"`` folders keep the old
+      file's own suffix);
+    - nothing is overwritten.
+
+    Raises:
+        ValueError: A rule above failed, or the file does not exist.
+        OSError: The rename itself failed.
+    """
+    for name in (old_name, new_name):
+        if any(char in name for char in "/\\") or name in (".", ".."):
+            raise ValueError(f"Name may not contain path separators: {name}")
+    old = data_dir / old_name
+    if not old.is_file():
+        raise ValueError(f"File not found: {old_name}")
+    keep_ext = old.suffix if ext == "*" else ext
+    if Path(new_name).suffix == keep_ext:
+        new_name = Path(new_name).stem
+    elif Path(new_name).suffix:
+        raise ValueError(f"Extension must stay {keep_ext}: {new_name}")
+    reason = validate_file_stem(new_name)
+    if reason:
+        raise ValueError(reason)
+    new = data_dir / f"{new_name}{keep_ext}"
+    if new.exists():
+        raise ValueError(f"File already exists: {new.name}")
+    old.rename(new)
+    return new
+
+
+def _make_rename_handler(folder: str, ext: str):
+    """Handler: ``/<folder>.rename <old> <new>`` via ``rename_file``."""
+
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
+        data_dir = _folder_path(ctx, folder)
+        if data_dir is None:
+            return CmdResult.fail(msg="No config loaded.")
+        try:
+            new = rename_file(data_dir, ctx.arg("old"), ctx.arg("new"), ext)
+        except ValueError as e:
+            return CmdResult.fail(msg=str(e))
+        except OSError as e:
+            return CmdResult.fail(msg=f"Rename error: {e}")
+        ctx.io.output(f"  Renamed {ctx.arg('old')} -> {new.name}")
+        return CmdResult.ok(value=new)
+
+    return handler
+
+
 def _spec_for(folder: str) -> FolderSpec | None:
     """Look up the FolderSpec for a folder name, or None."""
     for spec in FOLDERS:
@@ -324,6 +381,16 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
             help=f"Open {folder}/ in the system file explorer.",
             handler=_make_explore_handler(folder),
             needs=CapabilitySet(gui_apps=True),
+        ),
+        "rename": Command(
+            help=f"Rename a file in {folder}/ (extension kept; never overwrites).",
+            handler=_make_rename_handler(folder, spec.ext),
+            params=[
+                ParamSpec("old", "str", positional=True, required=True,
+                          help="current filename"),
+                ParamSpec("new", "str", positional=True, required=True,
+                          help="new name (extension optional)"),
+            ],
         ),
     }
     if spec.showable:

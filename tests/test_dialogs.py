@@ -193,6 +193,28 @@ class TestScriptPicker:
 
         _run(scenario)
 
+    def test_rename_button_dismisses_with_the_highlighted_path(self, tmp_path):
+        async def scenario():
+            # Arrange
+            run_dir = tmp_path / "run"
+            run_dir.mkdir()
+            script = run_dir / "only.run"
+            script.write_bytes(b"/echo hi\n")
+            app = _Host()
+            async with app.run_test() as pilot:
+                results: list = []
+                app.push_screen(ScriptPicker(run_dir), callback=results.append)
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#script-rename")
+                await pilot.pause()
+
+                # Assert -- the app prompts for the name and dispatches /run.rename
+                assert results == [("rename", str(script))]
+
+        _run(scenario)
+
 
 class TestConfigPickerDetails:
     """The config picker's detail cell: ``PORT  BAUD  TITLE`` columns padded

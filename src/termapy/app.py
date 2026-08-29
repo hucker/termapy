@@ -46,6 +46,7 @@ from termapy.config import (
     load_config,
     open_serial,
     open_with_system,
+    rename_config,
     setup_demo_config,
 )
 
@@ -1912,6 +1913,8 @@ class SerialTerminal(TerminalHost, App):
                 ConfigEditor(cfg, result[1]),
                 callback=self._on_config_result,
             )
+        elif action == "rename":
+            self._rename_config(result[1])
         elif action == "delete":
             is_active = result[1] == self.config_path
             cfg_path_str = result[1]
@@ -1947,6 +1950,42 @@ class SerialTerminal(TerminalHost, App):
                     )
 
             self._confirm_delete(result[1], "config", on_deleted=_after_delete)
+
+    def _rename_config(self, path: str) -> None:
+        """Prompt for a new name, then rename the config's folder and file together.
+
+        A config is ``termapy_cfg/<name>/<name>.cfg``; ``config.rename_config``
+        moves both.  If the renamed config is the ACTIVE one, every derived
+        path (run/, proto/, cap/, the history sidecar, the log) just moved,
+        so it is reloaded through the same path Load uses -- a forced
+        reload keeps the session consistent rather than pointing at a
+        folder that no longer exists.
+        """
+        old = Path(path)
+
+        def _on_name(new_name: str | None) -> None:
+            if not new_name or new_name == old.stem:
+                return
+            was_active = path == self.config_path
+            try:
+                new_path = rename_config(path, new_name)
+            except (ValueError, OSError) as e:
+                self._status(f"Rename failed: {e}", "red")
+                return
+            self._status(f"Renamed config: {old.stem} -> {new_name}", "green")
+            if not was_active:
+                return
+            try:
+                cfg = load_config(new_path)
+            except CONFIG_LOAD_ERRORS as e:
+                self._status(f"Failed to reload renamed config: {e}", "red")
+                return
+            self._check_port_and_switch(cfg, new_path)
+
+        self.push_screen(
+            FilenameDialog(title=f"Rename config '{old.stem}' to:", value=old.stem),
+            callback=_on_name,
+        )
 
     def _on_config_result(self, *args, **kwargs):
         """Delegate to ``pickers.on_config_result``."""

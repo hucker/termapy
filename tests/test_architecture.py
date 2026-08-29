@@ -35,8 +35,7 @@ ALLOWED_CORE_IMPORTS: frozenset[tuple[str, str]] = frozenset({
     ("termapy.builtins.commands.edit", "make_explore_handler"),
     ("termapy.builtins.commands.edit", "make_list_handler"),
     # (2) Helper modules under commands/ that are not plugins.
-    ("termapy.builtins.commands._cfg_icon", "find_launcher_for_cfg"),
-    ("termapy.builtins.commands._cfg_icon", "remove_launcher_at"),
+    ("termapy.builtins.commands._cfg_icon", "retire_launcher"),
     ("termapy.builtins.commands", "_run_record"),
 })
 

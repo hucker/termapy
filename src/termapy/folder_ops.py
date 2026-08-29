@@ -131,12 +131,31 @@ def file_columns(files: list[Path]) -> list[FileColumns]:
     ]
 
 
+def format_file_header(rows: list[FileColumns], detail: str = "") -> str:
+    """``NAME  SIZE  UPDATED  <detail>`` sized to ``rows``' columns.
+
+    Every header is left-aligned at its column's left edge, including the
+    one over the right-aligned sizes -- one rule reads as a header row,
+    per-column alignment reads as random.  Shared by the prose listings
+    and the TUI pickers so a file reads the same wherever it is listed.
+    ("UPDATED" fits: the narrowest age string, "just now", is 8 cells.)
+    """
+    if not rows:
+        return ""
+    first = rows[0]
+    return (
+        f"{'NAME':<{len(first.name)}}  {'SIZE':<{len(first.size)}}  "
+        f"{'UPDATED':<{len(first.age)}}  {detail}"
+    ).rstrip()
+
+
 def format_file_lines(files: list[Path]) -> list[str]:
     """``name  size  age`` listing lines, one per file, columns aligned.
 
     The age pad is kept so a caller that appends a trailing column
     (``/run.list`` adds the docstring summary) gets it aligned; a caller
-    that prints the line as-is should ``rstrip()`` it.
+    that prints the line as-is should ``rstrip()`` it.  Print
+    ``format_file_header`` above them so the columns are labeled.
     """
     return [f"{row.name}  {row.size}  {row.age}" for row in file_columns(files)]
 
@@ -168,6 +187,7 @@ def _make_list_handler(folder: str, pattern: str):
             ctx.io.output(f"  {folder}/ (empty)")
             return CmdResult.ok(value="")
         ctx.io._write(f"  {folder}/")
+        ctx.io._write(f"    {format_file_header(file_columns(files))}", "dim")
         for line in format_file_lines(files):
             ctx.io._write(f"    {line.rstrip()}")
         return CmdResult.ok(value=names)

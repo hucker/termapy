@@ -1920,28 +1920,13 @@ class SerialTerminal(TerminalHost, App):
             cfg_path_str = result[1]
 
             def _after_delete():
-                # Clean up any stale desktop launcher that pointed
-                # at this cfg; the user just told us they don't
-                # want the cfg anymore, so the icon would be a
-                # dead link.  Silent best-effort -- a missing
-                # launcher is the common case, and a permission
-                # failure shouldn't block the cfg delete.
-                from termapy.builtins.commands._cfg_icon import (
-                    find_launcher_for_cfg,
-                    remove_launcher_at,
-                )
-                launcher = find_launcher_for_cfg(Path(cfg_path_str))
-                if launcher is not None:
-                    try:
-                        remove_launcher_at(launcher)
-                        self._status(
-                            f"Removed desktop launcher: {launcher.name}",
-                            "green",
-                        )
-                    except OSError as e:
-                        self._status(
-                            f"Launcher cleanup failed: {e}", "yellow",
-                        )
+                # A launcher pointing at a deleted cfg is a dead link;
+                # retire it (best-effort, see retire_launcher).
+                from termapy.builtins.commands._cfg_icon import retire_launcher
+
+                retired = retire_launcher(Path(cfg_path_str))
+                if retired is not None:
+                    self._status(*retired)
                 if is_active:
                     self.config_path = ""
                     self.push_screen(
@@ -1973,6 +1958,15 @@ class SerialTerminal(TerminalHost, App):
                 self._status(f"Rename failed: {e}", "red")
                 return
             self._status(f"Renamed config: {old.stem} -> {new_name}", "green")
+            # A launcher embeds the OLD cfg path, so it is a dead link now,
+            # the same as after a delete; retire it and say how to get a
+            # fresh one (creating it needs the renamed cfg to be active).
+            from termapy.builtins.commands._cfg_icon import retire_launcher
+
+            retired = retire_launcher(Path(path))
+            if retired is not None:
+                message, color = retired
+                self._status(f"{message} -- run /cfg.icon to recreate it for '{new_name}'", color)
             if not was_active:
                 return
             try:

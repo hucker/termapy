@@ -13,7 +13,7 @@ from rich.text import Text
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from termapy.folder_ops import file_columns
+from termapy.folder_ops import file_columns, format_file_header
 
 # Shared CSS for modal dialog buttons.
 _MODAL_BTN_CSS = """
@@ -73,16 +73,7 @@ def _populate_file_option_list(
     rows = file_columns(files)
     if not rows:
         return 0
-    first = rows[0]
-    # Every header is left-aligned at its column's left edge, including the
-    # ones over right-aligned numbers -- one rule reads as a header row,
-    # per-column alignment reads as random.  "UPDATED" fits: the narrowest
-    # age string ("just now") is 8 cells.
-    header = Text(
-        f"{'NAME':<{len(first.name)}}  {'SIZE':<{len(first.size)}}  "
-        f"{'UPDATED':<{len(first.age)}}  {detail_header}".rstrip(),
-        style="bold",
-    )
+    header = Text(format_file_header(rows, detail_header), style="bold")
     ol.add_option(Option(header, disabled=True))
     for path, row in zip(files, rows, strict=True):
         name = label(path, row.name) if label else row.name

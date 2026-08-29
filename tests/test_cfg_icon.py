@@ -253,6 +253,24 @@ class TestLinuxCreate:
         assert result.success, "remove succeeded"
         assert not path.exists(), "file deleted"
 
+    def test_retire_launcher_removes_it_once_then_reports_none(self, cfg_env):
+        """The delete and rename paths share this: a launcher that embeds
+        the old cfg path is a dead link and goes; no launcher is a no-op."""
+        # Arrange
+        eng, cfg_dir, fake_home, _ = cfg_env
+        eng.dispatch("cfg.icon")
+        path = fake_home / ".local" / "share" / "applications" / "termapy-demo.desktop"
+        assert path.is_file(), "fixture sanity: launcher exists"
+
+        # Act
+        first = _cfg_icon.retire_launcher(cfg_dir / "demo.cfg")
+        second = _cfg_icon.retire_launcher(cfg_dir / "demo.cfg")
+
+        # Assert
+        assert first == ("Removed desktop launcher: termapy-demo.desktop", "green")
+        assert not path.exists(), "launcher deleted"
+        assert second is None, "nothing to retire the second time"
+
     def test_remove_without_launcher_fails(self, cfg_env):
         # Arrange / Act
         eng, _, _, _ = cfg_env

@@ -17,6 +17,7 @@ from termapy.plugins import (
     resolve_long_help,
 )
 from termapy.plugins.params import render_parameters_block
+from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -737,25 +738,14 @@ def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
 
 
 def _script_description(path: Path) -> str:
-    """Extract a description from a script's leading comment.
+    """The script's docstring summary -- the same one ``/run.list`` shows.
 
-    Valid format: first line starts with ``#``, second line is blank.
-    If the first line contains `` -- `` the text after the dashes wins.
+    One extractor (``run_docstring.extract_docstring``) for both listings;
+    this used to have its own rule (summary only if line 2 was BLANK), so
+    a docstring whose second line was a ``#`` continuation showed a
+    summary in ``/run.list`` and nothing here.
     """
-    try:
-        with open(path, encoding="utf-8") as f:
-            first = f.readline()
-            second = f.readline()
-        if not first.strip().startswith("#"):
-            return ""
-        if second.strip():
-            return ""
-        text = first.strip().lstrip("#").strip()
-        if " -- " in text:
-            text = text.split(" -- ", 1)[1]
-        return text
-    except OSError:
-        return ""
+    return extract_docstring(path)[0]
 
 
 def _render_scripts(ctx: PluginContext, scripts: list, prefix: str,

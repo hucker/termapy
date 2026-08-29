@@ -309,14 +309,20 @@ class TestRunDocstring:
         # Assert
         assert result.success, "/run.list succeeds"
         texts = [text for text, _ in output]
+        # A header labels the columns (the size/age pair reads as noise without one).
+        assert any(
+            text.strip().startswith("NAME") and text.rstrip().endswith("SUMMARY") for text in texts
+        ), f"header row NAME ... SUMMARY above the listing, got: {texts}"
         # Documented script: summary appears after the filename.
         assert any(
             "documented.run" in text and "Short summary" in text for text in texts
         ), f"summary should appear next to documented.run, got: {texts}"
-        # Undocumented script: still listed, but without a summary.
+        # Undocumented script: still listed, its line ends at the age column.
         assert any(
-            "undocumented.run" in text and "--" not in text for text in texts
-        ), "undocumented script listed without a summary separator"
+            "undocumented.run" in text and text.rstrip().endswith("ago") or
+            "undocumented.run" in text and text.rstrip().endswith("just now")
+            for text in texts
+        ), "undocumented script listed with no summary and no trailing padding"
 
     def test_run_list_newest_first_with_size_and_age(self, repl_env, tmp_path):
         # Arrange -- two scripts; the one that sorts FIRST by name is an hour old.
@@ -377,6 +383,33 @@ class TestRunDocstring:
         result = engine.dispatch("run.rename only_one")
         assert not result.success and "Usage" in result.error, (
             "the dispatcher renders usage from the declared params"
+        )
+
+    def test_landscape_and_run_list_agree_on_the_summary(self, repl_env, tmp_path):
+        """One extractor for both: a docstring whose second line is a ``#``
+        continuation (crc_tour.run's shape) showed a summary in /run.list
+        and nothing in /help.run.  A leading ``<name> -- `` is dropped in
+        both, since the name already has its own column."""
+        # Arrange
+        engine, _, _, output = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "tour.run").write_bytes(
+            b"# tour.run -- the whole API in one screen\n#\n# More detail.\n/echo hi\n"
+        )
+
+        # Act
+        engine.dispatch("help.run")
+        landscape = [text for text, _ in output if "tour" in text]
+        output.clear()
+        engine.dispatch("run.list")
+        listing = [text for text, _ in output if "tour.run" in text]
+
+        # Assert
+        assert landscape and "the whole API in one screen" in landscape[0], (
+            f"/help.run shows the summary: {landscape}"
+        )
+        assert listing and listing[0].rstrip().endswith("  the whole API in one screen"), (
+            f"/run.list shows the same summary without the filename prefix: {listing}"
         )
 
     def test_run_list_wants_data_returns_records_without_prose(self, repl_env, tmp_path):

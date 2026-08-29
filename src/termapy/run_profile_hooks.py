@@ -23,7 +23,13 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cmd_prefix
-from termapy.folder_ops import file_record, format_file_lines, list_entries
+from termapy.folder_ops import (
+    file_columns,
+    file_record,
+    format_file_header,
+    format_file_lines,
+    list_entries,
+)
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 
 if TYPE_CHECKING:
@@ -140,6 +146,7 @@ def _hook_run_profile_list(app, ctx, args: str) -> CmdResult:
     if not profs:
         ctx.io.output("  (no profile files)")
         return CmdResult.ok(value="")
+    ctx.io._write(f"  {format_file_header(file_columns(profs))}", "dim")
     for line in format_file_lines(profs):
         ctx.io._write(f"  {line.rstrip()}")
     return CmdResult.ok(value=names)

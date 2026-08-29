@@ -19,9 +19,11 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    _highlighted_file,
     _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
+from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.run_docstring import extract_docstring
 
 
@@ -60,6 +62,9 @@ class ScriptPicker(ModalScreen[tuple | None]):
         self.query_one("#script-new", Button).tooltip = (
             "Create a new .run script."
         )
+        self.query_one("#script-rename", Button).tooltip = (
+            "Rename the selected script."
+        )
         self.query_one("#script-delete", Button).tooltip = (
             "Delete the selected script (asks for confirmation)."
         )
@@ -92,15 +97,20 @@ class ScriptPicker(ModalScreen[tuple | None]):
         """
         from textual.widgets import Static
 
-        scripts = list_entries(self.scripts_dir, "*")
+        # Only .run files: the folder can hold editor backups, notes, or --
+        # with no config loaded -- be the current directory.
+        scripts = list_entries(self.scripts_dir, FOLDER_PATTERNS[RUN])
         with Vertical(id="script-dialog"):
             yield Static("Select Run File", id="script-title")
             ol = OptionList(id="script-list")
-            _populate_file_option_list(
-                ol, scripts, detail=lambda script: extract_docstring(script)[0]
+            first = _populate_file_option_list(
+                ol,
+                scripts,
+                detail=lambda script: extract_docstring(script)[0],
+                detail_header="SUMMARY",
             )
             if scripts:
-                ol.highlighted = 0
+                ol.highlighted = first
             yield ol
             has_scripts = bool(scripts)
             with Horizontal(id="script-buttons"):
@@ -116,6 +126,13 @@ class ScriptPicker(ModalScreen[tuple | None]):
                 new_btn = Button("New", id="script-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                rename_btn = Button(
+                    "Rename",
+                    id="script-rename",
+                    disabled=not has_scripts or self.read_only,
+                )
+                rename_btn.styles.background = "darkcyan"
+                yield rename_btn
                 yield Button(
                     "Delete",
                     id="script-delete",
@@ -130,10 +147,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
         ``None`` covers both "list is empty" and "nothing highlighted"
         — callers should treat it as "no-op, don't dismiss."
         """
-        ol = self.query_one("#script-list", OptionList)
-        if ol.highlighted is not None:
-            return str(ol.get_option_at_index(ol.highlighted).id)
-        return None
+        return _highlighted_file(self.query_one("#script-list", OptionList))
 
     @on(Button.Pressed, "#script-delete")
     def delete_script(self) -> None:
@@ -141,6 +155,13 @@ class ScriptPicker(ModalScreen[tuple | None]):
         path = self._selected_path()
         if path:
             self.dismiss(("delete", path))
+
+    @on(Button.Pressed, "#script-rename")
+    def rename_script(self) -> None:
+        """Dismiss with ``("rename", path)`` so the app can prompt for the new name."""
+        path = self._selected_path()
+        if path:
+            self.dismiss(("rename", path))
 
     @on(Button.Pressed, "#script-new")
     def new_script(self) -> None:

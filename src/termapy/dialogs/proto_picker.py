@@ -19,6 +19,7 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    _highlighted_file,
     _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
@@ -62,6 +63,9 @@ class ProtoPicker(ModalScreen[tuple | None]):
         self.query_one("#proto-new", Button).tooltip = (
             "Create a new protocol script."
         )
+        self.query_one("#proto-rename", Button).tooltip = (
+            "Rename the selected protocol script."
+        )
         self.query_one("#proto-delete", Button).tooltip = (
             "Delete the selected script (asks for confirmation)."
         )
@@ -81,9 +85,9 @@ class ProtoPicker(ModalScreen[tuple | None]):
         with Vertical(id="proto-dialog"):
             yield Static("Select Protocol Script", id="proto-title")
             ol = OptionList(id="proto-list")
-            _populate_file_option_list(ol, protos)
+            first = _populate_file_option_list(ol, protos)
             if protos:
-                ol.highlighted = 0
+                ol.highlighted = first
             yield ol
             has_protos = bool(protos)
             with Horizontal(id="proto-buttons"):
@@ -105,6 +109,13 @@ class ProtoPicker(ModalScreen[tuple | None]):
                 new_btn = Button("New", id="proto-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                rename_btn = Button(
+                    "Rename",
+                    id="proto-rename",
+                    disabled=not has_protos or self.read_only,
+                )
+                rename_btn.styles.background = "darkcyan"
+                yield rename_btn
                 yield Button(
                     "Delete",
                     id="proto-delete",
@@ -119,16 +130,19 @@ class ProtoPicker(ModalScreen[tuple | None]):
         Returns:
             Absolute path string, or None if nothing is highlighted.
         """
-        ol = self.query_one("#proto-list", OptionList)
-        if ol.highlighted is not None:
-            return str(ol.get_option_at_index(ol.highlighted).id)
-        return None
+        return _highlighted_file(self.query_one("#proto-list", OptionList))
 
     @on(Button.Pressed, "#proto-delete")
     def delete_proto(self) -> None:
         path = self._selected_path()
         if path:
             self.dismiss(("delete", path))
+
+    @on(Button.Pressed, "#proto-rename")
+    def rename_proto(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("rename", path))
 
     @on(Button.Pressed, "#proto-new")
     def new_proto(self) -> None:

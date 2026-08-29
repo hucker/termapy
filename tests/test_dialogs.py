@@ -147,6 +147,8 @@ class TestScriptPicker:
             os.utime(older, (hour_ago, hour_ago))
             newer = run_dir / "z_newer.run"
             newer.write_bytes(b"/echo new\n")
+            # Not a script: must not be offered, however new it is.
+            (run_dir / "notes.txt").write_bytes(b"remember to\n")
 
             app = _Host()
             async with app.run_test() as pilot:
@@ -157,7 +159,23 @@ class TestScriptPicker:
                 options = [ol.get_option_at_index(i) for i in range(ol.option_count)]
                 rows = [str(option.prompt) for option in options]
 
-                # Assert -- order, columns, and the id the app will act on
+                # Assert -- header, order, columns, and the id the app will act on
+                assert len(rows) == 3 and not any("notes.txt" in row for row in rows), (
+                    f"only .run files are listed: {rows}"
+                )
+                header, *rows = rows
+                assert header.startswith("NAME") and header.endswith("SUMMARY"), (
+                    f"a header row names the columns: {header!r}"
+                )
+                assert options[0].disabled and options[0].id is None, (
+                    "the header is a disabled option: skipped by the cursor, never selected"
+                )
+                assert header.index("SIZE") == rows[0].index("10 B"), (
+                    "SIZE starts at the size column's left edge"
+                )
+                assert header.index("UPDATED") == rows[0].index("just now"), (
+                    "UPDATED sits over the age column"
+                )
                 assert rows[0].startswith("z_newer.run"), (
                     f"newest file lists first even though it sorts last by name: {rows}"
                 )
@@ -165,7 +183,8 @@ class TestScriptPicker:
                 assert "1 hr ago" in rows[1] and rows[1].endswith("Old summary."), (
                     "age plus the docstring summary as the detail column"
                 )
-                assert options[0].id == str(newer), "option id is the path the app runs"
+                assert options[1].id == str(newer), "option id is the path the app runs"
+                assert ol.highlighted == 1, "initial highlight is the first FILE, not the header"
 
                 # Act -- Enter runs the highlighted (newest) script
                 await pilot.press("enter")
@@ -174,11 +193,33 @@ class TestScriptPicker:
 
         _run(scenario)
 
+    def test_rename_button_dismisses_with_the_highlighted_path(self, tmp_path):
+        async def scenario():
+            # Arrange
+            run_dir = tmp_path / "run"
+            run_dir.mkdir()
+            script = run_dir / "only.run"
+            script.write_bytes(b"/echo hi\n")
+            app = _Host()
+            async with app.run_test() as pilot:
+                results: list = []
+                app.push_screen(ScriptPicker(run_dir), callback=results.append)
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#script-rename")
+                await pilot.pause()
+
+                # Assert -- the app prompts for the name and dispatches /run.rename
+                assert results == [("rename", str(script))]
+
+        _run(scenario)
+
 
 class TestConfigPickerDetails:
-    """The config picker's detail cell: ``port @ baud`` padded across the
-    batch (a macOS port is ~30 characters, a Windows one 4) so the titles
-    that follow line up as a column."""
+    """The config picker's detail cell: ``PORT  BAUD  TITLE`` columns padded
+    across the batch (a macOS port is ~30 characters, a Windows one 4) so
+    every column lines up under its header."""
 
     @staticmethod
     def _write_cfg(tmp_path, name: str, port: str, title: str):
@@ -200,17 +241,23 @@ class TestConfigPickerDetails:
         self_named = self._write_cfg(tmp_path, "seven", "COM7", "Seven")
 
         # Act
-        details = _config_details([mac, win, untitled, self_named])
+        details, header = _config_details([mac, win, untitled, self_named])
 
         # Assert
-        assert details[mac] == "/dev/cu.usbserial-A50285BI @ 115200  Bench board"
+        assert details[mac] == "/dev/cu.usbserial-A50285BI  115200  Bench board"
         assert details[win].index("Logger") == details[mac].index("Bench board"), (
             "the short port is padded so the title column lines up"
         )
-        assert details[untitled] == "COM7 @ 115200", (
-            "an empty title leaves no trailing padding"
+        assert header.startswith("PORT") and header.endswith("TITLE")
+        assert header.index("TITLE") == details[mac].index("Bench board"), (
+            "the TITLE header sits over the title column"
         )
-        assert details[self_named] == "COM7 @ 115200", (
+        assert header.index("BAUD") == details[mac].index("115200"), (
+            "BAUD starts at the baud column's left edge (values right-align within it)"
+        )
+        assert details[untitled].split() == ["COM7", "115200"], "port and baud, no title"
+        assert not details[untitled].endswith(" "), "an empty title leaves no trailing padding"
+        assert details[self_named].split() == ["COM7", "115200"], (
             "a title that only repeats the config name is shown as blank"
         )
 
@@ -219,5 +266,8 @@ class TestConfigPickerDetails:
         broken = tmp_path / "broken.cfg"
         broken.write_text("{not json", encoding="utf-8")
 
-        # Act / Assert -- a row, not a crash
-        assert _config_details([broken]) == {broken: ""}
+        # Act
+        details, _ = _config_details([broken])
+
+        # Assert -- a row, not a crash
+        assert details == {broken: ""}

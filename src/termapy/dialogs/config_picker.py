@@ -24,42 +24,54 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    _highlighted_file,
     _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
 
 
-def _config_info(path: Path) -> tuple[str, str]:
-    """``("COM4 @ 115200", "Bench board")`` for a picker row.
+def _config_info(path: Path) -> tuple[str, str, str]:
+    """``("COM4", "115200", "Bench board")`` for a picker row.
 
-    Both empty if the file won't load -- a broken cfg still deserves a
+    All empty if the file won't load -- a broken cfg still deserves a
     row (so it can be edited or deleted), just not a crash.
     """
     try:
         cfg = load_config(str(path))
     except Exception:  # noqa: BLE001 - see docstring
-        return "", ""
+        return "", "", ""
     serial = cfg.get("serial", {})
-    port = serial.get("port") or ""
-    baud = serial.get("baud_rate")
-    port_text = f"{port} @ {baud}" if port and baud else port
+    port = str(serial.get("port") or "")
+    baud = str(serial.get("baud_rate") or "")
     title = str(cfg.get("title") or "")
     # New configs are written with the config's own name as the title;
     # that repeats the first column, so treat it as "no title given".
     if title.strip().lower() == path.stem.lower():
         title = ""
-    return port_text, title
+    return port, baud, title
 
 
-def _config_details(paths: list[Path]) -> dict[Path, str]:
-    """Per-config detail text: the port cell padded across the batch so the
-    titles line up as a column of their own."""
+def _config_details(paths: list[Path]) -> tuple[dict[Path, str], str]:
+    """Per-config detail text plus its header, one ``load_config`` per file.
+
+    Three columns -- ``PORT`` (left-aligned, padded to the widest port so a
+    macOS device name and ``COM4`` share a column), ``BAUD`` (right-aligned,
+    it is a number), ``TITLE`` -- with the header padded the same way so
+    it sits over them.
+    """
     infos = {path: _config_info(path) for path in paths}
-    port_width = max((len(port) for port, _ in infos.values()), default=0)
-    return {
-        path: f"{port:<{port_width}}  {title}".rstrip()
-        for path, (port, title) in infos.items()
+    port_width = max((len(port) for port, _, _ in infos.values()), default=0)
+    port_width = max(port_width, len("PORT"))
+    baud_width = max((len(baud) for _, baud, _ in infos.values()), default=0)
+    baud_width = max(baud_width, len("BAUD"))
+    details = {
+        path: f"{port:<{port_width}}  {baud:>{baud_width}}  {title}".rstrip()
+        for path, (port, baud, title) in infos.items()
     }
+    # Headers are all left-aligned (see _populate_file_option_list), even
+    # over the right-aligned baud numbers.
+    header = f"{'PORT':<{port_width}}  {'BAUD':<{baud_width}}  TITLE"
+    return details, header
 
 
 class ConfigPicker(ModalScreen[tuple | None]):
@@ -96,6 +108,9 @@ class ConfigPicker(ModalScreen[tuple | None]):
         self.query_one("#picker-new", Button).tooltip = (
             "Create a new config."
         )
+        self.query_one("#picker-rename", Button).tooltip = (
+            "Rename the selected config (its folder and .cfg move together)."
+        )
         self.query_one("#picker-delete", Button).tooltip = (
             "Delete the selected config (asks for confirmation)."
         )
@@ -114,23 +129,24 @@ class ConfigPicker(ModalScreen[tuple | None]):
         d = cfg_dir()
         migrate_json_to_cfg(d)
         json_files = list_entries(d, "*/*.cfg")  # newest first
-        details = _config_details(json_files)
+        details, detail_header = _config_details(json_files)
         with Vertical(id="picker-dialog"):
             yield Static("Select Config", id="picker-title")
             ol = OptionList(id="picker-list")
-            _populate_file_option_list(
+            first = _populate_file_option_list(
                 ol,
                 json_files,
                 detail=details.__getitem__,
+                detail_header=detail_header,
                 # Show the stem (the config's name), padded like the filename
                 # column so size/age still line up.
                 label=lambda path, padded: f"{path.stem:<{len(padded)}}",
             )
-            highlight_idx = next(
+            current_idx = next(
                 (i for i, path in enumerate(json_files) if str(path) == self.current_path),
-                None,
+                0,
             )
-            ol.highlighted = highlight_idx if highlight_idx is not None else 0
+            ol.highlighted = first + current_idx
             yield ol
             has_configs = bool(json_files)
             with Horizontal(id="picker-buttons"):
@@ -149,6 +165,13 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 new_btn = Button("New", id="picker-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                rename_btn = Button(
+                    "Rename",
+                    id="picker-rename",
+                    disabled=not has_configs or self.read_only,
+                )
+                rename_btn.styles.background = "darkcyan"
+                yield rename_btn
                 yield Button(
                     "Delete",
                     id="picker-delete",
@@ -158,16 +181,19 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 yield Button("Cancel", id="picker-cancel", variant="error")
 
     def _selected_path(self) -> str | None:
-        ol = self.query_one("#picker-list", OptionList)
-        if ol.highlighted is not None:
-            return str(ol.get_option_at_index(ol.highlighted).id)
-        return None
+        return _highlighted_file(self.query_one("#picker-list", OptionList))
 
     @on(Button.Pressed, "#picker-delete")
     def delete_config(self) -> None:
         path = self._selected_path()
         if path:
             self.dismiss(("delete", path))
+
+    @on(Button.Pressed, "#picker-rename")
+    def rename_config_btn(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("rename", path))
 
     @on(Button.Pressed, "#picker-new")
     def new_config(self) -> None:

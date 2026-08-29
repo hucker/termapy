@@ -28,10 +28,12 @@ from termapy.config import (
     cfg_path_for_name,
     expand_env_cfg,
     validate_config,
+    validate_file_stem,
 )
 from termapy.defaults import cmd_prefix, default_cfg
 from termapy.dialogs import (
     ConfigEditor,
+    FilenameDialog,
     ProtoEditor,
     ScriptEditor,
 )
@@ -127,23 +129,58 @@ def on_quick_setup(app, result: tuple | None) -> None:
         app._connect()
 
 
+def prompt_rename(app, path_str: str, command: str) -> None:
+    """Ask for a new name, then dispatch ``/<command>.rename <old> <new>``.
+
+    The rename itself is the command's job (``/run.rename``,
+    ``/proto.rename`` -- the shared ``folder_ops`` handler, so CLI and
+    MCP callers get the same rules); the dialog only supplies the name.
+    The name is checked here too so a bad one is refused before it
+    reaches the dispatcher, which splits arguments on whitespace.
+
+    Args:
+        app: The SerialTerminal instance.
+        path_str: The file to rename.
+        command: The owning top-level command (``"run"`` / ``"proto"``).
+    """
+    old = Path(path_str)
+
+    def _on_name(new_name: str | None) -> None:
+        if not new_name or new_name == old.stem:
+            return
+        reason = validate_file_stem(new_name)
+        if reason:
+            app._status(reason, "red")
+            return
+        prefix = cmd_prefix(app.cfg)
+        app._dispatch_on_thread(f"{prefix}{command}.rename {old.name} {new_name}")
+
+    app.push_screen(
+        FilenameDialog(title=f"Rename {old.name} to:", value=old.stem),
+        callback=_on_name,
+    )
+
+
 def on_script_picked(app, result: tuple | None) -> None:
     """Apply the script-picker result.
 
     Dispatches to one of: run the script (clears vars, calls
     ``app._run_script``), new (opens ScriptEditor), edit (opens
-    ScriptEditor on the selected file), or delete (confirmation dialog).
+    ScriptEditor on the selected file), rename (name prompt, then
+    ``/run.rename``), or delete (confirmation dialog).
 
     Args:
         app: The SerialTerminal instance.
         result: ``(action, ...path)`` where ``action`` is one of
-            ``"run"``, ``"new"``, ``"edit"``, ``"delete"``.  ``None``
-            if the user canceled.
+            ``"run"``, ``"new"``, ``"edit"``, ``"rename"``, ``"delete"``.
+            ``None`` if the user canceled.
     """
     if result is None:
         return
     action = result[0]
-    if action == "run":
+    if action == "rename":
+        prompt_rename(app, result[1], "run")
+    elif action == "run":
         from termapy.variables import clear_vars, set_start_time_vars
 
         clear_vars()
@@ -178,7 +215,9 @@ def on_proto_picked(app, result: tuple | None) -> None:
     if result is None:
         return
     action = result[0]
-    if action == "run":
+    if action == "rename":
+        prompt_rename(app, result[1], "proto")
+    elif action == "run":
         filename = Path(result[1]).name
         prefix = cmd_prefix(app.cfg)
         app._dispatch_on_thread(f"{prefix}proto.run {filename}")

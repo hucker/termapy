@@ -665,6 +665,7 @@ SUBCOMMANDS
   /cap.hex        Capture hex text lines, decode with format spec to CSV.
   /cap.list       List files in cap/, newest first, with size and age.
   /cap.poll       Poll commands on a schedule, display (and optionally save) results.
+  /cap.rename     Rename a file in cap/ (extension kept; never overwrites).
   /cap.show       Open the newest file in cap/ with the system viewer.
   /cap.stop       Stop an active capture.
   /cap.struct     Capture raw bytes, decode with format spec to CSV.
@@ -685,6 +686,7 @@ SUBCOMMANDS
   /ss.clear      Delete all files in ss/.
   /ss.explore    Open ss/ in the system file explorer.
   /ss.list       List files in ss/, newest first, with size and age.
+  /ss.rename     Rename a file in ss/ (extension kept; never overwrites).
   /ss.show       Open the newest file in ss/ with the system viewer.
   /ss.svg        Save an SVG screenshot of the terminal.
   /ss.txt        Save a text screenshot (optionally last/first N lines).
@@ -734,6 +736,7 @@ SUBCOMMANDS
   /proto.hex        Toggle hex display mode.
   /proto.info       Print current protocol state.
   /proto.list       List files in proto/, newest first, with size and age.
+  /proto.rename     Rename a file in proto/ (extension kept; never overwrites).
   /proto.run        Run a protocol test script.
   /proto.send       Send raw bytes (with optional CRC), show response.
   /proto.show       Open the newest file in proto/ with the system viewer.
@@ -749,6 +752,7 @@ SUBCOMMANDS
   /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
   /plugin.explore    Open plugin/ in the system file explorer.
   /plugin.list       List files in plugin/, newest first, with size and age.
+  /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
   /plugin.show       Open the newest file in plugin/ with the system viewer.
   [107/150] /help plugin (2ms)
 demo> /help run
@@ -769,6 +773,7 @@ SUBCOMMANDS
   /run.list       List .run scripts, newest first, with size, age, and docstring summary.
   /run.profile    Run a script with per-line timing.
   /run.record     Record commands to a .run script (bare /run.record stops).
+  /run.rename     Rename a file in run/ (extension kept; never overwrites).
   /run.show       Open the newest file in run/ with the system viewer.
   [108/150] /help run (4ms)
 demo> /print === section: help.run ===

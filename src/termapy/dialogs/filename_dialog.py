@@ -46,16 +46,20 @@ class FilenameDialog(ModalScreen[str | None]):
         *,
         title: str = "Filename:",
         placeholder: str = "",
+        value: str = "",
     ) -> None:
         """Initialize the dialog.
 
         Args:
             title: Header text shown above the input.
             placeholder: Grayed-out hint inside the input box.
+            value: Initial text in the input (a rename starts from the
+                current name, cursor at the end).
         """
         super().__init__()
         self._title = title
         self._placeholder = placeholder
+        self._value = value
 
     def action_dismiss_modal(self) -> None:
         """Close the modal on Ctrl+Q or Escape."""
@@ -72,7 +76,7 @@ class FilenameDialog(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="filename-dialog"):
             yield Static(self._title, id="filename-label")
-            yield Input(placeholder=self._placeholder, id="filename-input")
+            yield Input(placeholder=self._placeholder, value=self._value, id="filename-input")
             with Horizontal(id="filename-buttons"):
                 yield Button("Cancel", id="filename-cancel")
 

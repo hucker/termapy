@@ -4,8 +4,9 @@
 #   /run doc_screenshots
 #
 # Images are saved to the ss/ folder as SVG files.
-# For manual modal screenshots (Quick Setup, Config Picker),
-# use Ctrl+S while the dialog is open.
+# Modal pickers replace the input line, so a running script cannot shoot
+# them: the Run and Config pickers come from scripts/doc_dialog_shots.py
+# (headless, reproducible).  Quick Setup is still a manual Ctrl+S.
 
 # -- 1. Hero image: show a realistic session with variety --
 /cls

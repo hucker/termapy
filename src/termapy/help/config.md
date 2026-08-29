@@ -184,11 +184,18 @@ While reconnecting, the title bar turns amber and shows a spinner.
 ## Config management
 
 Click the **Cfg** button in the title bar, click the config name, or use the
-command palette to open the config picker. The picker has four actions:
+command palette to open the config picker. Configs are listed newest
+first with size, last-updated age, port, baud, and title.
+
+![Config picker](img/doc_37_config_picker.svg)
+
+The picker's actions:
 
 - **New:** create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.
 - **Edit:** open the highlighted config in the JSON editor
 - **Load:** switch to the highlighted config. If the configured port is not available, a port picker is shown.
+- **Rename:** rename the highlighted config. The `termapy_cfg/<name>/` folder and the `<name>.cfg` inside it move together (with the command history); renaming the active config reloads it.
+- **Delete:** delete the highlighted config file (asks for confirmation)
 - **Cancel:** close the picker
 
 The JSON editor provides:

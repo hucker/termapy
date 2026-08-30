@@ -282,6 +282,7 @@ termapy_cfg/
 └── demo/
     ├── demo.cfg                        # config file
     ├── demo.symbols.json               # symbol table for /sym (auto-loaded)
+    ├── demo_legacy.profile.json        # /mem.* through the device's own `mem` grammar
     ├── demo.log                        # session log
     ├── demo.history                    # command history
     ├── ss/                             # screenshots

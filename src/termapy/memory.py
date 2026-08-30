@@ -1,29 +1,36 @@
 """Device memory access -- bytes in, bytes out, over an injected exchange.
 
-Layer 1 of the memory design.  The device speaks the published ``MEM``
-spec (see ``help/memory.md``), and this module is everything termapy needs
-to talk it without knowing what the bytes mean::
+Layer 1 of the memory design.  Two wire dialects, one engine:
 
-    MEM.R <addr> <len>   ->  <ADDR>: <XX XX ...>   (one or more rows)
-                             OK
-    MEM.W <addr> <hex>   ->  OK
-    MEM.INFO             ->  {"max_block": 64, "address_bits": 32, "endian": "le"}
-                             OK
-    any failure          ->  ERR <reason>
+- ``termapy`` -- the published ``MEM`` spec (see ``help/memory.md``) for
+  firmware you write::
 
-Addresses go out as ``0x``-prefixed hex, lengths in decimal; a row's
-address is hex with or without ``0x``; bytes are hex pairs.  Lines that are
-none of row / ``OK`` / ``ERR`` (an echoed command, a prompt, a banner) are
-ignored, so the parser survives a monitor that echoes.
+      MEM.R <addr> <len>   ->  <ADDR>: <XX XX ...>   (one or more rows)
+                               OK
+      MEM.W <addr> <hex>   ->  OK
+      MEM.INFO             ->  {"max_block": 64, "address_bits": 32, "endian": "le"}
+                               OK
+      any failure          ->  ERR <reason>
 
-:class:`Memory` chunks a request to the device's ``max_block``, checks that
-the rows come back contiguous and complete, and turns ``ERR`` / silence
-into :class:`DeviceMemoryError`.  It never interprets the bytes: widths,
-endianness, types and bit operations are the typed-view layer above.
+- ``template`` -- a device with its own peek/poke grammar, described by
+  the profile's ``memory`` block: a read template (``mem {addr:X} {len}``),
+  a row regex, an optional write template (``mem {addr:X} ={byte:02X}``),
+  optional ack / error / terminator regexes, and idle-gap framing.
+
+Addresses go out as the template says (``0x``-prefixed hex for the
+native spec); a row's address is hex with or without ``0x``; bytes are hex
+pairs.  Lines that are none of row / verdict are ignored, so a monitor that
+echoes or prompts is fine.
+
+:class:`Memory` chunks a request to the device's ``max_block``, checks
+that the rows come back contiguous and complete, and turns errors and
+silence into :class:`DeviceMemoryError`.  It never interprets the bytes:
+widths, endianness, types and bit operations are the typed-view layer
+above.
 
 The exchange is injected (``exchange(command) -> reply_text``), like
 :func:`termapy.request_response.request_response`, so the engine is tested
-against an in-memory device and the ``/mem.*`` plugin wires it to
+against in-memory devices and the ``/mem.*`` plugin wires it to
 ``ctx.serial``.  No Textual, no pyserial, nothing from ``builtins/``.
 """
 
@@ -31,15 +38,14 @@ from __future__ import annotations
 
 import json
 import re
+import string
 from dataclasses import dataclass, field
-from typing import Any, Callable, Final, Mapping
+from typing import Any, Callable, Final, Mapping, Protocol
 
 from termapy.symbols.format import hex_addr
 
-# Wire dialects the engine can speak.  ``termapy`` is the spec above; the
-# legacy template dialect (profile-rendered read/write templates) is a
-# later step and will register here.
-DIALECTS: Final[tuple[str, ...]] = ("termapy",)
+# Wire dialects the engine speaks.
+DIALECTS: Final[tuple[str, ...]] = ("termapy", "template")
 ENDIANS: Final[tuple[str, ...]] = ("le", "be")
 
 DEFAULT_DIALECT: Final[str] = "termapy"
@@ -69,7 +75,7 @@ class MemoryInfo:
     """How to talk to this device's memory, and where each fact came from.
 
     Attributes:
-        dialect: Wire grammar name (``termapy``).
+        dialect: Wire grammar name (``termapy`` or ``template``).
         max_block: Largest byte count per read or write exchange.
         address_bits: Address width; sets the printed hex width.
         endian: ``le`` / ``be``; stored for the typed-view layer.
@@ -116,9 +122,11 @@ def _coerce(key: str, value: Any) -> tuple[Any, str]:
 def validate_block(block: Mapping[str, Any]) -> list[str]:
     """Lint a profile ``memory`` block; every problem is a degrade warning.
 
-    Shared by the profile loader's forward-compat lint and by
-    :func:`resolve_info`, so a warning and the runtime behavior it
-    describes cannot disagree.
+    Shared by the profile loader's forward-compat lint and by the runtime
+    resolvers, so a warning and the behavior it describes cannot disagree.
+    For the ``template`` dialect the template fields are checked the way
+    :func:`parse_template_block` will: a problem there means ``/mem.*``
+    refuse, which the warning says.
 
     Args:
         block: The decoded ``memory`` object.
@@ -138,6 +146,11 @@ def validate_block(block: Mapping[str, Any]) -> list[str]:
         _, warning = _coerce(key, block.get(key))
         if warning:
             warnings.append(warning)
+    if dialect == "template":
+        try:
+            parse_template_block(block)
+        except ValueError as e:
+            warnings.append(f"{e} (/mem.* commands refuse until it is fixed)")
     return warnings
 
 
@@ -176,7 +189,7 @@ def resolve_info(
                 sources[key] = source
         dialect = block.get("dialect") if source == "profile" else None
         if isinstance(dialect, str) and dialect:
-            values["dialect"] = dialect  # unknown is kept: Memory() refuses it
+            values["dialect"] = dialect  # unknown is kept: make_dialect refuses it
             sources["dialect"] = "profile"
     return MemoryInfo(
         dialect=values["dialect"],
@@ -187,7 +200,7 @@ def resolve_info(
     )
 
 
-# ── The wire ────────────────────────────────────────────────────────────────
+# ── The native wire ─────────────────────────────────────────────────────────
 
 _ROW_RE: Final = re.compile(
     r"^\s*(?:0[xX])?(?P<addr>[0-9A-Fa-f]{1,16}):\s*(?P<hex>(?:[0-9A-Fa-f]{2}\s*)+)$"
@@ -197,18 +210,18 @@ _ERR_RE: Final = re.compile(r"^\s*ERR\b\s*(?P<reason>.*?)\s*$")
 
 
 def read_command(addr: int, length: int) -> str:
-    """``MEM.R 0x1000 16`` -- the read request for one block."""
+    """``MEM.R 0x1000 16`` -- the native read request for one block."""
     return f"MEM.R 0x{addr:X} {length}"
 
 
 def write_command(addr: int, data: bytes) -> str:
-    """``MEM.W 0x1000 1B00`` -- the write request for one block."""
+    """``MEM.W 0x1000 1B00`` -- the native write request for one block."""
     return f"MEM.W 0x{addr:X} {data.hex().upper()}"
 
 
 @dataclass(frozen=True)
 class Reply:
-    """One parsed device reply.
+    """One parsed native reply.
 
     Attributes:
         complete: An ``OK`` or ``ERR`` line was seen.
@@ -225,7 +238,7 @@ class Reply:
 
 
 def parse_reply(text: str) -> Reply:
-    """Parse reply text: rows, the JSON record, and the OK / ERR verdict.
+    """Parse native reply text: rows, the JSON record, and the OK / ERR verdict.
 
     Stops at the first ``OK`` or ``ERR`` line.  Every other line that is
     not a row or a JSON object is ignored (echo, prompt, banner).
@@ -265,22 +278,30 @@ def reply_complete(text: str) -> bool:
 
 
 def assemble(
-    rows: tuple[tuple[int, bytes], ...], addr: int, length: int, *, address_bits: int,
+    rows: tuple[tuple[int, bytes], ...],
+    addr: int,
+    length: int,
+    *,
+    address_bits: int,
+    exact: bool = True,
 ) -> bytes:
-    """Join rows into the requested block, refusing gaps and wrong sizes.
+    """Join rows into the requested block, refusing gaps and short totals.
 
     Args:
         rows: Parsed data rows in wire order.
         addr: The address that was requested.
         length: The byte count that was requested.
         address_bits: Hex width for the addresses in error text.
+        exact: Refuse a total longer than ``length`` (the native spec);
+            False truncates instead (a template row's trailing column can
+            look like bytes).
 
     Returns:
         Exactly ``length`` bytes starting at ``addr``.
 
     Raises:
         DeviceMemoryError: A row does not start where the previous one
-            ended, or the total is not ``length``.
+            ended, or the total is short (or, when ``exact``, long).
     """
     expected = addr
     out = bytearray()
@@ -292,12 +313,12 @@ def assemble(
             )
         out.extend(data)
         expected += len(data)
-    if len(out) != length:
+    if len(out) < length or (exact and len(out) > length):
         kind = "Short" if len(out) < length else "Long"
         raise DeviceMemoryError(
             f"{kind} reply: {len(out)} of {length} bytes at {hex_addr(addr, address_bits)}"
         )
-    return bytes(out)
+    return bytes(out[:length])
 
 
 # ── Dump rows: the prose renderer and its data= twin, side by side ──────────
@@ -375,6 +396,260 @@ def row_record(row: DumpRow, *, address_bits: int = DEFAULT_ADDRESS_BITS) -> dic
     }
 
 
+# ── Dialects ────────────────────────────────────────────────────────────────
+
+
+class Dialect(Protocol):
+    """What :class:`Memory` needs from a wire grammar.
+
+    ``write_unit`` is the bytes per write exchange: 0 = a whole block
+    (``max_block``), 1 = one byte per command (a ``=val`` monitor).
+    ``settle_ms`` is the idle gap that ends a reply when ``complete``
+    cannot; 0 = the transport's default.
+    """
+
+    name: str
+    supports_info: bool
+    write_unit: int
+    settle_ms: int
+
+    def read_request(self, addr: int, length: int) -> str: ...
+    def parse_read(self, text: str, request: str, addr: int, length: int, *, address_bits: int) -> bytes: ...
+    def write_request(self, addr: int, data: bytes) -> str: ...
+    def parse_write(self, text: str, request: str) -> None: ...
+    def complete(self, text: str) -> bool: ...
+
+
+def _verdict(text: str, request: str) -> Reply:
+    """Parse a native reply, turning silence and ``ERR`` into errors."""
+    reply = parse_reply(text)
+    if not reply.complete:
+        if not text.strip():
+            raise DeviceMemoryError(f"No reply to {request}")
+        raise DeviceMemoryError(f"Incomplete reply to {request}")
+    if reply.error is not None:
+        raise DeviceMemoryError(f"Device error: {reply.error or 'ERR'}")
+    return reply
+
+
+class NativeDialect:
+    """The published ``MEM`` spec: rows + ``OK``, block writes, ``MEM.INFO``."""
+
+    name = "termapy"
+    supports_info = True
+    write_unit = 0
+    settle_ms = 0
+
+    def read_request(self, addr: int, length: int) -> str:
+        return read_command(addr, length)
+
+    def parse_read(
+        self, text: str, request: str, addr: int, length: int, *, address_bits: int,
+    ) -> bytes:
+        reply = _verdict(text, request)
+        return assemble(reply.rows, addr, length, address_bits=address_bits)
+
+    def write_request(self, addr: int, data: bytes) -> str:
+        return write_command(addr, data)
+
+    def parse_write(self, text: str, request: str) -> None:
+        _verdict(text, request)
+
+    def complete(self, text: str) -> bool:
+        return reply_complete(text)
+
+
+# Template dialect defaults.  The row regex takes a hex address (0x
+# optional), a colon, then hex pairs; it stops at the first token that is
+# not a pair, so an ASCII column set off by ``|`` or extra spacing is not
+# read as data.  ``row_bytes`` caps a full row so a bare ASCII column that
+# happens to start with hex digits cannot lengthen it.
+DEFAULT_ROW_PATTERN: Final[str] = (
+    r"^\s*(?:0[xX])?(?P<addr>[0-9A-Fa-f]{2,16}):\s*(?P<hex>(?:[0-9A-Fa-f]{2}\s+)*[0-9A-Fa-f]{2})"
+)
+DEFAULT_ERROR_PATTERN: Final[str] = r"(?i)^\s*(err|error|fault)\b"
+DEFAULT_ROW_BYTES: Final[int] = 16
+DEFAULT_SETTLE_MS: Final[int] = 100
+
+
+@dataclass(frozen=True)
+class TemplateSpec:
+    """A device's own memory grammar, from the profile ``memory`` block.
+
+    Attributes:
+        read: ``str.format`` template with ``{addr}`` and ``{len}``.
+        row: Regex with ``addr`` and ``hex`` groups matching one data row.
+        row_bytes: Most bytes one row carries.
+        write: Template with ``{addr}`` and ``{byte}`` (one byte per
+            command) or ``{hex}`` (a block of pairs); None = read-only.
+        ack: Regex a successful write reply must contain; None = none.
+        error: Regex flagging a failed command anywhere in the reply.
+        terminator: Regex that ends a reply early (a prompt); None = the
+            reply ends at the idle gap.
+        settle_ms: Idle gap that ends a reply.
+    """
+
+    read: str
+    row: re.Pattern[str]
+    row_bytes: int = DEFAULT_ROW_BYTES
+    write: str | None = None
+    ack: re.Pattern[str] | None = None
+    error: re.Pattern[str] = re.compile(DEFAULT_ERROR_PATTERN)
+    terminator: re.Pattern[str] | None = None
+    settle_ms: int = DEFAULT_SETTLE_MS
+
+
+def _compile(block: Mapping[str, Any], key: str, default: str | None) -> re.Pattern[str] | None:
+    value = block.get(key, default)
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"memory/{key}: expected a regex string")
+    try:
+        return re.compile(value)
+    except re.error as e:
+        raise ValueError(f"memory/{key}: invalid regex: {e}") from None
+
+
+def _template_fields(template: str, key: str) -> set[str]:
+    """The placeholder names a template uses (``{addr:X}`` -> ``addr``)."""
+    try:
+        return {
+            field.split(".")[0].split("[")[0]
+            for _, field, _, _ in string.Formatter().parse(template)
+            if field
+        }
+    except ValueError as e:
+        raise ValueError(f"memory/{key}: bad placeholder in {template!r} ({e})") from None
+
+
+def _check_template(block: Mapping[str, Any], key: str, names: tuple[str, ...]) -> str:
+    template = block.get(key)
+    if not isinstance(template, str) or not template.strip():
+        raise ValueError(f"memory/{key}: required for the template dialect")
+    fields = _template_fields(template, key)
+    if any(name not in fields for name in names):
+        raise ValueError(f"memory/{key}: must use {' and '.join('{' + name + '}' for name in names)}")
+    try:
+        template.format(addr=0, len=0, hex="00", byte=0)
+    except (KeyError, ValueError, IndexError) as e:
+        raise ValueError(f"memory/{key}: bad placeholder in {template!r} ({e})") from None
+    return template
+
+
+def _positive_int(block: Mapping[str, Any], key: str, default: int) -> int:
+    value = block.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"memory/{key}: expected a positive integer")
+    return value
+
+
+def parse_template_block(block: Mapping[str, Any]) -> TemplateSpec:
+    """Build a :class:`TemplateSpec` from a profile ``memory`` block.
+
+    Raises:
+        ValueError: A field-qualified message (``memory/read: ...``).
+    """
+    read = _check_template(block, "read", ("addr", "len"))
+    write_template = block.get("write")
+    write: str | None = None
+    if write_template not in (None, ""):
+        template = _check_template(block, "write", ("addr",))
+        if not ({"byte", "hex"} & _template_fields(template, "write")):
+            raise ValueError("memory/write: must use {byte} (one byte per command) or {hex}")
+        write = template
+    row = _compile(block, "row", DEFAULT_ROW_PATTERN)
+    assert row is not None  # the default is never empty
+    if "addr" not in row.groupindex or "hex" not in row.groupindex:
+        raise ValueError("memory/row: regex needs (?P<addr>...) and (?P<hex>...) groups")
+    error = _compile(block, "error", DEFAULT_ERROR_PATTERN)
+    assert error is not None
+    return TemplateSpec(
+        read=read,
+        row=row,
+        row_bytes=_positive_int(block, "row_bytes", DEFAULT_ROW_BYTES),
+        write=write,
+        ack=_compile(block, "ack", None),
+        error=error,
+        terminator=_compile(block, "terminator", None),
+        settle_ms=_positive_int(block, "settle_ms", DEFAULT_SETTLE_MS),
+    )
+
+
+class TemplateDialect:
+    """A device's own grammar, rendered from :class:`TemplateSpec`."""
+
+    name = "template"
+    supports_info = False
+
+    def __init__(self, spec: TemplateSpec) -> None:
+        self.spec = spec
+        self.write_unit = 0 if (spec.write and "{hex" in spec.write) else 1
+        self.settle_ms = spec.settle_ms
+
+    def read_request(self, addr: int, length: int) -> str:
+        return self.spec.read.format(addr=addr, len=length)
+
+    def _check_error(self, text: str) -> None:
+        for line in text.splitlines():
+            if self.spec.error.search(line):
+                raise DeviceMemoryError(f"Device error: {line.strip()}")
+
+    def parse_read(
+        self, text: str, request: str, addr: int, length: int, *, address_bits: int,
+    ) -> bytes:
+        self._check_error(text)
+        rows: list[tuple[int, bytes]] = []
+        for line in text.splitlines():
+            match = self.spec.row.match(line)
+            if match:
+                data = bytes.fromhex("".join(match.group("hex").split()))
+                rows.append((int(match.group("addr"), 16), data[:self.spec.row_bytes]))
+        if not rows:
+            if not text.strip():
+                raise DeviceMemoryError(f"No reply to {request}")
+            first = next(line.strip() for line in text.splitlines() if line.strip())
+            raise DeviceMemoryError(f"Unrecognized reply to {request}: {first[:60]}")
+        return assemble(tuple(rows), addr, length, address_bits=address_bits, exact=False)
+
+    def write_request(self, addr: int, data: bytes) -> str:
+        if self.spec.write is None:
+            raise DeviceMemoryError("Memory block declares no write template.")
+        return self.spec.write.format(addr=addr, byte=data[0], hex=data.hex().upper())
+
+    def parse_write(self, text: str, request: str) -> None:
+        self._check_error(text)
+        if self.spec.ack is None:
+            return
+        if any(self.spec.ack.search(line) for line in text.splitlines()):
+            return
+        if not text.strip():
+            raise DeviceMemoryError(f"No acknowledgement to {request}")
+        first = next(line.strip() for line in text.splitlines() if line.strip())
+        raise DeviceMemoryError(f"Unexpected reply to {request}: {first[:60]}")
+
+    def complete(self, text: str) -> bool:
+        if self.spec.terminator is None:
+            return False
+        return any(self.spec.terminator.search(line) for line in text.splitlines())
+
+
+def make_dialect(info: MemoryInfo, block: Mapping[str, Any] | None) -> Dialect:
+    """The dialect ``info`` names, built from the profile block when needed.
+
+    Raises:
+        ValueError: An unknown dialect, or a template block that does
+            not describe a grammar (field-qualified message).
+    """
+    if info.dialect == "termapy":
+        return NativeDialect()
+    if info.dialect == "template":
+        if not isinstance(block, Mapping):
+            raise ValueError("memory/read: required for the template dialect")
+        return TemplateDialect(parse_template_block(block))
+    raise ValueError(f"Unknown memory dialect: {info.dialect} (dialects: {', '.join(DIALECTS)})")
+
+
 # ── The engine ──────────────────────────────────────────────────────────────
 
 
@@ -383,21 +658,24 @@ class Memory:
 
     Args:
         exchange: Sends one command line and returns the reply text (what
-            arrived until an ``OK`` / ``ERR`` line or a timeout; ``""`` on
-            silence).
+            arrived until the dialect said the reply was complete or the
+            idle gap / timeout hit; ``""`` on silence).
         info: The resolved facts; ``max_block`` drives the chunking.
+        dialect: The wire grammar; None = the native spec (and ``info``
+            must name it).
 
     Raises:
-        ValueError: ``info.dialect`` is not one this engine speaks.
+        ValueError: ``info`` names a dialect that needs a block.
     """
 
-    def __init__(self, exchange: Exchange, info: MemoryInfo | None = None) -> None:
+    def __init__(
+        self,
+        exchange: Exchange,
+        info: MemoryInfo | None = None,
+        dialect: Dialect | None = None,
+    ) -> None:
         self.info = info if info is not None else MemoryInfo()
-        if self.info.dialect not in DIALECTS:
-            raise ValueError(
-                f"Unknown memory dialect: {self.info.dialect} "
-                f"(dialects: {', '.join(DIALECTS)})"
-            )
+        self.dialect: Dialect = dialect if dialect is not None else make_dialect(self.info, None)
         self._exchange = exchange
 
     # -- validation ---------------------------------------------------------
@@ -414,18 +692,6 @@ class Memory:
                 f"{bits}-bit space"
             )
 
-    def _talk(self, command: str) -> Reply:
-        """One exchange, with silence and ``ERR`` turned into errors."""
-        text = self._exchange(command)
-        reply = parse_reply(text)
-        if not reply.complete:
-            if not text.strip():
-                raise DeviceMemoryError(f"No reply to {command}")
-            raise DeviceMemoryError(f"Incomplete reply to {command}")
-        if reply.error is not None:
-            raise DeviceMemoryError(f"Device error: {reply.error or 'ERR'}")
-        return reply
-
     # -- operations ---------------------------------------------------------
 
     def read(self, addr: int, length: int) -> bytes:
@@ -433,49 +699,57 @@ class Memory:
 
         Raises:
             ValueError: Bad address or length.
-            DeviceMemoryError: Silence, ``ERR``, or rows that do not add
-                up to the request.
+            DeviceMemoryError: Silence, a device error, or rows that do
+                not add up to the request.
         """
         self._check_range(addr, length)
         out = bytearray()
         for offset in range(0, length, self.info.max_block):
             chunk_addr = addr + offset
             chunk_len = min(self.info.max_block, length - offset)
-            reply = self._talk(read_command(chunk_addr, chunk_len))
+            request = self.dialect.read_request(chunk_addr, chunk_len)
+            text = self._exchange(request)
             out.extend(
-                assemble(reply.rows, chunk_addr, chunk_len, address_bits=self.info.address_bits)
+                self.dialect.parse_read(
+                    text, request, chunk_addr, chunk_len, address_bits=self.info.address_bits,
+                )
             )
         return bytes(out)
 
     def write(self, addr: int, data: bytes) -> int:
-        """Write ``data`` at ``addr``, in ``max_block`` chunks.
+        """Write ``data`` at ``addr``, in the dialect's write units.
 
         Returns:
             The number of bytes written (``len(data)``).
 
         Raises:
             ValueError: Bad address or empty data.
-            DeviceMemoryError: Silence or ``ERR``; earlier chunks stay
-                written (the device has no transaction).
+            DeviceMemoryError: Silence, a missing acknowledgement, or a
+                device error; earlier units stay written (no transaction).
         """
         self._check_range(addr, len(data))
-        for offset in range(0, len(data), self.info.max_block):
-            chunk = data[offset:offset + self.info.max_block]
-            self._talk(write_command(addr + offset, chunk))
+        unit = self.dialect.write_unit or self.info.max_block
+        for offset in range(0, len(data), unit):
+            chunk = data[offset:offset + unit]
+            request = self.dialect.write_request(addr + offset, chunk)
+            self.dialect.parse_write(self._exchange(request), request)
         return len(data)
 
     def query_info(self) -> dict[str, Any]:
-        """Ask the device for its ``MEM.INFO`` record.
+        """Ask a native device for its ``MEM.INFO`` record.
 
         Returns:
             The decoded JSON object as sent (values are coerced later by
             :func:`resolve_info`).
 
         Raises:
-            DeviceMemoryError: Silence, ``ERR`` (a device without
-                ``MEM.INFO``), or a reply carrying no JSON object.
+            DeviceMemoryError: The dialect has no such command, silence,
+                ``ERR`` (a device without ``MEM.INFO``), or a reply
+                carrying no JSON object.
         """
-        reply = self._talk(INFO_COMMAND)
+        if not self.dialect.supports_info:
+            raise DeviceMemoryError(f"Dialect {self.dialect.name} has no {INFO_COMMAND}")
+        reply = _verdict(self._exchange(INFO_COMMAND), INFO_COMMAND)
         if reply.info is None:
             raise DeviceMemoryError(f"No JSON record in the reply to {INFO_COMMAND}")
         return reply.info

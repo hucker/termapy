@@ -76,10 +76,11 @@ any failure             ->  ERR <reason>
   bus fault on PIC32 and Cortex-M.
 
 The demo device (`termapy --demo`) is the reference implementation: it
-serves 12 KB of RAM at `0x1000` and the UART SFR window at `0xBF806000`,
+serves 16 KB of memory from `0x0000` and the UART SFR window at `0xBF806000`,
 seeded so the demo symbol table's names read as real values (`gTemp` is
-27, `U1MODE` has `ON` and `BRGH` set). Its older `mem <addr> [len]`
-command is left as it was: the example of a device with its own grammar.
+27, `U1MODE` has `ON` and `BRGH` set). Its older `mem <addr> [count]` /
+`mem <addr> =<hex>` command serves the same bytes through a typical
+monitor's own grammar -- the worked example for the template dialect below.
 
 ## The profile block
 
@@ -97,9 +98,45 @@ When the device has no `MEM.INFO`, or you want to pin the facts, add a
 
 Explicit profile values win over `MEM.INFO`, which wins over the
 defaults; `/mem.info` shows which source each fact came from. `dialect`
-names the wire grammar; `termapy` is the spec above, and a device with
-its own peek/poke grammar is a later revision of this block (its keys are
-reserved). An unrecognized dialect loads but `/mem.*` refuse to guess.
+names the wire grammar: `termapy` is the spec above. An unrecognized
+dialect loads but `/mem.*` refuse to guess.
+
+## A device with its own grammar: the template dialect
+
+Most monitors already have a peek/poke command. Describe it and `/mem.*`
+speak it -- names, chunking, the audit line and the MCP gate all stay:
+
+```json
+"memory": {
+  "dialect": "template",
+  "read": "mem {addr:X} {len}",
+  "write": "mem {addr:X} ={byte:02X}",
+  "ack": "^ok\\b",
+  "error": "(?i)^\\s*err\\b",
+  "max_block": 256,
+  "address_bits": 32,
+  "endian": "le"
+}
+```
+
+| Field        | Default                           | Meaning                                                                 |
+|--------------|-----------------------------------|-------------------------------------------------------------------------|
+| `read`       | required                          | `str.format` template with `{addr}` and `{len}`; format specs work (`{addr:08X}`) |
+| `row`        | `ADDR: XX XX ...` (hex, `0x` optional) | Regex with `addr` and `hex` groups matching one data row; stops at the first non-pair token, so an ASCII column is ignored |
+| `row_bytes`  | 16                                | Most bytes one row carries                                              |
+| `write`      | none (read-only)                  | Template with `{addr}` and `{byte}` (one byte per command) or `{hex}` (a block of pairs) |
+| `ack`        | none                              | Regex a successful write reply must contain (`^ok\b`)                 |
+| `error`      | `(?i)^\s*(err|error|fault)\b`     | Regex flagging a failed command anywhere in the reply                   |
+| `terminator` | none                              | Regex that ends a reply early (a prompt); otherwise the reply ends at the idle gap |
+| `settle_ms`  | 100                               | Idle gap that ends a reply                                              |
+
+Reads are chunked to `max_block` (the device's count limit); a `{byte}`
+write template sends one command per byte, so a 4-byte write is four
+exchanges. The device's own error line is reported as
+`Device error: err: address range ... not mapped`. The demo ships
+`demo_legacy.profile.json` with exactly this block: `/profile.load
+demo_legacy.profile.json` then `/mem.dump gTemp 16` reads the same bytes
+through the legacy `mem` grammar; `/profile.unload` returns to the spec.
 
 See also: [Symbols](symbols.md) for the address grammar and the symbol
 table, [MCP server](mcp-server.md) for the confirm gate.

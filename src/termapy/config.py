@@ -883,6 +883,30 @@ def open_serial(cfg: dict) -> Any:
     return port
 
 
+def cfg_relative_path(config_path: str, raw: str) -> Path:
+    """A user-typed file path, resolved the way the config folder implies.
+
+    Absolute paths are taken as given.  A relative path is anchored to the
+    config folder when it exists there -- ``/profile.load x.profile.json``
+    and ``/sym.load x.symbols.json`` mean the files beside the cfg, not
+    whatever the process CWD happens to be (under the MCP server that is
+    wherever the client started it) -- and falls back to the CWD form
+    otherwise, so the error names what the user typed.
+
+    Args:
+        config_path: The active config file (``""`` = no config).
+        raw: The path as typed.
+
+    Returns:
+        The resolved path.
+    """
+    path = Path(raw)
+    if path.is_absolute() or not config_path:
+        return path
+    anchored = Path(config_path).parent / path
+    return anchored if anchored.exists() else path
+
+
 def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     """Copy bundled demo config files to the target directory.
 
@@ -916,6 +940,13 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     if force or not symbols_path.exists():
         src = pkg / f"demo{SYMBOLS_SUFFIX}"
         symbols_path.write_bytes(src.read_bytes())
+
+    # The legacy-grammar memory profile: /profile.load demo_legacy.profile.json
+    # drives /mem.* through the device's own `mem` syntax (template dialect).
+    legacy_path = demo_dir / "demo_legacy.profile.json"
+    if force or not legacy_path.exists():
+        src = pkg / "demo_legacy.profile.json"
+        legacy_path.write_bytes(src.read_bytes())
 
     # Copy run scripts
     run_dir = demo_dir / "run"

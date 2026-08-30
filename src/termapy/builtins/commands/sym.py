@@ -25,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+from termapy.config import cfg_relative_path
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import CmdResult, Command, UsageError, format_kv_lines
 from termapy.plugins.params import EnumValue, ParamSpec
@@ -85,10 +86,7 @@ def _anchor(ctx: PluginContext, raw: str) -> Path:
     what makes it mean "relative to the config", not to the process CWD
     (which under the MCP server is wherever the client started it).
     """
-    path = Path(raw)
-    if not path.is_absolute() and ctx.config_path:
-        return Path(ctx.config_path).parent / path
-    return path
+    return cfg_relative_path(ctx.config_path, raw)
 
 
 # ── handlers ───────────────────────────────────────────────────────────────

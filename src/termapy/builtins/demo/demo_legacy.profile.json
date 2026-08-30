@@ -1,0 +1,30 @@
+{
+  "profile_version": 2,
+  "profile_revision": "1.0.0",
+  "profile_date": "2026-08-29",
+
+  "device": {
+    "name": "Bassomatic v77 (legacy memory grammar)",
+    "vendor": "termapy",
+    "model": "DEMO"
+  },
+
+  "memory": {
+    "dialect": "template",
+    "read": "mem {addr:X} {len}",
+    "write": "mem {addr:X} ={byte:02X}",
+    "ack": "^ok\\b",
+    "error": "(?i)^\\s*err\\b",
+    "max_block": 256,
+    "address_bits": 32,
+    "endian": "le"
+  },
+
+  "commands": {
+    "mem": {
+      "help": "Hex dump at addr; =val writes a byte, half-word or word by digit count: <addr> (count|=val)",
+      "safety": "readonly",
+      "response": {"format": "regex", "pattern": "(?s)(?P<text>.*)", "timeout_ms": 1000}
+    }
+  }
+}

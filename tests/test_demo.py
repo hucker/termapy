@@ -130,7 +130,7 @@ class TestAsciiCommands:
 
     def test_mem_no_addr(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "mem")
-        assert "00000000:" in actual, "defaults to address 0"
+        assert actual.startswith("err: expected hex address"), "a real monitor refuses a bare mem"
 
     def test_help_json(self, dev: FakeSerial) -> None:
         """AT+HELP.JSON returns valid JSON with device commands."""

@@ -18,6 +18,7 @@ import pytest
 from termapy.memory import (
     DEFAULT_ADDRESS_BITS,
     DEFAULT_MAX_BLOCK,
+    DEFAULT_ROW_PATTERN,
     DIALECTS,
     DeviceMemoryError,
     DumpRow,
@@ -26,7 +27,9 @@ from termapy.memory import (
     assemble,
     dump_rows,
     format_row,
+    make_dialect,
     parse_reply,
+    parse_template_block,
     read_command,
     reply_complete,
     resolve_info,
@@ -387,7 +390,7 @@ class TestResolveInfo:
     def test_unknown_dialect_is_kept_and_refused_by_the_engine(self):
         info = resolve_info({"dialect": "uboot"}, None)
         assert info.dialect == "uboot", "the resolver records what the profile said"
-        with pytest.raises(ValueError, match="Unknown memory dialect: uboot \\(dialects: termapy\\)"):
+        with pytest.raises(ValueError, match="Unknown memory dialect: uboot \\(dialects: termapy, template\\)"):
             Memory(lambda command: "", info)
 
 
@@ -415,6 +418,239 @@ class TestValidateBlock:
 
     def test_dialects_table_is_the_vocabulary(self):
         assert "termapy" in DIALECTS, "the published dialect is registered"
+
+
+# ── The template dialect: a monitor with its own grammar ────────────────────
+
+
+LEGACY_BLOCK = {
+    "dialect": "template",
+    "read": "mem {addr:X} {len}",
+    "write": "mem {addr:X} ={byte:02X}",
+    "ack": r"^ok\b",
+    "error": r"(?i)^\s*err\b",
+    "max_block": 256,
+}
+
+
+class FakeLegacyDevice:
+    """A monitor speaking ``mem <addr> [count]`` / ``mem <addr> =<hex>``.
+
+    Rows are ``ADDR:  XX XX XX XX  XX ...  |ascii|`` with no terminator;
+    writes answer ``ok [ADDR] 0xOLD -> 0xNEW (byte)``; failures ``err: ...``.
+    """
+
+    def __init__(self, *, max_count: int = 256, echo: bool = False, prompt: str = "") -> None:
+        self.ram = bytearray(((i * 7) ^ 0x5A) & 0xFF for i in range(SIZE))
+        self.max_count = max_count
+        self.echo = echo
+        self.prompt = prompt
+        self.sent: list[str] = []
+
+    def exchange(self, command: str) -> str:
+        self.sent.append(command)
+        lines: list[str] = []
+        if self.echo:
+            lines.append(f"> {command}")
+        lines.extend(self._answer(command))
+        if self.prompt:
+            lines.append(self.prompt)
+        return "\r\n".join(lines) + "\r\n"
+
+    def _answer(self, command: str) -> list[str]:
+        parts = command.split()
+        addr = int(parts[1], 16)
+        if len(parts) > 2 and parts[2].startswith("="):
+            if not BASE <= addr < BASE + SIZE:
+                return [f"err: address {addr:08X} not mapped"]
+            old = self.ram[addr - BASE]
+            self.ram[addr - BASE] = int(parts[2][1:], 16)
+            return [f"ok [{addr:08X}] 0x{old:02X} -> 0x{self.ram[addr - BASE]:02X} (byte)"]
+        count = min(int(parts[2]) if len(parts) > 2 else 16, self.max_count)
+        if not (BASE <= addr and addr + count <= BASE + SIZE):
+            return [f"err: address range {addr:08X}..{addr + count - 1:08X} not mapped (would HardFault)"]
+        data = self.ram[addr - BASE:addr - BASE + count]
+        rows = []
+        for i in range(0, count, 16):
+            row = data[i:i + 16]
+            line = f"{addr + i:08X}:"
+            for j in range(16):
+                if j % 4 == 0:
+                    line += " "
+                line += f" {row[j]:02X}" if j < len(row) else "   "
+            ascii_part = "".join(chr(byte) if 0x20 <= byte <= 0x7E else "." for byte in row)
+            rows.append(f"{line}  |{ascii_part}|")
+        return rows
+
+
+def _legacy_memory(device: FakeLegacyDevice, block: dict | None = None) -> Memory:
+    block = LEGACY_BLOCK if block is None else block
+    info = resolve_info(block, None)
+    return Memory(device.exchange, info, make_dialect(info, block))
+
+
+class TestTemplateBlock:
+
+    def test_parse_defaults(self):
+        spec = parse_template_block({"read": "rd {addr:X} {len}"})
+        assert spec.write is None, "no write template = read-only"
+        assert spec.ack is None, "no ack expected by default"
+        assert spec.row.pattern == DEFAULT_ROW_PATTERN, "the generic row"
+        assert spec.row_bytes == 16 and spec.settle_ms == 100, "defaults"
+
+    @pytest.mark.parametrize(
+        "block, message",
+        [
+            ({}, "memory/read: required for the template dialect"),
+            ({"read": "rd {addr}"}, "memory/read: must use {addr} and {len}"),
+            ({"read": "rd {addr} {len} {nope}"}, "memory/read: bad placeholder"),
+            ({"read": "rd {addr} {len}", "write": "wr {addr}"}, "memory/write: must use {byte}"),
+            ({"read": "rd {addr} {len}", "row": "("}, "memory/row: invalid regex"),
+            ({"read": "rd {addr} {len}", "row": "^(?P<addr>..):"}, "memory/row: regex needs"),
+            ({"read": "rd {addr} {len}", "ack": 3}, "memory/ack: expected a regex string"),
+            ({"read": "rd {addr} {len}", "settle_ms": 0}, "memory/settle_ms: expected a positive integer"),
+        ],
+    )
+    def test_problems_are_field_qualified(self, block, message):
+        with pytest.raises(ValueError, match=message.replace("(", r"\(").replace("{", r"\{")):
+            parse_template_block(block)
+
+    def test_validate_block_reports_template_problems_as_warnings(self):
+        warnings = validate_block({"dialect": "template"})
+        assert any("memory/read: required" in warning and "refuse" in warning for warning in warnings), (
+            "the lint says what /mem.* will do"
+        )
+
+    def test_make_dialect_needs_the_block(self):
+        with pytest.raises(ValueError, match="memory/read: required"):
+            make_dialect(resolve_info({"dialect": "template"}, None), None)
+
+    def test_hex_write_template_means_block_writes(self):
+        dialect = make_dialect(
+            resolve_info(LEGACY_BLOCK, None), {**LEGACY_BLOCK, "write": "wr {addr:X} {hex}"},
+        )
+        assert dialect.write_unit == 0, "{hex} = one command per block"
+        assert dialect.write_request(0x1000, b"\x1b\x00") == "wr 1000 1B00"
+
+
+class TestTemplateRead:
+
+    def test_rows_with_ascii_column(self):
+        # Arrange
+        device = FakeLegacyDevice()
+        memory = _legacy_memory(device)
+
+        # Act
+        data = memory.read(0x1000, 20)
+
+        # Assert
+        assert device.sent == ["mem 1000 20"], "the read template, addr in hex, len in decimal"
+        assert data == bytes(device.ram[:20]), "grouped pairs parsed, ASCII column ignored"
+
+    def test_chunks_to_max_block(self):
+        device = FakeLegacyDevice()
+        memory = _legacy_memory(device, {**LEGACY_BLOCK, "max_block": 32})
+        assert memory.read(0x1000, 70) == bytes(device.ram[:70]), "32 + 32 + 6"
+        assert device.sent == ["mem 1000 32", "mem 1020 32", "mem 1040 6"], "chunked to the device's limit"
+
+    def test_echo_and_prompt_tolerated(self):
+        device = FakeLegacyDevice(echo=True, prompt="mon> ")
+        assert _legacy_memory(device).read(0x1000, 4) == bytes(device.ram[:4])
+
+    def test_device_error_line_is_the_message(self):
+        device = FakeLegacyDevice()
+        with pytest.raises(DeviceMemoryError, match="^Device error: err: address range 00009000..00009003 not mapped"):
+            _legacy_memory(device).read(0x9000, 4)
+
+    def test_silence(self):
+        memory = _legacy_memory(FakeLegacyDevice())
+        memory._exchange = lambda command: ""
+        with pytest.raises(DeviceMemoryError, match="^No reply to mem 1000 4$"):
+            memory.read(0x1000, 4)
+
+    def test_unrecognized_reply(self):
+        memory = _legacy_memory(FakeLegacyDevice())
+        memory._exchange = lambda command: "Unknown command: mem\r\n"
+        with pytest.raises(DeviceMemoryError, match="^Unrecognized reply to mem 1000 4: Unknown command: mem$"):
+            memory.read(0x1000, 4)
+
+    def test_short_reply(self):
+        memory = _legacy_memory(FakeLegacyDevice())
+        memory._exchange = lambda command: "00001000:  01 02\r\n"
+        with pytest.raises(DeviceMemoryError, match="Short reply: 2 of 4 bytes"):
+            memory.read(0x1000, 4)
+
+    def test_bare_ascii_column_cannot_lengthen_a_full_row(self):
+        # Arrange -- a dump whose ASCII column is not delimited and starts
+        # with hex-looking text: the row cap keeps it out of the data
+        memory = _legacy_memory(FakeLegacyDevice())
+        row = " ".join(f"{i:02X}" for i in range(16))
+        memory._exchange = lambda command: f"00001000: {row}  AB..CD..\r\n00001010: 10 11 12 13  ....\r\n"
+
+        # Act
+        data = memory.read(0x1000, 20)
+
+        # Assert
+        assert data == bytes(range(16)) + b"\x10\x11\x12\x13", "16 per row, then the tail; nothing from the column"
+
+    def test_terminator_completes_the_reply(self):
+        dialect = make_dialect(resolve_info(LEGACY_BLOCK, None), {**LEGACY_BLOCK, "terminator": r"^mon> $"})
+        assert dialect.complete("00001000:  01\r\n") is False, "still waiting"
+        assert dialect.complete("00001000:  01\r\nmon> ") is True, "the prompt ends it"
+
+    def test_no_terminator_never_completes_early(self):
+        dialect = make_dialect(resolve_info(LEGACY_BLOCK, None), LEGACY_BLOCK)
+        assert dialect.complete("00001000:  01\r\n") is False, "framed by the idle gap instead"
+        assert dialect.settle_ms == 100, "the default gap"
+
+
+class TestTemplateWrite:
+
+    def test_one_command_per_byte_with_ack(self):
+        # Arrange
+        device = FakeLegacyDevice()
+        memory = _legacy_memory(device)
+
+        # Act
+        count = memory.write(0x1000, b"\x2c\x01")
+
+        # Assert
+        assert count == 2
+        assert device.sent == ["mem 1000 =2C", "mem 1001 =01"], "the write template, one byte each"
+        assert bytes(device.ram[:2]) == b"\x2c\x01", "both landed"
+
+    def test_missing_ack_is_an_error(self):
+        memory = _legacy_memory(FakeLegacyDevice())
+        memory._exchange = lambda command: ""
+        with pytest.raises(DeviceMemoryError, match="^No acknowledgement to mem 1000 =2C$"):
+            memory.write(0x1000, b"\x2c")
+
+    def test_unexpected_reply_is_an_error(self):
+        memory = _legacy_memory(FakeLegacyDevice())
+        memory._exchange = lambda command: "huh?\r\n"
+        with pytest.raises(DeviceMemoryError, match="^Unexpected reply to mem 1000 =2C: huh\\?$"):
+            memory.write(0x1000, b"\x2c")
+
+    def test_device_error_on_write(self):
+        with pytest.raises(DeviceMemoryError, match="^Device error: err: address 00009000 not mapped$"):
+            _legacy_memory(FakeLegacyDevice()).write(0x9000, b"\x00")
+
+    def test_read_only_block_refuses_writes(self):
+        block = {key: value for key, value in LEGACY_BLOCK.items() if key != "write"}
+        device = FakeLegacyDevice()
+        with pytest.raises(DeviceMemoryError, match="Memory block declares no write template."):
+            _legacy_memory(device, block).write(0x1000, b"\x00")
+        assert device.sent == [], "nothing sent"
+
+    def test_no_ack_configured_accepts_silence(self):
+        block = {key: value for key, value in LEGACY_BLOCK.items() if key != "ack"}
+        memory = _legacy_memory(FakeLegacyDevice(), block)
+        memory._exchange = lambda command: ""
+        assert memory.write(0x1000, b"\x00") == 1, "fire-and-forget write is fine when no ack is declared"
+
+    def test_query_info_refused(self):
+        with pytest.raises(DeviceMemoryError, match="Dialect template has no MEM.INFO"):
+            _legacy_memory(FakeLegacyDevice()).query_info()
 
 
 # ── Dump rows ───────────────────────────────────────────────────────────────

@@ -438,3 +438,39 @@ class TestProfileLoadFromDevice:
         )
 
 
+
+
+# ── /profile.load resolves a bare name beside the cfg ───────────────────────
+
+
+class TestProfileLoadCfgRelative:
+    """A relative path means "beside the cfg" first, the CWD form second.
+
+    Under the MCP server the CWD is wherever the client started it, so a
+    bare ``x.profile.json`` must find the file that lives with the config
+    -- the same rule ``/sym.load`` applies.
+    """
+
+    def test_bare_name_loads_the_profile_beside_the_cfg(self, env):
+        # Arrange
+        eng, ctx, _ = env
+        from pathlib import Path as _Path
+
+        from termapy.profile import SCHEMA_PATH
+
+        reference = _Path(SCHEMA_PATH).parent.parent / "builtins" / "demo" / "demo.profile.json"
+        beside = _Path(ctx.config_path).with_name("local.profile.json")
+        beside.write_bytes(reference.read_bytes())
+
+        # Act -- the test process CWD is the repo root, not the cfg folder
+        result = eng.dispatch("profile.load local.profile.json")
+
+        # Assert
+        assert result.success, result.error
+        assert ctx.ns("active_profile").get("device", {}).get("model") == "DEMO", "the demo profile is active"
+
+    def test_missing_bare_name_names_what_was_typed(self, env):
+        eng, _, _ = env
+        result = eng.dispatch("profile.load nosuch.profile.json")
+        assert not result.success
+        assert "Profile not found: nosuch.profile.json" in result.error, "falls back to the typed path in the error"

@@ -93,7 +93,7 @@ class TestMemRead:
             ("MEM.R 0x1000 x", "usage"),
             ("MEM.R 0x1000 0", "length"),
             ("MEM.R 0x1000 65", "length"),
-            ("MEM.R 0x0FFF 2", "range"),
+            ("MEM.R 0x4000 1", "range"),
             ("MEM.R 0x3FFF 2", "range"),
             ("MEM.R 0x9000 1", "range"),
             ("MEM.R 0xBF806020 1", "range"),
@@ -157,17 +157,65 @@ class TestMemWrite:
         assert _exchange(dev, "MEM.X 0x1000").splitlines() == ["ERR usage"], "unknown MEM.* verb"
 
 
-class TestLegacyGrammarUntouched:
+class TestLegacyGrammar:
+    """The device's own ``mem`` syntax -- the template dialect's worked example.
 
-    def test_lowercase_mem_is_still_the_hash_dump(self, dev):
-        # Arrange / Act -- the legacy `mem <addr> [len]` grammar
+    Mirrors a real monitor: grouped hex rows with an ASCII column and no
+    terminator, ``=val`` writes sized by digit count, ``err:`` failures.
+    """
+
+    def test_dump_row_shape(self, dev):
+        # Act
         text = _exchange(dev, "mem 0x1000 16")
 
-        # Assert
+        # Assert -- 4-byte groups, ASCII column, no OK line
         line = text.splitlines()[0]
-        assert line.startswith("  00001000: ") and "OK" not in text, (
-            "the legacy dump keeps its own row shape and no OK terminator"
-        )
+        assert line.startswith("00001000:  1B 00 00 50  7D 44 3A 21  "), "grouped pairs after the address"
+        assert line.endswith("|"), "ASCII column closed with |"
+        assert "OK" not in text, "a monitor dump has no terminator"
+
+    def test_same_bytes_as_the_native_spec(self, dev):
+        legacy = _exchange(dev, "mem 0x1000 8").splitlines()[0]
+        native = _exchange(dev, "MEM.R 0x1000 8").splitlines()[0]
+        assert legacy.split("|")[0].replace(" ", "") == native.replace(" ", ""), "one RAM behind both grammars"
+
+    def test_short_last_row_is_space_padded(self, dev):
+        line = _exchange(dev, "mem 0x1000 4").splitlines()[0]
+        assert line == "00001000:  1B 00 00 50" + " " * 39 + "  |...P|", "missing slots keep the column layout"
+
+    def test_count_default_and_clamp(self, dev):
+        assert len(_exchange(dev, "mem 0x1000").splitlines()) == 1, "default count 16 = one row"
+        assert len(_exchange(dev, "mem 0x1000 999").splitlines()) == 16, "count clamped to 256"
+
+    @pytest.mark.parametrize(
+        "command, expected",
+        [
+            ("mem 0x1000 =2C", "ok [00001000] 0x1B -> 0x2C (byte)"),
+            ("mem 0x1000 =012C", "ok [00001000] 0x001B -> 0x012C (half)"),
+            ("mem 0x1008 =00000007", "ok [00001008] 0x00000005 -> 0x00000007 (word)"),
+        ],
+    )
+    def test_write_width_by_digit_count(self, dev, command, expected):
+        assert _exchange(dev, command).splitlines() == [expected], "old -> new, sized by the digits typed"
+
+    def test_write_persists(self, dev):
+        _exchange(dev, "mem 0x1000 =2C")
+        assert _exchange(dev, "MEM.R 0x1000 1").splitlines()[0] == "00001000: 2C", "visible through the spec too"
+
+    @pytest.mark.parametrize(
+        "command, reason",
+        [
+            ("mem", "err: expected hex address, pin name, or peripheral name"),
+            ("mem zz", "err: expected hex address, pin name, or peripheral name"),
+            ("mem 0x1000 =", "err: expected hex value after '='"),
+            ("mem 0x1001 =0102", "err: half-word write requires 2-byte alignment"),
+            ("mem 0x1002 =01020304", "err: word write requires 4-byte alignment"),
+            ("mem 0x9000 =01", "err: address 00009000 not mapped"),
+            ("mem 0x9000 4", "err: address range 00009000..00009003 not mapped (would HardFault)"),
+        ],
+    )
+    def test_errors(self, dev, command, reason):
+        assert _exchange(dev, command).splitlines() == [reason]
 
 
 class TestEngineOverFakeSerial:

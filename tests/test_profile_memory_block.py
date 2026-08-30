@@ -52,6 +52,19 @@ class TestMemoryBlock:
         warnings = _memory_warnings({"memory": {"max_block": 0}})
         assert any("max_block" in warning and "default 64" in warning for warning in warnings)
 
+    def test_template_block_without_read_warns_with_the_refusal(self):
+        warnings = _memory_warnings({"memory": {"dialect": "template"}})
+        assert any("memory/read: required" in warning and "refuse" in warning for warning in warnings)
+
+    def test_template_bad_regex_warns(self):
+        warnings = _memory_warnings({"memory": {"dialect": "template", "read": "r {addr} {len}", "ack": "("}})
+        assert any("memory/ack: invalid regex" in warning for warning in warnings)
+
+    def test_demo_legacy_profile_lints_clean(self):
+        profile = json.loads(DEMO_PROFILE.with_name("demo_legacy.profile.json").read_text(encoding="utf-8"))
+        assert profile["memory"]["dialect"] == "template"
+        assert _memory_warnings(profile) == [], "the shipped template block is canonical"
+
     def test_demo_profile_declares_the_block_cleanly(self):
         # Arrange
         profile = json.loads(DEMO_PROFILE.read_text(encoding="utf-8"))

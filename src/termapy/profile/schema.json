@@ -84,7 +84,15 @@
         "dialect": {"description": "Wire grammar name. Canonical: termapy.", "type": "string"},
         "max_block": {"description": "Largest byte count per MEM.R / MEM.W exchange.", "type": "integer"},
         "address_bits": {"description": "Address width; sets the printed hex width.", "type": "integer"},
-        "endian": {"description": "Byte order of multi-byte values: le or be. Stored for typed views.", "type": "string"}
+        "endian": {"description": "Byte order of multi-byte values: le or be. Stored for typed views.", "type": "string"},
+        "read": {"description": "template dialect: str.format read template with {addr} and {len}.", "type": "string"},
+        "row": {"description": "template dialect: regex for one data row with (?P<addr>...) and (?P<hex>...) groups.", "type": "string"},
+        "row_bytes": {"description": "template dialect: most bytes one row carries (default 16).", "type": "integer"},
+        "write": {"description": "template dialect: write template with {addr} and {byte} or {hex}; absent = read-only.", "type": "string"},
+        "ack": {"description": "template dialect: regex a successful write reply must contain.", "type": "string"},
+        "error": {"description": "template dialect: regex flagging a failed command.", "type": "string"},
+        "terminator": {"description": "template dialect: regex that ends a reply early (a prompt).", "type": "string"},
+        "settle_ms": {"description": "template dialect: idle gap in ms that ends a reply (default 100).", "type": "integer"}
       }
     },
     "types": {

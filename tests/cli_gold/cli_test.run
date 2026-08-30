@@ -175,6 +175,15 @@ $(BAUD) <- /port.baud_rate
 /mem.dump 0x9000 4
 /mem.write 0x1000 ZZ
 /mem.dump 0x1000 0
+# The same bytes through the device's own `mem` grammar (template dialect)
+/profile.load demo_legacy.profile.json
+/mem.info
+/mem.dump gTemp 16
+/mem.write gTemp 2C01
+/mem.dump gTemp 4
+/mem.dump 0x9000 4
+/profile.unload
+/mem.dump gTemp 2
 
 # ── REPL: help for specific commands ────────────────────────────────────────
 /print === section: help ===

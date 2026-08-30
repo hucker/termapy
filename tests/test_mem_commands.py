@@ -248,6 +248,77 @@ class TestInfo:
         assert cli.ctx.ns("memory") == {}, "a new connection forgets the old device's answer"
 
 
+class TestTemplateDialect:
+    """The same RAM through the device's own ``mem`` grammar."""
+
+    @pytest.fixture
+    def legacy(self, cli):
+        shutil.copyfile(DEMO_DIR / "demo_legacy.profile.json", Path(cli.config_path).with_name("demo_legacy.profile.json"))
+        loaded = cli.repl.dispatch("profile.load demo_legacy.profile.json")  # cfg-relative
+        assert loaded.success, loaded.error
+        return cli
+
+    def test_info_shows_the_template(self, legacy):
+        # Act
+        result = legacy.repl.dispatch("mem.info")
+
+        # Assert
+        assert result.value == "template", "the profile's dialect"
+        assert result.data["template"]["read"] == "mem {addr:X} {len}", "the read template"
+        assert result.data["template"]["write"] == "mem {addr:X} ={byte:02X}", "the write template"
+        assert result.data["device_info"] is None, "MEM.INFO is never asked of a template device"
+        assert result.data["sources"]["max_block"] == "profile", "256 from the block"
+
+    def test_dump_matches_the_native_dialect(self, cli):
+        # Arrange -- native first
+        native = cli.repl.dispatch("mem.dump gTemp 40").value
+        shutil.copyfile(DEMO_DIR / "demo_legacy.profile.json", Path(cli.config_path).with_name("demo_legacy.profile.json"))
+        assert cli.repl.dispatch("profile.load demo_legacy.profile.json").success
+
+        # Act
+        legacy = cli.repl.dispatch("mem.dump gTemp 40")
+
+        # Assert
+        assert legacy.success, legacy.error
+        assert legacy.value == native, "one RAM, two grammars, same bytes"
+
+    def test_write_is_one_command_per_byte_and_audited(self, legacy):
+        # Act
+        written = legacy.repl.dispatch("mem.write gTemp 2C01")
+        read = legacy.repl.dispatch("mem.dump gTemp 2")
+
+        # Assert
+        assert written.success, written.error
+        assert written.value == "2"
+        assert read.value == "2C01", "both bytes landed through =val writes"
+        assert any(text == "MEM.W 0x00001000 before=1B00 after=2C01 origin=cli" for _, text in legacy.audit), (
+            "the audit line does not care which dialect carried the write"
+        )
+
+    def test_device_error_is_reported_verbatim(self, legacy):
+        result = legacy.repl.dispatch("mem.dump 0x9000 4")
+        assert not result.success
+        assert "Device error: err: address range 00009000..00009003 not mapped" in result.error
+
+    def test_unload_returns_to_the_native_spec(self, legacy):
+        legacy.repl.dispatch("profile.unload")
+        result = legacy.repl.dispatch("mem.info")
+        assert result.value == "termapy", "no profile block -> the native dialect again"
+
+    def test_broken_template_block_refuses_with_the_field(self, cli, tmp_path):
+        # Arrange -- a template block with no read template
+        broken = Path(cli.config_path).with_name("broken.profile.json")
+        broken.write_text(json.dumps({"profile_version": 2, "memory": {"dialect": "template"}, "commands": {}}))
+        assert cli.repl.dispatch("profile.load broken.profile.json").success, "lint warns, load succeeds"
+
+        # Act
+        result = cli.repl.dispatch("mem.dump gTemp 2")
+
+        # Assert
+        assert not result.success
+        assert "memory/read: required for the template dialect" in result.error, "the same message the lint gave"
+
+
 class TestNotConnected:
 
     def test_dump_needs_a_port(self, cli):

@@ -1292,6 +1292,14 @@ class ReplEngine:
             # request_mode applies to every bare command.
             if self.cfg.get("request_mode") and self.ctx.serial.write is not None:
                 return self._exec_request_mode(cmd)
+            # ``--json`` is the per-call form of that dial: a bare device
+            # line carrying it is ONE request/response, not a fire-and-
+            # forget send wrapped in /term.send's envelope (which answers
+            # before the device does, so the reply would land in the
+            # scrollback instead of in ``value``).
+            bare, wants_json = _strip_json_flag(cmd)
+            if wants_json and self.ctx.serial.write is not None:
+                return self._exec_request_mode(bare)
             if not cmd:
                 # Empty bare line from send_bare_enter: send just the
                 # configured line ending.  /term.send rejects empty args, so

@@ -255,4 +255,6 @@ AT
 AT+PROD-ID
 /nope_bogus_cmd
 /term.request off
+# A bare device line with --json is one request/response (per-call form of the dial)
+MEM.R 0x1000 2 --json
 /print prose is back

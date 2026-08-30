@@ -1,149 +1,149 @@
 Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
   === section: device commands ===
-  [1/187] /print === section: device commands === (371us)
+  [1/188] /print === section: device commands === (301us)
 demo> AT
 OK
-  [2/187] AT (37us)
+  [2/188] AT (29us)
 demo> AT+PROD-ID
 +PROD-ID:BASSOMATIC-77
-  [3/187] AT+PROD-ID (62us)
+  [3/188] AT+PROD-ID (32us)
 demo> AT+LED on
 OK
-  [4/187] AT+LED on (65us)
+  [4/188] AT+LED on (46us)
 demo> AT+LED off
 OK
-  [5/187] AT+LED off (26us)
+  [5/188] AT+LED off (40us)
 demo> AT+NAME?
 +NAME:Bassomatic v77
-  [6/187] AT+NAME? (41us)
+  [6/188] AT+NAME? (39us)
 demo> AT+NAME=TestDevice
 OK
-  [7/187] AT+NAME=TestDevice (35us)
+  [7/188] AT+NAME=TestDevice (44us)
 demo> AT+NAME?
 +NAME:TestDevice
-  [8/187] AT+NAME? (39us)
+  [8/188] AT+NAME? (30us)
 demo> AT+BAUD?
 +BAUD:115200
-  [9/187] AT+BAUD? (41us)
+  [9/188] AT+BAUD? (26us)
 demo> mem 0x1000 32
   00001000: 00 B1 62 13 C4 75 26 D7 88 39 EA 9B 4C FD AE 5F  ..b..u&..9..L.._
   00001010: 10 C1 72 23 D4 85 36 E7 98 49 FA AB 5C 0D BE 6F  ..r#..6..I..\..o
-  [10/187] mem 0x1000 32 (155us)
+  [10/188] mem 0x1000 32 (104us)
 demo> mem 0x2000 16
   00002000: 00 B1 62 13 C4 75 26 D7 88 39 EA 9B 4C FD AE 5F  ..b..u&..9..L.._
-  [11/187] mem 0x2000 16 (79us)
+  [11/188] mem 0x2000 16 (95us)
 demo> AT+TEXTDUMP 3
 [000000ms] temp=22.0C voltage=3.3V sample=0
 [000050ms] temp=22.7C voltage=3.43V sample=1
 [000100ms] temp=23.4C voltage=3.36V sample=2
-  [12/187] AT+TEXTDUMP 3 (52us)
+  [12/188] AT+TEXTDUMP 3 (66us)
 demo> BOGUS
 ERROR: Unknown command 'BOGUS'
-  [13/187] BOGUS (34us)
+  [13/188] BOGUS (26us)
 demo> AT+LED on
 OK
-  [14/187] AT+LED on (34us)
+  [14/188] AT+LED on (33us)
 demo> AT+LED off
 OK
-  [15/187] AT+LED off (25us)
+  [15/188] AT+LED off (52us)
   === section: print and echo ===
-  [16/187] /print === section: print and echo === (415us)
+  [16/188] /print === section: print and echo === (301us)
   off
-  [17/187] /term.echo_repl off (123us)
+  [17/188] /term.echo_repl off (248us)
   repl echo is off - this output appears, with no command-echo above it
-  [18/187] /print repl echo is off - this output appears, with no co... (115us)
+  [18/188] /print repl echo is off - this output appears, with no co... (176us)
   on
-  [19/187] /term.echo_repl on (115us)
+  [19/188] /term.echo_repl on (178us)
 demo> /print repl echo is on - this output appears with its command-echo above it
   repl echo is on - this output appears with its command-echo above it
-  [20/187] /print repl echo is on - this output appears with its com... (104us)
+  [20/188] /print repl echo is on - this output appears with its com... (167us)
 demo> /print === section: variables ===
   === section: variables ===
-  [21/187] /print === section: variables === (97us)
+  [21/188] /print === section: variables === (236us)
 > $(DEVICE) = BASSOMATIC
   $(DEVICE) = BASSOMATIC
-  [22/187] $(DEVICE) = BASSOMATIC (221us)
+  [22/188] $(DEVICE) = BASSOMATIC (436us)
 > $(PORT_NUM) = 42
   $(PORT_NUM) = 42
-  [23/187] $(PORT_NUM) = 42 (391us)
+  [23/188] $(PORT_NUM) = 42 (345us)
 demo> /print device=$(DEVICE) port=$(PORT_NUM)
   device=BASSOMATIC port=42
-  [24/187] /print device=$(DEVICE) port=$(PORT_NUM) (136us)
+  [24/188] /print device=$(DEVICE) port=$(PORT_NUM) (256us)
 demo> /var DEVICE
   $(DEVICE) = BASSOMATIC
-  [25/187] /var DEVICE (179us)
+  [25/188] /var DEVICE (161us)
 demo> /var PORT_NUM
   $(PORT_NUM) = 42
-  [26/187] /var PORT_NUM (211us)
+  [26/188] /var PORT_NUM (182us)
 demo> /var.set DEVICE updated_value
   $(DEVICE) = updated_value
-  [27/187] /var.set DEVICE updated_value (235us)
+  [27/188] /var.set DEVICE updated_value (178us)
 demo> /var DEVICE
   $(DEVICE) = updated_value
-  [28/187] /var DEVICE (133us)
+  [28/188] /var DEVICE (182us)
 > $(BAUD) <- /port.baud_rate
   $(BAUD) = 115200
-  [29/187] $(BAUD) <- /port.baud_rate (273us)
+  [29/188] $(BAUD) <- /port.baud_rate (240us)
 demo> /var BAUD
   $(BAUD) = 115200
-  [30/187] /var BAUD (152us)
+  [30/188] /var BAUD (203us)
 demo> /var.clear
   Cleared 3 variable(s).
-  [31/187] /var.clear (101us)
+  [31/188] /var.clear (152us)
 demo> /var DEVICE
     $(DEVICE) - not defined
-  [32/187] /var DEVICE (121us)
+  [32/188] /var DEVICE (247us)
 demo> /print === section: config read ===
   === section: config read ===
-  [33/187] /print === section: config read === (101us)
+  [33/188] /print === section: config read === (143us)
 demo> /cfg baud_rate
   115200
-  [34/187] /cfg baud_rate (113us)
+  [34/188] /cfg baud_rate (111us)
 demo> /cfg encoding
   utf-8
-  [35/187] /cfg encoding (105us)
+  [35/188] /cfg encoding (106us)
 demo> /cfg eol
 
-  [36/187] /cfg eol (99us)
+  [36/188] /cfg eol (95us)
 demo> /cfg parity
   N
-  [37/187] /cfg parity (102us)
+  [37/188] /cfg parity (308us)
 demo> /cfg byte_size
   8
-  [38/187] /cfg byte_size (106us)
+  [38/188] /cfg byte_size (165us)
 demo> /cfg stop_bits
   1
-  [39/187] /cfg stop_bits (133us)
+  [39/188] /cfg stop_bits (111us)
 demo> /cfg flow_control
   none
-  [40/187] /cfg flow_control (120us)
+  [40/188] /cfg flow_control (101us)
 demo> /cfg echo
   True
-  [41/187] /cfg echo (113us)
+  [41/188] /cfg echo (115us)
 demo> /cfg send_bare_enter
   False
-  [42/187] /cfg send_bare_enter (108us)
+  [42/188] /cfg send_bare_enter (104us)
 demo> /cfg cmd_prefix
   /
-  [43/187] /cfg cmd_prefix (98us)
+  [43/188] /cfg cmd_prefix (99us)
 demo> /print === section: config auto-set ===
   === section: config auto-set ===
-  [44/187] /print === section: config auto-set === (103us)
+  [44/188] /print === section: config auto-set === (101us)
 demo> /cfg.auto echo true
   echo = True  (session)
-  [45/187] /cfg.auto echo true (124us)
+  [45/188] /cfg.auto echo true (114us)
 demo> /cfg echo
   True
-  [46/187] /cfg echo (101us)
+  [46/188] /cfg echo (106us)
 demo> /cfg.auto echo false
   echo = False  (session)
-  [47/187] /cfg.auto echo false (110us)
+  [47/188] /cfg.auto echo false (118us)
 demo> /cfg echo
   False
-  [48/187] /cfg echo (100us)
+  [48/188] /cfg echo (100us)
 demo> /print === section: config dump ===
   === section: config dump ===
-  [49/187] /print === section: config dump === (110us)
+  [49/188] /print === section: config dump === (139us)
 demo> /cfg.dump
   {
       "config_version": 29,
@@ -237,66 +237,66 @@ demo> /cfg.dump
           }
       ]
   }
-  [50/187] /cfg.dump (2.07ms)
+  [50/188] /cfg.dump (2.11ms)
 demo> /print === section: config folders ===
   === section: config folders ===
-  [51/187] /print === section: config folders === (110us)
+  [51/188] /print === section: config folders === (112us)
 demo> /run.list
     run/
       NAME                 SIZE    UPDATED   SUMMARY
       crc_tour.run         2.3 KB  just now  the whole /proto.crc.* API in one screen
       doc_screenshots.run  3.3 KB  just now  Generate documentation images
       expect_test.run       354 B  just now  Expect command test
-      var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
-      gps_demo.run          622 B  just now  GPS/NMEA Demo -- Query simulated GPS receiver
       smoke_test.run       1.1 KB  just now  Smoke test for demo device
       status_check.run       72 B  just now  Quick status check
+      var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
       at_demo.run           825 B  just now  AT Command Demo -- Walks through all demo device commands
+      gps_demo.run          622 B  just now  GPS/NMEA Demo -- Query simulated GPS receiver
       welcome.run           978 B  just now  Welcome script -- Runs on connect via on_connect_cmd config
-  [52/187] /run.list (73.2ms)
+  [52/188] /run.list (107ms)
 demo> /proto.list
     proto/
       NAME                 SIZE    UPDATED
+      at_test.pro           829 B  just now
       bitfield_inline.pro  2.7 KB  just now
       modbus_inline.pro    2.2 KB  just now
-      at_test.pro           829 B  just now
-  [53/187] /proto.list (1.34ms)
+  [53/188] /proto.list (1.25ms)
 demo> /print === section: port read ===
   === section: port read ===
-  [54/187] /print === section: port read === (120us)
+  [54/188] /print === section: port read === (115us)
 demo> /port.baud_rate
   115200
-  [55/187] /port.baud_rate (133us)
+  [55/188] /port.baud_rate (149us)
 demo> /port.parity
   N
-  [56/187] /port.parity (191us)
+  [56/188] /port.parity (112us)
 demo> /port.byte_size
   8
-  [57/187] /port.byte_size (114us)
+  [57/188] /port.byte_size (107us)
 demo> /port.stop_bits
   1
-  [58/187] /port.stop_bits (111us)
+  [58/188] /port.stop_bits (104us)
 demo> /port.flow_control
   none
-  [59/187] /port.flow_control (118us)
+  [59/188] /port.flow_control (106us)
 demo> /port.dtr
   1
-  [60/187] /port.dtr (111us)
+  [60/188] /port.dtr (111us)
 demo> /port.rts
   1
-  [61/187] /port.rts (120us)
+  [61/188] /port.rts (111us)
 demo> /port.cts
   1
-  [62/187] /port.cts (108us)
+  [62/188] /port.cts (105us)
 demo> /port.dsr
   1
-  [63/187] /port.dsr (104us)
+  [63/188] /port.dsr (107us)
 demo> /port.ri
   0
-  [64/187] /port.ri (102us)
+  [64/188] /port.ri (106us)
 demo> /port.cd
   1
-  [65/187] /port.cd (112us)
+  [65/188] /port.cd (103us)
 demo> /port.info
   Port        : DEMO  (connected)
   Baud rate   : 115200
@@ -318,55 +318,55 @@ demo> /port.info
   DSR: 1
   RI : 0
   CD : 1
-  [66/187] /port.info (6.42ms)
+  [66/188] /port.info (7.06ms)
 demo> /print === section: port modify ===
   === section: port modify ===
-  [67/187] /print === section: port modify === (361us)
+  [67/188] /print === section: port modify === (110us)
 demo> /port.dtr 0
   DTR -> 0
-  [68/187] /port.dtr 0 (147us)
+  [68/188] /port.dtr 0 (122us)
 demo> /port.dtr
   0
-  [69/187] /port.dtr (130us)
+  [69/188] /port.dtr (107us)
 demo> /port.dtr 1
   DTR -> 1
-  [70/187] /port.dtr 1 (134us)
+  [70/188] /port.dtr 1 (108us)
 demo> /port.dtr
   1
-  [71/187] /port.dtr (117us)
+  [71/188] /port.dtr (103us)
 demo> /port.rts 0
   RTS -> 0
-  [72/187] /port.rts 0 (116us)
+  [72/188] /port.rts 0 (110us)
 demo> /port.rts
   0
-  [73/187] /port.rts (107us)
+  [73/188] /port.rts (106us)
 demo> /print === section: port disconnect/connect ===
   === section: port disconnect/connect ===
-  [74/187] /print === section: port disconnect/connect === (113us)
+  [74/188] /print === section: port disconnect/connect === (106us)
 demo> /port.disconnect
 Disconnected: DEMO
-  [75/187] /port.disconnect (7.06ms)
+  [75/188] /port.disconnect (5.15ms)
 demo> /port.baud_rate
   115200 (disconnected)
-  [76/187] /port.baud_rate (171us)
+  [76/188] /port.baud_rate (126us)
 demo> /port.connect
 Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
-  [77/187] /port.connect (6.07ms)
+  [77/188] /port.connect (6.25ms)
 demo> /port.baud_rate
   115200
-  [78/187] /port.baud_rate (143us)
+  [78/188] /port.baud_rate (136us)
 demo> /print === section: port break ===
   === section: port break ===
-  [79/187] /print === section: port break === (118us)
+  [79/188] /print === section: port break === (116us)
 demo> /port.break
   Break sent (250ms)
-  [80/187] /port.break (134us)
+  [80/188] /port.break (126us)
 demo> /port.break 100
   Break sent (100ms)
-  [81/187] /port.break 100 (137us)
+  [81/188] /port.break 100 (128us)
 demo> /print === section: port subcommands ===
   === section: port subcommands ===
-  [82/187] /print === section: port subcommands === (176us)
+  [82/188] /print === section: port subcommands === (105us)
 demo> /port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
@@ -406,43 +406,43 @@ SUBCOMMANDS
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
   /port.usb             Show the whole USB tree, with serial ports marked.
-  [83/187] /port (5.06ms)
+  [83/188] /port (3.96ms)
 demo> /print === section: line endings ===
   === section: line endings ===
-  [84/187] /print === section: line endings === (106us)
+  [84/188] /print === section: line endings === (111us)
 demo> /show_line_endings on
     Note: /show_line_endings is legacy; use /term.line_endings.
   eol_markers = True  (session)
   on
-  [85/187] /show_line_endings on (440us)
+  [85/188] /show_line_endings on (367us)
 demo> /show_line_endings off
   eol_markers = False  (session)
   off
-  [86/187] /show_line_endings off (451us)
+  [86/188] /show_line_endings off (232us)
 demo> /print === section: seq ===
   === section: seq ===
-  [87/187] /print === section: seq === (116us)
+  [87/188] /print === section: seq === (103us)
 demo> /seq
   No counters set.
-  [88/187] /seq (195us)
+  [88/188] /seq (103us)
 demo> /print seq1={seq1+} seq2={seq2+}
   seq1=1 seq2=1
-  [89/187] /print seq1={seq1+} seq2={seq2+} (137us)
+  [89/188] /print seq1={seq1+} seq2={seq2+} (102us)
 demo> /print seq1={seq1+} seq2={seq2}
   seq1=2 seq2=0
-  [90/187] /print seq1={seq1+} seq2={seq2} (113us)
+  [90/188] /print seq1={seq1+} seq2={seq2} (107us)
 demo> /seq
   Counters: seq1=2, seq2=0
-  [91/187] /seq (124us)
+  [91/188] /seq (109us)
 demo> /seq.reset
   Sequence counters reset.
-  [92/187] /seq.reset (111us)
+  [92/188] /seq.reset (121us)
 demo> /seq
   No counters set.
-  [93/187] /seq (106us)
+  [93/188] /seq (102us)
 demo> /print === section: proto crc ===
   === section: proto crc ===
-  [94/187] /print === section: proto crc === (103us)
+  [94/188] /print === section: proto crc === (121us)
 demo> /proto.crc.info crc16-modbus
     crc16-modbus
     Modbus RTU serial protocol
@@ -454,30 +454,30 @@ demo> /proto.crc.info crc16-modbus
   XorOut: 0x0000
   Check : 0x4B37  (CRC of '123456789')
   Spec  : CRC:crc16-modbus_le  or  CRC:crc16-modbus_be
-  [95/187] /proto.crc.info crc16-modbus (1.36ms)
+  [95/188] /proto.crc.info crc16-modbus (1.28ms)
 demo> /proto.crc.calc crc16-modbus 01 03 00 00 00 0A
     Algorithm: crc16-modbus
     Data:      01 03 00 00 00 0A  (6 bytes)
     CRC:       0xCDC5
     Bytes LE:  C5 CD
     Bytes BE:  CD C5
-  [96/187] /proto.crc.calc crc16-modbus 01 03 00 00 00 0A (3.24ms)
+  [96/188] /proto.crc.calc crc16-modbus 01 03 00 00 00 0A (2.31ms)
 demo> /proto.crc.calc crc8-maxim 48 65 6C 6C 6F
     Algorithm: crc8-maxim
     Data:      48 65 6C 6C 6F  (5 bytes)
     CRC:       0xEB
     Byte:      EB
-  [97/187] /proto.crc.calc crc8-maxim 48 65 6C 6C 6F (538us)
+  [97/188] /proto.crc.calc crc8-maxim 48 65 6C 6C 6F (517us)
 demo> /proto.crc.calc crc32 01 02 03 04
     Algorithm: crc32
     Data:      01 02 03 04  (4 bytes)
     CRC:       0xB63CFBCD
     Bytes LE:  CD FB 3C B6
     Bytes BE:  B6 3C FB CD
-  [98/187] /proto.crc.calc crc32 01 02 03 04 (606us)
+  [98/188] /proto.crc.calc crc32 01 02 03 04 (624us)
 demo> /print === section: symbols ===
   === section: symbols ===
-  [99/187] /print === section: symbols === (114us)
+  [99/188] /print === section: symbols === (111us)
 demo> /sym.info
   file        : demo.symbols.json
   source      : demo firmware (hand-written)
@@ -487,115 +487,115 @@ demo> /sym.info
   symbols     : 12  (bss 5, code 2, const 1, data 1, global 1, sfr 2)
   range       : 0x00001000 - 0xBF806014
   regions     : 0
-  [100/187] /sym.info (1.56ms)
+  [100/188] /sym.info (1.31ms)
 demo> /sym main
     0x00002000  main  [code 442 bytes main.c]
-  [101/187] /sym main (152us)
+  [101/188] /sym main (145us)
 demo> /sym 0x2010
     0x00002010  main+0x10  [code 442 bytes main.c]
-  [102/187] /sym 0x2010 (162us)
+  [102/188] /sym 0x2010 (146us)
 demo> /sym gTemp
     0x00001000  gTemp  [bss 2 bytes sensor.c]
-  [103/187] /sym gTemp (133us)
+  [103/188] /sym gTemp (141us)
 demo> /sym 4096
     0x00001000  gTemp  [bss 2 bytes sensor.c]
-  [104/187] /sym 4096 (138us)
+  [104/188] /sym 4096 (136us)
 demo> /sym 1000
   0x000003E8  -- no symbol
-  [105/187] /sym 1000 (130us)
+  [105/188] /sym 1000 (122us)
 demo> /sym main+0x10
     0x00002010  main+0x10  [code 442 bytes main.c]
-  [106/187] /sym main+0x10 (140us)
+  [106/188] /sym main+0x10 (132us)
 demo> /sym count.12
     0x0000100C  count.12  [bss 4 bytes main.c]
-  [107/187] /sym count.12 (137us)
+  [107/188] /sym count.12 (133us)
 demo> /sym count.12+4
     0x00001010  tick  [bss 4 bytes mon.c]
-  [108/187] /sym count.12+4 (143us)
+  [108/188] /sym count.12+4 (180us)
 demo> /sym tick
   Error: Ambiguous symbol: tick (0x00001010 mon.c, 0x00001014 adc.c; use tick@mon.c or the address)
-  [109/187] /sym tick (23us)
+  [109/188] /sym tick (24us)
 demo> /sym tick@adc.c
     0x00001014  tick  [bss 4 bytes adc.c]
-  [110/187] /sym tick@adc.c (161us)
+  [110/188] /sym tick@adc.c (156us)
 demo> /sym U1MODE.ON
   Error: Unsupported address suffix: .ON
-  [111/187] /sym U1MODE.ON (29us)
+  [111/188] /sym U1MODE.ON (29us)
 demo> /sym nosuch
   Error: Unknown symbol: nosuch
-  [112/187] /sym nosuch (13us)
+  [112/188] /sym nosuch (13us)
 demo> /sym.search g*
     0x00001000  gTemp  [bss 2 bytes sensor.c]
     0x00001002  gPressure  [bss 4 bytes sensor.c]
     0x00001008  gFlags  [data 4 bytes main.c]
-  [113/187] /sym.search g* (449us)
+  [113/188] /sym.search g* (401us)
 demo> /sym.search ^Mon
     0x00002200  MonGpio  [code 776 bytes mon.c]
-  [114/187] /sym.search ^Mon (178us)
+  [114/188] /sym.search ^Mon (164us)
 demo> /sym.search zzz
   No symbols matching 'zzz'
-  [115/187] /sym.search zzz (140us)
+  [115/188] /sym.search zzz (156us)
 demo> /sym.import nosuch.map
   Error: Map file not found: nosuch.map
-  [116/187] /sym.import nosuch.map (93us)
+  [116/188] /sym.import nosuch.map (74us)
 demo> /sym.load nosuch.json
   Error: Symbols not found: nosuch.json
-  [117/187] /sym.load nosuch.json (70us)
+  [117/188] /sym.load nosuch.json (64us)
 demo> /sym.unload
   Unloaded symbols (12).
-  [118/187] /sym.unload (123us)
+  [118/188] /sym.unload (120us)
 demo> /sym gTemp
   Error: No symbols loaded.
-  [119/187] /sym gTemp (11us)
+  [119/188] /sym gTemp (10us)
 demo> /sym.load
   Loaded 12 symbols (demo.symbols.json)
-  [120/187] /sym.load (906us)
+  [120/188] /sym.load (478us)
 demo> /print === section: memory ===
   === section: memory ===
-  [121/187] /print === section: memory === (163us)
+  [121/188] /print === section: memory === (113us)
 demo> /mem.info
   dialect     : termapy  (default)
   max_block   : 64  (device)
   address_bits: 32  (device)
   endian      : le  (device)
   device      : answered MEM.INFO
-  [122/187] /mem.info (60.9ms)
+  [122/188] /mem.info (69.1ms)
 demo> /mem.dump gTemp 16
   0x00001000  1B 00 00 50 7D 44 3A 21 05 00 00 00 0C 00 00 00  |...P}D:!........|  gTemp
-  [123/187] /mem.dump gTemp 16 (73.2ms)
+  [123/188] /mem.dump gTemp 16 (65ms)
 demo> /mem.dump gTemp 0x10
   0x00001000  1B 00 00 50 7D 44 3A 21 05 00 00 00 0C 00 00 00  |...P}D:!........|  gTemp
-  [124/187] /mem.dump gTemp 0x10 (62.4ms)
+  [124/188] /mem.dump gTemp 0x10 (63.4ms)
 demo> /mem.dump 0x2000 4
   0x00002000  20 27 2E 35                                      | '.5|  main
-  [125/187] /mem.dump 0x2000 4 (65.8ms)
+  [125/188] /mem.dump 0x2000 4 (68ms)
 demo> /mem.dump main+0x10 8
   0x00002010  50 57 5E A5 AC B3 BA 81                          |PW^.....|  main+0x10
-  [126/187] /mem.dump main+0x10 8 (54.4ms)
+  [126/188] /mem.dump main+0x10 8 (69.5ms)
 demo> /mem.write gFlags 07000000
   Wrote 4 bytes at 0x00001008  gFlags  (was 05000000)
-  [127/187] /mem.write gFlags 07000000 (129ms)
+  [127/188] /mem.write gFlags 07000000 (130ms)
 demo> /mem.dump gFlags 4
   0x00001008  07 00 00 00                                      |....|  gFlags
-  [128/187] /mem.dump gFlags 4 (68ms)
+  [128/188] /mem.dump gFlags 4 (57.3ms)
 demo> /mem.dump U1MODE.ON 4
   Error: Unsupported address suffix: .ON
-  [129/187] /mem.dump U1MODE.ON 4 (59us)
+  [129/188] /mem.dump U1MODE.ON 4 (43us)
 demo> /mem.dump nosuch
   Error: Unknown symbol: nosuch
-  [130/187] /mem.dump nosuch (27us)
+  [130/188] /mem.dump nosuch (23us)
 demo> /mem.dump 0x9000 4
   Error: Device error: range
-  [131/187] /mem.dump 0x9000 4 (65.3ms)
+  [131/188] /mem.dump 0x9000 4 (70.5ms)
 demo> /mem.write 0x1000 ZZ
   Error: Invalid hex: ZZ
-  [132/187] /mem.write 0x1000 ZZ (14us)
+  [132/188] /mem.write 0x1000 ZZ (15us)
 demo> /mem.dump 0x1000 0
   Error: Invalid length: 0
-  [133/187] /mem.dump 0x1000 0 (44us)
+  [133/188] /mem.dump 0x1000 0 (48us)
 demo> /print === section: help ===
   === section: help ===
-  [134/187] /print === section: help === (119us)
+  [134/188] /print === section: help === (133us)
 demo> /help echo
 NAME
   /echo - Toggle echo of device commands sent to the wire. Use /echo.silent to set without echoing.
@@ -606,7 +606,7 @@ SYNOPSIS
 AVAILABLE
   TUI: yes   CLI: yes   MCP: no
   (MCP does not provide: interactive)
-  [135/187] /help echo (986us)
+  [135/188] /help echo (1.32ms)
 demo> /help port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
@@ -646,7 +646,7 @@ SUBCOMMANDS
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
   /port.usb             Show the whole USB tree, with serial ports marked.
-  [136/187] /help port (4.05ms)
+  [136/188] /help port (4.04ms)
 demo> /help cfg
 NAME
   /cfg - Show or set config values.
@@ -682,7 +682,7 @@ SUBCOMMANDS
   /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (hot-swap).
   /cfg.show       Open the current config file in the system viewer.
-  [137/187] /help cfg (3.64ms)
+  [137/188] /help cfg (3.72ms)
 demo> /help var
 NAME
   /var - List user variables, or show one by name.
@@ -766,7 +766,7 @@ SUBCOMMANDS
   /var.clear      Clear all user variables.
   /var.list       Explicit alias for bare /var.
   /var.set        Set a user variable to a literal value.
-  [138/187] /help var (8.44ms)
+  [138/188] /help var (7.7ms)
 demo> /help cap
 NAME
   /cap - Data capture tools.
@@ -791,7 +791,7 @@ SUBCOMMANDS
   /cap.struct     Capture raw bytes, decode with format spec to CSV.
   /cap.text       Capture serial text to a file for a timed duration.
   /cap.wire       Run a command and show TX/RX bytes as inline hex + repr.
-  [139/187] /help cap (2.78ms)
+  [139/188] /help cap (4.07ms)
 demo> /help ss
 NAME
   /ss - Screenshot tools: save SVG/text, manage folder.
@@ -810,7 +810,7 @@ SUBCOMMANDS
   /ss.show       Open the newest file in ss/ with the system viewer.
   /ss.svg        Save an SVG screenshot of the terminal.
   /ss.txt        Save a text screenshot (optionally last/first N lines).
-  [140/187] /help ss (2.16ms)
+  [140/188] /help ss (2.48ms)
 demo> /help proto
 NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
@@ -860,7 +860,7 @@ SUBCOMMANDS
   /proto.run        Run a protocol test script.
   /proto.send       Send raw bytes (with optional CRC), show response.
   /proto.show       Open the newest file in proto/ with the system viewer.
-  [141/187] /help proto (5.77ms)
+  [141/188] /help proto (5.25ms)
 demo> /help plugin
 NAME
   /plugin - Plugin-folder tools: list, explore, show, dump.
@@ -874,7 +874,7 @@ SUBCOMMANDS
   /plugin.list       List files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
   /plugin.show       Open the newest file in plugin/ with the system viewer.
-  [142/187] /help plugin (1.99ms)
+  [142/188] /help plugin (1.28ms)
 demo> /help sym
 NAME
   /sym - Symbol table: name -> address, or address -> name+offset.
@@ -920,7 +920,7 @@ SUBCOMMANDS
   /sym.load      Load a symbol table (default: <cfg>.symbols.json, the file /sym.import writes).
   /sym.search    Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.
   /sym.unload    Clear the loaded symbol table.
-  [143/187] /help sym (5.12ms)
+  [143/188] /help sym (5.16ms)
 demo> /help mem
 NAME
   /mem - Device memory: dump and write bytes, resolve names via /sym.
@@ -955,7 +955,7 @@ SUBCOMMANDS
   /mem.dump     Hexdump bytes at an address or symbol (default 64).
   /mem.info     Show how memory access is configured: dialect, block limit, address width, endian.
   /mem.write    Write hex bytes at an address or symbol (audited).
-  [144/187] /help mem (2.79ms)
+  [144/188] /help mem (2.82ms)
 demo> /help run
 NAME
   /run - Run a script file, or list available scripts.
@@ -976,10 +976,10 @@ SUBCOMMANDS
   /run.record     Record commands to a .run script (bare /run.record stops).
   /run.rename     Rename a file in run/ (extension kept; never overwrites).
   /run.show       Open the newest file in run/ with the system viewer.
-  [145/187] /help run (2.03ms)
+  [145/188] /help run (2.27ms)
 demo> /print === section: help.run ===
   === section: help.run ===
-  [146/187] /print === section: help.run === (322us)
+  [146/188] /print === section: help.run === (123us)
 demo> /help.run
 -- Scripts --
   /run at_demo                  AT Command Demo -- Walks through all demo device commands
@@ -992,10 +992,10 @@ demo> /help.run
   /run var_demo                 Variable Demo -- Set variables and use them in commands
   /run welcome                  Welcome script -- Runs on connect via on_connect_cmd config
   9 scripts.
-  [147/187] /help.run (3.14ms)
+  [147/188] /help.run (2.89ms)
 demo> /print === section: help.plugin ===
   === section: help.plugin ===
-  [148/187] /print === section: help.plugin === (126us)
+  [148/188] /print === section: help.plugin === (109us)
 demo> /help.plugin
 -- Application --
   /cli        Already in CLI mode.
@@ -1043,24 +1043,24 @@ demo> /help.plugin
   /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
   /expect     Wait for text in serial output (blocks until match or timeout).
   40 commands.
-  [149/187] /help.plugin (5.51ms)
+  [149/188] /help.plugin (7.61ms)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
-  [150/187] /print === section: cap.poll === (114us)
+  [150/188] /print === section: cap.poll === (446us)
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
     counter     AT+RAMP
           1         0.0
           2         0.1
           3         0.2
   Poll complete (3 samples)
-  [151/187] /cap.poll count=3 delay=0 --notime cmd=AT+RAMP (205ms)
+  [151/188] /cap.poll count=3 delay=0 --notime cmd=AT+RAMP (180ms)
 demo> /cap.poll fmt=bogus cmd=AT
   Error: /cap.poll: invalid fmt: 'bogus' (expected one of: csv, json)
   Usage: /cap.poll {count=<N>} {delay=<dur>} {file=<path>} {labels=<value>} {regex=<value>} {fmt=csv|json} {timeout=<dur>} cmd=<command>
-  [152/187] /cap.poll fmt=bogus cmd=AT (465us)
+  [152/188] /cap.poll fmt=bogus cmd=AT (490us)
 demo> /print === section: repeat ===
   === section: repeat ===
-  [153/187] /print === section: repeat === (154us)
+  [153/188] /print === section: repeat === (128us)
 demo> /repeat count=3 cmd=/print hello
 demo> /print hello
   hello
@@ -1068,7 +1068,7 @@ demo> /print hello
   hello
 demo> /print hello
   hello
-  [154/187] /repeat count=3 cmd=/print hello (1.35ms)
+  [154/188] /repeat count=3 cmd=/print hello (898us)
 demo> /repeat count=3 var=I cmd=/print iteration $(I)
 demo> /print iteration $(I)
   iteration 1
@@ -1076,110 +1076,114 @@ demo> /print iteration $(I)
   iteration 2
 demo> /print iteration $(I)
   iteration 3
-  [155/187] /repeat count=3 var=I cmd=/print iteration $(I) (911us)
+  [155/188] /repeat count=3 var=I cmd=/print iteration $(I) (835us)
 demo> /repeat cmd=AT
   Error: /repeat: missing required parameter 'count'
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [156/187] /repeat cmd=AT (395us)
+  [156/188] /repeat cmd=AT (399us)
 demo> /repeat count=0 cmd=AT
   Error: /repeat: count must be >= 1 (got 0)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [157/187] /repeat count=0 cmd=AT (455us)
+  [157/188] /repeat count=0 cmd=AT (366us)
 demo> /repeat count=abc cmd=AT
   Error: /repeat: invalid count: 'abc' (expected an integer)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [158/187] /repeat count=abc cmd=AT (418us)
+  [158/188] /repeat count=abc cmd=AT (335us)
 demo> /repeat count=1 delay=xyz cmd=AT
   Error: /repeat: invalid delay: 'xyz' (expected duration, e.g. 500ms, 1.5s)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [159/187] /repeat count=1 delay=xyz cmd=AT (390us)
+  [159/188] /repeat count=1 delay=xyz cmd=AT (335us)
 demo> /repeat foo count=1 cmd=AT
   Error: /repeat: unexpected argument: 'foo'
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [160/187] /repeat foo count=1 cmd=AT (362us)
+  [160/188] /repeat foo count=1 cmd=AT (329us)
 demo> /print === section: env vars ===
   === section: env vars ===
-  [161/187] /print === section: env vars === (123us)
+  [161/188] /print === section: env vars === (116us)
 demo> /env.set TEST_VAR hello_world
     TEST_VAR=hello_world
-  [162/187] /env.set TEST_VAR hello_world (120us)
+  [162/188] /env.set TEST_VAR hello_world (150us)
 demo> /env.list TEST_VAR
     TEST_VAR=hello_world
-  [163/187] /env.list TEST_VAR (128us)
+  [163/188] /env.list TEST_VAR (118us)
 demo> /env.set TEST_VAR updated
     TEST_VAR=updated
-  [164/187] /env.set TEST_VAR updated (113us)
+  [164/188] /env.set TEST_VAR updated (117us)
 demo> /env.list TEST_VAR
     TEST_VAR=updated
-  [165/187] /env.list TEST_VAR (113us)
+  [165/188] /env.list TEST_VAR (111us)
 demo> /print === section: errors ===
   === section: errors ===
-  [166/187] /print === section: errors === (105us)
+  [166/188] /print === section: errors === (103us)
 demo> /nonexistent_command
   Error: Unknown command: nonexistent_command
-  [167/187] /nonexistent_command (14.8ms)
+  [167/188] /nonexistent_command (15.2ms)
 demo> /cfg nonexistent_key
   Error: Unknown config key: nonexistent_key
-  [168/187] /cfg nonexistent_key (6us)
+  [168/188] /cfg nonexistent_key (6us)
 demo> /port.baud_rate not_a_number
   Invalid baud rate: not_a_number
-  [169/187] /port.baud_rate not_a_number (129us)
+  [169/188] /port.baud_rate not_a_number (132us)
 demo> /port.parity X
   Invalid parity: X (use E, M, N, O, S)
-  [170/187] /port.parity X (145us)
+  [170/188] /port.parity X (133us)
 demo> /port.dtr maybe
   Invalid DTR value: maybe (use 0/1/on/off)
-  [171/187] /port.dtr maybe (123us)
+  [171/188] /port.dtr maybe (126us)
 demo> /port.break -5
   Invalid duration (use milliseconds, e.g. 250)
-  [172/187] /port.break -5 (110us)
+  [172/188] /port.break -5 (150us)
 demo> /print === section: capability gates (tui_mode + screen_capture) ===
   === section: capability gates (tui_mode + screen_capture) ===
-  [173/187] /print === section: capability gates (tui_mode + screen_c... (105us)
+  [173/188] /print === section: capability gates (tui_mode + screen_c... (120us)
 demo> /line_no on
     Note: /line_no is legacy; use /term.line_no.
   Error: /term.line_no requires: tui_mode (not available in this environment)
-  [174/187] /line_no on (236us)
+  [174/188] /line_no on (237us)
 demo> /ss.svg
   Error: /ss.svg requires: screen_capture (not available in this environment)
-  [175/187] /ss.svg (255us)
+  [175/188] /ss.svg (260us)
 demo> /ss.txt
   Error: /ss.txt requires: screen_capture (not available in this environment)
-  [176/187] /ss.txt (256us)
+  [176/188] /ss.txt (265us)
 demo> /print === section: json mode ===
   === section: json mode ===
-  [177/187] /print === section: json mode === (108us)
+  [177/188] /print === section: json mode === (107us)
 demo> /term.line_no --json
   {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0.0}
-  [178/187] /term.line_no --json (356us)
+  [178/188] /term.line_no --json (285us)
 demo> /term.request on
   request_mode = True  (session)
   on
-  [179/187] /term.request on (225us)
+  [179/188] /term.request on (218us)
 demo> /print hello enveloped
   {"cmd": "/print hello enveloped", "success": true, "error": "", "value": "hello enveloped", "data": null, "output_lines": ["hello enveloped"], "elapsed_s": 0.0}
-  [180/187] /print hello enveloped (8us)
+  [180/188] /print hello enveloped (8us)
 demo> /var.set GOLD 42
   {"cmd": "/var.set GOLD 42", "success": true, "error": "", "value": "42", "data": null, "output_lines": ["  $(GOLD) = 42"], "elapsed_s": 0.0}
-  [181/187] /var.set GOLD 42 (44us)
+  [181/188] /var.set GOLD 42 (44us)
 demo> /var GOLD
   {"cmd": "/var GOLD", "success": true, "error": "", "value": "42", "data": null, "output_lines": [], "elapsed_s": 0.0}
-  [182/187] /var GOLD (6us)
+  [182/188] /var GOLD (7us)
 {"cmd": "AT"}
-  {"cmd": "AT", "success": true, "error": "", "value": "OK", "data": null, "output_lines": [], "elapsed_s": 0.0664}
-  [183/187] AT (66.4ms)
+  {"cmd": "AT", "success": true, "error": "", "value": "OK", "data": null, "output_lines": [], "elapsed_s": 0.0703}
+  [183/188] AT (70.3ms)
 {"cmd": "AT+PROD-ID"}
-  {"cmd": "AT+PROD-ID", "success": true, "error": "", "value": "+PROD-ID:BASSOMATIC-77", "data": null, "output_lines": [], "elapsed_s": 0.0651}
-  [184/187] AT+PROD-ID (65.1ms)
+  {"cmd": "AT+PROD-ID", "success": true, "error": "", "value": "+PROD-ID:BASSOMATIC-77", "data": null, "output_lines": [], "elapsed_s": 0.0614}
+  [184/188] AT+PROD-ID (61.4ms)
 demo> /nope_bogus_cmd
   {"cmd": "/nope_bogus_cmd", "success": false, "error": "Unknown command: nope_bogus_cmd", "value": "", "data": null, "output_lines": [], "elapsed_s": 0.0}
-  [185/187] /nope_bogus_cmd (10.3ms)
+  [185/188] /nope_bogus_cmd (13.1ms)
 demo> /term.request off
   request_mode = False  (session)
   {"cmd": "/term.request off", "success": true, "error": "", "value": "off", "data": null, "output_lines": ["off"], "elapsed_s": 0.0001}
-  [186/187] /term.request off (128us)
+  [186/188] /term.request off (137us)
+demo> MEM.R 0x1000 2 --json
+{"cmd": "MEM.R 0x1000 2"}
+  {"cmd": "MEM.R 0x1000 2", "success": true, "error": "", "value": "00001000: 1B 00\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0.0638}
+  [187/188] MEM.R 0x1000 2 --json (63.8ms)
 demo> /print prose is back
   prose is back
-  [187/187] /print prose is back (187us)
-  Script cli_test.run done (3.23s)
+  [188/188] /print prose is back (141us)
+  Script cli_test.run done (3.49s)
 Disconnected: DEMO

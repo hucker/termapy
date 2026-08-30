@@ -136,6 +136,11 @@ envelope rides the result channel, so `--json --quiet` prints just the
 envelope and `--json --silent` prints nothing (scripts still read `value`).
 From a shell, `termapy --cli -e "/port.list --json"` pipes cleanly to `jq`.
 
+On a bare device line, `--json` is the one-call form of the request/response
+dial: `MEM.R 0x1000 2 --json` sends the line, waits for the reply, and returns
+it in `value` -- exactly what `/term.request on` does for every line.  Without
+the flag a bare line is a plain send, and the reply arrives in the scrollback.
+
 For plugin authors: `ctx.result()` is the answer, `ctx.output()` is bulk
 data, `ctx.status()` is progress chatter. Each gates on the active level.
 Handlers that produce scriptable data must call `CmdResult.ok(value=...)`

@@ -1006,3 +1006,48 @@ class TestDispatchFullEchoGating:
         assert response_envelope["cmd"] == "AT+VER", (
             "response envelope on the plain result channel"
         )
+
+
+# ── --json on a bare device line: the per-call form of the dial ─────────────
+
+
+class TestBareLineJsonFlag:
+    """A bare device line carrying ``--json`` is ONE request/response.
+
+    Without the flag (and with request_mode off) a bare line falls through
+    to ``/term.send``, whose envelope answers before the device does; the
+    flag routes the line through ``_exec_request_mode`` instead, so the
+    reply lands in ``value`` exactly as it does under ``/term.request on``.
+    """
+
+    def test_flag_makes_a_bare_line_a_request_response(self, repl_env):
+        # Arrange
+        engine, ctx, _, output, _ = repl_env
+        fake = _FakeSerial(response=b"00001000: 1B 00\r\nOK\r\n")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine.dispatch_full("MEM.R 0x1000 2 --json", is_connected=lambda: True)
+
+        # Assert
+        assert fake.writes == [b"MEM.R 0x1000 2\r"], "the flag is stripped before the wire"
+        assert result.success is True, result.error
+        assert result.value == "00001000: 1B 00\r\nOK", "the device's reply is the value"
+        rendered = _rendered_envelope(output)
+        assert rendered["cmd"] == "MEM.R 0x1000 2", "the envelope is the exchange's, not /term.send's"
+        assert rendered["value"] == "00001000: 1B 00\r\nOK", "and carries the reply"
+
+    def test_without_the_flag_the_bare_line_is_a_plain_send(self, repl_env):
+        # Arrange
+        engine, ctx, _, _, _ = repl_env
+        fake = _FakeSerial(response=b"OK\r\n")
+        _wire_fake_serial(ctx, fake)
+        ctx.serial.is_connected = lambda: True  # /term.send asks the handle, not dispatch_full
+
+        # Act
+        result = engine.dispatch_full("MEM.R 0x1000 2", is_connected=lambda: True)
+
+        # Assert -- fire-and-forget: sent, nothing read, no value
+        assert fake.writes == [b"MEM.R 0x1000 2\r"], "sent verbatim"
+        assert fake.read_calls == [], "a plain send never waits for a reply"
+        assert result.value in ("", None), "no reply is captured"

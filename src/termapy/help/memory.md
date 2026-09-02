@@ -44,7 +44,10 @@ same gate a destructive profile entry gets.
 ## The wire spec
 
 A device supports `/mem.*` by answering three line-oriented commands.
-This is the whole contract; about 40 lines of C on any monitor.
+This is the whole contract; a drop-in reference implementation ships in
+the repo at `examples/firmware/termapy_mem.c` -- one function taking the
+received line and a put-byte callback, a region table to edit,
+width-aware accesses, no allocation, no printf.
 
 ```text
 MEM.R <addr> <len>      ->  <ADDR>: <XX XX XX ...>     one or more rows

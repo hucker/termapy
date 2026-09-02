@@ -421,12 +421,20 @@ class Dialect(Protocol):
 
 
 def _verdict(text: str, request: str) -> Reply:
-    """Parse a native reply, turning silence and ``ERR`` into errors."""
+    """Parse a native reply, turning silence and ``ERR`` into errors.
+
+    An incomplete reply says what DID arrive -- row count and the last
+    line -- so a stall diagnoses itself from the error alone.
+    """
     reply = parse_reply(text)
     if not reply.complete:
         if not text.strip():
             raise DeviceMemoryError(f"No reply to {request}")
-        raise DeviceMemoryError(f"Incomplete reply to {request}")
+        last = [line.strip() for line in text.splitlines() if line.strip()][-1]
+        raise DeviceMemoryError(
+            f"Incomplete reply to {request} "
+            f"({len(reply.rows)} rows, no OK/ERR; last line {last[:40]!r})"
+        )
     if reply.error is not None:
         raise DeviceMemoryError(f"Device error: {reply.error or 'ERR'}")
     return reply

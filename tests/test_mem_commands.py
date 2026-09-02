@@ -248,6 +248,31 @@ class TestInfo:
         assert cli.ctx.ns("memory") == {}, "a new connection forgets the old device's answer"
 
 
+class TestSpaceForm:
+    """``/mem dump ...`` redirects to ``/mem.dump ...`` (any interior command).
+
+    The dotted form is the grammar; the space form is what fingers type.
+    The old behavior -- print the subcommand list and ignore the
+    arguments -- reported success while doing nothing.
+    """
+
+    def test_space_form_dispatches_the_subcommand(self, cli):
+        result = cli.repl.dispatch("mem dump gTemp 2")
+        assert result.success, result.error
+        assert result.value == "1B00", "identical to /mem.dump gTemp 2"
+
+    def test_unknown_subcommand_names_the_choices(self, cli):
+        result = cli.repl.dispatch("mem bogus 1")
+        assert not result.success, "an unknown word is an error, not a silent listing"
+        assert "Unknown subcommand: bogus" in result.error, "names what was typed"
+        assert "dump" in result.error and "write" in result.error, "and lists the real ones"
+
+    def test_bare_parent_still_lists(self, cli, capsys):
+        result = cli.repl.dispatch("mem")
+        assert result.success is True, "bare /mem stays the listing"
+        assert "Subcommands of /mem:" in capsys.readouterr().out, "the listing renders"
+
+
 class TestTemplateDialect:
     """The same RAM through the device's own ``mem`` grammar."""
 

@@ -175,6 +175,9 @@ $(BAUD) <- /port.baud_rate
 /mem.dump 0x9000 4
 /mem.write 0x1000 ZZ
 /mem.dump 0x1000 0
+# The space form redirects to the dotted subcommand
+/mem dump gTemp 2
+/mem bogus
 # The same bytes through the device's own `mem` grammar (template dialect)
 /profile.load demo_legacy.profile.json
 /mem.info

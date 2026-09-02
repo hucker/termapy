@@ -252,9 +252,12 @@ class TestRead:
         with pytest.raises(DeviceMemoryError, match="^No reply to MEM.R 0x1000 4$"):
             Memory(device.exchange).read(0x1000, 4)
 
-    def test_incomplete(self):
+    def test_incomplete_says_what_arrived(self):
         device = FakeDevice(override=lambda command: "00001000: 01 02 03 04\r\n")
-        with pytest.raises(DeviceMemoryError, match="^Incomplete reply to MEM.R 0x1000 4$"):
+        with pytest.raises(
+            DeviceMemoryError,
+            match="^Incomplete reply to MEM.R 0x1000 4 \\(1 rows, no OK/ERR; last line '00001000: 01 02 03 04'\\)$",
+        ):
             Memory(device.exchange).read(0x1000, 4)
 
     def test_discontinuous_rows_refused(self):

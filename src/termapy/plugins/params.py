@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from termapy.scripting import parse_duration, parse_keywords
+from termapy.scripting import parse_bool, parse_duration, parse_keywords
 
 # Resolves the inner text of one $(*NAME) reference ("NAME" or "NAME:fmt") to
 # its value, or None when the name is undefined.  Injected by the dispatcher so
@@ -121,7 +121,7 @@ def _range_check(spec: ParamSpec, value: float) -> CoerceResult:
 
 # str / path / command are identity (no resolution, no case-fold -- resolution
 # stays in handlers where cap-dir vs scripts-dir differ).
-TYPES = frozenset({"str", "int", "float", "duration", "enum", "path", "command"})
+TYPES = frozenset({"str", "int", "float", "duration", "enum", "bool", "path", "command"})
 _IDENTITY = frozenset({"str", "path", "command"})
 _NUMERIC = {"int": (int, "an integer"), "float": (float, "a number")}
 
@@ -142,6 +142,14 @@ def coerce_value(spec: ParamSpec, text: str) -> CoerceResult:
         except ValueError:
             return False, f"invalid {spec.name}: {text!r} (expected {noun})"
         return _range_check(spec, value)
+    if kind == "bool":
+        flag = parse_bool(text)
+        if flag is None:
+            return False, (
+                f"invalid {spec.name}: {text!r} "
+                f"(expected a boolean: on/off/true/false/yes/no/1/0)"
+            )
+        return True, flag
     if kind == "duration":
         try:
             return True, parse_duration(text)  # bare 0 accepted; a unit is required otherwise
@@ -381,6 +389,7 @@ def _type_hint(spec: ParamSpec) -> str:
         "duration": "<dur>",
         "int": "<N>",
         "float": "<N>",
+        "bool": "on|off",
         "path": "<path>",
         "command": "<command>",
         "str": "<value>",
@@ -411,6 +420,8 @@ def synthesize_synopsis(params: list[ParamSpec]) -> str:
 def _format_default(spec: ParamSpec) -> str:
     if spec.default is None:
         return ""
+    if spec.type == "bool":
+        return "on" if spec.default else "off"
     return f"{_fmt_num(spec.default)}s" if spec.type == "duration" else str(spec.default)
 
 

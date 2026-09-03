@@ -35,7 +35,7 @@ from termapy.config_resolve import find_config, infer_config_from_run_file, reso
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
-from termapy.scripting import render_progress_bar, strip_ansi
+from termapy.scripting import parse_bool, render_progress_bar, strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
 
@@ -628,8 +628,10 @@ class CLITerminal(TerminalHost):
     def _confirm(self, message: str) -> bool:
         """Prompt for y/n confirmation on stdin."""
         try:
-            answer = input(f"  {message} [y/N] ").strip().lower()
-            return answer in ("y", "yes")
+            answer = input(f"  {message} [y/N] ").strip()
+            # One boolean vocabulary (CLAUDE.md): y/yes/true/1/on all
+            # confirm; anything unrecognized keeps the [y/N] default of No.
+            return parse_bool(answer) is True
         except (EOFError, KeyboardInterrupt):
             return False
 

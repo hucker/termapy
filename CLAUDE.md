@@ -61,6 +61,19 @@ All paths relative to `src/termapy/`.
   enums through `next_in_cycle`. TUI buttons that flip on click dispatch the
   explicit `toggle`/`cycle` verb, never the bare command. NEVER treat an
   unrecognized argument as a flip (that hid the `/term.color 2` bug).
+- **Booleans have ONE vocabulary and three sanctioned readers.** Every
+  user-facing boolean accepts the `scripting.parse_bool` token set
+  (on/off/true/false/yes/no/1/0/y/n/t/f) and is read ONLY through:
+  `ParamSpec(type="bool")` for declared params and keywords;
+  `parse_bool_setting` (via `_bool_setting`/`_cfg_toggle`) for setting
+  commands; bare `parse_bool` inside a documented hand-rolled parser —
+  and an unrecognized token ERRORS, never silently means False. Never
+  compare a token to `"on"`/`"off"` with `==`/`in`, never declare an
+  on/off `EnumValue` pair (that is what the `bool` param type is).
+  **Enforced by `tests/test_architecture.py`** (ast: bool-token
+  comparators and on/off enums in command code) — introduced after an
+  audit found `/mem.dump`'s toggles rejecting `false`/`0` plus three
+  hand-rolled `== "on"` sites.
 - REPL prefix: `/`
 - Modals return tuples: `("run", path)`, `("new",)`, `("edit", path)`
 - Buttons: rainbow palette, Exit always red (`error`)

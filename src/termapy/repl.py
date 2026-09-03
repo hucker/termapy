@@ -42,6 +42,7 @@ from termapy.scripting import (
     expand_template,
     filename_timestamp,
     format_duration,
+    parse_bool,
     parse_duration,
     parse_keywords,
     strip_ansi,
@@ -1873,7 +1874,12 @@ class ReplEngine:
             timeout_s = parse_duration(kw["timeout"]) if "timeout" in kw else 0.25
         except ValueError as e:
             return CmdResult.fail(msg=f"Expect: {e}")
-        quiet = kw.get("quiet", "").lower() == "on"
+        quiet_token = kw.get("quiet", "off")
+        quiet = parse_bool(quiet_token)
+        if quiet is None:
+            return CmdResult.fail(
+                msg=f"Expect: invalid quiet: {quiet_token!r} (use on/off)"
+            )
         timeout_str = kw.get("timeout", "250ms")
         if use_regex:
             import re as _re

@@ -297,3 +297,93 @@ def test_engine_modules_have_no_serial_dependency():
         "these modules import pyserial but must stay transport-agnostic:\n  "
         + "\n  ".join(offenders)
     )
+
+
+# ── Boolean vocabulary ───────────────────────────────────────────────────────
+
+# Token constants that mark a hand-rolled boolean comparison.  Comparing
+# user input against these is how ``/term.request yes`` gets rejected and
+# ``echo=false`` silently means off; the sanctioned readers are
+# ``ParamSpec(type="bool")``, ``parse_bool_setting`` and bare ``parse_bool``.
+_BOOL_TOKENS: frozenset[str] = frozenset({"on", "off", "true", "false", "yes", "no"})
+
+# Command-surface modules scanned in addition to builtins/.
+_BOOL_SCAN_EXTRA: tuple[str, ...] = ("repl.py", "cli.py", "app.py", "app_hooks.py")
+
+
+def _bool_token_violations(tree: ast.AST, rel: str) -> list[str]:
+    """Every place ``rel`` compares against a bool token or builds an on/off enum."""
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Compare):
+            operands = [node.left, *node.comparators]
+            constants: list[ast.Constant] = []
+            for operand in operands:
+                if isinstance(operand, ast.Constant):
+                    constants.append(operand)
+                elif isinstance(operand, (ast.Tuple, ast.List, ast.Set)):
+                    constants.extend(
+                        element for element in operand.elts
+                        if isinstance(element, ast.Constant)
+                    )
+            if any(
+                isinstance(constant.value, str) and constant.value.lower() in _BOOL_TOKENS
+                for constant in constants
+            ):
+                found.append(f"{rel}:{node.lineno}  {ast.unparse(node)}")
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "EnumValue"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and str(node.args[0].value).lower() in ("on", "off")
+        ):
+            found.append(f"{rel}:{node.lineno}  {ast.unparse(node)}")
+    return found
+
+
+def test_booleans_go_through_parse_bool():
+    """No command code compares tokens to on/off or declares on/off enums.
+
+    One vocabulary, three sanctioned readers (see CLAUDE.md): the ``bool``
+    param type, ``parse_bool_setting`` for settings, bare ``parse_bool``
+    in documented hand-rolled parsers.  A literal comparison accepts only
+    the tokens the author remembered (``/term.request yes`` was rejected)
+    and usually treats typos as False instead of erroring.
+    """
+    # Arrange
+    targets = sorted(BUILTINS_DIR.rglob("*.py")) + [
+        SRC / name for name in _BOOL_SCAN_EXTRA
+    ]
+    violations: list[str] = []
+
+    # Act
+    for path in targets:
+        rel = str(path.relative_to(SRC.parent)).replace("\\", "/")
+        violations.extend(
+            _bool_token_violations(ast.parse(path.read_text(encoding="utf-8")), rel)
+        )
+
+    # Assert
+    assert violations == [], (
+        "boolean tokens must go through parse_bool / ParamSpec(type='bool') / "
+        "parse_bool_setting, never literal comparisons:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_boolean_guard_fires_on_a_probe():
+    """The guard actually detects the patterns it exists to forbid."""
+    # Arrange -- the three shapes the audit found in the wild
+    probe = (
+        "x = tok == 'on'\n"
+        "y = tok in ('on', 'off', 'toggle')\n"
+        "z = EnumValue('on')\n"
+    )
+
+    # Act
+    found = _bool_token_violations(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 3, "a comparison, a membership test, and an enum all flagged"

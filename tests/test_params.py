@@ -689,3 +689,30 @@ class TestResolveDeref:
         # Assert
         assert error is None, "no deref means no dereference errors either"
         assert bound["frames"] == ["$(*P)"], "the token stays literal"
+
+
+# ── bool: the parse_bool vocabulary as a first-class type ───────────────────
+
+
+class TestBoolType:
+    """``bool`` params accept every scripting.parse_bool token, so keyword
+    toggles match the setting commands' vocabulary instead of a bare enum."""
+
+    @pytest.mark.parametrize("token, expected", [
+        ("on", True), ("TRUE", True), ("yes", True), ("1", True), ("y", True),
+        ("off", False), ("false", False), ("No", False), ("0", False), ("f", False),
+    ])
+    def test_coerces_the_full_vocabulary(self, token, expected):
+        spec = ParamSpec("flag", "bool", default=True)
+        ok, value = coerce_value(spec, token)
+        assert ok is True, f"{token!r} is a boolean"
+        assert value is expected, "coerced to a real bool"
+
+    def test_unknown_token_fails_with_the_vocabulary(self):
+        ok, reason = coerce_value(ParamSpec("flag", "bool", default=True), "maybe")
+        assert ok is False
+        assert reason == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)"
+
+    def test_synopsis_hint_is_the_canonical_pair(self):
+        spec = ParamSpec("addr", "bool", default=True)
+        assert synthesize_synopsis([spec]) == "{addr=on|off}", "reads like the enum it replaces"

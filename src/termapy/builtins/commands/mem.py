@@ -59,7 +59,7 @@ from termapy.memory_views import (
     symbol_columns,
 )
 from termapy.plugins import CapabilitySet, CmdResult, Command, format_kv_lines
-from termapy.plugins.params import EnumValue, ParamSpec
+from termapy.plugins.params import ParamSpec
 from termapy.protocol.core import apply_format, extract_column_value, parse_hex
 from termapy.scripting import strip_ansi
 from termapy.symbols import Address, get_table, parse_address, parse_number, symbolic_name
@@ -79,8 +79,6 @@ _EXCHANGE_TIMEOUT_MS: Final[int] = 1000
 
 # FRONT_END launch var -> the origin word in the audit line.
 _ORIGINS: Final[dict[str, str]] = {"textual": "tui", "cli": "cli", "mcp": "mcp"}
-
-_ON_OFF: Final[tuple[EnumValue, ...]] = (EnumValue("on"), EnumValue("off"))
 
 
 # ── lifecycle: the device-info cache lives for one connection ───────────────
@@ -292,8 +290,8 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(
             msg=f"Unknown type: {type_name} (types: {', '.join(sorted(TYPE_TOKENS))})"
         )
-    show_addr = str(ctx.arg("addr")) != "off"
-    show_ascii = str(ctx.arg("ascii")) != "off"
+    show_addr = bool(ctx.arg("addr"))
+    show_ascii = bool(ctx.arg("ascii"))
     memory = _engine(ctx)
     if isinstance(memory, CmdResult):
         return memory
@@ -799,8 +797,8 @@ COMMAND = Command(
                     "type", "str", positional=True, default="",
                     help="u8 (default) | u16/u32/u64 hex words | i8..i64 | f32/f64",
                 ),
-                ParamSpec("addr", "enum", values=_ON_OFF, default="on", help="address column"),
-                ParamSpec("ascii", "enum", values=_ON_OFF, default="on", help="ASCII column"),
+                ParamSpec("addr", "bool", default=True, help="address column"),
+                ParamSpec("ascii", "bool", default=True, help="ASCII column"),
             ],
             help="Hexdump or word columns at an address or symbol (default 64 bytes).",
             handler=_handler_dump,

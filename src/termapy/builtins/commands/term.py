@@ -310,8 +310,9 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
     state_token = None
     err_token = None  # None means "not specified"; "" means "user said err="
     for token in args.split():
-        if token in ("on", "off", "toggle"):
-            # on/off set, toggle flips -- _cfg_toggle handles all three.
+        if token.lower() == "toggle" or parse_bool(token) is not None:
+            # Any parse_bool token sets, toggle flips -- _cfg_toggle
+            # handles all three (the one-vocabulary rule in CLAUDE.md).
             state_token = token
         elif token.startswith("err="):
             err_token = token[len("err="):]
@@ -334,7 +335,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
                 "request_err_pattern cleared -- error detection disabled  (session)",
                 "yellow",
             )
-    elif state_token == "on":
+    elif state_token is not None and parse_bool(state_token) is True:
         # /term.request on (no err=) -> drop any session override so the
         # cfg default takes effect again.  Symmetric with how /term.request
         # off doesn't preserve a "previous" request_mode state -- 'on'

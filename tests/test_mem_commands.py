@@ -427,6 +427,23 @@ class TestDumpModes:
         result = cli.repl.dispatch("mem.dump gTemp 3 u16")
         assert "Invalid length: 3 (not a multiple of 2 for u16)" in result.error
 
+    @pytest.mark.parametrize("line", [
+        "mem.dump gTemp 4 addr=false ascii=no",
+        "mem.dump gTemp 4 addr=0 ascii=OFF",
+    ])
+    def test_toggles_take_the_whole_parse_bool_vocabulary(self, cli, line, capsys):
+        # Act -- on/off is canonical, but any scripting.parse_bool token works
+        result = cli.repl.dispatch(line)
+
+        # Assert
+        assert result.success, result.error
+        assert capsys.readouterr().out.splitlines()[0].lstrip() == "1B 00 00 50", "bare either way"
+
+    def test_bad_toggle_token_names_the_vocabulary(self, cli):
+        result = cli.repl.dispatch("mem.dump gTemp 4 addr=maybe")
+        assert not result.success
+        assert "invalid addr: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)" in result.error
+
     def test_type_token_in_the_len_slot(self, cli):
         result = cli.repl.dispatch("mem.dump gTemp u16")
         assert result.success, result.error

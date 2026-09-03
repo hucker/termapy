@@ -123,6 +123,18 @@ class TestTermRequestToggle:
         assert result.value == "on", "value reports on"
 
 
+    def test_any_parse_bool_token_sets(self, repl_env):
+        # Arrange -- the one-vocabulary rule: yes/1/true are all "on"
+        engine, ctx, cfg, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("term.request yes")
+
+        # Assert
+        assert result.success, result.error
+        assert cfg["request_mode"] is True, "yes is an on token, not an Unknown token error"
+
+
 # ── _exec_request_mode (the executor itself, not via dispatch_full) ─────────
 
 

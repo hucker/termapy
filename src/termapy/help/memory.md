@@ -19,11 +19,14 @@ symbol that contains them when a table is loaded.
 
 ## Commands
 
-| Command                   | Example                     | Does                                                        |
-|---------------------------|-----------------------------|-------------------------------------------------------------|
-| `/mem.dump <addr> {len}`  | `/mem.dump gTemp 0x10`      | Hexdump `len` bytes (default 64; `32`, `0x20` or `20h`), rows annotated with symbols |
-| `/mem.write <addr> <hex>` | `/mem.write gFlags 07000000` | Write hex bytes (`1B00`, `1B 00`, `0x1B 0x00`); audited     |
-| `/mem.info`               | `/mem.info`                 | Dialect, block limit, address width, byte order, and their sources |
+| Command                     | Example                      | Does                                                        |
+|-----------------------------|------------------------------|-------------------------------------------------------------|
+| `/mem.dump <target> {len} {type}` | `/mem.dump gTemp 0x10`  | Hexdump; `u16`/`u32` hex-word columns, `i*` decimal, `f*` floats; `addr=off` / `ascii=off` drop columns (both off = bare values) |
+| `/mem.read <target> {type}` | `/mem.read U1MODE.ON`        | One typed value: scalar, `char`, register field, bit (`.15`) or slice (`.4-6`) |
+| `/mem.write <target> <hex>` | `/mem.write gFlags 07000000` | Write hex bytes; with a `.field`/`.bit` target the value is masked in (audited) |
+| `/mem.or <target> <mask>`   | `/mem.or gFlags 0x10`        | The boolean set on one word: `.or` set, `.and` keep, `.clear` = `word &= ~mask`, `.xor` toggle, `.not` invert; atomic via `MEM.M` where expressible |
+| `/mem.str <target> {max}`   | `/mem.str sBanner`           | A NUL-terminated string as a first-class value (default cap 256) |
+| `/mem.info`                 | `/mem.info`                  | Dialect, block limit, address width, byte order, atomic modify -- and their sources |
 
 `/mem.dump` returns the bytes as one hex string (`$(B) <- /mem.dump gTemp 2`
 captures `1B00`); `/mem.write` returns the byte count. In JSON mode the
@@ -41,19 +44,65 @@ Over the [MCP server](mcp-server.md) `/mem.write` is a destructive
 command: it refuses to run until the client passes `confirm=true`, the
 same gate a destructive profile entry gets.
 
+## Typed reads and bits
+
+The symbol table's `type` gives bytes meaning: `/mem.read gTemp` decodes
+the seeded `u16` to `27`, `/mem.read gPressure` the `f32` to `1013.25`.
+A register typed with a format spec shows its named fields, and each
+field is addressable -- readable and writable -- by name:
+
+```text
+/mem.read U1MODE            ->   ON = 1   UEN = 0   BRGH = 1
+/mem.read U1MODE.ON         ->   U1MODE.ON = 1  (word 0x00008008 at 0xBF806000)
+/mem.write U1MODE.ON 0      ->   Set U1MODE.ON = 0  (0x00008008 -> 0x00000008)
+/mem.write gFlags.4-6 5     ->   a three-bit slice, LSB0
+/mem.or gFlags 0x10         ->   OR 0x00000010 at 0x00001008  gFlags  (0x00000005 -> 0x00000015)
+```
+
+Register field specs use the format-spec language exactly as protocol
+testing does -- **byte order in the spec IS the byte order in memory** --
+so a little-endian 32-bit register lists its bytes MSB-first:
+`"ON:B4-1.15"` is bit 15 of the LE word at bytes 1-4. Bit numbers are
+LSB0 over the logical word, the hardware convention.
+
+Bit and mask writes are one masked word operation: atomic on the device
+(`MEM.M`) when it advertises one, otherwise a host-side read +
+write-back that can race an ISR touching the same register (`/mem.xor`
+always takes that path -- XOR is not expressible as AND/OR masks). A
+symbol marked `"rmw": false` (write-1-to-clear and self-clearing
+registers) refuses every masked form: write the whole word instead.
+Every mutation is audited in the session log with the word before and
+after.
+
+## Strings
+
+`/mem.str <target> {max}` reads a NUL-terminated string -- the C string
+at `sBanner` is a value, not sixteen hex pairs. `$(V) <- /mem.str
+sBanner` captures the text; the display escapes non-printables; without
+a NUL inside the cap (default 256) the result is marked truncated.
+`/mem.read <target> char` renders one byte as `'A' (0x41)`.
+
 ## The wire spec
 
 A device supports `/mem.*` by answering three line-oriented commands.
 This is the whole contract; a drop-in reference implementation ships in
-the repo at `examples/firmware/termapy_mem.c` -- one function taking the
-received line and a put-byte callback, a region table to edit,
-width-aware accesses, no allocation, no printf.
+the repo at `examples/firmware/termapy_mem.c`. It owns only the wire
+grammar: you hand it a `TermapyMem_Ops` with two byte operations --
+`read(addr, dst, count)` and `write(addr, src, count)` -- an optional
+IRQ-mask `lock`/`unlock` pair (that is all `MEM.M` needs), and a
+putchar-compatible output. Flat-MCU implementations of the two ops ship
+as `TermapyMem_DirectRead/Write` with an editable region table and
+width-aware accesses; banked parts, external memories and host tests
+supply their own. No allocation, no printf.
 
 ```text
 MEM.R <addr> <len>      ->  <ADDR>: <XX XX XX ...>     one or more rows
                             OK
 MEM.W <addr> <hex>      ->  OK
-MEM.INFO                ->  {"max_block": 64, "address_bits": 32, "endian": "le"}
+MEM.M <addr> <and> <or> ->  <ADDR>: <old word bytes>    the PRE-modify word
+                            OK
+MEM.INFO                ->  {"max_block": 64, "address_bits": 32,
+                             "endian": "le", "modify": true}
                             OK
 any failure             ->  ERR <reason>
 ```
@@ -71,9 +120,16 @@ any failure             ->  ERR <reason>
   windows).
 - Lines that are none of row / `OK` / `ERR` are ignored, so a monitor that
   echoes the command or prints a prompt is fine.
+- `MEM.M` is optional: an atomic masked write, `word = (word & and) | or`
+  with interrupts masked, width from the masks' digit count (2/4/8 hex
+  digits = u8/u16/u32, address aligned to the width). Its reply is one
+  row carrying the PRE-modify word, so the host's audit line gets a true
+  "before" without a separate racy read. Without it, termapy's bit and
+  mask writes fall back to read + write-back, which can race an ISR.
 - `MEM.INFO` is optional. When the device answers it, termapy learns the
-  block limit, address width and byte order from the device itself and no
-  profile block is needed. Without it, the defaults are 64 / 32 / `le`.
+  block limit, address width, byte order and whether `MEM.M` exists
+  (`"modify": true`) from the device itself and no profile block is
+  needed. Without it, the defaults are 64 / 32 / `le` / no.
 - The copy loop should store at the natural width when the length is 2 or
   4 and the address is aligned: a byte store to a peripheral register is a
   bus fault on PIC32 and Cortex-M.

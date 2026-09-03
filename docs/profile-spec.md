@@ -162,6 +162,7 @@ All fields are optional.
 | `max_block` | integer >= 1 | Largest byte count per read or write exchange. |
 | `address_bits` | integer 8..64 | Address width; sets the printed hex width. |
 | `endian` | `le` \| `be` | Byte order of multi-byte values. Stored for typed views. |
+| `modify` | boolean | Device implements the atomic `MEM.M` masked write (usually learned from `MEM.INFO`). |
 
 Precedence per field: an explicit profile value, then the device's
 `MEM.INFO` answer, then the defaults `64` / `32` / `le`. A value of the

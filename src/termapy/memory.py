@@ -8,6 +8,7 @@ Layer 1 of the memory design.  Two wire dialects, one engine:
       MEM.R <addr> <len>   ->  <ADDR>: <XX XX ...>   (one or more rows)
                                OK
       MEM.W <addr> <hex>   ->  OK
+      MEM.M <addr> <and> <or> -> <ADDR>: <old word bytes> then OK  (atomic)
       MEM.INFO             ->  {"max_block": 64, "address_bits": 32, "endian": "le"}
                                OK
       any failure          ->  ERR <reason>
@@ -40,7 +41,7 @@ import json
 import re
 import string
 from dataclasses import dataclass, field
-from typing import Any, Callable, Final, Mapping, Protocol
+from typing import Any, Callable, Final, Literal, Mapping, Protocol
 
 from termapy.symbols.format import hex_addr
 
@@ -86,7 +87,13 @@ class MemoryInfo:
     max_block: int = DEFAULT_MAX_BLOCK
     address_bits: int = DEFAULT_ADDRESS_BITS
     endian: str = DEFAULT_ENDIAN
+    atomic_modify: bool = False
     sources: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def byte_order(self) -> Literal["little", "big"]:
+        """``struct``/``int.from_bytes`` byte order for this device."""
+        return "little" if self.endian == "le" else "big"
 
 
 def _coerce(key: str, value: Any) -> tuple[Any, str]:
@@ -116,6 +123,10 @@ def _coerce(key: str, value: Any) -> tuple[Any, str]:
             f"memory/address_bits: expected an integer from 8 to 64, got {value!r} "
             f"(default {DEFAULT_ADDRESS_BITS} used)"
         )
+    if key == "modify":
+        if isinstance(value, bool):
+            return value, ""
+        return None, f"memory/modify: expected true or false, got {value!r} (ignored)"
     raise KeyError(key)
 
 
@@ -142,7 +153,7 @@ def validate_block(block: Mapping[str, Any]) -> list[str]:
             f"(/mem.* commands refuse until it is recognized; known: "
             f"{', '.join(DIALECTS)})"
         )
-    for key in ("max_block", "address_bits", "endian"):
+    for key in ("max_block", "address_bits", "endian", "modify"):
         _, warning = _coerce(key, block.get(key))
         if warning:
             warnings.append(warning)
@@ -176,13 +187,14 @@ def resolve_info(
         "max_block": DEFAULT_MAX_BLOCK,
         "address_bits": DEFAULT_ADDRESS_BITS,
         "endian": DEFAULT_ENDIAN,
+        "modify": False,
     }
     sources: dict[str, str] = {key: "default" for key in values}
     # Device first, profile last: the later write wins.
     for source, block in (("device", device_info), ("profile", profile_block)):
         if not isinstance(block, Mapping):
             continue
-        for key in ("max_block", "address_bits", "endian"):
+        for key in ("max_block", "address_bits", "endian", "modify"):
             value, _ = _coerce(key, block.get(key))
             if value is not None:
                 values[key] = value
@@ -196,6 +208,7 @@ def resolve_info(
         max_block=values["max_block"],
         address_bits=values["address_bits"],
         endian=values["endian"],
+        atomic_modify=values["modify"],
         sources=sources,
     )
 
@@ -217,6 +230,16 @@ def read_command(addr: int, length: int) -> str:
 def write_command(addr: int, data: bytes) -> str:
     """``MEM.W 0x1000 1B00`` -- the native write request for one block."""
     return f"MEM.W 0x{addr:X} {data.hex().upper()}"
+
+
+def modify_command(addr: int, and_mask: int, or_mask: int, width: int) -> str:
+    """``MEM.M 0x40000000 FFFF7FFF 00008000`` -- the atomic masked write.
+
+    The masks' digit count carries the access width (2/4/8 hex digits =
+    u8/u16/u32), so both are zero-padded to ``width`` bytes.
+    """
+    digits = width * 2
+    return f"MEM.M 0x{addr:X} {and_mask:0{digits}X} {or_mask:0{digits}X}"
 
 
 @dataclass(frozen=True)
@@ -742,6 +765,50 @@ class Memory:
             request = self.dialect.write_request(addr + offset, chunk)
             self.dialect.parse_write(self._exchange(request), request)
         return len(data)
+
+    def modify(self, addr: int, width: int, and_mask: int, or_mask: int) -> tuple[bytes, bytes]:
+        """Masked write of one word: ``word = (word & and_mask) | or_mask``.
+
+        Uses the device's atomic ``MEM.M`` when it advertised one (native
+        dialect, ``MEM.INFO "modify": true``); otherwise a host-side read
+        + write-back, which can race an ISR touching the same word --
+        the documented fallback.  Either way the pre-modify word comes
+        back, so the caller's audit line carries a true "before".
+
+        Args:
+            addr: Word address (aligned to ``width``).
+            width: Word byte width: 1, 2 or 4.
+            and_mask: AND mask over the logical word.
+            or_mask: OR mask over the logical word.
+
+        Returns:
+            ``(old bytes, new bytes)`` in memory order, ``width`` long.
+
+        Raises:
+            ValueError: Bad width, masks that do not fit, or a bad address.
+            DeviceMemoryError: Silence, a device error, or a malformed
+                ``MEM.M`` reply.
+        """
+        if width not in (1, 2, 4):
+            raise ValueError(f"Invalid width: {width} (use 1, 2 or 4)")
+        self._check_range(addr, width)
+        mask_limit = (1 << (8 * width)) - 1
+        for label, mask in (("and", and_mask), ("or", or_mask)):
+            if not 0 <= mask <= mask_limit:
+                raise ValueError(f"Invalid {label} mask: 0x{mask:X} ({width * 8} bits)")
+        atomic = self.dialect.name == "termapy" and self.info.atomic_modify
+        if atomic:
+            request = modify_command(addr, and_mask, or_mask, width)
+            reply = _verdict(self._exchange(request), request)
+            old = assemble(reply.rows, addr, width, address_bits=self.info.address_bits)
+        else:
+            old = self.read(addr, width)
+        old_word = int.from_bytes(old, self.info.byte_order)
+        new_word = (old_word & and_mask) | or_mask
+        new = new_word.to_bytes(width, self.info.byte_order)
+        if not atomic:
+            self.write(addr, new)
+        return old, new
 
     def query_info(self) -> dict[str, Any]:
         """Ask a native device for its ``MEM.INFO`` record.

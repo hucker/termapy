@@ -1320,8 +1320,14 @@ def _format_column_value(
                     bits = bits[::-1]
                 return bits
             return str(value)
-        byte_val = data[indices[0]]
-        bit_val = (byte_val >> col.bit) & 1
+        # Single bit: combine ALL referenced bytes (index order = byte
+        # order), exactly like the range branch above -- reading only the
+        # first byte rendered every multi-byte single-bit field (B4-1.15,
+        # the register idiom) as its top byte's bit instead.
+        combined = int.from_bytes(
+            bytes(data[index] if index < len(data) else 0 for index in indices), "big",
+        )
+        bit_val = (combined >> col.bit) & 1
         return str(bit_val)
 
     # Gather bytes in specified order
@@ -1381,6 +1387,79 @@ def _format_column_value(
         return raw.hex().upper()
 
     return raw.hex().upper()
+
+
+def _bit_slice(col: ColumnSpec) -> tuple[int, int]:
+    """``(low bit, width)`` of a ``B``/``b`` column, LSB0 over the combined value."""
+    if isinstance(col.bit, tuple):
+        start_bit, end_bit = col.bit
+        low = min(start_bit, end_bit)
+        return low, abs(start_bit - end_bit) + 1
+    return int(col.bit or 0), 1
+
+
+def extract_column_value(data: bytes, col: ColumnSpec) -> int:
+    """The integer value of a ``B`` bit-field column.
+
+    The decode twin of :func:`inject_column_value`, sharing
+    ``_format_column_value``'s semantics: bytes are combined in the
+    SPEC's index order (byte order in the spec IS the byte order in the
+    data), and the bit indices are LSB0 over that combined value.
+
+    Args:
+        data: The bytes the spec's 1-based byte refs index into.
+        col: A parsed ``B``/``b`` column.
+
+    Returns:
+        The field value.
+
+    Raises:
+        ValueError: Not a bit-field column, or the refs run past ``data``.
+    """
+    if col.type_code not in ("B", "b") or col.bit is None:
+        raise ValueError(f"Not a bit field: {col.name} ({col.type_code})")
+    if any(index >= len(data) for index in col.byte_indices):
+        raise ValueError(f"Field {col.name} runs past {len(data)} bytes")
+    combined = int.from_bytes(bytes(data[index] for index in col.byte_indices), "big")
+    low, width = _bit_slice(col)
+    return (combined >> low) & ((1 << width) - 1)
+
+
+def inject_column_value(data: bytes, col: ColumnSpec, value: int) -> bytes:
+    """Set a ``B`` bit-field column's value, returning the new bytes.
+
+    The encode twin of :func:`extract_column_value` -- the one primitive
+    the format-spec language lacked (every existing consumer decodes).
+    Used by the memory typed-view layer to write a named register field;
+    a future ``.pro`` send side inherits it.
+
+    Args:
+        data: The current bytes.
+        col: A parsed ``B``/``b`` column.
+        value: The field value to inject.
+
+    Returns:
+        A new bytes object with only the field's bits changed.
+
+    Raises:
+        ValueError: Not a bit-field column, refs out of range, or
+            ``value`` does not fit the field.
+    """
+    if col.type_code not in ("B", "b") or col.bit is None:
+        raise ValueError(f"Not a bit field: {col.name} ({col.type_code})")
+    if any(index >= len(data) for index in col.byte_indices):
+        raise ValueError(f"Field {col.name} runs past {len(data)} bytes")
+    low, width = _bit_slice(col)
+    if not 0 <= value < (1 << width):
+        raise ValueError(f"Invalid value: {value} ({col.name} is {width} bit{'s' if width != 1 else ''})")
+    combined = int.from_bytes(bytes(data[index] for index in col.byte_indices), "big")
+    combined &= ~(((1 << width) - 1) << low)
+    combined |= value << low
+    field_bytes = combined.to_bytes(len(col.byte_indices), "big")
+    out = bytearray(data)
+    for position, index in enumerate(col.byte_indices):
+        out[index] = field_bytes[position]
+    return bytes(out)
 
 
 def apply_format(

@@ -318,6 +318,7 @@ class FakeSerial:
         (0x100C, (12).to_bytes(4, "little")),            # count.12   u32
         (0xBF806000, (0x8008).to_bytes(4, "little")),    # U1MODE: ON | BRGH
         (0xBF806010, (0x0110).to_bytes(4, "little")),    # U1STA
+        (0x3100, b"Bassomatic v77\x00"),                 # sBanner    char[15]
     )
 
     # Default virtual filesystem - pre-loaded demo files
@@ -712,6 +713,11 @@ class FakeSerial:
                     # Pokes RAM and SFRs: no undo.
                     "safety": "destructive",
                 },
+                "MEM.M": {
+                    "help": "Atomic masked write: word = (word & and) | or; replies the old word",
+                    "args": "<addr> <and> <or>",
+                    "safety": "destructive",
+                },
                 "MEM.INFO": {
                     "help": "Memory access facts as one JSON line",
                     "args": "",
@@ -806,8 +812,32 @@ class FakeSerial:
                 "max_block": self._MEM_MAX_BLOCK,
                 "address_bits": 32,
                 "endian": "le",
+                "modify": True,
             }
             return (json.dumps(info) + "\r\nOK\r\n").encode()
+        if verb == "MEM.M":
+            if len(parts) != 4:
+                return b"ERR usage\r\n"
+            addr = self._parse_hex_addr(parts[1])
+            and_text, or_text = parts[2], parts[3]
+            if addr is None or len(and_text) != len(or_text) or len(and_text) > 8:
+                return b"ERR usage\r\n"
+            try:
+                and_mask, or_mask = int(and_text, 16), int(or_text, 16)
+            except ValueError:
+                return b"ERR usage\r\n"
+            width = 1 if len(and_text) <= 2 else 2 if len(and_text) <= 4 else 4
+            if addr & (width - 1):
+                return b"ERR usage\r\n"
+            located = self._ram_window(addr, width)
+            if located is None:
+                return b"ERR range\r\n"
+            base, offset = located
+            old = bytes(self._ram[base][offset:offset + width])
+            word = (int.from_bytes(old, "little") & and_mask) | or_mask
+            self._ram[base][offset:offset + width] = word.to_bytes(width, "little")
+            row = f"{addr:08X}: " + " ".join(f"{byte:02X}" for byte in old)
+            return (row + "\r\nOK\r\n").encode()
         if verb == "MEM.R":
             if len(parts) != 3:
                 return b"ERR usage\r\n"

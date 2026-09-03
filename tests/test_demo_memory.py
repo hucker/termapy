@@ -52,7 +52,7 @@ class TestMemInfo:
         lines = text.splitlines()
         assert lines[-1] == "OK", "every MEM reply ends with OK"
         record = json.loads(lines[0])
-        assert record == {"max_block": 64, "address_bits": 32, "endian": "le"}, (
+        assert record == {"max_block": 64, "address_bits": 32, "endian": "le", "modify": True}, (
             "the facts a native device publishes instead of a profile block"
         )
 
@@ -155,6 +155,52 @@ class TestMemWrite:
 
     def test_unknown_mem_verb(self, dev):
         assert _exchange(dev, "MEM.X 0x1000").splitlines() == ["ERR usage"], "unknown MEM.* verb"
+
+
+class TestMemModify:
+    """``MEM.M`` -- the atomic masked write the demo advertises."""
+
+    def test_replies_the_old_word_then_ok(self, dev):
+        # Act -- set U1MODE's bit 15 is already set; clear it (u32 masks)
+        text = _exchange(dev, "MEM.M 0xBF806000 FFFF7FFF 00000000")
+
+        # Assert
+        assert text.splitlines() == ["BF806000: 08 80 00 00", "OK"], "the PRE-modify word as one row"
+        assert _exchange(dev, "MEM.R 0xBF806000 4").splitlines()[0] == "BF806000: 08 00 00 00", (
+            "bit 15 cleared in the LE word"
+        )
+
+    def test_width_from_mask_digits(self, dev):
+        # Act -- 2-digit masks = a byte access at gTemp
+        text = _exchange(dev, "MEM.M 0x1000 F0 05")
+
+        # Assert
+        assert text.splitlines() == ["00001000: 1B", "OK"], "one old byte"
+        assert _exchange(dev, "MEM.R 0x1000 1").splitlines()[0] == "00001000: 15", "(0x1B & 0xF0) | 0x05"
+
+    @pytest.mark.parametrize(
+        "command, reason",
+        [
+            ("MEM.M 0x1000 FF", "usage"),
+            ("MEM.M 0x1000 FF 001", "usage"),
+            ("MEM.M 0x1001 FFFF 0000", "usage"),
+            ("MEM.M 0x1002 FFFFFFFF 00000000", "usage"),
+            ("MEM.M 0x9000 FF 00", "range"),
+        ],
+    )
+    def test_errors(self, dev, command, reason):
+        assert _exchange(dev, command).splitlines() == [f"ERR {reason}"], "arity, digits, alignment, range"
+
+
+class TestBannerString:
+
+    def test_seeded_nul_terminated(self, dev):
+        # Act -- sBanner's bytes end in a NUL inside the window
+        reply = parse_reply(_exchange(dev, "MEM.R 0x3100 15"))
+
+        # Assert
+        data = b"".join(row for _, row in reply.rows)
+        assert data == b"Bassomatic v77\x00", "what /mem.str reads"
 
 
 class TestLegacyGrammar:

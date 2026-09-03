@@ -85,6 +85,7 @@
         "max_block": {"description": "Largest byte count per MEM.R / MEM.W exchange.", "type": "integer"},
         "address_bits": {"description": "Address width; sets the printed hex width.", "type": "integer"},
         "endian": {"description": "Byte order of multi-byte values: le or be. Stored for typed views.", "type": "string"},
+        "modify": {"description": "Device implements the atomic MEM.M masked write (usually learned from MEM.INFO).", "type": "boolean"},
         "read": {"description": "template dialect: str.format read template with {addr} and {len}.", "type": "string"},
         "row": {"description": "template dialect: regex for one data row with (?P<addr>...) and (?P<hex>...) groups.", "type": "string"},
         "row_bytes": {"description": "template dialect: most bytes one row carries (default 16).", "type": "integer"},

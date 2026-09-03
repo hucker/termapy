@@ -125,7 +125,8 @@ src/termapy/
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
 ├── history_nav.py          #              REPL Up/Down history browsing cursor (Textual-free)
-├── memory.py               # (0 lines)  Device memory engine - the MEM wire dialect, chunking, continuity, dump rows (Textual-free)
+├── memory.py               # (0 lines)  Device memory engine - the MEM wire dialects, chunking, continuity, MEM.M, dump rows (Textual-free)
+├── memory_views.py         # (0 lines)  Typed views - scalars, chars, register bit fields over the format-spec language (Textual-free)
 ├── migration.py            # (701 lines)  Config schema migration chain
 ├── port_control.py         # (2019 lines) Pure serial port control functions - no Textual
 ├── proto_debug.py          # (1185 lines) Interactive protocol debug screen (Textual)

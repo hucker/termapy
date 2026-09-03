@@ -240,9 +240,12 @@ The most common ones:
 | `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, text, or file; omit data to verify check string   |
 | `/proto.crc.find <pkt>`              | Identify CRC algorithm from a captured packet (bin= hex or asc= text)         |
 | `/proto.info`                        | Print current protocol state                                                  |
-| `/mem.dump <addr> {len}`             | Hexdump bytes at an address or symbol (default 64)                            |
-| `/mem.info`                          | Show how memory access is configured: dialect, block limit, width, endian     |
-| `/mem.write <addr> <hex>`            | Write hex bytes at an address or symbol (audited; destructive over MCP)       |
+| `/mem.dump <target> {len} {type}`    | Hexdump or typed word columns at an address or symbol                         |
+| `/mem.read <target> {type}`          | One typed value: scalar, char, register field, bit or slice                   |
+| `/mem.write <target> <hex>`          | Write hex bytes, or set a register field/bit (audited; destructive over MCP)  |
+| `/mem.or <target> <mask>`            | Boolean ops on one word (also `.and`, `.clear`, `.xor`, `.not`); atomic via `MEM.M` where expressible |
+| `/mem.str <target> {max}`            | Read a NUL-terminated string as a first-class value                           |
+| `/mem.info`                          | Memory access config: dialect, block limit, width, endian, atomic modify      |
 | `/sym <addr\|name>`                  | Symbol table: name to address, or address to `name+offset`                   |
 | `/sym.import <file> {format=<value>}` | Convert a linker map to `<cfg>.symbols.json` and load it                     |
 | `/sym.info`                          | Show the loaded symbol table: file, source, counts by section, range          |

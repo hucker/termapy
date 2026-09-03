@@ -25,7 +25,7 @@ DEMO_SYMBOLS = (
 )
 XC32_MAP = Path(__file__).parent / "fixtures" / "maps" / "xc32_sample.map"
 XC32_COUNT = 17  # symbols in the fixture (see test_symbols_xc32.py)
-DEMO_COUNT = 12
+DEMO_COUNT = 13
 
 
 def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):

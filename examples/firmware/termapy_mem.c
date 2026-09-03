@@ -6,28 +6,29 @@
  * termapy's "memory" help topic for the normative spec.  Portable C99;
  * only <stdint.h>, <stdbool.h>, <stddef.h> and memcpy are used.
  *
- * Safety properties, in order of importance:
+ * Structure:
  *
- * - Nothing outside the region table is ever dereferenced: every access
- *   is gated by RangeOk() BEFORE the first load or store, so a typo'd
- *   address answers "ERR range" instead of HardFaulting the monitor.
- * - Accesses use the natural width where alignment and count allow
- *   (word, then half-word, then byte).  A byte access to a peripheral
- *   register is a bus fault on several cores (PIC32, some Cortex-M IPs);
- *   reading or writing 4 aligned bytes at a time avoids that.  To poke a
- *   register, write all 4 bytes (termapy's /mem.write does).
- * - Reads and writes are NOT atomic with respect to interrupts.  A
- *   read-modify-write done from the host (termapy's bit operations) can
- *   race an ISR that touches the same register; that caveat belongs in
- *   your project notes, not in code cleverness here.
+ * - The WIRE MODULE (TermapyMem_Cmd and everything static) parses the
+ *   verb and arguments, calls ops->read / ops->write, and formats rows,
+ *   OK, ERR and the MEM.INFO JSON line.  It never dereferences memory
+ *   and holds no address knowledge.
+ * - The DIRECT HELPERS (TermapyMem_DirectRead / TermapyMem_DirectWrite,
+ *   at the bottom) are the flat-MCU implementation of the two byte ops:
+ *   direct pointers gated by an editable region table, width-aware so
+ *   peripheral windows are accessed at word size where possible.
  *
- * Footprint: ~700 bytes of flash on a Cortex-M0+ at -Os; stack use is
+ * MEM.M is composed from the same two byte ops bracketed by ops->lock /
+ * ops->unlock: lock -> read word -> (word & and) | or -> write -> unlock,
+ * replying the PRE-modify word as one row so the host's audit gets a
+ * true "before" without a separate racy read.  Atomicity is a platform
+ * concern, exactly like access width.
+ *
+ * Footprint: ~900 bytes of flash on a Cortex-M0+ at -Os; stack use is
  * TERMAPY_MEM_MAX_BLOCK bytes during MEM.W, a 16-byte row during MEM.R.
  */
 
 #include "termapy_mem.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -43,44 +44,33 @@
 
 #define ROW_BYTES 16u               /* bytes per MEM.R output row        */
 
-/**
- * The memory map: the ONLY addresses this module will touch.
- * >>> EDIT FOR YOUR PART before shipping. <<<
- * The defaults are a Cortex-M-style map (flash at 0, SRAM, peripherals).
- */
-static const struct { uint32_t start; uint32_t size; } sRegionsA[] = {
-	{ 0x00000000u, 0x00080000u },   /* flash   512 KB                    */
-	{ 0x20000000u, 0x00010000u },   /* SRAM     64 KB                    */
-	{ 0x40000000u, 0x03000000u },   /* peripherals                       */
-};
+/* ── Output helpers (everything goes through ops->put) ─────────────────── */
 
-/* ── Output helpers (everything goes through the one callback) ─────────── */
-
-static void PutStr(TermapyMem_PutByteFn put, const char *stringP)
+static void PutStr(const TermapyMem_Ops *ops, const char *stringP)
 {
 	while (*stringP != '\0')
 	{
-		put((uint8_t)*stringP++);
+		(void)ops->put((int)(unsigned char)*stringP++);
 	}
 }
 
-static void PutCrlf(TermapyMem_PutByteFn put)
+static void PutCrlf(const TermapyMem_Ops *ops)
 {
-	put((uint8_t)'\r');
-	put((uint8_t)'\n');
+	(void)ops->put('\r');
+	(void)ops->put('\n');
 }
 
 /** Upper-case hex, fixed digit count, MSB first. */
-static void PutHex(TermapyMem_PutByteFn put, uint32_t value, uint8_t digits)
+static void PutHex(const TermapyMem_Ops *ops, uint32_t value, uint8_t digits)
 {
 	while (digits-- > 0u)
 	{
 		uint8_t nibble = (uint8_t)((value >> (4u * digits)) & 0xFu);
-		put((uint8_t)(nibble < 10u ? ('0' + nibble) : ('A' + nibble - 10u)));
+		(void)ops->put(nibble < 10u ? ('0' + nibble) : ('A' + nibble - 10u));
 	}
 }
 
-static void PutDec(TermapyMem_PutByteFn put, uint32_t value)
+static void PutDec(const TermapyMem_Ops *ops, uint32_t value)
 {
 	char buf[10];
 	uint8_t n = 0u;
@@ -91,21 +81,35 @@ static void PutDec(TermapyMem_PutByteFn put, uint32_t value)
 	} while (value != 0u);
 	while (n-- > 0u)
 	{
-		put((uint8_t)buf[n]);
+		(void)ops->put((int)buf[n]);
 	}
 }
 
-static void PutErr(TermapyMem_PutByteFn put, const char *reasonP)
+static void PutErr(const TermapyMem_Ops *ops, const char *reasonP)
 {
-	PutStr(put, "ERR ");
-	PutStr(put, reasonP);
-	PutCrlf(put);
+	PutStr(ops, "ERR ");
+	PutStr(ops, reasonP);
+	PutCrlf(ops);
 }
 
-static void PutOk(TermapyMem_PutByteFn put)
+static void PutOk(const TermapyMem_Ops *ops)
 {
-	PutStr(put, "OK");
-	PutCrlf(put);
+	PutStr(ops, "OK");
+	PutCrlf(ops);
+}
+
+/** One data row: "<ADDR>: XX XX ..." for count bytes. */
+static void PutRow(const TermapyMem_Ops *ops, uint32_t addr,
+	const uint8_t *bytesP, uint32_t count)
+{
+	PutHex(ops, addr, (uint8_t)(TERMAPY_MEM_ADDRESS_BITS / 4u));
+	(void)ops->put(':');
+	for (uint32_t i = 0u; i < count; i++)
+	{
+		(void)ops->put(' ');
+		PutHex(ops, bytesP[i], 2u);
+	}
+	PutCrlf(ops);
 }
 
 /* ── Input helpers ─────────────────────────────────────────────────────── */
@@ -146,6 +150,26 @@ static bool ParseHexU32(const char **cursorPP, uint32_t *outP)
 	return true;
 }
 
+/** Hex number WITHOUT prefix; also reports the digit count (mask width). */
+static bool ParseHexDigits(const char **cursorPP, uint32_t *outP, uint8_t *digitsP)
+{
+	const char *p = *cursorPP;
+	uint32_t value = 0u;
+	uint8_t digits = 0u;
+	int digit;
+	while ((digit = HexVal(*p)) >= 0)
+	{
+		value = (value << 4) | (uint32_t)digit;
+		p++;
+		digits++;
+	}
+	if (digits == 0u || digits > 8u) { return false; }
+	*cursorPP = p;
+	*outP = value;
+	*digitsP = digits;
+	return true;
+}
+
 /** Decimal number.  False when no digits follow. */
 static bool ParseDecU32(const char **cursorPP, uint32_t *outP)
 {
@@ -164,7 +188,174 @@ static bool ParseDecU32(const char **cursorPP, uint32_t *outP)
 	return true;
 }
 
-/* ── The memory map gate ───────────────────────────────────────────────── */
+/* ── The four verbs (wire only -- memory access goes through ops) ──────── */
+
+static void CmdRead(const char *argsP, const TermapyMem_Ops *ops)
+{
+	uint32_t addr;
+	uint32_t count;
+	SkipSpaces(&argsP);
+	if (!ParseHexU32(&argsP, &addr)) { PutErr(ops, "usage"); return; }
+	SkipSpaces(&argsP);
+	if (!ParseDecU32(&argsP, &count)) { PutErr(ops, "usage"); return; }
+	if (count < 1u || count > TERMAPY_MEM_MAX_BLOCK) { PutErr(ops, "length"); return; }
+
+	for (uint32_t offset = 0u; offset < count; offset += ROW_BYTES)
+	{
+		uint8_t row[ROW_BYTES];
+		uint32_t rowLen = count - offset;
+		if (rowLen > ROW_BYTES) { rowLen = ROW_BYTES; }
+		if (!ops->read(addr + offset, row, rowLen)) { PutErr(ops, "range"); return; }
+		PutRow(ops, addr + offset, row, rowLen);
+	}
+	PutOk(ops);
+}
+
+static void CmdWrite(const char *argsP, const TermapyMem_Ops *ops)
+{
+	uint32_t addr;
+	SkipSpaces(&argsP);
+	if (!ParseHexU32(&argsP, &addr)) { PutErr(ops, "usage"); return; }
+
+	/* Hex pairs; spaces between pairs tolerated for hand typing. */
+	uint8_t data[TERMAPY_MEM_MAX_BLOCK];
+	uint32_t count = 0u;
+	SkipSpaces(&argsP);
+	while (*argsP != '\0')
+	{
+		int high = HexVal(argsP[0]);
+		int low = (high >= 0) ? HexVal(argsP[1]) : -1;
+		if (low < 0) { PutErr(ops, "usage"); return; }   /* odd or non-hex */
+		if (count >= TERMAPY_MEM_MAX_BLOCK) { PutErr(ops, "length"); return; }
+		data[count++] = (uint8_t)((high << 4) | low);
+		argsP += 2;
+		SkipSpaces(&argsP);
+	}
+	if (count == 0u) { PutErr(ops, "usage"); return; }
+
+	if (!ops->write(addr, data, count)) { PutErr(ops, "range"); return; }
+	PutOk(ops);
+}
+
+static void CmdModify(const char *argsP, const TermapyMem_Ops *ops)
+{
+	if (ops->lock == NULL || ops->unlock == NULL) { PutErr(ops, "usage"); return; }
+
+	uint32_t addr;
+	uint32_t andMask;
+	uint32_t orMask;
+	uint8_t andDigits;
+	uint8_t orDigits;
+	SkipSpaces(&argsP);
+	if (!ParseHexU32(&argsP, &addr)) { PutErr(ops, "usage"); return; }
+	SkipSpaces(&argsP);
+	if (!ParseHexDigits(&argsP, &andMask, &andDigits)) { PutErr(ops, "usage"); return; }
+	SkipSpaces(&argsP);
+	if (!ParseHexDigits(&argsP, &orMask, &orDigits)) { PutErr(ops, "usage"); return; }
+	SkipSpaces(&argsP);
+	if (*argsP != '\0' || andDigits != orDigits) { PutErr(ops, "usage"); return; }
+
+	/* Width from the masks' digit count: 2 / 4 / 8 = u8 / u16 / u32. */
+	uint32_t width;
+	if (andDigits <= 2u) { width = 1u; }
+	else if (andDigits <= 4u) { width = 2u; }
+	else { width = 4u; }
+	if ((addr & (width - 1u)) != 0u) { PutErr(ops, "usage"); return; }
+
+	uint8_t oldBytes[4];
+	uint32_t word = 0u;
+	bool ok;
+	ops->lock();
+	ok = ops->read(addr, oldBytes, width);
+	if (ok)
+	{
+		memcpy(&word, oldBytes, width);        /* native word order */
+		word = (word & andMask) | orMask;
+		uint8_t newBytes[4];
+		memcpy(newBytes, &word, width);
+		ok = ops->write(addr, newBytes, width);
+	}
+	ops->unlock();
+	if (!ok) { PutErr(ops, "range"); return; }
+
+	PutRow(ops, addr, oldBytes, width);        /* the PRE-modify word */
+	PutOk(ops);
+}
+
+static void CmdInfo(const TermapyMem_Ops *ops)
+{
+	/* Endianness is a fact about the running core; detect, don't declare. */
+	uint16_t probe = 1u;
+	uint8_t first;
+	memcpy(&first, &probe, 1u);
+
+	PutStr(ops, "{\"max_block\": ");
+	PutDec(ops, TERMAPY_MEM_MAX_BLOCK);
+	PutStr(ops, ", \"address_bits\": ");
+	PutDec(ops, TERMAPY_MEM_ADDRESS_BITS);
+	PutStr(ops, ", \"endian\": \"");
+	PutStr(ops, (first == 1u) ? "le" : "be");
+	PutStr(ops, "\"");
+	if (ops->lock != NULL && ops->unlock != NULL)
+	{
+		PutStr(ops, ", \"modify\": true");
+	}
+	PutStr(ops, "}");
+	PutCrlf(ops);
+	PutOk(ops);
+}
+
+/* ── Dispatch ──────────────────────────────────────────────────────────── */
+
+static bool TokenIs(const char *cursorP, const char *wordP, const char **restPP)
+{
+	size_t n = 0u;
+	while (wordP[n] != '\0')
+	{
+		char have = cursorP[n];
+		if (have >= 'a' && have <= 'z') { have = (char)(have - 'a' + 'A'); }
+		if (have != wordP[n]) { return false; }
+		n++;
+	}
+	if (cursorP[n] != '\0' && cursorP[n] != ' ') { return false; }
+	*restPP = cursorP + n;
+	return true;
+}
+
+void TermapyMem_Cmd(const char *inputP, const TermapyMem_Ops *opsP)
+{
+	const char *p = inputP;
+	const char *rest;
+	SkipSpaces(&p);
+	/* Tolerate whatever the dispatcher left: "MEM.R ...", ".R ...", "R ...". */
+	if ((p[0] == 'M' || p[0] == 'm') && (p[1] == 'E' || p[1] == 'e')
+		&& (p[2] == 'M' || p[2] == 'm'))
+	{
+		p += 3;
+	}
+	if (*p == '.') { p++; }
+
+	if (TokenIs(p, "R", &rest))         { CmdRead(rest, opsP); }
+	else if (TokenIs(p, "W", &rest))    { CmdWrite(rest, opsP); }
+	else if (TokenIs(p, "M", &rest))    { CmdModify(rest, opsP); }
+	else if (TokenIs(p, "INFO", &rest)) { CmdInfo(opsP); }
+	else                                { PutErr(opsP, "usage"); }
+}
+
+/* ── Direct helpers: the flat-MCU implementation of the two byte ops ───── */
+
+/**
+ * The memory map: the ONLY addresses the Direct helpers will touch.
+ * >>> EDIT FOR YOUR PART before shipping. <<<
+ * The defaults are a generic Cortex-M map (flash at 0, SRAM, peripherals,
+ * the system control space).
+ */
+static const struct { uint32_t start; uint32_t size; } sRegionsA[] = {
+	{ 0x00000000u, 0x00080000u },   /* flash   512 KB                    */
+	{ 0x20000000u, 0x00010000u },   /* SRAM     64 KB                    */
+	{ 0x40000000u, 0x03000000u },   /* peripherals                       */
+	{ 0xE0000000u, 0x00100000u },   /* SCS / NVIC / SysTick              */
+};
 
 /** True when [addr, addr+count) lies inside ONE region of the table. */
 static bool RangeOk(uint32_t addr, uint32_t count)
@@ -180,10 +371,9 @@ static bool RangeOk(uint32_t addr, uint32_t count)
 	return false;
 }
 
-/* ── Width-aware copies (bus-fault safe on peripheral windows) ─────────── */
-
-static void ReadBlock(uint32_t addr, uint8_t *dstP, uint32_t count)
+bool TermapyMem_DirectRead(uint32_t addr, uint8_t *dstP, uint32_t count)
 {
+	if (!RangeOk(addr, count)) { return false; }
 	while (count > 0u)
 	{
 		if ((addr & 3u) == 0u && count >= 4u)
@@ -204,10 +394,12 @@ static void ReadBlock(uint32_t addr, uint8_t *dstP, uint32_t count)
 			addr += 1u; count -= 1u;
 		}
 	}
+	return true;
 }
 
-static void WriteBlock(uint32_t addr, const uint8_t *srcP, uint32_t count)
+bool TermapyMem_DirectWrite(uint32_t addr, const uint8_t *srcP, uint32_t count)
 {
+	if (!RangeOk(addr, count)) { return false; }
 	while (count > 0u)
 	{
 		if ((addr & 3u) == 0u && count >= 4u)
@@ -230,117 +422,5 @@ static void WriteBlock(uint32_t addr, const uint8_t *srcP, uint32_t count)
 			addr += 1u; count -= 1u;
 		}
 	}
-}
-
-/* ── The three verbs ───────────────────────────────────────────────────── */
-
-static void CmdRead(const char *argsP, TermapyMem_PutByteFn put)
-{
-	uint32_t addr;
-	uint32_t count;
-	SkipSpaces(&argsP);
-	if (!ParseHexU32(&argsP, &addr)) { PutErr(put, "usage"); return; }
-	SkipSpaces(&argsP);
-	if (!ParseDecU32(&argsP, &count)) { PutErr(put, "usage"); return; }
-	if (count < 1u || count > TERMAPY_MEM_MAX_BLOCK) { PutErr(put, "length"); return; }
-	if (!RangeOk(addr, count)) { PutErr(put, "range"); return; }
-
-	for (uint32_t offset = 0u; offset < count; offset += ROW_BYTES)
-	{
-		uint8_t row[ROW_BYTES];
-		uint32_t rowLen = count - offset;
-		if (rowLen > ROW_BYTES) { rowLen = ROW_BYTES; }
-		ReadBlock(addr + offset, row, rowLen);
-
-		PutHex(put, addr + offset, (uint8_t)(TERMAPY_MEM_ADDRESS_BITS / 4u));
-		put((uint8_t)':');
-		for (uint32_t i = 0u; i < rowLen; i++)
-		{
-			put((uint8_t)' ');
-			PutHex(put, row[i], 2u);
-		}
-		PutCrlf(put);
-	}
-	PutOk(put);
-}
-
-static void CmdWrite(const char *argsP, TermapyMem_PutByteFn put)
-{
-	uint32_t addr;
-	SkipSpaces(&argsP);
-	if (!ParseHexU32(&argsP, &addr)) { PutErr(put, "usage"); return; }
-
-	/* Hex pairs; spaces between pairs tolerated for hand typing. */
-	uint8_t data[TERMAPY_MEM_MAX_BLOCK];
-	uint32_t count = 0u;
-	SkipSpaces(&argsP);
-	while (*argsP != '\0')
-	{
-		int high = HexVal(argsP[0]);
-		int low = (high >= 0) ? HexVal(argsP[1]) : -1;
-		if (low < 0) { PutErr(put, "usage"); return; }   /* odd or non-hex */
-		if (count >= TERMAPY_MEM_MAX_BLOCK) { PutErr(put, "length"); return; }
-		data[count++] = (uint8_t)((high << 4) | low);
-		argsP += 2;
-		SkipSpaces(&argsP);
-	}
-	if (count == 0u) { PutErr(put, "usage"); return; }
-	if (!RangeOk(addr, count)) { PutErr(put, "range"); return; }
-
-	WriteBlock(addr, data, count);
-	PutOk(put);
-}
-
-static void CmdInfo(TermapyMem_PutByteFn put)
-{
-	/* Endianness is a fact about the running core; detect, don't declare. */
-	uint16_t probe = 1u;
-	uint8_t first;
-	memcpy(&first, &probe, 1u);
-
-	PutStr(put, "{\"max_block\": ");
-	PutDec(put, TERMAPY_MEM_MAX_BLOCK);
-	PutStr(put, ", \"address_bits\": ");
-	PutDec(put, TERMAPY_MEM_ADDRESS_BITS);
-	PutStr(put, ", \"endian\": \"");
-	PutStr(put, (first == 1u) ? "le" : "be");
-	PutStr(put, "\"}");
-	PutCrlf(put);
-	PutOk(put);
-}
-
-/* ── Dispatch ──────────────────────────────────────────────────────────── */
-
-static bool TokenIs(const char *cursorP, const char *wordP, const char **restPP)
-{
-	size_t n = 0u;
-	while (wordP[n] != '\0')
-	{
-		char have = cursorP[n];
-		if (have >= 'a' && have <= 'z') { have = (char)(have - 'a' + 'A'); }
-		if (have != wordP[n]) { return false; }
-		n++;
-	}
-	if (cursorP[n] != '\0' && cursorP[n] != ' ') { return false; }
-	*restPP = cursorP + n;
 	return true;
-}
-
-void TermapyMem_Cmd(const char *inputP, TermapyMem_PutByteFn putByteFn)
-{
-	const char *p = inputP;
-	const char *rest;
-	SkipSpaces(&p);
-	/* Tolerate whatever the dispatcher left: "MEM.R ...", ".R ...", "R ...". */
-	if ((p[0] == 'M' || p[0] == 'm') && (p[1] == 'E' || p[1] == 'e')
-		&& (p[2] == 'M' || p[2] == 'm'))
-	{
-		p += 3;
-	}
-	if (*p == '.') { p++; }
-
-	if (TokenIs(p, "R", &rest))         { CmdRead(rest, putByteFn); }
-	else if (TokenIs(p, "W", &rest))    { CmdWrite(rest, putByteFn); }
-	else if (TokenIs(p, "INFO", &rest)) { CmdInfo(putByteFn); }
-	else                                { PutErr(putByteFn, "usage"); }
 }

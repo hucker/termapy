@@ -112,7 +112,7 @@ class TestDump:
         "line, message",
         [
             ("mem.dump nosuch", "Unknown symbol: nosuch"),
-            ("mem.dump U1MODE.ON", "Unsupported address suffix: .ON"),
+            ("mem.dump U1MODE.ON", "Unsupported address suffix here: .ON"),
             ("mem.dump 0x9000 4", "Device error: range"),
             ("mem.dump main-0x9000", "Invalid address: main-0x9000"),
         ],
@@ -206,6 +206,233 @@ class TestWrite:
         assert not any(text.startswith("MEM.W") for _, text in cli.audit), "nothing was written, nothing is audited"
 
 
+class TestRead:
+    """One typed value: scalars, chars, register fields, bits, slices."""
+
+    def test_typed_symbol_scalar(self, cli):
+        result = cli.repl.dispatch("mem.read gTemp")
+        assert result.success, result.error
+        assert result.value == "27", "gTemp's u16 type decodes the seed"
+        assert result.data["type"] == "u16"
+
+    def test_explicit_type_overrides(self, cli):
+        result = cli.repl.dispatch("mem.read gTemp u8")
+        assert result.value == "27", "first byte as u8"
+
+    def test_char_token(self, cli, capsys):
+        result = cli.repl.dispatch("mem.read sBanner char")
+        assert result.value == "66", "the value is the byte"
+        assert "sBanner = 'B' (0x42)" in capsys.readouterr().out, "rendered as a character"
+
+    def test_register_shows_all_fields(self, cli, capsys):
+        # Act -- U1MODE has a format-spec type: apply_format renders it
+        result = cli.repl.dispatch("mem.read U1MODE")
+
+        # Assert
+        assert result.success, result.error
+        assert result.data["fields"] == {"ON": 1, "UEN": 0, "BRGH": 1}, "the seeded 0x8008"
+        out = capsys.readouterr().out
+        assert "ON       = 1" in out, "the DISPLAY agrees with the extract twin (gold caught it at 0)"
+        assert "BRGH     = 1" in out, "bit 3 rendered from the combined word"
+
+    def test_named_field(self, cli):
+        result = cli.repl.dispatch("mem.read U1MODE.ON")
+        assert result.value == "1", "bit 15 of the LE word is set"
+        assert result.data["word"] == 0x8008, "the whole word rides along"
+
+    def test_numeric_bit_and_slice(self, cli):
+        assert cli.repl.dispatch("mem.read U1MODE.15").value == "1", "same bit by number"
+        assert cli.repl.dispatch("mem.read gFlags.0-2").value == "5", "the low three bits of 5"
+
+    def test_bare_address_bit(self, cli):
+        assert cli.repl.dispatch("mem.read 0xBF806000.3").value == "1", "BRGH by raw address"
+
+    def test_float_symbol(self, cli):
+        result = cli.repl.dispatch("mem.read gPressure")
+        assert result.value == "1013.25", "the seeded f32"
+
+    def test_bare_address_needs_a_type(self, cli):
+        result = cli.repl.dispatch("mem.read 0x1000")
+        assert not result.success
+        assert "Type required" in result.error
+
+    @pytest.mark.parametrize(
+        "line, message",
+        [
+            ("mem.read gTemp u128", "Unknown type: u128"),
+            ("mem.read U1MODE.BOGUS", "Unknown field: U1MODE.BOGUS (fields: ON, UEN, BRGH)"),
+            ("mem.read gFlags.32", "Invalid bit: 32 (the word is 32 bits)"),
+        ],
+    )
+    def test_errors(self, cli, line, message):
+        result = cli.repl.dispatch(line)
+        assert not result.success
+        assert message in result.error
+
+
+class TestBitWrites:
+    """A .field / .bit target on /mem.write is a masked word write."""
+
+    def test_clear_a_named_field(self, cli, capsys):
+        # Act
+        result = cli.repl.dispatch("mem.write U1MODE.ON 0")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "0", "the field value written"
+        assert result.data["atomic"] is True, "the demo advertises MEM.M"
+        assert result.data["before_word"] == 0x8008 and result.data["after_word"] == 0x0008
+        assert "Set U1MODE.ON = 0  (0x00008008 -> 0x00000008)" in capsys.readouterr().out
+        assert cli.repl.dispatch("mem.read U1MODE.ON").value == "0", "read-back"
+
+    def test_audit_carries_the_word_change(self, cli):
+        cli.repl.dispatch("mem.write U1MODE.ON 0")
+        audits = [text for prefix, text in cli.audit if text.startswith("MEM.M")]
+        assert audits == ["MEM.M 0xBF806000 before=08800000 after=08000000 origin=cli"], (
+            "atomic modifies audit like writes, memory-order bytes"
+        )
+
+    def test_set_a_slice(self, cli):
+        result = cli.repl.dispatch("mem.write gFlags.4-6 5")
+        assert result.success, result.error
+        assert cli.repl.dispatch("mem.read gFlags.4-6").value == "5", "three bits landed"
+        assert cli.repl.dispatch("mem.read gFlags.0-2").value == "5", "neighbors untouched"
+
+    def test_value_too_big(self, cli):
+        result = cli.repl.dispatch("mem.write U1MODE.ON 2")
+        assert not result.success
+        assert "Invalid value: 2 (ON is 1 bit)" in result.error
+
+    def test_rmw_refused_on_w1c(self, cli):
+        result = cli.repl.dispatch("mem.write U1STA.0 1")
+        assert not result.success
+        assert "RMW refused: U1STA is rmw: false" in result.error
+        assert not any(text.startswith("MEM.M") for _, text in cli.audit), "nothing written, nothing audited"
+
+
+class TestMaskOps:
+
+    def test_or_width_from_symbol_type(self, cli, capsys):
+        # Act -- gFlags is u32 = 5; set bit 4
+        result = cli.repl.dispatch("mem.or gFlags 0x10")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "00000015", "the new word"
+        assert result.data["atomic"] is True, "or rides MEM.M"
+        assert "OR 0x00000010 at 0x00001008  gFlags  (0x00000005 -> 0x00000015)" in capsys.readouterr().out
+
+    def test_and(self, cli):
+        result = cli.repl.dispatch("mem.and gFlags 0x1")
+        assert result.value == "00000001", "5 & 1"
+
+    def test_xor_is_never_atomic(self, cli):
+        result = cli.repl.dispatch("mem.xor gFlags 0xFF")
+        assert result.value == "000000FA", "5 ^ 0xFF"
+        assert result.data["atomic"] is False, "xor cannot ride (word & and) | or"
+
+    def test_mask_width_from_digit_count_on_a_bare_address(self, cli):
+        # Arrange -- 2 hex digits = a byte op at gTemp's first byte
+        result = cli.repl.dispatch("mem.or 0x1000 0xE0")
+
+        # Assert
+        assert result.success, result.error
+        assert result.data["width"] == 1, "0xE0 is a u8 mask"
+        assert result.value == "FB", "0x1B | 0xE0"
+
+    def test_clear_is_the_complement_footgun_removed(self, cli):
+        # Act -- gFlags is 5; clear bit 0 without hand-complementing a mask
+        result = cli.repl.dispatch("mem.clear gFlags 0x1")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "00000004", "5 & ~1"
+        assert result.data["atomic"] is True, "clear is (word & ~mask) | 0: MEM.M-able"
+
+    def test_not_inverts_the_word(self, cli):
+        result = cli.repl.dispatch("mem.not gFlags")
+        assert result.value == "FFFFFFFA", "~5 over the u32 width"
+        assert result.data["atomic"] is False, "NOT depends on the old value"
+        assert cli.repl.dispatch("mem.not gFlags").value == "00000005", "involution"
+
+    def test_not_width_from_symbol_type(self, cli):
+        result = cli.repl.dispatch("mem.not gTemp")
+        assert result.data["width"] == 2, "gTemp is u16"
+
+    @pytest.mark.parametrize("line", ["mem.or U1STA 1", "mem.clear U1STA 1", "mem.not U1STA"])
+    def test_rmw_refused_on_w1c(self, cli, line):
+        result = cli.repl.dispatch(line)
+        assert not result.success
+        assert "RMW refused: U1STA is rmw: false" in result.error
+
+    def test_bad_mask(self, cli):
+        result = cli.repl.dispatch("mem.or gFlags zz")
+        assert "Invalid mask: zz" in result.error
+
+
+class TestStr:
+
+    def test_banner_by_symbol(self, cli, capsys):
+        # Act
+        result = cli.repl.dispatch("mem.str sBanner")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "Bassomatic v77", "the NUL-terminated string is the value"
+        assert result.data["length"] == 14 and result.data["truncated"] is False
+        assert '0x00003100  sBanner  "Bassomatic v77"' in capsys.readouterr().out
+
+    def test_cap_truncates(self, cli):
+        # Arrange -- code bytes at main have no NUL in the first 8
+        result = cli.repl.dispatch("mem.str 0x2000 8")
+        assert result.data["truncated"] is True, "no NUL within the cap"
+        assert result.data["length"] == 8
+
+    def test_bad_cap(self, cli):
+        result = cli.repl.dispatch("mem.str sBanner zz")
+        assert "Invalid length: zz" in result.error
+
+
+class TestDumpModes:
+
+    def test_u16_word_columns(self, cli, capsys):
+        # Act
+        result = cli.repl.dispatch("mem.dump gTemp 16 u16")
+
+        # Assert
+        assert result.success, result.error
+        line = capsys.readouterr().out.splitlines()[0].lstrip()
+        assert line.startswith("0x00001000  001B 5000 447D 213A"), "LE u16 hex words"
+        assert result.value.startswith("1B00"), "value stays the raw bytes"
+
+    def test_i16_decimal(self, cli):
+        cli.ctx.wants_data = True  # what the dispatcher sets for --json / MCP
+        result = cli.repl.dispatch("mem.dump gTemp 4 i16")
+        assert result.data["rows"][0]["values"] == [27, 20480], "signed decimal values in the records"
+
+    def test_bare_mode(self, cli, capsys):
+        # Act -- both columns off: nothing but values
+        cli.repl.dispatch("mem.dump gTemp 4 addr=off ascii=off")
+
+        # Assert
+        line = capsys.readouterr().out.splitlines()[0].lstrip()
+        assert line == "1B 00 00 50", "no address, no ascii, no label"
+
+    def test_addr_off_keeps_ascii(self, cli, capsys):
+        cli.repl.dispatch("mem.dump sBanner 8 addr=off")
+        line = capsys.readouterr().out.splitlines()[0].lstrip()
+        assert line.startswith("42 61 73 73") and "|Bassomat|" in line, "ascii column without addresses"
+
+    def test_word_length_must_align(self, cli):
+        result = cli.repl.dispatch("mem.dump gTemp 3 u16")
+        assert "Invalid length: 3 (not a multiple of 2 for u16)" in result.error
+
+    def test_type_token_in_the_len_slot(self, cli):
+        result = cli.repl.dispatch("mem.dump gTemp u16")
+        assert result.success, result.error
+        assert len(result.value) == 128, "len defaulted to 64 with the type shifted"
+
+
 class TestInfo:
 
     def test_device_answers_mem_info(self, cli):
@@ -216,7 +443,10 @@ class TestInfo:
         assert result.success, result.error
         assert result.value == "termapy", "the dialect is the value"
         assert result.data["sources"]["max_block"] == "device", "MEM.INFO supplied the block limit"
-        assert result.data["device_info"] == {"max_block": 64, "address_bits": 32, "endian": "le"}
+        assert result.data["device_info"] == {
+            "max_block": 64, "address_bits": 32, "endian": "le", "modify": True,
+        }
+        assert result.data["atomic_modify"] is True, "the demo advertises MEM.M"
 
     def test_profile_block_wins(self, cli):
         # Arrange -- the demo profile pins the block

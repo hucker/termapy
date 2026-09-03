@@ -28,6 +28,7 @@ from termapy.memory import (
     dump_rows,
     format_row,
     make_dialect,
+    modify_command,
     parse_reply,
     parse_template_block,
     read_command,
@@ -83,6 +84,16 @@ class FakeDevice:
         return "\r\n".join(lines) + "\r\n"
 
     def _answer(self, parts: list[str]) -> list[str]:
+        if parts[0] == "MEM.M":
+            addr = int(parts[1], 16)
+            and_mask, or_mask = int(parts[2], 16), int(parts[3], 16)
+            width = 1 if len(parts[2]) <= 2 else 2 if len(parts[2]) <= 4 else 4
+            if not (BASE <= addr and addr + width <= BASE + SIZE):
+                return ["ERR range"]
+            old = bytes(self.ram[addr - BASE:addr - BASE + width])
+            word = (int.from_bytes(old, "little") & and_mask) | or_mask
+            self.ram[addr - BASE:addr - BASE + width] = word.to_bytes(width, "little")
+            return [f"{addr:08X}: " + " ".join(f"{byte:02X}" for byte in old), "OK"]
         if parts[0] == "MEM.INFO":
             return [json.dumps({"max_block": self.max_block, "address_bits": 32, "endian": "be"}), "OK"]
         if parts[0] == "MEM.R":
@@ -333,6 +344,71 @@ class TestWrite:
         with pytest.raises(ValueError, match="Invalid length: 0"):
             Memory(device.exchange).write(0x1000, b"")
         assert device.sent == [], "nothing sent"
+
+
+# ── Memory.modify: MEM.M when advertised, read + write-back otherwise ───────
+
+
+class TestModify:
+
+    def test_atomic_path_sends_mem_m(self):
+        # Arrange -- the device advertised the atomic modify
+        device = FakeDevice()
+        memory = Memory(device.exchange, MemoryInfo(atomic_modify=True))
+
+        # Act -- set bit 4 of the u8 at 0x1000 (pattern byte 0x5A)
+        old, new = memory.modify(0x1000, 1, 0xFF, 0x10)
+
+        # Assert
+        assert device.sent == ["MEM.M 0x1000 FF 10"], "one atomic exchange, masks zero-padded"
+        assert old == b"\x5a", "the reply's row is the PRE-modify word"
+        assert new == b"\x5a", "0x5A already has bit 4 set"
+        assert bytes(device.ram[:1]) == b"\x5a", "device state agrees"
+
+    def test_atomic_word_width_from_masks(self):
+        device = FakeDevice()
+        memory = Memory(device.exchange, MemoryInfo(atomic_modify=True))
+        old, new = memory.modify(0x1000, 4, 0xFFFF7FFF, 0x00008000)
+        assert device.sent == ["MEM.M 0x1000 FFFF7FFF 00008000"], "8-digit masks = u32"
+        assert int.from_bytes(new, "little") == (int.from_bytes(old, "little") & 0xFFFF7FFF) | 0x8000
+        assert bytes(device.ram[:4]) == new, "read-back matches the computed word"
+
+    def test_fallback_is_read_then_write(self):
+        # Arrange -- no MEM.INFO "modify": the documented racy fallback
+        device = FakeDevice()
+        memory = Memory(device.exchange, MemoryInfo())
+
+        # Act
+        old, new = memory.modify(0x1000, 1, 0x0F, 0x80)
+
+        # Assert
+        assert device.sent == ["MEM.R 0x1000 1", "MEM.W 0x1000 8A"], "read, then the masked word"
+        assert (old, new) == (b"\x5a", b"\x8a"), "(0x5A & 0x0F) | 0x80"
+        assert bytes(device.ram[:1]) == b"\x8a", "the write landed"
+
+    def test_device_error(self):
+        device = FakeDevice()
+        memory = Memory(device.exchange, MemoryInfo(atomic_modify=True))
+        with pytest.raises(DeviceMemoryError, match="^Device error: range$"):
+            memory.modify(0x9000, 1, 0xFF, 0x00)
+
+    @pytest.mark.parametrize(
+        "width, and_mask, or_mask, message",
+        [
+            (3, 0, 0, "Invalid width: 3 \\(use 1, 2 or 4\\)"),
+            (1, 0x100, 0, "Invalid and mask: 0x100 \\(8 bits\\)"),
+            (2, 0, 0x10000, "Invalid or mask: 0x10000 \\(16 bits\\)"),
+        ],
+    )
+    def test_argument_validation(self, width, and_mask, or_mask, message):
+        device = FakeDevice()
+        with pytest.raises(ValueError, match=message):
+            Memory(device.exchange, MemoryInfo(atomic_modify=True)).modify(0x1000, width, and_mask, or_mask)
+        assert device.sent == [], "nothing goes to the wire for a bad argument"
+
+    def test_modify_command_format(self):
+        assert modify_command(0xBF806000, 0xFFFF7FFF, 0x8000, 4) == "MEM.M 0xBF806000 FFFF7FFF 00008000"
+        assert modify_command(0x1000, 0xFE, 0x01, 1) == "MEM.M 0x1000 FE 01"
 
 
 # ── MEM.INFO and the precedence resolver ────────────────────────────────────

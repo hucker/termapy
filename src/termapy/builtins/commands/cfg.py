@@ -503,7 +503,7 @@ COMMAND = Command(
         "explore": Command(
             help="Open config directory in file explorer.",
             handler=_handler_explore,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
         "dump": Command(
             args="{name}",
@@ -513,7 +513,7 @@ COMMAND = Command(
         "show": Command(
             help="Open the current config file in the system viewer.",
             handler=_handler_show,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
         "help": Command(
             help="Show /cfg help.",
@@ -530,12 +530,12 @@ COMMAND = Command(
             long_help=_ICON_LONG_HELP,
             handler=_icon_handler,
             flags=_ICON_FLAGS,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
             sub_commands={
                 "remove": Command(
                     help="Delete the launcher for the current cfg.",
                     handler=_icon_handler_remove,
-                    needs=CapabilitySet(gui_apps=True),
+                    needs=CapabilitySet.GUI_APPS,
                 ),
                 "list": Command(
                     help=(
@@ -543,7 +543,7 @@ COMMAND = Command(
                         "can see."
                     ),
                     handler=_icon_handler_list,
-                    needs=CapabilitySet(gui_apps=True),
+                    needs=CapabilitySet.GUI_APPS,
                 ),
             },
         ),

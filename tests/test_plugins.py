@@ -939,3 +939,42 @@ class TestPluginContextPluginCfg:
         import pytest
         with pytest.raises(RuntimeError, match="no config loaded"):
             ctx.plugin_cfg("myplugin")
+
+
+# ── Named CapabilitySet profiles ─────────────────────────────────────────────
+
+
+class TestCapabilityProfiles:
+    """The named profiles ARE their spelled-out forms, shared and frozen."""
+
+    @pytest.mark.parametrize(
+        "profile, spelled",
+        [
+            (CapabilitySet.SERIAL_CONNECTED, CapabilitySet(serial_connected=True)),
+            (CapabilitySet.INTERACTIVE, CapabilitySet(interactive=True)),
+            (CapabilitySet.GUI_APPS, CapabilitySet(gui_apps=True)),
+            (CapabilitySet.SCREEN_CAPTURE, CapabilitySet(screen_capture=True)),
+            (CapabilitySet.TUI_MODE, CapabilitySet(tui_mode=True)),
+            (CapabilitySet.BLOCK_UNTIL, CapabilitySet(block_until=True)),
+            (
+                CapabilitySet.SERIAL_INTERACTIVE,
+                CapabilitySet(serial_connected=True, interactive=True),
+            ),
+        ],
+    )
+    def test_profile_equals_its_spelled_form(self, profile, spelled):
+        assert profile == spelled, "a profile is shorthand, not a different contract"
+
+    def test_profiles_are_shared_instances(self):
+        assert CapabilitySet.SERIAL_CONNECTED is CapabilitySet.SERIAL_CONNECTED, (
+            "one frozen instance per profile -- that is the point"
+        )
+
+    def test_profiles_are_frozen(self):
+        import dataclasses
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            CapabilitySet.SERIAL_CONNECTED.serial_connected = False  # type: ignore[misc]
+
+    def test_serial_interactive_is_the_union(self):
+        actual = CapabilitySet.SERIAL_CONNECTED.union(CapabilitySet.INTERACTIVE)
+        assert actual == CapabilitySet.SERIAL_INTERACTIVE, "the transfer profile is the pair"

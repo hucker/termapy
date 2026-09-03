@@ -244,19 +244,19 @@ COMMAND = Command(
             args="<cmd>",
             help="Run a command and report TX/RX bytes during it.",
             handler=_handler_count,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "hexdump": Command(
             args="<file> {duration=<dur>}",
             help="Tee timestamped hex of TX/RX traffic to a file.",
             handler=_handler_hexdump,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "rate": Command(
             args="{duration}",
             help="Measure TX/RX bytes/sec over a window (default 5s).",
             handler=_handler_rate,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "snoop": Command(
             args="<hex> {timeout=<dur>}",

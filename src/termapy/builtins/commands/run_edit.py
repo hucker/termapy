@@ -36,5 +36,5 @@ COMMAND = Command(
     help="Open a .run script in the system editor.",
     long_help=_run_long_help,
     handler=_handler,
-    needs=CapabilitySet(gui_apps=True),
+    needs=CapabilitySet.GUI_APPS,
 )

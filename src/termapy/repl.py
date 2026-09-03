@@ -490,7 +490,7 @@ class ReplEngine:
                     "  {prefix}expect timeout=5s match=CONNECTED"
                 ),
                 handler=_make_expect_handler(False),
-                needs=CapabilitySet(block_until=True),
+                needs=CapabilitySet.BLOCK_UNTIL,
                 raw_args=True,
             )
         )
@@ -512,7 +512,7 @@ class ReplEngine:
                     "  {prefix}expect.regex timeout=2s match=^\\+STATUS: \\d+$"
                 ),
                 handler=_make_expect_handler(True),
-                needs=CapabilitySet(block_until=True),
+                needs=CapabilitySet.BLOCK_UNTIL,
                 raw_args=True,
             )
         )

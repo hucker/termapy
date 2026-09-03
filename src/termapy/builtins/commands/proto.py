@@ -2270,7 +2270,7 @@ COMMAND = Command(
             help="Run a protocol test script.",
             long_help=_proto_folder_line,
             handler=_cmd_run,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "debug": Command(
             args="<file.pro>",

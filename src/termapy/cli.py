@@ -405,7 +405,7 @@ class CLITerminal(TerminalHost):
             "Set up and switch to the demo device config.",
             self._hook_demo,
             source="app",
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
         )
         self.repl.register_hook(
             "demo.force",
@@ -413,7 +413,7 @@ class CLITerminal(TerminalHost):
             "Reset demo config to defaults.",
             lambda ctx, args: self._hook_demo(ctx, "--force"),
             source="app",
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
         )
         self.repl.register_hook(
             "clr",
@@ -422,7 +422,7 @@ class CLITerminal(TerminalHost):
             # SPECIAL CASE: clearing the screen produces no scriptable value.
             lambda ctx, args: (ctx.io.clear_screen(), CmdResult.ok(value=""))[-1],
             source="app",
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
         )
         self.repl.register_hook(
             "raw",
@@ -437,7 +437,7 @@ class CLITerminal(TerminalHost):
             "Open help in browser.",
             self._hook_help_open,
             source="app",
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         )
         self.repl.register_hook(
             "log.delete",
@@ -469,7 +469,7 @@ class CLITerminal(TerminalHost):
             # never actually reaches a script capture site.
             lambda ctx, args: CmdResult.ok(value=""),
             source="app",
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
         )
         self.repl.register_hook(
             "cli",
@@ -478,7 +478,7 @@ class CLITerminal(TerminalHost):
             # SPECIAL CASE: no-op when /cli runs while already in CLI mode.
             lambda ctx, args: CmdResult.ok(value=""),
             source="app",
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
         )
         self.repl.register_hook(
             "cli.completion",
@@ -486,13 +486,13 @@ class CLITerminal(TerminalHost):
             "Show or toggle CLI tab completion, auto-suggest, and help toolbar.",
             self._hook_cli_completion,
             source="app",
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
         )
         # Historically, CLI registered placeholder hooks for TUI-only
         # commands (/line_no and friends) so users got a clear "Only
         # available in /tui mode." error rather than "Unknown command".
         # That role is now played by the capability model: TUI-only
-        # commands declare ``needs=CapabilitySet(tui_mode=True)`` and
+        # commands declare ``needs=CapabilitySet.TUI_MODE`` and
         # dispatch reports the missing capability uniformly.  No CLI-side
         # stubs needed.
 

@@ -603,7 +603,7 @@ COMMAND = Command(
             args="{on|off|toggle}",
             help="Toggle line numbers in serial output (TUI only).",
             handler=_handler_line_no_placeholder,
-            needs=CapabilitySet(tui_mode=True),
+            needs=CapabilitySet.TUI_MODE,
         ),
         "line_endings": Command(
             args="{on|off|toggle}",
@@ -686,7 +686,7 @@ COMMAND = Command(
             help="Legacy alias for /term.output (verbose|normal).",
             handler=_handler_verbose_legacy,
             hidden=True,
-            needs=CapabilitySet(interactive=True),  # legacy alias
+            needs=CapabilitySet.INTERACTIVE,  # legacy alias
         ),
         "timestamps": Command(
             args="{on|off|toggle}",

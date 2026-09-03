@@ -23,7 +23,7 @@ Method-to-capability map:
                               exit in TUI and a no-op in CLI/MCP, so
                               always safe to call.  Commands that
                               genuinely need TUI still gate via
-                              ``Command.needs=CapabilitySet(interactive=True)``)
+                              ``Command.needs=CapabilitySet.INTERACTIVE``)
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ class UIHandle:
         impl is a no-op in CLI/MCP and a clean shutdown in TUI, so
         it's always safe to call.  Commands that genuinely need TUI
         semantics (e.g. ``/exit``) still declare
-        ``needs=CapabilitySet(interactive=True)`` to keep the command
+        ``needs=CapabilitySet.INTERACTIVE`` to keep the command
         out of MCP and other non-interactive environments.
         """
         self._exit_app_impl()

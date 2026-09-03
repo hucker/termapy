@@ -31,7 +31,7 @@ Key concepts demonstrated:
   • ctx.serial.io()   context manager  (suppress terminal display during I/O)
   • ctx.serial.drain / send / read_raw  (the I/O cycle)
   • reading ctx.cfg for encoding and line_ending
-  • declaring needs=CapabilitySet(serial_connected=True) so dispatch
+  • declaring needs=CapabilitySet.SERIAL_CONNECTED so dispatch
     refuses the command when no port is open
   • formatted output via ctx.io.output with colors"""
 
@@ -138,5 +138,5 @@ COMMAND = Command(
     args="{command}",
     long_help=_LONG_HELP,
     handler=_handler,
-    needs=CapabilitySet(serial_connected=True),
+    needs=CapabilitySet.SERIAL_CONNECTED,
 )

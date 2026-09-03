@@ -39,6 +39,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass, fields
+from typing import ClassVar
 
 
 class MissingCapability(Exception):
@@ -213,6 +214,58 @@ class CapabilitySet:
     # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_NET_EGRESS`` is set.
     network_egress: bool = False
 
+    # ── Named profiles ──────────────────────────────────────────────────
+    # The recurring ``needs=`` declarations, one frozen shared instance
+    # each (assigned right after the class; safe because the dataclass is
+    # frozen).  Use these for the common cases; spell out an unusual
+    # combination inline.  Editors show each docstring on hover.
+
+    SERIAL_CONNECTED: ClassVar["CapabilitySet"]
+    """Needs an OPEN serial port (``serial_connected=True``).
+
+    The command sends or reads bytes; dispatch answers ``Not connected.``
+    before the handler runs instead of every handler re-checking."""
+
+    INTERACTIVE: ClassVar["CapabilitySet"]
+    """Needs a human at an interactive session (``interactive=True``).
+
+    Persistent scrollback, modal dialogs, in-band UI chrome.  TUI and CLI
+    (local or over SSH) provide it; MCP does not -- an LLM client has no
+    interactive session."""
+
+    GUI_APPS: ClassVar["CapabilitySet"]
+    """Can launch desktop apps the user can SEE (``gui_apps=True``).
+
+    System editor, file viewer, browser.  Distinct from INTERACTIVE: an
+    SSH user is interactive but has no local display, so a
+    ``webbrowser.open()`` would "succeed" invisibly on the remote box.
+    Detected at startup; ``TERMAPY_GUI=1/0`` overrides."""
+
+    SCREEN_CAPTURE: ClassVar["CapabilitySet"]
+    """Can capture the rendered screen (``screen_capture=True``).
+
+    Screenshots and screen text need a graphical render surface -- TUI
+    only; the CLI has no serialized screen state."""
+
+    TUI_MODE: ClassVar["CapabilitySet"]
+    """Uses TUI-only runtime features (``tui_mode=True``).
+
+    Line numbers, scrollback rendering, modal screens.  Distinct from
+    SCREEN_CAPTURE: that reads the render surface, this drives it."""
+
+    BLOCK_UNTIL: ClassVar["CapabilitySet"]
+    """May block its thread waiting on the device (``block_until=True``).
+
+    Script runner only: it already executes on a background worker that
+    is safe to block; blocking at the REPL would freeze the TUI's event
+    loop."""
+
+    SERIAL_INTERACTIVE: ClassVar["CapabilitySet"]
+    """Needs an open port AND a human present (file transfers).
+
+    ``serial_connected=True, interactive=True`` -- an XMODEM/YMODEM run
+    holds the port and needs someone watching the progress."""
+
     def satisfied_by(self, provided: "CapabilitySet") -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(
@@ -243,6 +296,17 @@ class CapabilitySet:
                 for f in fields(self)
             }
         )
+
+
+# The named profiles declared as ClassVars above.  Assigned here because a
+# class body cannot reference the class it is defining.
+CapabilitySet.SERIAL_CONNECTED = CapabilitySet(serial_connected=True)
+CapabilitySet.INTERACTIVE = CapabilitySet(interactive=True)
+CapabilitySet.GUI_APPS = CapabilitySet(gui_apps=True)
+CapabilitySet.SCREEN_CAPTURE = CapabilitySet(screen_capture=True)
+CapabilitySet.TUI_MODE = CapabilitySet(tui_mode=True)
+CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
+CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interactive=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

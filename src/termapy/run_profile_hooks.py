@@ -174,7 +174,7 @@ def register_run_profile_hooks(app) -> None:
         "Open the newest .csv profile in system viewer.",
         lambda ctx, args: _hook_run_profile_show(app, ctx, args),
         source="app",
-        needs=CapabilitySet(gui_apps=True),
+        needs=CapabilitySet.GUI_APPS,
     )
     app.repl.register_hook(
         "run.profile.explore",
@@ -182,7 +182,7 @@ def register_run_profile_hooks(app) -> None:
         "Open the prof/ directory in file explorer.",
         lambda ctx, args: _hook_run_profile_explore(app, ctx, args),
         source="app",
-        needs=CapabilitySet(gui_apps=True),
+        needs=CapabilitySet.GUI_APPS,
     )
     app.repl.register_hook(
         "run.profile.cmd",

@@ -111,5 +111,5 @@ Send AT+TEMP to the device repeatedly and visualize the results.
 This plugin was generated with an LLM using the PluginContext API.
 See the source code for the prompt and pattern.""",
     handler=_handler,
-    needs=CapabilitySet(serial_connected=True),
+    needs=CapabilitySet.SERIAL_CONNECTED,
 )

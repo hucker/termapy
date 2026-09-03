@@ -124,7 +124,7 @@ See also: /find (interactive navigation through matches with
 highlighted lines and arrow-button paging), /search (search the
 command-help corpus rather than the scrollback).""",
     handler=_handler,
-    needs=CapabilitySet(interactive=True),  # scrollback only exists interactively
+    needs=CapabilitySet.INTERACTIVE,  # scrollback only exists interactively
     params=[
         ParamSpec("pattern", "str", positional=True, rest=True, required=True,
                   help="case-insensitive regex to search the scrollback for"),

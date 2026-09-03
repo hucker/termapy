@@ -76,7 +76,7 @@ COMMAND = Command(
         "repeating for count iterations.  Reports min/max/mean timing."
     ),
     handler=_handler,
-    needs=CapabilitySet(serial_connected=True),
+    needs=CapabilitySet.SERIAL_CONNECTED,
     params=_PING_PARAMS,
     sub_commands={
         "quiet": Command(
@@ -86,7 +86,7 @@ COMMAND = Command(
                 "only the timing summary is printed."
             ),
             handler=_handler_quiet,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
             params=_PING_PARAMS,
         ),
     },

@@ -389,7 +389,7 @@ def register_tui_hooks(app) -> None:
         "Save SVG screenshot. Name defaults to 'screenshot'.",
         lambda ctx, args: _hook_ss_svg(app, ctx, args),
         source="app",
-        needs=CapabilitySet(screen_capture=True),
+        needs=CapabilitySet.SCREEN_CAPTURE,
     )
     app.repl.register_hook(
         "ss.svg.silent",
@@ -397,7 +397,7 @@ def register_tui_hooks(app) -> None:
         "Save SVG screenshot silently (no status message).",
         lambda ctx, args: _hook_ss_svg_quiet(app, ctx, args),
         source="app",
-        needs=CapabilitySet(screen_capture=True),
+        needs=CapabilitySet.SCREEN_CAPTURE,
     )
     app.repl.register_hook(
         "ss.svg.quiet",
@@ -405,7 +405,7 @@ def register_tui_hooks(app) -> None:
         "Legacy alias for /ss.svg.silent.",
         make_forwarder("ss.svg.quiet", "ss.svg.silent"),
         source="app",
-        needs=CapabilitySet(screen_capture=True),
+        needs=CapabilitySet.SCREEN_CAPTURE,
         hidden=True,
     )
     app.repl.register_hook(
@@ -414,7 +414,7 @@ def register_tui_hooks(app) -> None:
         "Save text screenshot; N>0 last N lines, N<0 first N.",
         lambda ctx, args: _hook_ss_txt(app, ctx, args),
         source="app",
-        needs=CapabilitySet(screen_capture=True),
+        needs=CapabilitySet.SCREEN_CAPTURE,
     )
     app.repl.register_hook(
         "delay",
@@ -451,7 +451,7 @@ def register_tui_hooks(app) -> None:
         "Switch to the built-in demo device.",
         lambda ctx, args: app._start_demo(args),
         source="app",
-        needs=CapabilitySet(interactive=True),
+        needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(
         "demo.force",
@@ -459,7 +459,7 @@ def register_tui_hooks(app) -> None:
         "Switch to demo device, overwriting existing config.",
         lambda ctx, args: app._start_demo("--force"),
         source="app",
-        needs=CapabilitySet(interactive=True),
+        needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(
         "cli",
@@ -467,7 +467,7 @@ def register_tui_hooks(app) -> None:
         "Switch to CLI mode.",
         lambda ctx, args: app._switch_to_cli(),
         source="app",
-        needs=CapabilitySet(interactive=True),
+        needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(
         "vt100",
@@ -475,7 +475,7 @@ def register_tui_hooks(app) -> None:
         "Switch to VT100 passthrough on the current device (Ctrl-] returns).",
         lambda ctx, args: app._switch_to_vt100(),
         source="app",
-        needs=CapabilitySet(interactive=True),
+        needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(
         "demo.vt100",
@@ -483,7 +483,7 @@ def register_tui_hooks(app) -> None:
         "Switch to the VT100 widget-tour demo device (Ctrl-] returns).",
         lambda ctx, args: app._switch_to_vt100(demo=True),
         source="app",
-        needs=CapabilitySet(interactive=True),
+        needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(
         "tui",
@@ -493,7 +493,7 @@ def register_tui_hooks(app) -> None:
         # already in TUI mode -- no state change, no scriptable output.
         lambda ctx, args: CmdResult.ok(value=""),
         source="app",
-        needs=CapabilitySet(interactive=True),
+        needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(
         "term.line_no",
@@ -501,7 +501,7 @@ def register_tui_hooks(app) -> None:
         "Toggle line numbers in serial output (TUI only).",
         lambda ctx, args: _hook_line_no(app, ctx, args),
         source="app",
-        needs=CapabilitySet(tui_mode=True),
+        needs=CapabilitySet.TUI_MODE,
     )
     # /edit - TUI overrides root (Textual modals for .run/.pro)
     # This wipes all edit.* children from the plugin, so we must
@@ -512,7 +512,7 @@ def register_tui_hooks(app) -> None:
         "Edit a project file (scripts/proto path).",
         lambda ctx, args: _hook_edit(app, ctx, args),
         source="app",
-        needs=CapabilitySet(gui_apps=True),
+        needs=CapabilitySet.GUI_APPS,
     )
     app.repl.register_hook(
         "edit.cfg",
@@ -520,7 +520,7 @@ def register_tui_hooks(app) -> None:
         "Edit the current config file.",
         lambda ctx, args: app._hook_edit_cfg(),
         source="app",
-        needs=CapabilitySet(gui_apps=True),
+        needs=CapabilitySet.GUI_APPS,
     )
     app.repl.register_hook(
         "log.delete",
@@ -550,7 +550,7 @@ def register_tui_hooks(app) -> None:
         "Open the session log in the system viewer.",
         make_forwarder("edit.log", "log.show"),
         source="app",
-        needs=CapabilitySet(gui_apps=True),
+        needs=CapabilitySet.GUI_APPS,
     )
     app.repl._plugins["edit.log"].hidden = True
     app.repl.register_hook(
@@ -559,7 +559,7 @@ def register_tui_hooks(app) -> None:
         "Open the info report in the system viewer.",
         lambda ctx, args: app._hook_edit_info(),
         source="app",
-        needs=CapabilitySet(gui_apps=True),
+        needs=CapabilitySet.GUI_APPS,
     )
     # Re-register folder subcommands (wiped by /edit override)
 
@@ -586,7 +586,7 @@ def register_tui_hooks(app) -> None:
                     args: app._hook_edit_folder(ctx, args, f, e)
                 )(),
                 source="app",
-                needs=CapabilitySet(gui_apps=True),
+                needs=CapabilitySet.GUI_APPS,
             )
         else:
             app.repl.register_hook(
@@ -595,7 +595,7 @@ def register_tui_hooks(app) -> None:
                 f"Open a {ext} file in the system editor.",
                 make_edit_handler(get_dir, ext, pat),
                 source="app",
-                needs=CapabilitySet(gui_apps=True),
+                needs=CapabilitySet.GUI_APPS,
             )
         # /edit.<folder>.list is the only branch where listing is useful
         # to the LLM -- it's a discovery tool, not an editor invocation.
@@ -612,7 +612,7 @@ def register_tui_hooks(app) -> None:
             f"Open {folder}/ in file explorer.",
             make_explore_handler(get_dir),
             source="app",
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         )
     app.repl.register_hook(
         "cfg.load",
@@ -643,6 +643,6 @@ def register_tui_hooks(app) -> None:
         "Open help file in system viewer.",
         lambda ctx, args: _hook_help_open(app, ctx, args),
         source="app",
-        needs=CapabilitySet(gui_apps=True),
+        needs=CapabilitySet.GUI_APPS,
     )
 

@@ -777,9 +777,6 @@ _LONG_HELP: Final[str] = (
     "  /mem.info                        - dialect, limits, endian, atomic modify"
 )
 
-_CONNECTED: Final = CapabilitySet(serial_connected=True)
-
-
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="mem",
@@ -802,7 +799,7 @@ COMMAND = Command(
             ],
             help="Hexdump or word columns at an address or symbol (default 64 bytes).",
             handler=_handler_dump,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
         "read": Command(
@@ -818,7 +815,7 @@ COMMAND = Command(
             ],
             help="Read one typed value: scalar, char, register field, bit or slice.",
             handler=_handler_read,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
         "write": Command(
@@ -834,7 +831,7 @@ COMMAND = Command(
             ],
             help="Write hex bytes, or set a register field/bit (audited).",
             handler=_handler_write,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
         "or": Command(
@@ -844,7 +841,7 @@ COMMAND = Command(
             ],
             help="OR a mask into one word (atomic via MEM.M when available).",
             handler=_handler_or,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
         "and": Command(
@@ -854,7 +851,7 @@ COMMAND = Command(
             ],
             help="AND a mask into one word (atomic via MEM.M when available).",
             handler=_handler_and,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
         "xor": Command(
@@ -864,7 +861,7 @@ COMMAND = Command(
             ],
             help="XOR a mask into one word (always read + write-back).",
             handler=_handler_xor,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
         "clear": Command(
@@ -874,7 +871,7 @@ COMMAND = Command(
             ],
             help="Clear mask bits in one word: word &= ~mask (atomic via MEM.M when available).",
             handler=_handler_clear,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
         "not": Command(
@@ -883,7 +880,7 @@ COMMAND = Command(
             ],
             help="Invert one word (always read + write-back).",
             handler=_handler_not,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
         "str": Command(
@@ -896,13 +893,13 @@ COMMAND = Command(
             ],
             help="Read a NUL-terminated string at an address or symbol.",
             handler=_handler_str,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
         "info": Command(
             help="Show how memory access is configured: dialect, block limit, address width, endian, atomic modify.",
             handler=_handler_info,
-            needs=_CONNECTED,
+            needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
     },

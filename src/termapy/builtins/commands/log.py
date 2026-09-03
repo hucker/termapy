@@ -380,7 +380,7 @@ COMMAND = Command(
             help=_SHOW_HELP,
             long_help=_SHOW_LONG_HELP,
             handler=_handler_show,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
     },
 )

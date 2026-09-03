@@ -453,10 +453,16 @@ the dispatcher gate the call:
 ```python
 COMMAND = Command(
     name="hello", help="Say hello to the device.",
-    needs=CapabilitySet(serial_connected=True),
+    needs=CapabilitySet.SERIAL_CONNECTED,
     handler=_handler,
 )
 ```
+
+The recurring needs have **named profiles** -- `CapabilitySet.SERIAL_CONNECTED`,
+`.INTERACTIVE`, `.GUI_APPS`, `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`,
+`.SERIAL_INTERACTIVE` -- hover one in your editor for exactly what it gates.
+Spell out an unusual combination inline, as the `confirm_dialog` example
+above does.
 
 The handler then doesn't need to check `is_connected` -- the dispatcher
 returns `Not connected.` automatically when the port is down.
@@ -613,7 +619,7 @@ The demo config ships with four plugins of increasing complexity:
 `temp_plot.py` is the best example for plugins that *send and parse* a single
 device response.  It shows:
 
-- Declaring `needs=CapabilitySet(serial_connected=True)` for connection gating
+- Declaring `needs=CapabilitySet.SERIAL_CONNECTED` for connection gating
 - Reading config for encoding and line ending
 - Using `ctx.serial.io()` for a multi-read loop
 - Parsing numeric values from device responses

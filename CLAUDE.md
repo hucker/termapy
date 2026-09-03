@@ -74,6 +74,30 @@ All paths relative to `src/termapy/`.
   comparators and on/off enums in command code) — introduced after an
   audit found `/mem.dump`'s toggles rejecting `false`/`0` plus three
   hand-rolled `== "on"` sites.
+- **Every value category has one vocabulary and named readers** (audited
+  2026-09-03; booleans above were the only drift):
+  - **Numbers.** Plain counts are decimal: `ParamSpec(type="int")`, or
+    try/`int()` in a documented hand-rolled holdout with an
+    `Invalid <thing>: X` error — never a silent default on garbage.
+    Anything address/size/mask-shaped (memory, protocol contexts) uses
+    `symbols.parse_number` (decimal, `0x` hex, `Nh` — bare hex is NEVER
+    guessed). Grandfathered until next touched: `proto.py`'s
+    `_parse_int_value` (0x/decimal, unit-tested) — delegate it to
+    `parse_number` when that code is next edited.
+  - **Durations.** `ParamSpec(type="duration")` / `scripting.parse_duration`
+    only. A `* 1000` after parsing is unit conversion, not parsing.
+  - **Hex payloads / packets.** `protocol.core.parse_hex` (strict pairs),
+    `parse_data` (mixed hex + quoted text), `parse_pattern` (wildcards).
+    Grandfathered until next touched: `proto.py`'s three local
+    `bytes(int(t, 16) ...)` tokenizers.
+  - **Strings.** Identity (`str`/`path`/`command` params, rest args).
+    Quoted-string escapes are `protocol.core._ESCAPE_MAP`
+    (`\r \n \t \\ \0`); the cfg-value `"\n"` convention in
+    `on_connect_cmd` is a config-file notation, not a second prompt
+    vocabulary.
+  - No ast guard for these: unlike bool tokens, an `int()` on user text
+    is indistinguishable from internal arithmetic, so enforcement is
+    this rule plus review.
 - REPL prefix: `/`
 - Modals return tuples: `("run", path)`, `("new",)`, `("edit", path)`
 - Buttons: rainbow palette, Exit always red (`error`)

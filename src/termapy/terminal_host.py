@@ -281,6 +281,11 @@ class TerminalHost:
             plugins=self.repl._plugins,
             port=lambda: self.engine.port_obj if self.engine.is_connected else None,
             in_script=lambda: self.repl.in_script,
+            # The dispatch gate's own "right now" answer (static env set
+            # + dynamic serial_connected / block_until), forwarded so
+            # /help's REQUIRED CAPABILITIES rows can render live status
+            # without duplicating the single-point-of-truth logic.
+            effective_capabilities=lambda: self.repl._effective_capabilities(),
             script_stop=lambda: self.repl._script_stop.set(),
             apply_cfg=self.repl._apply_cfg,
             dispatch=self.repl.dispatch,

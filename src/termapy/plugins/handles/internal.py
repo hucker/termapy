@@ -72,6 +72,13 @@ class InternalHandle:
 
     apply_cfg: Callable = lambda key, val: None  # set cfg in-memory, no dialog
     in_script: Callable = lambda: False
+    # effective_capabilities() -> CapabilitySet: the engine's "what can a
+    # command do RIGHT NOW" answer -- ctx.capabilities plus the dynamic
+    # fields (serial_connected while a port is open, block_until inside a
+    # script).  The same set the dispatch gate checks; /help reads it so
+    # REQUIRED CAPABILITIES rows double as live status.  None on a bare
+    # test fake -> callers fall back to the static ctx.capabilities.
+    effective_capabilities: Callable | None = None
     start_script: Callable | None = None  # (args) -> (Path | None, CmdResult)
     # script_stop()/script_stop_event: signal the engine's script runner
     # to abort (a threading.Event it owns); reached here, not imported.

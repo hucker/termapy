@@ -1171,6 +1171,7 @@ class SerialTerminal(TerminalHost, App):
             filesystem_unconfined=True,
             network_egress=True,
         )
+        ctx.environment = "TUI"  # ENVIRONMENTS column; /help marks it (current)
         ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
 
         self.repl.set_context(ctx)

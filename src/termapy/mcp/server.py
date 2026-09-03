@@ -403,6 +403,7 @@ class MCPHost(TerminalHost):
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
         )
+        self.ctx.environment = "MCP"  # ENVIRONMENTS column; /help marks it (current)
         # The MCP consumer is an agent: it reads ``CmdResult.data``
         # structure, not rendered prose.  Handlers that branch on this
         # skip building their big prose tables entirely -- the response

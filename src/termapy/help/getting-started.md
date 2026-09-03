@@ -177,6 +177,10 @@ things, man-inspired:
 - `/help`                  -- clean landscape of every command (name + one-liner).
 - `/help <cmd>`            -- exact match -> full man-page detail (NAME, SYNOPSIS,
   DESCRIPTION, FLAGS, REQUIRED CAPABILITIES, SUBCOMMANDS, SEE ALSO).
+  REQUIRED CAPABILITIES rows are live status: a requirement the session
+  can't meet right now (e.g. `serial_connected` with no port open) is
+  marked `(missing)`.  AVAILABLE shows where the command could ever run
+  (TUI / CLI / MCP), with the environment you are in marked `(current)`.
 - `/help <term>`           -- no exact match? You get a candidate list (substring
   match on name + short help). Pick one and rerun `/help` on its full name.
 - `/search <word>`         -- deep search across everything (name, help, args,

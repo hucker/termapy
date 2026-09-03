@@ -353,6 +353,7 @@ class CLITerminal(TerminalHost):
             filesystem_unconfined=True,
             network_egress=True,
         )
+        self.ctx.environment = "CLI"  # ENVIRONMENTS column; /help marks it (current)
         self.ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
 
         self.repl.set_context(self.ctx)

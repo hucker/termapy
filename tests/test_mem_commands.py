@@ -612,6 +612,60 @@ class TestHelpSection:
             "(REQUIREMENT_HINTS in plugins/capabilities.py)"
         )
 
+    def test_rows_are_live_status(self, cli, capsys):
+        """A met requirement renders plain; an unmet one is marked (missing).
+
+        The renderer reads the dispatch gate's effective set (via
+        ctx.internal.effective_capabilities), so the page doubles as
+        "why won't this run right now" -- the serial_connected row must
+        not render as if satisfied while no port is open.
+        """
+        # Arrange / Act -- connected: the DEMO port is open
+        result = cli.repl.dispatch("help mem.dump")
+        assert result.success, result.error
+        connected_out = capsys.readouterr().out
+
+        # Act -- disconnected: same page, no port
+        cli._disconnect()
+        result = cli.repl.dispatch("help mem.dump")
+        assert result.success, result.error
+        disconnected_out = capsys.readouterr().out
+
+        # Assert
+        assert "(missing)" not in connected_out, "met requirements carry no marker"
+        assert "serial_connected" in disconnected_out, "the row still renders when unmet"
+        assert "(missing)" in disconnected_out, "an unmet requirement is marked in text, not just color"
+
+    def test_available_treats_serial_as_attainable(self, cli, capsys):
+        """The AVAILABLE matrix answers "could it EVER run there".
+
+        ENVIRONMENTS unions in the dynamic capabilities (any host can
+        open a port), so a serial command no longer renders the
+        statically wrong "TUI: no  CLI: no  MCP: no"; right-now status
+        is the REQUIRED CAPABILITIES rows' job.
+        """
+        # Act
+        result = cli.repl.dispatch("help mem.dump")
+        assert result.success, result.error
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "TUI: yes" in out, "every environment can attain serial_connected"
+        assert "does not provide: serial_connected" not in out, (
+            "a dynamic capability is never a permanent environment gap"
+        )
+
+    def test_available_marks_the_current_environment(self, cli, capsys):
+        """The column for ctx.environment carries a (current) marker."""
+        # Act
+        result = cli.repl.dispatch("help mem.dump")
+        assert result.success, result.error
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "CLI: yes (current)" in out, "the CLI rig is marked as where we are"
+        assert "TUI: yes (current)" not in out, "only the running environment is marked"
+
 
 class TestNotConnected:
 

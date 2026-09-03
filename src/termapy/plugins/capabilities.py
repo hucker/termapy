@@ -398,7 +398,7 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
     # mirror it here so /help AVAILABLE reflects the running policy.
     from termapy.env_flags import MCP_FS_UNCONFINED, MCP_NET_EGRESS
 
-    return {
+    environments = {
         # TUI (Textual app): everything an interactive desktop terminal has.
         "TUI": CapabilitySet(
             interactive=True,
@@ -425,6 +425,18 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
             network_egress=MCP_NET_EGRESS,
         ),
     }
+    # Dynamic capabilities are ATTAINABLE in every environment rather
+    # than properties of one: any host can open a port
+    # (``serial_connected`` via /port.connect) and any host can reach a
+    # blocking-safe thread (``block_until``: .run scripts under TUI/CLI;
+    # the MCP host opts in directly on its ctx.capabilities).  This
+    # matrix answers "can the command EVER run there"; "is it available
+    # RIGHT NOW" is the REQUIRED CAPABILITIES section's job (its
+    # "(missing)" marker).  Without this union every serial command
+    # rendered "TUI: no  CLI: no  MCP: no" -- statically wrong, and
+    # /help expect's matrix contradicted its own description text.
+    attainable = CapabilitySet(serial_connected=True, block_until=True)
+    return {name: caps.union(attainable) for name, caps in environments.items()}
 
 
 ENVIRONMENTS: dict[str, "CapabilitySet"] = _build_environments()

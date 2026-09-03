@@ -25,6 +25,10 @@
  *
  *     #include "termapy_mem.h"
  *
+ *     // Lock/unlock only promise "no one else modifies memory until
+ *     // unlock" -- IRQ masking is the bare-metal way, not the contract.
+ *     // This naive pair is fine from main-loop context; save/restore
+ *     // PRIMASK instead if the monitor can run with IRQs already off.
  *     static void Lock(void)   { __disable_irq(); }
  *     static void Unlock(void) { __enable_irq(); }
  *
@@ -69,9 +73,14 @@ typedef struct {
 	/** Write count bytes from srcP to addr.  False = unmapped/refused. */
 	bool (*write)(uint32_t addr, const uint8_t *srcP, uint32_t count);
 
-	/** Optional critical section bracketing MEM.M's read-modify-write
-	 *  (IRQ mask/restore).  Both NULL: MEM.M answers "ERR usage" and
-	 *  MEM.INFO omits "modify". */
+	/** Optional critical section bracketing MEM.M's read-modify-write.
+	 *  The CONTRACT: nothing else may modify the target word between the
+	 *  read and the write-back.  The mechanism is the platform's choice
+	 *  -- IRQ mask/restore on bare metal, a mutex or scheduler suspend
+	 *  under an RTOS, nothing at all if only this monitor touches the
+	 *  memory.  Held only for the read-mask-write of one word (never
+	 *  during MEM.R/MEM.W block transfers or serial output).  Both NULL:
+	 *  MEM.M answers "ERR usage" and MEM.INFO omits "modify". */
 	void (*lock)(void);
 	void (*unlock)(void);
 

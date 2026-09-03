@@ -591,6 +591,24 @@ class TestTemplateDialect:
         assert "memory/read: required for the template dialect" in result.error, "the same message the lint gave"
 
 
+class TestHelpSection:
+
+    def test_required_capabilities_round_trips_with_the_code(self, cli, capsys):
+        """The section is named for the feature (CapabilitySet), not a synonym.
+
+        It was REQUIRES until 2026-09-03 -- ungreppable against the code
+        vocabulary and pinned by nothing, which is how it drifted.
+        """
+        # Act
+        result = cli.repl.dispatch("help mem.dump")
+
+        # Assert
+        assert result.success, result.error
+        out = capsys.readouterr().out
+        assert "REQUIRED CAPABILITIES" in out, "the heading names the feature"
+        assert "serial_connected" in out, "rows are the greppable CapabilitySet field names"
+
+
 class TestNotConnected:
 
     def test_dump_needs_a_port(self, cli):

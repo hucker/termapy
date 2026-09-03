@@ -176,7 +176,7 @@ things, man-inspired:
 
 - `/help`                  -- clean landscape of every command (name + one-liner).
 - `/help <cmd>`            -- exact match -> full man-page detail (NAME, SYNOPSIS,
-  DESCRIPTION, FLAGS, REQUIRES, SUBCOMMANDS, SEE ALSO).
+  DESCRIPTION, FLAGS, REQUIRED CAPABILITIES, SUBCOMMANDS, SEE ALSO).
 - `/help <term>`           -- no exact match? You get a candidate list (substring
   match on name + short help). Pick one and rerun `/help` on its full name.
 - `/search <word>`         -- deep search across everything (name, help, args,

@@ -48,7 +48,7 @@ _MAX_CMD_COL = 28
 
 # One-line "where is this available" hints for each restrictive capability
 # field. Baseline capabilities are intentionally absent -- they're provided
-# by every environment and don't belong in a REQUIRES listing.
+# by every environment and don't belong in a REQUIRED CAPABILITIES listing.
 _CAPABILITY_HINTS: dict[str, str] = {
     "block_until": "inside .run scripts only",
     "confirm_dialog": "TUI + script runner (needs Yes/Cancel dialog)",
@@ -258,7 +258,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     """Render a command's full detail view in man-page format.
 
     Sections: NAME, SYNOPSIS (if args), DESCRIPTION, FLAGS (if any),
-    REQUIRES (if restrictive caps), SUBCOMMANDS (if children), SEE ALSO
+    REQUIRED CAPABILITIES (if restrictive caps), SUBCOMMANDS (if children), SEE ALSO
     (if siblings/parent exist). Empty sections are skipped so the page
     stays dense.
 
@@ -321,11 +321,14 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
             names = ", ".join([canonical, *aliases])
             ctx.io.output_markup(f"  [{_OPT}]{names}[/] - {desc}")
 
-    # REQUIRES ────────────────────────────────────────────────────────────────
+    # REQUIRED CAPABILITIES ───────────────────────────────────────────────────
+    # Named to round-trip with the code: the rows are CapabilitySet fields,
+    # declared as needs=CapabilitySet.<PROFILE> on the Command, so
+    # grep -i capabilit finds the feature from the help page.
     required = _required_capability_rows(plugin.needs)
     if required:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="REQUIRES"))
+        ctx.io.output_markup(_SECTION_FMT.format(text="REQUIRED CAPABILITIES"))
         for cap_name, hint in required:
             ctx.io.output_markup(f"  [{_OPT}]{cap_name}[/] - [{_SEP}]{hint}[/]")
 
@@ -400,7 +403,7 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
     users can see at a glance that a command came from the active
     profile rather than a plugin.
 
-    There is intentionally no REQUIRES, SUBCOMMANDS, or SEE ALSO --
+    There is intentionally no REQUIRED CAPABILITIES, SUBCOMMANDS, or SEE ALSO --
     device commands have no capability declarations, no subcommand
     tree, and no sibling relationships in termapy's registry.
     """

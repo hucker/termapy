@@ -422,19 +422,35 @@ def row_record(row: DumpRow, *, address_bits: int = DEFAULT_ADDRESS_BITS) -> dic
 # ── Dialects ────────────────────────────────────────────────────────────────
 
 
+# One message for every write path on a read-only interface, raised BEFORE
+# any device traffic (Memory.write / Memory.modify pre-check, and the
+# template's own write_request as the backstop) -- an RMW must never read
+# a word it can then not write back.
+_READ_ONLY_MSG: Final[str] = (
+    "Read-only memory interface: the profile declares no write template."
+)
+
+
 class Dialect(Protocol):
     """What :class:`Memory` needs from a wire grammar.
 
     ``write_unit`` is the bytes per write exchange: 0 = a whole block
     (``max_block``), 1 = one byte per command (a ``=val`` monitor).
     ``settle_ms`` is the idle gap that ends a reply when ``complete``
-    cannot; 0 = the transport's default.
+    cannot; 0 = the transport's default.  ``writable`` is False for a
+    read-only grammar (a template block with no ``write``); the engine
+    refuses writes and modifies up front instead of failing mid-exchange.
     """
 
     name: str
     supports_info: bool
     write_unit: int
     settle_ms: int
+
+    @property
+    def writable(self) -> bool:
+        """False for a read-only grammar; a plain class attribute satisfies this."""
+        ...
 
     def read_request(self, addr: int, length: int) -> str: ...
     def parse_read(self, text: str, request: str, addr: int, length: int, *, address_bits: int) -> bytes: ...
@@ -468,6 +484,7 @@ class NativeDialect:
 
     name = "termapy"
     supports_info = True
+    writable = True
     write_unit = 0
     settle_ms = 0
 
@@ -643,9 +660,13 @@ class TemplateDialect:
             raise DeviceMemoryError(f"Unrecognized reply to {request}: {first[:60]}")
         return assemble(tuple(rows), addr, length, address_bits=address_bits, exact=False)
 
+    @property
+    def writable(self) -> bool:
+        return self.spec.write is not None
+
     def write_request(self, addr: int, data: bytes) -> str:
         if self.spec.write is None:
-            raise DeviceMemoryError("Memory block declares no write template.")
+            raise DeviceMemoryError(_READ_ONLY_MSG)
         return self.spec.write.format(addr=addr, byte=data[0], hex=data.hex().upper())
 
     def parse_write(self, text: str, request: str) -> None:
@@ -755,9 +776,12 @@ class Memory:
 
         Raises:
             ValueError: Bad address or empty data.
-            DeviceMemoryError: Silence, a missing acknowledgement, or a
+            DeviceMemoryError: A read-only dialect (refused before any
+                traffic), silence, a missing acknowledgement, or a
                 device error; earlier units stay written (no transaction).
         """
+        if not self.dialect.writable:
+            raise DeviceMemoryError(_READ_ONLY_MSG)
         self._check_range(addr, len(data))
         unit = self.dialect.write_unit or self.info.max_block
         for offset in range(0, len(data), unit):
@@ -786,9 +810,12 @@ class Memory:
 
         Raises:
             ValueError: Bad width, masks that do not fit, or a bad address.
-            DeviceMemoryError: Silence, a device error, or a malformed
-                ``MEM.M`` reply.
+            DeviceMemoryError: A read-only dialect (refused before the
+                read -- never read a word you cannot write back), silence,
+                a device error, or a malformed ``MEM.M`` reply.
         """
+        if not self.dialect.writable:
+            raise DeviceMemoryError(_READ_ONLY_MSG)
         if width not in (1, 2, 4):
             raise ValueError(f"Invalid width: {width} (use 1, 2 or 4)")
         self._check_range(addr, width)

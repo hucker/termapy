@@ -683,6 +683,37 @@ class TestTemplateRead:
         assert dialect.settle_ms == 100, "the default gap"
 
 
+class TestReadOnlyTemplate:
+    """A template block with no ``write`` refuses BEFORE any device traffic."""
+
+    @staticmethod
+    def _read_only(device: FakeLegacyDevice) -> Memory:
+        block = {key: value for key, value in LEGACY_BLOCK.items() if key != "write"}
+        return _legacy_memory(device, block)
+
+    def test_write_refused_with_no_traffic(self):
+        # Arrange
+        device = FakeLegacyDevice()
+        memory = self._read_only(device)
+
+        # Act / Assert
+        with pytest.raises(DeviceMemoryError, match="^Read-only memory interface"):
+            memory.write(0x1000, b"\x01")
+        assert device.sent == [], "the refusal costs no device traffic"
+
+    def test_modify_refused_before_the_read(self):
+        # Arrange -- RMW reads first; a read-only dialect must refuse
+        # before that read, never after (a word read but not written
+        # back is a half-done RMW that looks like success)
+        device = FakeLegacyDevice()
+        memory = self._read_only(device)
+
+        # Act / Assert
+        with pytest.raises(DeviceMemoryError, match="^Read-only memory interface"):
+            memory.modify(0x1000, 2, 0xFFFF, 0x0001)
+        assert device.sent == [], "refused before the read half of the RMW"
+
+
 class TestTemplateWrite:
 
     def test_one_command_per_byte_with_ack(self):
@@ -714,12 +745,8 @@ class TestTemplateWrite:
         with pytest.raises(DeviceMemoryError, match="^Device error: err: address 00009000 not mapped$"):
             _legacy_memory(FakeLegacyDevice()).write(0x9000, b"\x00")
 
-    def test_read_only_block_refuses_writes(self):
-        block = {key: value for key, value in LEGACY_BLOCK.items() if key != "write"}
-        device = FakeLegacyDevice()
-        with pytest.raises(DeviceMemoryError, match="Memory block declares no write template."):
-            _legacy_memory(device, block).write(0x1000, b"\x00")
-        assert device.sent == [], "nothing sent"
+    # Read-only refusal (write AND modify, before any traffic) is
+    # TestReadOnlyTemplate's job above.
 
     def test_no_ack_configured_accepts_silence(self):
         block = {key: value for key, value in LEGACY_BLOCK.items() if key != "ack"}

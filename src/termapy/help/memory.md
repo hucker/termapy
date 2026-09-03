@@ -160,6 +160,15 @@ defaults; `/mem.info` shows which source each fact came from. `dialect`
 names the wire grammar: `termapy` is the spec above. An unrecognized
 dialect loads but `/mem.*` refuse to guess.
 
+With no profile block at all, a connected device that never answers
+`MEM.INFO` is remembered as having **no memory interface** for the rest
+of the connection: every `/mem.*` refuses immediately with the recorded
+reason (no per-command timeouts) until `/mem.info` retries the probe or
+you reconnect. A profile block is the author vouching for the device,
+so its presence always proceeds. A template block whose `write` is
+omitted is **read-only**: writes and bit operations refuse before
+touching the device.
+
 ## A device with its own grammar: the template dialect
 
 Most monitors already have a peek/poke command. Describe it and `/mem.*`

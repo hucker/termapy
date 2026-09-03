@@ -162,8 +162,27 @@ def _memory_info(ctx: PluginContext, *, refresh: bool = False) -> MemoryInfo:
 
 
 def _engine(ctx: PluginContext) -> Memory | CmdResult:
-    """A :class:`Memory` for this connection, or the failure to return."""
+    """A :class:`Memory` for this connection, or the failure to return.
+
+    A device that never answered ``MEM.INFO`` (no profile block to vouch
+    for it either) is remembered as having no memory interface: every
+    command refuses instantly with the cached verdict instead of paying
+    a fresh exchange timeout, until ``/mem.info`` re-probes or the
+    connection changes.  A profile block is the author vouching for the
+    device, so its presence always proceeds.
+    """
     info = _memory_info(ctx)
+    cache = ctx.ns(MEMORY_NS)
+    if (
+        _profile_block(ctx) is None
+        and cache.get("queried")
+        and cache.get("device_info") is None
+    ):
+        return CmdResult.fail(msg=(
+            f"No memory interface on this device "
+            f"({cache.get('device_error', 'no MEM.INFO answer')}). "
+            f"Load a profile memory block or retry with {ctx.prefix}mem.info."
+        ))
     try:
         dialect = make_dialect(info, _profile_block(ctx))
     except ValueError as e:
@@ -699,7 +718,17 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     block = _profile_block(ctx)
     cache = ctx.ns(MEMORY_NS)
     device_info = cache.get("device_info")
+    # The re-probe above IS the retry path: a fresh success here clears
+    # the cached no-interface verdict that makes /mem.* refuse.
+    unavailable = block is None and cache.get("queried") and device_info is None
+    status = (
+        f"unavailable ({cache.get('device_error', 'no MEM.INFO answer')}; "
+        f"{ctx.prefix}mem.* refuse until a retry succeeds)"
+        if unavailable
+        else "ok"
+    )
     rows = [
+        ("status", status),
         ("dialect", f"{info.dialect}  ({info.sources['dialect']})"),
         ("max_block", f"{info.max_block}  ({info.sources['max_block']})"),
         ("address_bits", f"{info.address_bits}  ({info.sources['address_bits']})"),
@@ -735,6 +764,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     for line in format_kv_lines(rows):
         ctx.io.output_markup(line)
     return CmdResult.ok(value=info.dialect, data={
+        "available": not unavailable,
         "dialect": info.dialect,
         "max_block": info.max_block,
         "address_bits": info.address_bits,

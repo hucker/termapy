@@ -667,6 +667,60 @@ class TestHelpSection:
         assert "TUI: yes (current)" not in out, "only the running environment is marked"
 
 
+class TestNoMemoryInterface:
+    """A connected device that does not speak MEM refuses fast, not slow.
+
+    Poking the probe cache is honest here: the verdict IS data (the
+    recorded outcome of one real failed probe), and the DEMO device
+    would answer a live probe, which is exactly what the retry test
+    uses.
+    """
+
+    @staticmethod
+    def _poison(cli):
+        cache = cli.ctx.ns("memory")
+        cache["queried"] = True
+        cache["device_info"] = None
+        cache["device_error"] = "No reply to MEM.INFO"
+
+    def test_commands_refuse_with_the_verdict(self, cli):
+        # Arrange
+        self._poison(cli)
+
+        # Act
+        result = cli.repl.dispatch("mem.dump 0x1000 4")
+
+        # Assert
+        assert not result.success
+        assert "No memory interface" in result.error, (
+            "the cached verdict, not a fresh per-command timeout"
+        )
+        assert "mem.info" in result.error, "the retry path is named"
+
+    def test_mem_info_retries_and_clears_the_verdict(self, cli):
+        # Arrange
+        self._poison(cli)
+        assert not cli.repl.dispatch("mem.dump 0x1000 4").success, "refusing before the retry"
+
+        # Act -- /mem.info re-probes; the DEMO device answers
+        info = cli.repl.dispatch("mem.info")
+        after = cli.repl.dispatch("mem.dump 0x1000 4")
+
+        # Assert
+        assert info.success, info.error
+        assert info.data["available"] is True, "the retry probe succeeded"
+        assert after.success, after.error
+
+    def test_mem_info_reports_ok_status(self, cli, capsys):
+        # Act
+        result = cli.repl.dispatch("mem.info")
+
+        # Assert
+        assert result.success, result.error
+        out = capsys.readouterr().out
+        assert "status" in out and "ok" in out, "the availability verdict leads the page"
+
+
 class TestNotConnected:
 
     def test_dump_needs_a_port(self, cli):

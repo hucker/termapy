@@ -1021,3 +1021,17 @@ class TestRequirementHints:
                 f"{name}: hints are noun phrases completing 'requires ...' "
                 "-- non-empty, no trailing period"
             )
+
+
+class TestBareSub:
+    """``bare_sub`` on an interior node is validated at load, not at use."""
+
+    def test_typo_fails_loud_at_synthesis(self):
+        from termapy.plugins.loader import _make_interior_handler
+        with pytest.raises(ValueError, match="bare_sub 'bogus' names no subcommand"):
+            _make_interior_handler("mem", ["mem.dump", "mem.info"], "bogus")
+
+    def test_valid_bare_sub_synthesizes(self):
+        from termapy.plugins.loader import _make_interior_handler
+        handler = _make_interior_handler("mem", ["mem.dump", "mem.info"], "info")
+        assert callable(handler), "a declared child passes load-time validation"

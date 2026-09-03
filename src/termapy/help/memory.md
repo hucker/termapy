@@ -26,7 +26,7 @@ symbol that contains them when a table is loaded.
 | `/mem.write <target> <hex>` | `/mem.write gFlags 07000000` | Write hex bytes; with a `.field`/`.bit` target the value is masked in (audited) |
 | `/mem.or <target> <mask>`   | `/mem.or gFlags 0x10`        | The boolean set on one word: `.or` set, `.and` keep, `.clear` = `word &= ~mask`, `.xor` toggle, `.not` invert; atomic via `MEM.M` where expressible |
 | `/mem.str <target> {max}`   | `/mem.str sBanner`           | A NUL-terminated string as a first-class value (default cap 256) |
-| `/mem.info`                 | `/mem.info`                  | Dialect, block limit, address width, byte order, atomic modify -- and their sources |
+| `/mem.info` (bare `/mem`)   | `/mem`                       | Availability status + dialect, block limit, address width, byte order, atomic modify -- and their sources; re-probes `MEM.INFO`, so it doubles as the check after connect |
 
 `/mem.dump` returns the bytes as one hex string (`$(B) <- /mem.dump gTemp 2`
 captures `1B00`); `/mem.write` returns the byte count. In JSON mode the

@@ -514,10 +514,30 @@ class TestSpaceForm:
         assert "Unknown subcommand: bogus" in result.error, "names what was typed"
         assert "dump" in result.error and "write" in result.error, "and lists the real ones"
 
-    def test_bare_parent_still_lists(self, cli, capsys):
+    def test_bare_mem_is_the_status_check(self, cli, capsys):
+        """Bare /mem = /mem.info (bare_sub): probe + status, not a listing.
+
+        The bare-queries convention: the natural first thing to type
+        after connecting performs the availability check.
+        """
+        # Act
         result = cli.repl.dispatch("mem")
-        assert result.success is True, "bare /mem stays the listing"
-        assert "Subcommands of /mem:" in capsys.readouterr().out, "the listing renders"
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "termapy", "identical to /mem.info"
+        out = capsys.readouterr().out
+        assert "status" in out, "the availability verdict renders"
+        assert "Subcommands of" not in out, "no listing -- bare queries"
+
+    def test_bare_parent_without_bare_sub_still_lists(self, cli, capsys):
+        # Arrange / Act -- /app declares no bare_sub, so the synthesized
+        # interior handler keeps its listing behavior
+        result = cli.repl.dispatch("app")
+
+        # Assert
+        assert result is None or result.success is True, "the listing is not an error"
+        assert "Subcommands of /app:" in capsys.readouterr().out, "the listing renders"
 
 
 class TestTemplateDialect:

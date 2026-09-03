@@ -253,8 +253,9 @@ def _flatten_command(
 
     handler = node.handler
     if not handler and children:
-        # Synthetic handler for interior nodes - lists subcommands
-        handler = _make_interior_handler(full_name, children)
+        # Synthetic handler for interior nodes - lists subcommands, or
+        # dispatches node.bare_sub on a bare invocation when declared
+        handler = _make_interior_handler(full_name, children, node.bare_sub)
 
     if not handler:
         return result
@@ -287,23 +288,39 @@ def _flatten_command(
 def _make_interior_handler(
     full_name: str,
     children: list[str],
+    bare_sub: str = "",
 ) -> Callable:
     """Create a synthetic handler for an interior command node.
 
-    Bare (``/mem``), the handler lists the subcommands.  With arguments,
-    the first token is treated as a subcommand name -- ``/mem dump 0x0``
-    redirects to ``/mem.dump 0x0`` (the dotted form stays the canonical
-    grammar; the space form just works), and a token that names no child
-    fails with the list.  Ignoring the arguments, as this handler once
-    did, read as success while doing nothing.
+    Bare (``/mem``), the handler lists the subcommands -- unless the
+    node declares ``bare_sub``, in which case the bare form dispatches
+    that child (``/mem`` -> ``/mem.info``: the bare-queries convention).
+    With arguments, the first token is treated as a subcommand name --
+    ``/mem dump 0x0`` redirects to ``/mem.dump 0x0`` (the dotted form
+    stays the canonical grammar; the space form just works), and a token
+    that names no child fails with the list.  Ignoring the arguments, as
+    this handler once did, read as success while doing nothing.
 
     Args:
         full_name: Dotted command path (e.g. "proto").
         children: Dotted names of direct subcommands.
+        bare_sub: Short name of the child a bare invocation dispatches;
+            "" = list the children.
 
     Returns:
         A handler callable with the standard (ctx, args) signature.
+
+    Raises:
+        ValueError: ``bare_sub`` names no declared subcommand (load-time,
+            so a typo fails at boot rather than rendering a wrong bare
+            behavior).
     """
+    if bare_sub and f"{full_name}.{bare_sub}".lower() not in children:
+        short_names = ", ".join(name.rsplit(".", 1)[1] for name in children)
+        raise ValueError(
+            f"{full_name}: bare_sub {bare_sub!r} names no subcommand "
+            f"(subcommands: {short_names})"
+        )
 
     def _handler(ctx, args: str):
         prefix = ctx.prefix
@@ -324,6 +341,10 @@ def _make_interior_handler(
             return CmdResult.fail(
                 msg=f"Unknown subcommand: {first} (subcommands: {short_names})"
             )
+        if bare_sub:
+            # The declared bare behavior: dispatch the child through the
+            # engine, exactly like the space form above.
+            return ctx.internal.dispatch(f"{full_name}.{bare_sub}")
         ctx.io._write(f"Subcommands of {prefix}{full_name}:")
         plugins = ctx.internal.plugins
         for child_name in children:

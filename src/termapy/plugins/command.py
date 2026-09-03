@@ -287,6 +287,11 @@ class Command:
         handler: The command function. Required for leaf nodes.
             Signature: ``handler(ctx: PluginContext, args: str) -> None``.
         sub_commands: Dict mapping subcommand names to ``Command`` instances.
+        bare_sub: Interior nodes only (no ``handler``): the subcommand a
+            BARE invocation dispatches instead of listing the children --
+            ``/mem`` with ``bare_sub="info"`` runs ``/mem.info`` (the
+            bare-queries convention: bare shows state).  Must name a
+            declared subcommand; the loader fails loud otherwise.
         raw_args: When True, REPL transforms are skipped for this command.
             Use for commands that take variable names as arguments.
         flags: Mapping of ``--flag`` (or short ``-f``) to either a
@@ -323,6 +328,7 @@ class Command:
     long_help: LongHelp = ""
     handler: Callable | None = None
     sub_commands: dict[str, "Command"] | None = None
+    bare_sub: str = ""
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)

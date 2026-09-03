@@ -178,6 +178,8 @@ $(BAUD) <- /port.baud_rate
 # The space form redirects to the dotted subcommand
 /mem dump gTemp 2
 /mem bogus
+# Bare /mem = /mem.info (bare_sub): the availability check
+/mem
 # The same bytes through the device's own `mem` grammar (template dialect)
 /profile.load demo_legacy.profile.json
 /mem.info

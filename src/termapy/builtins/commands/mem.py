@@ -19,6 +19,7 @@ Subcommands:
   boolean set on one word (``clear`` = ``word &= ~mask``).
 - ``/mem.str <target> {max}`` -- a NUL-terminated string, first class.
 - ``/mem.info`` -- how termapy talks to this device's memory, and why.
+  Bare ``/mem`` is an alias: the status page doubles as the check.
 
 The device's facts (dialect, block limit, address width, byte order,
 atomic modify) come from the profile's ``memory`` block, else -- for the
@@ -804,7 +805,10 @@ _LONG_HELP: Final[str] = (
     "  /mem.or|and|xor|clear <target> <mask> - mask ops (clear: word &= ~mask)\n"
     "  /mem.not <target>                - invert one word\n"
     "  /mem.str <target> {max}          - NUL-terminated string (default cap 256)\n"
-    "  /mem.info                        - dialect, limits, endian, atomic modify"
+    "  /mem.info                        - dialect, limits, endian, atomic modify\n"
+    "\n"
+    "Bare /mem is /mem.info: it probes the device (MEM.INFO) and shows\n"
+    "the availability verdict, so it doubles as the check after connect."
 )
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -812,6 +816,10 @@ COMMAND = Command(
     name="mem",
     help="Device memory: dump, typed reads, writes and bit ops via /sym names.",
     long_help=_LONG_HELP,
+    # Bare /mem = /mem.info: the availability check/status page, so the
+    # natural first thing to type both probes the device and shows the
+    # verdict (the bare-queries convention, like bare /port).
+    bare_sub="info",
     sub_commands={
         "dump": Command(
             params=[

@@ -607,6 +607,12 @@ COMMAND = Command(
 )
 ```
 
+An interior node with no `handler` lists its children when invoked bare,
+and `/tool run x` redirects to `/tool.run x` (the space form).  Declare
+`bare_sub="status"` to make the bare form dispatch that child instead --
+termapy's own `/mem` runs `/mem.info` this way (bare shows state).  A
+`bare_sub` naming no subcommand fails at load.
+
 ## Example plugins
 
 The demo config ships with four plugins of increasing complexity:

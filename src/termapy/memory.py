@@ -219,7 +219,12 @@ _ROW_RE: Final = re.compile(
     r"^\s*(?:0[xX])?(?P<addr>[0-9A-Fa-f]{1,16}):\s*(?P<hex>(?:[0-9A-Fa-f]{2}\s*)+)$"
 )
 _OK_RE: Final = re.compile(r"^\s*OK\s*$")
-_ERR_RE: Final = re.compile(r"^\s*ERR\b\s*(?P<reason>.*?)\s*$")
+# The optional colon is for real monitors that answer ``ERR: reason``
+# (the m3 bench device does): without it the colon lands in the captured
+# reason and renders "Device error: : unknown command" -- a double colon
+# in every unavailable-verdict message.  ``\b`` keeps ``ERROR:`` lines
+# (a different grammar) out of the native verdict.
+_ERR_RE: Final = re.compile(r"^\s*ERR\b\s*:?\s*(?P<reason>.*?)\s*$")
 
 
 def read_command(addr: int, length: int) -> str:

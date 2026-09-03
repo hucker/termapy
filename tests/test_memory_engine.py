@@ -150,6 +150,20 @@ class TestParseReply:
         assert reply.complete is True, "ERR ends the reply"
         assert reply.error == "range", "the reason text after ERR"
 
+    def test_err_with_colon_does_not_double_the_colon(self):
+        # A real monitor (the m3 bench device) answers "ERR: reason";
+        # capturing the colon rendered "Device error: : unknown command"
+        reply = parse_reply("ERR: unknown command: MEM.INFO\r\n")
+        assert reply.error == "unknown command: MEM.INFO", (
+            "the separator colon is grammar, not reason text"
+        )
+
+    def test_error_is_not_err(self):
+        reply = parse_reply("ERROR: Unknown command 'BOGUS'\r\n")
+        assert reply.complete is False, (
+            "ERROR: is a different grammar -- never the native ERR verdict"
+        )
+
     def test_bare_err_is_empty_reason(self):
         assert parse_reply("ERR\r\n").error == "", "ERR with no reason is still an error"
 

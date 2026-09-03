@@ -301,6 +301,11 @@ class ReplEngine:
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
         self._script_depth: int = 0
+        # Plugin handlers currently on the stack.  >0 inside a nested
+        # engine dispatch (bare_sub / space-form redirect, a handler's
+        # ctx.internal.dispatch): the JSON envelope belongs to the
+        # OUTERMOST command only, so nested dispatches suppress theirs.
+        self._handler_depth: int = 0
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
         self._max_script_depth: int = 5
@@ -1406,6 +1411,15 @@ class ReplEngine:
             from termapy.variables import launch_var
 
             wants_json = launch_var("FRONT_END") != "mcp"
+        # The envelope belongs to the OUTERMOST command the user issued.
+        # A nested dispatch (bare_sub / space-form redirect, a handler's
+        # ctx.internal.dispatch) must not emit its own: that wrapped the
+        # whole /mem.info envelope -- escaped -- inside /mem's
+        # output_lines under request mode.  Suppressed, the inner
+        # command's prose is captured by the outer JSON collector and
+        # its CmdResult propagates: one envelope, the right contents.
+        if wants_json and self._handler_depth > 0:
+            wants_json = False
         # Prose captured during a JSON-mode dispatch; ships in the
         # envelope's ``output_lines``.  Stays empty for converted
         # commands (they skip prose via wants_data) and on error paths
@@ -1541,6 +1555,7 @@ class ReplEngine:
             saved_wants_data = self.ctx.wants_data
             if wants_json:
                 self.ctx.wants_data = True
+            self._handler_depth += 1
             try:
                 t0 = time.perf_counter()
                 if self.ctx.output_level == "silent":
@@ -1611,6 +1626,7 @@ class ReplEngine:
             except BoundaryException as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
             finally:
+                self._handler_depth -= 1
                 self.ctx.active_flags = set()
                 self.ctx.bound_params = saved_bound_params
                 self.ctx._call_level = saved_call_level

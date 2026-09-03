@@ -540,6 +540,61 @@ class TestSpaceForm:
         assert "Subcommands of /app:" in capsys.readouterr().out, "the listing renders"
 
 
+class TestRequestModeEnvelope:
+    """One user command = one envelope, however deep the dispatch nests.
+
+    The bare_sub / space-form redirects re-dispatch through the engine;
+    before the _handler_depth gate, request mode wrapped the inner
+    command's whole envelope -- escaped -- inside the outer envelope's
+    output_lines (the same facts three times).
+    """
+
+    @staticmethod
+    def _envelopes(out: str) -> list[dict]:
+        import json
+        return [
+            json.loads(line)
+            for line in out.splitlines()
+            if line.strip().startswith("{")
+        ]
+
+    def test_bare_mem_emits_one_envelope(self, cli, capsys):
+        # Arrange
+        assert cli.repl.dispatch("term.request on").success
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch("mem")
+        envelopes = self._envelopes(capsys.readouterr().out)
+
+        # Assert
+        assert result.success, result.error
+        assert len(envelopes) == 1, "one envelope for one user command"
+        envelope = envelopes[0]
+        assert envelope["cmd"] == "/mem", "the command as the user issued it"
+        assert envelope["value"] == "termapy", "the inner result propagates"
+        assert any("status" in line for line in envelope["output_lines"]), (
+            "the inner command's prose is captured as plain lines"
+        )
+        assert all('"output_lines"' not in line for line in envelope["output_lines"]), (
+            "never an escaped envelope inside output_lines"
+        )
+
+    def test_space_form_emits_one_envelope(self, cli, capsys):
+        # Arrange
+        assert cli.repl.dispatch("term.request on").success
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch("mem dump gTemp 2")
+        envelopes = self._envelopes(capsys.readouterr().out)
+
+        # Assert
+        assert result.success, result.error
+        assert len(envelopes) == 1, "the redirect adds no second envelope"
+        assert envelopes[0]["value"] == "1B00", "the subcommand's value propagates"
+
+
 class TestTemplateDialect:
     """The same RAM through the device's own ``mem`` grammar."""
 

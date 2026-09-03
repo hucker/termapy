@@ -289,6 +289,9 @@ MEM.M 0x1000 F0 05 --json
 AT
 AT+PROD-ID
 /nope_bogus_cmd
+# One user command = ONE envelope: the bare_sub redirect (/mem -> /mem.info)
+# must not nest the inner envelope inside output_lines
+/mem
 /term.request off
 # A bare device line with --json is one request/response (per-call form of the dial)
 MEM.R 0x1000 2 --json

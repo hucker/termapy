@@ -607,6 +607,10 @@ class TestHelpSection:
         out = capsys.readouterr().out
         assert "REQUIRED CAPABILITIES" in out, "the heading names the feature"
         assert "serial_connected" in out, "rows are the greppable CapabilitySet field names"
+        assert "an open serial port" in out, (
+            "the hint is a noun phrase completing 'requires ...' "
+            "(REQUIREMENT_HINTS in plugins/capabilities.py)"
+        )
 
 
 class TestNotConnected:

@@ -53,6 +53,7 @@ internals are split across :mod:`.context`, :mod:`.command`,
 
 from termapy.plugins.capabilities import (
     ENVIRONMENTS,
+    REQUIREMENT_HINTS,
     CapabilitySet,
     MissingCapability,
     detect_gui_apps,
@@ -105,6 +106,7 @@ __all__ = [
     "CapabilitySet",
     "ENVIRONMENTS",
     "MissingCapability",
+    "REQUIREMENT_HINTS",
     "detect_gui_apps",
     # Command + return types + helpers
     "BoundaryException",

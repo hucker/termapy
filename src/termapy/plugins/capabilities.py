@@ -309,6 +309,30 @@ CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
 CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interactive=True)
 
 
+# ── Requirement hints ────────────────────────────────────────────────────────
+# One hint per RESTRICTIVE field above, rendered by /help's REQUIRED
+# CAPABILITIES section.  The stem contract: every value is a noun phrase
+# completing "requires ..." -- never a sentence, a "when" clause, or a bare
+# location.  Baseline fields are intentionally absent (every environment
+# provides them; they'd be noise in a requirements listing).  Completeness
+# is enforced both ways by tests/test_plugins.py (TestRequirementHints):
+# a new restrictive field fails the suite until it gets a hint here, and a
+# stale key fails it too.
+REQUIREMENT_HINTS: dict[str, str] = {
+    "block_until": "a thread that may block (.run scripts only)",
+    "confirm_dialog": "a Yes/Cancel dialog (TUI and script runner)",
+    "ui_notify": "the TUI's toast notifications",
+    "status_bar": "the TUI's status line",
+    "screen_capture": "the TUI's render surface (screenshots, screen text)",
+    "tui_mode": "the TUI (switch with /tui)",
+    "serial_connected": "an open serial port",
+    "interactive": "an interactive session (a human at a terminal; not MCP)",
+    "gui_apps": "a local desktop that can open apps the user sees",
+    "filesystem_unconfined": "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)",
+    "network_egress": "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
+}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # GUI-apps detection + environment capability sets
 # ─────────────────────────────────────────────────────────────────────────────

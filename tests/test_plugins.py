@@ -978,3 +978,46 @@ class TestCapabilityProfiles:
     def test_serial_interactive_is_the_union(self):
         actual = CapabilitySet.SERIAL_CONNECTED.union(CapabilitySet.INTERACTIVE)
         assert actual == CapabilitySet.SERIAL_INTERACTIVE, "the transfer profile is the pair"
+
+
+class TestRequirementHints:
+    """The /help hint table is complete against the restrictive fields.
+
+    /help's REQUIRED CAPABILITIES renderer indexes ``REQUIREMENT_HINTS``
+    directly.  Before 2026-09-03 it silently skipped unknown names and
+    the table was missing ``interactive`` / ``gui_apps``, so 59 command
+    declarations rendered no row at all.  This diff guard makes that
+    drift impossible in both directions.
+    """
+
+    @staticmethod
+    def _restrictive_fields() -> set[str]:
+        import dataclasses
+        return {
+            field.name
+            for field in dataclasses.fields(CapabilitySet)
+            if field.default is False
+        }
+
+    def test_every_restrictive_field_has_a_hint(self):
+        from termapy.plugins import REQUIREMENT_HINTS
+        actual_unhinted = sorted(self._restrictive_fields() - set(REQUIREMENT_HINTS))
+        assert actual_unhinted == [], (
+            "a restrictive field without a hint renders no row in "
+            "REQUIRED CAPABILITIES -- add it to REQUIREMENT_HINTS"
+        )
+
+    def test_no_stale_hint_keys(self):
+        from termapy.plugins import REQUIREMENT_HINTS
+        actual_stale = sorted(set(REQUIREMENT_HINTS) - self._restrictive_fields())
+        assert actual_stale == [], (
+            "a hint keyed on a removed or renamed field is dead vocabulary"
+        )
+
+    def test_hints_fit_the_requires_stem(self):
+        from termapy.plugins import REQUIREMENT_HINTS
+        for name, hint in REQUIREMENT_HINTS.items():
+            assert hint and not hint.endswith("."), (
+                f"{name}: hints are noun phrases completing 'requires ...' "
+                "-- non-empty, no trailing period"
+            )

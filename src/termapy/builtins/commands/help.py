@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from termapy.plugins import (
     ENVIRONMENTS,
+    REQUIREMENT_HINTS,
     CapabilitySet,
     CmdResult,
     Command,
@@ -45,19 +46,6 @@ _MARKUP_RE = re.compile(r"\[[^\]]*\]")
 # Cap the command column in listings so a pathologically long plugin name
 # can't shove the help column off the right edge.
 _MAX_CMD_COL = 28
-
-# One-line "where is this available" hints for each restrictive capability
-# field. Baseline capabilities are intentionally absent -- they're provided
-# by every environment and don't belong in a REQUIRED CAPABILITIES listing.
-_CAPABILITY_HINTS: dict[str, str] = {
-    "block_until": "inside .run scripts only",
-    "confirm_dialog": "TUI + script runner (needs Yes/Cancel dialog)",
-    "ui_notify": "TUI only (toast notifications)",
-    "status_bar": "TUI only (bottom status line)",
-    "screen_capture": "TUI only (save_screenshot / get_screen_text)",
-    "tui_mode": "TUI only (use /tui to switch)",
-    "serial_connected": "when a serial port is open",
-}
 
 # Sentinel for the "everything-baseline" environment. ``needs.missing_from``
 # against this returns exactly the restrictive capabilities the command
@@ -159,11 +147,16 @@ def _required_capability_rows(needs) -> list[tuple[str, str]]:
     """Return ``(name, hint)`` pairs for restrictive capabilities a command
     declares. Baseline capabilities are skipped -- a command that uses
     terminal output doesn't need a line saying so.
+
+    Hints live in ``termapy.plugins.capabilities.REQUIREMENT_HINTS``,
+    beside the fields they describe.  Indexing is deliberately direct
+    (no membership filter): a missing entry is a test failure, not a
+    silently dropped row -- the old silent skip hid every interactive /
+    gui_apps declaration from /help.
     """
     return [
-        (name, _CAPABILITY_HINTS[name])
+        (name, REQUIREMENT_HINTS[name])
         for name in needs.missing_from(_BASELINE_CAPS)
-        if name in _CAPABILITY_HINTS
     ]
 
 

@@ -38,7 +38,10 @@ asking. Bare `/sym.load` re-reads it after a hand edit.
 | `xc32` | Microchip XC32 (GNU ld) linker map     |
 
 More converters land in the same registry; `/help sym.import` lists what
-the running build knows.
+the running build knows. To add your toolchain, hand
+[docs/symbol-converter-guide.md](https://github.com/hucker/termapy/blob/main/docs/symbol-converter-guide.md)
+and one of your map files to an LLM, or follow it yourself: one module, one
+registry line, one fixture.
 
 A relative path given to `/sym.import` or `/sym.load` resolves against the
 config folder, not the shell's working directory. Under the MCP server,

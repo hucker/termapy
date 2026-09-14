@@ -19,6 +19,7 @@ from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginConte
 from termapy.plugins.command import LifecycleHook
 from termapy.repl import ReplEngine
 from termapy.symbols import SYMBOLS_NS, get_table
+from termapy.symbols.converters import FORMATS
 
 DEMO_SYMBOLS = (
     Path(__file__).parent.parent / "src" / "termapy" / "builtins" / "demo" / f"demo{SYMBOLS_SUFFIX}"
@@ -275,7 +276,8 @@ class TestSymImport:
         result = engine.dispatch(f"sym.import {notes}")
 
         # Assert
-        assert result.error == "Unknown map format: notes.txt (formats: xc32)"
+        expected = f"Unknown map format: notes.txt (formats: {', '.join(FORMATS)})"
+        assert result.error == expected, "the message lists every registered format"
 
     def test_no_symbols_found_writes_nothing(self, sym_env, tmp_path):
         # Arrange

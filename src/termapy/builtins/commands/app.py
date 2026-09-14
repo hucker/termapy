@@ -285,7 +285,7 @@ COMMAND = Command(
         "explore": Command(
             help="Open the app folder in the file manager.",
             handler=_handler_explore,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
         "state": Command(
             help="Print state.json path.",
@@ -303,7 +303,7 @@ COMMAND = Command(
                 "edit": Command(
                     help="Open state.json in the system editor.",
                     handler=_handler_state_edit,
-                    needs=CapabilitySet(gui_apps=True),
+                    needs=CapabilitySet.GUI_APPS,
                 ),
             },
         ),
@@ -323,7 +323,7 @@ COMMAND = Command(
                 "edit": Command(
                     help="Open config.json in the system editor.",
                     handler=_handler_config_edit,
-                    needs=CapabilitySet(gui_apps=True),
+                    needs=CapabilitySet.GUI_APPS,
                 ),
             },
         ),

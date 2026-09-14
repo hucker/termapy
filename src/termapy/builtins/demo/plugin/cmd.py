@@ -39,5 +39,5 @@ COMMAND = Command(
     name="crcsend",
     args="<text>",
     handler=_handler,
-    needs=CapabilitySet(serial_connected=True),
+    needs=CapabilitySet.SERIAL_CONNECTED,
 )

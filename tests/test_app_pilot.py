@@ -30,7 +30,7 @@ from termapy.plugins.command import LifecycleHook
 DEMO_SYMBOLS = (
     Path(__file__).parent.parent / "src" / "termapy" / "builtins" / "demo" / f"demo{SYMBOLS_SUFFIX}"
 )
-DEMO_COUNT = 12
+DEMO_COUNT = 13
 
 
 def _run(scenario) -> None:

@@ -39,6 +39,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass, fields
+from typing import ClassVar
 
 
 class MissingCapability(Exception):
@@ -213,6 +214,58 @@ class CapabilitySet:
     # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_NET_EGRESS`` is set.
     network_egress: bool = False
 
+    # ── Named profiles ──────────────────────────────────────────────────
+    # The recurring ``needs=`` declarations, one frozen shared instance
+    # each (assigned right after the class; safe because the dataclass is
+    # frozen).  Use these for the common cases; spell out an unusual
+    # combination inline.  Editors show each docstring on hover.
+
+    SERIAL_CONNECTED: ClassVar["CapabilitySet"]
+    """Needs an OPEN serial port (``serial_connected=True``).
+
+    The command sends or reads bytes; dispatch answers ``Not connected.``
+    before the handler runs instead of every handler re-checking."""
+
+    INTERACTIVE: ClassVar["CapabilitySet"]
+    """Needs a human at an interactive session (``interactive=True``).
+
+    Persistent scrollback, modal dialogs, in-band UI chrome.  TUI and CLI
+    (local or over SSH) provide it; MCP does not -- an LLM client has no
+    interactive session."""
+
+    GUI_APPS: ClassVar["CapabilitySet"]
+    """Can launch desktop apps the user can SEE (``gui_apps=True``).
+
+    System editor, file viewer, browser.  Distinct from INTERACTIVE: an
+    SSH user is interactive but has no local display, so a
+    ``webbrowser.open()`` would "succeed" invisibly on the remote box.
+    Detected at startup; ``TERMAPY_GUI=1/0`` overrides."""
+
+    SCREEN_CAPTURE: ClassVar["CapabilitySet"]
+    """Can capture the rendered screen (``screen_capture=True``).
+
+    Screenshots and screen text need a graphical render surface -- TUI
+    only; the CLI has no serialized screen state."""
+
+    TUI_MODE: ClassVar["CapabilitySet"]
+    """Uses TUI-only runtime features (``tui_mode=True``).
+
+    Line numbers, scrollback rendering, modal screens.  Distinct from
+    SCREEN_CAPTURE: that reads the render surface, this drives it."""
+
+    BLOCK_UNTIL: ClassVar["CapabilitySet"]
+    """May block its thread waiting on the device (``block_until=True``).
+
+    Script runner only: it already executes on a background worker that
+    is safe to block; blocking at the REPL would freeze the TUI's event
+    loop."""
+
+    SERIAL_INTERACTIVE: ClassVar["CapabilitySet"]
+    """Needs an open port AND a human present (file transfers).
+
+    ``serial_connected=True, interactive=True`` -- an XMODEM/YMODEM run
+    holds the port and needs someone watching the progress."""
+
     def satisfied_by(self, provided: "CapabilitySet") -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(
@@ -243,6 +296,41 @@ class CapabilitySet:
                 for f in fields(self)
             }
         )
+
+
+# The named profiles declared as ClassVars above.  Assigned here because a
+# class body cannot reference the class it is defining.
+CapabilitySet.SERIAL_CONNECTED = CapabilitySet(serial_connected=True)
+CapabilitySet.INTERACTIVE = CapabilitySet(interactive=True)
+CapabilitySet.GUI_APPS = CapabilitySet(gui_apps=True)
+CapabilitySet.SCREEN_CAPTURE = CapabilitySet(screen_capture=True)
+CapabilitySet.TUI_MODE = CapabilitySet(tui_mode=True)
+CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
+CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interactive=True)
+
+
+# ── Requirement hints ────────────────────────────────────────────────────────
+# One hint per RESTRICTIVE field above, rendered by /help's REQUIRED
+# CAPABILITIES section.  The stem contract: every value is a noun phrase
+# completing "requires ..." -- never a sentence, a "when" clause, or a bare
+# location.  Baseline fields are intentionally absent (every environment
+# provides them; they'd be noise in a requirements listing).  Completeness
+# is enforced both ways by tests/test_plugins.py (TestRequirementHints):
+# a new restrictive field fails the suite until it gets a hint here, and a
+# stale key fails it too.
+REQUIREMENT_HINTS: dict[str, str] = {
+    "block_until": "a thread that may block (.run scripts only)",
+    "confirm_dialog": "a Yes/Cancel dialog (TUI and script runner)",
+    "ui_notify": "the TUI's toast notifications",
+    "status_bar": "the TUI's status line",
+    "screen_capture": "the TUI's render surface (screenshots, screen text)",
+    "tui_mode": "the TUI (switch with /tui)",
+    "serial_connected": "an open serial port",
+    "interactive": "an interactive session (a human at a terminal; not MCP)",
+    "gui_apps": "a local desktop that can open apps the user sees",
+    "filesystem_unconfined": "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)",
+    "network_egress": "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -310,7 +398,7 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
     # mirror it here so /help AVAILABLE reflects the running policy.
     from termapy.env_flags import MCP_FS_UNCONFINED, MCP_NET_EGRESS
 
-    return {
+    environments = {
         # TUI (Textual app): everything an interactive desktop terminal has.
         "TUI": CapabilitySet(
             interactive=True,
@@ -337,6 +425,18 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
             network_egress=MCP_NET_EGRESS,
         ),
     }
+    # Dynamic capabilities are ATTAINABLE in every environment rather
+    # than properties of one: any host can open a port
+    # (``serial_connected`` via /port.connect) and any host can reach a
+    # blocking-safe thread (``block_until``: .run scripts under TUI/CLI;
+    # the MCP host opts in directly on its ctx.capabilities).  This
+    # matrix answers "can the command EVER run there"; "is it available
+    # RIGHT NOW" is the REQUIRED CAPABILITIES section's job (its
+    # "(missing)" marker).  Without this union every serial command
+    # rendered "TUI: no  CLI: no  MCP: no" -- statically wrong, and
+    # /help expect's matrix contradicted its own description text.
+    attainable = CapabilitySet(serial_connected=True, block_until=True)
+    return {name: caps.union(attainable) for name, caps in environments.items()}
 
 
 ENVIRONMENTS: dict[str, "CapabilitySet"] = _build_environments()

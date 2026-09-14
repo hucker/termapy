@@ -400,7 +400,7 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
         "explore": Command(
             help=f"Open {folder}/ in the system file explorer.",
             handler=_make_explore_handler(folder),
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
         "rename": Command(
             help=f"Rename a file in {folder}/ (extension kept; never overwrites).",
@@ -417,7 +417,7 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
         subs["show"] = Command(
             help=f"Open the newest file in {folder}/ with the system viewer.",
             handler=_make_show_handler(folder, pattern),
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         )
     if spec.dumpable:
         subs["dump"] = Command(

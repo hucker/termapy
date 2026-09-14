@@ -29,5 +29,5 @@ COMMAND = Command(
     name="cls",
     help="Clear the terminal screen.",
     handler=_handler,
-    needs=CapabilitySet(interactive=True),  # no screen to clear in MCP
+    needs=CapabilitySet.INTERACTIVE,  # no screen to clear in MCP
 )

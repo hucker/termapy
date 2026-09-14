@@ -52,13 +52,13 @@ class FilesystemHandle:
 
         Raises:
             MissingCapability: if the environment doesn't provide
-                ``gui_apps``.  Declare ``needs=CapabilitySet(gui_apps=True)``
+                ``gui_apps``.  Declare ``needs=CapabilitySet.GUI_APPS``
                 on your Command to gate dispatch instead.
         """
         if not self.capabilities.gui_apps:
             raise MissingCapability(
                 "ctx.fs.open_file requires gui_apps capability; "
-                "declare needs=CapabilitySet(gui_apps=True) on your Command"
+                "declare needs=CapabilitySet.GUI_APPS on your Command"
             )
         self._open_file_impl(path)
 

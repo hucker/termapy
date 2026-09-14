@@ -10,6 +10,7 @@ perfect substitute.  Use real hardware for testing real projects.
 
 from __future__ import annotations
 
+import json
 import random
 import struct
 import threading
@@ -74,6 +75,10 @@ class FakeSerial:
 
         # Virtual filesystem (flat, in-memory)
         self._vfs: dict[str, bytes] = dict(self._DEFAULT_VFS)
+
+        # Device memory behind the native MEM.R / MEM.W / MEM.INFO spec:
+        # one bytearray per window, seeded deterministically (gold-stable).
+        self._ram: dict[int, bytearray] = self._initial_ram()
 
         # XMODEM state
         self._xmodem_state: str | None = None  # None, "recv", "send"
@@ -296,6 +301,26 @@ class FakeSerial:
     _STX = 0x02  # Start of 1024-byte block (YMODEM)
     _CAN = 0x18  # Cancel
 
+    # Memory windows (base, size) served by the native MEM.* commands.
+    # Together they cover every address in builtins/demo/demo.symbols.json
+    # (RAM / code / rodata from 0x1000) plus a flash-like page below it,
+    # and the UART SFR window.  Both grammars -- native MEM.* and the
+    # legacy `mem` -- read and write the same bytes.
+    _RAM_WINDOWS: tuple[tuple[int, int], ...] = ((0x0000, 0x4000), (0xBF806000, 0x20))
+    _MEM_MAX_BLOCK: int = 64
+    # Seeded values so the symbol table's names read as something real
+    # (little-endian, matching demo.symbols.json).  Everything else is a
+    # fixed address-derived pattern.
+    _RAM_SEEDS: tuple[tuple[int, bytes], ...] = (
+        (0x1000, (27).to_bytes(2, "little")),            # gTemp      u16 = 27
+        (0x1002, struct.pack("<f", 1013.25)),             # gPressure  f32
+        (0x1008, (5).to_bytes(4, "little")),             # gFlags     u32
+        (0x100C, (12).to_bytes(4, "little")),            # count.12   u32
+        (0xBF806000, (0x8008).to_bytes(4, "little")),    # U1MODE: ON | BRGH
+        (0xBF806010, (0x0110).to_bytes(4, "little")),    # U1STA
+        (0x3100, b"Bassomatic v77\x00"),                 # sBanner    char[15]
+    )
+
     # Default virtual filesystem - pre-loaded demo files
     _DEFAULT_VFS: dict[str, bytes] = {
         "device_log.txt": b"2025-01-15 08:00:01 INFO  Boot OK\r\n2025-01-15 08:00:02 INFO  Sensor init\r\n2025-01-15 08:00:03 WARN  Battery 3.1V\r\n2025-01-15 08:00:04 INFO  Ready\r\n",
@@ -434,6 +459,7 @@ class FakeSerial:
             self._led_state = False
             self._start_time = time.time()
             self._connect_count += 1
+            self._ram = self._initial_ram()
             self._enqueue(b"")
             return (
                 b"Resetting...\r\n"
@@ -455,6 +481,10 @@ class FakeSerial:
 
         if upper == "AT+HELP":
             return self._help_text()
+
+        # Native memory spec (termapy dialect) before the legacy `mem` dump.
+        if upper.startswith("MEM."):
+            return self._handle_mem_native(cmd)
 
         if upper.startswith("MEM"):
             return self._handle_mem(cmd)
@@ -667,7 +697,32 @@ class FakeSerial:
                 "$GPRMC": {"help": "NMEA recommended nav data", "args": ""},
                 "$GPGSA": {"help": "NMEA DOP and active satellites", "args": ""},
                 "$GPGSV": {"help": "NMEA satellites in view", "args": ""},
-                "mem": {"help": "Memory dump", "args": "<addr> {len}"},
+                "mem": {
+                    "help": "Hex dump at addr; =val writes a byte/half/word by digit count (legacy grammar)",
+                    "args": "<addr> {count|=val}",
+                    "safety": "readonly",
+                },
+                "MEM.R": {
+                    "help": "Read a memory block (termapy MEM spec: rows + OK)",
+                    "args": "<addr> <len>",
+                    "safety": "readonly",
+                },
+                "MEM.W": {
+                    "help": "Write hex bytes to memory (termapy MEM spec)",
+                    "args": "<addr> <hex>",
+                    # Pokes RAM and SFRs: no undo.
+                    "safety": "destructive",
+                },
+                "MEM.M": {
+                    "help": "Atomic masked write: word = (word & and) | or; replies the old word",
+                    "args": "<addr> <and> <or>",
+                    "safety": "destructive",
+                },
+                "MEM.INFO": {
+                    "help": "Memory access facts as one JSON line",
+                    "args": "",
+                    "safety": "readonly",
+                },
                 "AT+FS.LIST": {"help": "List files on device", "args": ""},
                 "AT+FS.INFO": {"help": "Filesystem summary", "args": ""},
                 "AT+FS.DELETE": {
@@ -708,40 +763,201 @@ class FakeSerial:
         )
         return ("\r\n".join(lines) + "\r\n").encode()
 
-    def _handle_mem(self, cmd: str) -> bytes:
-        """Generate a deterministic hex dump for ``mem <addr> [len]``.
+    def _initial_ram(self) -> dict[int, bytearray]:
+        """Fresh memory windows: the address-derived pattern plus the seeds."""
+        ram = {
+            base: bytearray(((addr * 7) ^ (addr >> 8)) & 0xFF for addr in range(base, base + size))
+            for base, size in self._RAM_WINDOWS
+        }
+        for addr, data in self._RAM_SEEDS:
+            located = self._ram_window(addr, len(data))
+            assert located is not None, f"seed at 0x{addr:X} is outside every window"
+            base, offset = located
+            ram[base][offset:offset + len(data)] = data
+        return ram
+
+    def _ram_window(self, addr: int, length: int) -> tuple[int, int] | None:
+        """``(window base, offset)`` holding ``[addr, addr + length)``, or None."""
+        for base, size in self._RAM_WINDOWS:
+            if base <= addr and addr + length <= base + size:
+                return base, addr - base
+        return None
+
+    @staticmethod
+    def _parse_hex_addr(token: str) -> int | None:
+        """A hex address with or without ``0x`` (what strtoul(.., 16) takes)."""
+        text = token[2:] if token[:2].lower() == "0x" else token
+        try:
+            return int(text, 16) if text else None
+        except ValueError:
+            return None
+
+    def _handle_mem_native(self, cmd: str) -> bytes:
+        """``MEM.R`` / ``MEM.W`` / ``MEM.INFO`` -- termapy's published memory spec.
+
+        This is the reference implementation a firmware author mirrors:
+        rows of up to 16 bytes with an 8-digit hex address, an ``OK`` line
+        after every successful command, ``ERR <reason>`` otherwise.
 
         Args:
-            cmd: The full mem command string.
+            cmd: The full command line.
 
         Returns:
-            Formatted hex dump bytes.
+            Response bytes.
         """
         parts = cmd.split()
-        try:
-            addr = int(parts[1], 0) if len(parts) > 1 else 0
-        except (ValueError, IndexError):
-            return b"ERROR: Usage: mem <addr> [len]\r\n"
+        verb = parts[0].upper()
+        if verb == "MEM.INFO":
+            info = {
+                "max_block": self._MEM_MAX_BLOCK,
+                "address_bits": 32,
+                "endian": "le",
+                "modify": True,
+            }
+            return (json.dumps(info) + "\r\nOK\r\n").encode()
+        if verb == "MEM.M":
+            if len(parts) != 4:
+                return b"ERR usage\r\n"
+            addr = self._parse_hex_addr(parts[1])
+            and_text, or_text = parts[2], parts[3]
+            if addr is None or len(and_text) != len(or_text) or len(and_text) > 8:
+                return b"ERR usage\r\n"
+            try:
+                and_mask, or_mask = int(and_text, 16), int(or_text, 16)
+            except ValueError:
+                return b"ERR usage\r\n"
+            width = 1 if len(and_text) <= 2 else 2 if len(and_text) <= 4 else 4
+            if addr & (width - 1):
+                return b"ERR usage\r\n"
+            located = self._ram_window(addr, width)
+            if located is None:
+                return b"ERR range\r\n"
+            base, offset = located
+            old = bytes(self._ram[base][offset:offset + width])
+            word = (int.from_bytes(old, "little") & and_mask) | or_mask
+            self._ram[base][offset:offset + width] = word.to_bytes(width, "little")
+            row = f"{addr:08X}: " + " ".join(f"{byte:02X}" for byte in old)
+            return (row + "\r\nOK\r\n").encode()
+        if verb == "MEM.R":
+            if len(parts) != 3:
+                return b"ERR usage\r\n"
+            addr = self._parse_hex_addr(parts[1])
+            try:
+                length = int(parts[2])
+            except ValueError:
+                return b"ERR usage\r\n"
+            if addr is None:
+                return b"ERR usage\r\n"
+            if not 1 <= length <= self._MEM_MAX_BLOCK:
+                return b"ERR length\r\n"
+            located = self._ram_window(addr, length)
+            if located is None:
+                return b"ERR range\r\n"
+            base, offset = located
+            data = self._ram[base][offset:offset + length]
+            rows = [
+                f"{addr + i:08X}: " + " ".join(f"{byte:02X}" for byte in data[i:i + 16])
+                for i in range(0, length, 16)
+            ]
+            return ("\r\n".join(rows) + "\r\nOK\r\n").encode()
+        if verb == "MEM.W":
+            if len(parts) < 3:
+                return b"ERR usage\r\n"
+            addr = self._parse_hex_addr(parts[1])
+            try:
+                data = bytes.fromhex("".join(parts[2:]))
+            except ValueError:
+                return b"ERR usage\r\n"
+            if addr is None or not data:
+                return b"ERR usage\r\n"
+            if len(data) > self._MEM_MAX_BLOCK:
+                return b"ERR length\r\n"
+            located = self._ram_window(addr, len(data))
+            if located is None:
+                return b"ERR range\r\n"
+            base, offset = located
+            self._ram[base][offset:offset + len(data)] = data
+            return b"OK\r\n"
+        return b"ERR usage\r\n"
 
-        try:
-            length = int(parts[2], 0) if len(parts) > 2 else 64
-        except ValueError:
-            length = 64
+    def _handle_mem(self, cmd: str) -> bytes:
+        """The legacy ``mem`` grammar -- a monitor with its own peek/poke syntax.
 
-        length = max(1, min(length, 256))
+        This is the worked example for the profile's ``template`` memory
+        dialect, so it mirrors a real monitor rather than the MEM spec:
+
+        - ``mem <addr> [count]`` dumps rows ``ADDR:  XX XX XX XX  XX ...  |ascii|``
+          (count decimal, default 16, clamped to 256; no terminator).
+        - ``mem <addr> =<hex>`` writes a byte, half-word or word by digit
+          count (2 / 4 / 8), alignment-checked, and answers
+          ``ok [ADDR] 0xOLD -> 0xNEW (byte)``.
+        - failures are single ``err: ...`` lines.
+
+        It serves the same bytes as MEM.R / MEM.W.
+
+        Args:
+            cmd: The full command line.
+
+        Returns:
+            Response bytes.
+        """
+        parts = cmd.split(None, 2)
+        if len(parts) < 2:
+            return b"err: expected hex address, pin name, or peripheral name\r\n"
+        addr = self._parse_hex_addr(parts[1])
+        if addr is None:
+            return b"err: expected hex address, pin name, or peripheral name\r\n"
+        rest = parts[2].strip() if len(parts) > 2 else ""
+
+        if rest.startswith("="):
+            digits = rest[1:].strip()
+            if not digits or any(char not in "0123456789abcdefABCDEF" for char in digits):
+                return b"err: expected hex value after '='\r\n"
+            width = 1 if len(digits) <= 2 else 2 if len(digits) <= 4 else 4
+            if width == 2 and addr & 1:
+                return b"err: half-word write requires 2-byte alignment\r\n"
+            if width == 4 and addr & 3:
+                return b"err: word write requires 4-byte alignment\r\n"
+            located = self._ram_window(addr, width)
+            if located is None:
+                return f"err: address {addr:08X} not mapped\r\n".encode()
+            base, offset = located
+            old = int.from_bytes(self._ram[base][offset:offset + width], "little")
+            value = int(digits, 16) & ((1 << (8 * width)) - 1)
+            self._ram[base][offset:offset + width] = value.to_bytes(width, "little")
+            label = {1: "byte", 2: "half", 4: "word"}[width]
+            digits_out = width * 2
+            return (
+                f"ok [{addr:08X}] 0x{old:0{digits_out}X} -> 0x{value:0{digits_out}X} ({label})\r\n"
+            ).encode()
+
+        count = 16
+        if rest:
+            try:
+                count = int(rest.split()[0], 10)
+            except ValueError:
+                count = 0
+            if count == 0:
+                count = 16
+            count = min(count, 256)
+        located = self._ram_window(addr, count)
+        if located is None:
+            return (
+                f"err: address range {addr:08X}..{addr + count - 1:08X} not mapped "
+                f"(would HardFault)\r\n"
+            ).encode()
+        base, offset = located
+        data = self._ram[base][offset:offset + count]
         lines: list[str] = []
-        for offset in range(0, length, 16):
-            row_addr = addr + offset
-            row_bytes = []
-            for i in range(min(16, length - offset)):
-                # Deterministic: hash of address
-                val = ((row_addr + i) * 2654435761) & 0xFF
-                row_bytes.append(val)
-            hex_part = " ".join(f"{row_byte:02X}" for row_byte in row_bytes)
-            ascii_part = "".join(
-                chr(row_byte) if 0x20 <= row_byte < 0x7F else "." for row_byte in row_bytes
-            )
-            lines.append(f"  {row_addr:08X}: {hex_part:<48s} {ascii_part}")
+        for i in range(0, count, 16):
+            row = data[i:i + 16]
+            line = f"{addr + i:08X}:"
+            for j in range(16):
+                if j % 4 == 0:
+                    line += " "
+                line += f" {row[j]:02X}" if j < len(row) else "   "
+            ascii_part = "".join(chr(byte) if 0x20 <= byte <= 0x7E else "." for byte in row)
+            lines.append(f"{line}  |{ascii_part}|")
         return ("\r\n".join(lines) + "\r\n").encode()
 
     def _handle_textdump(self, cmd: str) -> bytes:

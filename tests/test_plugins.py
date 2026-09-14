@@ -939,3 +939,99 @@ class TestPluginContextPluginCfg:
         import pytest
         with pytest.raises(RuntimeError, match="no config loaded"):
             ctx.plugin_cfg("myplugin")
+
+
+# ── Named CapabilitySet profiles ─────────────────────────────────────────────
+
+
+class TestCapabilityProfiles:
+    """The named profiles ARE their spelled-out forms, shared and frozen."""
+
+    @pytest.mark.parametrize(
+        "profile, spelled",
+        [
+            (CapabilitySet.SERIAL_CONNECTED, CapabilitySet(serial_connected=True)),
+            (CapabilitySet.INTERACTIVE, CapabilitySet(interactive=True)),
+            (CapabilitySet.GUI_APPS, CapabilitySet(gui_apps=True)),
+            (CapabilitySet.SCREEN_CAPTURE, CapabilitySet(screen_capture=True)),
+            (CapabilitySet.TUI_MODE, CapabilitySet(tui_mode=True)),
+            (CapabilitySet.BLOCK_UNTIL, CapabilitySet(block_until=True)),
+            (
+                CapabilitySet.SERIAL_INTERACTIVE,
+                CapabilitySet(serial_connected=True, interactive=True),
+            ),
+        ],
+    )
+    def test_profile_equals_its_spelled_form(self, profile, spelled):
+        assert profile == spelled, "a profile is shorthand, not a different contract"
+
+    def test_profiles_are_shared_instances(self):
+        assert CapabilitySet.SERIAL_CONNECTED is CapabilitySet.SERIAL_CONNECTED, (
+            "one frozen instance per profile -- that is the point"
+        )
+
+    def test_profiles_are_frozen(self):
+        import dataclasses
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            CapabilitySet.SERIAL_CONNECTED.serial_connected = False  # type: ignore[misc]
+
+    def test_serial_interactive_is_the_union(self):
+        actual = CapabilitySet.SERIAL_CONNECTED.union(CapabilitySet.INTERACTIVE)
+        assert actual == CapabilitySet.SERIAL_INTERACTIVE, "the transfer profile is the pair"
+
+
+class TestRequirementHints:
+    """The /help hint table is complete against the restrictive fields.
+
+    /help's REQUIRED CAPABILITIES renderer indexes ``REQUIREMENT_HINTS``
+    directly.  Before 2026-09-03 it silently skipped unknown names and
+    the table was missing ``interactive`` / ``gui_apps``, so 59 command
+    declarations rendered no row at all.  This diff guard makes that
+    drift impossible in both directions.
+    """
+
+    @staticmethod
+    def _restrictive_fields() -> set[str]:
+        import dataclasses
+        return {
+            field.name
+            for field in dataclasses.fields(CapabilitySet)
+            if field.default is False
+        }
+
+    def test_every_restrictive_field_has_a_hint(self):
+        from termapy.plugins import REQUIREMENT_HINTS
+        actual_unhinted = sorted(self._restrictive_fields() - set(REQUIREMENT_HINTS))
+        assert actual_unhinted == [], (
+            "a restrictive field without a hint renders no row in "
+            "REQUIRED CAPABILITIES -- add it to REQUIREMENT_HINTS"
+        )
+
+    def test_no_stale_hint_keys(self):
+        from termapy.plugins import REQUIREMENT_HINTS
+        actual_stale = sorted(set(REQUIREMENT_HINTS) - self._restrictive_fields())
+        assert actual_stale == [], (
+            "a hint keyed on a removed or renamed field is dead vocabulary"
+        )
+
+    def test_hints_fit_the_requires_stem(self):
+        from termapy.plugins import REQUIREMENT_HINTS
+        for name, hint in REQUIREMENT_HINTS.items():
+            assert hint and not hint.endswith("."), (
+                f"{name}: hints are noun phrases completing 'requires ...' "
+                "-- non-empty, no trailing period"
+            )
+
+
+class TestBareSub:
+    """``bare_sub`` on an interior node is validated at load, not at use."""
+
+    def test_typo_fails_loud_at_synthesis(self):
+        from termapy.plugins.loader import _make_interior_handler
+        with pytest.raises(ValueError, match="bare_sub 'bogus' names no subcommand"):
+            _make_interior_handler("mem", ["mem.dump", "mem.info"], "bogus")
+
+    def test_valid_bare_sub_synthesizes(self):
+        from termapy.plugins.loader import _make_interior_handler
+        handler = _make_interior_handler("mem", ["mem.dump", "mem.info"], "info")
+        assert callable(handler), "a declared child passes load-time validation"

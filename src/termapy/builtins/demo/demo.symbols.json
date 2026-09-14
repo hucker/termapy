@@ -16,7 +16,8 @@
     {"name": "main", "addr": "0x00002000", "size": 442, "section": "text", "file": "main.c"},
     {"name": "MonGpio", "addr": "0x00002200", "size": 776, "section": "text", "file": "mon.c"},
     {"name": "sCmdTable", "addr": "0x00003000", "size": 64, "section": "rodata", "file": "main.c"},
-    {"name": "U1MODE", "addr": "0xBF806000", "size": 4, "section": "sfr", "type": "ON:B1-4.15 UEN:B1-4.8-9 BRGH:B1-4.3"},
+    {"name": "sBanner", "addr": "0x00003100", "size": 15, "section": "rodata", "file": "main.c"},
+    {"name": "U1MODE", "addr": "0xBF806000", "size": 4, "section": "sfr", "type": "ON:B4-1.15 UEN:B4-1.8-9 BRGH:B4-1.3"},
     {"name": "U1STA", "addr": "0xBF806010", "size": 4, "section": "sfr", "type": "u32", "rmw": false}
   ]
 }

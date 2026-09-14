@@ -21,6 +21,7 @@ from typing import Callable
 from termapy.plugins.command import (
     LIFECYCLE_HOOK_NAMES,
     BoundaryException,
+    CmdResult,
     Command,
     Directive,
     DirectiveInfo,
@@ -252,8 +253,9 @@ def _flatten_command(
 
     handler = node.handler
     if not handler and children:
-        # Synthetic handler for interior nodes - lists subcommands
-        handler = _make_interior_handler(full_name, children)
+        # Synthetic handler for interior nodes - lists subcommands, or
+        # dispatches node.bare_sub on a bare invocation when declared
+        handler = _make_interior_handler(full_name, children, node.bare_sub)
 
     if not handler:
         return result
@@ -277,6 +279,7 @@ def _flatten_command(
         needs=node.needs,
         hidden=node.hidden,
         params=node.params,
+        safety=node.safety,
     )
     result.insert(0, info)
     return result
@@ -285,22 +288,63 @@ def _flatten_command(
 def _make_interior_handler(
     full_name: str,
     children: list[str],
+    bare_sub: str = "",
 ) -> Callable:
     """Create a synthetic handler for an interior command node.
 
-    The handler lists available subcommands when the user invokes the
-    interior node directly (e.g. ``/proto`` with no subcommand).
+    Bare (``/mem``), the handler lists the subcommands -- unless the
+    node declares ``bare_sub``, in which case the bare form dispatches
+    that child (``/mem`` -> ``/mem.info``: the bare-queries convention).
+    With arguments, the first token is treated as a subcommand name --
+    ``/mem dump 0x0`` redirects to ``/mem.dump 0x0`` (the dotted form
+    stays the canonical grammar; the space form just works), and a token
+    that names no child fails with the list.  Ignoring the arguments, as
+    this handler once did, read as success while doing nothing.
 
     Args:
         full_name: Dotted command path (e.g. "proto").
         children: Dotted names of direct subcommands.
+        bare_sub: Short name of the child a bare invocation dispatches;
+            "" = list the children.
 
     Returns:
         A handler callable with the standard (ctx, args) signature.
-    """
 
-    def _handler(ctx, args: str) -> None:
+    Raises:
+        ValueError: ``bare_sub`` names no declared subcommand (load-time,
+            so a typo fails at boot rather than rendering a wrong bare
+            behavior).
+    """
+    if bare_sub and f"{full_name}.{bare_sub}".lower() not in children:
+        short_names = ", ".join(name.rsplit(".", 1)[1] for name in children)
+        raise ValueError(
+            f"{full_name}: bare_sub {bare_sub!r} names no subcommand "
+            f"(subcommands: {short_names})"
+        )
+
+    def _handler(ctx, args: str):
         prefix = ctx.prefix
+        if args.strip():
+            first, _, rest = args.strip().partition(" ")
+            child_name = f"{full_name}.{first.lower()}"
+            if child_name in children:
+                # Re-dispatch the dotted form through the ENGINE
+                # (ctx.internal.dispatch = ReplEngine.dispatch, prefixless
+                # command semantics in every host).  ctx.dispatch is the
+                # full pipeline, where an unprefixed line is a bare DEVICE
+                # line -- the gold caught that version sending
+                # "mem.dump ..." to the wire.  ($(VAR) forms were already
+                # expanded once; the second pass is a no-op unless a value
+                # itself contains "$(".)
+                return ctx.internal.dispatch(f"{child_name} {rest}".rstrip())
+            short_names = ", ".join(name.rsplit(".", 1)[1] for name in children)
+            return CmdResult.fail(
+                msg=f"Unknown subcommand: {first} (subcommands: {short_names})"
+            )
+        if bare_sub:
+            # The declared bare behavior: dispatch the child through the
+            # engine, exactly like the space form above.
+            return ctx.internal.dispatch(f"{full_name}.{bare_sub}")
         ctx.io._write(f"Subcommands of {prefix}{full_name}:")
         plugins = ctx.internal.plugins
         for child_name in children:
@@ -309,5 +353,6 @@ def _make_interior_handler(
                 arg_str = f" {child.args}" if child.args else ""
                 help_text = interpolate_help(child.help, prefix)
                 ctx.io._write(f"  {prefix}{child_name}{arg_str} - {help_text}")
+        return None
 
     return _handler

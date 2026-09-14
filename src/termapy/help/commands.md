@@ -61,6 +61,16 @@ man-page detail for one.
 | `/log.show`               | Open the session log in the system viewer                                   |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
 | `/mcp.info`               | Show MCP-mode status (catalog size, port, profile, captures)                |
+| `/mem.and <target> <mask>` | AND a mask into one word (atomic via MEM.M when available)                 |
+| `/mem.dump <target> {len} {type}` | Hexdump or typed word columns; `addr=`/`ascii=` toggle columns      |
+| `/mem.clear <target> <mask>` | Clear mask bits in one word: `word &= ~mask` (atomic via MEM.M)          |
+| `/mem.info`               | Memory access config: dialect, block limit, width, endian, atomic modify    |
+| `/mem.not <target>`       | Invert one word (always read + write-back)                                  |
+| `/mem.or <target> <mask>` | OR a mask into one word (atomic via MEM.M when available)                   |
+| `/mem.read <target> {type}` | One typed value: scalar, char, register field, bit or slice               |
+| `/mem.str <target> {max}` | Read a NUL-terminated string                                                |
+| `/mem.write <target> <hex>` | Write hex bytes, or set a register field/bit (audited)                    |
+| `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
 | `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list subcommands. With name: open it. |
 | `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |

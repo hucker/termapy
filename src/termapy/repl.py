@@ -42,6 +42,7 @@ from termapy.scripting import (
     expand_template,
     filename_timestamp,
     format_duration,
+    parse_bool,
     parse_duration,
     parse_keywords,
     strip_ansi,
@@ -300,6 +301,11 @@ class ReplEngine:
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
         self._script_depth: int = 0
+        # Plugin handlers currently on the stack.  >0 inside a nested
+        # engine dispatch (bare_sub / space-form redirect, a handler's
+        # ctx.internal.dispatch): the JSON envelope belongs to the
+        # OUTERMOST command only, so nested dispatches suppress theirs.
+        self._handler_depth: int = 0
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
         self._max_script_depth: int = 5
@@ -489,7 +495,7 @@ class ReplEngine:
                     "  {prefix}expect timeout=5s match=CONNECTED"
                 ),
                 handler=_make_expect_handler(False),
-                needs=CapabilitySet(block_until=True),
+                needs=CapabilitySet.BLOCK_UNTIL,
                 raw_args=True,
             )
         )
@@ -511,7 +517,7 @@ class ReplEngine:
                     "  {prefix}expect.regex timeout=2s match=^\\+STATUS: \\d+$"
                 ),
                 handler=_make_expect_handler(True),
-                needs=CapabilitySet(block_until=True),
+                needs=CapabilitySet.BLOCK_UNTIL,
                 raw_args=True,
             )
         )
@@ -1026,6 +1032,30 @@ class ReplEngine:
             if parent and name not in parent.children:
                 parent.children.append(name)
 
+    def plugin_for(self, repl_cmd: str) -> PluginInfo | None:
+        """The registered command a prefix-stripped line names, or None.
+
+        Mirrors dispatch's own resolution -- first token, lowercased, the
+        universal ``.<level>`` suffix stripped when no command claims it --
+        so a caller that must know what WILL run (the MCP safety gate)
+        cannot drift from what dispatch decides.
+
+        Args:
+            repl_cmd: The line without its REPL prefix.
+
+        Returns:
+            The PluginInfo, or None when nothing is registered by that name.
+        """
+        name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
+        plugin = self._plugins.get(name)
+        if plugin is not None:
+            return plugin
+        for level in OUTPUT_LEVELS:
+            suffix = "." + level
+            if name.endswith(suffix):
+                return self._plugins.get(name[: -len(suffix)])
+        return None
+
     def command_has_raw_args(self, repl_cmd: str) -> bool:
         """Check if the first command token has ``raw_args`` set.
 
@@ -1268,6 +1298,14 @@ class ReplEngine:
             # request_mode applies to every bare command.
             if self.cfg.get("request_mode") and self.ctx.serial.write is not None:
                 return self._exec_request_mode(cmd)
+            # ``--json`` is the per-call form of that dial: a bare device
+            # line carrying it is ONE request/response, not a fire-and-
+            # forget send wrapped in /term.send's envelope (which answers
+            # before the device does, so the reply would land in the
+            # scrollback instead of in ``value``).
+            bare, wants_json = _strip_json_flag(cmd)
+            if wants_json and self.ctx.serial.write is not None:
+                return self._exec_request_mode(bare)
             if not cmd:
                 # Empty bare line from send_bare_enter: send just the
                 # configured line ending.  /term.send rejects empty args, so
@@ -1373,6 +1411,15 @@ class ReplEngine:
             from termapy.variables import launch_var
 
             wants_json = launch_var("FRONT_END") != "mcp"
+        # The envelope belongs to the OUTERMOST command the user issued.
+        # A nested dispatch (bare_sub / space-form redirect, a handler's
+        # ctx.internal.dispatch) must not emit its own: that wrapped the
+        # whole /mem.info envelope -- escaped -- inside /mem's
+        # output_lines under request mode.  Suppressed, the inner
+        # command's prose is captured by the outer JSON collector and
+        # its CmdResult propagates: one envelope, the right contents.
+        if wants_json and self._handler_depth > 0:
+            wants_json = False
         # Prose captured during a JSON-mode dispatch; ships in the
         # envelope's ``output_lines``.  Stays empty for converted
         # commands (they skip prose via wants_data) and on error paths
@@ -1508,6 +1555,7 @@ class ReplEngine:
             saved_wants_data = self.ctx.wants_data
             if wants_json:
                 self.ctx.wants_data = True
+            self._handler_depth += 1
             try:
                 t0 = time.perf_counter()
                 if self.ctx.output_level == "silent":
@@ -1578,6 +1626,7 @@ class ReplEngine:
             except BoundaryException as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
             finally:
+                self._handler_depth -= 1
                 self.ctx.active_flags = set()
                 self.ctx.bound_params = saved_bound_params
                 self.ctx._call_level = saved_call_level
@@ -1841,7 +1890,12 @@ class ReplEngine:
             timeout_s = parse_duration(kw["timeout"]) if "timeout" in kw else 0.25
         except ValueError as e:
             return CmdResult.fail(msg=f"Expect: {e}")
-        quiet = kw.get("quiet", "").lower() == "on"
+        quiet_token = kw.get("quiet", "off")
+        quiet = parse_bool(quiet_token)
+        if quiet is None:
+            return CmdResult.fail(
+                msg=f"Expect: invalid quiet: {quiet_token!r} (use on/off)"
+            )
         timeout_str = kw.get("timeout", "250ms")
         if use_regex:
             import re as _re

@@ -13,7 +13,7 @@ callables.
 This handle is **not** capability-gated at the method level.  The
 ``serial_io`` baseline capability is always provided by shipped
 environments; commands that require a *connected* port declare
-``needs=CapabilitySet(serial_connected=True)`` and the dispatcher
+``needs=CapabilitySet.SERIAL_CONNECTED`` and the dispatcher
 gates them at call time.
 """
 

@@ -351,6 +351,8 @@ def update_architecture_md() -> None:
         "src/termapy/profile",      # package
         "src/termapy/usb",          # package
         "src/termapy/symbols",      # package
+        "src/termapy/memory.py",
+        "src/termapy/memory_views.py",
     ]
     missing: list[str] = []
     for rel in tracked:

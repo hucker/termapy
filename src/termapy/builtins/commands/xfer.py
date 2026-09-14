@@ -63,7 +63,6 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 # Long-blocking binary protocols, gated on a connected port + interactive
 # host -- mirrors the gating the standalone /xmodem and /ymodem had before
 # they moved under /xfer.
-_BINARY_NEEDS = CapabilitySet(serial_connected=True, interactive=True)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -96,38 +95,38 @@ COMMAND = Command(
         "xmodem": Command(
             help="XMODEM file transfer.",
             handler=None,
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
             sub_commands={
                 "send": Command(
                     args="<file>",
                     help="Send a file via XMODEM to the device.",
                     handler=_xmodem_send,
-                    needs=_BINARY_NEEDS,
+                    needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
                 "recv": Command(
                     args="<file>",
                     help="Receive a file via XMODEM from the device.",
                     handler=_xmodem_recv,
-                    needs=_BINARY_NEEDS,
+                    needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
             },
         ),
         "ymodem": Command(
             help="YMODEM file transfer (batch, 1K blocks).",
             handler=None,
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
             sub_commands={
                 "send": Command(
                     args="<file> {file2} ...",
                     help="Send file(s) via YMODEM to the device.",
                     handler=_ymodem_send,
-                    needs=_BINARY_NEEDS,
+                    needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
                 "recv": Command(
                     args="{directory}",
                     help="Receive file(s) via YMODEM from the device.",
                     handler=_ymodem_recv,
-                    needs=_BINARY_NEEDS,
+                    needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
             },
         ),

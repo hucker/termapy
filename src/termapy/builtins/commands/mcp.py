@@ -280,7 +280,7 @@ COMMAND = Command(
         "log": Command(
             help="Open the MCP session log in the system viewer.",
             handler=_handler_log,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
             sub_commands={
                 "dump": Command(
                     args="{N}",

@@ -83,5 +83,5 @@ Examples:
   /os python --version   - check Python version
   /os ping -c 1 host     - network test""",
     handler=_handler,
-    needs=CapabilitySet(interactive=True),  # shell exec; interactive only
+    needs=CapabilitySet.INTERACTIVE,  # shell exec; interactive only
 )

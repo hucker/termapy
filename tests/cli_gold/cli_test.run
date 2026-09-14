@@ -161,6 +161,56 @@ $(BAUD) <- /port.baud_rate
 /sym gTemp
 /sym.load
 
+# ── REPL: memory (demo RAM behind MEM.R/MEM.W, deterministic seed) ─────────
+/print === section: memory ===
+/mem.info
+/mem.dump gTemp 16
+/mem.dump gTemp 0x10
+/mem.dump 0x2000 4
+/mem.dump main+0x10 8
+/mem.write gFlags 07000000
+/mem.dump gFlags 4
+/mem.dump U1MODE.ON 4
+/mem.dump nosuch
+/mem.dump 0x9000 4
+/mem.write 0x1000 ZZ
+/mem.dump 0x1000 0
+# The space form redirects to the dotted subcommand
+/mem dump gTemp 2
+/mem bogus
+# Bare /mem = /mem.info (bare_sub): the availability check
+/mem
+# The same bytes through the device's own `mem` grammar (template dialect)
+/profile.load demo_legacy.profile.json
+/mem.info
+/mem.dump gTemp 16
+/mem.write gTemp 2C01
+/mem.dump gTemp 4
+/mem.dump 0x9000 4
+/profile.unload
+/mem.dump gTemp 2
+# Typed reads, bits, strings (state so far: gTemp=2C01 from the template write,
+# gFlags=07000000 from the native write)
+/mem.read gTemp
+/mem.read gPressure
+/mem.read U1MODE
+/mem.read U1MODE.ON
+/mem.read sBanner char
+/mem.str sBanner
+/mem.write U1MODE.ON 0
+/mem.read U1MODE.ON
+/mem.or gFlags 0x10
+/mem.xor gFlags 0x01
+/mem.clear gFlags 0x02
+/mem.not gTemp
+/mem.not gTemp
+/mem.or U1STA 1
+/mem.write U1MODE.ON 2
+/mem.read 0x1000
+/mem.dump gTemp 16 u16
+/mem.dump gTemp 4 addr=off ascii=off
+MEM.M 0x1000 F0 05 --json
+
 # ── REPL: help for specific commands ────────────────────────────────────────
 /print === section: help ===
 /help echo
@@ -172,6 +222,7 @@ $(BAUD) <- /port.baud_rate
 /help proto
 /help plugin
 /help sym
+/help mem
 /help run
 /print === section: help.run ===
 /help.run
@@ -238,5 +289,10 @@ $(BAUD) <- /port.baud_rate
 AT
 AT+PROD-ID
 /nope_bogus_cmd
+# One user command = ONE envelope: the bare_sub redirect (/mem -> /mem.info)
+# must not nest the inner envelope inside output_lines
+/mem
 /term.request off
+# A bare device line with --json is one request/response (per-call form of the dial)
+MEM.R 0x1000 2 --json
 /print prose is back

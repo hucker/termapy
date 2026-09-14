@@ -10,7 +10,7 @@ from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import EnumValue, ParamSpec
 from termapy.protocol import parse_format_spec
-from termapy.scripting import parse_duration, resolve_seq_filename
+from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 # ``_handler_structured``).  ``_extract_keyword_sections`` / ``_parse_mode``
 # below exist solely for those two.
 _MODE_VALUES = (EnumValue("new", ("n",)), EnumValue("append", ("a",)))
-_ONOFF_VALUES = (EnumValue("on"), EnumValue("off"))
 
 _KEYWORDS = {
     "mode=", "bytes=", "records=", "sep=", "echo=", "cmd=", "fmt=", "timeout=",
@@ -113,7 +112,7 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
     filename = ctx.arg("file")
     seconds = ctx.arg("timeout")  # required duration -> float seconds
     file_mode = "w" if ctx.arg("mode") == "new" else "a"
-    echo = ctx.arg("echo") == "on"
+    echo = bool(ctx.arg("echo"))
     cmd = ctx.arg("cmd")
 
     try:
@@ -208,7 +207,13 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
 
     fmt_spec = sections["fmt"]
     cmd = sections.get("cmd", "")
-    echo = sections.get("echo", "off").lower() == "on"
+    echo_token = sections.get("echo", "off")
+    echo = parse_bool(echo_token)
+    if echo is None:
+        return CmdResult.fail(
+            msg=f"Invalid echo: {echo_token!r} "
+            f"(expected a boolean: on/off/true/false/yes/no/1/0)"
+        )
     sep_name = sections.get("sep", "comma").lower()
 
     sep_map = {"comma": ",", "tab": "\t", "space": " "}
@@ -763,7 +768,7 @@ COMMAND = Command(
             help="Capture serial text to a file for a timed duration.",
             long_help=_cap_long_help_with_prose(_CAP_TEXT_PROSE),
             handler=_handler_text,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
             params=[
                 ParamSpec("file", "path", positional=True, required=True,
                           help="output filename (relative to cap/ dir)"),
@@ -771,7 +776,7 @@ COMMAND = Command(
                           help="how long to capture, e.g. 3s, 500ms"),
                 ParamSpec("mode", "enum", default="new", values=_MODE_VALUES,
                           help="file mode"),
-                ParamSpec("echo", "enum", default="off", values=_ONOFF_VALUES,
+                ParamSpec("echo", "bool", default=False,
                           help="also print captured text to the terminal"),
                 ParamSpec("cmd", "command", rest=True, default="",
                           help="command to send after capture starts"),
@@ -781,7 +786,7 @@ COMMAND = Command(
             help="Capture raw binary bytes.",
             long_help=_cap_long_help_with_prose(_CAP_BIN_PROSE),
             handler=_handler_bin,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
             params=[
                 ParamSpec("file", "path", positional=True, required=True,
                           help="output filename (relative to cap/ dir)"),
@@ -800,14 +805,14 @@ COMMAND = Command(
             help="Capture raw bytes, decode with format spec to CSV.",
             long_help=_cap_long_help_with_prose(_CAP_STRUCT_PROSE),
             handler=_handler_struct,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "hex": Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
             help="Capture hex text lines, decode with format spec to CSV.",
             long_help=_cap_long_help_with_prose(_CAP_HEX_PROSE),
             handler=_handler_hex,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "poll": Command(
             flags={

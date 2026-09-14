@@ -143,13 +143,13 @@ COMMAND = Command(
     help="Print sequence counters.",
     long_help=_seq_long_help,
     handler=_handler,
-    needs=CapabilitySet(interactive=True),  # script-state primitive
+    needs=CapabilitySet.INTERACTIVE,  # script-state primitive
     sub_commands={
         "reset": Command(
             help="Reset all counters to zero.",
             long_help=_seq_state_line,
             handler=_handler_reset,
-            needs=CapabilitySet(interactive=True),
+            needs=CapabilitySet.INTERACTIVE,
         ),
     },
 )

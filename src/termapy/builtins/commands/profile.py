@@ -239,7 +239,11 @@ def _load_from_file(ctx: PluginContext, path_str: str) -> CmdResult:
     # Reading an arbitrary path is a parse/existence oracle under MCP;
     # contain to the sandbox unless the operator opted out.
     ctx.fs.guard_external_path(path_str, "Profile path")
-    path = Path(path_str)
+    # Beside the cfg first (a bare name loads the profile that lives with
+    # this config), the CWD form otherwise -- same rule as /sym.load.
+    from termapy.config import cfg_relative_path
+
+    path = cfg_relative_path(ctx.config_path, path_str)
     if not path.exists():
         return CmdResult.fail(msg=f"Profile not found: {path}")
     try:

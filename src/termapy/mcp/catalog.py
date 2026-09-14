@@ -302,6 +302,10 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
         "source": plugin.source or "built-in",
         "raw_args": bool(plugin.raw_args),
     }
+    # Safety tier, parity with device commands: omitted when "safe" so the
+    # entry shape is unchanged for the many commands that never declare one.
+    if plugin.safety != "safe":
+        entry["safety"] = plugin.safety
     # Structured, typed argument schema for commands that declare params --
     # parity with device commands' ``typed_args``.  Omitted (not empty) for
     # commands that haven't been migrated, so their entry shape is unchanged.

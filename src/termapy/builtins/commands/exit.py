@@ -29,5 +29,5 @@ COMMAND = Command(
     name="exit",
     help="Exit termapy.",
     handler=_handler,
-    needs=CapabilitySet(interactive=True),  # interactive shutdown only
+    needs=CapabilitySet.INTERACTIVE,  # interactive shutdown only
 )

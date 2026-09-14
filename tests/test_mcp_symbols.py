@@ -26,7 +26,7 @@ from termapy.symbols import get_table  # noqa: E402
 DEMO_SYMBOLS = (
     Path(__file__).parent.parent / "src" / "termapy" / "builtins" / "demo" / f"demo{SYMBOLS_SUFFIX}"
 )
-DEMO_COUNT = 12
+DEMO_COUNT = 13
 
 
 @pytest.fixture

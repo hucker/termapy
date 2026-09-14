@@ -200,6 +200,14 @@ class PluginContext:
     # constructing the context.
     capabilities: CapabilitySet = field(default_factory=CapabilitySet)
 
+    # ── Environment identity ─────────────────────────────────────────
+    # Which ENVIRONMENTS column this session is: "TUI", "CLI", or "MCP"
+    # (the keys of plugins.capabilities.ENVIRONMENTS).  Stamped by each
+    # host right beside its ``ctx.capabilities`` assignment; /help's
+    # AVAILABLE matrix marks the column "(current)".  Empty on a bare
+    # test fake -> no marker, nothing breaks.
+    environment: str = ""
+
     # ── Structured-output preference ─────────────────────────────────
     # True when the consumer of this dispatch wants machine-readable
     # structure (``CmdResult.data``) rather than rendered prose: the MCP

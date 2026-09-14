@@ -167,5 +167,5 @@ COMMAND = Command(
         "``tests/test_credits_sync.py``."
     ),
     handler=_handler,
-    needs=CapabilitySet(interactive=True),  # display-only; for human reading
+    needs=CapabilitySet.INTERACTIVE,  # display-only; for human reading
 )

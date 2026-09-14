@@ -178,7 +178,7 @@ def _build_folder_sub(get_dir, ext, pattern, kind=None, noun=None):
         help=f"Open a {ext} file in the system editor.",
         long_help=long_help,
         handler=make_edit_handler(get_dir, ext, pattern),
-        needs=CapabilitySet(gui_apps=True),
+        needs=CapabilitySet.GUI_APPS,
         sub_commands={
             "list": Command(
                 help=f"List {ext} files.",
@@ -189,7 +189,7 @@ def _build_folder_sub(get_dir, ext, pattern, kind=None, noun=None):
                 help="Open folder in file explorer.",
                 long_help=long_help,
                 handler=make_explore_handler(get_dir),
-                needs=CapabilitySet(gui_apps=True),
+                needs=CapabilitySet.GUI_APPS,
             ),
         },
     )
@@ -202,7 +202,7 @@ COMMAND = Command(
     args="<filename>",
     help="Open a project file in the system editor.",
     handler=_handler_root,
-    needs=CapabilitySet(gui_apps=True),
+    needs=CapabilitySet.GUI_APPS,
     sub_commands={
         "run": _build_folder_sub(
             lambda ctx: ctx.fs.scripts_dir, ".run", "*.run",
@@ -220,17 +220,17 @@ COMMAND = Command(
         "cfg": Command(
             help="Open the config file in the system editor.",
             handler=_handler_cfg,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
         "log": Command(
             help="Open the session log in the system viewer.",
             handler=_handler_log,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
         "info": Command(
             help="Open the info report in the system viewer.",
             handler=_handler_info,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
     },
 )

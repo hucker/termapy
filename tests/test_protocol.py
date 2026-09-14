@@ -33,6 +33,11 @@ from termapy.protocol import (
     parse_toml_script,
     reset_crc_registry,
 )
+from termapy.protocol.core import (
+    _format_column_value,
+    extract_column_value,
+    inject_column_value,
+)
 from termapy.protocol.crc import _generic_crc  # private; explicit submodule
 
 # ── parse_hex ──────────────────────────────────────────────────────────────
@@ -1784,3 +1789,73 @@ class TestLoadVisualizersFromDir:
 # -- Demo AT visualizer -------------------------------------------------------
 
 
+
+
+# ── Bit-field extract / inject: the decode + encode twins ───────────────────
+
+
+class TestColumnValueTwins:
+    """``extract_column_value`` / ``inject_column_value`` share the language's
+    semantics: bytes combined in SPEC index order, bit indices LSB0."""
+
+    def test_extract_single_bit(self):
+        col = parse_format_spec("F:B1.3")[0]
+        assert extract_column_value(b"\x08", col) == 1, "bit 3 of 0x08"
+        assert extract_column_value(b"\x00", col) == 0
+
+    def test_extract_multibyte_descending_refs(self):
+        # B4-1 = bytes MSB-first over LE-stored data (the register idiom)
+        col = parse_format_spec("ON:B4-1.15")[0]
+        assert extract_column_value((0x8008).to_bytes(4, "little"), col) == 1, "bit 15 of LE 0x8008"
+
+    def test_extract_slice(self):
+        col = parse_format_spec("M:B2-1.4-6")[0]
+        assert extract_column_value((0x50).to_bytes(2, "little"), col) == 5, "bits 4-6 of 0x50"
+
+    def test_inject_round_trip(self):
+        col = parse_format_spec("UEN:B4-1.8-9")[0]
+        data = (0x8008).to_bytes(4, "little")
+        out = inject_column_value(data, col, 2)
+        assert extract_column_value(out, col) == 2, "inject then extract is identity"
+        assert extract_column_value(out, parse_format_spec("ON:B4-1.15")[0]) == 1, (
+            "neighboring bits untouched"
+        )
+
+    def test_inject_clears(self):
+        col = parse_format_spec("ON:B4-1.15")[0]
+        out = inject_column_value((0x8008).to_bytes(4, "little"), col, 0)
+        assert out == (0x0008).to_bytes(4, "little"), "only bit 15 changed"
+
+    def test_inject_value_too_big(self):
+        col = parse_format_spec("ON:B4-1.15")[0]
+        with pytest.raises(ValueError, match=r"Invalid value: 2 \(ON is 1 bit\)"):
+            inject_column_value(bytes(4), col, 2)
+
+    def test_not_a_bit_field(self):
+        col = parse_format_spec("T:U1-2")[0]
+        with pytest.raises(ValueError, match="Not a bit field: T"):
+            extract_column_value(bytes(2), col)
+
+    def test_refs_past_the_data(self):
+        col = parse_format_spec("ON:B4-1.15")[0]
+        with pytest.raises(ValueError, match="runs past 2 bytes"):
+            extract_column_value(bytes(2), col)
+
+
+class TestSingleBitMultiByte:
+    """A single bit over a multi-byte ref combines the bytes like a range.
+
+    The old branch read only the FIRST referenced byte, so ON:B4-1.15
+    (bit 15 of an LE-stored register word) rendered 0 while the word was
+    0x8008 -- caught by the CLI gold on /mem.read U1MODE.
+    """
+
+    def test_display_matches_the_extract_twin(self):
+        col = parse_format_spec("ON:B4-1.15")[0]
+        data = (0x8008).to_bytes(4, "little")
+        assert _format_column_value(data, col) == "1", "the display branch"
+        assert extract_column_value(data, col) == 1, "and the value twin agree"
+
+    def test_single_byte_unchanged(self):
+        col = parse_format_spec("F:B1.3")[0]
+        assert _format_column_value(bytes([0x08]), col) == "1", "B1.3 as before"

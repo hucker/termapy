@@ -78,12 +78,12 @@ Examples:
   /show my_script.run    - view a script file
   /show ../notes.txt     - relative path""",
     handler=_handler,
-    needs=CapabilitySet(gui_apps=True),
+    needs=CapabilitySet.GUI_APPS,
     sub_commands={
         "cfg": Command(
             help="Show the current config file.",
             handler=_handler_cfg,
-            needs=CapabilitySet(gui_apps=True),
+            needs=CapabilitySet.GUI_APPS,
         ),
     },
 )

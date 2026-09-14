@@ -61,6 +61,43 @@ All paths relative to `src/termapy/`.
   enums through `next_in_cycle`. TUI buttons that flip on click dispatch the
   explicit `toggle`/`cycle` verb, never the bare command. NEVER treat an
   unrecognized argument as a flip (that hid the `/term.color 2` bug).
+- **Booleans have ONE vocabulary and three sanctioned readers.** Every
+  user-facing boolean accepts the `scripting.parse_bool` token set
+  (on/off/true/false/yes/no/1/0/y/n/t/f) and is read ONLY through:
+  `ParamSpec(type="bool")` for declared params and keywords;
+  `parse_bool_setting` (via `_bool_setting`/`_cfg_toggle`) for setting
+  commands; bare `parse_bool` inside a documented hand-rolled parser —
+  and an unrecognized token ERRORS, never silently means False. Never
+  compare a token to `"on"`/`"off"` with `==`/`in`, never declare an
+  on/off `EnumValue` pair (that is what the `bool` param type is).
+  **Enforced by `tests/test_architecture.py`** (ast: bool-token
+  comparators and on/off enums in command code) — introduced after an
+  audit found `/mem.dump`'s toggles rejecting `false`/`0` plus three
+  hand-rolled `== "on"` sites.
+- **Every value category has one vocabulary and named readers** (audited
+  2026-09-03; booleans above were the only drift):
+  - **Numbers.** Plain counts are decimal: `ParamSpec(type="int")`, or
+    try/`int()` in a documented hand-rolled holdout with an
+    `Invalid <thing>: X` error — never a silent default on garbage.
+    Anything address/size/mask-shaped (memory, protocol contexts) uses
+    `symbols.parse_number` (decimal, `0x` hex, `Nh` — bare hex is NEVER
+    guessed). Grandfathered until next touched: `proto.py`'s
+    `_parse_int_value` (0x/decimal, unit-tested) — delegate it to
+    `parse_number` when that code is next edited.
+  - **Durations.** `ParamSpec(type="duration")` / `scripting.parse_duration`
+    only. A `* 1000` after parsing is unit conversion, not parsing.
+  - **Hex payloads / packets.** `protocol.core.parse_hex` (strict pairs),
+    `parse_data` (mixed hex + quoted text), `parse_pattern` (wildcards).
+    Grandfathered until next touched: `proto.py`'s three local
+    `bytes(int(t, 16) ...)` tokenizers.
+  - **Strings.** Identity (`str`/`path`/`command` params, rest args).
+    Quoted-string escapes are `protocol.core._ESCAPE_MAP`
+    (`\r \n \t \\ \0`); the cfg-value `"\n"` convention in
+    `on_connect_cmd` is a config-file notation, not a second prompt
+    vocabulary.
+  - No ast guard for these: unlike bool tokens, an `int()` on user text
+    is indistinguishable from internal arithmetic, so enforcement is
+    this rule plus review.
 - REPL prefix: `/`
 - Modals return tuples: `("run", path)`, `("new",)`, `("edit", path)`
 - Buttons: rainbow palette, Exit always red (`error`)
@@ -69,6 +106,11 @@ All paths relative to `src/termapy/`.
   `# ── COMMAND (must be at end of file) ──────────────────────────────────────────`
 - Subcommands = distinct operations (`port.list` vs `port.connect`)
 - Toggles/values = args (`echo on`, `cfg baudrate 9600`)
+- `needs=`: use the named `CapabilitySet` profiles (`.SERIAL_CONNECTED`,
+  `.INTERACTIVE`, `.GUI_APPS`, `.SCREEN_CAPTURE`, `.TUI_MODE`,
+  `.BLOCK_UNTIL`, `.SERIAL_INTERACTIVE`) for the recurring needs — one
+  frozen shared instance each, docstring on hover; spell out unusual
+  combinations inline; never a module-local `_NEEDS` constant
 - Handlers that produce scriptable data must return `CmdResult.ok(value=...)` — without it, scripts in quiet mode get nothing. See `CmdResult` docstring in `plugins.py`.
 - **`CmdResult.data` is the structured twin of `value`** — real JSON shape (dict/list/number) for agent consumers (MCP, `--json`); never a prose string. `value` stays the scriptable scalar. Optional: `data=None` is a legitimate permanent state (side-effect and prose-page commands); convert commands agents actually call, not all 185. Handlers with LARGE listings branch on `ctx.wants_data` and build either the prose or the records — never both (no doubled payload). Producers for `data` live in core beside the prose producers (`port_format.facts_to_json_record`, `usb_tree.to_json_records`, `variables.snapshot`), never inline in handlers.
 

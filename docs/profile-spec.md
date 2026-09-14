@@ -130,6 +130,7 @@ yet. Producers may set them; consumers preserve and may surface them.
 | `error_detection` | object | Global error grammar, §8. |
 | `types` | object | Named argument types, §6. |
 | `commands` | object | The catalog, §5. Keys are command names exactly as the device expects them. |
+| `memory` | object | Memory access, §4.1. |
 
 A minimal valid profile — what tiny self-describing firmware should
 emit — is:
@@ -141,6 +142,35 @@ emit — is:
 
 Catalog and help work immediately; commands without a `response`
 contract fall through to the literal-write path.
+
+### 4.1 The `memory` block
+
+Declares how the bridge's `/mem.*` commands reach the device's memory.
+All fields are optional.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `dialect` | string | Wire grammar. Canonical: `termapy` (the `MEM.R` / `MEM.W` / `MEM.INFO` spec, help topic `memory`) or `template` (the device's own grammar, described by the fields below). An unrecognized value loads; `/mem.*` refuse until it is recognized (§3.3). |
+| `read` | string | `template` only, required: `str.format` template with `{addr}` and `{len}`. |
+| `row` | regex | `template` only: one data row, groups `addr` and `hex`. Default matches `ADDR: XX XX ...`. |
+| `row_bytes` | integer >= 1 | `template` only: most bytes per row (default 16). |
+| `write` | string | `template` only: template with `{addr}` and `{byte}` or `{hex}`; absent = read-only. |
+| `ack` | regex | `template` only: a successful write reply must contain it; absent = no acknowledgement expected. |
+| `error` | regex | `template` only: flags a failed command (default `(?i)^\s*(err|error|fault)\b`). |
+| `terminator` | regex | `template` only: ends a reply early (a prompt); absent = idle-gap framing. |
+| `settle_ms` | integer >= 1 | `template` only: the idle gap that ends a reply (default 100). |
+| `max_block` | integer >= 1 | Largest byte count per read or write exchange. |
+| `address_bits` | integer 8..64 | Address width; sets the printed hex width. |
+| `endian` | `le` \| `be` | Byte order of multi-byte values. Stored for typed views. |
+| `modify` | boolean | Device implements the atomic `MEM.M` masked write (usually learned from `MEM.INFO`). |
+
+Precedence per field: an explicit profile value, then the device's
+`MEM.INFO` answer, then the defaults `64` / `32` / `le`. A value of the
+wrong type is a schema error like any other typed field; an unusable
+value of the right type (`max_block: 0`, `endian: "middle"`) degrades
+to the default with a warning. A `template` block whose templates or
+regexes do not describe a grammar loads with a warning and `/mem.*`
+refuse with the same field-qualified message.
 
 ## 5. Commands and matching
 

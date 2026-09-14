@@ -59,11 +59,12 @@ Positional order is `(name, addr, size, section)`; the rest are keywords.
 | Field | Fill it? | Rule |
 |---|---|---|
 | `name` | yes | The identifier as the C program spells it. Dots kept verbatim (`count.12`). |
-| `addr` | yes | `int`. Parse hex with `int(text, 16)`. A vendor map prints its own fixed radix, so bare hex without `0x` is fine here; the "never guess bare hex" rule is about what a user types at the prompt. |
+| `addr` | yes | `int`. Parse hex with `int(text, 16)`. A vendor map prints its own fixed radix, so bare hex without `0x` is fine here; the "never guess bare hex" rule is about what a user types at the prompt. **Emit the run address (VMA), never the load address (LMA).** Initialized `.data` lives in flash at its LMA and is copied to RAM at its VMA; `/mem.*` talks to the running device, so only the VMA is right. GNU ld maps print both. |
 | `size` | yes | Bytes from the linker; `0` when the map gives none (linker globals). |
 | `section` | yes | One of the six words below when it maps cleanly, else the toolchain's own short lowercase word. |
 | `file` | when the map says | The defining object, reduced to a stem (`adc.c` or `adc`), so `name@file` can split duplicate statics. Reuse `xc32.object_file_stem`; it is toolchain-neutral. |
-| `type`, `space`, `rmw` | no | Leave the defaults. Types come from a hand edit of the sidecar or a later step; a linker map does not know them. |
+| `space` | Harvard parts only | On a part where flash and RAM addresses overlap (8-bit PIC, AVR, 8051) and the map says which space a symbol is in, fill it with the map's own word (`code`, `data`, `xdata`). Nothing reads it yet; it is the hook for when the address grammar and the wire spec grow a space qualifier. Leave it empty on a flat address space. |
+| `type`, `rmw` | no | Leave the defaults. Types come from a hand edit of the sidecar or a later step; a linker map does not know them. |
 
 Section vocabulary and its display label:
 

@@ -461,7 +461,14 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         })
     scalar = decode_scalar(data, type_name, info.endian)
     shown = f"{scalar:.6g}" if isinstance(scalar, float) else str(scalar)
-    tail = "" if isinstance(scalar, float) else f"  (0x{data.hex().upper()})"
+    # The hex twin is the DECODED value, not the raw bytes: on a
+    # little-endian device those differ, and a byte-order-reversed hex is
+    # exactly the wrong thing to show for a register.  Signed types are
+    # masked to the width so an i32 reads as two's complement (0xFFFFFFFE)
+    # rather than -0x2.
+    tail = "" if isinstance(scalar, float) else (
+        f"  (0x{scalar & ((1 << (len(data) * 8)) - 1):0{len(data) * 2}X})"
+    )
     ctx.io.result(f"{raw_target} = {shown}{tail}")
     return CmdResult.ok(value=shown, data={
         "target": raw_target, "addr": parsed.addr,

@@ -644,7 +644,7 @@ demo> /mem.dump gTemp 2
   0x00001000  2C 01                                            |,.|  gTemp
   [144/219] /mem.dump gTemp 2 (114ms)
 demo> /mem.read gTemp
-  gTemp = 300  (0x2C01)
+  gTemp = 300  (0x012C)
   [145/219] /mem.read gTemp (57.1ms)
 demo> /mem.read gPressure
   gPressure = 1013.25

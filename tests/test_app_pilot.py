@@ -65,7 +65,10 @@ def app_factory(tmp_path):
     def _make(**overrides):
         from termapy.app import SerialTerminal
         cfg, path = _write_cfg(tmp_path, **overrides)
-        return SerialTerminal(cfg, path), cfg, path
+        app = SerialTerminal(cfg, path)
+        # The checkout has a real termapy_cfg/plugin/; keep it out of the boot.
+        app.repl.global_root = tmp_path
+        return app, cfg, path
     return _make
 
 
@@ -1273,8 +1276,11 @@ class TestSymbolsAutoload:
                 table = get_table(ctx)
                 seen.append(len(table) if table is not None else -1)
 
+            # source="app": a hook the host registers itself.  on_app_start
+            # drops every folder-sourced hook before it fires, so a made-up
+            # label would be swept away with them.
             app.repl.register_lifecycle_hook(
-                LifecycleHook(name="on_connect", handler=hook, source="test", plugin="probe"),
+                LifecycleHook(name="on_connect", handler=hook, source="app", plugin="probe"),
             )
 
             # Act

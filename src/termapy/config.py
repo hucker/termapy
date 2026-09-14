@@ -28,6 +28,7 @@ from termapy.folders import (
     FOLDER_NAMES,
     HISTORY_FILE,
     HISTORY_SUFFIX,
+    PLUGIN,
     PROFILE_TMP_GLOB,
     SYMBOLS_SUFFIX,
 )
@@ -420,12 +421,18 @@ def cleanup_profile_temps(config_path: str) -> None:
 
 def cfg_plugins_dir(config_path: str) -> Path:
     """Return the plugin directory for a config, creating it if needed."""
-    return cfg_data_dir(config_path) / "plugin"
+    return cfg_data_dir(config_path) / PLUGIN
 
 
-def global_plugins_dir() -> Path:
-    """Return the global plugin directory, creating it if needed."""
-    d = cfg_dir() / "plugin"
+def global_plugins_dir(root: Path | None = None) -> Path:
+    """Return the global plugin directory, creating it if needed.
+
+    Args:
+        root: The cfg root whose ``plugin/`` child is the global layer;
+            None resolves :func:`cfg_dir`.  An engine under test passes a
+            temp folder so the checkout's own ``termapy_cfg/`` stays out.
+    """
+    d = (root if root is not None else cfg_dir()) / PLUGIN
     d.mkdir(exist_ok=True)
     return d
 

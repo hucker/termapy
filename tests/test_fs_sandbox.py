@@ -121,7 +121,10 @@ def _mcp_host(tmp_path):
     config_path.write_text(json.dumps(cfg))
     for sub in ("plugin", "ss", "run", "cap"):
         (config_path.parent / sub).mkdir(exist_ok=True)
-    return MCPHost(cfg, str(config_path), verbose=False)
+    host = MCPHost(cfg, str(config_path), verbose=False)
+    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
+    host.repl.global_root = tmp_path
+    return host
 
 
 class TestMcpHostSandboxed:

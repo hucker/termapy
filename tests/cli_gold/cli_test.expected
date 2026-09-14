@@ -1128,51 +1128,56 @@ demo> /print === section: help.plugin ===
   [178/219] /print === section: help.plugin === (185us)
 demo> /help.plugin
 -- Application --
-  /cli        Already in CLI mode.
-  /clr        Clear the terminal screen (alias for /cls).
-  /delay      Wait for duration with progress bar (e.g. 500ms, 1.5s).
-  /demo       Set up and switch to the demo device config.
-  /raw        Send raw text to serial (no transforms or line ending).
-  /tui        Switch to TUI mode.
+  /cli          Already in CLI mode.
+  /clr          Clear the terminal screen (alias for /cls).
+  /delay        Wait for duration with progress bar (e.g. 500ms, 1.5s).
+  /demo         Set up and switch to the demo device config.
+  /raw          Send raw text to serial (no transforms or line ending).
+  /tui          Switch to TUI mode.
 
 -- Application Plugins --
-  /app        App-wide state and config.
-  /cap        Data capture tools.
-  /cfg        Show or set config values.
-  /cls        Clear the terminal screen.
-  /credits    Print acknowledgments / third-party attributions.
-  /edit       Open a project file in the system editor.
-  /env        Print environment variables for $(env.NAME) expansion (alias: /env.list).
-  /exit       Exit termapy.
-  /find       Navigate scrollback matches with an interactive find bar.
-  /grep       Search the scrollback for lines matching a pattern (case-insensitive regex).
-  /help       Print the command landscape or look up a specific command.
-  /log        Session log: print, fingerprint, or open it.
-  /mcp        MCP catalog and status (Model Context Protocol).
-  /mem        Device memory: dump, typed reads, writes and bit ops via /sym names.
-  /os         Run a shell command and show output (10s timeout). e.g. /os dir
-  /ping       Send a command and measure response time.
-  /plugin     Plugin-folder tools: list, explore, show, dump.
-  /port       Serial port tools: connect, disconnect, list, configure.
-  /print      Print a message to the terminal.
-  /profile    Device profile commands (MCP profile schema, validator, loader).
-  /proto      Binary protocol tools: send, run, debug, hex, crc, info.
-  /repeat     Repeat a command N times with optional delay (escape to cancel).
-  /run        Run a script file, or list available scripts.
-  /search     Deep-search every command's metadata (name, help, args, flags, long help).
-  /seq        Print sequence counters.
-  /show       Show a file.
-  /ss         Screenshot tools: save SVG/text, manage folder.
-  /stop       Abort a running script.
-  /sym        Symbol table: name -> address, or address -> name+offset.
-  /term       Terminal display / session toggles (echo, line_no, timestamps, ...).
-  /var        List user variables, or show one by name.
-  /xfer       File transfer: settings and XMODEM / YMODEM send and receive.
+  /app          App-wide state and config.
+  /cap          Data capture tools.
+  /cfg          Show or set config values.
+  /cls          Clear the terminal screen.
+  /credits      Print acknowledgments / third-party attributions.
+  /edit         Open a project file in the system editor.
+  /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).
+  /exit         Exit termapy.
+  /find         Navigate scrollback matches with an interactive find bar.
+  /grep         Search the scrollback for lines matching a pattern (case-insensitive regex).
+  /help         Print the command landscape or look up a specific command.
+  /log          Session log: print, fingerprint, or open it.
+  /mcp          MCP catalog and status (Model Context Protocol).
+  /mem          Device memory: dump, typed reads, writes and bit ops via /sym names.
+  /os           Run a shell command and show output (10s timeout). e.g. /os dir
+  /ping         Send a command and measure response time.
+  /plugin       Plugin-folder tools: list, explore, show, dump.
+  /port         Serial port tools: connect, disconnect, list, configure.
+  /print        Print a message to the terminal.
+  /profile      Device profile commands (MCP profile schema, validator, loader).
+  /proto        Binary protocol tools: send, run, debug, hex, crc, info.
+  /repeat       Repeat a command N times with optional delay (escape to cancel).
+  /run          Run a script file, or list available scripts.
+  /search       Deep-search every command's metadata (name, help, args, flags, long help).
+  /seq          Print sequence counters.
+  /show         Show a file.
+  /ss           Screenshot tools: save SVG/text, manage folder.
+  /stop         Abort a running script.
+  /sym          Symbol table: name -> address, or address -> name+offset.
+  /term         Terminal display / session toggles (echo, line_no, timestamps, ...).
+  /var          List user variables, or show one by name.
+  /xfer         File transfer: settings and XMODEM / YMODEM send and receive.
+
+-- demo Plugins --
+  /crcsend      Send text with XMODEM CRC-16 appended.
+  /probe        Query the device and display the response.
+  /temp_plot    Sample temperature and show ASCII sparkline.
 
 -- Script Commands (.run files only) --
-  /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
-  /expect     Wait for text in serial output (blocks until match or timeout).
-  40 commands.
+  /confirm      Show Yes/Cancel dialog; Cancel stops a running script.
+  /expect       Wait for text in serial output (blocks until match or timeout).
+  43 commands.
   [179/219] /help.plugin (6.49ms)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===

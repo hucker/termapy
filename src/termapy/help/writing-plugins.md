@@ -27,7 +27,8 @@ $env:TERMAPY_TRUSTED_PLUGINS_ONLY = "1"
 
 With that flag set, termapy skips **both** filesystem plugin
 discovery passes (global `termapy_cfg/plugin/` and per-cfg
-`termapy_cfg/<name>/plugin/`).  Only built-in commands — the ones
+`termapy_cfg/<name>/plugin/`) in every frontend — the TUI, the CLI
+and the MCP server alike.  Only built-in commands — the ones
 shipped inside the wheel, in `site-packages` — will load.  The
 trust boundary collapses to "your Python environment," which is
 the boundary every other Python tool already uses.
@@ -51,7 +52,13 @@ The fastest way to write a plugin is to copy an existing one:
 
 ## How plugins work
 
-When `termapy` starts, it scans the `plugin/` folders for `.py` files.
+Whenever a config becomes current — at startup and on every
+`/cfg.load`, in the TUI, the CLI and the MCP server alike — termapy
+scans the `plugin/` folders for `.py` files: the global folder first,
+then the config's own, later overriding earlier by name. A switch
+drops the previous config's plugins, transforms and hooks before the
+new ones load. A folder plugin can never take the name of one of the
+app's own commands; it is skipped with a warning instead.
 Each file is imported and checked for a `COMMAND` object at module level.
 If found, that command is registered in the REPL, and users can invoke it
 by typing its name with the command prefix (e.g. `/hello`).

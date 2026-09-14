@@ -715,7 +715,10 @@ class TestFireLifecycle:
         from termapy.repl import ReplEngine
         cfg_path = tmp_path / "test.cfg"
         cfg_path.write_text("{}", encoding="utf-8")
-        return ReplEngine({}, str(cfg_path), lambda t, c=None: None)
+        # global_root: the checkout has a real termapy_cfg/plugin/; keep it out.
+        return ReplEngine(
+            {}, str(cfg_path), lambda t, c=None: None, global_root=tmp_path,
+        )
 
     def test_fire_calls_matching_hooks_only(self, tmp_path):
         # Arrange

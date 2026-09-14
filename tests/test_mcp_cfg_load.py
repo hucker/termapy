@@ -103,12 +103,15 @@ class TestMcpCfgLoad:
         # Arrange - register a marker hook so we can detect it firing
         from termapy.plugins import LifecycleHook
 
+        # source="app": a hook the host registers itself.  on_config_load
+        # drops every folder-sourced hook before it fires, so a made-up
+        # label would be swept away with them.
         fired = []
         host.repl._lifecycle_hooks.append(
             LifecycleHook(
                 name="on_config_load",
                 handler=lambda ctx: fired.append("yes"),
-                source="test",
+                source="app",
             )
         )
 

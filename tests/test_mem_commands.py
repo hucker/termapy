@@ -46,6 +46,8 @@ def cli(tmp_path):
         (config_path.parent / sub).mkdir(exist_ok=True)
     shutil.copyfile(DEMO_SYMBOLS, config_path.with_name(f"rig{SYMBOLS_SUFFIX}"))
     terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
+    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
+    terminal.repl.global_root = tmp_path
     terminal.repl.fire_lifecycle("on_app_start")
     logged: list[tuple[str, str]] = []
     terminal.ctx.io.log = lambda prefix, text: logged.append((prefix, text))

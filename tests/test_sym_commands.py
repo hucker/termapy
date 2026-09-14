@@ -56,7 +56,8 @@ def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
     def write_markup(text):
         output.append((text, "markup"))
 
-    engine = ReplEngine(cfg, str(config_path), write)
+    # global_root: the checkout has a real termapy_cfg/plugin/; keep it out.
+    engine = ReplEngine(cfg, str(config_path), write, global_root=tmp_path)
     internal_handle = InternalHandle(
         plugins=engine._plugins,
         in_script=lambda: engine.in_script,
@@ -201,8 +202,11 @@ class TestAutoload:
             table = get_table(ctx)
             seen.append(len(table) if table is not None else -1)
 
+        # source="app": a hook the host registers itself.  Resolution drops
+        # every folder-sourced hook before this pass, so a made-up label
+        # would be swept away with them.
         engine.register_lifecycle_hook(
-            LifecycleHook(name="on_config_load", handler=hook, source="test", plugin="probe"),
+            LifecycleHook(name="on_config_load", handler=hook, source="app", plugin="probe"),
         )
 
         # Act

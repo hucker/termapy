@@ -1,9 +1,11 @@
 """REPL engine for termapy - plugin-based command dispatch and scripting.
 
 All commands (built-in and external) are plugins loaded as .py files.
-Built-in plugins ship in termapy/builtins/. External plugins are loaded
-from folders by app.py. The engine owns state (seq counters, echo, etc.)
-and exposes it through PluginContext lambdas.
+Built-in plugins ship in termapy/builtins/. External plugins come from the
+global and per-config ``plugin/`` folders, resolved by the engine itself
+(``resolve_plugins``) on ``on_app_start`` / ``on_config_load`` so every
+frontend sees the same set. The engine owns state (seq counters, echo,
+etc.) and exposes it through PluginContext lambdas.
 """
 
 import threading
@@ -17,6 +19,7 @@ from types import MappingProxyType
 from typing import Callable
 
 from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
+from termapy.env_flags import TRUSTED_PLUGINS_ONLY
 from termapy.folders import CAP, PROF, PROTO, RUN, SS
 from termapy.plugins import (
     LEVEL_FLAGS,
@@ -27,6 +30,7 @@ from termapy.plugins import (
     DirectiveInfo,
     DirectiveResult,
     LifecycleHook,
+    LoadResult,
     LongHelp,
     MissingCapability,
     PluginContext,
@@ -50,10 +54,16 @@ from termapy.scripting import (
 )
 from termapy.symbols import session as symbols_session
 
-# Lifecycle events with a CORE listener (symbol auto-load) that runs before
-# the plugin hooks: exactly the moments a config becomes current after the
-# context is wired, which every frontend already fires.
+# Lifecycle events with CORE listeners (plugin resolution, then the symbol
+# auto-load) that run before the plugin hooks: exactly the moments a config
+# becomes current after the context is wired, which every frontend already
+# fires.
 _CORE_LIFECYCLE: frozenset[str] = frozenset({"on_app_start", "on_config_load"})
+
+# Registry sources that resolution never drops: the bundled built-ins and
+# the frontend's own hooks.  Everything else came from a folder and is
+# rebuilt on every resolution.
+_EXTERNAL_KEEP: frozenset[str] = frozenset({"built-in", "app"})
 
 
 def _resolve_flag(raw: str, declared: dict[str, str]) -> str | None:
@@ -288,6 +298,9 @@ class ReplEngine:
         cfg: dict,
         config_path: str,
         write: Callable,
+        *,
+        trusted_only: bool = TRUSTED_PLUGINS_ONLY,
+        global_root: Path | None = None,
     ) -> None:
         """Initialize the REPL engine with config and plugin loading.
 
@@ -295,11 +308,23 @@ class ReplEngine:
             cfg: Config dict (owned by the engine, wrapped in MappingProxyType).
             config_path: Path to the JSON config file on disk.
             write: Callback for output - write(text, color="dim").
+            trusted_only: Resolve built-in plugins only; the global and
+                per-config folders are never read.  Defaults to the frozen
+                ``TERMAPY_TRUSTED_PLUGINS_ONLY`` policy; a test passes it
+                explicitly instead of touching the environment.
+            global_root: Folder whose ``plugin/`` child is the global layer.
+                None (production) resolves ``config.cfg_dir()`` at each
+                resolution, so a ``--cfg-dir`` set after import is honored.
+                A test passes a temp folder: ``cfg_dir()`` falls back to
+                ``./termapy_cfg``, and the checkout has a real one.
         """
         self._cfg_data = cfg
         self.cfg = MappingProxyType(self._cfg_data)
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
+        self.trusted_only = trusted_only
+        self.global_root = global_root
+        self._trusted_notice_shown = False
         self._script_depth: int = 0
         # Plugin handlers currently on the stack.  >0 inside a nested
         # engine dispatch (bare_sub / space-form redirect, a handler's
@@ -913,6 +938,143 @@ class ReplEngine:
         """Register a plugin lifecycle hook. Appended in load order."""
         self._lifecycle_hooks.append(hook)
 
+    # -- External plugin resolution ------------------------------------------
+
+    def resolve_plugins(self) -> None:
+        """Drop every folder-loaded plugin and load the folders again.
+
+        The one resolution step for every frontend, fired from
+        :meth:`fire_lifecycle` on ``on_app_start`` and ``on_config_load``:
+        the global layer (``<cfg_dir>/plugin/``), then the per-config layer
+        (``<cfg>/plugin/``), later overriding earlier by name.  Both layers
+        are rebuilt on every call -- one code path, idempotent -- so a
+        global module re-executes on a config switch; session state belongs
+        in ``ctx.ns()``, not in module globals.
+
+        Built-ins and the frontend's own hooks (source ``"app"``) are never
+        dropped, and an external plugin whose name an app hook owns is
+        skipped rather than installed, so the documented order (built-in,
+        global, per-config, app) holds however early the frontend
+        registered its hooks.  A cfg literally named ``app``, ``built-in``
+        or ``global`` would collide with those labels; nothing guards it.
+
+        ``trusted_only`` (the ``TERMAPY_TRUSTED_PLUGINS_ONLY`` policy)
+        collapses the trust boundary to the Python environment: the folders
+        are not read at all.  Load lines name the source (``from global``,
+        ``from <cfg>``) so a user opening an unfamiliar config folder can
+        notice what ran and review it before trusting the session.
+        """
+        dropped = self._drop_external()
+        if dropped:
+            self._report(
+                f"Unloaded {len(dropped)} plugin(s): " + ", ".join(dropped),
+            )
+        if self.trusted_only:
+            if not self._trusted_notice_shown:
+                self.write(
+                    "TERMAPY_TRUSTED_PLUGINS_ONLY=1: "
+                    "skipping filesystem plugin discovery.",
+                    "yellow",
+                )
+                self._trusted_notice_shown = True
+            return
+        from termapy.config import cfg_plugins_dir, global_plugins_dir
+
+        layers = [(global_plugins_dir(self.global_root), "global")]
+        if self.config_path:
+            try:
+                layers.append(
+                    (cfg_plugins_dir(self.config_path), Path(self.config_path).stem),
+                )
+            except RuntimeError as e:
+                # A bundled (read-only) cfg has no data folder to scan;
+                # cfg_data_dir refuses it with the remedy spelled out.
+                self.write(f"Plugin error: {e}", "red")
+        for folder, source in layers:
+            self._install_layer(load_plugins_from_dir(folder, source), source)
+
+    def _drop_external(self) -> list[str]:
+        """Remove every folder-loaded registration; return the plugin names.
+
+        Filters IN PLACE: ``InternalHandle.plugins`` / ``.directives`` alias
+        these containers, so rebinding would strand every context.  The
+        bare transform callables are rebuilt from the surviving infos, which
+        is what makes a per-config transform go away on a config switch.
+        """
+        dropped = [
+            name for name, info in self._plugins.items()
+            if info.source not in _EXTERNAL_KEEP
+        ]
+        for name in dropped:
+            del self._plugins[name]
+        self._transform_infos[:] = [
+            info for info in self._transform_infos if info.source in _EXTERNAL_KEEP
+        ]
+        self._repl_transforms[:] = [
+            info.repl for info in self._transform_infos if info.repl
+        ]
+        self._serial_transforms[:] = [
+            info.serial for info in self._transform_infos if info.serial
+        ]
+        self._directives[:] = [
+            info for info in self._directives if info.source in _EXTERNAL_KEEP
+        ]
+        self._lifecycle_hooks[:] = [
+            hook for hook in self._lifecycle_hooks if hook.source in _EXTERNAL_KEEP
+        ]
+        return dropped
+
+    def _install_layer(self, result: LoadResult, source: str) -> None:
+        """Register one folder's load result and report it.
+
+        A plugin whose name the frontend already owns (source ``"app"``) is
+        skipped with a warning: a config must not be able to replace the
+        app's own command.  Its parent, if any, still registers with the
+        child listed, and that child name resolves to the app hook -- which
+        is the point.
+        """
+        loaded: list[str] = []
+        for info in result.plugins:
+            owner = self._plugins.get(info.name)
+            if owner is not None and owner.source == "app":
+                self.write(
+                    f"Skipped {self.prefix}{info.name} from {source} - "
+                    "an app command has that name",
+                    "yellow",
+                )
+                continue
+            self.register_plugin(info)
+            loaded.append(info.name)
+        for transform in result.transforms:
+            self.register_transform(transform)
+            loaded.append(f"~{transform.name}")
+        for directive in result.directives:
+            self.register_directive(directive)
+            loaded.append(f"@{directive.name}")
+        for hook in result.lifecycle_hooks:
+            self.register_lifecycle_hook(hook)
+        if loaded:
+            self._report(
+                f"Loaded {len(loaded)} plugin(s) from {source}: " + ", ".join(loaded),
+            )
+        for name in result.skipped:
+            self.write(
+                f"Skipped {name} - no COMMAND or TRANSFORM (see plugin docs)",
+                "yellow",
+            )
+        for error in result.errors:
+            self.write(f"Plugin error: {error}", "red")
+
+    def _report(self, text: str) -> None:
+        """A load / unload line: visible interactively, silent for --run / --exec.
+
+        ``output`` rather than ``status``: the status channel is verbose-only,
+        which is why the TUI's old load line never showed at the default
+        level.  Errors do not come through here -- they are never silent.
+        """
+        if not self.ctx.is_oneshot():
+            self.ctx.io.output(text, "dim")
+
     def fire_lifecycle(self, name: str) -> None:
         """Fire every registered lifecycle hook matching *name* in load order.
 
@@ -920,17 +1082,19 @@ class ReplEngine:
         later hooks from running.  Errors surface through ``ctx.io.status``
         so they are visible without crashing the app.
 
-        Core listeners (symbol auto-load) run before plugin hooks for
-        ``on_app_start`` / ``on_config_load``, so a plugin's own hook
-        already sees ``ctx.ns("symbols")``.  This is the one wiring for
-        every frontend -- not a plugin hook (which drifts per frontend) and
-        not a ``set_context`` / ``replace_cfg`` side effect (which
+        Two core listeners run before the plugin hooks for ``on_app_start``
+        / ``on_config_load``: :meth:`resolve_plugins` (so a folder plugin's
+        own hook fires in this same pass) and then the symbol auto-load (so
+        a hook already sees ``ctx.ns("symbols")``).  This is the one wiring
+        for every frontend -- not a plugin hook (which drifts per frontend)
+        and not a ``set_context`` / ``replace_cfg`` side effect (which
         double-loads on the CLI/MCP config switch that rebuilds the ctx).
 
         Args:
             name: Hook name (must be in ``LIFECYCLE_HOOK_NAMES``).
         """
         if name in _CORE_LIFECYCLE:
+            self.resolve_plugins()
             symbols_session.autoload(self.ctx, self.config_path)
         for hook in self._lifecycle_hooks:
             if hook.name != name:

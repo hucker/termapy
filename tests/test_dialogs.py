@@ -20,7 +20,12 @@ from textual.widgets import Input, OptionList
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog, ScriptPicker
-from termapy.dialogs.config_picker import ConfigPicker, _config_details, _fit_path
+from termapy.dialogs.config_picker import (
+    CfgDirLink,
+    ConfigPicker,
+    _config_details,
+    _fit_path,
+)
 
 
 class _Host(App):
@@ -246,6 +251,30 @@ class TestConfigPickerCfgDir:
 
         # Assert
         assert len(actual) == 8, "falls back to a hard trim rather than returning oversize"
+
+    def test_a_click_reaches_the_handler(self, tmp_path):
+        # Arrange -- mount the link alone so the click has one possible
+        # target, and inject the opener so no file manager appears.
+        opened: list[str] = []
+        link = CfgDirLink(tmp_path, 80, opener=opened.append)
+
+        class _LinkHost(App):
+            def compose(self):
+                yield link
+
+        async def scenario():
+            app = _LinkHost()
+            async with app.run_test() as pilot:
+                # Act -- a real mouse click through Textual's event pipeline
+                await pilot.click(CfgDirLink)
+                await pilot.pause()
+
+                # Assert
+                assert opened == [str(tmp_path)], (
+                    "a plain left-click reaches on_click with the full folder"
+                )
+
+        _run(scenario)
 
     def test_link_targets_the_absolute_cfg_dir(self, tmp_path, monkeypatch):
         # Arrange -- cfg_dir() is RELATIVE when the cwd holds termapy_cfg,

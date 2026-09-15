@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Callable
 
 from textual import events, on
 from textual.app import ComposeResult
@@ -84,8 +85,8 @@ def _fit_path(folder: Path, width: int) -> str:
 
     CSS ellipsis truncates at the end, which would drop the tail that
     actually identifies the folder.  Leading segments are replaced with
-    ``...`` instead, so ``.../termapy/termapy_cfg`` survives.  The tooltip
-    always carries the full path, so nothing is lost.
+    ``...`` instead, so ``.../termapy/termapy_cfg`` survives.  Only the
+    DISPLAY is shortened; a click still opens the full path.
 
     Args:
         folder: The path to render.
@@ -116,13 +117,30 @@ class CfgDirLink(Static):
     and the log buttons use.
     """
 
-    def __init__(self, folder: Path, width: int) -> None:
+    def __init__(
+        self,
+        folder: Path,
+        width: int,
+        *,
+        opener: Callable[[str], None] = open_with_system,
+    ) -> None:
+        """Build the link.
+
+        Args:
+            folder: The folder to display and to open on click.
+            width: Columns available for the path text.
+            opener: What a click calls.  Injected so a test can prove the
+                click actually reaches this handler without a file manager
+                appearing -- the ``source=`` seam used elsewhere in the
+                codebase, not a patched global.
+        """
         super().__init__(_fit_path(folder, width), id="picker-cfgdir")
         self._folder = folder
+        self._opener = opener
 
     def on_click(self) -> None:
         """Open the config folder with the system file manager."""
-        open_with_system(str(self._folder))
+        self._opener(str(self._folder))
 
 
 class ConfigPicker(ModalScreen[tuple | None]):

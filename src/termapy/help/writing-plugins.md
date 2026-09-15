@@ -595,7 +595,7 @@ the matching capability on `Command.needs`.
 | `ctx.dispatch(cmd)` | Run a REPL or serial command through the full pipeline |
 | `ctx.wait_for_match(predicate, timeout)` | Block until serial matches (gated on `block_until`) |
 | `ctx.ns(name)` | Get/create a session-scoped state dict |
-| `ctx.plugin_cfg(name)` | Get a per-plugin persistent config dict |
+| `ctx.plugin_cfg(name)` | Get a per-plugin persistent config dict (per config: it follows a config switch) |
 | `ctx.is_oneshot()` | True when running under `--exec` (one-shot CLI mode) |
 | `ctx.internal` | Privileged escape hatch for built-ins; external plugins should avoid |
 

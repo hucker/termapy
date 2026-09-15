@@ -842,19 +842,19 @@ class SerialTerminal(TerminalHost, App):
                     find_status.display = False
                     yield find_status
                     prev_btn = Button(
-                        "▲", id="btn-find-prev", variant="default",
+                        "â–²", id="btn-find-prev", variant="default",
                     )
                     prev_btn.tooltip = "Previous find match (/find.prev)"
                     prev_btn.display = False
                     yield prev_btn
                     next_btn = Button(
-                        "▼", id="btn-find-next", variant="default",
+                        "â–¼", id="btn-find-next", variant="default",
                     )
                     next_btn.tooltip = "Next find match (/find.next)"
                     next_btn.display = False
                     yield next_btn
                     close_btn = Button(
-                        "×", id="btn-find-close", variant="default",
+                        "Ã—", id="btn-find-close", variant="default",
                     )
                     close_btn.tooltip = "Close find (/find.clear)"
                     close_btn.display = False
@@ -1648,10 +1648,14 @@ class SerialTerminal(TerminalHost, App):
         self.history = self._load_history()
         self._history_nav.reset()
         self.repl.ctx.config_path = path
+        # Every path the handle declares, so none is left on the old config:
+        # prof_dir was missed here for as long as this list has existed, and
+        # /help run.profile went on counting the previous config's CSVs.
         self.repl.ctx.fs.ss_dir = self.repl.ss_dir
         self.repl.ctx.fs.scripts_dir = self.repl.scripts_dir
         self.repl.ctx.fs.proto_dir = self.repl.proto_dir
         self.repl.ctx.fs.cap_dir = self.repl.cap_dir
+        self.repl.ctx.fs.prof_dir = self.repl.prof_dir
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
@@ -2724,7 +2728,7 @@ class SerialTerminal(TerminalHost, App):
             return ""
         return "\n".join(strip.text for strip in log.lines)
 
-    # ── File capture engine ──────────────────────────────────────────────────
+    # â”€â”€ File capture engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _cap_start(self, *args, **kwargs):
         """Start a capture.  Implementation in ``capture_view``.

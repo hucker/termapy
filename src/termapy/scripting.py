@@ -567,7 +567,10 @@ def parse_keywords(
 # ── Sequence-numbered filenames ───────────────────────────────────────────────
 
 _SEQ_RE = re.compile(r"\$\(n(0+)\)")
-from termapy.folders import SEQ_FILE as _SEQ_FILE  # noqa: E402 -- with the seq-filename code below
+from termapy.folders import (  # noqa: E402 -- with the seq-filename code below
+    SEQ_FILE as _SEQ_FILE,
+    ensure_folder,
+)
 
 _MAX_SEQ_WIDTH = 3
 
@@ -617,7 +620,7 @@ def resolve_seq_filename(filename: str, directory: Path) -> str:
     # Write counter back
     counters[pattern_key] = next_num
     try:
-        directory.mkdir(parents=True, exist_ok=True)
+        ensure_folder(directory)
         seq_path.write_text(
             json.dumps(counters, indent=2) + "\n", encoding="utf-8"
         )

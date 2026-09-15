@@ -287,7 +287,6 @@ termapy_cfg/
     ├── demo_legacy.profile.json        # /mem.* through the device's own `mem` grammar
     ├── demo.log                        # session log
     ├── demo.history                    # command history
-    ├── ss/                             # screenshots
     ├── run/                            # script files for /run
     │   ├── at_demo.run
     │   ├── smoke_test.run
@@ -298,9 +297,6 @@ termapy_cfg/
     │   ├── probe.py
     │   ├── temp_plot.py
     │   └── traffic.py
-    ├── cap/                            # data capture output files
-    ├── prof/                           # /run.profile timing CSVs
-    ├── viz/                            # per-config packet visualizers
     ├── sym/                            # symbol tables (demo.symbols.json, auto-loaded)
     └── proto/                          # protocol test scripts
         ├── at_test.pro
@@ -308,7 +304,7 @@ termapy_cfg/
         └── modbus_inline.pro
 ```
 
-Your own configs follow the same layout. Create one with `Cfg` → `New` and termapy builds the folder structure automatically.
+Your own configs follow the same layout, minus the demo content: a new config is its `.cfg` beside the log and history. Data folders appear on first use (`ss/` at the first screenshot, `cap/` at the first capture, `prof/` at the first `/run.profile`, `viz/` when you drop a visualizer in), and a folder you empty is removed at the next load, so a plain terminal session never sees a folder it has no use for.
 
 ### Version control
 

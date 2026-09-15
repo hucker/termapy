@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folders import ensure_folder
 from termapy.plugins import CmdResult, UsageError
 from termapy.scripting import resolve_seq_filename
 from termapy.vendor.xmodem import XMODEM
@@ -178,6 +179,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
                 _last[0] = success
                 ctx.io.status(f"  XMODEM: {success} packets ({success * pkt_size} bytes) received, {error} errors")
 
+        ensure_folder(path.parent)
         with open(path, "wb") as f:
             ok = modem.recv(f, callback=_progress)
 

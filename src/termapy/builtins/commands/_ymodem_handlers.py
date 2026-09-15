@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folders import ensure_folder
 from termapy.plugins import CmdResult, UsageError
 from termapy.vendor.ymodem.Protocol import ProtocolType
 from termapy.vendor.ymodem.Socket import ModemSocket
@@ -90,11 +91,11 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
 
     if target_dir:
         out_dir = _resolve_path(target_dir, _get_xfer_root(ctx))
+        if not out_dir.is_dir():
+            return CmdResult.fail(msg=f"Directory not found: {out_dir}")
     else:
-        out_dir = _get_xfer_root(ctx)
-
-    if not out_dir.is_dir():
-        return CmdResult.fail(msg=f"Directory not found: {out_dir}")
+        # The default is termapy's own transfer root (cap/): a write creates it.
+        out_dir = ensure_folder(_get_xfer_root(ctx))
 
     ctx.io.output(f"  YMODEM recv: waiting for data -> {out_dir} -- Esc to cancel")
 

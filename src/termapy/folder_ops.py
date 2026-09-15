@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from termapy.config import open_with_system, validate_file_stem
-from termapy.folders import FOLDERS, FolderSpec
+from termapy.folders import FOLDERS, FolderSpec, ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import format_age, format_size
@@ -196,13 +196,17 @@ def _make_list_handler(folder: str, pattern: str):
 
 
 def _make_explore_handler(folder: str):
-    """Handler: open the folder in the system file explorer."""
+    """Handler: open the folder in the system file explorer.
+
+    Creates the folder first so the user has somewhere to drop a file:
+    opening it is the one read that counts as a write.
+    """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
         if data_dir is None:
             return CmdResult.fail(msg="No config loaded.")
-        open_with_system(str(data_dir))
+        ctx.fs.open_file(ensure_folder(data_dir))
         return CmdResult.ok(value=data_dir)
 
     return handler

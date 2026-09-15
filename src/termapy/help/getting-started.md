@@ -126,6 +126,13 @@ termapy_cfg/
 └── plugin/                    # global plugins (all configs)
 ```
 
+Only the `.cfg`, log and history are there to begin with. Each data
+folder appears the first time something is written into it, or when you
+open it from termapy (`/ss.explore`, `/cap.explore`, ...) to drop a file
+in, and a folder you empty is removed at the next load. `termapy --demo`
+is the exception: it ships `run/`, `proto/`, `plugin/` and `sym/` with
+content.
+
 ## Title bar
 
 The title bar buttons (left to right):

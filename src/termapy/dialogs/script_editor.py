@@ -17,6 +17,7 @@ from textual.widgets import Button, Input, TextArea
 
 from termapy.defaults import SCRIPT_TEMPLATE
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.folders import ensure_folder
 
 
 class ScriptEditor(ModalScreen[str | None]):
@@ -139,7 +140,7 @@ class ScriptEditor(ModalScreen[str | None]):
         if not name.endswith(".run"):
             name += ".run"
         content = self.query_one("#sed-editor", TextArea).text
-        path = self.scripts_dir / name
+        path = ensure_folder(self.scripts_dir) / name
         path.write_text(content, encoding="utf-8")
         self.dismiss(str(path))
 
@@ -168,6 +169,7 @@ class ScriptEditor(ModalScreen[str | None]):
             self._overwrite_ok = True
             return
         content = self.query_one("#sed-editor", TextArea).text
+        ensure_folder(self.scripts_dir)
         path.write_text(content, encoding="utf-8")
         self.dismiss(str(path))
 

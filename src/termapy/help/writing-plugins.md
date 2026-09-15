@@ -129,8 +129,8 @@ def _handler(ctx, args):
         ctx.serial.write(b"AT\r")
         resp = ctx.serial.read_raw()
 
-    csv_path = ctx.fs.cap_dir / "out.csv"     # filesystem paths
-    ctx.fs.open_file(csv_path)                # open in system viewer
+    folder = ensure_folder(ctx.fs.cap_dir)    # termapy.folders: data folders appear on first write
+    ctx.fs.open_file(folder / "out.csv")      # open in system viewer
 
     ctx.ui.confirm("Sure?")                   # TUI-only dialog (gated)
 

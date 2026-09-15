@@ -30,6 +30,7 @@ from termapy.folder_ops import (
     format_file_lines,
     list_entries,
 )
+from termapy.folders import ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 
 if TYPE_CHECKING:
@@ -67,7 +68,7 @@ def _hook_run_profile_cmd(app, ctx, args: str) -> CmdResult:
         line = prefix + line
     ts = str(int(time.time() * 1000))
     tmp_name = f"{PROFILE_TMP_PREFIX}{ts}.run"
-    tmp_path = app.repl.scripts_dir / tmp_name
+    tmp_path = ensure_folder(app.repl.scripts_dir) / tmp_name
     parts = line.replace("\\n", "\n").split("\n")
     tmp_path.write_text(
         "\n".join(part.strip() for part in parts) + "\n", encoding="utf-8"
@@ -128,8 +129,7 @@ def _hook_run_profile_explore(app, ctx, args: str) -> CmdResult:
     if not prof_dir:
         ctx.io._write("No config loaded.", "red")
         return CmdResult.fail(msg="No config loaded.")
-    prof_dir.mkdir(exist_ok=True)
-    ctx.fs.open_file(str(prof_dir))
+    ctx.fs.open_file(str(ensure_folder(prof_dir)))
     return CmdResult.ok(value=prof_dir)
 
 

@@ -54,6 +54,10 @@ termapy_cfg/
     └── plugin/
 ```
 
+Data folders appear on first use, so a fresh config has none of them
+yet; the `.gitignore` names `ss/`, `cap/` and `prof/` up front so they
+stay local from the moment they appear.
+
 ## Environment variables
 
 COM port names differ between machines (`COM4` on one, `COM7` on

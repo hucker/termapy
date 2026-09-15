@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.folders import ensure_folder
 from termapy.help_dynamic import folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
@@ -15,8 +16,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if not name:
         raise UsageError()
-    scripts_dir = ctx.fs.scripts_dir
-    scripts_dir.mkdir(parents=True, exist_ok=True)
+    scripts_dir = ensure_folder(ctx.fs.scripts_dir)
     if not name.endswith(".run"):
         name += ".run"
     path = scripts_dir / name

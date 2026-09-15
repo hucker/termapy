@@ -51,6 +51,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, TextIO
 
+from termapy.folders import ensure_folder
 from termapy.plugins import CmdResult, UsageError
 
 if TYPE_CHECKING:
@@ -120,9 +121,7 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
     else:
         target = name + ".run"
 
-    scripts_dir = ctx.fs.scripts_dir
-    if not scripts_dir.is_dir():
-        scripts_dir.mkdir(parents=True, exist_ok=True)
+    scripts_dir = ensure_folder(ctx.fs.scripts_dir)
     path = scripts_dir / target
 
     # ``mode="x"`` is exclusive-create: opens for writing only if

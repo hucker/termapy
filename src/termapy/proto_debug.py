@@ -28,6 +28,7 @@ from textual.widgets import (
 )
 
 from termapy.config import cfg_data_dir, open_with_system
+from termapy.folders import ensure_folder
 from termapy.plugins import BoundaryException
 from termapy.protocol import (
     DIFF_STYLES,
@@ -773,7 +774,9 @@ class ProtoDebugScreen(ModalScreen[None]):
                 self._log_file.write("\n".join(lines) + "\n")
                 self._log_file.flush()
             else:
-                with open(self._log_path, "a") as f:
+                log_path = self._log_path
+                ensure_folder(log_path.parent)
+                with open(log_path, "a") as f:
                     f.write("\n".join(lines) + "\n")
         except OSError:
             pass
@@ -781,7 +784,9 @@ class ProtoDebugScreen(ModalScreen[None]):
     def _open_log(self) -> None:
         """Open the log file for the duration of a test run."""
         try:
-            self._log_file = open(self._log_path, "a")  # noqa: SIM115 -- persistent log handle
+            log_path = self._log_path
+            ensure_folder(log_path.parent)
+            self._log_file = open(log_path, "a")  # noqa: SIM115 -- persistent log handle
         except OSError:
             self._log_file = None
 
@@ -990,8 +995,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         import json
 
         cfg = self._ctx.cfg
-        output_dir = cfg_data_dir(self._ctx.config_path) / "proto" / "test"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = ensure_folder(cfg_data_dir(self._ctx.config_path) / "proto" / "test")
 
         test_results = []
         for test in tests:

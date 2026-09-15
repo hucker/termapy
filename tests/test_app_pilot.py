@@ -18,6 +18,7 @@ import json
 import shutil
 import threading
 import time
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -145,6 +146,81 @@ class TestSwitchConfig:
                     "app, repl, ctx, flags and display state all follow the swap"
                 )
                 assert app.config_path != first_path, "the old config is gone"
+
+                # Every directory the fs handle declares, read from the handle
+                # itself rather than a list repeated here: a path added to
+                # FilesystemHandle and forgotten in _switch_config would leave
+                # plugins reading the previous config's folder, which is what
+                # happened to prof_dir.
+                new_dir = Path(second_path).parent
+                stale = {
+                    spec.name: getattr(app.repl.ctx.fs, spec.name)
+                    for spec in fields(app.repl.ctx.fs)
+                    if spec.name.endswith("_dir")
+                    and Path(getattr(app.repl.ctx.fs, spec.name)).parent != new_dir
+                }
+                assert stale == {}, f"every ctx.fs path follows the swap; stale: {stale}"
+
+        _run(scenario)
+
+    def test_a_plugin_reads_the_new_configs_settings_not_the_old_ones(
+        self, app_factory, tmp_path
+    ):
+        """A global plugin's ``on_config_load`` sees the config now loaded.
+
+        One context serves every config in a TUI session, so a plugin
+        config cached by plugin name alone handed each config the
+        previous one's file: a global plugin with a saved path under one
+        config went on auto-loading it under every config after that.
+        """
+        async def scenario():
+            app, _, first_path = app_factory(name="first")
+            # Arrange -- only the FIRST config saves a setting for this plugin
+            plugin_dir = Path(first_path).parent / "plugin"
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            (plugin_dir / "mapper.cfg").write_text(
+                '{"map_path": "first.map"}', encoding="utf-8",
+            )
+            seen: list[str] = []
+            # Registered BEFORE the boot so the hook reads the setting under
+            # the first config, as a global plugin's on_app_start does -- the
+            # read that used to poison every config after it.  source="app":
+            # the lifecycle pass drops folder-sourced hooks before firing.
+            app.repl.register_lifecycle_hook(
+                LifecycleHook(
+                    name="on_app_start",
+                    handler=lambda ctx: seen.append(
+                        ctx.plugin_cfg("mapper").get("map_path", "")
+                    ),
+                    source="app",
+                    plugin="mapper",
+                ),
+            )
+            app.repl.register_lifecycle_hook(
+                LifecycleHook(
+                    name="on_config_load",
+                    handler=lambda ctx: seen.append(
+                        ctx.plugin_cfg("mapper").get("map_path", "")
+                    ),
+                    source="app",
+                    plugin="mapper",
+                ),
+            )
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert seen == ["first.map"], (
+                    f"precondition: the first config's setting was read at boot: {seen}"
+                )
+                second_cfg, second_path = _write_cfg(tmp_path, name="second")
+
+                # Act
+                app._switch_config(second_cfg, second_path)
+                await pilot.pause()
+
+                # Assert
+                assert seen == ["first.map", ""], (
+                    f"the second config reads its own (absent) setting: {seen}"
+                )
 
         _run(scenario)
 

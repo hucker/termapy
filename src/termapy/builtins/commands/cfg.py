@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -410,13 +411,18 @@ def _tail_section(title: str, path: Path) -> list[str]:
     ]
 
 
-def write_info_report(ctx: PluginContext) -> tuple[Path, str]:
+def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
     """Write ``<config>.md`` beside the config; return its path and the coloured tree.
 
-    Folder tree, config, active custom buttons, then the tails of the
-    session log and the command history.  Shared by ``/cfg.info`` and the
-    exit hook below, so the two can never disagree about what the report
-    holds.
+    A ``Written`` line with the time and ``trigger`` (what caused the
+    write), then folder tree, config, active custom buttons, and the tails
+    of the session log and the command history.  Shared by ``/cfg.info``
+    and the exit hook below, so the two can never disagree about what the
+    report holds -- only about who wrote it, which the line records.
+
+    Args:
+        ctx: Plugin context.
+        trigger: Phrase completing "Written <time> ...", e.g. ``"at exit"``.
 
     Raises:
         OSError: The folder could not be scanned or the file written.
@@ -434,6 +440,8 @@ def write_info_report(ctx: PluginContext) -> tuple[Path, str]:
 
     md_lines: list[str] = [
         f"# Project: {config_name}",
+        "",
+        f"Written {datetime.now().isoformat(timespec='seconds')} {trigger}.",
         "",
         "```text",
         plain_tree,
@@ -479,7 +487,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
 
     try:
-        report_path, colored_tree = write_info_report(ctx)
+        report_path, colored_tree = write_info_report(ctx, trigger="by /cfg.info")
         ctx.io.output_markup(colored_tree)
         if ctx.flag("--display"):
             open_with_system(str(report_path))
@@ -507,7 +515,7 @@ def on_app_stop(ctx: PluginContext) -> None:
     if not ctx.config_path or ctx.is_oneshot() or not ctx.capabilities.interactive:
         return
     try:
-        write_info_report(ctx)
+        write_info_report(ctx, trigger="at exit")
     except (OSError, TypeError, RuntimeError):
         pass
 

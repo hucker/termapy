@@ -109,6 +109,9 @@ class TestReportContents:
             "a missing file yields no section rather than an empty one"
         )
         assert text.startswith("# Project: rig"), "the report itself is still written"
+        assert "\nWritten 20" in text and " by /cfg.info." in text, (
+            "a timestamped Written line names the command as the writer"
+        )
 
     def test_fence_survives_backticks_in_the_log(self, rig):
         # Arrange -- device output can contain a markdown fence
@@ -136,9 +139,9 @@ class TestExitHook:
         engine.fire_lifecycle("on_app_stop")
 
         # Assert
-        assert "# Project: rig" in _report(config_path).read_text(encoding="utf-8"), (
-            "the exit hook wrote the report unasked"
-        )
+        text = _report(config_path).read_text(encoding="utf-8")
+        assert "# Project: rig" in text, "the exit hook wrote the report unasked"
+        assert " at exit." in text, "the Written line says the exit hook produced it"
 
     def test_oneshot_does_not_write(self, tmp_path):
         # Arrange -- --run / --exec: a scripted invocation must not churn files

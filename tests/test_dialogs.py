@@ -13,13 +13,14 @@ import asyncio
 import json
 import os
 import time
+from pathlib import Path
 
 from textual.app import App
 from textual.widgets import Input, OptionList
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog, ScriptPicker
-from termapy.dialogs.config_picker import _config_details
+from termapy.dialogs.config_picker import ConfigPicker, _config_details, _fit_path
 
 
 class _Host(App):
@@ -212,6 +213,64 @@ class TestScriptPicker:
 
                 # Assert -- the app prompts for the name and dispatches /run.rename
                 assert results == [("rename", str(script))]
+
+        _run(scenario)
+
+
+class TestConfigPickerCfgDir:
+    """The header row's cfg-dir path: absolute, front-elided, and clickable."""
+
+    def test_path_fits_untouched_when_short(self):
+        # Act
+        actual = _fit_path(Path("/tmp/cfg"), 40)
+
+        # Assert
+        assert actual == str(Path("/tmp/cfg")), "a path inside the budget is shown whole"
+
+    def test_long_path_keeps_the_identifying_tail(self):
+        # Arrange -- CSS ellipsis would cut the tail, which is the useful half
+        folder = Path("/one/two/three/four/five/termapy_cfg")
+
+        # Act
+        actual = _fit_path(folder, 24)
+
+        # Assert
+        assert actual.startswith("..."), "elided from the front"
+        assert actual.endswith("termapy_cfg"), "the folder name survives the shortening"
+        assert len(actual) <= 24, "the result fits the budget it was given"
+
+    def test_single_segment_too_long_is_truncated_not_looped(self):
+        # Arrange -- nothing to drop; the loop must not spin
+        # Act
+        actual = _fit_path(Path("averyverylongsinglename"), 8)
+
+        # Assert
+        assert len(actual) == 8, "falls back to a hard trim rather than returning oversize"
+
+    def test_link_targets_the_absolute_cfg_dir(self, tmp_path, monkeypatch):
+        # Arrange -- cfg_dir() is RELATIVE when the cwd holds termapy_cfg,
+        # so the displayed path has to be resolved or it reads "termapy_cfg".
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Act
+                app.push_screen(ConfigPicker())
+                await pilot.pause()
+
+                # Assert
+                link = app.screen.query_one("#picker-cfgdir")
+                assert link._folder == tmp_path.resolve(), (
+                    "a click opens the absolute folder, not a relative name"
+                )
+                assert "file explorer" in link.tooltip, "the tooltip says what a click does"
+                assert str(tmp_path) not in link.tooltip, (
+                    "and does not repeat the path the header already shows"
+                )
+                assert app.screen.query_one("#picker-list").tooltip == (
+                    "Configs found under termapy_cfg/.  Press Enter to load."
+                ), "the list tooltip is left as it was"
 
         _run(scenario)
 

@@ -7,14 +7,18 @@ single writer, so ``/sym.import``, ``/sym.load``, ``/sym.unload`` and
 core rather than in the ``/sym`` plugin because ``ReplEngine`` fires the
 auto-load (CLAUDE.md: infrastructure never lives under ``builtins/``).
 
-There is no mtime watcher: ``/sym.import`` installs what it wrote, and a
-hand edit is picked up by an explicit bare ``/sym.load``.
+There is no mtime watcher on the SIDECAR: ``/sym.import`` installs what it
+wrote, and a hand edit is picked up by an explicit bare ``/sym.load``.
+The table's SOURCE map is a different question -- :func:`autoload` checks
+its witness once at load and warns when it moved
+(:mod:`termapy.symbols.provenance`), but never reloads or regenerates.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
+from termapy.symbols.provenance import check_staleness
 from termapy.symbols.table import SymbolTable, sidecar_path
 
 if TYPE_CHECKING:
@@ -65,4 +69,27 @@ def autoload(ctx: PluginContext, config_path: str) -> SymbolTable | None:
     set_table(ctx, table)
     if not ctx.is_oneshot():
         ctx.io.output(f"Loaded {len(table)} symbols ({path.name})", "dim")
+    _report_staleness(ctx, table)
     return table
+
+
+def _report_staleness(ctx: PluginContext, table: SymbolTable) -> None:
+    """Warn when the map moved under a loaded table.  Never regenerates.
+
+    A rebuild is the COMMON case, so this reports and stops: a terminal
+    that rewrote the symbol table at load would surprise the user far
+    worse than a yellow line, and the line names the exact command that
+    fixes it.  Only a positive ``stale`` verdict speaks -- ``unknown``
+    (hand-written tables, pre-witness sidecars) stays silent, since it is
+    the normal state of a file that is not wrong.
+
+    Shown even for ``--run`` / ``--exec``: a script reading stale symbol
+    addresses is exactly the case worth interrupting, and this goes to
+    the output channel, not the captured value.
+    """
+    verdict = check_staleness(table, prefix=ctx.prefix)
+    if not verdict.is_stale:
+        return
+    ctx.io.output(f"Symbols may be out of date: {verdict.reason}", "yellow")
+    if verdict.command:
+        ctx.io.output(f"  rebuild: {verdict.command}", "yellow")

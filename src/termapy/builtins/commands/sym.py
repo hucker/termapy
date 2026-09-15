@@ -43,6 +43,8 @@ from termapy.symbols import (
     get_table,
     info_rows,
     lookup_record,
+    make_recipe,
+    make_witness,
     parse_address,
     set_table,
     sidecar_path,
@@ -197,6 +199,11 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         path=dest,
         source=str(path),
         imported=datetime.now().isoformat(timespec="seconds"),
+        # Provenance: what to re-run, and what the map looked like now.
+        # The witness is taken AFTER the read, so a map rewritten during
+        # the import reads as stale next time rather than in sync.
+        recipe=make_recipe(spec.format),
+        witness=make_witness(path),
     )
     # The sidecar is a generated artifact: re-importing after a rebuild is
     # the normal flow, so an existing file is overwritten without asking.

@@ -127,6 +127,8 @@ the addresses and files listed, so you can pick one or type the address.
   "symbols_version": 1,
   "source": "build/mem.map",
   "imported": "2026-08-29T10:12:00",
+  "recipe": {"converter": "xc32"},
+  "witness": {"mtime": 1756461120.0, "size": 482113},
   "address_bits": 32,
   "endian": "le",
   "regions": [],
@@ -149,10 +151,52 @@ the addresses and files listed, so you can pick one or type the address.
 | `rmw`     | no       | `false` forbids bit writes (W1C / self-clearing registers); honored later       |
 | `space`   | no       | Reserved for Harvard parts                                                     |
 
-`endian` and `regions` are stored now and honored by `/mem.*` later.
+`recipe` and `witness` are written by `/sym.import` and drive the staleness
+check below; both are optional, and a table without them is fine. `endian`
+and `regions` are stored now and honored by `/mem.*` later.
 Unknown keys are ignored. `type` reuses the format-spec language from
 [protocol testing](protocol-testing.md#format-spec-language), so a register
 can carry named bits: `"type": "ON:B1-4.15 UEN:B1-4.8-9 BRGH:B1-4.3"`.
+
+## Is the table still current?
+
+A symbol table is derived data, and the map is rebuilt on every compile.
+A stale table is worse than none: `/mem.dump gTemp` reads a real address
+that no longer belongs to `gTemp`.
+
+`/sym.import` records two things so termapy can tell you. The **witness**
+(`mtime` + `size`) answers *is this stale*, for one `stat` and no file
+read. The **recipe** answers *can termapy fix it* — and its absence is
+meaningful, not missing data: a hand-written table has no recipe and
+never will.
+
+That gives three honest answers:
+
+| Status | Meaning | What you see |
+|---|---|---|
+| `in_sync` | The map is as it was at import | Nothing — silence is the good case |
+| `stale` | The map was rebuilt since import | A warning at load and a `status` row in `/sym.info`, naming the exact `/sym.import` line that fixes it |
+| `unknown` | The question can't be asked — no witness, a hand-written source, or a map that's gone | Nothing; this is the normal state of a hand-written table, not a defect |
+
+```text
+Symbols may be out of date: mem.map was rebuilt (size changed) since import
+  rebuild: /sym.import build/mem.map format=xc32
+```
+
+Two deliberate limits:
+
+- **termapy never regenerates the table for you.** A rebuild is the
+  common case, and a terminal that rewrote your symbol table mid-session
+  would be worse than a yellow line. It reports; you run the command.
+- **The witness detects a *rebuild*, not a *change*.** A no-op recompile
+  reports stale even when every address is identical — which is why the
+  message says "rebuilt". Hashing a multi-megabyte map at every config
+  load to remove a harmless false positive is the wrong trade, and
+  re-importing is cheap.
+
+The verdict is also in `/sym.info --json` as `status`, `fixable` and
+`rebuild_command`, so an agent learns the table is out of date at the same
+moment it learns the table exists.
 
 ## JSON output
 

@@ -14,6 +14,8 @@ Layout:
 - ``address.py``    -- the address grammar (``0x1000``, ``1000h``, decimal,
                        ``name``, ``name+off``, ``name@file``; ``.suffix`` reserved).
 - ``format.py``     -- prose renderers and their structured ``data=`` twins.
+- ``provenance.py`` -- is the table still what the map would produce?
+                       (witness + recipe -> in sync / stale / unknown).
 - ``session.py``    -- the ``ctx.ns("symbols")`` owner and the auto-load rule.
 - ``converters/``   -- the registry (``CONVERTERS``, ``find_converter``) and
                        one module per toolchain (``xc32``).
@@ -36,6 +38,15 @@ from termapy.symbols.format import (
     symbol_record,
     symbolic_name,
     table_record,
+)
+from termapy.symbols.provenance import (
+    IN_SYNC,
+    STALE,
+    UNKNOWN,
+    Staleness,
+    check_staleness,
+    make_recipe,
+    make_witness,
 )
 from termapy.symbols.session import SYMBOLS_NS, autoload, get_table, set_table
 from termapy.symbols.table import (
@@ -65,4 +76,11 @@ __all__ = [
     "get_table",
     "set_table",
     "autoload",
+    "IN_SYNC",
+    "STALE",
+    "UNKNOWN",
+    "Staleness",
+    "check_staleness",
+    "make_recipe",
+    "make_witness",
 ]

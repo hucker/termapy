@@ -105,6 +105,7 @@ src/termapy/
 │   ├── table.py            #   Symbol, SymbolTable (lookup/search, load/save/validate), sidecar_path
 │   ├── address.py          #   The address grammar: 0x.., ..h, decimal, name, name+off, name@file; .suffix reserved
 │   ├── format.py           #   Prose renderers and their data= record twins
+│   ├── provenance.py       #   Staleness: witness (mtime+size) + recipe -> in_sync / stale / unknown; never regenerates
 │   ├── session.py          #   ctx.ns("symbols") owner + the auto-load rule fired by ReplEngine
 │   └── converters/         #   Registry (CONVERTERS, FORMATS, find_converter, converter_from_module) + one module per toolchain; plugin folders add more
 │       └── xc32.py         #     Microchip XC32 (GNU ld) linker-map converter

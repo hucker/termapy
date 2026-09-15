@@ -379,6 +379,137 @@ class TestSymImport:
         assert doc["source"] == str(small), "provenance follows the new import"
 
 
+# ── Staleness ───────────────────────────────────────────────────────────────
+
+
+class TestStaleness:
+    """/sym.import records provenance; load and /sym.info report on it."""
+
+    def test_import_records_recipe_and_witness(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, _ = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+
+        # Act
+        engine.dispatch(f"sym.import {map_copy}")
+
+        # Assert
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        doc = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert doc["recipe"] == {"converter": "xc32"}, "the converter that ran is recorded"
+        assert doc["witness"]["size"] == map_copy.stat().st_size, (
+            "the witness records the map as it was at import"
+        )
+
+    def test_rebuilt_map_warns_at_load_with_the_fix(self, sym_env, tmp_path):
+        """The memo's rule: report at load, never regenerate."""
+        # Arrange
+        engine, config_path, output = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        map_copy.write_text("rebuilt, and shorter", encoding="utf-8")
+        output.clear()
+
+        # Act
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        warnings = [text for text, color in output if color == "yellow"]
+        assert any("rebuilt" in text for text in warnings), "the rebuild is reported"
+        assert any("sym.import" in text for text in warnings), (
+            "the warning names the command that fixes it"
+        )
+
+    def test_load_does_not_regenerate(self, sym_env, tmp_path):
+        """A stale table stays as imported; only the user rebuilds it."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        before = sidecar.read_text(encoding="utf-8")
+        map_copy.write_text("rebuilt", encoding="utf-8")
+
+        # Act
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert sidecar.read_text(encoding="utf-8") == before, (
+            "loading a stale table must never rewrite the sidecar"
+        )
+
+    def test_fresh_import_is_silent(self, sym_env, tmp_path):
+        """No warning when nothing moved -- the common case stays quiet."""
+        # Arrange
+        engine, config_path, output = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        output.clear()
+
+        # Act
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert not [text for text, color in output if color == "yellow"], (
+            "an up-to-date table says nothing"
+        )
+
+    def test_hand_written_table_never_warns(self, sym_env):
+        """The demo table's shape: unknown is not stale, and must stay quiet."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert not [text for text, color in output if color == "yellow"], (
+            "a table with no witness is not reported as stale"
+        )
+
+    def test_info_reports_status_and_fix(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, output = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        map_copy.write_text("rebuilt", encoding="utf-8")
+        engine.fire_lifecycle("on_config_load")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("sym.info")
+
+        # Assert
+        rendered = " ".join(_texts(output))
+        assert "STALE" in rendered, "the prose page shows the status"
+        assert result.data["status"] == "stale", "the record carries the verdict"
+        assert result.data["fixable"] is True, "and whether termapy can fix it"
+        assert "format=xc32" in result.data["rebuild_command"], (
+            "the structured surface names the rebuild, for the agent that can run it"
+        )
+
+    def test_info_stays_quiet_when_in_sync(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, output = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("sym.info")
+
+        # Assert
+        assert "STALE" not in " ".join(_texts(output)), "no status row when in sync"
+        assert result.data["status"] == "in_sync", "the record still says so explicitly"
+
+
 # ── Converter plugins ───────────────────────────────────────────────────────
 
 

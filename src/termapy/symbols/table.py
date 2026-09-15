@@ -12,6 +12,9 @@ File shape (``<cfg_dir>/sym/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)
       "symbols_version": 1,                 # the only hard gate on load
       "source": "build/mem.map",            # free text: where it came from
       "imported": "2026-08-29T10:12:00",    # free text: when
+      "recipe": {"converter": "xc32"},      # how to rebuild; ABSENT is meaningful
+      "witness": {"mtime": 1756... ,        # what the source looked like then
+                  "size": 482113},
       "address_bits": 32,                   # hex width of printed addresses
       "endian": "le",                       # le | be (stored; step 3 reads it)
       "regions": [],                        # opaque until the regions step
@@ -22,6 +25,13 @@ File shape (``<cfg_dir>/sym/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)
          "section": "sfr", "type": "u32", "rmw": false}
       ]
     }
+
+``recipe`` and ``witness`` are the provenance pair, both optional and both
+written by ``/sym.import``: the witness answers "is this stale", the recipe
+answers "can termapy fix it".  A table with neither -- the hand-written
+case, and every sidecar written before they existed -- is a legitimate
+permanent state, not a broken file.  The staleness verdict itself lives in
+:mod:`termapy.symbols.provenance`.
 
 Unknown keys are ignored on load and dropped on save.  Two symbols may
 share a name (statics in different files) or an address (aliases).
@@ -188,6 +198,20 @@ def _parse_addr_field(value: Any, where: str) -> int:
     raise ValueError(f"{where}.addr: expected 0x-hex string or int, got {value!r}")
 
 
+def _optional_object(data: dict[str, Any], key: str) -> dict[str, Any] | None:
+    """An optional top-level object field: the dict, or None when absent.
+
+    ``null`` and ``{}`` both read as absent -- provenance is either there
+    or it isn't, and an empty object says nothing a missing key doesn't.
+    """
+    value = data.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"{key}: expected an object")
+    return value or None
+
+
 def _check_type(spec: str, where: str) -> None:
     """Accept ``""``, a scalar token, or a format spec with >= 1 column.
 
@@ -225,6 +249,8 @@ class SymbolTable:
         address_bits: int = 32,
         endian: str = "le",
         regions: list[dict[str, Any]] | None = None,
+        recipe: dict[str, Any] | None = None,
+        witness: dict[str, Any] | None = None,
     ) -> None:
         """Build a table.
 
@@ -236,6 +262,10 @@ class SymbolTable:
             address_bits: Hex width of every printed address.
             endian: ``"le"`` or ``"be"``; stored for the typed-view step.
             regions: Linker MEMORY regions, carried opaquely for now.
+            recipe: How to rebuild (``{"converter": "xc32"}``), or None
+                when nobody recorded one -- a hand-written table.
+            witness: What ``source`` looked like at import
+                (``{"mtime": float, "size": int}``), or None.
         """
         self.symbols: list[Symbol] = sorted(
             symbols, key=lambda symbol: (symbol.addr, symbol.size, symbol.name),
@@ -247,6 +277,8 @@ class SymbolTable:
         self.address_bits = address_bits
         self.endian = endian
         self.regions: list[dict[str, Any]] = list(regions or [])
+        self.recipe: dict[str, Any] | None = dict(recipe) if recipe else None
+        self.witness: dict[str, Any] | None = dict(witness) if witness else None
 
     def __len__(self) -> int:
         return len(self.symbols)
@@ -351,18 +383,29 @@ class SymbolTable:
         return self.symbols[0].addr, max(symbol.end for symbol in self.symbols)
 
     def to_dict(self) -> dict[str, Any]:
-        """The file shape (see the module docstring)."""
-        return {
+        """The file shape (see the module docstring).
+
+        ``recipe`` / ``witness`` are written only when set, so a table
+        that never had provenance round-trips byte-identical.
+        """
+        out: dict[str, Any] = {
             "symbols_version": SYMBOLS_VERSION,
             "source": self.source,
             "imported": self.imported,
+        }
+        if self.recipe:
+            out["recipe"] = self.recipe
+        if self.witness:
+            out["witness"] = self.witness
+        out.update({
             "address_bits": self.address_bits,
             "endian": self.endian,
             "regions": self.regions,
             "symbols": [
                 symbol.to_dict(address_bits=self.address_bits) for symbol in self.symbols
             ],
-        }
+        })
+        return out
 
     @classmethod
     def from_dict(cls, data: Any, *, path: Path | None = None) -> SymbolTable:
@@ -409,6 +452,8 @@ class SymbolTable:
             isinstance(region, dict) for region in regions
         ):
             raise ValueError("regions: expected a list of objects")
+        recipe = _optional_object(data, "recipe")
+        witness = _optional_object(data, "witness")
         symbols = [
             Symbol.from_dict(raw, f"symbols[{i}]") for i, raw in enumerate(raw_symbols)
         ]
@@ -420,6 +465,8 @@ class SymbolTable:
             address_bits=address_bits,
             endian=endian,
             regions=regions,
+            recipe=recipe,
+            witness=witness,
         )
 
     @classmethod

@@ -1018,7 +1018,8 @@ DESCRIPTION
   
   Commands:
     /sym <addr|name>        - name -> address, or address -> name+offset
-    /sym.import <map>       - convert a linker map and load it
+    /sym.import {map}       - convert a linker map and load it
+                              (bare: re-import the same map, after a rebuild)
     /sym.load {path}        - reload the sidecar, or load an explicit file
     /sym.unload             - clear the loaded table (file untouched)
     /sym.search <pattern>   - search names
@@ -1028,7 +1029,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /sym.import    Convert a linker map to sym/<cfg>.symbols.json and load it.
+  /sym.import    Convert a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same map).
   /sym.info      Show the loaded symbol table: file, source, counts by section, address range.
   /sym.load      Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
   /sym.search    Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.

@@ -560,6 +560,100 @@ def _install_converter(config_path: Path, source: str, name: str = "conv") -> Pa
     return file
 
 
+class TestBareImport:
+    """Bare /sym.import re-runs the loaded table's own recipe and source."""
+
+    def test_bare_reimports_the_recorded_source(self, sym_env, tmp_path):
+        """The rebuild step after a compile, without retyping a long path."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+
+        # Act
+        result = engine.dispatch("sym.import")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == str(XC32_COUNT), "the same map was converted again"
+        assert result.data["source"] == str(map_copy), "against the recorded source"
+
+    def test_bare_reuses_the_recorded_converter(self, sym_env, tmp_path):
+        """A plugin converter must survive the re-import, not fall back to sniffing."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy} format=myboard")
+
+        # Act
+        engine.dispatch("sym.import")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert "text" not in {symbol.section for symbol in table.symbols}, (
+            "the recorded plugin converter ran again, not the sniffed built-in"
+        )
+
+    def test_explicit_format_overrides_the_recipe(self, sym_env, tmp_path):
+        """Re-importing with a different converter switches the pipeline."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy} format=myboard")
+
+        # Act
+        engine.dispatch("sym.import format=xc32")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert "text" in {symbol.section for symbol in table.symbols}, (
+            "an explicit format= beats the recorded recipe"
+        )
+
+    def test_table_without_a_recipe_still_reimports(self, sym_env, tmp_path):
+        """A sidecar written before recipes existed: source alone is enough.
+
+        This is how such a table EARNS a recipe -- the re-import sniffs
+        the map exactly as the original import did, then records it.
+        """
+        # Arrange
+        engine, config_path, _ = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        doc = json.loads(DEMO_SYMBOLS.read_text(encoding="utf-8"))
+        doc["source"] = str(map_copy)  # a real map, but no recipe/witness
+        sidecar.write_text(json.dumps(doc), encoding="utf-8")
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch("sym.import")
+
+        # Assert
+        assert result.success, result.error
+        assert result.data["recipe"] == {"converter": "xc32"}, (
+            "the re-import gives the old table the provenance it lacked"
+        )
+
+    def test_bare_without_a_table_is_a_usage_error(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        result = engine.dispatch("sym.import")
+
+        # Assert
+        assert not result.success, "there is nothing to re-import"
+        assert "sym.import" in result.error, "the usage line names the command"
+
+
 class TestConverterPlugins:
     """A plugin folder may add a symbol-map converter (four top-level names)."""
 

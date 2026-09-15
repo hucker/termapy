@@ -102,6 +102,27 @@ def _known_formats(ctx: PluginContext) -> list[str]:
     return list(FORMATS) + [name for name in extra if name not in FORMATS]
 
 
+def _recorded_import(ctx: PluginContext) -> tuple[str, str] | None:
+    """``(source, format)`` the loaded table was built from, or None.
+
+    The format comes from the recipe when there is one; a table imported
+    before recipes existed still has a ``source``, and re-importing it
+    sniffs the map exactly as the first import did -- which is also how
+    such a table EARNS a recipe.  A hand-written table whose source is
+    prose (``"demo firmware"``) has no readable file, so the caller's
+    existence check refuses it with the normal not-found error.
+    """
+    table = get_table(ctx)
+    if table is None:
+        return None
+    source = (table.source or "").strip()
+    if not source:
+        return None
+    recipe = table.recipe or {}
+    converter = recipe.get("converter")
+    return source, converter if isinstance(converter, str) else ""
+
+
 def _anchor(ctx: PluginContext, raw: str) -> Path:
     """A user path, relative ones resolved against the cfg folder.
 
@@ -156,9 +177,24 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
-    """Convert a linker map, write the cfg sidecar, install the table."""
-    raw = str(ctx.arg("file"))
+    """Convert a linker map, write the cfg sidecar, install the table.
+
+    Bare, it re-runs the loaded table's own recipe against its own
+    source -- the rebuild step after every compile, without retyping a
+    build-tree path.  An explicit ``<file>`` always wins.
+    """
+    raw = str(ctx.arg("file") or "")
     fmt = ctx.arg("format") or ""
+    if not raw:
+        reused = _recorded_import(ctx)
+        if reused is None:
+            raise UsageError(
+                "no map given, and the loaded table records no source to re-import"
+            )
+        raw, recorded_fmt = reused
+        # An explicit format= still wins: re-importing with a different
+        # converter is how you switch a table's pipeline.
+        fmt = fmt or recorded_fmt
     # Reading an arbitrary path is a parse/existence oracle under MCP;
     # contain to the sandbox unless the operator opted out.
     ctx.fs.guard_external_path(raw, "Map path")
@@ -331,7 +367,8 @@ _GRAMMAR_HELP: Final[str] = (
     "\n"
     "Commands:\n"
     "  /sym <addr|name>        - name -> address, or address -> name+offset\n"
-    "  /sym.import <map>       - convert a linker map and load it\n"
+    "  /sym.import {map}       - convert a linker map and load it\n"
+    "                            (bare: re-import the same map, after a rebuild)\n"
     "  /sym.load {path}        - reload the sidecar, or load an explicit file\n"
     "  /sym.unload             - clear the loaded table (file untouched)\n"
     "  /sym.search <pattern>   - search names\n"
@@ -358,8 +395,9 @@ COMMAND = Command(
         "import": Command(
             params=[
                 ParamSpec(
-                    "file", "path", positional=True, required=True, rest=True,
-                    help="linker map to convert",
+                    "file", "path", positional=True, rest=True,
+                    help="linker map to convert (default: re-import the "
+                         "loaded table's own source)",
                 ),
                 # A str, not an enum: plugin folders add converters at
                 # runtime (a per-config format is a board's own pipeline),
@@ -372,7 +410,7 @@ COMMAND = Command(
                          "converter); omitted = sniff the file",
                 ),
             ],
-            help="Convert a linker map to sym/<cfg>.symbols.json and load it.",
+            help="Convert a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same map).",
             handler=_handler_import,
         ),
         "load": Command(

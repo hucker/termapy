@@ -33,6 +33,19 @@ sniffed from the file; `format=xc32` picks one explicitly. Re-import after
 every build; the sidecar is a generated file and is overwritten without
 asking. Bare `/sym.load` re-reads it after a hand edit.
 
+After the first import, **bare `/sym.import` re-runs the same map through
+the same converter** — the rebuild step, without retyping a build-tree
+path:
+
+```text
+/sym.import C:\proj\_build\default\mem.map    # once
+/sym.import                                   # after every rebuild
+```
+
+It reads the source and recipe the sidecar recorded, so it also works on a
+table imported before recipes existed (that re-import is how such a table
+gains one). An explicit `<file>` or `format=` always wins.
+
 | Format | Toolchain                              |
 |--------|----------------------------------------|
 | `xc32` | Microchip XC32 (GNU ld) linker map     |
@@ -142,7 +155,7 @@ inside the sandbox.
 | Command                            | Example                     | Does                                                    |
 |------------------------------------|-----------------------------|---------------------------------------------------------|
 | `/sym <addr\|name>`                | `/sym 0x2010`               | Name to address, or address to `name+offset`            |
-| `/sym.import <file> {format=<value>}` | `/sym.import build/mem.map` | Convert a linker map to the sidecar and load it      |
+| `/sym.import {file} {format=<value>}` | `/sym.import build/mem.map` | Convert a linker map to the sidecar and load it (bare: re-import the same map) |
 | `/sym.load {path}`                 | `/sym.load`                 | Reload the sidecar, or load an explicit file            |
 | `/sym.unload`                      | `/sym.unload`               | Clear the loaded table (file untouched)                 |
 | `/sym.search <pattern>`            | `/sym.search Mon*`          | Search names: exact, glob, regex, or substring          |

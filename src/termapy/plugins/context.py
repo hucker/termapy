@@ -23,7 +23,7 @@ from types import MappingProxyType
 from typing import Any, Callable
 
 from termapy.defaults import cmd_prefix
-from termapy.folders import ensure_folder
+from termapy.folders import PLUGIN, ensure_folder
 from termapy.plugins.capabilities import CapabilitySet
 from termapy.plugins.handles.fs import FilesystemHandle
 from termapy.plugins.handles.internal import InternalHandle
@@ -231,7 +231,8 @@ class PluginContext:
     _call_level: str | None = None
     # Namespace registry for session-scoped state.
     _namespaces: dict[str, dict] = field(default_factory=dict)
-    # Plugin config cache, lazy-loaded from disk.
+    # Plugin config cache, lazy-loaded from disk and keyed by the config
+    # FILE's path (see plugin_cfg) so it follows a config switch.
     _plugin_cfgs: dict[str, PluginConfig] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -355,6 +356,10 @@ class PluginContext:
         The file is loaded lazily on first access and cached for the
         session.  Call ``.save()`` to write changes to disk.
 
+        The settings always belong to the config that is loaded NOW: a
+        config switch moves the plugin to the new config's file, and
+        switching back reaches the first one again.
+
         Example::
 
             def _handler(ctx, args):
@@ -371,16 +376,22 @@ class PluginContext:
         Raises:
             RuntimeError: If no config is loaded (no ``config_path``).
         """
-        if name in self._plugin_cfgs:
-            return self._plugin_cfgs[name]
         if not self.config_path:
             raise RuntimeError(
                 f"Cannot access plugin config for {name!r}: no config loaded"
             )
-        path = Path(self.config_path).parent / "plugin" / f"{name}.cfg"
-        pc = PluginConfig(path)
-        self._plugin_cfgs[name] = pc
-        return pc
+        path = Path(self.config_path).parent / PLUGIN / f"{name}.cfg"
+        # Keyed by the FILE, not the plugin name.  One context serves every
+        # config in a TUI session -- app._switch_config reassigns
+        # ``config_path`` rather than rebuilding the context -- so a
+        # name-keyed cache went on handing back the first config's file, and
+        # a global plugin's saved path auto-loaded under every config after
+        # it.  The file path already carries the config, so keying on it
+        # makes the switch follow without any host having to remember.
+        key = str(path)
+        if key not in self._plugin_cfgs:
+            self._plugin_cfgs[key] = PluginConfig(path)
+        return self._plugin_cfgs[key]
 
     # -- Prefix ---------------------------------------------------------------
 

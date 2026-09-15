@@ -933,6 +933,69 @@ class TestPluginContextPluginCfg:
         # Assert
         assert pcfg1 is pcfg2, "should return the same instance on repeated calls"
 
+    def test_follows_a_config_switch(self, tmp_path):
+        """A plugin reads the settings of the config now loaded, not the last one.
+
+        The TUI reuses ONE context for every config in a session
+        (``app._switch_config`` reassigns ``ctx.config_path`` rather than
+        rebuilding the context), so a cache keyed by plugin name alone
+        keeps handing back the first config's file.  That is how one
+        config's saved map path went on auto-loading under every config
+        visited afterwards.
+        """
+        # Arrange -- two configs; only the first saves a setting for this plugin
+        from termapy.plugins import IOHandle
+        first = tmp_path / "first" / "first.cfg"
+        second = tmp_path / "second" / "second.cfg"
+        for path in (first, second):
+            path.parent.mkdir()
+            path.write_text("{}", encoding="utf-8")
+        (first.parent / "plugin").mkdir()
+        (first.parent / "plugin" / "mapper.cfg").write_text(
+            '{"map_path": "first.map"}', encoding="utf-8",
+        )
+        ctx = PluginContext(
+            io=IOHandle(_write=lambda *a, **kw: None), config_path=str(first),
+        )
+        assert ctx.plugin_cfg("mapper").get("map_path") == "first.map", (
+            "precondition: the first config's setting is readable"
+        )
+
+        # Act -- the reassignment every config switch performs
+        ctx.config_path = str(second)
+        actual = ctx.plugin_cfg("mapper")
+
+        # Assert
+        expected = second.parent / "plugin" / "mapper.cfg"
+        assert actual.path == expected, "resolves under the config now loaded"
+        assert actual.get("map_path") is None, (
+            "the previous config's setting does not leak into this one"
+        )
+
+    def test_a_returning_config_keeps_its_own_settings(self, tmp_path):
+        """Switching away and back reaches the same config's file again."""
+        # Arrange
+        from termapy.plugins import IOHandle
+        first = tmp_path / "first" / "first.cfg"
+        second = tmp_path / "second" / "second.cfg"
+        for path in (first, second):
+            path.parent.mkdir()
+            path.write_text("{}", encoding="utf-8")
+        ctx = PluginContext(
+            io=IOHandle(_write=lambda *a, **kw: None), config_path=str(first),
+        )
+        ctx.plugin_cfg("mapper")["map_path"] = "first.map"
+
+        # Act -- away, then back
+        ctx.config_path = str(second)
+        away = ctx.plugin_cfg("mapper").get("map_path")
+        ctx.config_path = str(first)
+        back = ctx.plugin_cfg("mapper").get("map_path")
+
+        # Assert
+        assert away is None, "the other config sees nothing of it"
+        assert back == "first.map", "returning reaches the same config's settings"
+
     def test_raises_without_config_path(self):
         # Arrange
         from termapy.plugins import IOHandle

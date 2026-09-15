@@ -41,8 +41,6 @@ from termapy.config import (
     cfg_dir,
     cfg_history_path,
     cfg_log_path,
-    cfg_plugins_dir,
-    global_plugins_dir,
     load_config,
     open_serial,
     open_with_system,
@@ -82,8 +80,6 @@ from termapy.plugins import (
     BoundaryException,
     CapabilitySet,
     CmdResult,
-    LoadResult,
-    load_plugins_from_dir,
 )
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
@@ -959,11 +955,13 @@ class SerialTerminal(TerminalHost, App):
         # Easy to miss if it's buried mid-startup.
         self._maybe_show_vscode_tip()
         self._register_tui_hooks()
-        self._load_plugins()
-        # Before _run_startup: an auto_connect config fires on_connect from
-        # there, and the CLI/MCP order (on_app_start, then connect) means
-        # the symbol auto-load is already done when on_connect hooks run.
+        # on_app_start resolves the plugin folders and auto-loads the
+        # symbols (engine core listeners).  Before _run_startup: an
+        # auto_connect config fires on_connect from there, and the CLI/MCP
+        # order (on_app_start, then connect) means both are already done
+        # when on_connect hooks run.
         self.repl.fire_lifecycle("on_app_start")
+        self._rebuild_suggester_commands()
         self._run_startup()
         self._check_for_updates()
 
@@ -1192,35 +1190,6 @@ class SerialTerminal(TerminalHost, App):
         """
         from termapy.app_hooks import register_tui_hooks
         register_tui_hooks(self)
-
-    def _load_plugins(self) -> None:
-        """Load global and per-config external plugins.
-
-        Skipped entirely when ``TERMAPY_TRUSTED_PLUGINS_ONLY`` is
-        truthy in the environment -- the trust boundary collapses to
-        "your Python site-packages," same as every other Python tool.
-        Built-ins (loaded by ReplEngine from the bundled package) are
-        unaffected.
-        """
-        from termapy.env_flags import TRUSTED_PLUGINS_ONLY
-        if TRUSTED_PLUGINS_ONLY:
-            self._status(
-                "TERMAPY_TRUSTED_PLUGINS_ONLY=1: skipping filesystem plugin discovery.",
-                "yellow",
-            )
-            self._rebuild_suggester_commands()
-            return
-        self._load_and_report(
-            load_plugins_from_dir(global_plugins_dir(), "global"),
-            source="global",
-        )
-        if self.config_path:
-            cfg_name = Path(self.config_path).stem
-            self._load_and_report(
-                load_plugins_from_dir(cfg_plugins_dir(self.config_path), cfg_name),
-                source=cfg_name,
-            )
-        self._rebuild_suggester_commands()
 
     def _run_startup(self) -> None:
         """Open log, sync buttons, and show startup screen."""
@@ -1663,9 +1632,6 @@ class SerialTerminal(TerminalHost, App):
             cfg.pop("_migration_steps", None)
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
-        # Cfg reload may swap the active profile out from under us; rebuild
-        # suggester commands so completion reflects the post-load state.
-        self._rebuild_suggester_commands()
         self.repl.ctx.ns("flags")["hex"] = cfg.get("hex", False)
         self._show_line_numbers = cfg.get("line_no", False)
         self.repl.replace_cfg(cfg, path)
@@ -1677,95 +1643,19 @@ class SerialTerminal(TerminalHost, App):
         self.repl.ctx.fs.scripts_dir = self.repl.scripts_dir
         self.repl.ctx.fs.proto_dir = self.repl.proto_dir
         self.repl.ctx.fs.cap_dir = self.repl.cap_dir
-        self._reload_config_plugins(path)
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
         self._sync_cmd_prefix()
         self._sync_all_buttons()
         self._open_log()
+        # The engine resolves the new config's plugins and symbols here;
+        # the cfg may also have swapped the active profile out from under
+        # us, so rebuild the suggester after the pass, not before it.
         self.repl.fire_lifecycle("on_config_load")
+        self._rebuild_suggester_commands()
         if was_connected or cfg.get("auto_connect"):
             self._connect()
-
-    def _load_and_report(self, result: LoadResult, source: str = "") -> None:
-        """Register loaded plugins/transforms and report status to the terminal.
-
-        Shows loaded plugin names, warnings for skipped files (no COMMAND
-        or TRANSFORM), and errors for files that raised exceptions.
-
-        The status message includes the source directory (e.g. "from
-        global" or "from <config-name>") so it's clear when config-folder
-        plugins are running -- a user opening an unfamiliar config
-        folder should be able to notice "3 plugins loaded from <cfg>"
-        at a glance and review them before trusting the session.
-
-        Args:
-            result: LoadResult from load_plugins_from_dir.
-            source: Label for where these came from (``"global"`` or a
-                config name).  Falls back to the source stored on the
-                first plugin info if empty; if still empty, the
-                ``"from ..."`` suffix is omitted.
-        """
-        loaded = []
-        for info in result.plugins:
-            self.repl.register_plugin(info)
-            loaded.append(info.name)
-        for xform in result.transforms:
-            self.repl.register_transform(xform)
-            loaded.append(f"~{xform.name}")
-        for directive in result.directives:
-            self.repl.register_directive(directive)
-            loaded.append(f"@{directive.name}")
-        for hook in result.lifecycle_hooks:
-            self.repl.register_lifecycle_hook(hook)
-        if loaded:
-            if not source and result.plugins:
-                source = result.plugins[0].source
-            where = f" from {source}" if source else ""
-            self.repl.ctx.io.status(
-                f"Loaded {len(loaded)} plugin(s){where}: " + ", ".join(loaded),
-            )
-        for name in result.skipped:
-            self._status(
-                f"Skipped {name} - no COMMAND or TRANSFORM (see plugin docs)",
-                "yellow",
-            )
-        for error in result.errors:
-            self._status(f"Plugin error: {error}", "red")
-
-    def _reload_config_plugins(self, config_path: str) -> None:
-        """Remove old per-config plugins and load plugins for the new config.
-
-        Built-in, global, and app-hook plugins are kept. Only plugins whose
-        source is a config name (not "built-in", "global", or "app") are
-        removed and replaced with those from the new config's plugins/ dir.
-
-        Args:
-            config_path: Path to the new config JSON file.
-        """
-        keep_sources = {"built-in", "global", "app"}
-        to_remove = [
-            name
-            for name, p in self.repl._plugins.items()
-            if p.source not in keep_sources
-        ]
-        for name in to_remove:
-            del self.repl._plugins[name]
-        if to_remove:
-            self.repl.ctx.io.status(
-                f"Unloaded {len(to_remove)} plugin(s): " + ", ".join(to_remove),
-            )
-        from termapy.env_flags import TRUSTED_PLUGINS_ONLY
-        if TRUSTED_PLUGINS_ONLY:
-            self._rebuild_suggester_commands()
-            return
-        cfg_name = Path(config_path).stem
-        self._load_and_report(
-            load_plugins_from_dir(cfg_plugins_dir(config_path), cfg_name),
-            source=cfg_name,
-        )
-        self._rebuild_suggester_commands()
 
     def _switch_to_cli(self) -> CmdResult:
         """Switch to CLI mode - sets flag and exits TUI."""

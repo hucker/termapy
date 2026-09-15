@@ -46,6 +46,8 @@ def cli(tmp_path):
         (config_path.parent / sub).mkdir(exist_ok=True)
     shutil.copyfile(DEMO_SYMBOLS, config_path.with_name(f"rig{SYMBOLS_SUFFIX}"))
     terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
+    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
+    terminal.repl.global_root = tmp_path
     terminal.repl.fire_lifecycle("on_app_start")
     logged: list[tuple[str, str]] = []
     terminal.ctx.io.log = lambda prefix, text: logged.append((prefix, text))
@@ -218,6 +220,35 @@ class TestRead:
     def test_explicit_type_overrides(self, cli):
         result = cli.repl.dispatch("mem.read gTemp u8")
         assert result.value == "27", "first byte as u8"
+
+    def test_hex_twin_is_the_decoded_value_not_the_raw_bytes(self, cli, capsys):
+        # Arrange -- gTemp is u16 = 27 on a little-endian device, so the
+        # bytes on the wire are 1B 00 while the VALUE is 0x001B.  Printing
+        # the bytes with an 0x prefix reads as a byte-swapped register.
+
+        # Act
+        cli.repl.dispatch("mem.read gTemp")
+
+        # Assert
+        actual = capsys.readouterr().out
+        assert "gTemp = 27  (0x001B)" in actual, (
+            "the hex twin formats the decoded scalar; 0x1B00 would be the raw bytes"
+        )
+
+    def test_hex_twin_of_a_signed_value_is_twos_complement(self, cli, capsys):
+        # Arrange -- put a negative i32 in gFlags: bytes FE FF FF FF little
+        # endian is -2.  A plain f"{-2:X}" would render "-2".
+        cli.repl.dispatch("mem.write gFlags FEFFFFFF")
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch("mem.read gFlags i32")
+
+        # Assert
+        assert result.value == "-2", "the decoded signed value"
+        assert "gFlags = -2  (0xFFFFFFFE)" in capsys.readouterr().out, (
+            "a negative value renders as two's complement at the symbol's width"
+        )
 
     def test_char_token(self, cli, capsys):
         result = cli.repl.dispatch("mem.read sBanner char")

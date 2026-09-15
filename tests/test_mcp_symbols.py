@@ -40,7 +40,10 @@ def host(tmp_path):
     for sub in ("plugin", "ss", "run", "cap"):
         (config_path.parent / sub).mkdir(exist_ok=True)
     shutil.copyfile(DEMO_SYMBOLS, config_path.with_name(f"rig{SYMBOLS_SUFFIX}"))
-    return MCPHost(cfg, str(config_path), verbose=False)
+    host = MCPHost(cfg, str(config_path), verbose=False)
+    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
+    host.repl.global_root = tmp_path
+    return host
 
 
 class TestMcpSymbols:

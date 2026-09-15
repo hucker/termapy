@@ -14,6 +14,8 @@ incomplete module fails the registry import loudly::
 
 Adding a toolchain = one module, one tuple entry, one fixture under
 ``tests/fixtures/maps/`` (the pairwise-exclusivity test picks it up).
+Step-by-step instructions, written to be handed to an LLM together with
+a map file: ``docs/symbol-converter-guide.md``.
 """
 
 from __future__ import annotations

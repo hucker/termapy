@@ -47,6 +47,7 @@ def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
     }
     config_path = tmp_path / "rig" / "rig.cfg"
     config_path.parent.mkdir()
+    (config_path.parent / "sym").mkdir()
     config_path.write_text(json.dumps(cfg, indent=4))
     output: list[tuple[str, str | None]] = []
 
@@ -89,8 +90,8 @@ def sym_env(tmp_path):
 
 
 def _install_sidecar(config_path: Path) -> Path:
-    """Copy the demo table beside the cfg as ``rig.symbols.json``."""
-    sidecar = config_path.parent / f"rig{SYMBOLS_SUFFIX}"
+    """Copy the demo table into sym/ as ``rig.symbols.json``."""
+    sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
     shutil.copyfile(DEMO_SYMBOLS, sidecar)
     return sidecar
 
@@ -141,7 +142,7 @@ class TestAutoload:
     def test_corrupt_sidecar_reports_and_loads_nothing(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
-        sidecar = config_path.parent / f"rig{SYMBOLS_SUFFIX}"
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
         sidecar.write_text('{"symbols_version": 2, "symbols": []}', encoding="utf-8")
 
         # Act
@@ -224,7 +225,7 @@ class TestSymImport:
     def test_import_writes_sidecar_and_installs(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
-        sidecar = config_path.parent / f"rig{SYMBOLS_SUFFIX}"
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
 
         # Act
         result = engine.dispatch(f"sym.import {XC32_MAP}")
@@ -294,7 +295,7 @@ class TestSymImport:
 
         # Assert
         assert result.error == "No symbols found in junk.txt (xc32)"
-        assert not (config_path.parent / f"rig{SYMBOLS_SUFFIX}").exists(), "no file written"
+        assert not (config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}").exists(), "no file written"
 
     def test_relative_path_is_cfg_relative(self, sym_env):
         # Arrange -- the CWD is the repo root, never the temp cfg folder
@@ -350,7 +351,7 @@ class TestSymImport:
     def test_second_import_overwrites(self, sym_env, tmp_path):
         # Arrange
         engine, config_path, _ = sym_env
-        sidecar = config_path.parent / f"rig{SYMBOLS_SUFFIX}"
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
         engine.dispatch(f"sym.import {XC32_MAP}")
         small = tmp_path / "small.map"
         small.write_text(
@@ -396,7 +397,7 @@ class TestSymLoadUnload:
         result = engine.dispatch("sym.load")
 
         # Assert
-        expected = f"Symbols not found: {config_path.parent / ('rig' + SYMBOLS_SUFFIX)}"
+        expected = f"Symbols not found: {config_path.parent / 'sym' / ('rig' + SYMBOLS_SUFFIX)}"
         assert result.error == expected
 
     def test_explicit_path(self, sym_env):
@@ -429,7 +430,7 @@ class TestSymLoadUnload:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(DEMO_COUNT), "resolved beside the cfg, not against the CWD"
+        assert result.value == str(DEMO_COUNT), "a bare name resolves into sym/, not against the CWD"
 
     def test_bad_json(self, sym_env, tmp_path):
         # Arrange
@@ -471,7 +472,7 @@ class TestSymLoadUnload:
         assert second.success, second.error
         assert second.value == "0", "a second unload is a no-op, not an error"
         assert ("No symbols loaded.", "yellow") in output
-        assert (config_path.parent / f"rig{SYMBOLS_SUFFIX}").exists(), "the file is untouched"
+        assert (config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}").exists(), "the file is untouched"
 
 
 # ── /sym ────────────────────────────────────────────────────────────────────
@@ -719,7 +720,7 @@ class TestSymInfo:
         assert result.value == str(DEMO_COUNT)
         assert result.data is not None and result.data["sections"] == table.stats()
         rows = [text for text, color in output if color == "markup"]
-        assert any(f"rig{SYMBOLS_SUFFIX}" in row for row in rows), "file row shows the bare name"
+        assert any(f"sym/rig{SYMBOLS_SUFFIX}" in row for row in rows), "file row is config-relative"
         assert not any(str(config_path.parent) in row for row in rows), "no absolute path in-folder"
 
     def test_none_loaded(self, sym_env):
@@ -752,8 +753,8 @@ class TestSymHelp:
 
         # Assert
         assert any("Current symbols = none" in text for text in before), "no table -> none"
-        assert any(f"Current symbols = {DEMO_COUNT} (rig{SYMBOLS_SUFFIX})" in text for text in after), (
-            "loaded -> count and the bare sidecar name"
+        assert any(f"Current symbols = {DEMO_COUNT} (sym/rig{SYMBOLS_SUFFIX})" in text for text in after), (
+            "loaded -> count and the config-relative sidecar path"
         )
 
 

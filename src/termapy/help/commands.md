@@ -26,7 +26,7 @@ man-page detail for one.
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
 | `/cfg.list`               | List all config files                                                       |
 | `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
-| `/cfg.info {--display}`   | Show project summary; `--display` opens full report                         |
+| `/cfg.info {--display}`   | Write and show the project report (tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
 | `/cfg.show`               | Open the current config file in the system viewer                           |
 | `/cls`                    | Clear the terminal                                                          |

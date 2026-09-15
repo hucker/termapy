@@ -37,9 +37,9 @@ def host(tmp_path):
     config_path = tmp_path / "rig" / "rig.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
-    for sub in ("plugin", "ss", "run", "cap"):
+    for sub in ("plugin", "ss", "run", "cap", "sym"):
         (config_path.parent / sub).mkdir(exist_ok=True)
-    shutil.copyfile(DEMO_SYMBOLS, config_path.with_name(f"rig{SYMBOLS_SUFFIX}"))
+    shutil.copyfile(DEMO_SYMBOLS, config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}")
     host = MCPHost(cfg, str(config_path), verbose=False)
     # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
     host.repl.global_root = tmp_path

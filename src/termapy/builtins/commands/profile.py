@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folders import PROFILE_SUFFIX
 from termapy.plugins import CmdResult, Command, UsageError, format_kv_lines
 from termapy.plugins.params import ParamSpec
 from termapy.profile import (
@@ -148,7 +149,7 @@ def _default_save_path(ctx: PluginContext) -> Path | None:
     cfg_file = Path(cfg_path)
     cfg_dir = cfg_file.parent
     cfg_stem = cfg_file.stem
-    return cfg_dir / f"{cfg_stem}.profile.json"
+    return cfg_dir / f"{cfg_stem}{PROFILE_SUFFIX}"
 
 
 # ── handlers ───────────────────────────────────────────────────────────────

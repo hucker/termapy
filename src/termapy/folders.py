@@ -57,6 +57,8 @@ FOLDERS = [
     FolderSpec("viz",    ".py"),
     FolderSpec("cap",    "*",    clearable=True),
     FolderSpec("prof",   ".csv", clearable=True),
+    # Symbol tables (*.symbols.json) and, later, user converter modules.
+    FolderSpec("sym",    "*"),
 ]
 
 # -- Derived from FOLDERS (do not edit manually) ------------------------------
@@ -71,6 +73,7 @@ SS = _BY_NAME["ss"].name
 VIZ = _BY_NAME["viz"].name
 CAP = _BY_NAME["cap"].name
 PROF = _BY_NAME["prof"].name
+SYM = _BY_NAME["sym"].name
 
 # All folder names as a tuple
 FOLDER_NAMES = tuple(f.name for f in FOLDERS)
@@ -103,8 +106,28 @@ FOLDER_MIGRATIONS = [
 # HISTORY_FILE is only the no-config fallback name (in the cfg root).
 HISTORY_FILE = ".cmd_history.txt"
 HISTORY_SUFFIX = ".history"
-# Per-config symbol table lives NEXT TO the config file as
-# <stem>.symbols.json (like HISTORY_SUFFIX and the profile's .profile.json).
+LOG_SUFFIX = ".log"
+# The /cfg.info project report, also written at exit.
+INFO_REPORT_SUFFIX = ".md"
+# The v2 device profile the MCP host auto-loads by convention.
+PROFILE_SUFFIX = ".profile.json"
+# The symbol table, in the sym/ folder (it lived beside the cfg until
+# 2026-09; cfg_data_dir migrates it on first load).
 SYMBOLS_SUFFIX = ".symbols.json"
 SEQ_FILE = ".cap_seq"
 PROFILE_TMP_GLOB = "_profile_tmp_*.run"
+
+# -- Stem-named sidecars ------------------------------------------------------
+
+# Every file named after the config's stem, with the folder it lives in
+# (None = beside the .cfg).  ONE table: rename_config carries each of these
+# to the new name, and cfg_data_dir moves any that has a folder out of the
+# root on first load.  A sidecar missing from here is a sidecar the rename
+# will miss -- which is how <stem>.log got left behind.
+SIDECARS: tuple[tuple[str, str | None], ...] = (
+    (HISTORY_SUFFIX, None),
+    (LOG_SUFFIX, None),
+    (INFO_REPORT_SUFFIX, None),
+    (PROFILE_SUFFIX, None),
+    (SYMBOLS_SUFFIX, SYM),
+)

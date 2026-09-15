@@ -28,8 +28,11 @@ from termapy.folders import (
     FOLDER_NAMES,
     HISTORY_FILE,
     HISTORY_SUFFIX,
+    LOG_SUFFIX,
     PLUGIN,
     PROFILE_TMP_GLOB,
+    SIDECARS,
+    SYM,
     SYMBOLS_SUFFIX,
 )
 from termapy.migration import (
@@ -145,7 +148,7 @@ def migrate_json_to_cfg(directory: Path) -> None:
     a config and is left strictly alone.  In particular:
 
       - ``<folder>/<folder>.profile.json``  (v2 device profile)
-      - ``<folder>/<folder>.symbols.json``  (symbol table for /sym.*)
+      - ``<folder>/sym/<folder>.symbols.json``  (symbol table for /sym.*)
       - ``<folder>/<folder>.schema.json``   (future schema-side data)
       - any ad-hoc ``.json`` a user dropped in the folder
 
@@ -224,6 +227,17 @@ def cfg_data_dir(config_path: str) -> Path:
             old.rename(new)
     for sub in FOLDER_NAMES:
         (d / sub).mkdir(exist_ok=True)
+    # One-time sidecar moves (migration): a stem-named file that once
+    # lived beside the cfg and now has a folder.  Same rule as the folder
+    # renames -- move only when the old exists and the new does not.
+    stem = Path(config_path).stem
+    for suffix, sub in SIDECARS:
+        if sub is None:
+            continue
+        old_file = d / f"{stem}{suffix}"
+        new_file = d / sub / f"{stem}{suffix}"
+        if old_file.is_file() and not new_file.exists():
+            old_file.rename(new_file)
     # Write .gitignore for transient data (only if it doesn't exist)
     gitignore = d / ".gitignore"
     if not gitignore.exists():
@@ -275,8 +289,9 @@ def rename_config(config_path: str, new_name: str) -> str:
     run/, proto/, cap/ ... data, so the two names must move together.
     When the folder is named after the config (the standard layout) it is
     renamed with the file; a non-standard layout (folder named differently)
-    renames only the file.  The ``<name>.history`` sidecar follows the
-    file.  Nothing is overwritten: an existing target folder or file is
+    renames only the file.  Every stem-named sidecar (``folders.SIDECARS``:
+    history, log, report, profile, symbol table) follows the file.  Nothing
+    is overwritten: an existing target folder or file is
     an error, as is a name that fails ``validate_file_stem``.
 
     Args:
@@ -318,9 +333,16 @@ def rename_config(config_path: str, new_name: str) -> str:
     # first, then the folder: if the folder move fails the config is
     # still a consistent <folder>/<new>.cfg pair the resolver can find.
     old.rename(folder / f"{new_name}.cfg")
-    history = folder / f"{old.stem}{HISTORY_SUFFIX}"
-    if history.exists():
-        history.rename(folder / f"{new_name}{HISTORY_SUFFIX}")
+    # Every stem-named sidecar follows, from the ONE table that lists them
+    # (folders.SIDECARS): history, log, info report, profile, and the symbol
+    # table in its sym/ folder.  A sidecar left behind keeps the old name
+    # forever -- a stale <old>.log beside a fresh <new>.log, or a profile
+    # the server no longer finds by convention.
+    for suffix, sub in SIDECARS:
+        home = folder / sub if sub else folder
+        sidecar = home / f"{old.stem}{suffix}"
+        if sidecar.exists():
+            sidecar.rename(home / f"{new_name}{suffix}")
     if standard_layout:
         folder.rename(new_folder)
     return str(new_path)
@@ -387,7 +409,7 @@ def hardware_signals(port_obj: object) -> str:
 
 def cfg_log_path(config_path: str) -> str:
     """Return the default log file path for a config."""
-    name = Path(config_path).stem + ".log"
+    name = Path(config_path).stem + LOG_SUFFIX
     return str((cfg_data_dir(config_path) / name).resolve())
 
 
@@ -942,8 +964,9 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
         src = pkg / "demo.cfg"
         config_path.write_bytes(src.read_bytes())
 
-    # Copy the symbol-table sidecar beside it (auto-loaded by /sym.*)
-    symbols_path = demo_dir / f"demo{SYMBOLS_SUFFIX}"
+    # Copy the symbol table into sym/ (auto-loaded by /sym.*)
+    (demo_dir / SYM).mkdir(exist_ok=True)
+    symbols_path = demo_dir / SYM / f"demo{SYMBOLS_SUFFIX}"
     if force or not symbols_path.exists():
         src = pkg / f"demo{SYMBOLS_SUFFIX}"
         symbols_path.write_bytes(src.read_bytes())

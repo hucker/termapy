@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import open_serial
 from termapy.folder_ops import file_record
+from termapy.folders import PROFILE_SUFFIX
 from termapy.mcp.catalog import (
     catalog_json,
     device_state_json,
@@ -527,7 +528,7 @@ class MCPHost(TerminalHost):
             candidate = Path(explicit)
         elif self.config_path:
             cfg_path = Path(self.config_path)
-            convention = cfg_path.parent / f"{cfg_path.stem}.profile.json"
+            convention = cfg_path.parent / f"{cfg_path.stem}{PROFILE_SUFFIX}"
             if convention.exists():
                 candidate = convention
         if candidate is None:

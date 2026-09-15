@@ -1234,9 +1234,10 @@ class TestSymbolsAutoload:
 
             from termapy.symbols import get_table
 
-            # Arrange -- the demo table beside the cfg, as /sym.import writes it
+            # Arrange -- the demo table in sym/, as /sym.import writes it
             app, _, path = app_factory()
-            shutil.copyfile(DEMO_SYMBOLS, Path(path).with_name(f"proj{SYMBOLS_SUFFIX}"))
+            (Path(path).parent / "sym").mkdir(exist_ok=True)
+            shutil.copyfile(DEMO_SYMBOLS, Path(path).parent / "sym" / f"proj{SYMBOLS_SUFFIX}")
             async with app.run_test() as pilot:
                 await pilot.pause()
 
@@ -1269,7 +1270,8 @@ class TestSymbolsAutoload:
             # Arrange -- auto_connect on the DEMO port connects synchronously
             # inside _run_startup, so the hook fires during on_mount
             app, _, path = app_factory(auto_connect=True)
-            shutil.copyfile(DEMO_SYMBOLS, Path(path).with_name(f"proj{SYMBOLS_SUFFIX}"))
+            (Path(path).parent / "sym").mkdir(exist_ok=True)
+            shutil.copyfile(DEMO_SYMBOLS, Path(path).parent / "sym" / f"proj{SYMBOLS_SUFFIX}")
             seen: list[int] = []
 
             def hook(ctx):

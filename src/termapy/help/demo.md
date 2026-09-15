@@ -39,7 +39,7 @@ The demo creates a complete project at `termapy_cfg/demo/` with:
 - **Scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo, expect_test, crc_tour, doc_screenshots
 - **Protocol test files**: at_test, bitfield_inline, modbus_inline
 - **Plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline), traffic (RX/TX byte tap)
-- **Symbol table**: demo.symbols.json, names for the `mem` addresses (try `/sym main`, `/sym 0x2010`, `/sym.search g*`)
+- **Symbol table**: sym/demo.symbols.json, names for the `mem` addresses (try `/sym main`, `/sym 0x2010`, `/sym.search g*`)
 - **Memory**: 16 KB of RAM behind the full `MEM.R` / `MEM.W` / `MEM.M` / `MEM.INFO` spec (try `/mem.dump gTemp 16`, `/mem.read U1MODE`, `/mem.write U1MODE.ON 0`, `/mem.str sBanner`, `/mem.or gFlags 0x10`); the same bytes through the legacy `mem <addr> [count]` / `mem <addr> =<hex>` grammar after `/profile.load demo_legacy.profile.json`
 
 ## Device commands

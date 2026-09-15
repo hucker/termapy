@@ -258,7 +258,7 @@ Built-ins use namespaces as worked examples of the pattern:
 ```text
 ctx.ns("seq")              - sequence counters, mutated by {seqN+} template expansion
 ctx.ns("active_profile")   - the loaded device profile (set by /profile.load)
-ctx.ns("symbols")          - the loaded symbol table (auto-loaded from <cfg>.symbols.json; set by /sym.import, /sym.load)
+ctx.ns("symbols")          - the loaded symbol table (auto-loaded from sym/<cfg>.symbols.json; set by /sym.import, /sym.load)
 ctx.ns("flags")            - engine-owned toggles: echo, echo_repl, color, output_level, hex
 ```
 

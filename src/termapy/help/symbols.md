@@ -13,13 +13,13 @@ map.
 ## Where it lives
 
 ```text
-termapy_cfg/<name>/<name>.symbols.json
+termapy_cfg/<name>/sym/<name>.symbols.json
 ```
 
-Beside the config, like the profile. It auto-loads whenever the config
+In the config's `sym/` folder. It auto-loads whenever the config
 loads (startup and `/cfg.load`) in the TUI, the CLI and the MCP server
 alike, and a config switch drops the previous table. The demo config ships
-one (`demo.symbols.json`), so `termapy --demo` has names for the addresses
+one (`sym/demo.symbols.json`), so `termapy --demo` has names for the addresses
 its `mem` command answers for.
 
 ## Importing a linker map
@@ -28,7 +28,7 @@ its `mem` command answers for.
 /sym.import build/default/mem.map
 ```
 
-writes `<name>.symbols.json` beside the config and loads it. The format is
+writes `sym/<name>.symbols.json` under the config and loads it. The format is
 sniffed from the file; `format=xc32` picks one explicitly. Re-import after
 every build; the sidecar is a generated file and is overwritten without
 asking. Bare `/sym.load` re-reads it after a hand edit.

@@ -37,7 +37,7 @@ def set_table(ctx: PluginContext, table: SymbolTable | None) -> None:
 
 
 def autoload(ctx: PluginContext, config_path: str) -> SymbolTable | None:
-    """Load ``<cfg>.symbols.json`` if present; never raises.
+    """Load ``sym/<cfg>.symbols.json`` if present; never raises.
 
     Always clears the previous table first: a config switch drops the
     previous build's names even when the new cfg has no sidecar.  A

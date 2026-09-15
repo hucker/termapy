@@ -19,6 +19,7 @@ from textual.widgets import Button, OptionList, Static
 
 from termapy.config import (
     cfg_dir,
+    file_manager_name,
     load_config,
     migrate_json_to_cfg,
     open_with_system,
@@ -180,7 +181,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
         # No path here: the header row already shows it in full, and
         # repeating it in a tooltip is the clutter this replaced.
         self.query_one("#picker-cfgdir", Static).tooltip = (
-            "Open this folder in the file explorer."
+            f"Open this folder in {self._manager}."
         )
         self.query_one("#picker-load", Button).tooltip = (
             "Load and activate the selected config."
@@ -194,7 +195,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
         explore = self.query("#picker-explore")
         if explore:
             explore.first(Button).tooltip = (
-                "Open the selected config's folder in the system file explorer."
+                f"Open the selected config's folder in {self._manager}."
                 if self.gui_apps
                 else "Not available in this environment: no display this process "
                 "can reach.  Set TERMAPY_GUI=1 to override the detection."
@@ -242,6 +243,9 @@ class ConfigPicker(ModalScreen[tuple | None]):
         self.gui_apps = gui_apps
         self.web = web
         self._opener = opener
+        # "Explorer", "Finder", "Files"...: the button is the app's own name,
+        # because a verb like Explore reads as Windows to everyone else.
+        self._manager = file_manager_name()
 
     def compose(self) -> ComposeResult:
         d = cfg_dir()
@@ -290,7 +294,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
                     # configs exist one is selected: "a folder is selected"
                     # is the same condition Load uses.
                     explore_btn = Button(
-                        "Explore",
+                        self._manager,
                         id="picker-explore",
                         disabled=not has_configs or not self.gui_apps,
                     )

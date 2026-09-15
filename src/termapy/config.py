@@ -785,6 +785,30 @@ def load_config(path: str) -> dict:
     return cfg
 
 
+def file_manager_name(platform: str = sys.platform) -> str:
+    """The name of this platform's file manager, for a label ("Finder").
+
+    Windows and macOS each have one and everyone knows its name.  Linux
+    has many, and most users know theirs only as the "Files" or "File
+    Manager" entry in a menu, so naming Thunar or Dolphin would puzzle
+    more people than it would please; "Files" is the GNOME, Mint and
+    elementary menu label and reads as a plain noun everywhere else.  A
+    verb like "Explore" reads as Windows to everyone else, which is why
+    the label is a name at all.
+
+    Args:
+        platform: ``sys.platform``; a parameter so a test needs no patching.
+
+    Returns:
+        ``"Explorer"``, ``"Finder"``, or ``"Files"``.
+    """
+    if platform == "win32":
+        return "Explorer"
+    if platform == "darwin":
+        return "Finder"
+    return "Files"
+
+
 def open_with_system(path: str) -> None:
     """Open a file or folder with the system default application.
 

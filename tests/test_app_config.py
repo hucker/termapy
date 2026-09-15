@@ -13,6 +13,7 @@ from termapy.config import (
     cfg_plugins_dir,
     expand_env_cfg,
     expand_env_str,
+    file_manager_name,
     load_config,
     migrate_json_to_cfg,
     open_serial,
@@ -1252,3 +1253,17 @@ class TestOpenSerialRxBuffer:
         # Assert
         assert has_api is False, "loop:// has no set_buffer_size -- guard is required"
         assert data == b"ok", "port still usable without the buffer request"
+
+
+class TestFileManagerName:
+    """The picker's folder button is named for the platform's file manager."""
+
+    def test_windows_and_mac_have_one_each(self):
+        assert file_manager_name("win32") == "Explorer"
+        assert file_manager_name("darwin") == "Finder"
+
+    @pytest.mark.parametrize("platform", ["linux", "freebsd14", "openbsd7", "haiku1"])
+    def test_everything_else_is_files(self, platform):
+        # Act / Assert -- Linux users know their file manager as a menu entry,
+        # not a project name, so no desktop detection: one generic label
+        assert file_manager_name(platform) == "Files"

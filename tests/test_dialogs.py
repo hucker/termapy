@@ -18,6 +18,7 @@ from pathlib import Path
 from textual.app import App
 from textual.widgets import Button, Input, OptionList
 
+from termapy.config import file_manager_name
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog, ScriptPicker
 from termapy.dialogs.config_picker import (
@@ -293,7 +294,7 @@ class TestConfigPickerCfgDir:
                 assert link._folder == tmp_path.resolve(), (
                     "a click opens the absolute folder, not a relative name"
                 )
-                assert "file explorer" in link.tooltip, "the tooltip says what a click does"
+                assert file_manager_name() in link.tooltip, "the tooltip names this platform's file manager"
                 assert str(tmp_path) not in link.tooltip, (
                     "and does not repeat the path the header already shows"
                 )
@@ -353,6 +354,9 @@ class TestConfigPickerExplore:
                 # Assert
                 button = app.screen.query_one("#picker-explore", Button)
                 assert button.disabled, "no display this process can reach"
+                assert str(button.label) == file_manager_name(), (
+                    "labelled with the platform's file manager, not a Windows verb"
+                )
                 assert "TERMAPY_GUI" in button.tooltip, "the tooltip names the override"
 
         _run(scenario)

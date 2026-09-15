@@ -13,6 +13,7 @@ from termapy.config import (
     cfg_plugins_dir,
     expand_env_cfg,
     expand_env_str,
+    file_manager_name,
     load_config,
     migrate_json_to_cfg,
     open_serial,
@@ -1252,3 +1253,31 @@ class TestOpenSerialRxBuffer:
         # Assert
         assert has_api is False, "loop:// has no set_buffer_size -- guard is required"
         assert data == b"ok", "port still usable without the buffer request"
+
+
+class TestFileManagerName:
+    """The picker's folder button is named for the platform's file manager."""
+
+    def test_windows_and_mac_have_one_each(self):
+        assert file_manager_name("win32") == "Explorer"
+        assert file_manager_name("darwin") == "Finder"
+
+    @pytest.mark.parametrize(
+        "desktop, expected",
+        [
+            ("ubuntu:GNOME", "Files"),
+            ("KDE", "Dolphin"),
+            ("XFCE", "Thunar"),
+            ("MATE", "Caja"),
+            ("X-Cinnamon", "Nemo"),
+            ("LXQt", "PCManFM"),
+            ("", "Files"),
+            ("SomethingNew", "Files"),
+        ],
+    )
+    def test_linux_is_named_by_the_desktop_session(self, desktop, expected):
+        # Act
+        actual = file_manager_name("linux", desktop)
+
+        # Assert
+        assert actual == expected, "any colon-separated part of XDG_CURRENT_DESKTOP, any case"

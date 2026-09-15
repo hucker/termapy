@@ -785,6 +785,47 @@ def load_config(path: str) -> dict:
     return cfg
 
 
+# Linux desktop session -> the file manager it ships.  XDG_CURRENT_DESKTOP
+# is a colon-separated list ("ubuntu:GNOME"); any part matches, any case.
+_LINUX_FILE_MANAGERS: tuple[tuple[frozenset[str], str], ...] = (
+    (frozenset({"kde", "plasma"}), "Dolphin"),
+    (frozenset({"xfce"}), "Thunar"),
+    (frozenset({"mate"}), "Caja"),
+    (frozenset({"x-cinnamon", "cinnamon"}), "Nemo"),
+    (frozenset({"lxqt", "lxde"}), "PCManFM"),
+    (frozenset({"gnome", "ubuntu", "unity", "pantheon"}), "Files"),
+)
+
+
+def file_manager_name(platform: str = sys.platform, desktop: str | None = None) -> str:
+    """The name of this platform's file manager, for a label ("Finder").
+
+    Windows and macOS have exactly one.  Linux has many, so the desktop
+    session names it; an unknown or absent desktop gets the GNOME name,
+    which is also what most distributions ship.  A verb like "Explore"
+    reads as Windows to everyone else, which is why the label is the
+    app's own name.
+
+    Args:
+        platform: ``sys.platform``; a parameter so a test needs no patching.
+        desktop: The desktop identifier; None reads ``XDG_CURRENT_DESKTOP``.
+
+    Returns:
+        ``"Explorer"``, ``"Finder"``, or the Linux manager's name.
+    """
+    if platform == "win32":
+        return "Explorer"
+    if platform == "darwin":
+        return "Finder"
+    if desktop is None:
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+    parts = {part.strip().lower() for part in desktop.split(":")}
+    for names, manager in _LINUX_FILE_MANAGERS:
+        if parts & names:
+            return manager
+    return "Files"
+
+
 def open_with_system(path: str) -> None:
     """Open a file or folder with the system default application.
 

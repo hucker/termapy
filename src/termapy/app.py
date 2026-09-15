@@ -1201,10 +1201,7 @@ class SerialTerminal(TerminalHost, App):
             self._status(f"Config warning: {w}", "yellow")
         if self.show_picker_on_start:
             self.push_screen(
-                ConfigPicker(
-                    self.config_path, read_only=self.cfg.get("config_read_only", False)
-                ),
-                callback=self._on_config_picked,
+                self._config_picker(self.config_path), callback=self._on_config_picked,
             )
         elif self.open_editor_on_start:
             self._new_config()
@@ -1824,7 +1821,7 @@ class SerialTerminal(TerminalHost, App):
                 if is_active:
                     self.config_path = ""
                     self.push_screen(
-                        ConfigPicker(""),
+                        self._config_picker("", read_only=False),
                         callback=self._on_config_picked,
                     )
 
@@ -1985,10 +1982,7 @@ class SerialTerminal(TerminalHost, App):
             )
         else:
             self.push_screen(
-                ConfigPicker(
-                    self.config_path, read_only=self.cfg.get("config_read_only", False)
-                ),
-                callback=self._on_config_picked,
+                self._config_picker(self.config_path), callback=self._on_config_picked,
             )
 
     def _on_btn_dtr(self) -> None:
@@ -2050,13 +2044,28 @@ class SerialTerminal(TerminalHost, App):
             callback=self._on_proto_picked,
         )
 
-    def _btn_cfg(self) -> None:
-        self.push_screen(
-            ConfigPicker(
-                self.config_path, read_only=self.cfg.get("config_read_only", False)
-            ),
-            callback=self._on_config_picked,
+    def _config_picker(
+        self, current_path: str, *, read_only: bool | None = None,
+    ) -> ConfigPicker:
+        """The picker over ``current_path`` with this frontend's facts filled in.
+
+        One place for the five push sites.  ``read_only`` comes from the cfg
+        unless the caller says otherwise (after deleting the active config
+        the old cfg's flag has nothing left to protect); the GUI flag is
+        the SSH-aware capability, and ``web`` is Textual's own signal, so
+        the dialog stays pure in its inputs and testable.
+        """
+        if read_only is None:
+            read_only = self.cfg.get("config_read_only", False)
+        return ConfigPicker(
+            current_path,
+            read_only=read_only,
+            gui_apps=self.repl.ctx.capabilities.gui_apps,
+            web=self.is_web,
         )
+
+    def _btn_cfg(self) -> None:
+        self.push_screen(self._config_picker(self.config_path), callback=self._on_config_picked)
 
     def _btn_exit(self) -> None:
         self._shutting_down = True
@@ -2392,12 +2401,7 @@ class SerialTerminal(TerminalHost, App):
         )
 
     def _palette_load_config(self) -> None:
-        self.push_screen(
-            ConfigPicker(
-                self.config_path, read_only=self.cfg.get("config_read_only", False)
-            ),
-            callback=self._on_config_picked,
-        )
+        self.push_screen(self._config_picker(self.config_path), callback=self._on_config_picked)
 
     def _palette_new_config(self) -> None:
         self._new_config()
@@ -3694,6 +3698,14 @@ def _run_web_mode(args) -> None:
     if args.cfg_dir:
         cmd_parts.extend(["--cfg-dir", args.cfg_dir])
 
+    # The served TUI runs on THIS machine while the viewer sits in a browser
+    # somewhere else, so the child's GUI detection must not see this
+    # machine's display: anything it "opened" would open here, unseen.
+    # The child inherits the environment; setdefault keeps an explicit
+    # TERMAPY_GUI=1 from an operator who knows better.
+    import os
+
+    os.environ.setdefault("TERMAPY_GUI", "0")
     server = Server(
         " ".join(cmd_parts),
         host="localhost",

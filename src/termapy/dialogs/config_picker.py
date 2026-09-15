@@ -188,6 +188,17 @@ class ConfigPicker(ModalScreen[tuple | None]):
         self.query_one("#picker-edit", Button).tooltip = (
             "Open the selected config in the editor."
         )
+        # Absent under --web (see __init__); disabled when this process has
+        # no display to reach, with the override named so the user can fix
+        # a wrong guess (mosh, tmux inside SSH, WSLg).
+        explore = self.query("#picker-explore")
+        if explore:
+            explore.first(Button).tooltip = (
+                "Open the selected config's folder in the system file explorer."
+                if self.gui_apps
+                else "Not available in this environment: no display this process "
+                "can reach.  Set TERMAPY_GUI=1 to override the detection."
+            )
         self.query_one("#picker-new", Button).tooltip = (
             "Create a new config."
         )
@@ -201,10 +212,36 @@ class ConfigPicker(ModalScreen[tuple | None]):
             "Close without loading or editing."
         )
 
-    def __init__(self, current_path: str = "", read_only: bool = False) -> None:
+    def __init__(
+        self,
+        current_path: str = "",
+        read_only: bool = False,
+        *,
+        gui_apps: bool = True,
+        web: bool = False,
+        opener: Callable[[str], None] = open_with_system,
+    ) -> None:
+        """Build the picker.
+
+        Args:
+            current_path: The active config, highlighted on open.
+            read_only: Disable Edit / Rename / Delete.
+            gui_apps: Whether this process can show a desktop app the user
+                will see (``ctx.capabilities.gui_apps``, SSH-aware).  False
+                disables Explore with a tooltip naming the ``TERMAPY_GUI``
+                override, since that case is fixable.
+            web: Served in a browser (``App.is_web``).  A folder would open
+                on the SERVER's desktop, never the viewer's, so Explore is
+                not offered at all rather than disabled.
+            opener: What Explore calls; injected so a test can prove the
+                press reaches it without a file manager appearing.
+        """
         super().__init__()
         self.current_path = current_path
         self.read_only = read_only
+        self.gui_apps = gui_apps
+        self.web = web
+        self._opener = opener
 
     def compose(self) -> ComposeResult:
         d = cfg_dir()
@@ -248,6 +285,17 @@ class ConfigPicker(ModalScreen[tuple | None]):
                     variant="primary",
                     disabled=not has_configs or self.read_only,
                 )
+                if not self.web:
+                    # The header row cannot be highlighted, so whenever
+                    # configs exist one is selected: "a folder is selected"
+                    # is the same condition Load uses.
+                    explore_btn = Button(
+                        "Explore",
+                        id="picker-explore",
+                        disabled=not has_configs or not self.gui_apps,
+                    )
+                    explore_btn.styles.background = "slategray"
+                    yield explore_btn
                 new_btn = Button("New", id="picker-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
@@ -284,6 +332,13 @@ class ConfigPicker(ModalScreen[tuple | None]):
     @on(Button.Pressed, "#picker-new")
     def new_config(self) -> None:
         self.dismiss(("new",))
+
+    @on(Button.Pressed, "#picker-explore")
+    def explore_config(self) -> None:
+        """Open the selected config's folder; unlike its neighbours, this does not dismiss."""
+        path = self._selected_path()
+        if path:
+            self._opener(str(Path(path).parent))
 
     @on(Button.Pressed, "#picker-edit")
     def edit_config(self) -> None:

@@ -131,7 +131,7 @@ termapy_cfg/
 The title bar buttons (left to right):
 
 - **Help** opens this help guide.
-- **Cfg** opens the config picker (Load / Edit / New / Rename / Delete / Cancel), listed newest first with size, age, port, baud, and title.
+- **Cfg** opens the config picker (Load / Edit / Explore / New / Rename / Delete / Cancel), listed newest first with size, age, port, baud, and title.
 - **Run** opens the script picker (Run / Edit / New / Rename / Delete / Cancel) with each script's docstring summary.
 - **Proto** opens the protocol test picker (Run / Debug / Edit / New / Rename / Delete / Cancel).
 - **Update** appears only when a newer termapy is available on PyPI.

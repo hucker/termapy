@@ -7,7 +7,7 @@ The top bar has the title-bar buttons plus a centered config name:
 | Button          | Position    | Action                                          |
 | --------------- | ----------- | ----------------------------------------------- |
 | **Help**        | Top-left    | Open this help guide                            |
-| **Cfg**         | Top-left    | Load / Edit / New / Rename / Delete a config    |
+| **Cfg**         | Top-left    | Load / Edit / Explore / New / Rename / Delete a config |
 | **Run**         | Top-left    | Run / Edit / New / Rename / Delete a script     |
 | **Proto**       | Top-left    | Run / Debug / Edit / New / Rename / Delete a .pro script |
 | **Update**      | Top-left    | Appears only when a newer termapy is on PyPI    |

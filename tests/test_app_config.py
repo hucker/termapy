@@ -1262,22 +1262,8 @@ class TestFileManagerName:
         assert file_manager_name("win32") == "Explorer"
         assert file_manager_name("darwin") == "Finder"
 
-    @pytest.mark.parametrize(
-        "desktop, expected",
-        [
-            ("ubuntu:GNOME", "Files"),
-            ("KDE", "Dolphin"),
-            ("XFCE", "Thunar"),
-            ("MATE", "Caja"),
-            ("X-Cinnamon", "Nemo"),
-            ("LXQt", "PCManFM"),
-            ("", "Files"),
-            ("SomethingNew", "Files"),
-        ],
-    )
-    def test_linux_is_named_by_the_desktop_session(self, desktop, expected):
-        # Act
-        actual = file_manager_name("linux", desktop)
-
-        # Assert
-        assert actual == expected, "any colon-separated part of XDG_CURRENT_DESKTOP, any case"
+    @pytest.mark.parametrize("platform", ["linux", "freebsd14", "openbsd7", "haiku1"])
+    def test_everything_else_is_files(self, platform):
+        # Act / Assert -- Linux users know their file manager as a menu entry,
+        # not a project name, so no desktop detection: one generic label
+        assert file_manager_name(platform) == "Files"

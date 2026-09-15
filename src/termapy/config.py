@@ -785,44 +785,27 @@ def load_config(path: str) -> dict:
     return cfg
 
 
-# Linux desktop session -> the file manager it ships.  XDG_CURRENT_DESKTOP
-# is a colon-separated list ("ubuntu:GNOME"); any part matches, any case.
-_LINUX_FILE_MANAGERS: tuple[tuple[frozenset[str], str], ...] = (
-    (frozenset({"kde", "plasma"}), "Dolphin"),
-    (frozenset({"xfce"}), "Thunar"),
-    (frozenset({"mate"}), "Caja"),
-    (frozenset({"x-cinnamon", "cinnamon"}), "Nemo"),
-    (frozenset({"lxqt", "lxde"}), "PCManFM"),
-    (frozenset({"gnome", "ubuntu", "unity", "pantheon"}), "Files"),
-)
-
-
-def file_manager_name(platform: str = sys.platform, desktop: str | None = None) -> str:
+def file_manager_name(platform: str = sys.platform) -> str:
     """The name of this platform's file manager, for a label ("Finder").
 
-    Windows and macOS have exactly one.  Linux has many, so the desktop
-    session names it; an unknown or absent desktop gets the GNOME name,
-    which is also what most distributions ship.  A verb like "Explore"
-    reads as Windows to everyone else, which is why the label is the
-    app's own name.
+    Windows and macOS each have one and everyone knows its name.  Linux
+    has many, and most users know theirs only as the "Files" or "File
+    Manager" entry in a menu, so naming Thunar or Dolphin would puzzle
+    more people than it would please; "Files" is the GNOME, Mint and
+    elementary menu label and reads as a plain noun everywhere else.  A
+    verb like "Explore" reads as Windows to everyone else, which is why
+    the label is a name at all.
 
     Args:
         platform: ``sys.platform``; a parameter so a test needs no patching.
-        desktop: The desktop identifier; None reads ``XDG_CURRENT_DESKTOP``.
 
     Returns:
-        ``"Explorer"``, ``"Finder"``, or the Linux manager's name.
+        ``"Explorer"``, ``"Finder"``, or ``"Files"``.
     """
     if platform == "win32":
         return "Explorer"
     if platform == "darwin":
         return "Finder"
-    if desktop is None:
-        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
-    parts = {part.strip().lower() for part in desktop.split(":")}
-    for names, manager in _LINUX_FILE_MANAGERS:
-        if parts & names:
-            return manager
     return "Files"
 
 

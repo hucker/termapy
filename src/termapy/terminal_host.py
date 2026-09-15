@@ -279,6 +279,10 @@ class TerminalHost:
         """
         return InternalHandle(
             plugins=self.repl._plugins,
+            # Aliases the engine's list (never a copy): resolve_plugins
+            # rebuilds it in place on every config switch, and /sym.import
+            # must see the converters the CURRENT config loaded.
+            converters=self.repl.converters,
             port=lambda: self.engine.port_obj if self.engine.is_connected else None,
             in_script=lambda: self.repl.in_script,
             # The dispatch gate's own "right now" answer (static env set

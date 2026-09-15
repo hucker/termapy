@@ -106,7 +106,7 @@ src/termapy/
 │   ├── address.py          #   The address grammar: 0x.., ..h, decimal, name, name+off, name@file; .suffix reserved
 │   ├── format.py           #   Prose renderers and their data= record twins
 │   ├── session.py          #   ctx.ns("symbols") owner + the auto-load rule fired by ReplEngine
-│   └── converters/         #   Registry (CONVERTERS, FORMATS, find_converter) + one module per toolchain
+│   └── converters/         #   Registry (CONVERTERS, FORMATS, find_converter, converter_from_module) + one module per toolchain; plugin folders add more
 │       └── xc32.py         #     Microchip XC32 (GNU ld) linker-map converter
 ├── usb/                    # (3911 lines) USB lookup tables (library-shaped)
 │   ├── _vendors_full.py    #   Generated USB-IF table (fallback)
@@ -344,7 +344,9 @@ raw line
 
 ### Plugin file convention
 
-A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, and/or top-level lifecycle functions (`on_app_start`, `on_app_stop`, `on_script_start`, `on_script_stop`). All are optional; the loader picks up whatever's there.
+A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, a symbol-map converter (the four top-level names `FORMAT` / `DESCRIPTION` / `DETECT` / `convert`, the same shape the built-in converters use), and/or top-level lifecycle functions (`on_app_start`, `on_app_stop`, `on_script_start`, `on_script_stop`). All are optional; the loader picks up whatever's there.
+
+A converter is four names rather than a dataclass because it is one function plus two strings — `Command` earns its dataclass through validation and ~15 fields, and a wrapper here would exist only to be unpacked. Plugin converters live on the `ReplEngine` with a `source` label (not in the static `CONVERTERS` tuple), so a config switch drops them exactly like commands; `/sym.import` passes them to `find_converter`, which searches the built-in registry too. An empty `DETECT` means explicit-`format=` only — a board's own pipeline should not join format sniffing.
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> None:

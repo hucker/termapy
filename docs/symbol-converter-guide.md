@@ -9,6 +9,9 @@ same job by hand.
 Scope: one new module under `src/termapy/symbols/converters/`, one registry
 line, one fixture, one test file, two doc lines. Nothing else changes.
 
+If you don't want to ship it upstream, the same four names in a `plugin/`
+file make a converter for your machine alone -- see section 8.
+
 ## 1. What you are building
 
 termapy reads exactly one symbol format, its own JSON sidecar
@@ -186,7 +189,7 @@ CONVERTERS: Final[tuple[ConverterSpec, ...]] = (
 )
 ```
 
-That line is the only registration. `FORMATS`, the `format=` enum on
+That line is the only registration. `FORMATS`, the `format=` value on
 `/sym.import`, `/help sym.import`, and the "Unknown map format" error
 message all derive from it.
 
@@ -288,7 +291,40 @@ generic marker is correct, because it is the fallback.
 - [ ] pytest (fast suite), ruff, ty all clean
 - [ ] `help/symbols.md` table row and `ARCHITECTURE.md` tree line added; nothing else touched
 
-## 8. If you would rather skip the converter
+## 8. If you would rather not send a PR
+
+A **plugin converter** exports the same four names from a file in a
+`plugin/` folder, so your toolchain works on your machine without
+touching termapy. Reach for it when the converter is yours alone -- one
+board, one build, or a pipeline that also filters rows and adds typed
+registers:
+
+```python
+from termapy.symbols.converters import xc32
+from termapy.symbols.table import Symbol
+
+FORMAT = "myboard"
+DESCRIPTION = "xc32 map, no function addresses, plus typed SFRs"
+DETECT = ()          # explicit-only: /sym.import <map> format=myboard
+
+def convert(text):
+    rows = [s for s in xc32.convert(text) if s.section != "text"]
+    return rows + [Symbol("U1MODE", 0xBF806000, 4, "sfr", type="u32", rmw=False)]
+```
+
+Everything in sections 3 and 6 applies unchanged -- it is the same
+contract. The differences: give `DETECT` an empty tuple unless your
+format is genuinely unlike every built-in (a board pipeline should not
+hijack sniffing), the converter lives and dies with the config that
+loaded it, and a raise is caught and reported as
+`Converter error: <format>: ...` rather than crashing the session. See
+"Your own converter, as a plugin" in `help/symbols.md`.
+
+**A built-in converter is still the right answer for a real toolchain**
+-- one shipped module serves everyone on that compiler and is sniffed
+automatically. Use a plugin when the pipeline is specific to you.
+
+## 9. If you would rather skip the converter entirely
 
 The sidecar is plain JSON, and `/sym.load` reads any file of that shape.
 A twenty-line script in your build (in any language) that walks your map

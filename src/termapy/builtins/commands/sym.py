@@ -28,8 +28,14 @@ from typing import TYPE_CHECKING, Final
 from termapy.config import cfg_relative_path
 from termapy.folders import SYM
 from termapy.help_dynamic import compose, state_line
-from termapy.plugins import CmdResult, Command, UsageError, format_kv_lines
-from termapy.plugins.params import EnumValue, ParamSpec
+from termapy.plugins import (
+    BoundaryException,
+    CmdResult,
+    Command,
+    UsageError,
+    format_kv_lines,
+)
+from termapy.plugins.params import ParamSpec
 from termapy.symbols import (
     Symbol,
     SymbolTable,
@@ -49,11 +55,6 @@ from termapy.symbols.format import hex_addr
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
-
-
-# Built from the registry at import (the crcglot LANGUAGES pattern) -- never
-# a hand-kept list, so a new converter extends the enum and the MCP schema.
-_FORMAT_VALUES: Final[tuple[EnumValue, ...]] = tuple(EnumValue(name) for name in FORMATS)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -80,6 +81,23 @@ def _display_path(ctx: PluginContext, path: Path | None) -> str:
         except OSError:
             pass
     return str(path)
+
+
+def _plugin_converters(ctx: PluginContext) -> tuple:
+    """Converters the active config's plugin folders loaded (possibly none).
+
+    ``getattr`` rather than a bare attribute: a hand-built test context
+    may carry no internal handle at all, and a missing converter list
+    means "built-ins only", not an error.
+    """
+    internal = getattr(ctx, "internal", None)
+    return tuple(getattr(internal, "converters", ()) or ())
+
+
+def _known_formats(ctx: PluginContext) -> list[str]:
+    """Built-in format names plus any the plugin layer added, for errors."""
+    extra = [spec.format for spec in _plugin_converters(ctx)]
+    return list(FORMATS) + [name for name in extra if name not in FORMATS]
 
 
 def _anchor(ctx: PluginContext, raw: str) -> Path:
@@ -152,12 +170,26 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as e:
         return CmdResult.fail(msg=f"Read error: {e}")
-    spec = find_converter(fmt, text)
+    spec = find_converter(fmt, text, extra=_plugin_converters(ctx))
     if spec is None:
+        # Two different failures: a format= the registry doesn't have
+        # (name the token the user typed) versus a map nothing claimed
+        # (name the file).  format= is validated here rather than by an
+        # enum param because plugin folders extend the registry at
+        # runtime -- see the ParamSpec comment below.
+        subject = fmt if fmt else path.name
         return CmdResult.fail(
-            msg=f"Unknown map format: {path.name} (formats: {', '.join(FORMATS)})"
+            msg=f"Unknown map format: {subject} "
+            f"(formats: {', '.join(_known_formats(ctx))})"
         )
-    symbols = spec.convert(text)
+    try:
+        symbols = spec.convert(text)
+    # A plugin converter is third-party code on the dispatch path: a bad
+    # regex or a typo must name the converter, not crash the app.  The
+    # built-ins are documented as never raising on odd input; this guard
+    # is for the ones a user writes.
+    except BoundaryException as e:
+        return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")
     if not symbols:
         return CmdResult.fail(msg=f"No symbols found in {path.name} ({spec.format})")
     table = SymbolTable(
@@ -322,9 +354,15 @@ COMMAND = Command(
                     "file", "path", positional=True, required=True, rest=True,
                     help="linker map to convert",
                 ),
+                # A str, not an enum: plugin folders add converters at
+                # runtime (a per-config format is a board's own pipeline),
+                # so the valid set is not knowable at import.  The handler
+                # validates against built-ins PLUS the loaded plugin
+                # converters and names them all on a miss.
                 ParamSpec(
-                    "format", "enum", values=_FORMAT_VALUES,
-                    help="map format; omitted = sniff the file",
+                    "format", "str",
+                    help=f"map format ({', '.join(FORMATS)}, or a plugin "
+                         "converter); omitted = sniff the file",
                 ),
             ],
             help="Convert a linker map to sym/<cfg>.symbols.json and load it.",

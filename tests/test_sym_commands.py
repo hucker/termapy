@@ -61,6 +61,9 @@ def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
     engine = ReplEngine(cfg, str(config_path), write, global_root=tmp_path)
     internal_handle = InternalHandle(
         plugins=engine._plugins,
+        # Aliases the engine's list, as TerminalHost does: converters a
+        # plugin folder loads must reach /sym.import.
+        converters=engine.converters,
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
@@ -260,7 +263,12 @@ class TestSymImport:
         assert result.success, result.error
         assert result.value == str(XC32_COUNT), "explicit format= works"
 
-    def test_unknown_format_rejected_by_dispatcher(self, sym_env):
+    def test_unknown_format_rejected(self, sym_env):
+        """An unknown ``format=`` names the token typed, not the map file.
+
+        Validated by the handler, not an enum param: plugin folders add
+        converters at runtime, so the valid set isn't known at import.
+        """
         # Arrange
         engine, _, _ = sym_env
 
@@ -268,8 +276,9 @@ class TestSymImport:
         result = engine.dispatch(f"sym.import {XC32_MAP} format=nope")
 
         # Assert
-        assert not result.success, "enum param refuses an unknown format"
-        assert "nope" in result.error and "xc32" in result.error, "the message lists the choices"
+        assert not result.success, "an unknown format= is refused"
+        assert "nope" in result.error, "the message names the format the user typed"
+        assert "xc32" in result.error, "the message lists the choices"
 
     def test_unrecognized_map(self, sym_env, tmp_path):
         # Arrange
@@ -368,6 +377,175 @@ class TestSymImport:
         doc = json.loads(sidecar.read_text(encoding="utf-8"))
         assert len(doc["symbols"]) == 1, "the file is overwritten"
         assert doc["source"] == str(small), "provenance follows the new import"
+
+
+# ── Converter plugins ───────────────────────────────────────────────────────
+
+
+# A converter plugin: the four names a built-in converter exports.  This is
+# the pipeline shape the feature exists for -- reuse a built-in, drop what
+# the board doesn't want, add the typed rows a linker map cannot express.
+_PIPELINE_CONVERTER = '''
+from termapy.symbols.converters import xc32
+from termapy.symbols.table import Symbol
+
+FORMAT = "myboard"
+DESCRIPTION = "xc32 map, no code symbols, plus a typed SFR"
+DETECT = ()
+
+_SFRS = [Symbol("U1MODE", 0xBF806000, 4, "sfr", type="u32", rmw=False)]
+
+
+def convert(text):
+    rows = [s for s in xc32.convert(text) if s.section != "text"]
+    return rows + _SFRS
+'''
+
+_BROKEN_CONVERTER = '''
+FORMAT = "boom"
+DESCRIPTION = "raises on purpose"
+DETECT = ()
+
+
+def convert(text):
+    raise ValueError("bad regex")
+'''
+
+# FORMAT present, convert() missing -- an authoring error, not a plugin
+# that simply has no converter.
+_MALFORMED_CONVERTER = '''
+FORMAT = "halfdone"
+DESCRIPTION = "no convert()"
+DETECT = ()
+'''
+
+
+def _install_converter(config_path: Path, source: str, name: str = "conv") -> Path:
+    """Drop a converter plugin into the config's ``plugin/`` folder."""
+    folder = config_path.parent / "plugin"
+    folder.mkdir(exist_ok=True)
+    file = folder / f"{name}.py"
+    file.write_text(source, encoding="utf-8")
+    return file
+
+
+class TestConverterPlugins:
+    """A plugin folder may add a symbol-map converter (four top-level names)."""
+
+    def test_plugin_converter_runs_as_a_pipeline(self, sym_env):
+        """The motivating case: filter the map, add rows it cannot express."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=myboard")
+
+        # Assert
+        assert result.success, result.error
+        table = get_table(engine.ctx)
+        sections = {symbol.section for symbol in table.symbols}
+        assert "text" not in sections, "the converter dropped code symbols"
+        sfr = table.by_name("U1MODE")
+        assert len(sfr) == 1, "the converter added a row no linker map carries"
+        assert sfr[0].type == "u32", "a full Symbol survives: type is kept"
+        assert sfr[0].rmw is False, "a full Symbol survives: rmw is kept"
+
+    def test_plugin_converter_is_not_sniffed_by_default(self, sym_env):
+        """Empty DETECT keeps a board pipeline out of format detection."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP}")
+
+        # Assert
+        assert result.success, result.error
+        table = get_table(engine.ctx)
+        assert "text" in {symbol.section for symbol in table.symbols}, (
+            "the sniffed built-in ran, not the explicit-only plugin converter"
+        )
+
+    def test_unknown_format_lists_plugin_converters(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=nope")
+
+        # Assert
+        assert not result.success, "an unknown format is still refused"
+        assert "myboard" in result.error, "the plugin's format is offered too"
+
+    def test_converter_exception_names_the_converter(self, sym_env):
+        """Third-party code on the dispatch path must not crash the app."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _BROKEN_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=boom")
+
+        # Assert
+        assert not result.success, "the raising converter fails the command"
+        assert "boom" in result.error, "the message names the converter that raised"
+        assert "bad regex" in result.error, "the underlying reason is kept"
+
+    def test_malformed_converter_is_reported_not_silent(self, sym_env):
+        """FORMAT without convert() is an authoring error, reported at load."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_converter(config_path, _MALFORMED_CONVERTER)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        errors = [text for text in _texts(output) if "Plugin error" in text]
+        assert errors, "a malformed converter export is reported"
+        assert any("halfdone" in text for text in errors), (
+            "the report names the offending converter"
+        )
+
+    def test_converters_are_dropped_on_config_switch(self, sym_env):
+        """A folder converter must not outlive the config that loaded it."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        plugin_file = _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+        assert engine.converters, "loaded to begin with"
+
+        # Act
+        plugin_file.unlink()
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert engine.converters == [], "the converter went away with its folder"
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=myboard")
+        assert not result.success, "its format no longer resolves"
+
+    def test_converter_only_plugin_is_not_skipped(self, sym_env):
+        """A file exporting only a converter is a real plugin, not a no-op."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert not [text for text in _texts(output) if "Skipped" in text], (
+            "a converter-only file is not reported as exporting nothing"
+        )
+        assert [spec.format for spec in engine.converters] == ["myboard"], (
+            "the converter registered"
+        )
 
 
 # ── /sym.load / /sym.unload ─────────────────────────────────────────────────

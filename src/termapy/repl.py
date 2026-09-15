@@ -408,6 +408,12 @@ class ReplEngine:
         # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
         self._lifecycle_hooks: list[LifecycleHook] = []
 
+        # Symbol-map converters loaded from plugin folders, in load order.
+        # The BUILT-IN converters are not here -- they live in the
+        # symbols.converters registry, which /sym.import consults too.
+        # Only folder-loaded ones need dropping on a config switch.
+        self._converters: list = []
+
         # Load built-in plugins from termapy/builtins/
         self._load_builtins()
 
@@ -953,6 +959,25 @@ class ReplEngine:
         """Register a plugin lifecycle hook. Appended in load order."""
         self._lifecycle_hooks.append(hook)
 
+    def register_converter(self, spec) -> None:
+        """Register a symbol-map converter. Appended in load order.
+
+        Later layers override earlier ones by format name, so a per-config
+        converter beats a global one with the same ``FORMAT`` -- the same
+        rule commands follow.  ``find_converter`` searches this list before
+        the built-ins by name, so a config folder can also override a
+        built-in format for its own board.
+        """
+        self._converters[:] = [
+            existing for existing in self._converters if existing.format != spec.format
+        ]
+        self._converters.append(spec)
+
+    @property
+    def converters(self) -> list:
+        """Folder-loaded symbol-map converters, in load order."""
+        return self._converters
+
     # -- External plugin resolution ------------------------------------------
 
     def resolve_plugins(self) -> None:
@@ -1037,6 +1062,9 @@ class ReplEngine:
         self._lifecycle_hooks[:] = [
             hook for hook in self._lifecycle_hooks if hook.source in _EXTERNAL_KEEP
         ]
+        self._converters[:] = [
+            spec for spec in self._converters if spec.source in _EXTERNAL_KEEP
+        ]
         return dropped
 
     def _install_layer(self, result: LoadResult, source: str) -> None:
@@ -1068,13 +1096,16 @@ class ReplEngine:
             loaded.append(f"@{directive.name}")
         for hook in result.lifecycle_hooks:
             self.register_lifecycle_hook(hook)
+        for spec in result.converters:
+            self.register_converter(spec)
+            loaded.append(f"={spec.format}")
         if loaded:
             self._report(
                 f"Loaded {len(loaded)} plugin(s) from {source}: " + ", ".join(loaded),
             )
         for name in result.skipped:
             self.write(
-                f"Skipped {name} - no COMMAND or TRANSFORM (see plugin docs)",
+                f"Skipped {name} - nothing exported (see plugin docs)",
                 "yellow",
             )
         for error in result.errors:

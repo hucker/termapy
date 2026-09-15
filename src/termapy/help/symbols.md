@@ -43,6 +43,47 @@ the running build knows. To add your toolchain, hand
 and one of your map files to an LLM, or follow it yourself: one module, one
 registry line, one fixture.
 
+## Your own converter, as a plugin
+
+A plugin file may export a converter, so the map-to-table step becomes a
+pipeline you own -- no PR, no second symbol store. Drop this in
+`plugin/` (global, or beside one config for one board):
+
+```python
+from termapy.symbols.converters import xc32
+from termapy.symbols.table import Symbol
+
+FORMAT = "myboard"
+DESCRIPTION = "xc32 map, no function addresses, plus typed SFRs"
+DETECT = ()          # explicit-only: /sym.import <map> format=myboard
+
+_SFRS = [Symbol("U1MODE", 0xBF806000, 4, "sfr", type="u32", rmw=False)]
+
+def convert(text):
+    rows = [s for s in xc32.convert(text) if s.section != "text"]
+    return rows + _SFRS
+```
+
+Same four names a built-in converter exports -- only discovery differs.
+Because your `convert` is the single producer of the table, a re-import
+after a rebuild reproduces all of it: the rows you filtered stay gone and
+the typed rows stay put. That is the point of doing it here rather than
+hand-editing the sidecar, where the next `/sym.import` would erase your
+work.
+
+Two rules worth knowing:
+
+- **`DETECT = ()` keeps you out of sniffing.** Your converter is one
+  board's pipeline, not a toolchain, and its input is often a map a
+  built-in would also claim. Select it with `format=`. Give it real
+  detect strings only if it recognizes a format nothing else does.
+- **Converters follow the config.** A converter in a config's `plugin/`
+  folder exists only while that config is loaded, exactly like a command.
+
+A converter may set every `Symbol` field -- `type`, `rmw`, `space`,
+`file` -- so the typed registers and bit fields a linker map cannot
+express become script output instead of hand-maintained data.
+
 A relative path given to `/sym.import` or `/sym.load` resolves against the
 config folder, not the shell's working directory. Under the MCP server,
 importing a map that lives outside the config folder needs

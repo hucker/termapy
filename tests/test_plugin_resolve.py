@@ -352,5 +352,5 @@ class TestGateAndReporting:
         engine.fire_lifecycle("on_app_start")
 
         # Assert
-        expected = ("Skipped noop.py - no COMMAND or TRANSFORM (see plugin docs)", "yellow")
+        expected = ("Skipped noop.py - nothing exported (see plugin docs)", "yellow")
         assert expected in output, "a file with nothing to register is reported"

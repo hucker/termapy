@@ -63,6 +63,12 @@ class InternalHandle:
 
     plugins: dict = field(default_factory=dict)
     directives: list = field(default_factory=list)
+    # Symbol-map converters loaded from plugin folders (ConverterSpec).
+    # The BUILT-IN converters are not here: /sym.import passes this list
+    # to symbols.converters.find_converter, which searches the built-in
+    # registry too.  Aliases the engine's list, so a config switch that
+    # drops folder converters is visible through every live context.
+    converters: list = field(default_factory=list)
 
     # Bare REPL dispatch through the plugin pipeline (capability gates,
     # flag parsing) WITHOUT ctx.dispatch's serial-output sugar.  Legacy

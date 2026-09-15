@@ -1,9 +1,9 @@
 """Plugin discovery and loading.
 
 Scans a directory for ``.py`` files exporting a ``COMMAND``,
-``TRANSFORM``, ``DIRECTIVE``, or top-level lifecycle functions.
-Returns a ``LoadResult`` bundling everything found, plus skipped files
-and errors.
+``TRANSFORM``, ``DIRECTIVE``, a symbol-map converter, or top-level
+lifecycle functions.  Returns a ``LoadResult`` bundling everything
+found, plus skipped files and errors.
 
 The single entry point is :func:`load_plugins_from_dir`.  Internals
 (``_load_plugin_file``, ``_flatten_command``, ``_make_interior_handler``)
@@ -73,8 +73,9 @@ def _clean_stale_pyc(folder: Path) -> None:
 def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
     """Discover and load plugin .py files from a directory.
 
-    Each file may export a ``COMMAND`` (Command dataclass) and/or a
-    ``TRANSFORM`` (Transform dataclass).  Files starting with '_' are
+    Each file may export a ``COMMAND`` (Command dataclass), a
+    ``TRANSFORM`` (Transform dataclass), a ``DIRECTIVE``, a symbol-map
+    converter, and/or lifecycle functions.  Files starting with '_' are
     skipped.
 
     Args:
@@ -82,7 +83,8 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
         source: Label for where the plugin came from (e.g. "global", config name).
 
     Returns:
-        LoadResult with plugins, transforms, skipped file names, and error file names.
+        LoadResult with plugins, transforms, directives, lifecycle hooks,
+        converters, skipped file names, and error file names.
     """
     result = LoadResult()
     if not folder.is_dir():
@@ -92,7 +94,7 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
         if py_file.name.startswith("_"):
             continue
         try:
-            infos, xforms, dirs, hooks = _load_plugin_file(py_file, source)
+            infos, xforms, dirs, hooks, convs = _load_plugin_file(py_file, source)
             if infos:
                 result.plugins.extend(infos)
             if xforms:
@@ -101,7 +103,9 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
                 result.directives.extend(dirs)
             if hooks:
                 result.lifecycle_hooks.extend(hooks)
-            if not infos and not xforms and not dirs and not hooks:
+            if convs:
+                result.converters.extend(convs)
+            if not infos and not xforms and not dirs and not hooks and not convs:
                 result.skipped.append(py_file.name)
         # Plugin file being loaded is third-party code; its top-level
         # can raise anything (import errors, syntax, config reads).
@@ -115,14 +119,20 @@ def _load_plugin_file(
     path: Path,
     source: str,
 ) -> tuple[
-    list[PluginInfo], list[TransformInfo], list[DirectiveInfo], list[LifecycleHook]
+    list[PluginInfo],
+    list[TransformInfo],
+    list[DirectiveInfo],
+    list[LifecycleHook],
+    list,
 ]:
-    """Import a single plugin file and extract commands, transforms, directives, and hooks.
+    """Import a plugin file and extract everything it exports.
 
     A valid plugin module may export a ``COMMAND`` instance (a ``Command``
     dataclass), a ``TRANSFORM`` instance (a ``Transform`` dataclass),
-    a ``DIRECTIVE`` instance (a ``Directive`` dataclass), and/or top-level
-    lifecycle functions named in :data:`LIFECYCLE_HOOK_NAMES`.
+    a ``DIRECTIVE`` instance (a ``Directive`` dataclass), top-level
+    lifecycle functions named in :data:`LIFECYCLE_HOOK_NAMES`, and/or a
+    symbol-map converter (four top-level names -- see
+    ``termapy.symbols.converters``).
 
     Args:
         path: Path to the .py plugin file.
@@ -130,7 +140,12 @@ def _load_plugin_file(
 
     Returns:
         Tuple of (PluginInfo list, TransformInfo list, DirectiveInfo list,
-        LifecycleHook list).
+        LifecycleHook list, ConverterSpec list).
+
+    Raises:
+        ValueError: A converter export is malformed (``FORMAT`` present
+            but ``convert`` missing or a field the wrong type).  The
+            caller records it like any other plugin load failure.
     """
     # Derive the package name if this is a builtin command, so the module
     # is registered under both the dynamic name and the package path.
@@ -154,7 +169,7 @@ def _load_plugin_file(
     else:
         spec = importlib.util.spec_from_file_location(module_name, path)
         if spec is None or spec.loader is None:
-            return [], [], [], []
+            return [], [], [], [], []
         mod = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = mod
         if pkg_name:
@@ -209,7 +224,18 @@ def _load_plugin_file(
                 )
             )
 
-    return plugins, transforms, directives, lifecycle_hooks
+    # Symbol-map converters -- four top-level names, the shape the built-in
+    # converters use.  Lazy: importing the symbols package here would put it
+    # on the loader's import path for every plugin load, converter or not.
+    converters: list = []
+    if isinstance(getattr(mod, "FORMAT", None), str):
+        from termapy.symbols.converters import converter_from_module
+
+        spec = converter_from_module(mod, source)
+        if spec is not None:
+            converters.append(spec)
+
+    return plugins, transforms, directives, lifecycle_hooks, converters
 
 
 def _flatten_command(

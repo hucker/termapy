@@ -12,7 +12,7 @@ line, one fixture, one test file, two doc lines. Nothing else changes.
 ## 1. What you are building
 
 termapy reads exactly one symbol format, its own JSON sidecar
-(`<cfg_dir>/<cfg_stem>.symbols.json`). A converter is a pure function from
+(`<cfg_dir>/sym/<cfg_stem>.symbols.json`). A converter is a pure function from
 map text to a list of `Symbol` records; `/sym.import` calls it, wraps the
 result in a `SymbolTable`, and writes the sidecar. The runtime never parses
 a vendor map, and the converter never touches a file, a config, or a device.

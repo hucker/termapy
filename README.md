@@ -284,7 +284,6 @@ termapy_cfg/
 ├── plugin/                             # global plugins (all configs)
 └── demo/
     ├── demo.cfg                        # config file
-    ├── demo.symbols.json               # symbol table for /sym (auto-loaded)
     ├── demo_legacy.profile.json        # /mem.* through the device's own `mem` grammar
     ├── demo.log                        # session log
     ├── demo.history                    # command history
@@ -302,6 +301,7 @@ termapy_cfg/
     ├── cap/                            # data capture output files
     ├── prof/                           # /run.profile timing CSVs
     ├── viz/                            # per-config packet visualizers
+    ├── sym/                            # symbol tables (demo.symbols.json, auto-loaded)
     └── proto/                          # protocol test scripts
         ├── at_test.pro
         ├── bitfield_inline.pro

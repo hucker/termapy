@@ -181,6 +181,37 @@ class TestCfgHelpers:
         assert actual.name == "plugin", "correct subdir name"
         assert actual.is_dir(), "directory created"
 
+    def test_cfg_data_dir_migrates_the_symbol_table_into_sym(self, tmp_path):
+        # Arrange -- a table where it lived before 2026-09: beside the cfg
+        config_path = tmp_path / "dev" / "dev.cfg"
+        config_path.parent.mkdir()
+        old = config_path.parent / "dev.symbols.json"
+        old.write_text("{}", encoding="utf-8")
+
+        # Act
+        cfg_data_dir(str(config_path))
+
+        # Assert
+        assert not old.exists(), "moved out of the root"
+        assert (config_path.parent / "sym" / "dev.symbols.json").is_file(), "into sym/"
+
+    def test_sidecar_migration_never_overwrites(self, tmp_path):
+        # Arrange -- both an old and a new copy exist
+        config_path = tmp_path / "dev" / "dev.cfg"
+        config_path.parent.mkdir()
+        (config_path.parent / "sym").mkdir()
+        (config_path.parent / "sym" / "dev.symbols.json").write_text("new", encoding="utf-8")
+        old = config_path.parent / "dev.symbols.json"
+        old.write_text("old", encoding="utf-8")
+
+        # Act
+        cfg_data_dir(str(config_path))
+
+        # Assert
+        actual = (config_path.parent / "sym" / "dev.symbols.json").read_text(encoding="utf-8")
+        assert actual == "new", "the copy already in sym/ wins"
+        assert old.exists(), "the old one is left for the user to reconcile"
+
 
 # -- DEFAULT_CFG structure --------------------------------------------------
 

@@ -11,7 +11,7 @@ Subcommands:
 
 - ``/sym <addr|name>`` -- name -> address, or address -> name+offset.
 - ``/sym.import <file> {format=...}`` -- convert a linker map to
-  ``<cfg>.symbols.json`` and load it.
+  ``sym/<cfg>.symbols.json`` and load it.
 - ``/sym.load {path}`` -- load the sidecar (default) or an explicit file.
 - ``/sym.unload`` -- clear the loaded table.
 - ``/sym.search <pattern>`` -- exact, glob, regex, or substring.
@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from termapy.config import cfg_relative_path
+from termapy.folders import SYM
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import CmdResult, Command, UsageError, format_kv_lines
 from termapy.plugins.params import EnumValue, ParamSpec
@@ -63,7 +64,7 @@ def _bits(table: SymbolTable | None) -> int:
 
 
 def _display_path(ctx: PluginContext, path: Path | None) -> str:
-    """Bare name when the file sits in the cfg folder, else the path as given.
+    """Config-relative (``sym/demo.symbols.json``) inside the cfg folder, else as given.
 
     Keeps ``/sym.info`` deterministic in the CLI gold while still saying
     where an ad-hoc file lives.
@@ -72,8 +73,10 @@ def _display_path(ctx: PluginContext, path: Path | None) -> str:
         return "(in-memory)"
     if ctx.config_path:
         try:
-            if path.resolve().parent == Path(ctx.config_path).resolve().parent:
-                return path.name
+            cfg_folder = Path(ctx.config_path).resolve().parent
+            resolved = path.resolve()
+            if resolved.is_relative_to(cfg_folder):
+                return resolved.relative_to(cfg_folder).as_posix()
         except OSError:
             pass
     return str(path)
@@ -188,6 +191,13 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     if raw:
         ctx.fs.guard_external_path(raw, "Symbols path")
         path = _anchor(ctx, raw)
+        # A bare filename means "the one in sym/", where /sym.import writes
+        # and a hand-written table belongs; anything with a separator is
+        # taken as given (config-relative).
+        if ctx.config_path and Path(raw).name == raw and not path.is_file():
+            in_sym = Path(ctx.config_path).parent / SYM / raw
+            if in_sym.is_file():
+                path = in_sym
     else:
         default = sidecar_path(ctx.config_path)
         if default is None:
@@ -263,7 +273,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 _GRAMMAR_HELP: Final[str] = (
     "Symbols come from your linker map: /sym.import <map> converts it to\n"
-    "<cfg>.symbols.json beside the config (a generated file, overwritten on\n"
+    "sym/<cfg>.symbols.json in the config folder (a generated file, overwritten on\n"
     "re-import) and loads it.  The sidecar auto-loads whenever the config\n"
     "loads -- TUI, CLI and MCP alike.\n"
     "\n"
@@ -317,7 +327,7 @@ COMMAND = Command(
                     help="map format; omitted = sniff the file",
                 ),
             ],
-            help="Convert a linker map to <cfg>.symbols.json and load it.",
+            help="Convert a linker map to sym/<cfg>.symbols.json and load it.",
             handler=_handler_import,
         ),
         "load": Command(
@@ -327,7 +337,7 @@ COMMAND = Command(
                     help="symbols JSON file (default: the cfg's sidecar)",
                 ),
             ],
-            help="Load a symbol table (default: <cfg>.symbols.json, the file /sym.import writes).",
+            help="Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).",
             handler=_handler_load,
         ),
         "unload": Command(

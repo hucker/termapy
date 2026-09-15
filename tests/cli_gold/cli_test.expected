@@ -479,7 +479,7 @@ demo> /print === section: symbols ===
   === section: symbols ===
   [99/219] /print === section: symbols === (270us)
 demo> /sym.info
-  file        : demo.symbols.json
+  file        : sym/demo.symbols.json
   source      : demo firmware (hand-written)
   imported    : 2026-08-29T00:00:00
   address_bits: 32
@@ -996,10 +996,10 @@ SYNOPSIS
   /sym <addr|name>
 
 DESCRIPTION
-  Current symbols = 13 (demo.symbols.json)
+  Current symbols = 13 (sym/demo.symbols.json)
   
   Symbols come from your linker map: /sym.import <map> converts it to
-  <cfg>.symbols.json beside the config (a generated file, overwritten on
+  sym/<cfg>.symbols.json in the config folder (a generated file, overwritten on
   re-import) and loads it.  The sidecar auto-loads whenever the config
   loads -- TUI, CLI and MCP alike.
   
@@ -1028,9 +1028,9 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /sym.import    Convert a linker map to <cfg>.symbols.json and load it.
+  /sym.import    Convert a linker map to sym/<cfg>.symbols.json and load it.
   /sym.info      Show the loaded symbol table: file, source, counts by section, address range.
-  /sym.load      Load a symbol table (default: <cfg>.symbols.json, the file /sym.import writes).
+  /sym.load      Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
   /sym.search    Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.
   /sym.unload    Clear the loaded symbol table.
   [173/219] /help sym (6.65ms)

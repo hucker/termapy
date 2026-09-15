@@ -71,13 +71,13 @@ class TestSetupDemoConfig:
         config_path = setup_demo_config(tmp_path)
 
         # Assert
-        sidecar = config_path.parent / f"demo{SYMBOLS_SUFFIX}"
+        sidecar = config_path.parent / "sym" / f"demo{SYMBOLS_SUFFIX}"
         assert sidecar.read_bytes() == DEMO_SYMBOLS.read_bytes(), "bundled file copied verbatim"
 
     def test_keeps_a_modified_copy_without_force(self, tmp_path):
         # Arrange
         config_path = setup_demo_config(tmp_path)
-        sidecar = config_path.parent / f"demo{SYMBOLS_SUFFIX}"
+        sidecar = config_path.parent / "sym" / f"demo{SYMBOLS_SUFFIX}"
         sidecar.write_text("{}", encoding="utf-8")
 
         # Act
@@ -89,7 +89,7 @@ class TestSetupDemoConfig:
     def test_force_refreshes(self, tmp_path):
         # Arrange
         config_path = setup_demo_config(tmp_path)
-        sidecar = config_path.parent / f"demo{SYMBOLS_SUFFIX}"
+        sidecar = config_path.parent / "sym" / f"demo{SYMBOLS_SUFFIX}"
         sidecar.write_text("{}", encoding="utf-8")
 
         # Act

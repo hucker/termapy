@@ -2,7 +2,7 @@
 
 A config is ``termapy_cfg/<name>/<name>.cfg``: the folder carries the
 run/, proto/, cap/ ... data, so renaming must move the folder and the
-file together, with the ``<name>.history`` sidecar, and never overwrite.
+file together, with every stem-named sidecar, and never overwrite.
 """
 
 from __future__ import annotations
@@ -113,3 +113,28 @@ class TestValidateFileStem:
     def test_bad_names_say_why(self, bad, fragment):
         reason = validate_file_stem(bad)
         assert reason is not None and fragment in reason
+
+
+class TestRenameCarriesEverySidecar:
+    """Every stem-named sidecar in ``folders.SIDECARS`` follows a rename."""
+
+    def test_log_report_profile_and_symbol_table_follow(self, tmp_path):
+        # Arrange -- the sidecars a real session leaves behind, log included
+        old = _make_cfg(tmp_path, "bench", history=True)
+        folder = old.parent
+        (folder / "bench.log").write_text("> hi", encoding="utf-8")
+        (folder / "bench.md").write_text("# Project: bench", encoding="utf-8")
+        (folder / "bench.profile.json").write_text("{}", encoding="utf-8")
+        (folder / "sym").mkdir()
+        (folder / "sym" / "bench.symbols.json").write_text("{}", encoding="utf-8")
+
+        # Act
+        rename_config(str(old), "lab")
+
+        # Assert
+        lab = tmp_path / "lab"
+        for name in ("lab.history", "lab.log", "lab.md", "lab.profile.json"):
+            assert (lab / name).is_file(), f"{name} followed the rename"
+        assert (lab / "sym" / "lab.symbols.json").is_file(), "the symbol table followed, inside sym/"
+        left = sorted(path.name for path in lab.rglob("bench*"))
+        assert left == [], f"nothing keeps the old name: {left}"

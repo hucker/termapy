@@ -560,8 +560,8 @@ class TestSidecarPath:
         actual = sidecar_path(str(cfg))
 
         # Assert
-        expected = tmp_path / "rig" / f"rig{folders.SYMBOLS_SUFFIX}"
-        assert actual == expected, "sidecar is <dir>/<stem>.symbols.json"
+        expected = tmp_path / "rig" / "sym" / f"rig{folders.SYMBOLS_SUFFIX}"
+        assert actual == expected, "sidecar is <dir>/sym/<stem>.symbols.json"
         assert actual is not None and actual.name == "rig.symbols.json", "suffix spelled by folders"
 
     def test_no_config(self):

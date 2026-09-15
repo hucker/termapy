@@ -6,7 +6,7 @@ Validation is by construction: ``SymbolTable.from_dict`` raises a
 ``ValueError`` naming the first offending field (``symbols[3].addr: ...``),
 so a handler renders it and nothing else needs an error list.
 
-File shape (``<cfg_dir>/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)::
+File shape (``<cfg_dir>/sym/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)::
 
     {
       "symbols_version": 1,                 # the only hard gate on load
@@ -446,7 +446,11 @@ class SymbolTable:
 
 
 def sidecar_path(config_path: str) -> Path | None:
-    """``<cfg_dir>/<cfg_stem><SYMBOLS_SUFFIX>`` beside the cfg, or None.
+    """``<cfg_dir>/sym/<cfg_stem><SYMBOLS_SUFFIX>``, or None.
+
+    The table lives in the config's ``sym/`` folder (``folders.SYM``).  It
+    lived beside the cfg until 2026-09; ``config.cfg_data_dir`` moves an
+    old one on first load, so callers never look in two places.
 
     Args:
         config_path: The active config file; ``""`` in the zero-config CLI.
@@ -457,4 +461,4 @@ def sidecar_path(config_path: str) -> Path | None:
     if not config_path:
         return None
     cfg_file = Path(config_path)
-    return cfg_file.parent / f"{cfg_file.stem}{folders.SYMBOLS_SUFFIX}"
+    return cfg_file.parent / folders.SYM / f"{cfg_file.stem}{folders.SYMBOLS_SUFFIX}"

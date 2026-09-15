@@ -30,7 +30,7 @@ All paths relative to `src/termapy/`.
 
 ## Config
 
-- Config dirs: `termapy_cfg/<name>/` with `plugin/`, `ss/`, `run/`, `proto/`, `viz/`, `cap/` subdirs
+- Config dirs: `termapy_cfg/<name>/` with `plugin/`, `ss/`, `run/`, `proto/`, `viz/`, `cap/`, `prof/`, `sym/` subdirs. Stem-named sidecars (history, log, report, profile, symbol table) are listed ONCE in `folders.SIDECARS`; `rename_config` carries every entry and `cfg_data_dir` migrates any with a folder out of the root
 - Most users have a single config per project folder (one device), but multiple configs are supported for working with more than one device — each folder gets its own isolated `termapy_cfg/` so setups don't bleed together
 - `termapy_cfg/` is gitignored
 - New `DEFAULT_CFG` options must also be added to `builtins/demo/demo.cfg`

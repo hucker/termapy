@@ -13,9 +13,12 @@ incomplete module fails the registry import loudly::
     def convert(text: str) -> list[Symbol]   # pure; never raises on odd input
 
 Adding a toolchain = one module, one tuple entry, one fixture under
-``tests/fixtures/maps/`` (the pairwise-exclusivity test picks it up).
-Step-by-step instructions, written to be handed to an LLM together with
-a map file: ``docs/symbol-converter-guide.md``.
+``tests/fixtures/maps/`` (the pairwise-exclusivity test picks it up; the
+fixture stem before the first ``_`` must equal ``FORMAT``, so a key with
+an underscore breaks it).  The authoring rules a converter must follow --
+purity, VMA-not-LMA, the section vocabulary, DETECT uniqueness -- are in
+``help/symbols.md`` under "Your own converter, as a plugin"; they are the
+same for a built-in and a plugin converter.
 
 **A plugin file may export the same four names** and becomes a converter
 for the config that loaded it -- same contract, same shape, only

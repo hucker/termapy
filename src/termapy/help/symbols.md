@@ -38,10 +38,8 @@ asking. Bare `/sym.load` re-reads it after a hand edit.
 | `xc32` | Microchip XC32 (GNU ld) linker map     |
 
 More converters land in the same registry; `/help sym.import` lists what
-the running build knows. To add your toolchain, hand
-[docs/symbol-converter-guide.md](https://github.com/hucker/termapy/blob/main/docs/symbol-converter-guide.md)
-and one of your map files to an LLM, or follow it yourself: one module, one
-registry line, one fixture.
+the running build knows. To teach termapy your toolchain, write a
+converter -- see below.
 
 ## Your own converter, as a plugin
 
@@ -71,18 +69,67 @@ the typed rows stay put. That is the point of doing it here rather than
 hand-editing the sidecar, where the next `/sym.import` would erase your
 work.
 
-Two rules worth knowing:
-
-- **`DETECT = ()` keeps you out of sniffing.** Your converter is one
-  board's pipeline, not a toolchain, and its input is often a map a
-  built-in would also claim. Select it with `format=`. Give it real
-  detect strings only if it recognizes a format nothing else does.
-- **Converters follow the config.** A converter in a config's `plugin/`
-  folder exists only while that config is loaded, exactly like a command.
-
 A converter may set every `Symbol` field -- `type`, `rmw`, `space`,
 `file` -- so the typed registers and bit fields a linker map cannot
 express become script output instead of hand-maintained data.
+
+### The contract
+
+`convert(text)` is **pure**: text in, list out. No I/O, no config, no
+globals. It must **never raise on odd input** -- a wrong-format file, a
+truncated build, an empty string all return `[]`, and `/sym.import`
+renders `No symbols found`. Return unsorted; `SymbolTable` sorts by
+`(addr, size, name)`. Emit each symbol once: a map often lists the same
+symbol in a summary and a detail section, so prefer the detail section
+(full names) and use the summary only for addresses it did not cover.
+
+**Emit the run address (VMA), never the load address (LMA).** Initialized
+`.data` lives in flash at its LMA and is copied to RAM at its VMA, and GNU
+`ld` maps print both. `/mem.*` talks to the running device, so an LMA
+gives you a table that looks correct and reads the wrong memory.
+
+Skip what a C program cannot name: merged literal pools
+(`.rodata.str1.1`), compiler temporaries (`.L123`), Arm mapping symbols
+(`$t`, `$d`, `$a`).
+
+### Sections
+
+Use these words where they fit, else your toolchain's own short lowercase
+one (an unmapped word is harmless, just unlabeled):
+
+| `section` | Label | Put here |
+|---|---|---|
+| `text` | code | Functions, vectors, any executable |
+| `bss` | bss | Zero-initialized RAM |
+| `data` | data | Initialized RAM |
+| `rodata` | const | Constants in flash |
+| `global` | global | Sizeless linker-provided symbols (`__bss_start__`, `_estack`) |
+| `sfr` | sfr | Registers; a linker map never emits these |
+
+Map your toolchain's region names on (`ER_IROM1`, `CODE` -> `text`;
+`ZI` -> `bss`; `RW` -> `data`; `RO-data`, `CONST` -> `rodata`).
+
+### Naming and detection
+
+Name the format after the **linker**, not the CPU -- "ARM" has at least
+three toolchains with three map layouts (`armlink`, `iar`, `gnu-ld`).
+Lowercase, hyphens only, no underscores.
+
+- **`DETECT = ()` keeps you out of sniffing.** Your converter is one
+  board's pipeline, not a toolchain, and its input is often a map a
+  built-in would also claim. Select it with `format=`.
+- **If you do give it detect markers, make them unique to that
+  toolchain.** Never a phrase every GNU `ld` map prints (`Linker script
+  and memory map`, `Memory Configuration`) -- that would claim maps
+  belonging to every other GNU-ld toolchain. Two or three independent
+  markers beat one; the sniff scans the whole file, so a marker deep in
+  it is fine.
+- **Converters follow the config.** A converter in a config's `plugin/`
+  folder exists only while that config is loaded, exactly like a command.
+
+If your toolchain is one others use, the same four names in a module under
+`symbols/converters/` make it a built-in -- one module, one registry line,
+one fixture under `tests/fixtures/maps/`. `xc32.py` is the reference.
 
 A relative path given to `/sym.import` or `/sym.load` resolves against the
 config folder, not the shell's working directory. Under the MCP server,

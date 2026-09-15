@@ -58,11 +58,12 @@ def _cfg_with(**overrides) -> dict:
     }
 
 
-# -- cfg_data_dir: subdirectory creation ------------------------------------
+# -- cfg_data_dir: the config folder and its .gitignore, no data folders ----
 
 
 class TestCfgDataDir:
-    def test_creates_subdirs(self, tmp_path):
+    def test_creates_no_data_folders(self, tmp_path):
+        """Data folders appear on first write (folders.ensure_folder), never on load."""
         # Arrange
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
@@ -72,8 +73,8 @@ class TestCfgDataDir:
 
         # Assert
         assert actual == config_path.parent, "returns parent directory"
-        for sub in ("plugin", "ss", "run"):
-            assert (actual / sub).is_dir(), f"all subdirs created: {sub}"
+        actual_entries = sorted(path.name for path in actual.iterdir())
+        assert actual_entries == [".gitignore"], "only the .gitignore is written; no data folder"
 
     def test_idempotent(self, tmp_path):
         # Arrange
@@ -85,7 +86,7 @@ class TestCfgDataDir:
         cfg_data_dir(str(config_path))  # second call should not error
 
         # Assert
-        assert (config_path.parent / "ss").is_dir(), "subdirs still exist"
+        assert (config_path.parent / ".gitignore").is_file(), "the .gitignore is still there"
 
     def test_creates_parent_if_needed(self, tmp_path):
         # Arrange
@@ -95,8 +96,8 @@ class TestCfgDataDir:
         actual = cfg_data_dir(str(config_path))
 
         # Assert
-        assert actual.exists(), "parent dir created"
-        assert (actual / "plugin").is_dir(), "subdirs created"
+        assert actual.is_dir(), "parent dir created"
+        assert (actual / ".gitignore").is_file(), "with its .gitignore"
 
     def test_refuses_bundled_path(self):
         """``cfg_data_dir`` must refuse paths inside the installed
@@ -179,8 +180,8 @@ class TestCfgHelpers:
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_plugins_dir(str(config_path))
-        assert actual.name == "plugin", "correct subdir name"
-        assert actual.is_dir(), "directory created"
+        assert actual == config_path.parent / "plugin", "the per-config plugin/ path"
+        assert not actual.exists(), "a read: the folder is not created"
 
     def test_cfg_data_dir_migrates_the_symbol_table_into_sym(self, tmp_path):
         # Arrange -- a table where it lived before 2026-09: beside the cfg

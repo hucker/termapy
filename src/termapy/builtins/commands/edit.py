@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from termapy.config import cfg_log_path
-from termapy.folders import EXT_TO_FOLDER
+from termapy.folders import EXT_TO_FOLDER, ensure_folder
 from termapy.help_dynamic import folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
@@ -132,9 +132,7 @@ def make_list_handler(get_dir, pattern):
     """
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
-        if not folder.is_dir():
-            ctx.io.output("  (no directory)")
-            return CmdResult.ok(value="")
+        # A missing folder is an empty one: data folders appear on first write.
         files = sorted(folder.glob(pattern))
         if not files:
             ctx.io.output("  (empty)")
@@ -155,8 +153,7 @@ def make_explore_handler(get_dir):
     """
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
-        folder.mkdir(parents=True, exist_ok=True)
-        ctx.fs.open_file(folder)
+        ctx.fs.open_file(ensure_folder(folder))
         return CmdResult.ok(value=folder)
     return handler
 

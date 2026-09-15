@@ -36,6 +36,7 @@ from termapy.builtins.commands.edit import (
 from termapy.config import open_with_system
 from termapy.defaults import cmd_prefix
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
+from termapy.folders import ensure_folder
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 from termapy.run_profile_hooks import register_run_profile_hooks
@@ -95,7 +96,7 @@ def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
     """
     base = args.strip() or "screenshot"
     ts = filename_timestamp()
-    path = str((app.repl.ss_dir / f"{base}_{ts}.svg").resolve())
+    path = str((ensure_folder(app.repl.ss_dir) / f"{base}_{ts}.svg").resolve())
     app._on_main(app.save_screenshot, path)
     app.last_screenshot = path
     app._status(f"SVG screenshot saved: {path}", "green")
@@ -122,7 +123,7 @@ def _hook_ss_svg_quiet(app, ctx, args: str) -> CmdResult:
     name = args.strip() or "screenshot"
     if not name.endswith(".svg"):
         name += ".svg"
-    path = str((app.repl.ss_dir / name).resolve())
+    path = str((ensure_folder(app.repl.ss_dir) / name).resolve())
     app._on_main(app.save_screenshot, path)
     app.last_screenshot = path
     app._on_main(app._sync_ss_button)
@@ -153,7 +154,7 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
     except ValueError as e:
         raise UsageError(str(e)) from None
     ts = filename_timestamp()
-    path = str((app.repl.ss_dir / f"{base}_{ts}.txt").resolve())
+    path = str((ensure_folder(app.repl.ss_dir) / f"{base}_{ts}.txt").resolve())
     raw = str(app._on_main(app._get_screen_text) or "")
     text = "\n".join(select_lines(raw.splitlines(), n))
     Path(path).write_text(text, encoding="utf-8")
@@ -300,17 +301,15 @@ def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
         dir_map = {"run": app.repl.scripts_dir, "proto": app.repl.proto_dir}
         base = dir_map.get(folder)
         listed: list[str] = []
-        if base and base.is_dir():
-            files = sorted(base.glob(f"*{ext}"))
-            if files:
-                app.repl.write("  Available file(s):")
-                for file in files:
-                    app.repl.write(f"    {file.name}")
-                    listed.append(file.name)
-            else:
-                app.repl.write("  (empty)")
+        # A missing folder is an empty one: data folders appear on first write.
+        files = sorted(base.glob(f"*{ext}")) if base else []
+        if files:
+            app.repl.write("  Available file(s):")
+            for file in files:
+                app.repl.write(f"    {file.name}")
+                listed.append(file.name)
         else:
-            app.repl.write("  (no directory)")
+            app.repl.write("  (empty)")
         return CmdResult.ok(value="\n".join(listed))
     if not name.endswith(ext):
         name += ext

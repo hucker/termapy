@@ -25,7 +25,6 @@ from termapy.defaults import (
 )
 from termapy.folders import (
     FOLDER_MIGRATIONS,
-    FOLDER_NAMES,
     HISTORY_FILE,
     HISTORY_SUFFIX,
     LOG_SUFFIX,
@@ -34,6 +33,7 @@ from termapy.folders import (
     SIDECARS,
     SYM,
     SYMBOLS_SUFFIX,
+    ensure_folder,
 )
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
@@ -201,7 +201,11 @@ def cfg_data_dir(config_path: str) -> Path:
     """Return the per-config data directory (for logs, screenshots, etc.).
 
     Config files live at termapy_cfg/<name>/<name>.cfg, so the data dir
-    is just the parent directory of the config file.
+    is just the parent directory of the config file.  Creates that folder
+    and its ``.gitignore``, runs the one-time layout migrations (folder
+    renames, sidecar moves), and creates NO data folder: those appear on
+    first write (``folders.ensure_folder``) and empty ones are pruned at
+    load and stop (``folders.prune_empty_folders``).
 
     Refuses to operate on cfg paths inside the installed termapy
     package tree -- those are read-only templates (e.g. the bundled
@@ -225,11 +229,10 @@ def cfg_data_dir(config_path: str) -> Path:
         new = d / new_name
         if old.is_dir() and not new.exists():
             old.rename(new)
-    for sub in FOLDER_NAMES:
-        (d / sub).mkdir(exist_ok=True)
     # One-time sidecar moves (migration): a stem-named file that once
     # lived beside the cfg and now has a folder.  Same rule as the folder
-    # renames -- move only when the old exists and the new does not.
+    # renames -- move only when the old exists and the new does not; the
+    # folder is created only when there is something to move into it.
     stem = Path(config_path).stem
     for suffix, sub in SIDECARS:
         if sub is None:
@@ -237,6 +240,7 @@ def cfg_data_dir(config_path: str) -> Path:
         old_file = d / f"{stem}{suffix}"
         new_file = d / sub / f"{stem}{suffix}"
         if old_file.is_file() and not new_file.exists():
+            ensure_folder(new_file.parent)
             old_file.rename(new_file)
     # Write .gitignore for transient data (only if it doesn't exist)
     gitignore = d / ".gitignore"
@@ -442,21 +446,22 @@ def cleanup_profile_temps(config_path: str) -> None:
 
 
 def cfg_plugins_dir(config_path: str) -> Path:
-    """Return the plugin directory for a config, creating it if needed."""
+    """Return the plugin directory for a config (a path; it may not exist yet)."""
     return cfg_data_dir(config_path) / PLUGIN
 
 
 def global_plugins_dir(root: Path | None = None) -> Path:
-    """Return the global plugin directory, creating it if needed.
+    """Return the global plugin directory (a path; it may not exist yet).
+
+    A read: the loader treats a missing folder as no plugins.  The folder
+    appears when the user creates it to drop a plugin in.
 
     Args:
         root: The cfg root whose ``plugin/`` child is the global layer;
             None resolves :func:`cfg_dir`.  An engine under test passes a
             temp folder so the checkout's own ``termapy_cfg/`` stays out.
     """
-    d = (root if root is not None else cfg_dir()) / PLUGIN
-    d.mkdir(exist_ok=True)
-    return d
+    return (root if root is not None else cfg_dir()) / PLUGIN
 
 
 _ENV_RE = re.compile(r"\$\(env\.(\w+)(?:\|([^)]*))?\)")
@@ -964,6 +969,8 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     """Copy bundled demo config files to the target directory.
 
     Creates ``<target_path>/demo/`` with config, scripts, and proto files.
+    Only the folders it populates (``run/ proto/ plugin/ sym/``) are
+    created; the rest appear on first use, like any config's.
     Does not overwrite existing files unless *force* is True.
 
     Args:
@@ -989,8 +996,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
         config_path.write_bytes(src.read_bytes())
 
     # Copy the symbol table into sym/ (auto-loaded by /sym.*)
-    (demo_dir / SYM).mkdir(exist_ok=True)
-    symbols_path = demo_dir / SYM / f"demo{SYMBOLS_SUFFIX}"
+    symbols_path = ensure_folder(demo_dir / SYM) / f"demo{SYMBOLS_SUFFIX}"
     if force or not symbols_path.exists():
         src = pkg / f"demo{SYMBOLS_SUFFIX}"
         symbols_path.write_bytes(src.read_bytes())
@@ -1003,8 +1009,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
         legacy_path.write_bytes(src.read_bytes())
 
     # Copy run scripts
-    run_dir = demo_dir / "run"
-    run_dir.mkdir(exist_ok=True)
+    run_dir = ensure_folder(demo_dir / "run")
     run_pkg = pkg / "run"
     for name in ("welcome.run", "at_demo.run", "gps_demo.run", "smoke_test.run", "status_check.run", "var_demo.run", "expect_test.run", "doc_screenshots.run", "crc_tour.run"):
         dest = run_dir / name
@@ -1013,8 +1018,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
             dest.write_bytes(src.read_bytes())
 
     # Copy proto files
-    proto_dir = demo_dir / "proto"
-    proto_dir.mkdir(exist_ok=True)
+    proto_dir = ensure_folder(demo_dir / "proto")
     proto_pkg = pkg / "proto"
     for name in ("at_test.pro", "bitfield_inline.pro", "modbus_inline.pro"):
         dest = proto_dir / name
@@ -1023,8 +1027,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
             dest.write_bytes(src.read_bytes())
 
     # Copy demo plugins
-    plugin_dir = demo_dir / "plugin"
-    plugin_dir.mkdir(exist_ok=True)
+    plugin_dir = ensure_folder(demo_dir / "plugin")
     plugin_pkg = pkg / "plugin"
     for name in ("cmd.py", "probe.py", "temp_plot.py"):
         dest = plugin_dir / name
@@ -1037,9 +1040,5 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     if force or not gitignore_dest.exists():
         src = pkg / ".gitignore"
         gitignore_dest.write_bytes(src.read_bytes())
-
-    # Create standard subdirs
-    for sub in ("ss", "cap", "prof"):
-        (demo_dir / sub).mkdir(exist_ok=True)
 
     return config_path

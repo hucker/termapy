@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from termapy.config import open_serial
+from termapy.folders import ensure_folder
 from termapy.protocol.core import (
     FrameCollector,
     TestCase,
@@ -194,7 +195,7 @@ def run_proto_tests(
     # Resolve output directory
     if output_dir is None:
         output_dir = pro_path.parent / "test"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    ensure_folder(output_dir)
 
     frame_gap = script.frame_gap_ms
     pass_count = 0

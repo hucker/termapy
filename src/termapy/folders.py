@@ -1,12 +1,31 @@
 """Folder and file constants -- single source of truth.
 
-Pure constants with no Textual or serial dependencies.
-Import freely from any module.
+Pure constants with no Textual or serial dependencies, plus the two
+operations that create and remove a per-config data folder.  Import
+freely from any module.
+
+A data folder exists while something is in it, and not otherwise.
+Reads never create one: listing an absent ``cap/`` is "empty", not an
+error.  Writes always create one: every code path that puts a file in a
+data folder, or opens the folder in the file manager so the user can
+drop a file in, goes through :func:`ensure_folder`.  Empty ones are
+removed by :func:`prune_empty_folders` at config load and at app stop
+(``ReplEngine.fire_lifecycle``), so a config that never captures or
+scripts holds just its cfg, log, history and report.  ``--demo`` ships
+the four folders it populates (``run/ proto/ plugin/ sym/``).  This is a
+rule, not a migration: it holds for the folder ``/cap.clear`` empties
+next month as much as for one an older termapy created eagerly.
+``tests/test_architecture.py`` keeps a raw ``mkdir`` off data folders.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -131,3 +150,44 @@ SIDECARS: tuple[tuple[str, str | None], ...] = (
     (PROFILE_SUFFIX, None),
     (SYMBOLS_SUFFIX, SYM),
 )
+
+# -- Lifecycle: how a data folder comes and goes ------------------------------
+
+
+def ensure_folder(folder: Path) -> Path:
+    """Create ``folder`` (and any missing parents) and return it.
+
+    The ONE way a data folder comes into being.  Call it at the write,
+    never at a read: ``ensure_folder(ctx.fs.cap_dir) / name``.
+    """
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def prune_empty_folders(root: Path, names: Iterable[str]) -> list[str]:
+    """Remove each ``root/<name>`` that is a folder with nothing in it.
+
+    The ONE way a data folder goes away.  Only the given ``names``
+    (``FOLDER_NAMES`` for a config folder, ``(PLUGIN,)`` for the cfg
+    root), so a folder the user made is never touched, and only when
+    truly empty: a lone dotfile such as ``.gitkeep`` keeps it.  A folder
+    that cannot be removed (in use, permissions) is left alone; this is
+    non-critical file I/O.
+
+    Args:
+        root: The folder holding the data folders.
+        names: Data folder names to consider.
+
+    Returns:
+        The names removed, for tests and callers that report.
+    """
+    removed: list[str] = []
+    for name in names:
+        folder = root / name
+        try:
+            if folder.is_dir() and not any(folder.iterdir()):
+                folder.rmdir()
+                removed.append(name)
+        except OSError:
+            continue
+    return removed

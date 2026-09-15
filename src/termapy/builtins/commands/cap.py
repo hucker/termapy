@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.folder_ops import build_folder_subcommands
+from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import EnumValue, ParamSpec
@@ -396,7 +397,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             else:
                 return CmdResult.fail(msg=f"Cannot find free filename near {p}")
         path = p
-        path.parent.mkdir(parents=True, exist_ok=True)
+        ensure_folder(path.parent)
 
     encoding = ctx.cfg.get("encoding", "utf-8")
     cmd_prefix = ctx.prefix

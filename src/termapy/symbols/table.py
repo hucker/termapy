@@ -437,10 +437,14 @@ class SymbolTable:
     def save(self, path: str | Path) -> None:
         """Write the table as indented JSON with a trailing newline.
 
+        Creates the folder if needed (a data folder appears on first write).
+
         Raises:
             OSError: The file could not be written.
         """
-        Path(path).write_text(
+        file = Path(path)
+        folders.ensure_folder(file.parent)
+        file.write_text(
             json.dumps(self.to_dict(), indent=2) + "\n", encoding="utf-8",
         )
 

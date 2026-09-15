@@ -368,7 +368,11 @@ def _build_tree(
 
 
 def _all_sections(config_path: str) -> list[tuple[str, list[str]]]:
-    """Build the full sections list for a config."""
+    """Build the sections list for a config: cfg, log, and every data folder that exists.
+
+    Data folders appear on first write, so an absent one is not listed --
+    the tree shows what is on disk, not the maximum layout.
+    """
     data_dir = Path(config_path).parent
     config_name = Path(config_path).stem
     sections: list[tuple[str, list[str]]] = [
@@ -376,7 +380,9 @@ def _all_sections(config_path: str) -> list[tuple[str, list[str]]]:
         (f"{config_name}.log", []),
     ]
     for spec in FOLDERS:
-        sections.append((f"{spec.name}/", _names(data_dir / spec.name, spec.pattern)))
+        folder = data_dir / spec.name
+        if folder.is_dir():
+            sections.append((f"{spec.name}/", _names(folder, spec.pattern)))
     return sections
 
 

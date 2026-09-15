@@ -23,6 +23,7 @@ from types import MappingProxyType
 from typing import Any, Callable
 
 from termapy.defaults import cmd_prefix
+from termapy.folders import ensure_folder
 from termapy.plugins.capabilities import CapabilitySet
 from termapy.plugins.handles.fs import FilesystemHandle
 from termapy.plugins.handles.internal import InternalHandle
@@ -91,7 +92,7 @@ class PluginConfig:
             OSError: If the file cannot be written.
         """
         data = self._ensure_loaded()
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        ensure_folder(self._path.parent)
         self._path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     def get(self, key: str, default: Any = None) -> Any:

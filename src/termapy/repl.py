@@ -20,7 +20,17 @@ from typing import Callable
 
 from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
-from termapy.folders import CAP, PROF, PROTO, RUN, SS
+from termapy.folders import (
+    CAP,
+    FOLDER_NAMES,
+    PLUGIN,
+    PROF,
+    PROTO,
+    RUN,
+    SS,
+    ensure_folder,
+    prune_empty_folders,
+)
 from termapy.plugins import (
     LEVEL_FLAGS,
     OUTPUT_LEVELS,
@@ -59,6 +69,11 @@ from termapy.symbols import session as symbols_session
 # becomes current after the context is wired, which every frontend already
 # fires.
 _CORE_LIFECYCLE: frozenset[str] = frozenset({"on_app_start", "on_config_load"})
+
+# Those plus app stop: the moments an empty data folder is dropped (the rule
+# in ``folders``), so the folder is tidy when the user looks right after
+# exiting.
+_PRUNE_LIFECYCLE: frozenset[str] = _CORE_LIFECYCLE | {"on_app_stop"}
 
 # Registry sources that resolution never drops: the bundled built-ins and
 # the frontend's own hooks.  Everything else came from a folder and is
@@ -1075,6 +1090,21 @@ class ReplEngine:
         if not self.ctx.is_oneshot():
             self.ctx.io.output(text, "dim")
 
+    def _prune_data_folders(self) -> None:
+        """Drop the active config's empty data folders and an empty global ``plugin/``.
+
+        The removal half of the rule in ``folders``: a data folder exists
+        while something is in it.  Runs from :meth:`fire_lifecycle`, never
+        from ``cfg_data_dir`` -- that one runs mid-session (``/cfg.info``,
+        viz discovery) and would delete the folder ``.explore`` just opened
+        for the user.
+        """
+        from termapy.config import cfg_dir
+
+        if self.config_path:
+            prune_empty_folders(Path(self.config_path).parent, FOLDER_NAMES)
+        prune_empty_folders(self.global_root or cfg_dir(), (PLUGIN,))
+
     def fire_lifecycle(self, name: str) -> None:
         """Fire every registered lifecycle hook matching *name* in load order.
 
@@ -1082,10 +1112,12 @@ class ReplEngine:
         later hooks from running.  Errors surface through ``ctx.io.status``
         so they are visible without crashing the app.
 
-        Two core listeners run before the plugin hooks for ``on_app_start``
-        / ``on_config_load``: :meth:`resolve_plugins` (so a folder plugin's
-        own hook fires in this same pass) and then the symbol auto-load (so
-        a hook already sees ``ctx.ns("symbols")``).  This is the one wiring
+        Three core listeners run before the plugin hooks: the empty
+        data-folder prune (:meth:`_prune_data_folders`, on ``on_app_start``
+        / ``on_config_load`` / ``on_app_stop``), then for ``on_app_start`` /
+        ``on_config_load`` :meth:`resolve_plugins` (so a folder plugin's
+        own hook fires in this same pass) and the symbol auto-load (so a
+        hook already sees ``ctx.ns("symbols")``).  This is the one wiring
         for every frontend -- not a plugin hook (which drifts per frontend)
         and not a ``set_context`` / ``replace_cfg`` side effect (which
         double-loads on the CLI/MCP config switch that rebuilds the ctx).
@@ -1093,6 +1125,8 @@ class ReplEngine:
         Args:
             name: Hook name (must be in ``LIFECYCLE_HOOK_NAMES``).
         """
+        if name in _PRUNE_LIFECYCLE:
+            self._prune_data_folders()
         if name in _CORE_LIFECYCLE:
             self.resolve_plugins()
             symbols_session.autoload(self.ctx, self.config_path)
@@ -2205,8 +2239,7 @@ class ReplEngine:
         if profile:
             ts = filename_timestamp()
             sctx.prof_name = f"{Path(self.config_path).stem}_{ts}.csv"
-            prof_dir = Path(self.config_path).parent / "prof"
-            prof_dir.mkdir(exist_ok=True)
+            prof_dir = ensure_folder(Path(self.config_path).parent / PROF)
             sctx.prof_path = prof_dir / sctx.prof_name
             sctx.prof_fh = open(sctx.prof_path, "w", encoding="utf-8")
             sctx.prof_fh.write("Duration (sec),Command\n")

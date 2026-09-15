@@ -175,8 +175,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # ``*`` scans every .run file in the config's scripts directory.
     if name == "*":
         scripts_dir = Path(ctx.fs.scripts_dir)
-        if not scripts_dir.is_dir():
-            return CmdResult.fail(msg=f"Scripts directory not found: {scripts_dir}")
+        # A missing folder is an empty one: data folders appear on first write.
         paths = sorted(scripts_dir.glob("*.run"))
         if not paths:
             ctx.io._write(f"  No .run files in {scripts_dir}.", "yellow")

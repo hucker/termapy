@@ -17,6 +17,7 @@ from textual.widgets import Button, Input, TextArea
 
 from termapy.defaults import PROTO_TEMPLATE
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.folders import ensure_folder
 
 
 class ProtoEditor(ModalScreen[str | None]):
@@ -138,7 +139,7 @@ class ProtoEditor(ModalScreen[str | None]):
         if not name.endswith(".pro"):
             name += ".pro"
         content = self.query_one("#ped-editor", TextArea).text
-        path = self.proto_dir / name
+        path = ensure_folder(self.proto_dir) / name
         path.write_text(content, encoding="utf-8")
         self.dismiss(str(path))
 
@@ -167,6 +168,7 @@ class ProtoEditor(ModalScreen[str | None]):
             self._overwrite_ok = True
             return
         content = self.query_one("#ped-editor", TextArea).text
+        ensure_folder(self.proto_dir)
         path.write_text(content, encoding="utf-8")
         self.dismiss(str(path))
 

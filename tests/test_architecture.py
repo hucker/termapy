@@ -387,3 +387,110 @@ def test_boolean_guard_fires_on_a_probe():
 
     # Assert
     assert len(found) == 3, "a comparison, a membership test, and an enum all flagged"
+
+
+# ── Data folders: one creator ────────────────────────────────────────────────
+
+# Files where a raw ``.mkdir(`` is legitimate because the folder is NOT a
+# per-config data folder (``folders.FOLDERS``): the cfg root and the demo
+# root (config.py, the picker's config editor), the OS app-state / app-config
+# dirs, the desktop-launcher files, the MCP host's own ``mcp/``, and
+# folders.py itself, where ``ensure_folder`` lives.  A data folder comes into
+# being through ``folders.ensure_folder`` and goes away through
+# ``folders.prune_empty_folders``, and through nothing else -- that is what
+# keeps "reads never create, writes always create" true everywhere at once.
+ALLOWED_RAW_MKDIR: frozenset[str] = frozenset({
+    "termapy/app_dirs.py",
+    "termapy/builtins/commands/_cfg_icon.py",
+    "termapy/builtins/commands/app.py",
+    "termapy/config.py",
+    "termapy/dialogs/config_editor.py",
+    "termapy/folders.py",
+    "termapy/mcp/server.py",
+})
+
+
+def _raw_mkdir_calls(tree: ast.AST, rel: str) -> list[str]:
+    """Every ``<expr>.mkdir(...)`` call in ``rel``, whatever the receiver."""
+    return [
+        f"{rel}:{node.lineno}  {ast.unparse(node)}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "mkdir"
+    ]
+
+
+def _package_python_files() -> list[Path]:
+    """Every .py file in the package except the vendored tree."""
+    return sorted(
+        path for path in SRC.rglob("*.py")
+        if "vendor" not in path.relative_to(SRC).parts
+    )
+
+
+def _raw_mkdir_files() -> dict[str, list[str]]:
+    """``{rel: [violation lines]}`` for every package file with a raw mkdir."""
+    found: dict[str, list[str]] = {}
+    for path in _package_python_files():
+        rel = path.relative_to(SRC.parent).as_posix()
+        calls = _raw_mkdir_calls(ast.parse(path.read_text(encoding="utf-8")), rel)
+        if calls:
+            found[rel] = calls
+    return found
+
+
+def test_data_folders_are_created_only_by_ensure_folder():
+    """No code outside the allowlist creates a folder with a raw ``mkdir``.
+
+    A data folder exists while something is in it (see ``folders``): every
+    writer calls ``ensure_folder`` at the write, ``prune_empty_folders``
+    removes empty ones at config load and app stop.  A raw ``mkdir`` on a
+    data folder is either a second creator the prune does not know about
+    or, eagerly on a read path, the ten-empty-folders layout this rule
+    replaced.
+    """
+    # Arrange / Act
+    violations = [
+        line
+        for rel, calls in _raw_mkdir_files().items()
+        if rel not in ALLOWED_RAW_MKDIR
+        for line in calls
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a data folder is created by folders.ensure_folder, never a raw mkdir:\n  "
+        + "\n  ".join(violations)
+        + "\n\nCall ensure_folder(folder) at the write.  If the folder is genuinely"
+        "\nnot a per-config data folder, add the FILE to ALLOWED_RAW_MKDIR above."
+    )
+
+
+def test_raw_mkdir_guard_fires_on_a_probe():
+    """The guard actually detects the shapes it exists to forbid."""
+    # Arrange -- a bare receiver and a chained one, as the eager loop had
+    probe = (
+        "(d / sub).mkdir(exist_ok=True)\n"
+        "path.parent.mkdir(parents=True, exist_ok=True)\n"
+        "ensure_folder(path.parent)\n"
+    )
+
+    # Act
+    found = _raw_mkdir_calls(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 2, "both mkdir calls flagged; the ensure_folder call is not"
+
+
+def test_raw_mkdir_allowlist_has_no_stale_entries():
+    """Every allowlisted file still holds a raw mkdir, so the list can't rot."""
+    # Arrange / Act
+    actual = set(_raw_mkdir_files())
+
+    # Assert
+    stale = sorted(ALLOWED_RAW_MKDIR - actual)
+    assert stale == [], (
+        "ALLOWED_RAW_MKDIR lists files with no raw mkdir left; drop them so the "
+        "allowlist stays a description of reality:\n  " + "\n  ".join(stale)
+    )

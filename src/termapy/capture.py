@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any, Callable
 
+from termapy.folders import ensure_folder
 from termapy.protocol import apply_format, parse_hex
 from termapy.scripting import format_duration, format_size
 
@@ -174,7 +175,7 @@ class CaptureEngine:
             return False
 
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
+            ensure_folder(path.parent)
             fh = open(path, file_mode, encoding=None if "b" in file_mode else "utf-8")
         except (OSError, ValueError):
             return False

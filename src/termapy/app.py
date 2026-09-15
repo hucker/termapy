@@ -72,7 +72,7 @@ from termapy.dialogs import (
     ScriptPicker,
     UpdateAvailableDialog,
 )
-from termapy.folders import FOLDER_PATTERNS
+from termapy.folders import FOLDER_PATTERNS, ensure_folder
 from termapy.help_tooltip import build_help_tooltip
 from termapy.history_nav import HistoryNavigator
 from termapy.palette_provider import PaletteProvider
@@ -3201,7 +3201,7 @@ class SerialTerminal(TerminalHost, App):
         self, filename: str | None = None, path: str | None = None
     ) -> None:
         ts = filename_timestamp()
-        svg_path = str((self.repl.ss_dir / f"screenshot_{ts}.svg").resolve())
+        svg_path = str((ensure_folder(self.repl.ss_dir) / f"screenshot_{ts}.svg").resolve())
         self.save_screenshot(svg_path)
         self.last_screenshot = svg_path
         self.notify(f"Screenshot saved: {svg_path}", timeout=1.5)
@@ -3209,7 +3209,7 @@ class SerialTerminal(TerminalHost, App):
 
     def action_text_screenshot(self) -> None:
         ts = filename_timestamp()
-        txt_path = str((self.repl.ss_dir / f"screenshot_{ts}.txt").resolve())
+        txt_path = str((ensure_folder(self.repl.ss_dir) / f"screenshot_{ts}.txt").resolve())
         text = self._get_screen_text()
         Path(txt_path).write_text(text, encoding="utf-8")
         self.last_screenshot = txt_path
@@ -3220,13 +3220,27 @@ class SerialTerminal(TerminalHost, App):
         if not self.config_path:
             self.notify("No config loaded", severity="warning")
             return
-        open_with_system(str(self.repl.ss_dir.resolve()))
+        self._open_data_folder(self.repl.ss_dir)
 
     def _open_captures_dir(self) -> None:
         if not self.config_path:
             self.notify("No config loaded", severity="warning")
             return
-        open_with_system(str(self.repl.cap_dir.resolve()))
+        self._open_data_folder(self.repl.cap_dir)
+
+    def _open_data_folder(self, folder: Path) -> None:
+        """Open a data folder in the file manager, creating it first.
+
+        The SS and Captures buttons.  Goes through ``ctx.fs.open_file`` (the
+        seam the ``.explore`` commands use and tests record on) rather than
+        ``open_with_system`` directly, so a headless or served session gets
+        a notice instead of a window on the wrong machine -- the gate the
+        config picker's Explorer button honors too.
+        """
+        if not self.repl.ctx.capabilities.gui_apps:
+            self.notify("No file manager in this environment", severity="warning")
+            return
+        self.repl.ctx.fs.open_file(ensure_folder(folder).resolve())
 
     def _sync_cmd_prefix(self) -> None:
         """Update the command prefix button and input placeholder."""

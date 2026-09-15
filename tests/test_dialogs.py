@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 from textual.app import App
-from textual.widgets import Input, OptionList
+from textual.widgets import Button, Input, OptionList
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog, ScriptPicker
@@ -300,6 +300,96 @@ class TestConfigPickerCfgDir:
                 assert app.screen.query_one("#picker-list").tooltip == (
                     "Configs found under termapy_cfg/.  Press Enter to load."
                 ), "the list tooltip is left as it was"
+
+        _run(scenario)
+
+
+class TestConfigPickerExplore:
+    """The Explore button: opens the SELECTED config's folder, gated like
+    the ``/<folder>.explore`` commands, and absent when served in a browser."""
+
+    @staticmethod
+    def _seed(tmp_path, monkeypatch, name: str = "rig"):
+        """One config under a cfg dir that cfg_dir() will pick up."""
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / f"{name}.cfg").write_text(json.dumps(DEFAULT_CFG), encoding="utf-8")
+        return folder
+
+    def test_press_opens_the_selected_folder_and_keeps_the_dialog(self, tmp_path, monkeypatch):
+        # Arrange
+        folder = self._seed(tmp_path, monkeypatch)
+        opened: list[str] = []
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                picker = ConfigPicker(opener=opened.append)
+                app.push_screen(picker)
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#picker-explore")
+                await pilot.pause()
+
+                # Assert
+                assert opened == [str(folder)], "the selected config's own folder, not the root"
+                assert app.screen is picker, "Explore does not dismiss the picker"
+
+        _run(scenario)
+
+    def test_disabled_without_a_display_and_says_why(self, tmp_path, monkeypatch):
+        # Arrange
+        self._seed(tmp_path, monkeypatch)
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Act
+                app.push_screen(ConfigPicker(gui_apps=False))
+                await pilot.pause()
+
+                # Assert
+                button = app.screen.query_one("#picker-explore", Button)
+                assert button.disabled, "no display this process can reach"
+                assert "TERMAPY_GUI" in button.tooltip, "the tooltip names the override"
+
+        _run(scenario)
+
+    def test_hidden_when_served_in_a_browser(self, tmp_path, monkeypatch):
+        # Arrange
+        self._seed(tmp_path, monkeypatch)
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Act
+                app.push_screen(ConfigPicker(web=True))
+                await pilot.pause()
+
+                # Assert
+                assert not app.screen.query("#picker-explore"), (
+                    "a folder on the server is never the viewer's; the button is not offered"
+                )
+
+        _run(scenario)
+
+    def test_disabled_with_no_configs(self, tmp_path, monkeypatch):
+        # Arrange -- an empty cfg dir
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Act
+                app.push_screen(ConfigPicker())
+                await pilot.pause()
+
+                # Assert
+                assert app.screen.query_one("#picker-explore", Button).disabled, (
+                    "nothing selected, nothing to open"
+                )
 
         _run(scenario)
 

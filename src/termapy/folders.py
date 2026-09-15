@@ -103,6 +103,9 @@ FOLDER_MIGRATIONS = [
 # HISTORY_FILE is only the no-config fallback name (in the cfg root).
 HISTORY_FILE = ".cmd_history.txt"
 HISTORY_SUFFIX = ".history"
+# The /cfg.info project report, also written at exit; follows a rename
+# like the history sidecar.
+INFO_REPORT_SUFFIX = ".md"
 # Per-config symbol table lives NEXT TO the config file as
 # <stem>.symbols.json (like HISTORY_SUFFIX and the profile's .profile.json).
 SYMBOLS_SUFFIX = ".symbols.json"

@@ -13,8 +13,15 @@ from termapy.builtins.commands._cfg_icon import (
     _handler_list as _icon_handler_list,
     _handler_remove as _icon_handler_remove,
 )
-from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system
-from termapy.folders import FOLDERS
+from termapy.config import (
+    cfg_data_dir,
+    cfg_dir,
+    cfg_history_path,
+    cfg_log_path,
+    global_plugins_dir,
+    open_with_system,
+)
+from termapy.folders import FOLDERS, INFO_REPORT_SUFFIX
 from termapy.help_dynamic import cfg_status, compose
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
@@ -375,12 +382,94 @@ def _all_sections(config_path: str) -> list[tuple[str, list[str]]]:
 # ── /cfg.info handler ──────────────────────────────────────────────────────────
 
 
-def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Generate project info report and print summary to output.
+# Trailing lines of the session log and the command history the report keeps.
+_TAIL_LINES = 40
 
-    Writes ``<config_name>.md`` to the config data directory
-    and prints the directory tree to the output window.
-    With ``--display``, opens the full report in the system viewer.
+
+def _tail_section(title: str, path: Path) -> list[str]:
+    """``## <title> (last N lines)`` over the end of ``path``, or nothing.
+
+    A missing or empty file yields no section rather than an empty one.
+    The fence is four backticks: device output can contain a
+    three-backtick line, and a longer fence legitimately contains a
+    shorter one.
+    """
+    if not path.is_file():
+        return []
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    if not lines:
+        return []
+    kept = lines[-_TAIL_LINES:]
+    return [
+        f"## {title} (last {len(kept)} lines)",
+        "",
+        "````text",
+        *kept,
+        "````",
+        "",
+    ]
+
+
+def write_info_report(ctx: PluginContext) -> tuple[Path, str]:
+    """Write ``<config>.md`` beside the config; return its path and the coloured tree.
+
+    Folder tree, config, active custom buttons, then the tails of the
+    session log and the command history.  Shared by ``/cfg.info`` and the
+    exit hook below, so the two can never disagree about what the report
+    holds.
+
+    Raises:
+        OSError: The folder could not be scanned or the file written.
+        TypeError: The config holds a value ``json.dumps`` cannot encode.
+        RuntimeError: The config is a bundled read-only template.
+    """
+    sections = _all_sections(ctx.config_path)
+    global_names = _names(global_plugins_dir(), "*.py")
+    colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
+
+    cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}
+    buttons = ctx.cfg.get("custom_buttons", [])
+    active = [button for button in buttons if button.get("enabled")]
+    config_name = Path(ctx.config_path).stem
+
+    md_lines: list[str] = [
+        f"# Project: {config_name}",
+        "",
+        "```text",
+        plain_tree,
+        "```",
+        "",
+        "## Config",
+        "",
+        "```json",
+        json.dumps(cfg_display, indent=4),
+        "```",
+        "",
+    ]
+    if active:
+        md_lines.extend(
+            [
+                f"## Custom Buttons ({len(active)} active)",
+                "",
+                "```json",
+                json.dumps(active, indent=4),
+                "```",
+                "",
+            ]
+        )
+    md_lines.extend(_tail_section("Log", Path(cfg_log_path(ctx.config_path))))
+    md_lines.extend(_tail_section("History", Path(cfg_history_path(ctx.config_path))))
+
+    data_dir = cfg_data_dir(ctx.config_path)
+    report_path = data_dir / f"{config_name}{INFO_REPORT_SUFFIX}"
+    report_path.write_text("\n".join(md_lines), encoding="utf-8")
+    return report_path, colored_tree
+
+
+def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
+    """Write the project report and print the folder tree.
+
+    With ``--display``, also opens the report in the system viewer.
 
     Args:
         ctx: Plugin context.
@@ -390,48 +479,8 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
 
     try:
-        sections = _all_sections(ctx.config_path)
-        global_names = _names(global_plugins_dir(), "*.py")
-        colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
-
+        report_path, colored_tree = write_info_report(ctx)
         ctx.io.output_markup(colored_tree)
-
-        # Build markdown report
-        cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}
-        buttons = ctx.cfg.get("custom_buttons", [])
-        active = [button for button in buttons if button.get("enabled")]
-        config_name = Path(ctx.config_path).stem
-
-        md_lines: list[str] = [
-            f"# Project: {config_name}",
-            "",
-            "```text",
-            plain_tree,
-            "```",
-            "",
-            "## Config",
-            "",
-            "```json",
-            json.dumps(cfg_display, indent=4),
-            "```",
-            "",
-        ]
-        if active:
-            md_lines.extend(
-                [
-                    f"## Custom Buttons ({len(active)} active)",
-                    "",
-                    "```json",
-                    json.dumps(active, indent=4),
-                    "```",
-                    "",
-                ]
-            )
-
-        data_dir = cfg_data_dir(ctx.config_path)
-        report_path = data_dir / f"{config_name}.md"
-        report_path.write_text("\n".join(md_lines), encoding="utf-8")
-
         if ctx.flag("--display"):
             open_with_system(str(report_path))
     except OSError as e:
@@ -444,6 +493,23 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         # Worth a specific message so the user knows what to fix.
         return CmdResult.fail(msg=f"Config has non-JSON value: {e}")
     return CmdResult.ok(value=report_path)
+
+
+def on_app_stop(ctx: PluginContext) -> None:
+    """Rewrite the report at exit so it reflects the session just ended.
+
+    Interactive sessions only, and never the one-shot ``--run`` / ``--exec``
+    forms: a server loading a config, or a script, must not write into the
+    config folder as a side effect.  Silent, including on failure -- the
+    explicit command is the loud form.  The TUI saves history and flushes
+    the log before firing this, so the tails are this session's.
+    """
+    if not ctx.config_path or ctx.is_oneshot() or not ctx.capabilities.interactive:
+        return
+    try:
+        write_info_report(ctx)
+    except (OSError, TypeError, RuntimeError):
+        pass
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

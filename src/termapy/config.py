@@ -28,6 +28,7 @@ from termapy.folders import (
     FOLDER_NAMES,
     HISTORY_FILE,
     HISTORY_SUFFIX,
+    INFO_REPORT_SUFFIX,
     PLUGIN,
     PROFILE_TMP_GLOB,
     SYMBOLS_SUFFIX,
@@ -321,6 +322,12 @@ def rename_config(config_path: str, new_name: str) -> str:
     history = folder / f"{old.stem}{HISTORY_SUFFIX}"
     if history.exists():
         history.rename(folder / f"{new_name}{HISTORY_SUFFIX}")
+    # The info report is regenerated at exit, but until then a stale
+    # <old>.md beside a fresh <new>.md is exactly the confusion a
+    # rename should not leave behind.
+    report = folder / f"{old.stem}{INFO_REPORT_SUFFIX}"
+    if report.exists():
+        report.rename(folder / f"{new_name}{INFO_REPORT_SUFFIX}")
     if standard_layout:
         folder.rename(new_folder)
     return str(new_path)

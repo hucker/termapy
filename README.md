@@ -227,7 +227,7 @@ The most common ones:
 | `/edit.info`                         | Open the info report in the system viewer                                     |
 | `/os <cmd>`                          | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env) |
 | `/grep <pattern>`                    | Search scrollback for regex matches (case-insensitive, skips own output)      |
-| `/cfg.info {--display}`              | Show project summary (folder tree + config + buttons); `--display` opens the full report |
+| `/cfg.info {--display}`              | Write and show the project report (folder tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
 | `/proto`                             | Open Proto picker (bare TUI) or show long-help (bare CLI)                     |
 | `/proto.help`                        | Same as `/help proto`                                                         |
 | `/proto.send <hex>`                  | Send raw hex bytes and/or quoted text, display response as hex (see below)    |

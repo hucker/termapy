@@ -1219,8 +1219,20 @@ class SerialTerminal(TerminalHost, App):
 
     def on_unmount(self) -> None:
         self._shutting_down = True
-        self.repl.fire_lifecycle("on_app_stop")
+        # History saved and the log flushed BEFORE the exit event fires: a
+        # plugin's on_app_stop (the cfg info report tails both files) must
+        # see THIS session's lines, not the previous session's.  The log is
+        # block-buffered, so without the flush its tail is still in memory.
         self._save_history()
+        # /log.delete closes the handle from a dispatch worker, so it may
+        # already be closed here; a flush on a closed file is ValueError.
+        # Non-critical log I/O is swallowed, as everywhere else.
+        if self.log_fh and not self.log_fh.closed:
+            try:
+                self.log_fh.flush()
+            except (OSError, ValueError):
+                pass
+        self.repl.fire_lifecycle("on_app_stop")
         # Stop background work unconditionally: _disconnect() early-returns
         # when not connected, so relying on it left the auto-reconnect worker
         # spinning and a parked script alive after the TUI was gone (T4/T5).

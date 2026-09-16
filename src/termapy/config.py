@@ -996,6 +996,42 @@ def cfg_relative_path(config_path: str, raw: str) -> Path:
     return anchored if anchored.exists() else path
 
 
+def not_found_message(subject: str, raw: str, config_path: str) -> str:
+    """``"<Subject> not found: <raw>"``, plus the folder a relative path means.
+
+    A relative path given to a command is anchored to the CONFIG folder,
+    not the shell's working directory (:func:`cfg_relative_path`), so an
+    error naming only what the user typed leaves out the one fact they
+    need -- they retype variations of the same relative path while the
+    command keeps looking somewhere else entirely.
+
+    Takes the CONFIG PATH rather than the resolved path on purpose: when
+    the anchored file does not exist, ``cfg_relative_path`` falls back to
+    the raw path, so the resolved value is exactly the input in the case
+    that most needs explaining.  The folder the relative path was measured
+    from is what the user has to know.  An absolute path is unambiguous
+    already, so it gets the short form.
+
+    Names the config FOLDER, not its absolute path: the absolute form is a
+    temp directory under test and would put a machine-specific string in
+    the CLI gold, which must stay deterministic.  ``sym._display_path``
+    makes the same trade for the same reason.
+
+    Args:
+        subject: What was missing, sentence case (``"Source file"``).
+        raw: The path as the user typed it.
+        config_path: The active config file (``""`` = no config).
+
+    Returns:
+        The message for ``CmdResult.fail(msg=...)``.
+    """
+    base = f"{subject} not found: {raw}"
+    if Path(raw).is_absolute() or not config_path:
+        return base
+    folder = Path(config_path).parent.name
+    return f"{base} (a relative path is measured from the {folder} config folder)"
+
+
 def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     """Copy bundled demo config files to the target directory.
 

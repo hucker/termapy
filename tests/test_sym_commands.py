@@ -351,7 +351,9 @@ class TestSymImport:
         result = engine.dispatch("sym.import nosuch.map")
 
         # Assert
-        assert result.error == "Map file not found: nosuch.map"
+        assert result.error.startswith("Map file not found: nosuch.map"), (
+            "names the file; the anchor note follows (TestNotFoundNamesTheFolder)"
+        )
 
     def test_no_config(self, sym_env):
         # Arrange
@@ -780,7 +782,9 @@ class TestDevImport:
         junk = engine.dispatch(f"dev.import {notes}")
 
         # Assert
-        assert missing.error == "Source file not found: nosuch.svd"
+        assert missing.error.startswith("Source file not found: nosuch.svd"), (
+            "names the file; the anchor note follows (TestNotFoundNamesTheFolder)"
+        )
         assert junk.error == "Unknown device format: notes.txt (formats: svd)"
 
     def test_reimport_overwrites(self, sym_env):
@@ -1918,3 +1922,48 @@ class TestImportWritesToLibrary:
         assert result.success, result.error
         assert engine.dispatch("dev.list").value == "", "nothing was added here"
         assert engine.dispatch("dev.lib").value == "atsample1", "but it is available"
+
+
+# -- "not found" says where it looked ----------------------------------------
+
+
+class TestNotFoundNamesTheFolder:
+    """A relative path is measured from the CONFIG folder, not the shell's cwd.
+
+    Without that in the message a user retypes variations of the same
+    relative path while the command keeps looking somewhere else -- which
+    is exactly what happened in use.
+    """
+
+    @pytest.mark.parametrize("line, subject", [
+        ("dev.import ../part.svd", "Source file"),
+        ("sym.import nope.map", "Map file"),
+    ])
+    def test_a_relative_path_names_the_anchor(self, sym_env, line, subject):
+        # Arrange
+        engine, config_path, _ = sym_env
+
+        # Act
+        result = engine.dispatch(line)
+
+        # Assert
+        assert not result.success, "the file really is missing"
+        assert f"{subject} not found" in result.error, "the standard phrasing"
+        assert config_path.parent.name in result.error, (
+            "and the folder the relative path was measured from"
+        )
+
+    def test_an_absolute_path_gets_the_short_form(self, sym_env, tmp_path):
+        """It is unambiguous already; an anchor note would be noise."""
+        # Arrange
+        engine, _, _ = sym_env
+        missing = tmp_path / "nowhere" / "part.svd"
+
+        # Act
+        result = engine.dispatch(f"dev.import {missing}")
+
+        # Assert
+        assert not result.success
+        assert "relative path is measured" not in result.error, (
+            "nothing to explain about an absolute path"
+        )

@@ -25,7 +25,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from termapy.config import cfg_relative_path, library_dir
+from termapy.config import cfg_relative_path, library_dir, not_found_message
 from termapy.converters import DEVICE
 from termapy.devices import (
     SUFFIX,
@@ -82,7 +82,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     ctx.fs.guard_external_path(raw, "Source path")
     path = cfg_relative_path(ctx.config_path, raw)
     if not path.is_file():
-        return CmdResult.fail(msg=f"Source file not found: {raw}")
+        return CmdResult.fail(msg=not_found_message("Source file", raw, ctx.config_path))
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as e:

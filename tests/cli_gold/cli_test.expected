@@ -536,10 +536,10 @@ demo> /sym.search zzz
   No symbols matching 'zzz'
   [115/219] /sym.search zzz (141us)
 demo> /sym.import nosuch.map
-  Error: Map file not found: nosuch.map
+  Error: Map file not found: nosuch.map (a relative path is measured from the demo config folder)
   [116/219] /sym.import nosuch.map (118us)
 demo> /dev.import nosuch.svd
-  Error: Source file not found: nosuch.svd
+  Error: Source file not found: nosuch.svd (a relative path is measured from the demo config folder)
   [117/220] /dev.import nosuch.svd (100us)
 demo> /sym.load nosuch.json
   Error: Symbols not found: nosuch.json

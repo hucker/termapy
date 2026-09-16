@@ -896,6 +896,11 @@ _SFR_DEVICE = {
         {"name": "USTAT", "addr": "0xBF806010", "size": 4},
         {"name": "UDATA", "addr": "0xBF806014", "size": 4, "read_effect": True},
         {"name": "UTXREG", "addr": "0xBF806018", "size": 4, "access": "wo"},
+        # One register described twice, the way SVD models a peripheral's
+        # operating modes (a SERCOM CTRLA is six such definitions).  Both
+        # names are the same four bytes at 0xBF806004.
+        {"name": "UMODE_SPI_CTRL", "addr": "0xBF806004", "size": 4},
+        {"name": "UMODE_I2C_CTRL", "addr": "0xBF806004", "size": 4},
     ],
 }
 
@@ -928,7 +933,7 @@ class TestPeripheralReadGates:
         # Assert
         assert not result.success, "a sweep over peripheral space must not run"
         assert "Bulk read refused" in result.error
-        assert "covers 4 device registers" in result.error, "it says how much it would have touched"
+        assert "covers 5 device registers" in result.error, "it says how much it would have touched"
         assert "UMODE" in result.error, "and names them so the user can read one"
 
     def test_dump_of_one_register_is_allowed(self, sfr_cli):
@@ -961,6 +966,46 @@ class TestPeripheralReadGates:
 
         # Assert
         assert result.success, f"{name}: naming one register is always allowed"
+
+    def test_a_mode_aliased_register_is_one_register(self, sfr_cli):
+        """SVD describes a peripheral once per MODE; that is not a sweep.
+
+        Found on a real PIC32CM: a SERCOM's CTRLA is six definitions
+        (I2CM / I2CS / SPIM / SPIS / USART_INT / USART_EXT) at one address,
+        so counting ENTRIES refused a read of a single register on every
+        aliased peripheral -- 410 such addresses on that part.
+        """
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump UMODE_SPI_CTRL")
+
+        # Assert
+        assert result.success, result.error
+        assert len(result.value) == 8, "one 4-byte register, not a two-register span"
+
+    def test_the_other_alias_reads_the_same_bytes(self, sfr_cli):
+        # Act
+        spi = sfr_cli.repl.dispatch("mem.dump UMODE_SPI_CTRL")
+        i2c = sfr_cli.repl.dispatch("mem.dump UMODE_I2C_CTRL")
+
+        # Assert
+        assert spi.value == i2c.value, "two names, one register, same silicon"
+
+    def test_a_span_over_aliases_and_a_real_neighbor_still_refuses(self, sfr_cli):
+        """Collapsing aliases must not collapse genuinely distinct registers."""
+        # Act -- 0xBF806000 covers UMODE and both CTRL aliases
+        result = sfr_cli.repl.dispatch("mem.dump 0xBF806000 8")
+
+        # Assert
+        assert not result.success, "UMODE and the CTRL pair are two real registers"
+        assert "covers 2 device registers" in result.error, "aliases counted once, not three"
+
+    def test_the_refusal_counts_and_names_by_span(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump 0xBF806000 0x20")
+
+        # Assert
+        assert "covers 5 device registers" in result.error,             "four singles plus the aliased pair as one"
+        assert result.error.count("UMODE_") == 1, "one name per span, not both aliases"
 
     def test_dump_of_ram_is_untouched(self, sfr_cli):
         # Act -- the same size sweep, in RAM

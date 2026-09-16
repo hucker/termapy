@@ -15,6 +15,7 @@ import pytest
 from termapy.devices import (
     Field,
     derive_type,
+    distinct_spans,
     load_devices_from_dir,
     merge_into,
     parse_device,
@@ -450,3 +451,54 @@ class TestRegistersInRange:
         # Assert
         actual = [register.symbol.name for register in hit]
         assert actual == ["Z", "A", "B"], "address order, not load order"
+
+
+class TestDistinctSpans:
+    """SVD describes one register once per operating MODE; that is still one."""
+
+    @staticmethod
+    def _sercom() -> list:
+        """CTRLA six ways at one address, then a genuinely separate register.
+
+        The shape a real PIC32CM / SAM SVD emits: a SERCOM's modes each get
+        a full register definition at the same offset.
+        """
+        return parse_device(_doc(registers=[
+            {"name": f"SERCOM0_{mode}_CTRLA", "addr": "0x42000400", "size": 4}
+            for mode in ("I2CM", "I2CS", "SPIM", "SPIS", "USART_INT", "USART_EXT")
+        ] + [{"name": "SERCOM0_I2CM_CTRLB", "addr": "0x42000404", "size": 4}])).registers()
+
+    def test_mode_aliases_are_one_span(self):
+        # Arrange -- only the six CTRLA definitions
+        registers = [r for r in self._sercom() if r.symbol.addr == 0x42000400]
+
+        # Act
+        actual = distinct_spans(registers)
+
+        # Assert
+        assert len(registers) == 6, "six definitions went in"
+        assert actual == 1, "one address, one size: six names for the same four bytes"
+
+    def test_separate_registers_still_count(self):
+        # Act
+        actual = distinct_spans(self._sercom())
+
+        # Assert
+        assert actual == 2, "CTRLA and CTRLB are genuinely two registers"
+
+    def test_no_registers_is_zero(self):
+        assert distinct_spans([]) == 0, "nothing covers nothing"
+
+    def test_same_address_different_size_is_two_spans(self):
+        """A 4-byte register and a 1-byte one at one address are not aliases."""
+        # Arrange
+        registers = parse_device(_doc(registers=[
+            {"name": "WHOLE", "addr": "0x40000000", "size": 4},
+            {"name": "LOW_BYTE", "addr": "0x40000000", "size": 1},
+        ])).registers()
+
+        # Act
+        actual = distinct_spans(registers)
+
+        # Assert
+        assert actual == 2, "different extents are different reads"

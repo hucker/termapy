@@ -33,7 +33,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any, Callable, Final, Literal
 
-from termapy.devices import registers_in_range
+from termapy.devices import distinct_spans, registers_in_range
 from termapy.memory import (
     DeviceMemoryError,
     Dialect,
@@ -299,24 +299,44 @@ def _guard_bulk_read(
     span happens to land on is a typed read spelled as a dump -- allowed,
     and logged like any other.
 
+    The count is DISTINCT SPANS, not register entries: a SERCOM's CTRLA is
+    six SVD definitions (I2CM / I2CS / SPIM / SPIS / USART_INT / USART_EXT)
+    at one address, and reading any of them touches the same four bytes.
+    Counting entries refused a single-register read on every aliased
+    peripheral -- the gate firing on the act it exists to permit.
+
     Returns:
         The refusal, or None when the read may proceed.
     """
     hit = registers_in_range(get_devices(ctx), parsed.addr, length)
-    if len(hit) < 2:
+    spans = distinct_spans(hit)
+    if spans < 2:
         return None
-    names = ", ".join(register.symbol.name for register in hit[:_BULK_NAMES_SHOWN])
-    if len(hit) > _BULK_NAMES_SHOWN:
-        names += f", ... (+{len(hit) - _BULK_NAMES_SHOWN} more)"
+    # One name per span, so the list counts the same way the verdict does.
+    shown: list[str] = []
+    seen: set[tuple[int, int]] = set()
+    for register in hit:
+        key = (register.symbol.addr, register.symbol.size)
+        if key not in seen:
+            seen.add(key)
+            shown.append(register.symbol.name)
+    names = ", ".join(shown[:_BULK_NAMES_SHOWN])
+    if spans > _BULK_NAMES_SHOWN:
+        names += f", ... (+{spans - _BULK_NAMES_SHOWN} more)"
     # Runs BEFORE _engine on purpose, so a sweep is refused without first
     # paying a MEM.INFO exchange on a device that may not answer one.  The
     # cost is hex_addr's default padding instead of the device's address
     # width -- zero-padding only, never a truncated address.
     return CmdResult.fail(msg=(
         f"Bulk read refused: {length} bytes at "
-        f"{hex_addr(parsed.addr)} covers {len(hit)} device registers "
+        f"{hex_addr(parsed.addr)} covers {spans} device registers "
         f"({names}); read one by name instead"
     ))
+
+
+def _named(parsed: Address) -> str:
+    """The symbol name the user typed, or ``""`` for a literal address."""
+    return parsed.symbol.name if parsed.symbol is not None else ""
 
 
 def _log_peripheral_read(
@@ -329,11 +349,18 @@ def _log_peripheral_read(
     grep of the session log, which is the whole reason reading peripheral
     space is offered at all.  Reads of plain memory are not logged: they
     have no side effect, and logging every one would bury these.
+
+    Every name is listed, mode aliases included, so a grep for any of them
+    finds the read; the name the USER typed leads the list, so the line
+    reads as the act they performed rather than as its alphabetical twin.
     """
     hit = registers_in_range(get_devices(ctx), parsed.addr, length)
     if not hit:
         return
-    names = " ".join(register.symbol.name for register in hit)
+    ordered = sorted(
+        hit, key=lambda register: register.symbol.name != _named(parsed),
+    )
+    names = " ".join(register.symbol.name for register in ordered)
     effects = [register.symbol.name for register in hit if register.symbol.read_effect]
     note = f" read_effect={','.join(effects)}" if effects else ""
     ctx.io.log(
@@ -812,9 +839,12 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
     # register on that path is already a mistake -- no 2-register floor.
     hit = registers_in_range(get_devices(ctx), parsed.addr, cap)
     if hit:
+        # Distinct spans, as in _guard_bulk_read: the verdict does not
+        # change (any hit refuses), but the COUNT must not report a
+        # mode-aliased register six times.
         return CmdResult.fail(msg=(
             f"String read refused: the scan from {hex_addr(parsed.addr)} "
-            f"can reach {len(hit)} device register(s) "
+            f"can reach {distinct_spans(hit)} device register(s) "
             f"(first {hit[0].symbol.name}); registers are not strings"
         ))
     memory = _engine(ctx)

@@ -113,6 +113,12 @@ So reads into peripheral space are treated differently:
 `/mem.dump UMODE` reads UMODE and stops: a dump with no length takes the
 symbol's own size, so naming a register does not sweep its neighbors.
 
+The count is **distinct registers, not names.** SVD describes a peripheral
+once per operating mode, so a SERCOM's `CTRLA` arrives as six definitions
+at one address -- `I2CM_CTRLA`, `I2CS_CTRLA`, `SPIM_CTRLA`, `SPIS_CTRLA`,
+`USART_INT_CTRLA`, `USART_EXT_CTRLA`. They are six names for the same four
+bytes, so reading any one of them counts as one register, not six.
+
 Naming a register is a deliberate act and stays allowed, on the same
 principle as writing: **once you name it, it is your call.** What is
 refused is the *sweep* -- a `/mem.dump` over a peripheral range reads

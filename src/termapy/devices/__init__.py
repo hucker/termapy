@@ -683,3 +683,27 @@ def registers_in_range(
         if register.symbol.addr < end and addr < register.symbol.end
     ]
     return sorted(hits, key=lambda register: (register.symbol.addr, register.symbol.name))
+
+
+def distinct_spans(registers: list[Register]) -> int:
+    """How many distinct byte ranges a set of registers actually covers.
+
+    Not ``len(registers)``, because one register is often described several
+    times.  SVD models a peripheral's operating MODES as separate register
+    definitions at one address -- a SERCOM's ``CTRLA`` appears as
+    ``I2CM_CTRLA``, ``I2CS_CTRLA``, ``SPIM_CTRLA``, ``SPIS_CTRLA``,
+    ``USART_INT_CTRLA`` and ``USART_EXT_CTRLA``, six names for the same four
+    bytes (410 such addresses on a PIC32CM5164LE00100).  Counting entries
+    would call that a six-register span and refuse a read of one register.
+
+    Reading any one of those aliases touches exactly the same silicon, so
+    for anything asking "how much would this read disturb?" they are one.
+
+    Args:
+        registers: Overlapping registers, typically from
+            :func:`registers_in_range`.
+
+    Returns:
+        The number of distinct ``(addr, size)`` ranges.
+    """
+    return len({(register.symbol.addr, register.symbol.size) for register in registers})

@@ -290,7 +290,9 @@ def _parse_placements(
         base = parse_number(addr)
         if base is None:
             return CmdResult.fail(msg=f"Invalid address: {addr}")
-        instances.append({"name": name, "base": base})
+        # Hex in the file: a human reads the reference, and 0x60001000
+        # says something that 1610616832 does not.
+        instances.append({"name": name, "base": f"0x{base:08X}"})
     return tuple(instances)
 
 

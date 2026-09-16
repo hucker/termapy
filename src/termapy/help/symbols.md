@@ -190,6 +190,11 @@ A relocatable file with no instances is an error, never a silent load at
 offset 0. Names must be identifiers (no dots -- `.` is the field-access
 suffix).
 
+Loading a device file changes what `/mem.*` allows at those addresses: a
+register is live silicon, not a variable, so bulk reads over them are
+refused and single reads are logged. See
+[two bargains](memory.md#two-bargains-your-variables-and-the-silicon).
+
 You rarely write one by hand. Vendor CMSIS-SVD files carry every one of
 these facts, and `/dev.import` converts one the way `/sym.import` converts
 a linker map:

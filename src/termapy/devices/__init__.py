@@ -644,3 +644,42 @@ def merge_into(
             merged.append(register.symbol)
             taken.add(register.symbol.name)
     return merged, shadowed
+
+
+# ── Peripheral space ───────────────────────────────────────────────────────
+
+
+def registers_in_range(
+    devices: list[Device], addr: int, length: int,
+) -> list[Register]:
+    """Every loaded register whose bytes fall in ``[addr, addr + length)``.
+
+    This is the whole of termapy's knowledge of where peripheral space IS:
+    an address is peripheral because a loaded device file says a register
+    lives there, never because of a range table or a guess about the part.
+    Nothing here needs to know what any individual register DOES, which is
+    what makes it usable -- no vendor ships the per-register read-safety
+    data that a smarter check would need (``readAction`` is empty in every
+    SVD checked), so a bulk reader gets address containment or nothing.
+
+    A linear scan: a big part is a few thousand registers, and every caller
+    is about to pay a serial round trip that costs orders of magnitude more.
+
+    Args:
+        devices: The loaded devices (``symbols.session.get_devices``).
+        addr: First byte of the range.
+        length: Byte count; 0 or less matches nothing.
+
+    Returns:
+        The overlapping registers, sorted by address, then name.
+    """
+    if length <= 0:
+        return []
+    end = addr + length
+    hits = [
+        register
+        for device in devices
+        for register in device.registers()
+        if register.symbol.addr < end and addr < register.symbol.end
+    ]
+    return sorted(hits, key=lambda register: (register.symbol.addr, register.symbol.name))

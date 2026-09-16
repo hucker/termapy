@@ -18,6 +18,7 @@ from termapy.devices import (
     load_devices_from_dir,
     merge_into,
     parse_device,
+    registers_in_range,
     resolve_devices,
 )
 from termapy.protocol.core import parse_format_spec
@@ -364,3 +365,88 @@ class TestMerge:
         # Assert
         assert [symbol.addr for symbol in merged] == [0x2000], "the user's own symbol stays"
         assert shadowed == ["CTRL"], "and the shadowed register is named"
+
+
+# ── Peripheral space ────────────────────────────────────────────────────────
+
+
+class TestRegistersInRange:
+    """The one address-containment question the read gates ask."""
+
+    @staticmethod
+    def _three() -> list:
+        """Three 4-byte registers at 0x40000000, 0x40000004, 0x40000010."""
+        return [parse_device(_doc(registers=[
+            {"name": "A", "addr": "0x40000000", "size": 4},
+            {"name": "B", "addr": "0x40000004", "size": 4},
+            {"name": "C", "addr": "0x40000010", "size": 4},
+        ]))]
+
+    def test_ram_address_touches_nothing(self):
+        # Act
+        hit = registers_in_range(self._three(), 0x20000000, 1024)
+
+        # Assert
+        assert hit == [], "RAM is not peripheral space, however big the read"
+
+    def test_a_span_returns_every_register_it_covers(self):
+        # Act
+        hit = registers_in_range(self._three(), 0x40000000, 0x14)
+
+        # Assert
+        actual = [register.symbol.name for register in hit]
+        assert actual == ["A", "B", "C"], "all three lie inside the span"
+
+    def test_partial_overlap_counts(self):
+        # Arrange: one byte of B, from inside A.
+        # Act
+        hit = registers_in_range(self._three(), 0x40000003, 2)
+
+        # Assert
+        actual = [register.symbol.name for register in hit]
+        assert actual == ["A", "B"], "touching one byte of a register is touching it"
+
+    def test_a_gap_between_registers_is_not_a_register(self):
+        # Act
+        hit = registers_in_range(self._three(), 0x40000008, 8)
+
+        # Assert
+        assert hit == [], "the hole between B and C belongs to no register"
+
+    def test_end_is_exclusive(self):
+        # Act
+        hit = registers_in_range(self._three(), 0x40000000, 4)
+
+        # Assert
+        actual = [register.symbol.name for register in hit]
+        assert actual == ["A"], "a read ending where B starts has not touched B"
+
+    @pytest.mark.parametrize("length", [0, -1])
+    def test_an_empty_read_touches_nothing(self, length):
+        # Act
+        hit = registers_in_range(self._three(), 0x40000000, length)
+
+        # Assert
+        assert hit == [], "a zero-length read reads no byte, so it hits no register"
+
+    def test_no_devices_loaded_is_the_common_case(self):
+        # Act
+        hit = registers_in_range([], 0x40000000, 0x1000)
+
+        # Assert
+        assert hit == [], "with no device file, nothing is known to be peripheral"
+
+    def test_results_are_sorted_across_devices(self):
+        # Arrange: a second part placed BELOW the first, loaded after it.
+        second = parse_device(_doc(
+            device="other",
+            registers=[{"name": "Z", "addr": "0x3FFFFFFC", "size": 4}],
+        ))
+        devices = [*self._three(), second]
+
+        # Act
+        hit = registers_in_range(devices, 0x3FFFFFFC, 0x10)
+
+        # Assert
+        actual = [register.symbol.name for register in hit]
+        assert actual == ["Z", "A", "B"], "address order, not load order"

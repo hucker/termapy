@@ -82,6 +82,59 @@ sBanner` captures the text; the display escapes non-printables; without
 a NUL inside the cap (default 256) the result is marked truncated.
 `/mem.read <target> char` renders one byte as `'A' (0x41)`.
 
+## Two bargains: your variables, and the silicon
+
+`/mem.*` reads two different kinds of address, and they do not come with
+the same guarantee.
+
+**Your build's symbols** -- the RAM and flash a [symbol table](symbols.md)
+names -- are the low-cost bargain termapy is built around. Reading
+`gTemp` observes a variable your firmware already keeps. It has no side
+effect, nothing else is watching that byte, and reading it twice gives
+the same answer twice.
+
+**A device file's registers** are not that. They are an intrusive probe
+on live silicon, usually through a driver that assumes it is the only
+thing on the bus. Reading a FIFO data port pops a byte the driver never
+receives; reading some status registers clears the flags an interrupt
+was waiting on. The syntax is identical, which is exactly the problem:
+the damage does not look like a terminal error, it looks like a flaky
+*device*, days later.
+
+So reads into peripheral space are treated differently:
+
+| Situation | What happens |
+|-----------|--------------|
+| A read covering two or more device registers | Refused -- read one by name |
+| `/mem.str` whose scan could reach any register | Refused -- registers are not strings |
+| A register with `"access": "wo"` | Refused, on every reading path including the read half of `/mem.or` and `/mem.not` |
+| One register, named | Allowed, and logged |
+
+Naming a register is a deliberate act and stays allowed, on the same
+principle as writing: **once you name it, it is your call.** What is
+refused is the *sweep* -- a `/mem.dump` over a peripheral range reads
+every address in it precisely because it does not know what is there,
+and that is the one move guaranteed to hit something that minds.
+
+Every allowed peripheral read is logged, beside the write audit:
+
+```text
+# MEM.R 0xBF806000 len=4 regs=UMODE origin=cli
+# MEM.R 0xBF806014 len=4 regs=UDATA read_effect=UDATA origin=cli
+```
+
+Reads of ordinary memory are not logged -- they have no side effect, and
+logging them would bury the lines that matter. The `read_effect=` note
+marks a register whose file says reading it changes device state, which
+is what makes a later "what happened on Tuesday?" answerable.
+
+These gates need no per-register knowledge beyond what a device file
+already carries, which is deliberate: `access` is populated in every
+vendor SVD, but `readAction` -- the field that would say *which*
+registers are destructive to read -- is empty in all of them. That
+knowledge lives only in datasheet prose, so termapy refuses the sweep
+rather than pretending to a safety list it cannot have.
+
 ## The wire spec
 
 A device supports `/mem.*` by answering three line-oriented commands.

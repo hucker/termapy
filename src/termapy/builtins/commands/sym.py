@@ -4,8 +4,8 @@ The command surface only.  The table itself -- the model, the file format,
 the address grammar, the converters, and the session namespace -- lives in
 :mod:`termapy.symbols`, because the REPL engine auto-loads it on config
 load and core must not import from ``builtins/``.  This file holds no
-state: every handler reads and writes through ``session.get_table`` /
-``session.set_table``.
+state: every handler reads through ``session.get_table`` (the merged view)
+or ``get_build_table`` and writes through ``session.install_build``.
 
 Subcommands:
 
@@ -40,13 +40,14 @@ from termapy.symbols import (
     Symbol,
     SymbolTable,
     format_symbol,
+    get_build_table,
     get_table,
     info_rows,
+    install_build,
     lookup_record,
     make_recipe,
     make_witness,
     parse_address,
-    set_table,
     sidecar_path,
     symbol_record,
     symbolic_name,
@@ -112,7 +113,7 @@ def _recorded_import(ctx: PluginContext) -> tuple[str, str] | None:
     prose (``"demo firmware"``) has no readable file, so the caller's
     existence check refuses it with the normal not-found error.
     """
-    table = get_table(ctx)
+    table = get_build_table(ctx)
     if table is None:
         return None
     source = (table.source or "").strip()
@@ -247,7 +248,9 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         table.save(dest)
     except OSError as e:
         return CmdResult.fail(msg=f"Write error: {e}")
-    set_table(ctx, table)
+    # install_build, not a bare namespace write: the device registers the
+    # config loaded must survive a re-import (they are not the build's).
+    install_build(ctx, table)
     ctx.io.result(
         f"Imported {len(table)} symbols from {path.name} ({spec.format}) -> {dest.name}",
         "green",
@@ -286,20 +289,31 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Read error: {e}")
     except ValueError as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
-    set_table(ctx, table)
+    install_build(ctx, table)
     ctx.io.result(f"Loaded {len(table)} symbols ({path.name})", "green")
     return CmdResult.ok(value=str(len(table)), data=table_record(table, file=str(path)))
 
 
 def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
-    """Clear the loaded table; the file is untouched."""
-    table = get_table(ctx)
-    if table is None:
+    """Clear the build's table; the file is untouched.
+
+    Device registers are the board's, not the build's, so they stay --
+    and the message says so, because "unload" leaving symbols behind
+    would otherwise read as a failure.
+    """
+    build = get_build_table(ctx)
+    if build is None:
         ctx.io.result("No symbols loaded.", "yellow")
         return CmdResult.ok(value="0")
-    n = len(table)
-    set_table(ctx, None)
-    ctx.io.result(f"Unloaded symbols ({n}).", "green")
+    n = len(build)
+    remaining = install_build(ctx, None)
+    if remaining is None:
+        ctx.io.result(f"Unloaded symbols ({n}).", "green")
+    else:
+        ctx.io.result(
+            f"Unloaded build symbols ({n}); {len(remaining)} device registers remain.",
+            "green",
+        )
     return CmdResult.ok(value=str(n))
 
 

@@ -78,6 +78,9 @@ FOLDERS = [
     FolderSpec("prof",   ".csv", clearable=True),
     # Symbol tables (*.symbols.json) and, later, user converter modules.
     FolderSpec("sym",    "*"),
+    # Memory-mapped device register files (*.device.json).  Static chip
+    # facts, not build output -- see termapy.devices.
+    FolderSpec("dev",    ".device.json"),
 ]
 
 # -- Derived from FOLDERS (do not edit manually) ------------------------------
@@ -93,6 +96,7 @@ VIZ = _BY_NAME["viz"].name
 CAP = _BY_NAME["cap"].name
 PROF = _BY_NAME["prof"].name
 SYM = _BY_NAME["sym"].name
+DEV = _BY_NAME["dev"].name
 
 # All folder names as a tuple
 FOLDER_NAMES = tuple(f.name for f in FOLDERS)

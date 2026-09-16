@@ -102,7 +102,7 @@ class TestSymbolRecord:
         expected = {
             "name": "main", "addr": 0x10FFA, "addr_hex": "0x00010FFA", "end": 0x10FFA + 0x1BA,
             "size": 0x1BA, "section": "text", "file": "main.c", "type": "", "space": "",
-            "rmw": True,
+            "rmw": True, "access": "rw", "read_effect": False,
         }
         assert actual == expected, "int and hex addr side by side; every key present"
 

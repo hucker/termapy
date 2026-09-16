@@ -1160,7 +1160,7 @@ class ReplEngine:
             self._prune_data_folders()
         if name in _CORE_LIFECYCLE:
             self.resolve_plugins()
-            symbols_session.autoload(self.ctx, self.config_path)
+            symbols_session.autoload(self.ctx, self.config_path, self.global_root)
         for hook in self._lifecycle_hooks:
             if hook.name != name:
                 continue

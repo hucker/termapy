@@ -24,6 +24,7 @@ from termapy.defaults import (
     VALID_STOP_BITS,
 )
 from termapy.folders import (
+    DEV,
     FOLDER_MIGRATIONS,
     HISTORY_FILE,
     HISTORY_SUFFIX,
@@ -462,6 +463,20 @@ def global_plugins_dir(root: Path | None = None) -> Path:
             temp folder so the checkout's own ``termapy_cfg/`` stays out.
     """
     return (root if root is not None else cfg_dir()) / PLUGIN
+
+
+def global_devices_dir(root: Path | None = None) -> Path:
+    """Return the global device directory (a path; it may not exist yet).
+
+    The ``dev/`` sibling of :func:`global_plugins_dir`: register files
+    shared by every config on this machine, since a chip is not specific
+    to one build.
+
+    Args:
+        root: The cfg root whose ``dev/`` child is the global layer;
+            None resolves :func:`cfg_dir`.
+    """
+    return (root if root is not None else cfg_dir()) / DEV
 
 
 _ENV_RE = re.compile(r"\$\(env\.(\w+)(?:\|([^)]*))?\)")

@@ -48,7 +48,15 @@ from termapy.symbols.provenance import (
     make_recipe,
     make_witness,
 )
-from termapy.symbols.session import SYMBOLS_NS, autoload, get_table, set_table
+from termapy.symbols.session import (
+    SYMBOLS_NS,
+    autoload,
+    get_build_table,
+    get_devices,
+    get_table,
+    install_build,
+    install_devices,
+)
 from termapy.symbols.table import (
     SCALAR_TYPES,
     SYMBOLS_VERSION,
@@ -74,7 +82,10 @@ __all__ = [
     "info_rows",
     "SYMBOLS_NS",
     "get_table",
-    "set_table",
+    "get_build_table",
+    "get_devices",
+    "install_build",
+    "install_devices",
     "autoload",
     "IN_SYNC",
     "STALE",

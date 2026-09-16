@@ -150,6 +150,48 @@ importing a map that lives outside the config folder needs
 `TERMAPY_MCP_FS_UNCONFINED=1`; bare `/sym.load` and the auto-load are always
 inside the sandbox.
 
+## Parts: device files
+
+A linker map has every symbol the firmware defines and none of the
+registers the silicon fixes -- no linker ever sees `PORTA_OUT`. Those come
+from a **device file** in the config's `dev/` folder: one flat JSON list of
+registers per part.
+
+```json
+{
+  "device_version": 1,
+  "device": "atsame54",
+  "registers": [
+    {"name": "PORTA_DIR", "addr": "0x40003000", "size": 4,
+     "peripheral": "PORTA", "description": "Data Direction"},
+    {"name": "PORTA_IN",  "addr": "0x40003020", "size": 4, "access": "ro"},
+    {"name": "PA00_PINCFG", "addr": "0x40003040", "size": 1,
+     "fields": [{"name": "PMUXEN", "bit": 0}, {"name": "INEN", "bit": 1}]}
+  ]
+}
+```
+
+`dev/` is the board's bill of materials: everything in `<cfg>/dev/` loads,
+`termapy_cfg/dev/` loads into every config, and a per-config file replaces
+a global one with the same `device`. Registers merge over the build's
+symbols at load and **survive `/sym.import`** -- they are the board's, not
+the build's, and are never written to the sidecar. A build symbol that
+shares a register's name wins, with a warning.
+
+| Key | Meaning |
+|---|---|
+| `name`, `addr`, `size` | Required. `addr` is absolute, or an offset from `base` when `relocatable` |
+| `fields` | Bit fields (`bit`, `width`, optional `values` labels); `type` is derived from them, so never give both |
+| `access`, `read_effect`, `rmw` | `rw`/`ro`/`wo`; reading changes state (a FIFO pops, a flag clears); mask-writes forbidden |
+| `peripheral`, `group`, `description`, `reset` | Context for `/sym.info` and the register view |
+| `relocatable` + `instances` | N copies of a part: `[{"name": "ADC1", "base": "0x60000000"}, ...]` yields `ADC1_STATUS` |
+
+A relocatable file with no instances is an error, never a silent load at
+offset 0. Names must be identifiers (no dots -- `.` is the field-access
+suffix). Vendor CMSIS-SVD files carry every one of these facts; a converter
+that turns one into a device file, the way `/sym.import` turns a linker
+map into the sidecar, is the next step.
+
 ## Commands
 
 | Command                            | Example                     | Does                                                    |

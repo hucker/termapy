@@ -10,11 +10,14 @@ hit and a miss carry the same keys.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from termapy.symbols.address import Address
 from termapy.symbols.provenance import IN_SYNC, UNKNOWN, check_staleness
 from termapy.symbols.table import Symbol, SymbolTable, hex_digits, section_label
+
+if TYPE_CHECKING:
+    from termapy.devices import Device
 
 
 def hex_addr(addr: int, address_bits: int = 32) -> str:
@@ -68,6 +71,8 @@ def symbol_record(symbol: Symbol, *, address_bits: int = 32) -> dict[str, Any]:
         "type": symbol.type,
         "space": symbol.space,
         "rmw": symbol.rmw,
+        "access": symbol.access,
+        "read_effect": symbol.read_effect,
     }
 
 
@@ -96,6 +101,32 @@ def lookup_record(
     }
 
 
+def device_records(devices: list[Device]) -> list[dict[str, Any]]:
+    """The ``data=`` twin for loaded device files: one fixed-shape record each.
+
+    Lives here, not in ``termapy.devices``, so that module never has to be
+    imported by this one: ``devices`` imports ``symbols.table``, and a
+    module-level import back would make the package's import order decide
+    whether it loads.
+    """
+    return [
+        {
+            "device": device.name,
+            "description": device.description,
+            "vendor": device.vendor,
+            "relocatable": device.relocatable,
+            "instances": [
+                {"name": instance.name, "base": instance.base}
+                for instance in device.instances
+            ],
+            "registers": len(device),
+            "layer": device.layer,
+            "path": str(device.path) if device.path else "",
+        }
+        for device in devices
+    ]
+
+
 def table_record(table: SymbolTable, *, file: str = "") -> dict[str, Any]:
     """The ``/sym.info`` / ``/sym.load`` / ``/sym.import`` record.
 
@@ -119,6 +150,7 @@ def table_record(table: SymbolTable, *, file: str = "") -> dict[str, Any]:
         "address_bits": bits,
         "endian": table.endian,
         "count": len(table),
+        "devices": device_records(table.devices),
         "sections": table.stats(),
         "range": None if span is None else {
             "start": span[0],
@@ -165,4 +197,14 @@ def info_rows(table: SymbolTable, *, file: str = "") -> list[tuple[str, str]]:
         ("range", span_text),
         ("regions", str(len(table.regions))),
     ]
+    # Devices are a separate layer, so name them separately: the build's
+    # symbol count and the part's register count answer different
+    # questions, and one merged number hides which half is missing.
+    for device in table.devices:
+        placed = " ".join(
+            f"{instance.name}@{hex_addr(instance.base, bits)}"
+            for instance in device.instances if instance.name
+        )
+        detail = f"  {placed}" if placed else ""
+        rows.append(("device", f"{device.name}{detail}  ({len(device)} registers)"))
     return rows

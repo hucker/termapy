@@ -1,0 +1,366 @@
+"""Unit tests for device files: the format, instances, layering and merge.
+
+Pure functions over decoded JSON and a temp folder tree; the command-level
+behavior (auto-load, survival across ``/sym.import``) lives in
+``test_sym_commands.py::TestDevices``.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from termapy.devices import (
+    Field,
+    derive_type,
+    load_devices_from_dir,
+    merge_into,
+    parse_device,
+    resolve_devices,
+)
+from termapy.protocol.core import parse_format_spec
+from termapy.symbols import Symbol
+
+
+def _doc(**overrides) -> dict:
+    """A minimal valid device document, fields overridable."""
+    doc = {
+        "device_version": 1,
+        "device": "part",
+        "registers": [{"name": "CTRL", "addr": "0x40000000", "size": 4}],
+    }
+    doc.update(overrides)
+    return doc
+
+
+def _write(folder: Path, name: str, doc: dict) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    file = folder / f"{name}.device.json"
+    file.write_text(json.dumps(doc), encoding="utf-8")
+    return file
+
+
+# ── The format ──────────────────────────────────────────────────────────────
+
+
+class TestParse:
+
+    def test_minimal_document(self):
+        # Act
+        device = parse_device(_doc())
+
+        # Assert
+        register = device.registers()[0]
+        assert device.name == "part", "the device field is the identity"
+        assert register.symbol.section == "sfr", "every register is an sfr"
+        assert register.symbol.file == "part", "the device rides in Symbol.file"
+        assert register.symbol.type == "u32", "no type, no fields: a scalar by size"
+
+    @pytest.mark.parametrize("size, expected", [(1, "u8"), (2, "u16"), (8, "u64"), (3, "")])
+    def test_default_type_follows_size(self, size, expected):
+        # Act
+        device = parse_device(_doc(registers=[{"name": "R", "addr": 0, "size": size}]))
+
+        # Assert
+        assert device.registers()[0].symbol.type == expected
+
+    def test_version_is_the_hard_gate(self):
+        with pytest.raises(ValueError, match="device_version"):
+            parse_device(_doc(device_version=2))
+
+    @pytest.mark.parametrize("bad", ["", "a b", "a.b", "-lead"])
+    def test_device_name_rules(self, bad):
+        with pytest.raises(ValueError, match="device"):
+            parse_device(_doc(device=bad))
+
+    @pytest.mark.parametrize("bad", ["PORT%s_DIR", "a.b", "1ST", "a-b"])
+    def test_register_names_must_be_identifiers(self, bad):
+        """An unexpanded SVD placeholder or a dotted name would load unreachable."""
+        with pytest.raises(ValueError, match=r"registers\[0\]\.name"):
+            parse_device(_doc(registers=[{"name": bad, "addr": 0, "size": 4}]))
+
+    def test_size_is_required_and_positive(self):
+        with pytest.raises(ValueError, match=r"registers\[0\]\.size"):
+            parse_device(_doc(registers=[{"name": "R", "addr": 0}]))
+
+    def test_duplicate_register_names_rejected(self):
+        with pytest.raises(ValueError, match="duplicate name 'R'"):
+            parse_device(_doc(registers=[
+                {"name": "R", "addr": 0, "size": 4}, {"name": "R", "addr": 4, "size": 4},
+            ]))
+
+    def test_safety_fields_reach_the_symbol(self):
+        # Act
+        device = parse_device(_doc(registers=[{
+            "name": "DATA", "addr": 0, "size": 1,
+            "access": "ro", "read_effect": True, "rmw": False,
+        }]))
+
+        # Assert
+        symbol = device.registers()[0].symbol
+        assert symbol.access == "ro", "access is on the Symbol, where /mem.* can see it"
+        assert symbol.read_effect is True, "read_effect too"
+        assert symbol.rmw is False, "rmw still round-trips"
+
+    def test_bad_access_rejected(self):
+        with pytest.raises(ValueError, match=r"registers\[0\]\.access"):
+            parse_device(_doc(registers=[{"name": "R", "addr": 0, "size": 4, "access": "r"}]))
+
+    def test_viewer_context_reaches_the_register(self):
+        # Act
+        device = parse_device(_doc(
+            description="A part", vendor="acme", parts=["ACME1"],
+            registers=[{
+                "name": "R", "addr": 0, "size": 4, "peripheral": "PORTA",
+                "group": "PORT", "description": "Data Direction", "reset": "0x0000FFFF",
+            }],
+        ))
+
+        # Assert
+        register = device.registers()[0]
+        assert device.vendor == "acme" and device.parts == ("ACME1",), "metadata kept"
+        assert (register.peripheral, register.group) == ("PORTA", "PORT"), "tree keys kept"
+        assert register.description == "Data Direction", "datasheet text kept"
+        assert register.reset == 0xFFFF, "reset parsed as an address-shaped int"
+
+    def test_unknown_keys_are_ignored(self):
+        """Forward compatibility: a newer file loads on an older termapy."""
+        # Act
+        device = parse_device(_doc(future_key=1, registers=[
+            {"name": "R", "addr": 0, "size": 4, "future_reg_key": True},
+        ]))
+
+        # Assert
+        assert len(device) == 1, "unknown keys at both levels are ignored"
+
+
+class TestFields:
+
+    def test_fields_derive_the_type_spec(self):
+        # Arrange
+        fields = [{"name": "EVEN", "bit": 0, "width": 4}, {"name": "ODD", "bit": 4, "width": 4}]
+
+        # Act
+        device = parse_device(_doc(registers=[{"name": "PMUX", "addr": 0, "size": 1, "fields": fields}]))
+
+        # Assert
+        register = device.registers()[0]
+        assert register.symbol.type == "EVEN:B1.0-3 ODD:B1.4-7", "single-byte form"
+        assert [field.name for field in register.fields] == ["EVEN", "ODD"], "fields kept"
+
+    def test_multibyte_form_uses_little_endian_byte_refs(self):
+        # Act
+        spec = derive_type(4, (Field("EN", 15), Field("MODE", 8, 2)))
+
+        # Assert
+        assert spec == "EN:B4-1.15 MODE:B4-1.8-9", "the B4-1 form the spec language reads"
+
+    def test_derived_spec_parses(self):
+        """The derivation must produce what the format-spec parser accepts."""
+        # Arrange
+        spec = derive_type(4, (Field("EN", 15), Field("MODE", 8, 2)))
+
+        # Act
+        columns = parse_format_spec(spec)
+
+        # Assert
+        assert [column.name for column in columns] == ["EN", "MODE"], "both columns parsed"
+
+    def test_fields_and_type_together_is_an_error(self):
+        with pytest.raises(ValueError, match="derived"):
+            parse_device(_doc(registers=[{
+                "name": "R", "addr": 0, "size": 1, "type": "u8",
+                "fields": [{"name": "F", "bit": 0}],
+            }]))
+
+    def test_field_outside_the_register_is_an_error(self):
+        with pytest.raises(ValueError, match="do not fit"):
+            parse_device(_doc(registers=[{
+                "name": "R", "addr": 0, "size": 1, "fields": [{"name": "F", "bit": 7, "width": 2}],
+            }]))
+
+    def test_enumerated_values_parse_from_json_keys(self):
+        # Act
+        device = parse_device(_doc(registers=[{
+            "name": "R", "addr": 0, "size": 1,
+            "fields": [{"name": "MODE", "bit": 0, "width": 2,
+                        "values": {"0": "INPUT", "0x1": "OUTPUT"}}],
+        }]))
+
+        # Assert
+        actual = device.registers()[0].fields[0].values
+        assert actual == ((0, "INPUT"), (1, "OUTPUT")), "keys are integers, hex allowed"
+
+
+# ── Instances ───────────────────────────────────────────────────────────────
+
+
+_RELOCATABLE = {
+    "relocatable": True,
+    "registers": [{"name": "STATUS", "addr": "0x00", "size": 1},
+                  {"name": "DATA", "addr": "0x04", "size": 4}],
+}
+
+
+class TestInstances:
+
+    def test_non_relocatable_has_one_unnamed_instance_at_zero(self):
+        # Act
+        device = parse_device(_doc())
+
+        # Assert
+        (instance,) = device.instances
+        assert (instance.name, instance.base) == ("", 0), "the MCU case"
+        assert device.registers()[0].symbol.name == "CTRL", "no prefix"
+
+    def test_relocatable_expands_each_instance(self):
+        # Act
+        device = parse_device(_doc(**_RELOCATABLE, instances=[
+            {"name": "ADC1", "base": "0x60000000"}, {"name": "ADC2", "base": "0x60000100"},
+        ]))
+
+        # Assert
+        names = {register.symbol.name: register.symbol.addr for register in device.registers()}
+        assert names["ADC1_STATUS"] == 0x60000000, "prefixed and based"
+        assert names["ADC2_DATA"] == 0x60000104, "offset added to the second base"
+        assert len(device) == 4, "two registers per instance"
+
+    def test_relocatable_without_instances_is_an_error(self):
+        """Never a silent load at offset 0 -- that is real memory on many parts."""
+        with pytest.raises(ValueError, match="needs at least one"):
+            parse_device(_doc(**_RELOCATABLE))
+
+    def test_instances_on_a_fixed_device_is_an_error(self):
+        with pytest.raises(ValueError, match="only a relocatable"):
+            parse_device(_doc(instances=[{"name": "X", "base": 0}]))
+
+    def test_instance_needs_a_base(self):
+        with pytest.raises(ValueError, match=r"instances\[0\]\.base"):
+            parse_device(_doc(**_RELOCATABLE, instances=[{"name": "ADC1"}]))
+
+    def test_duplicate_instance_names_rejected(self):
+        with pytest.raises(ValueError, match="duplicate name 'ADC1'"):
+            parse_device(_doc(**_RELOCATABLE, instances=[
+                {"name": "ADC1", "base": 0}, {"name": "ADC1", "base": 0x100},
+            ]))
+
+
+# ── Folders and layers ──────────────────────────────────────────────────────
+
+
+class TestFolder:
+
+    def test_loads_every_device_file_and_nothing_else(self, tmp_path):
+        # Arrange
+        _write(tmp_path, "a", _doc(device="alpha"))
+        _write(tmp_path, "b", _doc(device="beta"))
+        (tmp_path / "notes.json").write_text("{}", encoding="utf-8")
+
+        # Act
+        load = load_devices_from_dir(tmp_path, "rig")
+
+        # Assert
+        assert [device.name for device in load.devices] == ["alpha", "beta"], "filename order"
+        assert load.errors == [], "a plain .json is not a device file and not an error"
+        assert load.devices[0].layer == "rig", "the layer label is recorded"
+
+    def test_broken_file_is_reported_not_fatal(self, tmp_path):
+        # Arrange
+        _write(tmp_path, "bad", _doc(device_version=9))
+        _write(tmp_path, "good", _doc(device="good"))
+
+        # Act
+        load = load_devices_from_dir(tmp_path)
+
+        # Assert
+        assert [device.name for device in load.devices] == ["good"], "the good one still loads"
+        assert load.errors == ["bad.device.json: device_version: expected 1, got 9"], (
+            "the error names the file and the field"
+        )
+
+    def test_two_files_one_device_is_an_error_on_the_second(self, tmp_path):
+        # Arrange
+        _write(tmp_path, "adc", _doc(device="ads1256"))
+        _write(tmp_path, "adc_copy", _doc(device="ads1256"))
+
+        # Act
+        load = load_devices_from_dir(tmp_path)
+
+        # Assert
+        assert len(load.devices) == 1, "the first wins"
+        assert "instances, not files" in load.errors[0], "the error says what to do instead"
+
+    def test_missing_folder_is_empty(self, tmp_path):
+        assert load_devices_from_dir(tmp_path / "nope").devices == []
+
+
+class TestResolve:
+
+    def test_per_config_overrides_global_by_device(self, tmp_path):
+        # Arrange
+        cfg = tmp_path / "rig" / "rig.cfg"
+        cfg.parent.mkdir()
+        cfg.write_text("{}", encoding="utf-8")
+        _write(tmp_path / "dev", "mcu", _doc(device="mcu", description="global"))
+        _write(cfg.parent / "dev", "mcu", _doc(device="mcu", description="local"))
+
+        # Act
+        devices, errors = resolve_devices(str(cfg), tmp_path)
+
+        # Assert
+        assert errors == []
+        assert [device.description for device in devices] == ["local"], "per-config wins"
+
+    def test_register_collision_skips_the_later_device(self, tmp_path):
+        """Two parts claiming STATUS: the 'forgot the instance name' mistake."""
+        # Arrange
+        cfg = tmp_path / "rig" / "rig.cfg"
+        cfg.parent.mkdir()
+        cfg.write_text("{}", encoding="utf-8")
+        _write(cfg.parent / "dev", "a", _doc(device="a", registers=[{"name": "STATUS", "addr": 0, "size": 1}]))
+        _write(cfg.parent / "dev", "b", _doc(device="b", registers=[{"name": "STATUS", "addr": 8, "size": 1}]))
+
+        # Act
+        devices, errors = resolve_devices(str(cfg), tmp_path)
+
+        # Assert
+        assert [device.name for device in devices] == ["a"], "the later device is skipped whole"
+        assert errors == [
+            "b.device.json: register STATUS is also defined by a.device.json; give one an instance name"
+        ], "the error names both files and the fix"
+
+    def test_no_config_no_devices(self):
+        assert resolve_devices("") == ([], [])
+
+
+# ── Merge ───────────────────────────────────────────────────────────────────
+
+
+class TestMerge:
+
+    def test_registers_join_the_build_symbols(self):
+        # Arrange
+        build = [Symbol("main", 0x2000, 442, "text")]
+        device = parse_device(_doc())
+
+        # Act
+        merged, shadowed = merge_into(build, [device])
+
+        # Assert
+        assert [symbol.name for symbol in merged] == ["main", "CTRL"], "appended after the build"
+        assert shadowed == [], "nothing collided"
+        assert build == [Symbol("main", 0x2000, 442, "text")], "the input is untouched"
+
+    def test_build_wins_a_name_clash_and_it_is_reported(self):
+        # Arrange
+        build = [Symbol("CTRL", 0x2000, 4, "bss")]
+        device = parse_device(_doc())
+
+        # Act
+        merged, shadowed = merge_into(build, [device])
+
+        # Assert
+        assert [symbol.addr for symbol in merged] == [0x2000], "the user's own symbol stays"
+        assert shadowed == ["CTRL"], "and the shadowed register is named"

@@ -510,6 +510,204 @@ class TestStaleness:
         assert result.data["status"] == "in_sync", "the record still says so explicitly"
 
 
+# ── Device files ────────────────────────────────────────────────────────────
+
+
+def _install_device(folder: Path, name: str, registers: list[dict], **extra) -> Path:
+    """Write ``<folder>/<name>.device.json`` describing one part."""
+    folder.mkdir(parents=True, exist_ok=True)
+    doc = {"device_version": 1, "device": name, "registers": registers} | extra
+    file = folder / f"{name}.device.json"
+    file.write_text(json.dumps(doc), encoding="utf-8")
+    return file
+
+
+_PART = [
+    {"name": "REG_A", "addr": "0x50000000", "size": 4},
+    {"name": "REG_B", "addr": "0x50000004", "size": 4, "access": "ro"},
+]
+
+
+class TestDevices:
+    """Device files in dev/ are the board's registers, merged over the build."""
+
+    def test_device_registers_merge_with_the_sidecar(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_sidecar(config_path)
+        _install_device(config_path.parent / "dev", "part", _PART)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert len(table) == DEMO_COUNT + 2, "build symbols plus the part's registers"
+        result = engine.dispatch("sym REG_A")
+        assert result.value == "0x50000000", "a register resolves like any symbol"
+
+    def test_devices_load_with_no_sidecar(self, sym_env):
+        """A board whose firmware map you lack still has registers."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table is not None and len(table) == 2, "a devices-only table"
+        assert table.source == "", "it derives from no build, so no provenance"
+
+    def test_reimport_keeps_the_device_registers(self, sym_env, tmp_path):
+        """The bug that shaped session.py: an import must not drop the board."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+
+        # Act
+        engine.dispatch(f"sym.import {map_copy}")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table.by_name("REG_A"), "the register survived the import"
+        assert len(table) == XC32_COUNT + 2, "build symbols replaced, registers kept"
+
+    def test_sidecar_never_receives_device_rows(self, sym_env, tmp_path):
+        """Registers come from their own files; the build's file stays the build's."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+
+        # Act
+        engine.dispatch(f"sym.import {map_copy}")
+
+        # Assert
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        doc = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert len(doc["symbols"]) == XC32_COUNT, "only the converter's rows were written"
+
+    def test_load_keeps_the_device_registers(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_sidecar(config_path)
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        engine.dispatch("sym.load")
+
+        # Assert
+        assert len(get_table(engine.ctx)) == DEMO_COUNT + 2, "reload merges again"
+
+    def test_unload_keeps_the_board_and_says_so(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("sym.unload")
+
+        # Assert
+        assert result.value == str(DEMO_COUNT), "the value is the build count removed"
+        assert len(get_table(engine.ctx)) == 2, "the registers remain"
+        assert any("2 device registers remain" in text for text in _texts(output)), (
+            "unload leaving symbols behind must not read as a failure"
+        )
+
+    def test_info_lists_devices_in_prose_and_data(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART, description="A part")
+        engine.fire_lifecycle("on_app_start")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("sym.info")
+
+        # Assert
+        assert any("part" in text and "2 registers" in text for text in _texts(output)), (
+            "the prose page has a device row"
+        )
+        assert result.data["devices"][0]["device"] == "part", "the record lists it"
+        assert result.data["devices"][0]["registers"] == 2, "with its register count"
+
+    def test_broken_device_file_is_reported_and_skipped(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+        folder = config_path.parent / "dev"
+        folder.mkdir()
+        (folder / "bad.device.json").write_text("{not json", encoding="utf-8")
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert any(text.startswith("Device: bad.device.json:") for text in _texts(output)), (
+            "the file and the problem are named"
+        )
+        assert len(get_table(engine.ctx)) == DEMO_COUNT, "the sidecar still loaded"
+
+    def test_global_layer_loads_and_per_config_overrides(self, sym_env, tmp_path):
+        """termapy_cfg/dev/ is every board's; <cfg>/dev/ wins by device name."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(tmp_path / "dev", "part", _PART)
+        _install_device(
+            config_path.parent / "dev", "part",
+            [{"name": "REG_A", "addr": "0x60000000", "size": 4}],
+        )
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table.by_name("REG_A")[0].addr == 0x60000000, "the per-config file won"
+        assert not table.by_name("REG_B"), "the global file was replaced whole, not merged"
+
+    def test_config_switch_drops_the_previous_board(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        file = _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        assert get_table(engine.ctx) is not None, "loaded to begin with"
+
+        # Act
+        file.unlink()
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert get_table(engine.ctx) is None, "no build, no board: nothing loaded"
+
+    def test_build_symbol_shadowing_a_register_warns(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+        _install_device(
+            config_path.parent / "dev", "part",
+            [{"name": "gTemp", "addr": "0x50000000", "size": 2}],
+        )
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert get_table(engine.ctx).by_name("gTemp")[0].addr == 0x1000, "the build wins"
+        assert any("gTemp shadows" in text for text in _texts(output)), "and it is reported"
+
+
 # ── Converter plugins ───────────────────────────────────────────────────────
 
 

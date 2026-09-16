@@ -101,6 +101,7 @@ src/termapy/
 │   ├── crc.py              #   crcglot catalog shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
+├── devices.py              # Device files: a part's registers as data (format, loader, instances, layered dev/ folders); merged over the build's symbols at load
 ├── symbols/                # (0 lines) Symbol tables (library-shaped, no Textual/pyserial): the JSON format, the address grammar, converter registry
 │   ├── table.py            #   Symbol, SymbolTable (lookup/search, load/save/validate), sidecar_path
 │   ├── address.py          #   The address grammar: 0x.., ..h, decimal, name, name+off, name@file; .suffix reserved
@@ -349,6 +350,10 @@ A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, a sy
 
 A converter is four names rather than a dataclass because it is one function plus two strings — `Command` earns its dataclass through validation and ~15 fields, and a wrapper here would exist only to be unpacked. Plugin converters live on the `ReplEngine` with a `source` label (not in the static `CONVERTERS` tuple), so a config switch drops them exactly like commands; `/sym.import` passes them to `find_converter`, which searches the built-in registry too. An empty `DETECT` means explicit-`format=` only — a board's own pipeline should not join format sniffing.
 
+### Device files: the board's registers, not the build's
+
+A linker map holds what the firmware defines, never the registers the silicon fixes, so those live in **device files** (`devices.py`; `<cfg>/dev/*.device.json`, plus a global `termapy_cfg/dev/` that loads into every config, per-config overriding by `device` name). The symbol session (`symbols/session.py`) keeps the two inputs apart — `build` (the sidecar) and `devices` — and rebuilds one merged `table` from them through a single installer, so `/sym.import` replaces the build half and cannot drop the board half, and the sidecar never receives a device row. `Symbol` carries the three safety fields the memory commands act on (`rmw`, `access`, `read_effect`); everything a viewer shows (peripheral, description, reset, structured fields) stays on `devices.Register`. There is deliberately no shipped catalog and no cfg key: a catalog would be a copy-from folder, never a load layer, and a relocatable part cannot load until its file says where it sits (`instances`). The format normalizes whatever a vendor publishes — CMSIS-SVD first — the way `xc32.py` normalizes a linker map; converters are the next step.
+
 ```python
 def _handler(ctx: PluginContext, args: str) -> None:
     ctx.io.result("Hello!")
@@ -580,7 +585,8 @@ termapy_cfg/
     ├── viz/              # per-config packet visualizers
     ├── cap/              # data capture output files
     ├── prof/             # /run.profile timing CSVs
-    └── sym/              # symbol tables (/sym.import)
+    ├── sym/              # symbol tables (/sym.import)
+    └── dev/              # device files: the board's registers (*.device.json)
 ```
 
 That tree is the maximum, not the default. `cfg_data_dir()` creates the config folder and its `.gitignore`, renames old folder names (`captures/` → `cap/`, `scripts/` → `run/`, `plugins/` → `plugin/`) and moves stem-named sidecars into their folder (`folders.SIDECARS`) — those are the one-time migrations. The data folders themselves follow a rule: **a data folder exists while something is in it.** `folders.ensure_folder` creates one at the write (or when a `.explore` command opens it for the user to drop a file in), `folders.prune_empty_folders` removes empty ones from `ReplEngine.fire_lifecycle` at every config load and at app stop, and nothing else creates or removes one (`tests/test_architecture.py` fails a raw `mkdir` on a data folder). The global `termapy_cfg/plugin/` follows the same rule. `--demo` ships the four folders it populates (`run/ proto/ plugin/ sym/`). So a plain config is its `.cfg`, log, history, report and `.gitignore`, and `/cfg.info` lists only the folders that exist.

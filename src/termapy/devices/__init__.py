@@ -83,6 +83,24 @@ until a config says where it sits.  ``TERMAPY_TRUSTED_PLUGINS_ONLY`` does
 not drop these: that switch stops arbitrary Python, and a device file is
 inert data validated on load.
 
+**A reference file** points at a part in the library (``<cfg_dir>/lib/``,
+a user-populated ``vendor/type/family`` tree) instead of copying it::
+
+    {"device_version": 1, "ref": "lattice-ice40up5k",
+     "instances": [{"name": "FPGA0", "base": "0x70000000"}]}
+
+The library part keeps the registers and stays pristine; the reference
+supplies only ``instances`` -- what is true of THIS board.  That split is
+the point: a 2517-register MCU exists once however many configs use it,
+and re-importing a newer conversion of a part cannot lose a board's
+placement, because the placement was never in the part's file.  A
+reference may override ``instances`` (the board outranks the library's
+example) but nothing else; one that could redefine registers would be a
+fork, and not being a fork is the whole value.  ``dev/`` is still the
+bill of materials either way -- whether a file carries registers or a
+``ref`` is that file's business, and folder presence remains the
+declaration.
+
 Two files in one folder naming the same ``device`` is an error; a register
 name shared by two loaded devices is an error that skips the later one and
 says which -- both are the "give it an instance name" mistake surfacing.
@@ -472,16 +490,81 @@ def _expand(
 # ── Loading ────────────────────────────────────────────────────────────────
 
 
-def load_device(path: Path, layer: str = "") -> Device:
-    """Read and validate one device file.
+def load_device(path: Path, layer: str = "", library: Path | None = None) -> Device:
+    """Read and validate one device file, resolving a ``ref`` if it has one.
+
+    Args:
+        path: The file in a ``dev/`` folder.
+        layer: Layer label recorded on the Device.
+        library: Library root for resolving ``ref``; None = no library, so
+            a reference file cannot load.
 
     Raises:
         OSError: The file could not be read.
-        ValueError: Invalid JSON or an invalid shape.
+        ValueError: Invalid JSON, an invalid shape, or an unresolvable ref.
     """
-    return parse_device(
-        json.loads(path.read_text(encoding="utf-8")), path=path, layer=layer,
-    )
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and "ref" in data:
+        data = resolve_ref(data, library)
+    return parse_device(data, path=path, layer=layer)
+
+
+def resolve_ref(data: dict[str, Any], library: Path | None) -> dict[str, Any]:
+    """A reference document -> the library part's document, placed here.
+
+    A **reference file** is how a board says "this part, at these
+    addresses" without holding a copy of the part::
+
+        {"device_version": 1, "ref": "lattice-ice40up5k",
+         "instances": [{"name": "FPGA0", "base": "0x60000000"}]}
+
+    The library file keeps the registers and stays pristine; the reference
+    supplies only what is true of THIS board.  That split is why a
+    2517-register MCU exists once however many configs use it, and why
+    re-importing a newer conversion of a part cannot lose a board's
+    placement -- the placement was never in the part's file.
+
+    ``instances`` is the point of the mechanism, so a reference may give
+    it even when the library part already does: the board wins, because
+    the library's copy is at best an example.  Other keys are NOT
+    overridable; a reference that could redefine registers would be a
+    fork, and the whole value here is that it is not one.
+
+    Args:
+        data: The reference document (has a ``ref`` key).
+        library: Library root; None means no library is configured.
+
+    Returns:
+        The resolved document, ready for :func:`parse_device`.
+
+    Raises:
+        ValueError: The ref is malformed, or names a part that is absent.
+    """
+    ref = data.get("ref")
+    if not isinstance(ref, str) or not ref:
+        raise ValueError("ref: expected a non-empty device name")
+    extra = set(data) - {"ref", "instances", "device_version"}
+    if extra:
+        raise ValueError(
+            f"ref: a reference gives only instances, not "
+            f"{', '.join(sorted(extra))} (edit the library part instead)"
+        )
+    if library is None:
+        raise ValueError(f"ref: no library configured, cannot resolve {ref!r}")
+    parts, _ = scan_library(library)
+    match = next((part for part in parts if part.device == ref), None)
+    if match is None:
+        raise ValueError(f"ref: no library part named {ref!r}")
+    try:
+        target = json.loads(match.path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(f"ref: {ref}: {e}") from e
+    if not isinstance(target, dict):
+        raise ValueError(f"ref: {ref}: expected an object")
+    resolved = dict(target)
+    if "instances" in data:
+        resolved["instances"] = data["instances"]
+    return resolved
 
 
 @dataclass
@@ -497,7 +580,9 @@ class DeviceLoad:
     errors: list[str] = field(default_factory=list)
 
 
-def load_devices_from_dir(folder: Path, layer: str = "") -> DeviceLoad:
+def load_devices_from_dir(
+    folder: Path, layer: str = "", library: Path | None = None,
+) -> DeviceLoad:
     """Load every ``*.device.json`` in one folder.
 
     A broken file is recorded and skipped, never fatal: one bad device
@@ -507,6 +592,7 @@ def load_devices_from_dir(folder: Path, layer: str = "") -> DeviceLoad:
     Args:
         folder: Directory to scan; a missing one yields an empty result.
         layer: Layer label recorded on each Device.
+        library: Library root, for files that are references.
 
     Returns:
         The devices and the per-file errors.
@@ -517,7 +603,7 @@ def load_devices_from_dir(folder: Path, layer: str = "") -> DeviceLoad:
     seen: dict[str, str] = {}
     for file in sorted(folder.glob(f"*{SUFFIX}")):
         try:
-            device = load_device(file, layer)
+            device = load_device(file, layer, library)
         except (OSError, ValueError) as e:
             result.errors.append(f"{file.name}: {e}")
             continue
@@ -551,10 +637,13 @@ def resolve_devices(
     """
     if not config_path:
         return [], []
+    from termapy.config import library_dir
+
+    library = library_dir(global_root)
     by_name: dict[str, Device] = {}
     errors: list[str] = []
     for folder, layer in _layers(config_path, global_root):
-        load = load_devices_from_dir(folder, layer)
+        load = load_devices_from_dir(folder, layer, library)
         errors.extend(load.errors)
         for device in load.devices:
             by_name[device.name] = device

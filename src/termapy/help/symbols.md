@@ -195,6 +195,43 @@ register is live silicon, not a variable, so bulk reads over them are
 refused and single reads are logged. See
 [two bargains](memory.md#two-bargains-your-variables-and-the-silicon).
 
+### The library, and what this board uses
+
+Two different questions, two commands:
+
+```text
+/dev.list              # what THIS config loaded, with layer and placement
+/dev.lib {pattern}     # what the library offers, loaded or not
+```
+
+The **library** is a tree you populate at `termapy_cfg/lib/`, nested
+however suits you -- `microchip/mcu/pic32cm/`, `lattice/fpga/`. Name each
+file to be unique (`vendor-partnumber`); the `device` field inside must
+match the filename, and a file that disagrees with itself is refused
+rather than offered. Nothing in `lib/` loads: it is a pool to pick from.
+
+A config picks a part with a **reference file** in its `dev/` folder:
+
+```json
+{
+  "device_version": 1,
+  "ref": "lattice-ice40up5k",
+  "instances": [{"name": "FPGA0", "base": "0x70000000"},
+                {"name": "FPGA1", "base": "0x70001000"}]
+}
+```
+
+The library part keeps the registers; the reference says where this board
+puts them. A fixed-address part (an MCU) needs no `instances` at all, so
+its reference is one line. This is why a 2517-register MCU file exists
+once however many configs use it -- and why replacing a library part with
+a newer conversion cannot lose a board's placement.
+
+A reference may override `instances` and nothing else. To change a part's
+registers, edit the library part: a reference that could redefine them
+would be a fork, which defeats the purpose. Copying a whole `.device.json`
+into `dev/` still works and is right for a one-off or hand-written part.
+
 You rarely write one by hand. Vendor CMSIS-SVD files carry every one of
 these facts, and `/dev.import` converts one the way `/sym.import` converts
 a linker map:

@@ -16,6 +16,7 @@ from termapy.devices import (
     Field,
     derive_type,
     distinct_spans,
+    load_device,
     load_devices_from_dir,
     merge_into,
     parse_device,
@@ -616,3 +617,138 @@ class TestScanLibrary:
         # Assert
         assert part.vendor == "microchip", "vendor for the listing"
         assert part.description == "A part", "and the one-line description"
+
+
+class TestReferenceFiles:
+    """A dev/ file may POINT at a library part instead of copying it."""
+
+    @staticmethod
+    def _library(root):
+        """A library holding one relocatable part."""
+        _write(root / "lattice", "icepart", _doc(
+            device="icepart", relocatable=True,
+            instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
+            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}]))
+        return root
+
+    @staticmethod
+    def _ref(folder, name, **extra):
+        folder.mkdir(parents=True, exist_ok=True)
+        doc = {"device_version": 1, "ref": "icepart"} | extra
+        file = folder / f"{name}.device.json"
+        file.write_text(json.dumps(doc), encoding="utf-8")
+        return file
+
+    def test_a_reference_loads_the_library_part(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        ref = self._ref(tmp_path / "dev", "board")
+
+        # Act
+        device = load_device(ref, "cfg", library)
+
+        # Assert
+        assert device.name == "icepart", "the identity comes from the library part"
+        assert len(device) == 1, "and so do its registers"
+
+    def test_the_board_placement_wins(self, tmp_path):
+        """The library's instances are at best an example; the board is real."""
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        ref = self._ref(tmp_path / "dev", "board",
+                        instances=[{"name": "FPGA0", "base": "0x70000000"},
+                                   {"name": "FPGA1", "base": "0x70001000"}])
+
+        # Act
+        device = load_device(ref, "cfg", library)
+
+        # Assert
+        actual = [(r.symbol.name, r.symbol.addr) for r in device.registers()]
+        assert actual == [
+            ("FPGA0_STATUS", 0x70000000),
+            ("FPGA1_STATUS", 0x70001000),
+        ], "both copies placed where THIS board puts them"
+
+    def test_the_library_file_is_not_modified(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        part = library / "lattice" / "icepart.device.json"
+        before = part.read_text(encoding="utf-8")
+        ref = self._ref(tmp_path / "dev", "board",
+                        instances=[{"name": "X", "base": "0x70000000"}])
+
+        # Act
+        load_device(ref, "cfg", library)
+
+        # Assert
+        assert part.read_text(encoding="utf-8") == before, "the library stays pristine"
+
+    def test_a_reference_may_not_redefine_registers(self, tmp_path):
+        """That would be a fork, and not-being-a-fork is the whole value."""
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        ref = self._ref(tmp_path / "dev", "board",
+                        registers=[{"name": "SNEAKY", "addr": "0x0", "size": 4}])
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="only instances"):
+            load_device(ref, "cfg", library)
+
+    def test_an_unknown_part_is_named(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": "absent"}), encoding="utf-8")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="no library part named 'absent'"):
+            load_device(file, "cfg", library)
+
+    def test_no_library_configured_is_an_error_not_a_silent_skip(self, tmp_path):
+        # Arrange
+        ref = self._ref(tmp_path / "dev", "board")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="no library configured"):
+            load_device(ref, "cfg", None)
+
+    def test_an_empty_ref_is_refused(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": ""}), encoding="utf-8")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="non-empty device name"):
+            load_device(file, "cfg", library)
+
+    def test_a_plain_device_file_still_loads(self, tmp_path):
+        """References are an addition; a self-contained file is untouched."""
+        # Arrange
+        folder = tmp_path / "dev"
+        _write(folder, "plain", _doc(device="plain"))
+
+        # Act
+        device = load_device(folder / "plain.device.json", "cfg", None)
+
+        # Assert
+        assert device.name == "plain", "no library needed, none consulted"
+
+    def test_a_broken_reference_does_not_stop_the_folder(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        _write(folder, "plain", _doc(device="plain"))
+        (folder / "bad.device.json").write_text(
+            json.dumps({"device_version": 1, "ref": "absent"}), encoding="utf-8")
+
+        # Act
+        load = load_devices_from_dir(folder, "cfg", library)
+
+        # Assert
+        assert [d.name for d in load.devices] == ["plain"], "the good file loaded"
+        assert len(load.errors) == 1, "and the bad reference was reported"

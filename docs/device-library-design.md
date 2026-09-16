@@ -1,6 +1,6 @@
 # Device library: available vs installed
 
-Status: **design, nothing built.** Written 2026-09-16.
+Status: **A, B and C built** (2026-09-16). D deferred -- see Staging.
 
 ## The problem
 
@@ -175,15 +175,15 @@ Both are pure listings: no loading, no side effects, `data=` for agents.
 
 Each step is independently useful and independently shippable.
 
-- **A — `/dev.list`.** Installed devices only, against the mechanism that
+- **A (DONE) — `/dev.list`.** Installed devices only, against the mechanism that
   exists today. No new concepts, immediately answers the question that
   started this. Small.
-- **B — the library and `/dev.lib`.** The `lib/` tree, the filename/identity
+- **B (DONE) — the library and `/dev.lib`.** The `lib/` tree, the filename/identity
   check, and the listing. Still nothing loads from it; purely additive.
-- **C — reference files.** A `dev/` file with `ref` (plus `instances` when
+- **C (DONE) — reference files.** A `dev/` file with `ref` (plus `instances` when
   relocatable) resolves against the library. The step that removes the
   duplication.
-- **D — placement ergonomics.** Whatever B and C prove is missing: a command
+- **D (deferred) — placement ergonomics.** Whatever B and C prove is missing: a command
   to add a reference without hand-editing JSON, most likely.
 
 Stop after any step. A and B together already give both listings, which is

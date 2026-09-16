@@ -133,6 +133,7 @@ man-page detail for one.
 | `/sym.load {path}`        | Load a symbol table (default: the cfg sidecar `/sym.import` writes)         |
 | `/sym.search <pattern>`   | Search symbols by name: exact, glob, regex, or substring                     |
 | `/sym.unload`             | Clear the loaded symbol table                                               |
+| `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) to `dev/<device>.device.json` and load it |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.color {on\|off\|toggle}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |
 | `/term.echo {on\|off\|toggle}`    | Toggle local echo of device commands (see also `/term.echo_repl`)           |

@@ -156,6 +156,7 @@ $(BAUD) <- /port.baud_rate
 /sym.search ^Mon
 /sym.search zzz
 /sym.import nosuch.map
+/dev.import nosuch.svd
 /sym.load nosuch.json
 /sym.unload
 /sym gTemp

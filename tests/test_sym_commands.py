@@ -18,7 +18,7 @@ from termapy.folders import SYMBOLS_SUFFIX
 from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext
 from termapy.plugins.command import LifecycleHook
 from termapy.repl import ReplEngine
-from termapy.symbols import SYMBOLS_NS, get_table
+from termapy.symbols import SYMBOLS_NS, get_table, reload_devices
 from termapy.symbols.converters import FORMATS
 
 DEMO_SYMBOLS = (
@@ -61,6 +61,12 @@ def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
     engine = ReplEngine(cfg, str(config_path), write, global_root=tmp_path)
     internal_handle = InternalHandle(
         plugins=engine._plugins,
+        # Aliases the engine's list, as TerminalHost does: converters a
+        # plugin folder loads must reach /sym.import and /dev.import.
+        converters=engine.converters,
+        # /dev.import re-scans dev/ through this; the test's global layer
+        # is tmp_path/dev, never the checkout's termapy_cfg/dev.
+        reload_devices=lambda: reload_devices(engine.ctx, str(config_path), tmp_path),
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
@@ -260,7 +266,12 @@ class TestSymImport:
         assert result.success, result.error
         assert result.value == str(XC32_COUNT), "explicit format= works"
 
-    def test_unknown_format_rejected_by_dispatcher(self, sym_env):
+    def test_unknown_format_rejected(self, sym_env):
+        """An unknown ``format=`` names the token typed, not the map file.
+
+        Validated by the handler, not an enum param: plugin folders add
+        converters at runtime, so the valid set isn't known at import.
+        """
         # Arrange
         engine, _, _ = sym_env
 
@@ -268,8 +279,9 @@ class TestSymImport:
         result = engine.dispatch(f"sym.import {XC32_MAP} format=nope")
 
         # Assert
-        assert not result.success, "enum param refuses an unknown format"
-        assert "nope" in result.error and "xc32" in result.error, "the message lists the choices"
+        assert not result.success, "an unknown format= is refused"
+        assert "nope" in result.error, "the message names the format the user typed"
+        assert "xc32" in result.error, "the message lists the choices"
 
     def test_unrecognized_map(self, sym_env, tmp_path):
         # Arrange
@@ -368,6 +380,714 @@ class TestSymImport:
         doc = json.loads(sidecar.read_text(encoding="utf-8"))
         assert len(doc["symbols"]) == 1, "the file is overwritten"
         assert doc["source"] == str(small), "provenance follows the new import"
+
+
+# ── Staleness ───────────────────────────────────────────────────────────────
+
+
+class TestStaleness:
+    """/sym.import records provenance; load and /sym.info report on it."""
+
+    def test_import_records_recipe_and_witness(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, _ = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+
+        # Act
+        engine.dispatch(f"sym.import {map_copy}")
+
+        # Assert
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        doc = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert doc["recipe"] == {"converter": "xc32"}, "the converter that ran is recorded"
+        assert doc["witness"]["size"] == map_copy.stat().st_size, (
+            "the witness records the map as it was at import"
+        )
+
+    def test_rebuilt_map_warns_at_load_with_the_fix(self, sym_env, tmp_path):
+        """The memo's rule: report at load, never regenerate."""
+        # Arrange
+        engine, config_path, output = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        map_copy.write_text("rebuilt, and shorter", encoding="utf-8")
+        output.clear()
+
+        # Act
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        warnings = [text for text, color in output if color == "yellow"]
+        assert any("rebuilt" in text for text in warnings), "the rebuild is reported"
+        assert any("sym.import" in text for text in warnings), (
+            "the warning names the command that fixes it"
+        )
+
+    def test_load_does_not_regenerate(self, sym_env, tmp_path):
+        """A stale table stays as imported; only the user rebuilds it."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        before = sidecar.read_text(encoding="utf-8")
+        map_copy.write_text("rebuilt", encoding="utf-8")
+
+        # Act
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert sidecar.read_text(encoding="utf-8") == before, (
+            "loading a stale table must never rewrite the sidecar"
+        )
+
+    def test_fresh_import_is_silent(self, sym_env, tmp_path):
+        """No warning when nothing moved -- the common case stays quiet."""
+        # Arrange
+        engine, config_path, output = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        output.clear()
+
+        # Act
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert not [text for text, color in output if color == "yellow"], (
+            "an up-to-date table says nothing"
+        )
+
+    def test_hand_written_table_never_warns(self, sym_env):
+        """The demo table's shape: unknown is not stale, and must stay quiet."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert not [text for text, color in output if color == "yellow"], (
+            "a table with no witness is not reported as stale"
+        )
+
+    def test_info_reports_status_and_fix(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, output = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        map_copy.write_text("rebuilt", encoding="utf-8")
+        engine.fire_lifecycle("on_config_load")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("sym.info")
+
+        # Assert
+        rendered = " ".join(_texts(output))
+        assert "STALE" in rendered, "the prose page shows the status"
+        assert result.data["status"] == "stale", "the record carries the verdict"
+        assert result.data["fixable"] is True, "and whether termapy can fix it"
+        assert "format=xc32" in result.data["rebuild_command"], (
+            "the structured surface names the rebuild, for the agent that can run it"
+        )
+
+    def test_info_stays_quiet_when_in_sync(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, output = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("sym.info")
+
+        # Assert
+        assert "STALE" not in " ".join(_texts(output)), "no status row when in sync"
+        assert result.data["status"] == "in_sync", "the record still says so explicitly"
+
+
+# ── Device files ────────────────────────────────────────────────────────────
+
+
+def _install_device(folder: Path, name: str, registers: list[dict], **extra) -> Path:
+    """Write ``<folder>/<name>.device.json`` describing one part."""
+    folder.mkdir(parents=True, exist_ok=True)
+    doc = {"device_version": 1, "device": name, "registers": registers} | extra
+    file = folder / f"{name}.device.json"
+    file.write_text(json.dumps(doc), encoding="utf-8")
+    return file
+
+
+_PART = [
+    {"name": "REG_A", "addr": "0x50000000", "size": 4},
+    {"name": "REG_B", "addr": "0x50000004", "size": 4, "access": "ro"},
+]
+
+
+class TestDevices:
+    """Device files in dev/ are the board's registers, merged over the build."""
+
+    def test_device_registers_merge_with_the_sidecar(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_sidecar(config_path)
+        _install_device(config_path.parent / "dev", "part", _PART)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert len(table) == DEMO_COUNT + 2, "build symbols plus the part's registers"
+        result = engine.dispatch("sym REG_A")
+        assert result.value == "0x50000000", "a register resolves like any symbol"
+
+    def test_devices_load_with_no_sidecar(self, sym_env):
+        """A board whose firmware map you lack still has registers."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table is not None and len(table) == 2, "a devices-only table"
+        assert table.source == "", "it derives from no build, so no provenance"
+
+    def test_reimport_keeps_the_device_registers(self, sym_env, tmp_path):
+        """The bug that shaped session.py: an import must not drop the board."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+
+        # Act
+        engine.dispatch(f"sym.import {map_copy}")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table.by_name("REG_A"), "the register survived the import"
+        assert len(table) == XC32_COUNT + 2, "build symbols replaced, registers kept"
+
+    def test_sidecar_never_receives_device_rows(self, sym_env, tmp_path):
+        """Registers come from their own files; the build's file stays the build's."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+
+        # Act
+        engine.dispatch(f"sym.import {map_copy}")
+
+        # Assert
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        doc = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert len(doc["symbols"]) == XC32_COUNT, "only the converter's rows were written"
+
+    def test_load_keeps_the_device_registers(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_sidecar(config_path)
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        engine.dispatch("sym.load")
+
+        # Assert
+        assert len(get_table(engine.ctx)) == DEMO_COUNT + 2, "reload merges again"
+
+    def test_unload_keeps_the_board_and_says_so(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("sym.unload")
+
+        # Assert
+        assert result.value == str(DEMO_COUNT), "the value is the build count removed"
+        assert len(get_table(engine.ctx)) == 2, "the registers remain"
+        assert any("2 device registers remain" in text for text in _texts(output)), (
+            "unload leaving symbols behind must not read as a failure"
+        )
+
+    def test_info_lists_devices_in_prose_and_data(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART, description="A part")
+        engine.fire_lifecycle("on_app_start")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("sym.info")
+
+        # Assert
+        assert any("part" in text and "2 registers" in text for text in _texts(output)), (
+            "the prose page has a device row"
+        )
+        assert result.data["devices"][0]["device"] == "part", "the record lists it"
+        assert result.data["devices"][0]["registers"] == 2, "with its register count"
+
+    def test_broken_device_file_is_reported_and_skipped(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+        folder = config_path.parent / "dev"
+        folder.mkdir()
+        (folder / "bad.device.json").write_text("{not json", encoding="utf-8")
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert any(text.startswith("Device: bad.device.json:") for text in _texts(output)), (
+            "the file and the problem are named"
+        )
+        assert len(get_table(engine.ctx)) == DEMO_COUNT, "the sidecar still loaded"
+
+    def test_global_layer_loads_and_per_config_overrides(self, sym_env, tmp_path):
+        """termapy_cfg/dev/ is every board's; <cfg>/dev/ wins by device name."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(tmp_path / "dev", "part", _PART)
+        _install_device(
+            config_path.parent / "dev", "part",
+            [{"name": "REG_A", "addr": "0x60000000", "size": 4}],
+        )
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table.by_name("REG_A")[0].addr == 0x60000000, "the per-config file won"
+        assert not table.by_name("REG_B"), "the global file was replaced whole, not merged"
+
+    def test_config_switch_drops_the_previous_board(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        file = _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        assert get_table(engine.ctx) is not None, "loaded to begin with"
+
+        # Act
+        file.unlink()
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert get_table(engine.ctx) is None, "no build, no board: nothing loaded"
+
+    def test_build_symbol_shadowing_a_register_warns(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+        _install_device(
+            config_path.parent / "dev", "part",
+            [{"name": "gTemp", "addr": "0x50000000", "size": 2}],
+        )
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert get_table(engine.ctx).by_name("gTemp")[0].addr == 0x1000, "the build wins"
+        assert any("gTemp shadows" in text for text in _texts(output)), "and it is reported"
+
+
+# ── /dev.import ─────────────────────────────────────────────────────────────
+
+
+SVD_SAMPLE = Path(__file__).parent / "fixtures" / "devices" / "svd_sample.svd"
+SVD_COUNT = 16  # see test_devices_svd.py
+
+_DEVICE_CONVERTER = '''
+KIND = "device"
+FORMAT = "acme"
+DESCRIPTION = "Acme register dump"
+DETECT = ()
+
+
+def convert(text):
+    return {"device_version": 1, "device": "acmepart",
+            "registers": [{"name": "ACME_CTRL", "addr": "0x70000000", "size": 4}]}
+'''
+
+
+class TestDevImport:
+    """/dev.import converts a vendor file into dev/ and loads it at once."""
+
+    def test_import_writes_the_file_and_loads_it(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == str(SVD_COUNT), "the register count is the value"
+        dest = config_path.parent / "dev" / "atsample1.device.json"
+        assert dest.is_file(), "written as dev/<device>.device.json"
+        assert engine.dispatch("sym PORT_GROUP1_DIR").value == "0x40003080", (
+            "a register resolves in the same session, no config reload"
+        )
+        assert result.data["device"] == "atsample1" and result.data["format"] == "svd", (
+            "the record names the device and the converter"
+        )
+
+    def test_explicit_format_and_unknown_format(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        explicit = engine.dispatch(f"dev.import {SVD_SAMPLE} format=svd")
+        unknown = engine.dispatch(f"dev.import {SVD_SAMPLE} format=nope")
+
+        # Assert
+        assert explicit.success, explicit.error
+        assert not unknown.success, "an unknown format= is refused"
+        assert "nope" in unknown.error and "svd" in unknown.error, "names the token and the choices"
+
+    def test_missing_and_unrecognized_files(self, sym_env, tmp_path):
+        # Arrange
+        engine, _, _ = sym_env
+        notes = tmp_path / "notes.txt"
+        notes.write_text("just some notes\n", encoding="utf-8")
+
+        # Act
+        missing = engine.dispatch("dev.import nosuch.svd")
+        junk = engine.dispatch(f"dev.import {notes}")
+
+        # Assert
+        assert missing.error == "Source file not found: nosuch.svd"
+        assert junk.error == "Unknown device format: notes.txt (formats: svd)"
+
+    def test_reimport_overwrites(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Assert
+        assert result.success, result.error
+        assert len(get_table(engine.ctx)) == SVD_COUNT, "same registers, not doubled"
+
+    def test_refuses_a_second_file_for_the_same_device(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "mine", [
+            {"name": "X", "addr": 0, "size": 4},
+        ], device="atsample1")  # a differently named file claiming the same device
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Assert
+        assert not result.success, "two files for one device is the instances mistake"
+        assert "already defined by mine.device.json" in result.error
+
+    def test_plugin_device_converter_serves_dev_import_only(self, sym_env):
+        """KIND = "device" reaches /dev.import and is invisible to /sym.import."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _DEVICE_CONVERTER, name="acme")
+        engine.fire_lifecycle("on_app_start")
+        anything = config_path.parent / "part.txt"
+        anything.write_text("opaque vendor dump", encoding="utf-8")
+
+        # Act
+        imported = engine.dispatch(f"dev.import {anything} format=acme")
+        as_map = engine.dispatch(f"sym.import {anything} format=acme")
+
+        # Assert
+        assert imported.success, imported.error
+        assert engine.dispatch("sym ACME_CTRL").value == "0x70000000", "the plugin converter ran"
+        assert not as_map.success and "acme" not in as_map.error.split("formats:")[1], (
+            "/sym.import neither accepts nor lists a device converter"
+        )
+
+
+# ── Converter plugins ───────────────────────────────────────────────────────
+
+
+# A converter plugin: the four names a built-in converter exports.  This is
+# the pipeline shape the feature exists for -- reuse a built-in, drop what
+# the board doesn't want, add the typed rows a linker map cannot express.
+_PIPELINE_CONVERTER = '''
+from termapy.symbols.converters import xc32
+from termapy.symbols.table import Symbol
+
+FORMAT = "myboard"
+DESCRIPTION = "xc32 map, no code symbols, plus a typed SFR"
+DETECT = ()
+
+_SFRS = [Symbol("U1MODE", 0xBF806000, 4, "sfr", type="u32", rmw=False)]
+
+
+def convert(text):
+    rows = [s for s in xc32.convert(text) if s.section != "text"]
+    return rows + _SFRS
+'''
+
+_BROKEN_CONVERTER = '''
+FORMAT = "boom"
+DESCRIPTION = "raises on purpose"
+DETECT = ()
+
+
+def convert(text):
+    raise ValueError("bad regex")
+'''
+
+# FORMAT present, convert() missing -- an authoring error, not a plugin
+# that simply has no converter.
+_MALFORMED_CONVERTER = '''
+FORMAT = "halfdone"
+DESCRIPTION = "no convert()"
+DETECT = ()
+'''
+
+
+def _install_converter(config_path: Path, source: str, name: str = "conv") -> Path:
+    """Drop a converter plugin into the config's ``plugin/`` folder."""
+    folder = config_path.parent / "plugin"
+    folder.mkdir(exist_ok=True)
+    file = folder / f"{name}.py"
+    file.write_text(source, encoding="utf-8")
+    return file
+
+
+class TestBareImport:
+    """Bare /sym.import re-runs the loaded table's own recipe and source."""
+
+    def test_bare_reimports_the_recorded_source(self, sym_env, tmp_path):
+        """The rebuild step after a compile, without retyping a long path."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy}")
+
+        # Act
+        result = engine.dispatch("sym.import")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == str(XC32_COUNT), "the same map was converted again"
+        assert result.data["source"] == str(map_copy), "against the recorded source"
+
+    def test_bare_reuses_the_recorded_converter(self, sym_env, tmp_path):
+        """A plugin converter must survive the re-import, not fall back to sniffing."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy} format=myboard")
+
+        # Act
+        engine.dispatch("sym.import")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert "text" not in {symbol.section for symbol in table.symbols}, (
+            "the recorded plugin converter ran again, not the sniffed built-in"
+        )
+
+    def test_explicit_format_overrides_the_recipe(self, sym_env, tmp_path):
+        """Re-importing with a different converter switches the pipeline."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        engine.dispatch(f"sym.import {map_copy} format=myboard")
+
+        # Act
+        engine.dispatch("sym.import format=xc32")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert "text" in {symbol.section for symbol in table.symbols}, (
+            "an explicit format= beats the recorded recipe"
+        )
+
+    def test_table_without_a_recipe_still_reimports(self, sym_env, tmp_path):
+        """A sidecar written before recipes existed: source alone is enough.
+
+        This is how such a table EARNS a recipe -- the re-import sniffs
+        the map exactly as the original import did, then records it.
+        """
+        # Arrange
+        engine, config_path, _ = sym_env
+        map_copy = tmp_path / "mem.map"
+        map_copy.write_bytes(XC32_MAP.read_bytes())
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        doc = json.loads(DEMO_SYMBOLS.read_text(encoding="utf-8"))
+        doc["source"] = str(map_copy)  # a real map, but no recipe/witness
+        sidecar.write_text(json.dumps(doc), encoding="utf-8")
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch("sym.import")
+
+        # Assert
+        assert result.success, result.error
+        assert result.data["recipe"] == {"converter": "xc32"}, (
+            "the re-import gives the old table the provenance it lacked"
+        )
+
+    def test_bare_without_a_table_is_a_usage_error(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        result = engine.dispatch("sym.import")
+
+        # Assert
+        assert not result.success, "there is nothing to re-import"
+        assert "sym.import" in result.error, "the usage line names the command"
+
+
+class TestConverterPlugins:
+    """A plugin folder may add a symbol-map converter (four top-level names)."""
+
+    def test_plugin_converter_runs_as_a_pipeline(self, sym_env):
+        """The motivating case: filter the map, add rows it cannot express."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=myboard")
+
+        # Assert
+        assert result.success, result.error
+        table = get_table(engine.ctx)
+        sections = {symbol.section for symbol in table.symbols}
+        assert "text" not in sections, "the converter dropped code symbols"
+        sfr = table.by_name("U1MODE")
+        assert len(sfr) == 1, "the converter added a row no linker map carries"
+        assert sfr[0].type == "u32", "a full Symbol survives: type is kept"
+        assert sfr[0].rmw is False, "a full Symbol survives: rmw is kept"
+
+    def test_plugin_converter_is_not_sniffed_by_default(self, sym_env):
+        """Empty DETECT keeps a board pipeline out of format detection."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP}")
+
+        # Assert
+        assert result.success, result.error
+        table = get_table(engine.ctx)
+        assert "text" in {symbol.section for symbol in table.symbols}, (
+            "the sniffed built-in ran, not the explicit-only plugin converter"
+        )
+
+    def test_unknown_format_lists_plugin_converters(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=nope")
+
+        # Assert
+        assert not result.success, "an unknown format is still refused"
+        assert "myboard" in result.error, "the plugin's format is offered too"
+
+    def test_converter_exception_names_the_converter(self, sym_env):
+        """Third-party code on the dispatch path must not crash the app."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _BROKEN_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=boom")
+
+        # Assert
+        assert not result.success, "the raising converter fails the command"
+        assert "boom" in result.error, "the message names the converter that raised"
+        assert "bad regex" in result.error, "the underlying reason is kept"
+
+    def test_malformed_converter_is_reported_not_silent(self, sym_env):
+        """FORMAT without convert() is an authoring error, reported at load."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_converter(config_path, _MALFORMED_CONVERTER)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        errors = [text for text in _texts(output) if "Plugin error" in text]
+        assert errors, "a malformed converter export is reported"
+        assert any("halfdone" in text for text in errors), (
+            "the report names the offending converter"
+        )
+
+    def test_converters_are_dropped_on_config_switch(self, sym_env):
+        """A folder converter must not outlive the config that loaded it."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        plugin_file = _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+        assert engine.converters, "loaded to begin with"
+
+        # Act
+        plugin_file.unlink()
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert engine.converters == [], "the converter went away with its folder"
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=myboard")
+        assert not result.success, "its format no longer resolves"
+
+    def test_converter_only_plugin_is_not_skipped(self, sym_env):
+        """A file exporting only a converter is a real plugin, not a no-op."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert not [text for text in _texts(output) if "Skipped" in text], (
+            "a converter-only file is not reported as exporting nothing"
+        )
+        assert [spec.format for spec in engine.converters] == ["myboard"], (
+            "the converter registered"
+        )
 
 
 # ── /sym.load / /sym.unload ─────────────────────────────────────────────────

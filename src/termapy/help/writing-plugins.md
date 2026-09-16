@@ -56,9 +56,9 @@ Whenever a config becomes current — at startup and on every
 `/cfg.load`, in the TUI, the CLI and the MCP server alike — termapy
 scans the `plugin/` folders for `.py` files: the global folder first,
 then the config's own, later overriding earlier by name. A switch
-drops the previous config's plugins, transforms and hooks before the
-new ones load. A folder plugin can never take the name of one of the
-app's own commands; it is skipped with a warning instead.
+drops the previous config's plugins, transforms, hooks and converters
+before the new ones load. A folder plugin can never take the name of one
+of the app's own commands; it is skipped with a warning instead.
 Each file is imported and checked for a `COMMAND` object at module level.
 If found, that command is registered in the REPL, and users can invoke it
 by typing its name with the command prefix (e.g. `/hello`).
@@ -107,8 +107,20 @@ COMMAND = Command(
 ```
 
 The `COMMAND` object must be defined after all the functions it references.
-`Termapy` looks for this specific name. If your file doesn't have a
-`COMMAND` object, it is silently skipped.
+`Termapy` looks for this specific name.
+
+A command is not the only thing a plugin file can export. Any of these
+makes the file a plugin, and one file may export several:
+
+| Export | What it adds |
+|---|---|
+| `COMMAND` | A REPL command (this page) |
+| `TRANSFORM` | A rewriter for REPL or serial input |
+| `DIRECTIVE` | A pre-dispatch line rewriter |
+| `on_app_start` / `on_config_load` / ... | Lifecycle hooks |
+| `FORMAT` + `DESCRIPTION` + `DETECT` + `convert` | A linker-map converter for `/sym.import` (see [symbols.md](symbols.md)) |
+
+A file exporting none of them is skipped with a warning.
 
 ## The PluginContext shape
 

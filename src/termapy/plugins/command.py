@@ -7,6 +7,11 @@ The shapes plugin authors fill in to declare a command:
   - ``Transform`` -- the TRANSFORM export.  Rewrites REPL or serial input.
   - ``Directive`` -- the DIRECTIVE export.  Pre-dispatch line rewriter.
 
+A plugin may also export a symbol-map converter as four top-level names
+(``FORMAT`` / ``DESCRIPTION`` / ``DETECT`` / ``convert``), the shape the
+built-in converters use; that one has no dataclass here because it is a
+function plus two strings.  See ``termapy.symbols.converters``.
+
 The shapes the loader produces from those declarations:
 
   - ``PluginInfo`` -- a flattened command (one per leaf node).
@@ -536,6 +541,8 @@ class LoadResult:
         transforms: Successfully loaded TransformInfo entries.
         directives: Successfully loaded DirectiveInfo entries.
         lifecycle_hooks: LifecycleHook entries discovered on plugin modules.
+        converters: ConverterSpec entries discovered on plugin modules
+            (symbol and device converters; see ``termapy.converters``).
         skipped: File names that were skipped (no COMMAND instance).
         errors: File names that raised exceptions during loading.
     """
@@ -544,6 +551,7 @@ class LoadResult:
     transforms: list = field(default_factory=list)
     directives: list = field(default_factory=list)
     lifecycle_hooks: list[LifecycleHook] = field(default_factory=list)
+    converters: list = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 

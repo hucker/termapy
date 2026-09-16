@@ -56,6 +56,7 @@ src/termapy/
 │   │   ├── show.py     #  /show - show file contents
 │   │   ├── ss.py       #  /ss - screenshot commands (svg, txt + folder ops)
 │   │   ├── stop.py     #  /stop - abort a running script
+│   │   ├── dev.py      #  /dev.* - device files: import a vendor register description (SVD)
 │   │   ├── sym.py      #  /sym.* - symbol table lookup, import, search
 │   │   ├── term.py     #  /term.* - terminal display / session toggles
 │   │   ├── var.py      #  /var - user-defined variables, $(NAME) syntax
@@ -101,12 +102,17 @@ src/termapy/
 │   ├── crc.py              #   crcglot catalog shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
+├── converters.py           # Converter registry core shared by symbols/ and devices/: ConverterSpec, find_converter, the four plugin names (+ KIND)
+├── devices/                # Device files: a part's registers as data (format, loader, instances, layered dev/ folders); merged over the build's symbols at load
+│   └── converters/         #   Registry + one module per vendor format; a plugin adds one with KIND = "device"
+│       └── svd.py          #     CMSIS-SVD: derivedFrom, dim arrays, clusters, access/readAction/modifiedWriteValues, fields
 ├── symbols/                # (0 lines) Symbol tables (library-shaped, no Textual/pyserial): the JSON format, the address grammar, converter registry
 │   ├── table.py            #   Symbol, SymbolTable (lookup/search, load/save/validate), sidecar_path
 │   ├── address.py          #   The address grammar: 0x.., ..h, decimal, name, name+off, name@file; .suffix reserved
 │   ├── format.py           #   Prose renderers and their data= record twins
+│   ├── provenance.py       #   Staleness: witness (mtime+size) + recipe -> in_sync / stale / unknown; never regenerates
 │   ├── session.py          #   ctx.ns("symbols") owner + the auto-load rule fired by ReplEngine
-│   └── converters/         #   Registry (CONVERTERS, FORMATS, find_converter) + one module per toolchain
+│   └── converters/         #   Registry (CONVERTERS, FORMATS, find_converter, converter_from_module) + one module per toolchain; plugin folders add more
 │       └── xc32.py         #     Microchip XC32 (GNU ld) linker-map converter
 ├── usb/                    # (3911 lines) USB lookup tables (library-shaped)
 │   ├── _vendors_full.py    #   Generated USB-IF table (fallback)
@@ -344,7 +350,13 @@ raw line
 
 ### Plugin file convention
 
-A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, and/or top-level lifecycle functions (`on_app_start`, `on_app_stop`, `on_script_start`, `on_script_stop`). All are optional; the loader picks up whatever's there.
+A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, a symbol-map converter (the four top-level names `FORMAT` / `DESCRIPTION` / `DETECT` / `convert`, the same shape the built-in converters use), and/or top-level lifecycle functions (`on_app_start`, `on_app_stop`, `on_script_start`, `on_script_stop`). All are optional; the loader picks up whatever's there.
+
+A converter is four names rather than a dataclass because it is one function plus two strings — `Command` earns its dataclass through validation and ~15 fields, and a wrapper here would exist only to be unpacked. Plugin converters live on the `ReplEngine` with a `source` label (not in the static `CONVERTERS` tuple), so a config switch drops them exactly like commands; `/sym.import` passes them to `find_converter`, which searches the built-in registry too. An empty `DETECT` means explicit-`format=` only — a board's own pipeline should not join format sniffing.
+
+### Device files: the board's registers, not the build's
+
+A linker map holds what the firmware defines, never the registers the silicon fixes, so those live in **device files** (`devices.py`; `<cfg>/dev/*.device.json`, plus a global `termapy_cfg/dev/` that loads into every config, per-config overriding by `device` name). The symbol session (`symbols/session.py`) keeps the two inputs apart — `build` (the sidecar) and `devices` — and rebuilds one merged `table` from them through a single installer, so `/sym.import` replaces the build half and cannot drop the board half, and the sidecar never receives a device row. `Symbol` carries the three safety fields the memory commands act on (`rmw`, `access`, `read_effect`); everything a viewer shows (peripheral, description, reset, structured fields) stays on `devices.Register`. There is deliberately no shipped catalog and no cfg key: a catalog would be a copy-from folder, never a load layer, and a relocatable part cannot load until its file says where it sits (`instances`). The format normalizes whatever a vendor publishes the way `xc32.py` normalizes a linker map: `/dev.import` runs a device converter (`devices/converters/`, CMSIS-SVD built in) and writes the document it returns as `dev/<device>.device.json`, so a converted part and a hand-written one pass the same validation and the file on disk is the source of truth. Symbol and device converters share one record type and lookup (`converters.py`); a plugin file picks its kind with `KIND`, and the engine keys them by `(kind, format)` so the two never collide or cross over.
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> None:
@@ -577,7 +589,8 @@ termapy_cfg/
     ├── viz/              # per-config packet visualizers
     ├── cap/              # data capture output files
     ├── prof/             # /run.profile timing CSVs
-    └── sym/              # symbol tables (/sym.import)
+    ├── sym/              # symbol tables (/sym.import)
+    └── dev/              # device files: the board's registers (*.device.json)
 ```
 
 That tree is the maximum, not the default. `cfg_data_dir()` creates the config folder and its `.gitignore`, renames old folder names (`captures/` → `cap/`, `scripts/` → `run/`, `plugins/` → `plugin/`) and moves stem-named sidecars into their folder (`folders.SIDECARS`) — those are the one-time migrations. The data folders themselves follow a rule: **a data folder exists while something is in it.** `folders.ensure_folder` creates one at the write (or when a `.explore` command opens it for the user to drop a file in), `folders.prune_empty_folders` removes empty ones from `ReplEngine.fire_lifecycle` at every config load and at app stop, and nothing else creates or removes one (`tests/test_architecture.py` fails a raw `mkdir` on a data folder). The global `termapy_cfg/plugin/` follows the same rule. `--demo` ships the four folders it populates (`run/ proto/ plugin/ sym/`). So a plain config is its `.cfg`, log, history, report and `.gitignore`, and `/cfg.info` lists only the folders that exist.

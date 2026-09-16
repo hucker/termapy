@@ -538,6 +538,9 @@ demo> /sym.search zzz
 demo> /sym.import nosuch.map
   Error: Map file not found: nosuch.map
   [116/219] /sym.import nosuch.map (118us)
+demo> /dev.import nosuch.svd
+  Error: Source file not found: nosuch.svd
+  [117/220] /dev.import nosuch.svd (100us)
 demo> /sym.load nosuch.json
   Error: Symbols not found: nosuch.json
   [117/219] /sym.load nosuch.json (108us)
@@ -1018,7 +1021,8 @@ DESCRIPTION
   
   Commands:
     /sym <addr|name>        - name -> address, or address -> name+offset
-    /sym.import <map>       - convert a linker map and load it
+    /sym.import {map}       - convert a linker map and load it
+                              (bare: re-import the same map, after a rebuild)
     /sym.load {path}        - reload the sidecar, or load an explicit file
     /sym.unload             - clear the loaded table (file untouched)
     /sym.search <pattern>   - search names
@@ -1028,7 +1032,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /sym.import    Convert a linker map to sym/<cfg>.symbols.json and load it.
+  /sym.import    Convert a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same map).
   /sym.info      Show the loaded symbol table: file, source, counts by section, address range.
   /sym.load      Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
   /sym.search    Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.
@@ -1141,6 +1145,7 @@ demo> /help.plugin
   /cfg          Show or set config values.
   /cls          Clear the terminal screen.
   /credits      Print acknowledgments / third-party attributions.
+  /dev          Device files: a part's registers as data (see /help symbols).
   /edit         Open a project file in the system editor.
   /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).
   /exit         Exit termapy.
@@ -1177,7 +1182,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm      Show Yes/Cancel dialog; Cancel stops a running script.
   /expect       Wait for text in serial output (blocks until match or timeout).
-  43 commands.
+  44 commands.
   [179/219] /help.plugin (6.49ms)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===

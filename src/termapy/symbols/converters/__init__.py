@@ -1,79 +1,61 @@
-"""Converter registry -- vendor map text in, termapy symbols out.
+"""Symbol converters -- vendor map text in, termapy symbols out.
 
-Table-driven like ``folders.FOLDERS``: one frozen record type, one master
-tuple, derived views.  Vendor knowledge lives only in the converter
-modules; this file knows names and sniff strings.
-
-A converter module exposes four names, all required at import so an
-incomplete module fails the registry import loudly::
-
-    FORMAT: str                          # registry key ("xc32")
-    DESCRIPTION: str                     # one line for /help sym.import
-    DETECT: tuple[str, ...]              # substrings; any one identifies the format
-    def convert(text: str) -> list[Symbol]   # pure; never raises on odd input
+Table-driven like ``folders.FOLDERS``: one master tuple, derived views.
+Vendor knowledge lives only in the converter modules; this file knows
+names and sniff strings.  The record type and the lookup are shared with
+the device registry -- see :mod:`termapy.converters` for the four names a
+converter module exports and the optional ``KIND``.
 
 Adding a toolchain = one module, one tuple entry, one fixture under
-``tests/fixtures/maps/`` (the pairwise-exclusivity test picks it up).
-Step-by-step instructions, written to be handed to an LLM together with
-a map file: ``docs/symbol-converter-guide.md``.
+``tests/fixtures/maps/`` (the pairwise-exclusivity test picks it up; the
+fixture stem before the first ``_`` must equal ``FORMAT``, so a key with
+an underscore breaks it).  The authoring rules a converter must follow --
+purity, VMA-not-LMA, the section vocabulary, DETECT uniqueness -- are in
+``help/symbols.md`` under "Your own converter, as a plugin"; they are the
+same for a built-in and a plugin converter.
+
+**A plugin file may export the same four names** and becomes a converter
+for the config that loaded it -- same contract, same shape, only
+discovery differs.  That is what makes the map-to-table step a PIPELINE
+the user owns: their ``convert`` can call a built-in, drop what they
+don't want (statics, function addresses), and add the typed rows a linker
+map cannot express.  Because the script is the single producer,
+re-running it reproduces the whole table and there is nothing to merge::
+
+    from termapy.symbols.converters import xc32
+
+    FORMAT = "myboard"
+    DESCRIPTION = "xc32 map, no statics, plus typed SFRs"
+    DETECT = ()                 # explicit-only: /sym.import map= format=myboard
+
+    def convert(text):
+        rows = [s for s in xc32.convert(text) if s.section != "text"]
+        return rows + SFR_ROWS
+
+Plugin converters live on the ``ReplEngine`` (with a ``source`` label),
+not in :data:`CONVERTERS`, so a config switch drops them exactly like
+commands and transforms.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, Final
+from typing import Final, Iterable
 
+from termapy.converters import SYMBOLS, ConverterSpec, find_converter as _find_converter
 from termapy.symbols.converters import xc32
-from termapy.symbols.table import Symbol
-
-
-@dataclass(frozen=True)
-class ConverterSpec:
-    """One registered converter.
-
-    Attributes:
-        format: Registry key and the ``format=`` value (``"xc32"``;
-            ``"xc32-2.x"`` if versions ever diverge).
-        detect: Substrings; ANY one present in the map text identifies
-            the format.
-        convert: Pure text-in / symbols-out function.
-        description: One line for ``/help sym.import``.
-    """
-
-    format: str
-    detect: tuple[str, ...]
-    convert: Callable[[str], list[Symbol]]
-    description: str = ""
-
 
 # Order = sniffing precedence: a specific toolchain before a future generic
 # gcc-map, so the specific one claims its maps first.
 CONVERTERS: Final[tuple[ConverterSpec, ...]] = (
-    ConverterSpec(xc32.FORMAT, xc32.DETECT, xc32.convert, xc32.DESCRIPTION),
+    ConverterSpec(xc32.FORMAT, xc32.DETECT, xc32.convert, xc32.DESCRIPTION, kind=SYMBOLS),
 )
 
-# Derived: feeds the /sym.import format= enum and every error message.
+# Derived: feeds the /sym.import format= help and every error message.
 FORMATS: Final[tuple[str, ...]] = tuple(spec.format for spec in CONVERTERS)
 
 
-def find_converter(format_name: str = "", text: str = "") -> ConverterSpec | None:
-    """Pick a converter by explicit name, else by sniffing ``text``.
-
-    The sniff scans the WHOLE text, not a window: the XC32 summary header
-    sits ~49 KB into a real map, after the archive-member table, and
-    ``in`` over a few MB is milliseconds.
-
-    Args:
-        format_name: Explicit registry key; empty = sniff.
-        text: The map text to sniff.
-
-    Returns:
-        The spec, or None when nothing matches (the caller owns the error
-        sentence).
-    """
-    if format_name:
-        return next((spec for spec in CONVERTERS if spec.format == format_name), None)
-    for spec in CONVERTERS:
-        if any(marker in text for marker in spec.detect):
-            return spec
-    return None
+def find_converter(
+    format_name: str = "", text: str = "", extra: Iterable[ConverterSpec] = (),
+) -> ConverterSpec | None:
+    """The symbol registry's lookup -- see :func:`termapy.converters.find_converter`."""
+    return _find_converter(format_name, text, extra, registry=CONVERTERS)

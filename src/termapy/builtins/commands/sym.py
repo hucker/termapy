@@ -4,8 +4,8 @@ The command surface only.  The table itself -- the model, the file format,
 the address grammar, the converters, and the session namespace -- lives in
 :mod:`termapy.symbols`, because the REPL engine auto-loads it on config
 load and core must not import from ``builtins/``.  This file holds no
-state: every handler reads and writes through ``session.get_table`` /
-``session.set_table``.
+state: every handler reads through ``session.get_table`` (the merged view)
+or ``get_build_table`` and writes through ``session.install_build``.
 
 Subcommands:
 
@@ -26,19 +26,29 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from termapy.config import cfg_relative_path
+from termapy.converters import SYMBOLS
 from termapy.folders import SYM
 from termapy.help_dynamic import compose, state_line
-from termapy.plugins import CmdResult, Command, UsageError, format_kv_lines
-from termapy.plugins.params import EnumValue, ParamSpec
+from termapy.plugins import (
+    BoundaryException,
+    CmdResult,
+    Command,
+    UsageError,
+    format_kv_lines,
+)
+from termapy.plugins.params import ParamSpec
 from termapy.symbols import (
     Symbol,
     SymbolTable,
     format_symbol,
+    get_build_table,
     get_table,
     info_rows,
+    install_build,
     lookup_record,
+    make_recipe,
+    make_witness,
     parse_address,
-    set_table,
     sidecar_path,
     symbol_record,
     symbolic_name,
@@ -49,11 +59,6 @@ from termapy.symbols.format import hex_addr
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
-
-
-# Built from the registry at import (the crcglot LANGUAGES pattern) -- never
-# a hand-kept list, so a new converter extends the enum and the MCP schema.
-_FORMAT_VALUES: Final[tuple[EnumValue, ...]] = tuple(EnumValue(name) for name in FORMATS)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -80,6 +85,47 @@ def _display_path(ctx: PluginContext, path: Path | None) -> str:
         except OSError:
             pass
     return str(path)
+
+
+def _plugin_converters(ctx: PluginContext) -> tuple:
+    """Converters the active config's plugin folders loaded (possibly none).
+
+    ``getattr`` rather than a bare attribute: a hand-built test context
+    may carry no internal handle at all, and a missing converter list
+    means "built-ins only", not an error.
+    """
+    internal = getattr(ctx, "internal", None)
+    specs = getattr(internal, "converters", ()) or ()
+    # The engine holds every KIND in one list; a device converter must
+    # never be offered as a map format.
+    return tuple(spec for spec in specs if spec.kind == SYMBOLS)
+
+
+def _known_formats(ctx: PluginContext) -> list[str]:
+    """Built-in format names plus any the plugin layer added, for errors."""
+    extra = [spec.format for spec in _plugin_converters(ctx)]
+    return list(FORMATS) + [name for name in extra if name not in FORMATS]
+
+
+def _recorded_import(ctx: PluginContext) -> tuple[str, str] | None:
+    """``(source, format)`` the loaded table was built from, or None.
+
+    The format comes from the recipe when there is one; a table imported
+    before recipes existed still has a ``source``, and re-importing it
+    sniffs the map exactly as the first import did -- which is also how
+    such a table EARNS a recipe.  A hand-written table whose source is
+    prose (``"demo firmware"``) has no readable file, so the caller's
+    existence check refuses it with the normal not-found error.
+    """
+    table = get_build_table(ctx)
+    if table is None:
+        return None
+    source = (table.source or "").strip()
+    if not source:
+        return None
+    recipe = table.recipe or {}
+    converter = recipe.get("converter")
+    return source, converter if isinstance(converter, str) else ""
 
 
 def _anchor(ctx: PluginContext, raw: str) -> Path:
@@ -136,9 +182,24 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
-    """Convert a linker map, write the cfg sidecar, install the table."""
-    raw = str(ctx.arg("file"))
+    """Convert a linker map, write the cfg sidecar, install the table.
+
+    Bare, it re-runs the loaded table's own recipe against its own
+    source -- the rebuild step after every compile, without retyping a
+    build-tree path.  An explicit ``<file>`` always wins.
+    """
+    raw = str(ctx.arg("file") or "")
     fmt = ctx.arg("format") or ""
+    if not raw:
+        reused = _recorded_import(ctx)
+        if reused is None:
+            raise UsageError(
+                "no map given, and the loaded table records no source to re-import"
+            )
+        raw, recorded_fmt = reused
+        # An explicit format= still wins: re-importing with a different
+        # converter is how you switch a table's pipeline.
+        fmt = fmt or recorded_fmt
     # Reading an arbitrary path is a parse/existence oracle under MCP;
     # contain to the sandbox unless the operator opted out.
     ctx.fs.guard_external_path(raw, "Map path")
@@ -152,12 +213,26 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as e:
         return CmdResult.fail(msg=f"Read error: {e}")
-    spec = find_converter(fmt, text)
+    spec = find_converter(fmt, text, extra=_plugin_converters(ctx))
     if spec is None:
+        # Two different failures: a format= the registry doesn't have
+        # (name the token the user typed) versus a map nothing claimed
+        # (name the file).  format= is validated here rather than by an
+        # enum param because plugin folders extend the registry at
+        # runtime -- see the ParamSpec comment below.
+        subject = fmt if fmt else path.name
         return CmdResult.fail(
-            msg=f"Unknown map format: {path.name} (formats: {', '.join(FORMATS)})"
+            msg=f"Unknown map format: {subject} "
+            f"(formats: {', '.join(_known_formats(ctx))})"
         )
-    symbols = spec.convert(text)
+    try:
+        symbols = spec.convert(text)
+    # A plugin converter is third-party code on the dispatch path: a bad
+    # regex or a typo must name the converter, not crash the app.  The
+    # built-ins are documented as never raising on odd input; this guard
+    # is for the ones a user writes.
+    except BoundaryException as e:
+        return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")
     if not symbols:
         return CmdResult.fail(msg=f"No symbols found in {path.name} ({spec.format})")
     table = SymbolTable(
@@ -165,6 +240,11 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         path=dest,
         source=str(path),
         imported=datetime.now().isoformat(timespec="seconds"),
+        # Provenance: what to re-run, and what the map looked like now.
+        # The witness is taken AFTER the read, so a map rewritten during
+        # the import reads as stale next time rather than in sync.
+        recipe=make_recipe(spec.format),
+        witness=make_witness(path),
     )
     # The sidecar is a generated artifact: re-importing after a rebuild is
     # the normal flow, so an existing file is overwritten without asking.
@@ -172,7 +252,9 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         table.save(dest)
     except OSError as e:
         return CmdResult.fail(msg=f"Write error: {e}")
-    set_table(ctx, table)
+    # install_build, not a bare namespace write: the device registers the
+    # config loaded must survive a re-import (they are not the build's).
+    install_build(ctx, table)
     ctx.io.result(
         f"Imported {len(table)} symbols from {path.name} ({spec.format}) -> {dest.name}",
         "green",
@@ -211,20 +293,31 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Read error: {e}")
     except ValueError as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
-    set_table(ctx, table)
+    install_build(ctx, table)
     ctx.io.result(f"Loaded {len(table)} symbols ({path.name})", "green")
     return CmdResult.ok(value=str(len(table)), data=table_record(table, file=str(path)))
 
 
 def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
-    """Clear the loaded table; the file is untouched."""
-    table = get_table(ctx)
-    if table is None:
+    """Clear the build's table; the file is untouched.
+
+    Device registers are the board's, not the build's, so they stay --
+    and the message says so, because "unload" leaving symbols behind
+    would otherwise read as a failure.
+    """
+    build = get_build_table(ctx)
+    if build is None:
         ctx.io.result("No symbols loaded.", "yellow")
         return CmdResult.ok(value="0")
-    n = len(table)
-    set_table(ctx, None)
-    ctx.io.result(f"Unloaded symbols ({n}).", "green")
+    n = len(build)
+    remaining = install_build(ctx, None)
+    if remaining is None:
+        ctx.io.result(f"Unloaded symbols ({n}).", "green")
+    else:
+        ctx.io.result(
+            f"Unloaded build symbols ({n}); {len(remaining)} device registers remain.",
+            "green",
+        )
     return CmdResult.ok(value=str(n))
 
 
@@ -292,7 +385,8 @@ _GRAMMAR_HELP: Final[str] = (
     "\n"
     "Commands:\n"
     "  /sym <addr|name>        - name -> address, or address -> name+offset\n"
-    "  /sym.import <map>       - convert a linker map and load it\n"
+    "  /sym.import {map}       - convert a linker map and load it\n"
+    "                            (bare: re-import the same map, after a rebuild)\n"
     "  /sym.load {path}        - reload the sidecar, or load an explicit file\n"
     "  /sym.unload             - clear the loaded table (file untouched)\n"
     "  /sym.search <pattern>   - search names\n"
@@ -319,15 +413,22 @@ COMMAND = Command(
         "import": Command(
             params=[
                 ParamSpec(
-                    "file", "path", positional=True, required=True, rest=True,
-                    help="linker map to convert",
+                    "file", "path", positional=True, rest=True,
+                    help="linker map to convert (default: re-import the "
+                         "loaded table's own source)",
                 ),
+                # A str, not an enum: plugin folders add converters at
+                # runtime (a per-config format is a board's own pipeline),
+                # so the valid set is not knowable at import.  The handler
+                # validates against built-ins PLUS the loaded plugin
+                # converters and names them all on a miss.
                 ParamSpec(
-                    "format", "enum", values=_FORMAT_VALUES,
-                    help="map format; omitted = sniff the file",
+                    "format", "str",
+                    help=f"map format ({', '.join(FORMATS)}, or a plugin "
+                         "converter); omitted = sniff the file",
                 ),
             ],
-            help="Convert a linker map to sym/<cfg>.symbols.json and load it.",
+            help="Convert a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same map).",
             handler=_handler_import,
         ),
         "load": Command(

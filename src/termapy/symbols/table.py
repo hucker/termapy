@@ -12,6 +12,9 @@ File shape (``<cfg_dir>/sym/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)
       "symbols_version": 1,                 # the only hard gate on load
       "source": "build/mem.map",            # free text: where it came from
       "imported": "2026-08-29T10:12:00",    # free text: when
+      "recipe": {"converter": "xc32"},      # how to rebuild; ABSENT is meaningful
+      "witness": {"mtime": 1756... ,        # what the source looked like then
+                  "size": 482113},
       "address_bits": 32,                   # hex width of printed addresses
       "endian": "le",                       # le | be (stored; step 3 reads it)
       "regions": [],                        # opaque until the regions step
@@ -23,10 +26,17 @@ File shape (``<cfg_dir>/sym/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)
       ]
     }
 
+``recipe`` and ``witness`` are the provenance pair, both optional and both
+written by ``/sym.import``: the witness answers "is this stale", the recipe
+answers "can termapy fix it".  A table with neither -- the hand-written
+case, and every sidecar written before they existed -- is a legitimate
+permanent state, not a broken file.  The staleness verdict itself lives in
+:mod:`termapy.symbols.provenance`.
+
 Unknown keys are ignored on load and dropped on save.  Two symbols may
 share a name (statics in different files) or an address (aliases).
 
-``termapy.protocol.core`` is imported lazily inside :func:`_check_type`
+``termapy.protocol.core`` is imported lazily inside :func:`check_type`
 because its module import pulls the CRC registry; this module stays on
 the engine's import path and must not pay for that.
 """
@@ -97,6 +107,12 @@ class Symbol:
         space: Reserved for Harvard parts; stored, never interpreted here.
         rmw: False forbids slice/mask writes (W1C, self-clearing).
             Reserved for the typed-write step.
+        access: ``rw`` / ``ro`` / ``wo``.  With ``rmw`` and
+            ``read_effect`` this is the safety trio the memory commands
+            act on; device files fill them from the vendor's data.
+        read_effect: True when a READ changes device state -- a FIFO data
+            register pops, a status register clears its flags -- so a
+            dump or an auto-refreshing view must not read it casually.
     """
 
     name: str
@@ -107,6 +123,8 @@ class Symbol:
     type: str = ""
     space: str = ""
     rmw: bool = True
+    access: str = "rw"
+    read_effect: bool = False
 
     @property
     def end(self) -> int:
@@ -135,6 +153,10 @@ class Symbol:
                 out[key] = value
         if not self.rmw:
             out["rmw"] = False
+        if self.access != "rw":
+            out["access"] = self.access
+        if self.read_effect:
+            out["read_effect"] = True
         return out
 
     @classmethod
@@ -157,7 +179,7 @@ class Symbol:
         name = raw.get("name")
         if not isinstance(name, str) or not name:
             raise ValueError(f"{where}.name: expected a non-empty string")
-        addr = _parse_addr_field(raw.get("addr"), where)
+        addr = parse_addr_field(raw.get("addr"), where)
         size = raw.get("size", 0)
         if isinstance(size, bool) or not isinstance(size, int) or size < 0:
             raise ValueError(f"{where}.size: expected a non-negative integer")
@@ -167,28 +189,55 @@ class Symbol:
             if not isinstance(value, str):
                 raise ValueError(f"{where}.{key}: expected a string")
             texts[key] = value
-        _check_type(texts["type"], where)
-        rmw = raw.get("rmw", True)
-        if not isinstance(rmw, bool):
-            raise ValueError(f"{where}.rmw: expected a boolean")
+        check_type(texts["type"], where)
+        flags: dict[str, bool] = {}
+        for key, default in (("rmw", True), ("read_effect", False)):
+            value = raw.get(key, default)
+            if not isinstance(value, bool):
+                raise ValueError(f"{where}.{key}: expected a boolean")
+            flags[key] = value
+        access = raw.get("access", "rw")
+        if access not in ("rw", "ro", "wo"):
+            raise ValueError(f"{where}.access: expected rw, ro or wo")
         return cls(
             name, addr, size, texts["section"],
-            file=texts["file"], type=texts["type"], space=texts["space"], rmw=rmw,
+            file=texts["file"], type=texts["type"], space=texts["space"],
+            rmw=flags["rmw"], access=access, read_effect=flags["read_effect"],
         )
 
 
-def _parse_addr_field(value: Any, where: str) -> int:
-    """``addr`` is a ``0x`` hex string or a non-negative int -- nothing guessed."""
+def parse_addr_field(value: Any, where: str, key: str = "addr") -> int:
+    """A ``0x`` hex string or a non-negative int -- nothing guessed.
+
+    Args:
+        value: The decoded JSON value.
+        where: Field path prefix for the error (``symbols[3]``).
+        key: The field's name in the error (``addr``, ``base``, ``reset``).
+    """
     if isinstance(value, bool):
         pass
     elif isinstance(value, int) and value >= 0:
         return value
     elif isinstance(value, str) and _HEX_ADDR_RE.match(value):
         return int(value[2:], 16)
-    raise ValueError(f"{where}.addr: expected 0x-hex string or int, got {value!r}")
+    raise ValueError(f"{where}.{key}: expected 0x-hex string or int, got {value!r}")
 
 
-def _check_type(spec: str, where: str) -> None:
+def _optional_object(data: dict[str, Any], key: str) -> dict[str, Any] | None:
+    """An optional top-level object field: the dict, or None when absent.
+
+    ``null`` and ``{}`` both read as absent -- provenance is either there
+    or it isn't, and an empty object says nothing a missing key doesn't.
+    """
+    value = data.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"{key}: expected an object")
+    return value or None
+
+
+def check_type(spec: str, where: str) -> None:
     """Accept ``""``, a scalar token, or a format spec with >= 1 column.
 
     The scalar check comes first: ``parse_format_spec("u16")`` itself
@@ -225,6 +274,8 @@ class SymbolTable:
         address_bits: int = 32,
         endian: str = "le",
         regions: list[dict[str, Any]] | None = None,
+        recipe: dict[str, Any] | None = None,
+        witness: dict[str, Any] | None = None,
     ) -> None:
         """Build a table.
 
@@ -236,6 +287,10 @@ class SymbolTable:
             address_bits: Hex width of every printed address.
             endian: ``"le"`` or ``"be"``; stored for the typed-view step.
             regions: Linker MEMORY regions, carried opaquely for now.
+            recipe: How to rebuild (``{"converter": "xc32"}``), or None
+                when nobody recorded one -- a hand-written table.
+            witness: What ``source`` looked like at import
+                (``{"mtime": float, "size": int}``), or None.
         """
         self.symbols: list[Symbol] = sorted(
             symbols, key=lambda symbol: (symbol.addr, symbol.size, symbol.name),
@@ -247,6 +302,13 @@ class SymbolTable:
         self.address_bits = address_bits
         self.endian = endian
         self.regions: list[dict[str, Any]] = list(regions or [])
+        self.recipe: dict[str, Any] | None = dict(recipe) if recipe else None
+        self.witness: dict[str, Any] | None = dict(witness) if witness else None
+        # Device files merged into this table at load (termapy.devices).
+        # Session state, never serialized: the registers come from their
+        # own files and must not be written back into the build's sidecar,
+        # where the next /sym.import would have to preserve them.
+        self.devices: list[Any] = []
 
     def __len__(self) -> int:
         return len(self.symbols)
@@ -351,18 +413,36 @@ class SymbolTable:
         return self.symbols[0].addr, max(symbol.end for symbol in self.symbols)
 
     def to_dict(self) -> dict[str, Any]:
-        """The file shape (see the module docstring)."""
-        return {
+        """The file shape (see the module docstring).
+
+        ``recipe`` / ``witness`` are written only when set, so a table
+        that never had provenance round-trips byte-identical.
+
+        Serializes ``self.symbols`` as they are, which is why the only
+        caller is ``/sym.import`` writing a table it JUST built from
+        converter output.  The session's table may have device registers
+        merged in (``self.devices``); saving that one would copy them
+        into the build's sidecar and re-fuse the two populations that
+        :mod:`termapy.devices` exists to keep apart.
+        """
+        out: dict[str, Any] = {
             "symbols_version": SYMBOLS_VERSION,
             "source": self.source,
             "imported": self.imported,
+        }
+        if self.recipe:
+            out["recipe"] = self.recipe
+        if self.witness:
+            out["witness"] = self.witness
+        out.update({
             "address_bits": self.address_bits,
             "endian": self.endian,
             "regions": self.regions,
             "symbols": [
                 symbol.to_dict(address_bits=self.address_bits) for symbol in self.symbols
             ],
-        }
+        })
+        return out
 
     @classmethod
     def from_dict(cls, data: Any, *, path: Path | None = None) -> SymbolTable:
@@ -409,6 +489,8 @@ class SymbolTable:
             isinstance(region, dict) for region in regions
         ):
             raise ValueError("regions: expected a list of objects")
+        recipe = _optional_object(data, "recipe")
+        witness = _optional_object(data, "witness")
         symbols = [
             Symbol.from_dict(raw, f"symbols[{i}]") for i, raw in enumerate(raw_symbols)
         ]
@@ -420,6 +502,8 @@ class SymbolTable:
             address_bits=address_bits,
             endian=endian,
             regions=regions,
+            recipe=recipe,
+            witness=witness,
         )
 
     @classmethod

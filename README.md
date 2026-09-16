@@ -247,11 +247,12 @@ The most common ones:
 | `/mem.str <target> {max}`            | Read a NUL-terminated string as a first-class value                           |
 | `/mem.info`                          | Memory access config: dialect, block limit, width, endian, atomic modify      |
 | `/sym <addr\|name>`                  | Symbol table: name to address, or address to `name+offset`                   |
-| `/sym.import <file> {format=<value>}` | Convert a linker map to `<cfg>.symbols.json` and load it                     |
+| `/sym.import {file} {format=<value>}` | Convert a linker map to `<cfg>.symbols.json` and load it (bare: re-import the same map) |
 | `/sym.info`                          | Show the loaded symbol table: file, source, counts by section, range          |
 | `/sym.load {path}`                   | Load a symbol table (default: the cfg sidecar `/sym.import` writes)           |
 | `/sym.search <pattern>`              | Search symbols by name: exact, glob, regex, or substring                      |
 | `/sym.unload`                        | Clear the loaded symbol table                                                 |
+| `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) to `dev/<device>.device.json` and load it |
 | `/var {name}`                        | List user variables, or show one by name                                      |
 | `/var.set <NAME> <value>`            | Set a user variable                                                           |
 | `/var.clear`                         | Clear all user variables                                                      |

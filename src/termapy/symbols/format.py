@@ -10,10 +10,14 @@ hit and a miss carry the same keys.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from termapy.symbols.address import Address
+from termapy.symbols.provenance import IN_SYNC, UNKNOWN, check_staleness
 from termapy.symbols.table import Symbol, SymbolTable, hex_digits, section_label
+
+if TYPE_CHECKING:
+    from termapy.devices import Device
 
 
 def hex_addr(addr: int, address_bits: int = 32) -> str:
@@ -67,6 +71,8 @@ def symbol_record(symbol: Symbol, *, address_bits: int = 32) -> dict[str, Any]:
         "type": symbol.type,
         "space": symbol.space,
         "rmw": symbol.rmw,
+        "access": symbol.access,
+        "read_effect": symbol.read_effect,
     }
 
 
@@ -95,17 +101,56 @@ def lookup_record(
     }
 
 
+def device_records(devices: list[Device]) -> list[dict[str, Any]]:
+    """The ``data=`` twin for loaded device files: one fixed-shape record each.
+
+    Lives here, not in ``termapy.devices``, so that module never has to be
+    imported by this one: ``devices`` imports ``symbols.table``, and a
+    module-level import back would make the package's import order decide
+    whether it loads.
+    """
+    return [
+        {
+            "device": device.name,
+            "description": device.description,
+            "vendor": device.vendor,
+            "relocatable": device.relocatable,
+            "instances": [
+                {"name": instance.name, "base": instance.base}
+                for instance in device.instances
+            ],
+            "registers": len(device),
+            "layer": device.layer,
+            "path": str(device.path) if device.path else "",
+        }
+        for device in devices
+    ]
+
+
 def table_record(table: SymbolTable, *, file: str = "") -> dict[str, Any]:
-    """The ``/sym.info`` / ``/sym.load`` / ``/sym.import`` record."""
+    """The ``/sym.info`` / ``/sym.load`` / ``/sym.import`` record.
+
+    Carries the staleness verdict so an agent reading ``data=`` learns the
+    table is out of date at the same moment it learns the table exists --
+    the one consumer able to act on it never has to ask twice.
+    """
     span = table.span()
     bits = table.address_bits
+    verdict = check_staleness(table)
     return {
         "path": file,
         "source": table.source,
         "imported": table.imported,
+        "recipe": table.recipe,
+        "witness": table.witness,
+        "status": verdict.status,
+        "status_reason": verdict.reason,
+        "fixable": verdict.fixable,
+        "rebuild_command": verdict.command,
         "address_bits": bits,
         "endian": table.endian,
         "count": len(table),
+        "devices": device_records(table.devices),
         "sections": table.stats(),
         "range": None if span is None else {
             "start": span[0],
@@ -131,13 +176,35 @@ def info_rows(table: SymbolTable, *, file: str = "") -> list[tuple[str, str]]:
         "(empty)" if span is None
         else f"{hex_addr(span[0], bits)} - {hex_addr(span[1], bits)}"
     )
-    return [
+    rows = [
         ("file", file or "(in-memory)"),
         ("source", table.source or "(none)"),
         ("imported", table.imported or "(none)"),
+    ]
+    # Only a POSITIVE stale verdict earns a row.  "unknown" is the normal
+    # state of every hand-written table and every sidecar written before
+    # witnesses existed -- a row there would be permanent noise on a file
+    # that is not wrong, and would put a warning in the CLI gold.
+    verdict = check_staleness(table)
+    if verdict.status not in (IN_SYNC, UNKNOWN):
+        rows.append(("status", f"STALE - {verdict.reason}"))
+        if verdict.command:
+            rows.append(("rebuild", verdict.command))
+    rows += [
         ("address_bits", str(bits)),
         ("endian", table.endian),
         ("symbols", symbols),
         ("range", span_text),
         ("regions", str(len(table.regions))),
     ]
+    # Devices are a separate layer, so name them separately: the build's
+    # symbol count and the part's register count answer different
+    # questions, and one merged number hides which half is missing.
+    for device in table.devices:
+        placed = " ".join(
+            f"{instance.name}@{hex_addr(instance.base, bits)}"
+            for instance in device.instances if instance.name
+        )
+        detail = f"  {placed}" if placed else ""
+        rows.append(("device", f"{device.name}{detail}  ({len(device)} registers)"))
+    return rows

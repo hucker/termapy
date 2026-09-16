@@ -408,6 +408,12 @@ class ReplEngine:
         # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
         self._lifecycle_hooks: list[LifecycleHook] = []
 
+        # Symbol-map converters loaded from plugin folders, in load order.
+        # The BUILT-IN converters are not here -- they live in the
+        # symbols.converters registry, which /sym.import consults too.
+        # Only folder-loaded ones need dropping on a config switch.
+        self._converters: list = []
+
         # Load built-in plugins from termapy/builtins/
         self._load_builtins()
 
@@ -953,6 +959,36 @@ class ReplEngine:
         """Register a plugin lifecycle hook. Appended in load order."""
         self._lifecycle_hooks.append(hook)
 
+    def register_converter(self, spec) -> None:
+        """Register a converter (any kind). Appended in load order.
+
+        Later layers override earlier ones by ``(kind, format)``, so a
+        per-config converter beats a global one with the same ``FORMAT``
+        -- the same rule commands follow -- while a device converter and
+        a symbol converter sharing a name never collide.  Each import's
+        ``find_converter`` searches its kind of this list before the
+        built-ins, so a config folder can also override a built-in.
+        """
+        self._converters[:] = [
+            existing for existing in self._converters
+            if (existing.kind, existing.format) != (spec.kind, spec.format)
+        ]
+        self._converters.append(spec)
+
+    @property
+    def converters(self) -> list:
+        """Folder-loaded converters of every kind, in load order."""
+        return self._converters
+
+    def reload_devices(self) -> None:
+        """Re-scan the ``dev/`` folders and reinstall the device registers.
+
+        What ``/dev.import`` calls after writing a file; forwarded through
+        ``ctx.internal.reload_devices`` because only the engine knows the
+        global root (a test engine points it at a temp folder).
+        """
+        symbols_session.reload_devices(self.ctx, self.config_path, self.global_root)
+
     # -- External plugin resolution ------------------------------------------
 
     def resolve_plugins(self) -> None:
@@ -1037,6 +1073,9 @@ class ReplEngine:
         self._lifecycle_hooks[:] = [
             hook for hook in self._lifecycle_hooks if hook.source in _EXTERNAL_KEEP
         ]
+        self._converters[:] = [
+            spec for spec in self._converters if spec.source in _EXTERNAL_KEEP
+        ]
         return dropped
 
     def _install_layer(self, result: LoadResult, source: str) -> None:
@@ -1068,13 +1107,16 @@ class ReplEngine:
             loaded.append(f"@{directive.name}")
         for hook in result.lifecycle_hooks:
             self.register_lifecycle_hook(hook)
+        for spec in result.converters:
+            self.register_converter(spec)
+            loaded.append(f"={spec.format}")
         if loaded:
             self._report(
                 f"Loaded {len(loaded)} plugin(s) from {source}: " + ", ".join(loaded),
             )
         for name in result.skipped:
             self.write(
-                f"Skipped {name} - no COMMAND or TRANSFORM (see plugin docs)",
+                f"Skipped {name} - nothing exported (see plugin docs)",
                 "yellow",
             )
         for error in result.errors:
@@ -1129,7 +1171,7 @@ class ReplEngine:
             self._prune_data_folders()
         if name in _CORE_LIFECYCLE:
             self.resolve_plugins()
-            symbols_session.autoload(self.ctx, self.config_path)
+            symbols_session.autoload(self.ctx, self.config_path, self.global_root)
         for hook in self._lifecycle_hooks:
             if hook.name != name:
                 continue

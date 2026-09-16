@@ -34,6 +34,19 @@ DEMO_SYMBOLS = (
 DEMO_COUNT = 13
 
 
+def _age(path, seconds: float) -> None:
+    """Push a file's mtime forward, past any filesystem timestamp coarseness.
+
+    The sync check compares mtimes; writing twice within one clock tick can
+    leave them equal on a coarse filesystem, which would make a passing
+    test prove nothing.
+    """
+    import os
+
+    when = time.time() + seconds
+    os.utime(path, (when, when))
+
+
 def _run(scenario) -> None:
     """Run one async Pilot scenario (the suite is otherwise sync)."""
     asyncio.run(scenario())
@@ -1370,6 +1383,146 @@ class TestSymbolsAutoload:
                 assert seen == [DEMO_COUNT], (
                     "on_app_start (symbol load) precedes the startup auto-connect, "
                     "so on_connect already sees the table"
+                )
+
+        _run(scenario)
+
+
+class TestHistoryFileSync:
+    """The history file is shared state: external appends and other sessions.
+
+    The reason this is Pilot-tested rather than unit-tested: the value is
+    "press Up and see the line", which needs the real key handler, the real
+    navigator and the real input widget together.
+    """
+
+    def test_a_line_appended_after_startup_is_recallable(self, app_factory, tmp_path):
+        """The workflow this exists for: drop commands in, arrow to them."""
+        async def scenario():
+            from textual.widgets import Input
+
+            # Seeded BEFORE the app: SerialTerminal.__init__ loads the file.
+            history = tmp_path / "proj" / "proj.history"
+            history.parent.mkdir(parents=True, exist_ok=True)
+            history.write_text("/old\n", encoding="utf-8")
+            app, _, _ = app_factory()
+
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app.history == ["/old"], "started with what the file held"
+
+                # Arrange: something appends while the app runs
+                history.write_text("/old\n/appended\n", encoding="utf-8")
+                _age(history, 5)
+
+                # Act
+                app.query_one("#cmd", Input).focus()
+                await pilot.pause()
+                await pilot.press("up")
+                await pilot.pause()
+
+                # Assert
+                assert app.query_one("#cmd", Input).value == "/appended", (
+                    "the first Up shows the line added after startup"
+                )
+
+        _run(scenario)
+
+    def test_unchanged_file_is_not_re_read(self, app_factory, tmp_path):
+        """One stat per browse; an untouched file must not disturb the list."""
+        async def scenario():
+            from textual.widgets import Input
+
+            # Seeded BEFORE the app: SerialTerminal.__init__ loads the
+            # file, so a later write would test the sync path instead.
+            history = tmp_path / "proj" / "proj.history"
+            history.parent.mkdir(parents=True, exist_ok=True)
+            history.write_text("/one\n/two\n", encoding="utf-8")
+            app, _, _ = app_factory()
+
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                before = list(app.history)
+                assert before == ["/one", "/two"], "loaded at startup"
+
+                # Act
+                app.query_one("#cmd", Input).focus()
+                await pilot.pause()
+                await pilot.press("up")
+                await pilot.pause()
+
+                # Assert
+                assert app.history == before, "no change on disk, no change in memory"
+                assert app.query_one("#cmd", Input).value == "/two", "newest first"
+
+        _run(scenario)
+
+    def test_a_typed_command_and_an_append_are_both_reachable(self, app_factory, tmp_path):
+        """An append lands newest -- it is the latest thing the session learned.
+
+        The typed command is not lost, just one Up further: recall order
+        is by when this session saw a line, and the appended one arrived
+        after the user pressed Enter.
+        """
+        async def scenario():
+            from textual.widgets import Input
+
+            history = tmp_path / "proj" / "proj.history"
+            history.parent.mkdir(parents=True, exist_ok=True)
+            history.write_text("/old\n", encoding="utf-8")
+            app, _, _ = app_factory()
+
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                cmd_input = app.query_one("#cmd", Input)
+                cmd_input.focus()
+                cmd_input.value = "/print typed"
+                await pilot.press("enter")
+                await pilot.pause()
+
+                history.write_text("/old\n/appended\n", encoding="utf-8")
+                _age(history, 5)
+
+                # Act
+                await pilot.press("up")
+                await pilot.pause()
+                first = app.query_one("#cmd", Input).value
+                await pilot.press("up")
+                await pilot.pause()
+                second = app.query_one("#cmd", Input).value
+
+                # Assert
+                assert first == "/appended", "the newly appended line is the first Up"
+                assert second == "/print typed", "the typed command is one Up further"
+
+        _run(scenario)
+
+    def test_save_merges_instead_of_overwriting(self, app_factory):
+        """Two sessions on one config: last exit no longer wins."""
+        async def scenario():
+            from textual.widgets import Input
+
+            app, _, path = app_factory()
+            history = Path(path).parent / "proj.history"
+
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                cmd_input = app.query_one("#cmd", Input)
+                cmd_input.focus()
+                cmd_input.value = "/print mine"
+                await pilot.press("enter")
+                await pilot.pause()
+
+                # Arrange: another session exits while this one runs
+                history.write_text("/theirs\n", encoding="utf-8")
+
+                # Act
+                app._save_history()
+
+                # Assert
+                lines = history.read_text(encoding="utf-8").splitlines()
+                assert lines == ["/theirs", "/print mine"], (
+                    "the other session's command survived this one's save"
                 )
 
         _run(scenario)

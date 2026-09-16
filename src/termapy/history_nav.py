@@ -1,17 +1,77 @@
-"""Command-history browsing cursor for the REPL input.
+"""Command-history browsing cursor and file merge for the REPL input.
 
-Pure state machine, no Textual: given the history list and the current
-draft, ``up`` / ``down`` return the text to place in the input, and the
-navigator remembers where in history the user is (and the draft they were
-typing before they started browsing, so walking back off the newest entry
-restores it).
+Pure, no Textual.  :class:`HistoryNavigator` is the browsing cursor: given
+the history list and the current draft, ``up`` / ``down`` return the text
+to place in the input, and it remembers where in history the user is (and
+the draft they were typing before they started browsing, so walking back
+off the newest entry restores it).
 
-Owned by the app; driven from ``on_key`` (Up / Down).  Kept Textual-free so
-the transition logic -- floor/ceiling wrapping, empty-history guard, draft
-save/restore -- is unit-testable without a running UI.
+:func:`merge_history` is the other half: the history FILE is shared state,
+and a session that only ever overwrote it with its own in-memory list
+would lose whatever else wrote there -- another session on the same
+config, or an editor appending commands to run.  Merging keeps both.
+
+Owned by the app; driven from ``on_key`` (Up / Down) and the load/save
+pair.  Kept Textual-free so the transition logic -- floor/ceiling
+wrapping, empty-history guard, draft save/restore, merge ordering -- is
+unit-testable without a running UI.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
+
+
+def read_history(path: str | Path, limit: int) -> list[str]:
+    """The file's last ``limit`` non-empty lines; ``[]`` when unreadable.
+
+    Never raises: a missing, unreadable or undecodable history file means
+    "no history", which must not stop the app from starting.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[-limit:]
+
+
+def merge_history(on_disk: list[str], in_memory: list[str], limit: int) -> list[str]:
+    """Combine a history file with a session's own list, newest last.
+
+    The file is split at the last line this session already knows.  What
+    precedes that point is shared past and sorts BEFORE this session's
+    list; what follows it arrived after this session last read the file --
+    another instance's commands, or an append meant to be recalled -- and
+    sorts AFTER, so the first Up reaches it.
+
+    A file with nothing in common (a different session entirely) is all
+    "before": its lines are history this session simply never had, and
+    they must not displace what the user just typed.
+
+    Args:
+        on_disk: Lines read from the file, oldest first.
+        in_memory: This session's history, oldest first.
+        limit: Keep at most this many, dropping the oldest.
+
+    Returns:
+        The merged list, oldest first.
+    """
+    known = set(in_memory)
+    split = 0
+    for i, line in enumerate(on_disk):
+        if line in known:
+            split = i + 1
+    before = [line for line in on_disk[:split] if line not in known]
+    after = [line for line in on_disk[split:] if line not in known]
+    if not split:
+        before, after = before + after, []
+    merged = before + in_memory + after
+    # Dedupe keeping the LAST occurrence, so a repeated command sits at
+    # its most recent position (dict preserves insertion order).
+    deduped = list(dict.fromkeys(reversed(merged)))
+    deduped.reverse()
+    return deduped[-limit:]
 
 
 class HistoryNavigator:

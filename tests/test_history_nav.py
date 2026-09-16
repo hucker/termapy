@@ -1,8 +1,103 @@
-"""Unit tests for HistoryNavigator -- the REPL Up/Down browsing cursor."""
+"""Unit tests for history_nav: the Up/Down cursor and the file merge."""
 
 from __future__ import annotations
 
-from termapy.history_nav import HistoryNavigator
+from termapy.history_nav import HistoryNavigator, merge_history, read_history
+
+
+class TestReadHistory:
+    """The file reader: never raises, trims, drops blanks."""
+
+    def test_missing_file_is_empty(self, tmp_path):
+        assert read_history(tmp_path / "nope.history", 30) == [], "no file, no history"
+
+    def test_blank_lines_dropped_and_whitespace_trimmed(self, tmp_path):
+        # Arrange
+        path = tmp_path / "h"
+        path.write_text("/one\n\n  /two  \n\n", encoding="utf-8")
+
+        # Act / Assert
+        assert read_history(path, 30) == ["/one", "/two"], "blanks out, ends trimmed"
+
+    def test_limit_keeps_the_newest(self, tmp_path):
+        # Arrange
+        path = tmp_path / "h"
+        path.write_text("\n".join(f"/cmd{i}" for i in range(10)), encoding="utf-8")
+
+        # Act / Assert
+        assert read_history(path, 3) == ["/cmd7", "/cmd8", "/cmd9"], "the tail is the newest"
+
+    def test_undecodable_file_is_empty_not_fatal(self, tmp_path):
+        # Arrange
+        path = tmp_path / "h"
+        path.write_bytes(b"\xff\xfe\x00binary")
+
+        # Act / Assert
+        assert read_history(path, 30) == [], "a corrupt file must not stop startup"
+
+
+class TestMergeHistory:
+    """Combining the file with a session's own list."""
+
+    def test_a_line_appended_after_a_known_one_sorts_newest(self):
+        """The recall case: the file gained a line after what we already had."""
+        # Act
+        actual = merge_history(["/old", "/appended"], ["/old"], 30)
+
+        # Assert
+        assert actual == ["/old", "/appended"], (
+            "/appended arrived after this session last read the file, so Up reaches it"
+        )
+
+    def test_an_unrelated_file_sorts_before_the_session(self):
+        """Nothing in common: those lines are history we never had, not news."""
+        # Act
+        actual = merge_history(["/from_file"], ["/mine"], 30)
+
+        # Assert
+        assert actual == ["/from_file", "/mine"], (
+            "what this session typed must stay the first Up"
+        )
+
+    def test_a_shared_line_keeps_the_session_position(self):
+        # Act
+        actual = merge_history(["/a", "/b"], ["/b", "/c"], 30)
+
+        # Assert
+        assert actual == ["/a", "/b", "/c"], "/b is not duplicated, and keeps its newer slot"
+
+    def test_lines_after_the_shared_point_sort_last(self):
+        """Another session appended past a command we share."""
+        # Act
+        actual = merge_history(["/a", "/b", "/theirs"], ["/b", "/mine"], 30)
+
+        # Assert
+        assert actual == ["/a", "/b", "/mine", "/theirs"], (
+            "/a precedes the shared /b; /theirs followed it, so it lands newest"
+        )
+
+    def test_limit_drops_the_oldest(self):
+        # Act
+        actual = merge_history(["/f1", "/f2"], ["/m1", "/m2"], 3)
+
+        # Assert
+        assert actual == ["/f2", "/m1", "/m2"], "the oldest file line falls off"
+
+    def test_empty_sides(self):
+        assert merge_history([], ["/mine"], 30) == ["/mine"], "no file yet"
+        assert merge_history(["/theirs"], [], 30) == ["/theirs"], "nothing typed this session"
+        assert merge_history([], [], 30) == [], "both empty"
+
+    def test_two_sessions_are_additive(self):
+        """The concurrent-exit case: neither session loses the other's commands."""
+        # Arrange: session A exited first, writing its list
+        a_wrote = ["/a1", "/a2"]
+
+        # Act: session B, which started before A exited, now exits
+        actual = merge_history(a_wrote, ["/b1", "/b2"], 30)
+
+        # Assert
+        assert actual == ["/a1", "/a2", "/b1", "/b2"], "last exit no longer wins"
 
 
 def test_starts_not_browsing():

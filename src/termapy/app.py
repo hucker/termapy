@@ -74,7 +74,7 @@ from termapy.dialogs import (
 )
 from termapy.folders import FOLDER_PATTERNS, ensure_folder
 from termapy.help_tooltip import build_help_tooltip
-from termapy.history_nav import HistoryNavigator
+from termapy.history_nav import HistoryNavigator, merge_history, read_history
 from termapy.palette_provider import PaletteProvider
 from termapy.plugins import (
     BoundaryException,
@@ -470,6 +470,9 @@ class SerialTerminal(TerminalHost, App):
             config_path,
             write=self._status,
         )
+        # Set by _load_history; declared first so _sync_history is safe
+        # however early it runs.
+        self._history_mtime_seen: float = 0.0
         self.history: list[str] = self._load_history()
         self._history_nav = HistoryNavigator()
         self._suggester = CommandSuggester()
@@ -609,19 +612,55 @@ class SerialTerminal(TerminalHost, App):
 
     _HISTORY_LIMIT = 30
 
+    def _history_mtime(self) -> float:
+        """The history file's mtime, or 0.0 when it does not exist."""
+        try:
+            return Path(self._history_path()).stat().st_mtime
+        except OSError:
+            return 0.0
+
     def _load_history(self) -> list[str]:
         """Load command history from disk (last _HISTORY_LIMIT entries)."""
-        try:
-            lines = Path(self._history_path()).read_text(encoding="utf-8").splitlines()
-            return lines[-self._HISTORY_LIMIT :]
-        except FileNotFoundError:
-            return []
+        self._history_mtime_seen = self._history_mtime()
+        return read_history(self._history_path(), self._HISTORY_LIMIT)
+
+    def _sync_history(self) -> None:
+        """Pick up lines the file gained since this session last read it.
+
+        The history file is shared state: another session on the same
+        config writes it on exit, and a command can be appended from
+        outside (a test plan dropped in for the user to arrow through).
+        Checked when an Up browse BEGINS -- one stat, never per keystroke
+        -- so recall shows what is on disk now.
+        """
+        mtime = self._history_mtime()
+        if mtime == self._history_mtime_seen:
+            return
+        self._history_mtime_seen = mtime
+        self.history = merge_history(
+            read_history(self._history_path(), self._HISTORY_LIMIT),
+            self.history,
+            self._HISTORY_LIMIT,
+        )
+        self._update_suggester()
 
     def _save_history(self) -> None:
-        """Persist command history to disk."""
-        data = "\n".join(self.history[-self._HISTORY_LIMIT :])
+        """Persist command history, MERGING with whatever the file holds.
+
+        A plain overwrite would discard everything written since this
+        session started: another instance's commands, or an external
+        append.  Re-reading first makes concurrent sessions additive
+        rather than last-exit-wins.
+        """
+        merged = merge_history(
+            read_history(self._history_path(), self._HISTORY_LIMIT),
+            self.history,
+            self._HISTORY_LIMIT,
+        )
         try:
-            Path(self._history_path()).write_text(data, encoding="utf-8")
+            Path(self._history_path()).write_text(
+                "\n".join(merged) + "\n" if merged else "", encoding="utf-8",
+            )
         except OSError:
             pass
 
@@ -3144,6 +3183,10 @@ class SerialTerminal(TerminalHost, App):
         if event.key == "up":
             if not inp.has_focus or popup_visible:
                 return
+            if not self._history_nav.browsing:
+                # Starting a browse: refresh from the file first, so a
+                # line appended since startup is recallable.
+                self._sync_history()
             value = self._history_nav.up(self.history, inp.value)
             if value is None:
                 return

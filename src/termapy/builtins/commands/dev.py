@@ -454,7 +454,7 @@ COMMAND = Command(
                     help="also add it to this config (off = library only)",
                 ),
             ],
-            help="Convert a vendor register description to dev/<device>.device.json and load it.",
+            help="Convert a vendor register description (CMSIS-SVD) into this config's library and use it here.",
             handler=_handler_import,
         ),
         "list": Command(

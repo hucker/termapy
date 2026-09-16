@@ -22,7 +22,7 @@ Select a topic:
 - [Serial tools](serial-tools.md): `/proto.send` raw bytes with inline delays, hex mode, the CRC catalog, detection and code generation
 - [Protocol testing](protocol-testing.md): `.pro` send/expect test scripts, the format-spec language, packet visualizers
 - [Data capture](data-capture.md): text and binary capture to files
-- [Symbols](symbols.md): named addresses from your linker map, the `/sym` commands and the address grammar
+- [Symbols](symbols.md): named addresses from your linker map, the `/sym` commands, the address grammar -- and device files: a part's registers from its SVD, the part library, and placing a part on your board (`/dev`)
 - [Memory](memory.md): `/mem.dump` and `/mem.write` by address or name, the MEM wire spec a device implements
 - [File transfer](file-transfer.md): XMODEM and YMODEM send and receive over serial
 - [Writing plugins](writing-plugins.md): add custom commands with Python

@@ -260,6 +260,27 @@ def _audit(ctx: PluginContext, verb: str, addr_hex: str, before: bytes, after: b
     )
 
 
+def _default_dump_len(parsed: Address) -> int:
+    """How many bytes a ``/mem.dump`` with no length reads.
+
+    A named symbol dumps ITSELF: ``/mem.dump UMODE`` is 4 bytes because
+    that is how big UMODE is, the same sizing ``/mem.read`` already does.
+    The flat 64 stays for what has no size to consult -- a bare address,
+    a linker global (size 0), or a symbol read at an offset, where the
+    user is exploring rather than naming a thing.
+
+    Without this a named register dumps 64 bytes from its address and
+    sweeps its neighbors, which the bulk-read gate then refuses -- turning
+    the most natural spelling into an error.  It was wrong for RAM too:
+    ``/mem.dump gTemp`` meant a 2-byte variable plus 62 bytes of whatever
+    the linker happened to put after it.
+    """
+    symbol = parsed.symbol
+    if symbol is not None and symbol.size > 0 and parsed.offset == 0:
+        return symbol.size
+    return _DEFAULT_DUMP_LEN
+
+
 def _guard_bulk_read(
     ctx: PluginContext, parsed: Address, length: int,
 ) -> CmdResult | None:
@@ -386,12 +407,16 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     raw_len = str(ctx.arg("len"))
     type_name = str(ctx.arg("type") or "")
     if not type_name and raw_len in TYPE_TOKENS:
-        raw_len, type_name = str(_DEFAULT_DUMP_LEN), raw_len
-    # The address grammar's number rule (decimal, 0x hex, Nh), not a bare
-    # int: on a memory tool "0x10" is how people say sixteen.
-    length = parse_number(raw_len)
-    if length is None:
-        return CmdResult.fail(msg=f"Invalid length: {raw_len}")
+        raw_len, type_name = "", raw_len
+    if not raw_len:
+        length = _default_dump_len(parsed)
+    else:
+        # The address grammar's number rule (decimal, 0x hex, Nh), not a bare
+        # int: on a memory tool "0x10" is how people say sixteen.
+        parsed_len = parse_number(raw_len)
+        if parsed_len is None:
+            return CmdResult.fail(msg=f"Invalid length: {raw_len}")
+        length = parsed_len
     if type_name and type_name not in TYPE_TOKENS:
         return CmdResult.fail(
             msg=f"Unknown type: {type_name} (types: {', '.join(sorted(TYPE_TOKENS))})"
@@ -937,8 +962,8 @@ COMMAND = Command(
             params=[
                 ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
                 ParamSpec(
-                    "len", "str", positional=True, default=str(_DEFAULT_DUMP_LEN),
-                    help="bytes to read: decimal, 0x hex, or Nh",
+                    "len", "str", positional=True, default="",
+                    help="bytes to read: decimal, 0x hex, or Nh (default: the symbol's size, else 64)",
                 ),
                 ParamSpec(
                     "type", "str", positional=True, default="",
@@ -947,7 +972,7 @@ COMMAND = Command(
                 ParamSpec("addr", "bool", default=True, help="address column"),
                 ParamSpec("ascii", "bool", default=True, help="ASCII column"),
             ],
-            help="Hexdump or word columns at an address or symbol (default 64 bytes).",
+            help="Hexdump or word columns at an address or symbol (default: the symbol's size, else 64).",
             handler=_handler_dump,
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",

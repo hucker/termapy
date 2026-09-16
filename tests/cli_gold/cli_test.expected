@@ -1081,7 +1081,7 @@ AVAILABLE
 SUBCOMMANDS
   /mem.and      AND a mask into one word (atomic via MEM.M when available).
   /mem.clear    Clear mask bits in one word: word &= ~mask (atomic via MEM.M when available).
-  /mem.dump     Hexdump or word columns at an address or symbol (default 64 bytes).
+  /mem.dump     Hexdump or word columns at an address or symbol (default: the symbol's size, else 64).
   /mem.info     Show how memory access is configured: dialect, block limit, address width, endian, atomic modify.
   /mem.not      Invert one word (always read + write-back).
   /mem.or       OR a mask into one word (atomic via MEM.M when available).

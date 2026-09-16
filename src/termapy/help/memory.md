@@ -21,7 +21,7 @@ symbol that contains them when a table is loaded.
 
 | Command                     | Example                      | Does                                                        |
 |-----------------------------|------------------------------|-------------------------------------------------------------|
-| `/mem.dump <target> {len} {type}` | `/mem.dump gTemp 0x10`  | Hexdump; `u16`/`u32` hex-word columns, `i*` decimal, `f*` floats; `addr=off` / `ascii=off` drop columns (both off = bare values) |
+| `/mem.dump <target> {len} {type}` | `/mem.dump gTemp 0x10`  | Hexdump; `u16`/`u32` hex-word columns, `i*` decimal, `f*` floats; `addr=off` / `ascii=off` drop columns (both off = bare values). No `len` dumps the symbol's own size, else 64 bytes |
 | `/mem.read <target> {type}` | `/mem.read U1MODE.ON`        | One typed value: scalar, `char`, register field, bit (`.15`) or slice (`.4-6`) |
 | `/mem.write <target> <hex>` | `/mem.write gFlags 07000000` | Write hex bytes; with a `.field`/`.bit` target the value is masked in (audited) |
 | `/mem.or <target> <mask>`   | `/mem.or gFlags 0x10`        | The boolean set on one word: `.or` set, `.and` keep, `.clear` = `word &= ~mask`, `.xor` toggle, `.not` invert; atomic via `MEM.M` where expressible |
@@ -109,6 +109,9 @@ So reads into peripheral space are treated differently:
 | `/mem.str` whose scan could reach any register | Refused -- registers are not strings |
 | A register with `"access": "wo"` | Refused, on every reading path including the read half of `/mem.or` and `/mem.not` |
 | One register, named | Allowed, and logged |
+
+`/mem.dump UMODE` reads UMODE and stops: a dump with no length takes the
+symbol's own size, so naming a register does not sweep its neighbors.
 
 Naming a register is a deliberate act and stays allowed, on the same
 principle as writing: **once you name it, it is your call.** What is
@@ -247,7 +250,7 @@ speak it -- names, chunking, the audit line and the MCP gate all stay:
 | `row_bytes`  | 16                                | Most bytes one row carries                                              |
 | `write`      | none (read-only)                  | Template with `{addr}` and `{byte}` (one byte per command) or `{hex}` (a block of pairs) |
 | `ack`        | none                              | Regex a successful write reply must contain (`^ok\b`)                 |
-| `error`      | `(?i)^\s*(err|error|fault)\b`     | Regex flagging a failed command anywhere in the reply                   |
+| `error`      | `(?i)^\s*(err\|error\|fault)\b`   | Regex flagging a failed command anywhere in the reply                   |
 | `terminator` | none                              | Regex that ends a reply early (a prompt); otherwise the reply ends at the idle gap |
 | `settle_ms`  | 100                               | Idle gap that ends a reply                                              |
 

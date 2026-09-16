@@ -476,9 +476,47 @@ class TestDumpModes:
         assert "invalid addr: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)" in result.error
 
     def test_type_token_in_the_len_slot(self, cli):
+        # Act -- the type token shifts out of the len slot, leaving len unset
         result = cli.repl.dispatch("mem.dump gTemp u16")
+
+        # Assert
         assert result.success, result.error
-        assert len(result.value) == 128, "len defaulted to 64 with the type shifted"
+        assert result.value == "1B00", "gTemp's own 2 bytes, the u16 having shifted"
+
+    def test_a_named_symbol_dumps_itself(self, cli):
+        """No length means the symbol's size, not 64 bytes of its neighbors."""
+        # Act
+        result = cli.repl.dispatch("mem.dump gTemp")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "1B00", "gTemp is a u16, so a bare dump is 2 bytes"
+
+    def test_a_bare_address_still_gets_the_flat_default(self, cli):
+        """Nothing names a size, so the explore-sized default stands."""
+        # Act
+        result = cli.repl.dispatch("mem.dump 0x1000")
+
+        # Assert
+        assert result.success, result.error
+        assert len(result.value) == 128, "64 bytes as hex pairs"
+
+    def test_an_offset_target_gets_the_flat_default(self, cli):
+        """gTemp+2 is not gTemp, so its size is not the thing to read."""
+        # Act
+        result = cli.repl.dispatch("mem.dump gTemp+2")
+
+        # Assert
+        assert result.success, result.error
+        assert len(result.value) == 128, "an offset means exploring, not naming"
+
+    def test_an_explicit_length_still_wins(self, cli):
+        # Act
+        result = cli.repl.dispatch("mem.dump gTemp 8")
+
+        # Assert
+        assert result.success, result.error
+        assert len(result.value) == 16, "what the user typed beats any default"
 
 
 class TestInfo:
@@ -901,6 +939,28 @@ class TestPeripheralReadGates:
         # Assert
         assert result.success, result.error
         assert result.value == "08800000", "the seeded word, little-endian"
+
+    def test_a_bare_dump_of_a_register_is_allowed(self, sfr_cli):
+        """The spelling a user reaches for first must not hit the gate.
+
+        A flat 64-byte default made this sweep UMODE's neighbors and get
+        refused -- the gate firing on the one act it is meant to permit.
+        """
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump UMODE")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "08800000", "the register's own 4 bytes"
+
+    @pytest.mark.parametrize("name", ["UMODE", "USTAT", "UDATA"])
+    def test_every_register_dumps_bare(self, sfr_cli, name):
+        """Including the last ones in the window, where a 64-byte read ran on."""
+        # Act
+        result = sfr_cli.repl.dispatch(f"mem.dump {name}")
+
+        # Assert
+        assert result.success, f"{name}: naming one register is always allowed"
 
     def test_dump_of_ram_is_untouched(self, sfr_cli):
         # Act -- the same size sweep, in RAM

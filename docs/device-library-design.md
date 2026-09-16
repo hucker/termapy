@@ -162,7 +162,11 @@ Both are pure listings: no loading, no side effects, `data=` for agents.
    The reference lives in a `dev/` file, not a cfg key — see above.
 2. **Library root configurable?** `termapy_cfg/lib/` by default. Making the
    path a setting would let the library be a synced folder or a cloned
-   community repo. Cheap to add, easy to defer.
+   community repo. Cheap to add, easy to defer. **Deferred indefinitely
+   (2026-09-16):** there will be no community repo or shipped part pack. A
+   register map is inert until the firmware answers `MEM.R`, and stock
+   dev-board firmware never does, so a "common boards" pack would ship half
+   a chain. The library is one user's pool, filled by `/dev.import`.
 3. **Instance-name collisions across parts.** Two library parts both placed
    as `ADC1` would collide in the merged table. `resolve_devices` already
    detects register-name clashes; this needs the same check one level up.

@@ -83,8 +83,14 @@ until a config says where it sits.  ``TERMAPY_TRUSTED_PLUGINS_ONLY`` does
 not drop these: that switch stops arbitrary Python, and a device file is
 inert data validated on load.
 
-**A reference file** points at a part in the library (``<cfg_dir>/lib/``,
-a user-populated ``vendor/type/family`` tree) instead of copying it::
+**A reference file** points at a part in a library instead of copying it.
+There are two libraries, layered exactly as ``dev/`` and ``plugin/`` are:
+the config's own ``<cfg>/lib/`` over the shared ``<cfg_dir>/lib/``, the
+per-config one winning a name clash (:func:`library_layers`).  Both are
+user-populated ``vendor/type/family`` trees.  The per-config layer is what
+makes a config folder self-contained: check it in and its references
+resolve on any machine, with no dependency on that machine's shared
+library::
 
     {"device_version": 1, "ref": "lattice-ice40up5k",
      "instances": [{"name": "FPGA0", "base": "0x70000000"}]}
@@ -112,6 +118,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Final
@@ -127,6 +134,11 @@ DEVICE_SECTION: Final[str] = "sfr"
 SUFFIX: Final[str] = ".device.json"
 
 ACCESS_MODES: Final[tuple[str, ...]] = ("rw", "ro", "wo")
+
+# What a loader may be handed to resolve a ``ref``: one library root (a
+# test convenience), the layered ``(folder, label)`` list from
+# :func:`library_layers`, or None for "no library".
+LibrarySource = Path | Sequence[tuple[Path, str]] | None
 
 # A register, field or instance name must be typeable at the prompt as a
 # bare token and must not contain ".", which the address grammar reserves
@@ -490,14 +502,15 @@ def _expand(
 # ── Loading ────────────────────────────────────────────────────────────────
 
 
-def load_device(path: Path, layer: str = "", library: Path | None = None) -> Device:
+def load_device(path: Path, layer: str = "", library: LibrarySource = None) -> Device:
     """Read and validate one device file, resolving a ``ref`` if it has one.
 
     Args:
         path: The file in a ``dev/`` folder.
         layer: Layer label recorded on the Device.
-        library: Library root for resolving ``ref``; None = no library, so
-            a reference file cannot load.
+        library: Where a ``ref`` resolves (a root, or the layers from
+            :func:`library_layers`); None = no library, so a reference
+            file cannot load.
 
     Raises:
         OSError: The file could not be read.
@@ -509,7 +522,7 @@ def load_device(path: Path, layer: str = "", library: Path | None = None) -> Dev
     return parse_device(data, path=path, layer=layer)
 
 
-def resolve_ref(data: dict[str, Any], library: Path | None) -> dict[str, Any]:
+def resolve_ref(data: dict[str, Any], library: LibrarySource) -> dict[str, Any]:
     """A reference document -> the library part's document, placed here.
 
     A **reference file** is how a board says "this part, at these
@@ -539,7 +552,9 @@ def resolve_ref(data: dict[str, Any], library: Path | None) -> dict[str, Any]:
 
     Args:
         data: The reference document (has a ``ref`` key).
-        library: Library root; None means no library is configured.
+        library: One root, or the layered ``(folder, label)`` list from
+            :func:`library_layers` (the closer layer wins a name clash);
+            None means no library is configured.
 
     Returns:
         The resolved document, ready for :func:`parse_device`.
@@ -558,7 +573,8 @@ def resolve_ref(data: dict[str, Any], library: Path | None) -> dict[str, Any]:
         )
     if library is None:
         raise ValueError(f"ref: no library configured, cannot resolve {ref!r}")
-    parts, _ = scan_library(library)
+    layers = [(library, "")] if isinstance(library, Path) else list(library)
+    parts, _ = scan_libraries(layers)
     match = next((part for part in parts if part.device == ref), None)
     if match is None:
         raise ValueError(f"ref: no library part named {ref!r}")
@@ -593,7 +609,7 @@ class DeviceLoad:
 
 
 def load_devices_from_dir(
-    folder: Path, layer: str = "", library: Path | None = None,
+    folder: Path, layer: str = "", library: LibrarySource = None,
 ) -> DeviceLoad:
     """Load every ``*.device.json`` in one folder.
 
@@ -604,7 +620,7 @@ def load_devices_from_dir(
     Args:
         folder: Directory to scan; a missing one yields an empty result.
         layer: Layer label recorded on each Device.
-        library: Library root, for files that are references.
+        library: Where a ``ref`` resolves, for files that are references.
 
     Returns:
         The devices and the per-file errors.
@@ -649,9 +665,7 @@ def resolve_devices(
     """
     if not config_path:
         return [], []
-    from termapy.config import library_dir
-
-    library = library_dir(global_root)
+    library = library_layers(config_path, global_root)
     by_name: dict[str, Device] = {}
     errors: list[str] = []
     for folder, layer in _layers(config_path, global_root):
@@ -804,6 +818,10 @@ class LibraryPart:
         registers: Register count, or -1 when the file does not say (the
             count is cheap here because it is `len` of a list already
             decoded, but a malformed file reports -1 rather than raising).
+        layer: ``"global"`` or the config name -- which library holds the
+            part, since the per-config one shadows the global.
+        relative: Path from that library's root
+            (``vendor/type/part.device.json``).
     """
 
     device: str
@@ -812,9 +830,11 @@ class LibraryPart:
     description: str = ""
     vendor: str = ""
     registers: int = -1
+    layer: str = ""
+    relative: str = ""
 
 
-def scan_library(root: Path) -> tuple[list[LibraryPart], list[str]]:
+def scan_library(root: Path, layer: str = "") -> tuple[list[LibraryPart], list[str]]:
     """Every ``.device.json`` under ``root``, as listing entries.
 
     Walks the tree (``vendor/type/family/part.device.json``) rather than
@@ -832,6 +852,7 @@ def scan_library(root: Path) -> tuple[list[LibraryPart], list[str]]:
 
     Args:
         root: The library root; a missing folder is an empty library.
+        layer: Label recorded on each part (``"global"`` / config name).
 
     Returns:
         ``(parts, errors)`` -- parts sorted by category then device.
@@ -877,6 +898,8 @@ def scan_library(root: Path) -> tuple[list[LibraryPart], list[str]]:
             description=_text(data, "description"),
             vendor=_text(data, "vendor"),
             registers=len(registers) if isinstance(registers, list) else -1,
+            layer=layer,
+            relative=label,
         ))
     parts.sort(key=lambda part: (part.category, part.device))
     return parts, errors
@@ -892,6 +915,65 @@ def library_slug(text: str) -> str:
     caller drops that level rather than creating a folder called ``-``.
     """
     return re.sub(r"[^a-z0-9]+", "-", text.strip().lower()).strip("-")
+
+
+def config_library_dir(config_path: str) -> Path:
+    """The config's own ``lib/`` (a path; it may not exist yet).
+
+    Mirrors :func:`device_dir`: resolved through ``cfg_data_dir`` so a
+    bundled read-only config keeps its data elsewhere.
+    """
+    from termapy.config import cfg_data_dir
+
+    try:
+        return cfg_data_dir(config_path) / folders.LIB
+    except (OSError, ValueError):
+        return Path(config_path).parent / folders.LIB
+
+
+def library_layers(
+    config_path: str, global_root: Path | None = None,
+) -> list[tuple[Path, str]]:
+    """``(folder, label)`` per library layer, lowest precedence first.
+
+    The same two layers as ``dev/`` and ``plugin/``: the cfg root's
+    ``lib/`` (label ``"global"``), then the config's own (label = the
+    config name), the per-config one winning a name clash.  The per-config
+    layer is what makes a config folder self-contained -- check it in and
+    its references resolve on any machine, without depending on that
+    machine's global library.  No config = the global layer alone.
+    """
+    from termapy.config import library_dir
+
+    layers: list[tuple[Path, str]] = [(library_dir(global_root), "global")]
+    if config_path:
+        per_config = config_library_dir(config_path)
+        if per_config != layers[0][0]:
+            layers.append((per_config, Path(config_path).stem))
+    return layers
+
+
+def scan_libraries(
+    layers: Sequence[tuple[Path, str]],
+) -> tuple[list[LibraryPart], list[str]]:
+    """Every part across the layers, the closer layer shadowing by ``device``.
+
+    Args:
+        layers: From :func:`library_layers`, lowest precedence first.
+
+    Returns:
+        ``(parts, errors)`` -- parts sorted by category then device, one
+        per name, each knowing its ``layer``; errors prefixed by layer.
+    """
+    by_name: dict[str, LibraryPart] = {}
+    errors: list[str] = []
+    for folder, label in layers:
+        parts, found = scan_library(folder, label)
+        errors.extend(f"{label}: {error}" for error in found)
+        for part in parts:
+            by_name[part.device] = part
+    merged = sorted(by_name.values(), key=lambda part: (part.category, part.device))
+    return merged, errors
 
 
 def library_path(root: Path, data: dict[str, Any], category: str = "") -> Path:
@@ -923,19 +1005,18 @@ def library_path(root: Path, data: dict[str, Any], category: str = "") -> Path:
     return folder / f"{data['device']}{SUFFIX}"
 
 
-def write_library_part(path: Path, doc: dict[str, Any]) -> None:
-    """Write a converted part into the library, creating its folders.
+def write_library_part(root: Path, path: Path, doc: dict[str, Any]) -> None:
+    """Write a converted part into a library, creating its folders.
 
-    The ``mkdir`` lives here rather than in the handler because ``lib/`` is
-    NOT a per-config data folder: it is a cfg-root tree the user curates,
-    nothing prunes it when empty, and its nested vendor/type folders are
-    the point.  ``folders.ensure_folder``, which the data folders use, would
-    be the wrong tool -- so this is the one place that knows the library's
-    shape, and the only place that creates it.
+    ``root`` (the ``lib/`` itself) is a data folder and comes into being
+    through ``folders.ensure_folder`` like any other; the nested
+    vendor/type folders under it are the library's own shape, which only
+    this module knows, so their ``mkdir`` lives here and nowhere else.
 
     Raises:
         OSError: The folder or the file could not be written.
     """
+    folders.ensure_folder(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
 

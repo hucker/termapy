@@ -204,24 +204,30 @@ Two different questions, two commands:
 /dev.lib {pattern}     # what the library offers, loaded or not
 ```
 
-The **library** is a tree you populate at `termapy_cfg/lib/`, nested
-however suits you -- `microchip/mcu/pic32cm/`, `lattice/fpga/`. Name each
-file to be unique (`vendor-partnumber`); the `device` field inside must
-match the filename, and a file that disagrees with itself is refused
-rather than offered. Nothing in `lib/` loads: it is a pool to pick from.
+The **library** is a tree of parts, nested however suits you --
+`microchip/mcu/pic32cm/`, `lattice/fpga/`. There are two, layered the way
+`plugin/` and `dev/` are: the config's own `<cfg>/lib/` over the shared
+`termapy_cfg/lib/`, the per-config one winning a name clash. Keep a
+board's parts in its own `lib/` and the config folder is self-contained --
+check it in and its references resolve on any machine. Name each file to
+be unique (`vendor-partnumber`); the `device` field inside must match the
+filename, and a file that disagrees with itself is refused rather than
+offered. Nothing in either `lib/` loads: it is a pool to pick from.
 
 `/dev.import` writes the converted part into the library and adds a
 reference to the current config:
 
 ```text
 /dev.import PIC32CM5164LE00100.svd category=mcu/pic32cm
-  -> lib/microchip-technology/mcu/pic32cm/pic32cm5164le00100.device.json
-  -> dev/pic32cm5164le00100.device.json   (61 bytes, a reference)
+  -> m3_bin/lib/microchip-technology/mcu/pic32cm/pic32cm5164le00100.device.json
+  -> m3_bin/dev/pic32cm5164le00100.device.json   (61 bytes, a reference)
 ```
 
 `category=` nests it under the vendor, which the file itself supplies.
-`use=off` imports to the library without touching this config. To add a
-part that is already in the library, `/dev.use <part>`.
+`to=global` files the part in the shared `termapy_cfg/lib/` instead, for
+every config to use. `use=off` imports to the library without touching
+this config. To add a part that is already in either library,
+`/dev.use <part>`.
 
 A config picks a part with a **reference file** in its `dev/` folder:
 

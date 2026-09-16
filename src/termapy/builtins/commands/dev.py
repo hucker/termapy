@@ -7,10 +7,12 @@ layered ``dev/`` folders live in :mod:`termapy.devices`; the converters in
 none of it lives here (CLAUDE.md: infrastructure never lives under
 ``builtins/``).
 
-- ``/dev.import <file> {format=...} {category=...} {use=on|off}`` -- convert
-  a vendor register description (CMSIS-SVD) into the LIBRARY and reference
-  it from this config.  A converted part is a fact about silicon, so it is
-  stored once; the config gets three lines saying it uses it.
+- ``/dev.import <file> {format=...} {category=...} {to=cfg|global}
+  {use=on|off}`` -- convert a vendor register description (CMSIS-SVD) into
+  a LIBRARY and reference it from this config.  A converted part is a fact
+  about silicon, so it is stored once; the config gets three lines saying
+  it uses it.  The config's own ``lib/`` is the default so a checked-in
+  config folder travels; ``to=global`` shares the part with every config.
 - ``/dev.use <part> {at=NAME@ADDR ...}`` -- add a library part to this
   config, with where it sits on THIS board.
 - ``/dev.list`` -- the devices THIS config loaded, with layer and placement.
@@ -25,14 +27,16 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from termapy.config import cfg_relative_path, library_dir, not_found_message
+from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import DEVICE
 from termapy.devices import (
     SUFFIX,
     device_dir,
+    library_layers,
     library_path,
     load_devices_from_dir,
     parse_device,
+    scan_libraries,
     scan_library,
     write_library_part,
 )
@@ -70,7 +74,7 @@ def _known_formats(ctx: PluginContext) -> list[str]:
 
 
 def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
-    """Convert a vendor file, write ``dev/<device>.device.json``, reload devices."""
+    """Convert a vendor file into a library and reference it from this config."""
     raw = str(ctx.arg("file") or "")
     fmt = ctx.arg("format") or ""
     if not raw:
@@ -110,16 +114,21 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         device = parse_device(doc)
     except ValueError as e:
         return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")
-    # The part goes in the LIBRARY, once; the config gets a reference.  A
+    # The part goes in a LIBRARY, once; the config gets a reference.  A
     # converted part is a fact about silicon, not about this board, and a
     # 2517-register MCU copied per config is megabytes duplicated to
-    # customize nothing.  `use=off` stops after the library write (import
-    # as a librarian, without touching the board in front of you).  There
-    # is deliberately no "write a full copy into dev/" option: the loader
-    # still accepts a self-contained file there for a hand-written part,
-    # but an IMPORTED part is never this board's alone -- a library of one
-    # costs nothing and stays shareable.
-    library = _library_root(ctx)
+    # customize nothing.  The default library is the CONFIG's own lib/, so
+    # a checked-in config folder carries its parts and its references
+    # resolve on any machine; `to=global` shares the part with every
+    # config here instead.  `use=off` stops after the library write
+    # (import as a librarian, without touching the board in front of you).
+    # There is deliberately no "write a full copy into dev/" option: the
+    # loader still accepts a self-contained file there for a hand-written
+    # part, but an IMPORTED part is never this board's alone.
+    target = _target_layer(ctx, str(ctx.arg("to") or "cfg"))
+    if isinstance(target, CmdResult):
+        return target
+    library, label = target
     dest = library_path(library, doc, str(ctx.arg("category") or ""))
     existing = _already_defined(library, device.name, dest)
     if existing is not None:
@@ -128,14 +137,15 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
             f"remove it first"
         )
     try:
-        write_library_part(dest, doc)
+        write_library_part(library, dest, doc)
     except OSError as e:
         return CmdResult.fail(msg=f"Write error: {e}")
     relative = dest.relative_to(library).as_posix()
+    shown = f"lib/{relative}" if label == "global" else f"{label}/lib/{relative}"
     peripherals = len({register.peripheral for register in device.registers()})
     ctx.io.result(
         f"Imported {len(device)} registers for {device.name} from {path.name} "
-        f"({spec.format}) -> lib/{relative}",
+        f"({spec.format}) -> {shown}",
         "green",
     )
     ref_path = ""
@@ -154,7 +164,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
             f"to add it to this config"
         )
     data = device_records([device])[0] | {
-        "format": spec.format, "path": str(dest),
+        "format": spec.format, "path": str(dest), "layer": label,
         "relative": relative, "reference": ref_path,
     }
     return CmdResult.ok(value=str(len(device)), data=data)
@@ -174,7 +184,7 @@ def _write_reference(
     """Write ``dev/<part>.device.json`` as a reference to a library part."""
     folder = device_dir(ctx.config_path)
     dest = folder / f"{part}{SUFFIX}"
-    for existing in load_devices_from_dir(folder, library=_library_root(ctx)).devices:
+    for existing in load_devices_from_dir(folder, library=_library_layers(ctx)).devices:
         if existing.name == part and existing.path != dest:
             return CmdResult.fail(
                 msg=f"Device {part} is already defined by "
@@ -225,8 +235,8 @@ def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
         raise UsageError()
     if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
-    library = _library_root(ctx)
-    match = next((p for p in scan_library(library)[0] if p.device == part), None)
+    parts = scan_libraries(_library_layers(ctx))[0]
+    match = next((p for p in parts if p.device == part), None)
     if match is None:
         return CmdResult.fail(
             msg=f"No library part named {part} "
@@ -287,8 +297,7 @@ def _parse_placements(
 def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
     """What the LIBRARY holds -- parts available to use, none of them loaded."""
     pattern = str(ctx.arg("pattern") or "").strip()
-    root = _library_root(ctx)
-    parts, errors = scan_library(root)
+    parts, errors = scan_libraries(_library_layers(ctx))
     for error in errors:
         ctx.io.output(f"Library: {error}", "yellow")
     # Glob if the user typed a wildcard, else a case-insensitive substring
@@ -308,17 +317,20 @@ def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
     if ctx.wants_data:
         return CmdResult.ok(
             value="\n".join(part.device for part in matched),
-            data=library_records(matched, root),
+            data=library_records(matched),
         )
     loaded = {device.name for device in get_devices(ctx)}
     width = max(len(part.device) for part in matched)
+    layer_width = max(len(part.layer) for part in matched)
     for part in matched:
         count = f"{part.registers}" if part.registers >= 0 else "?"
-        # The marker answers "do I already have this?" in the same glance.
+        # The marker answers "do I already have this?" in the same glance;
+        # the layer says whether the part is this board's or shared.
         mark = " *" if part.device in loaded else "  "
         detail = part.category or "-"
         ctx.io.output(
-            f"  {part.device:<{width}}{mark}  {count:>6}  {detail}"
+            f"  {part.device:<{width}}{mark}  {count:>6}  "
+            f"{part.layer:<{layer_width}}  {detail}"
         )
     ctx.io.output(f"  ({len(matched)} of {len(parts)} parts; * = loaded here)")
     return CmdResult.ok(value="\n".join(part.device for part in matched))
@@ -333,14 +345,26 @@ def _matches(pattern: str, text: str) -> bool:
     return pattern.lower() in text.lower()
 
 
-def _library_root(ctx: PluginContext) -> Path:
-    """The library folder, via the engine (it owns the global root).
+def _library_layers(ctx: PluginContext) -> list[tuple[Path, str]]:
+    """The library layers, via the engine (it owns the global root).
 
-    A hand-built test context may have no forwarder; then resolve the real
-    one, which is what the engine would do unconfigured.
+    A hand-built test context may have no forwarder; then resolve with
+    the real global root, which is what the engine would do unconfigured.
     """
-    forward = getattr(getattr(ctx, "internal", None), "library_root", None)
-    return forward() if callable(forward) else library_dir()
+    forward = getattr(getattr(ctx, "internal", None), "library_layers", None)
+    return forward() if callable(forward) else library_layers(ctx.config_path)
+
+
+def _target_layer(ctx: PluginContext, to: str) -> tuple[Path, str] | CmdResult:
+    """The ``(folder, label)`` an import writes to: ``cfg`` (default) or ``global``."""
+    layers = _library_layers(ctx)
+    if to == "global":
+        return layers[0]
+    if to == "cfg":
+        if len(layers) < 2:
+            return CmdResult.fail(msg="No config loaded.")
+        return layers[-1]
+    return CmdResult.fail(msg=f"Invalid to: {to} (use cfg or global)")
 
 
 def _reload(ctx: PluginContext) -> None:
@@ -366,11 +390,14 @@ def _reload(ctx: PluginContext) -> None:
 
 _GRAMMAR_HELP: Final[str] = (
     "A device file is a part's registers as data, merged over the build's symbols\n"
-    "at load and untouched by /sym.import.  Parts live ONCE in the library\n"
-    "(lib/<vendor>/...); a config says which it uses with a three-line dev/ file:\n"
+    "at load and untouched by /sym.import.  Parts live ONCE in a library -- the\n"
+    "config's own lib/ (default; check the folder in and it still works) or the\n"
+    "shared termapy_cfg/lib/ -- and a config says which it uses with a three-line\n"
+    "dev/ file:\n"
     "\n"
-    "  /dev.import ATSAME54P20A.svd          - convert into lib/, use it here\n"
-    "  /dev.import p.svd category=mcu/pic32  - file it under lib/<vendor>/mcu/pic32\n"
+    "  /dev.import ATSAME54P20A.svd          - convert into <cfg>/lib/, use it here\n"
+    "  /dev.import p.svd to=global           - into termapy_cfg/lib/, for every config\n"
+    "  /dev.import p.svd category=mcu/pic32  - file it under <lib>/<vendor>/mcu/pic32\n"
     "  /dev.import p.svd use=off             - library only, do not add it here\n"
     "  /dev.use <part>                       - add a library part to this config\n"
     "  /dev.use <part> at=ADC1@0x60000000    - ... and say where it sits\n"
@@ -415,6 +442,10 @@ COMMAND = Command(
                 ParamSpec(
                     "category", "str",
                     help="sub-path under the vendor in lib/ (mcu/pic32cm)",
+                ),
+                ParamSpec(
+                    "to", "str", default="cfg",
+                    help="which library: cfg (this config's lib/, default) or global",
                 ),
                 ParamSpec(
                     "use", "bool", default=True,

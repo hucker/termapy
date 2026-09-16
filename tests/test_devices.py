@@ -16,6 +16,7 @@ from termapy.devices import (
     Field,
     derive_type,
     distinct_spans,
+    library_layers,
     library_path,
     load_device,
     load_devices_from_dir,
@@ -23,6 +24,7 @@ from termapy.devices import (
     parse_device,
     registers_in_range,
     resolve_devices,
+    scan_libraries,
     scan_library,
 )
 from termapy.protocol.core import parse_format_spec
@@ -856,3 +858,93 @@ class TestLibraryPath:
 
         # Assert
         assert path.parent == tmp_path, "never a folder named '-'"
+
+
+class TestLibraryLayers:
+    """Two libraries, the config's own over the shared one -- like plugin/ and dev/."""
+
+    @staticmethod
+    def _twins(tmp_path):
+        """The same identity in both layers, with a different register each."""
+        _write(tmp_path / "lib" / "v", "twin", _doc(
+            device="twin", registers=[{"name": "SHARED", "addr": "0x1000", "size": 4}]))
+        _write(tmp_path / "rig" / "lib" / "v", "twin", _doc(
+            device="twin", registers=[{"name": "LOCAL", "addr": "0x2000", "size": 4}]))
+        return [(tmp_path / "lib", "global"), (tmp_path / "rig" / "lib", "rig")]
+
+    @staticmethod
+    def _ref(tmp_path, part):
+        dev = tmp_path / "rig" / "dev"
+        dev.mkdir(parents=True, exist_ok=True)
+        file = dev / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": part}), encoding="utf-8")
+        return file
+
+    def test_global_then_per_config_lowest_first(self, tmp_path):
+        # Arrange
+        cfg = tmp_path / "rig" / "rig.cfg"
+        cfg.parent.mkdir()
+        cfg.write_text("{}", encoding="utf-8")
+
+        # Act
+        layers = library_layers(str(cfg), tmp_path)
+
+        # Assert
+        assert [label for _, label in layers] == ["global", "rig"], "shared first, board last"
+        assert layers[0][0] == tmp_path / "lib", "the cfg root's lib/"
+        assert layers[1][0] == cfg.parent / "lib", "the config's own lib/"
+
+    def test_no_config_is_the_global_layer_alone(self, tmp_path):
+        # Act
+        layers = library_layers("", tmp_path)
+
+        # Assert
+        assert [label for _, label in layers] == ["global"], "nothing to be per-config about"
+
+    def test_the_per_config_part_shadows_the_global_one(self, tmp_path):
+        # Arrange
+        layers = self._twins(tmp_path)
+
+        # Act
+        parts, errors = scan_libraries(layers)
+
+        # Assert
+        assert errors == [], "both files are well-formed"
+        assert [(p.device, p.layer) for p in parts] == [("twin", "rig")], (
+            "one entry, the closer one"
+        )
+
+    def test_a_ref_resolves_through_the_layers_closest_first(self, tmp_path):
+        # Arrange
+        layers = self._twins(tmp_path)
+        ref = self._ref(tmp_path, "twin")
+
+        # Act
+        device = load_device(ref, "rig", layers)
+
+        # Assert
+        assert device.registers()[0].symbol.name == "LOCAL", "the board's own copy wins"
+
+    def test_a_global_only_part_still_resolves(self, tmp_path):
+        # Arrange -- no per-config lib/ at all
+        _write(tmp_path / "lib" / "v", "shared", _doc(device="shared"))
+        layers = [(tmp_path / "lib", "global"), (tmp_path / "rig" / "lib", "rig")]
+        ref = self._ref(tmp_path, "shared")
+
+        # Act
+        device = load_device(ref, "rig", layers)
+
+        # Assert
+        assert device.name == "shared", "a missing per-config lib/ falls through"
+
+    def test_layer_errors_are_prefixed(self, tmp_path):
+        # Arrange
+        root = tmp_path / "rig" / "lib"
+        root.mkdir(parents=True)
+        (root / "junk.device.json").write_text("{nope", encoding="utf-8")
+
+        # Act
+        _, errors = scan_libraries([(tmp_path / "lib", "global"), (root, "rig")])
+
+        # Assert
+        assert errors and errors[0].startswith("rig: "), "which library, so the user can find it"

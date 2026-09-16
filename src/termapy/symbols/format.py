@@ -17,8 +17,6 @@ from termapy.symbols.provenance import IN_SYNC, UNKNOWN, check_staleness
 from termapy.symbols.table import Symbol, SymbolTable, hex_digits, section_label
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from termapy.devices import Device, LibraryPart
 
 
@@ -134,13 +132,15 @@ def device_list_rows(
     return rows
 
 
-def library_records(parts: list[LibraryPart], root: Path) -> list[dict[str, Any]]:
+def library_records(parts: list[LibraryPart]) -> list[dict[str, Any]]:
     """The ``data=`` twin for a library listing: one record per available part.
 
     Distinct from :func:`device_records` because these are parts a config
-    COULD use, not devices it has loaded -- there is no layer and no
-    placement, and ``registers`` is what the file claims rather than what a
-    parse produced.
+    COULD use, not devices it has loaded -- there is no placement, and
+    ``registers`` is what the file claims rather than what a parse
+    produced.  ``layer`` says which library holds the part (the per-config
+    one shadows the global), so an agent can tell a shared part from a
+    board-local one.
     """
     return [
         {
@@ -149,8 +149,9 @@ def library_records(parts: list[LibraryPart], root: Path) -> list[dict[str, Any]
             "vendor": part.vendor,
             "category": part.category,
             "registers": part.registers,
+            "layer": part.layer,
             "path": str(part.path),
-            "relative": part.path.relative_to(root).as_posix(),
+            "relative": part.relative,
         }
         for part in parts
     ]

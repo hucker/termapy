@@ -396,9 +396,9 @@ def test_boolean_guard_fires_on_a_probe():
 # root (config.py, the picker's config editor), the OS app-state / app-config
 # dirs, the desktop-launcher files, the MCP host's own ``mcp/``, and
 # folders.py itself, where ``ensure_folder`` lives.  ``devices/`` is here for
-# the device LIBRARY (``lib/``): a cfg-root tree the user curates, with nested
-# vendor/type folders, that nothing prunes when empty -- so it is not a data
-# folder and ``ensure_folder`` is the wrong tool.  A data folder comes into
+# the NESTED vendor/type folders inside a device library: ``lib/`` itself is
+# a data folder and goes through ``ensure_folder``, but the tree under it is
+# the library's own shape, which only that module knows.  A data folder comes into
 # being through ``folders.ensure_folder`` and goes away through
 # ``folders.prune_empty_folders``, and through nothing else -- that is what
 # keeps "reads never create, writes always create" true everywhere at once.

@@ -31,7 +31,7 @@ All paths relative to `src/termapy/`.
 
 ## Config
 
-- Config dirs: `termapy_cfg/<name>/` with `plugin/`, `ss/`, `run/`, `proto/`, `viz/`, `cap/`, `prof/`, `sym/`, `dev/` data folders, each created on first write and removed when empty at load/stop (`--demo` ships the four it populates).
+- Config dirs: `termapy_cfg/<name>/` with `plugin/`, `ss/`, `run/`, `proto/`, `viz/`, `cap/`, `prof/`, `sym/`, `dev/`, `lib/` data folders, each created on first write and removed when empty at load/stop (`--demo` ships the four it populates). `plugin/`, `dev/` and `lib/` also exist at the cfg root as a global layer; the per-config one wins a name clash.
 - **Device files (`dev/*.device.json`) are the board's registers, never the build's.** They merge over the sidecar's symbols at load and survive `/sym.import`; the sidecar never receives a device row. The session keeps `build` and `devices` as separate inputs and one installer (`symbols.session.install_build` / `install_devices`) rebuilds the merged `table` — never write `ctx.ns("symbols")` directly. No shipped catalog auto-loads, and there is no cfg key: a catalog is a copy-from folder, and a relocatable part cannot load until its file's `instances` say where it sits. Stem-named sidecars (history, log, report, profile, symbol table) are listed ONCE in `folders.SIDECARS`; `rename_config` carries every entry and `cfg_data_dir` migrates any with a folder out of the root
 - Most users have a single config per project folder (one device), but multiple configs are supported for working with more than one device — each folder gets its own isolated `termapy_cfg/` so setups don't bleed together
 - `termapy_cfg/` is gitignored

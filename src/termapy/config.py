@@ -467,12 +467,15 @@ def global_plugins_dir(root: Path | None = None) -> Path:
 
 
 def library_dir(root: Path | None = None) -> Path:
-    """Return the device library root (a path; it may not exist yet).
+    """Return the GLOBAL device library (a path; it may not exist yet).
 
     The ``lib/`` sibling of :func:`global_devices_dir`, holding a tree of
-    ``.device.json`` files a config picks parts FROM.  Unlike ``dev/``,
+    ``.device.json`` files any config may pick parts FROM.  Unlike ``dev/``,
     nothing here loads -- it is a pool, so a thousand parts can sit in it
-    without any of them reaching a symbol table.
+    without any of them reaching a symbol table.  The per-config layer
+    (``<cfg>/lib/``, which wins a name clash) is
+    ``termapy.devices.config_library_dir``; ``devices.library_layers``
+    gives both in precedence order.
 
     Args:
         root: The cfg root whose ``lib/`` child is the library; None

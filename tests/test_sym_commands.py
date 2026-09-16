@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from termapy.devices import library_layers
 from termapy.folders import LIB, SYMBOLS_SUFFIX
 from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext
 from termapy.plugins.command import LifecycleHook
@@ -67,10 +68,10 @@ def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
         # /dev.import re-scans dev/ through this; the test's global layer
         # is tmp_path/dev, never the checkout's termapy_cfg/dev.
         reload_devices=lambda: reload_devices(engine.ctx, str(config_path), tmp_path),
-        # /dev.lib resolves the library through this; without it the
+        # /dev.lib resolves the libraries through this; without it the
         # handler would read the CHECKOUT's termapy_cfg/lib, which is
         # exactly the leak the temp global_root exists to prevent.
-        library_root=lambda: tmp_path / LIB,
+        library_layers=lambda: library_layers(str(config_path), tmp_path),
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
@@ -1879,9 +1880,10 @@ class TestImportWritesToLibrary:
 
         # Assert
         assert result.success, result.error
-        library = tmp_path / LIB
+        library = config_path.parent / LIB
         parts = list(library.rglob("*.device.json"))
-        assert len(parts) == 1, "the part landed in the library"
+        assert len(parts) == 1, "the part landed in THIS config's library"
+        assert not (tmp_path / LIB).exists(), "and not in the shared one"
         ref = config_path.parent / "dev" / "atsample1.device.json"
         assert json.loads(ref.read_text(encoding="utf-8"))["ref"] == "atsample1", (
             "and the config references it rather than copying it"
@@ -1899,15 +1901,15 @@ class TestImportWritesToLibrary:
             "a referenced register resolves like any other"
         )
 
-    def test_a_category_nests_the_part(self, sym_env, tmp_path):
+    def test_a_category_nests_the_part(self, sym_env):
         # Arrange
-        engine, _, _ = sym_env
+        engine, config_path, _ = sym_env
 
         # Act
         engine.dispatch(f"dev.import {SVD_SAMPLE} category=mcu/sam")
 
         # Assert
-        parts = list((tmp_path / LIB).rglob("*.device.json"))
+        parts = list((config_path.parent / LIB).rglob("*.device.json"))
         assert "mcu/sam" in parts[0].as_posix(), "filed where the user said"
 
     def test_use_off_leaves_the_config_alone(self, sym_env):
@@ -1967,3 +1969,98 @@ class TestNotFoundNamesTheFolder:
         assert "relative path is measured" not in result.error, (
             "nothing to explain about an absolute path"
         )
+
+
+# -- The per-config library layer -------------------------------------------
+
+
+def _install_config_library(config_path: Path, category: str, name: str, **extra) -> Path:
+    """Write a part under the CONFIG's own lib/ (the per-config layer)."""
+    folder = config_path.parent / LIB / category if category else config_path.parent / LIB
+    folder.mkdir(parents=True, exist_ok=True)
+    doc = {
+        "device_version": 1, "device": name,
+        "registers": [{"name": "R", "addr": "0x90000000", "size": 4}],
+    } | extra
+    file = folder / f"{name}.device.json"
+    file.write_text(json.dumps(doc), encoding="utf-8")
+    return file
+
+
+class TestLibraryLayersCommands:
+    """The config's own lib/ over the shared one, through the commands."""
+
+    def test_lib_lists_both_layers_with_their_layer(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_library(tmp_path, "vendor", "sharedpart")
+        _install_config_library(config_path, "vendor", "localpart")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("dev.lib")
+
+        # Assert
+        assert result.value.splitlines() == ["localpart", "sharedpart"], "both offered"
+        text = "\n".join(_texts(output))
+        assert "global" in text and "rig" in text, "each part says which library holds it"
+
+    def test_the_per_config_part_shadows_the_shared_one(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_library(tmp_path, "vendor", "twin")
+        _install_config_library(config_path, "vendor", "twin")
+
+        # Act
+        result = engine.dispatch("dev.lib --json")
+
+        # Assert
+        assert [record["layer"] for record in result.data] == ["rig"], "one entry, the config's"
+
+    def test_use_resolves_a_per_config_part(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_config_library(config_path, "vendor", "localpart")
+
+        # Act
+        result = engine.dispatch("dev.use localpart")
+
+        # Assert
+        assert result.success, result.error
+        assert engine.dispatch("sym R").value == "0x90000000", "its register resolves"
+
+    def test_import_to_global_lands_in_the_shared_library(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, _ = sym_env
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE} to=global")
+
+        # Assert
+        assert result.success, result.error
+        assert list((tmp_path / LIB).rglob("*.device.json")), "in termapy_cfg/lib/"
+        assert not (config_path.parent / LIB).exists(), "and not in the config's"
+        assert result.data["layer"] == "global", "the record says which"
+
+    def test_import_names_an_unknown_target(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE} to=elsewhere")
+
+        # Assert
+        assert not result.success
+        assert "Invalid to: elsewhere" in result.error, "and names the choices"
+
+    def test_an_empty_per_config_lib_is_pruned_at_load(self, sym_env):
+        """lib/ is a data folder now: it exists while something is in it."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        (config_path.parent / LIB).mkdir()
+
+        # Act
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert not (config_path.parent / LIB).exists(), "empty, so gone"

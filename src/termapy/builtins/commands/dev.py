@@ -113,8 +113,12 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     # The part goes in the LIBRARY, once; the config gets a reference.  A
     # converted part is a fact about silicon, not about this board, and a
     # 2517-register MCU copied per config is megabytes duplicated to
-    # customize nothing.  `use=off` keeps the old self-contained-copy
-    # behavior for a part that is genuinely this board's alone.
+    # customize nothing.  `use=off` stops after the library write (import
+    # as a librarian, without touching the board in front of you).  There
+    # is deliberately no "write a full copy into dev/" option: the loader
+    # still accepts a self-contained file there for a hand-written part,
+    # but an IMPORTED part is never this board's alone -- a library of one
+    # costs nothing and stays shareable.
     library = _library_root(ctx)
     dest = library_path(library, doc, str(ctx.arg("category") or ""))
     existing = _already_defined(library, device.name, dest)

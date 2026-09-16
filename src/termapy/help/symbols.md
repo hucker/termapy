@@ -210,6 +210,19 @@ file to be unique (`vendor-partnumber`); the `device` field inside must
 match the filename, and a file that disagrees with itself is refused
 rather than offered. Nothing in `lib/` loads: it is a pool to pick from.
 
+`/dev.import` writes the converted part into the library and adds a
+reference to the current config:
+
+```text
+/dev.import PIC32CM5164LE00100.svd category=mcu/pic32cm
+  -> lib/microchip-technology/mcu/pic32cm/pic32cm5164le00100.device.json
+  -> dev/pic32cm5164le00100.device.json   (61 bytes, a reference)
+```
+
+`category=` nests it under the vendor, which the file itself supplies.
+`use=off` imports to the library without touching this config. To add a
+part that is already in the library, `/dev.use <part>`.
+
 A config picks a part with a **reference file** in its `dev/` folder:
 
 ```json
@@ -226,6 +239,17 @@ puts them. A fixed-address part (an MCU) needs no `instances` at all, so
 its reference is one line. This is why a 2517-register MCU file exists
 once however many configs use it -- and why replacing a library part with
 a newer conversion cannot lose a board's placement.
+
+A **relocatable** part must state its placement in the reference -- it does
+not inherit the library part's, because those are whoever-prepared-it's
+example addresses, not this board's. `/dev.use <part> at=FPGA0@0x70000000`
+writes them for you, and refuses rather than guessing:
+
+```text
+/dev.use lattice-ice40up5k
+  Error: lattice-ice40up5k needs placement: it is relocatable, so give at
+  least one NAME@ADDRESS (/dev.use lattice-ice40up5k at=ADC1@0x60000000)
+```
 
 A reference may override `instances` and nothing else. To change a part's
 registers, edit the library part: a reference that could redefine them

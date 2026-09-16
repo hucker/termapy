@@ -1750,3 +1750,171 @@ def config_dev_part(sym_env, tmp_path):
     engine, config_path, output = sym_env
     _install_device(config_path.parent / "dev", "part", _PART)
     return engine, output
+
+
+# -- /dev.use, and where /dev.import writes ----------------------------------
+
+
+class TestDevUse:
+    """Adding a library part to THIS config, with this board's addresses."""
+
+    def test_adds_a_fixed_address_part(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_library(tmp_path, "vendor", "fixedpart")
+
+        # Act
+        result = engine.dispatch("dev.use fixedpart")
+
+        # Assert
+        assert result.success, result.error
+        ref = config_path.parent / "dev" / "fixedpart.device.json"
+        assert ref.is_file(), "a reference file landed in dev/"
+        assert json.loads(ref.read_text(encoding="utf-8")) == {
+            "device_version": 1, "ref": "fixedpart",
+        }, "it references, it does not copy"
+
+    def test_the_reference_is_tiny_next_to_the_part(self, sym_env, tmp_path):
+        """The whole point: the part is stored once, the config says it uses it."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        part = _install_library(tmp_path, "vendor", "bigpart", registers=[
+            {"name": f"REG{i}", "addr": f"0x{0x40000000 + i * 4:X}", "size": 4}
+            for i in range(200)
+        ])
+
+        # Act
+        engine.dispatch("dev.use bigpart")
+
+        # Assert
+        ref = config_path.parent / "dev" / "bigpart.device.json"
+        assert ref.stat().st_size < part.stat().st_size / 10, (
+            "a reference is a fraction of the part it points at"
+        )
+
+    def test_placement_is_written_and_used(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_library(tmp_path, "vendor", "icepart", relocatable=True,
+                         registers=[{"name": "STATUS", "addr": "0x00", "size": 4}])
+
+        # Act
+        result = engine.dispatch("dev.use icepart at=FPGA0@0x70000000 FPGA1@0x70001000")
+
+        # Assert
+        assert result.success, result.error
+        assert engine.dispatch("sym FPGA1_STATUS").value == "0x70001000", (
+            "the second copy resolves at the base this board gave"
+        )
+
+    def test_a_relocatable_part_refuses_without_placement(self, sym_env, tmp_path):
+        """And must not inherit the library's example addresses."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_library(tmp_path, "vendor", "icepart", relocatable=True,
+                         instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
+                         registers=[{"name": "STATUS", "addr": "0x00", "size": 4}])
+
+        # Act
+        result = engine.dispatch("dev.use icepart")
+
+        # Assert
+        assert not result.success, "a plausible wrong address is the hazard"
+        assert "needs placement" in result.error, "and the fix is spelled out"
+
+    def test_a_refused_placement_leaves_no_file_behind(self, sym_env, tmp_path):
+        """Otherwise every later load would report the same error."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_library(tmp_path, "vendor", "icepart", relocatable=True,
+                         registers=[{"name": "STATUS", "addr": "0x00", "size": 4}])
+
+        # Act
+        engine.dispatch("dev.use icepart")
+
+        # Assert
+        ref = config_path.parent / "dev" / "icepart.device.json"
+        assert not ref.exists(), "the half-written reference was cleaned up"
+
+    def test_an_unknown_part_points_at_the_listing(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        result = engine.dispatch("dev.use nosuch")
+
+        # Assert
+        assert not result.success
+        assert "No library part named nosuch" in result.error
+        assert "dev.lib" in result.error, "and says how to find the real names"
+
+    @pytest.mark.parametrize("token", ["FPGA0", "@0x60000000", "FPGA0@zz"])
+    def test_a_malformed_placement_is_named(self, sym_env, tmp_path, token):
+        # Arrange
+        engine, _, _ = sym_env
+        _install_library(tmp_path, "vendor", "icepart", relocatable=True,
+                         registers=[{"name": "STATUS", "addr": "0x00", "size": 4}])
+
+        # Act
+        result = engine.dispatch(f"dev.use icepart at={token}")
+
+        # Assert
+        assert not result.success, f"{token}: not a NAME@ADDRESS"
+        assert "Invalid" in result.error, "and the token is named"
+
+
+class TestImportWritesToLibrary:
+    """A converted part is a fact about silicon, so it is stored once."""
+
+    def test_import_writes_the_library_and_a_reference(self, sym_env, tmp_path):
+        # Arrange
+        engine, config_path, _ = sym_env
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Assert
+        assert result.success, result.error
+        library = tmp_path / LIB
+        parts = list(library.rglob("*.device.json"))
+        assert len(parts) == 1, "the part landed in the library"
+        ref = config_path.parent / "dev" / "atsample1.device.json"
+        assert json.loads(ref.read_text(encoding="utf-8"))["ref"] == "atsample1", (
+            "and the config references it rather than copying it"
+        )
+
+    def test_the_registers_resolve_through_the_reference(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Assert
+        assert engine.dispatch("sym PORT_GROUP1_DIR").value == "0x40003080", (
+            "a referenced register resolves like any other"
+        )
+
+    def test_a_category_nests_the_part(self, sym_env, tmp_path):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        engine.dispatch(f"dev.import {SVD_SAMPLE} category=mcu/sam")
+
+        # Assert
+        parts = list((tmp_path / LIB).rglob("*.device.json"))
+        assert "mcu/sam" in parts[0].as_posix(), "filed where the user said"
+
+    def test_use_off_leaves_the_config_alone(self, sym_env):
+        """Import as a librarian, without adding it to the board in front of you."""
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE} use=off")
+
+        # Assert
+        assert result.success, result.error
+        assert engine.dispatch("dev.list").value == "", "nothing was added here"
+        assert engine.dispatch("dev.lib").value == "atsample1", "but it is available"

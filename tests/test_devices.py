@@ -16,6 +16,7 @@ from termapy.devices import (
     Field,
     derive_type,
     distinct_spans,
+    library_path,
     load_device,
     load_devices_from_dir,
     merge_into,
@@ -640,8 +641,12 @@ class TestReferenceFiles:
         return file
 
     def test_a_reference_loads_the_library_part(self, tmp_path):
-        # Arrange
-        library = self._library(tmp_path / "lib")
+        # Arrange -- a bare reference needs a FIXED-address part; a
+        # relocatable one must state its placement (TestRelocatable...).
+        library = tmp_path / "lib"
+        _write(library / "lattice", "icepart", _doc(
+            device="icepart",
+            registers=[{"name": "STATUS", "addr": "0x40000000", "size": 4}]))
         ref = self._ref(tmp_path / "dev", "board")
 
         # Act
@@ -752,3 +757,102 @@ class TestReferenceFiles:
         # Assert
         assert [d.name for d in load.devices] == ["plain"], "the good file loaded"
         assert len(load.errors) == 1, "and the bad reference was reported"
+
+
+class TestRelocatableReferenceNeedsPlacement:
+    """A library part's instances are an EXAMPLE, never this board's addresses."""
+
+    @staticmethod
+    def _library(root):
+        _write(root / "lattice", "icepart", _doc(
+            device="icepart", relocatable=True,
+            instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
+            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}]))
+        return root
+
+    def test_a_reference_does_not_inherit_the_library_placement(self, tmp_path):
+        """Inheriting would load every register at a plausible WRONG address."""
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": "icepart"}),
+                        encoding="utf-8")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="needs at least one"):
+            load_device(file, "cfg", library)
+
+    def test_its_own_placement_is_used(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({
+            "device_version": 1, "ref": "icepart",
+            "instances": [{"name": "REAL", "base": "0x70000000"}],
+        }), encoding="utf-8")
+
+        # Act
+        device = load_device(file, "cfg", library)
+
+        # Assert
+        register = device.registers()[0]
+        assert register.symbol.name == "REAL_STATUS", "this board's instance name"
+        assert register.symbol.addr == 0x70000000, "and this board's base"
+
+    def test_a_fixed_address_part_needs_no_placement(self, tmp_path):
+        """Only a relocatable part has addresses the board must supply."""
+        # Arrange
+        library = tmp_path / "lib"
+        _write(library / "v", "fixedpart", _doc(device="fixedpart"))
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": "fixedpart"}),
+                        encoding="utf-8")
+
+        # Act
+        device = load_device(file, "cfg", library)
+
+        # Assert
+        assert len(device) == 1, "absolute addresses need nothing from the board"
+
+
+class TestLibraryPath:
+    """Where a converted part lands in the library."""
+
+    def test_the_vendor_becomes_a_folder(self, tmp_path):
+        # Act
+        path = library_path(tmp_path, {"device": "part", "vendor": "Microchip Technology"})
+
+        # Assert
+        actual = path.relative_to(tmp_path).as_posix()
+        assert actual == "microchip-technology/part.device.json", "prose vendor slugged"
+
+    def test_an_explicit_category_nests_under_the_vendor(self, tmp_path):
+        # Act
+        path = library_path(tmp_path, {"device": "part", "vendor": "lattice"}, "fpga/ice40")
+
+        # Assert
+        actual = path.relative_to(tmp_path).as_posix()
+        assert actual == "lattice/fpga/ice40/part.device.json", "vendor, then category"
+
+    def test_no_vendor_means_no_vendor_level(self, tmp_path):
+        """Only the levels that are KNOWN are created; nothing is guessed."""
+        # Act
+        path = library_path(tmp_path, {"device": "part", "vendor": ""})
+
+        # Assert
+        actual = path.relative_to(tmp_path).as_posix()
+        assert actual == "part.device.json", "an unknown vendor is not invented"
+
+    @pytest.mark.parametrize("vendor", ["...", "   ", "!!!"])
+    def test_a_vendor_that_slugs_to_nothing_is_dropped(self, tmp_path, vendor):
+        # Act
+        path = library_path(tmp_path, {"device": "part", "vendor": vendor})
+
+        # Assert
+        assert path.parent == tmp_path, "never a folder named '-'"

@@ -530,6 +530,13 @@ def resolve_ref(data: dict[str, Any], library: Path | None) -> dict[str, Any]:
     overridable; a reference that could redefine registers would be a
     fork, and the whole value here is that it is not one.
 
+    **A relocatable part REQUIRES instances in the reference**, and does
+    not inherit the library's.  A library file's placement is an example
+    written by whoever prepared the part; this board's addresses are known
+    only here.  Inheriting them would load every register at a plausible
+    but wrong address -- the same silent-wrong-address hazard that makes a
+    bare relocatable file an error, one level up.
+
     Args:
         data: The reference document (has a ``ref`` key).
         library: Library root; None means no library is configured.
@@ -564,6 +571,11 @@ def resolve_ref(data: dict[str, Any], library: Path | None) -> dict[str, Any]:
     resolved = dict(target)
     if "instances" in data:
         resolved["instances"] = data["instances"]
+    elif resolved.get("relocatable"):
+        # Never inherit: see the docstring.  Dropping the library's example
+        # makes parse_device raise its own "needs instances" error, which is
+        # the message that already explains the rule.
+        resolved.pop("instances", None)
     return resolved
 
 
@@ -868,6 +880,64 @@ def scan_library(root: Path) -> tuple[list[LibraryPart], list[str]]:
         ))
     parts.sort(key=lambda part: (part.category, part.device))
     return parts, errors
+
+
+def library_slug(text: str) -> str:
+    """A folder-safe lowercase token, or ``""`` when nothing survives.
+
+    Vendor strings come from vendor files and are prose (``"Microchip
+    Technology"``, ``"STMicroelectronics"``), so the library path needs
+    them reduced to one token.  Runs of anything not alphanumeric become a
+    single ``-``; a name that reduces to nothing yields ``""`` and the
+    caller drops that level rather than creating a folder called ``-``.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", text.strip().lower()).strip("-")
+
+
+def library_path(root: Path, data: dict[str, Any], category: str = "") -> Path:
+    """Where a converted part belongs in the library.
+
+    The hierarchy is ``vendor/type/family``, but only the levels that are
+    KNOWN are created.  A converter reports a vendor, so that level is
+    derivable; nothing in an SVD says whether the part is an MCU, an ADC
+    or an FPGA, so an explicit ``category`` supplies it and its absence
+    leaves the part one level up rather than guessing a wrong label.
+
+    Args:
+        root: The library root.
+        data: The device document (for ``device`` and ``vendor``).
+        category: Explicit sub-path under the vendor (``mcu/pic32cm``),
+            as the user typed it; ``""`` = straight under the vendor.
+
+    Returns:
+        The full destination path, including the ``.device.json`` name.
+    """
+    folder = root
+    vendor = library_slug(_text(data, "vendor"))
+    if vendor:
+        folder = folder / vendor
+    for level in category.replace("\\", "/").split("/"):
+        slug = library_slug(level)
+        if slug:
+            folder = folder / slug
+    return folder / f"{data['device']}{SUFFIX}"
+
+
+def write_library_part(path: Path, doc: dict[str, Any]) -> None:
+    """Write a converted part into the library, creating its folders.
+
+    The ``mkdir`` lives here rather than in the handler because ``lib/`` is
+    NOT a per-config data folder: it is a cfg-root tree the user curates,
+    nothing prunes it when empty, and its nested vendor/type folders are
+    the point.  ``folders.ensure_folder``, which the data folders use, would
+    be the wrong tool -- so this is the one place that knows the library's
+    shape, and the only place that creates it.
+
+    Raises:
+        OSError: The folder or the file could not be written.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
 
 
 def distinct_spans(registers: list[Register]) -> int:

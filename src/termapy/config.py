@@ -28,6 +28,7 @@ from termapy.folders import (
     FOLDER_MIGRATIONS,
     HISTORY_FILE,
     HISTORY_SUFFIX,
+    LIB,
     LOG_SUFFIX,
     PLUGIN,
     PROFILE_TMP_GLOB,
@@ -463,6 +464,21 @@ def global_plugins_dir(root: Path | None = None) -> Path:
             temp folder so the checkout's own ``termapy_cfg/`` stays out.
     """
     return (root if root is not None else cfg_dir()) / PLUGIN
+
+
+def library_dir(root: Path | None = None) -> Path:
+    """Return the device library root (a path; it may not exist yet).
+
+    The ``lib/`` sibling of :func:`global_devices_dir`, holding a tree of
+    ``.device.json`` files a config picks parts FROM.  Unlike ``dev/``,
+    nothing here loads -- it is a pool, so a thousand parts can sit in it
+    without any of them reaching a symbol table.
+
+    Args:
+        root: The cfg root whose ``lib/`` child is the library; None
+            resolves :func:`cfg_dir`.
+    """
+    return (root if root is not None else cfg_dir()) / LIB
 
 
 def global_devices_dir(root: Path | None = None) -> Path:

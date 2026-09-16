@@ -989,6 +989,17 @@ class ReplEngine:
         """
         symbols_session.reload_devices(self.ctx, self.config_path, self.global_root)
 
+    def library_root(self) -> Path:
+        """The device library folder (the cfg root's ``lib/``).
+
+        Forwarded for the same reason as :meth:`reload_devices`: the
+        global root is the engine's, and a handler resolving it itself
+        would read the real ``termapy_cfg/`` under a test that overrode it.
+        """
+        from termapy.config import library_dir
+
+        return library_dir(self.global_root)
+
     # -- External plugin resolution ------------------------------------------
 
     def resolve_plugins(self) -> None:

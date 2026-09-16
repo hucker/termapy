@@ -74,6 +74,11 @@ class InternalHandle:
     # /dev.import calls it after writing; only the engine knows the global
     # root, so it is forwarded rather than reimplemented in the handler.
     reload_devices: Callable | None = None
+    # library_root() -> Path: the device library (cfg root's lib/), for
+    # the same reason as reload_devices -- only the engine knows the
+    # global root, and a handler resolving it itself would read the real
+    # termapy_cfg/ from under a test that deliberately overrode it.
+    library_root: Callable | None = None
 
     # Bare REPL dispatch through the plugin pipeline (capability gates,
     # flag parsing) WITHOUT ctx.dispatch's serial-output sugar.  Legacy

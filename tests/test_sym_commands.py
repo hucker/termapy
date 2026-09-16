@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from termapy.folders import SYMBOLS_SUFFIX
+from termapy.folders import LIB, SYMBOLS_SUFFIX
 from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext
 from termapy.plugins.command import LifecycleHook
 from termapy.repl import ReplEngine
@@ -67,6 +67,10 @@ def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
         # /dev.import re-scans dev/ through this; the test's global layer
         # is tmp_path/dev, never the checkout's termapy_cfg/dev.
         reload_devices=lambda: reload_devices(engine.ctx, str(config_path), tmp_path),
+        # /dev.lib resolves the library through this; without it the
+        # handler would read the CHECKOUT's termapy_cfg/lib, which is
+        # exactly the leak the temp global_root exists to prevent.
+        library_root=lambda: tmp_path / LIB,
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
@@ -1520,3 +1524,229 @@ class TestValueContract:
         # Assert
         assert result.success, result.error
         assert isinstance(result.value, str), f"{line}: value must be a str for $(X) <- capture"
+
+
+# ── /dev.list ───────────────────────────────────────────────────────────────
+
+
+class TestDevList:
+    """What THIS config loaded -- the 'installed' half of the two listings."""
+
+    def test_no_devices_says_so(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch("dev.list")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "", "nothing loaded, nothing named"
+
+    def test_lists_a_loaded_device_with_its_layer(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch("dev.list")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "part", "the value is the device names, for capture"
+
+    def test_a_relocatable_part_shows_its_placement(self, sym_env):
+        """Placement is what distinguishes two copies of one chip."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_device(
+            config_path.parent / "dev", "fpga",
+            [{"name": "STATUS", "addr": "0x00", "size": 4}],
+            relocatable=True,
+            instances=[{"name": "FPGA0", "base": "0x60000000"},
+                       {"name": "FPGA1", "base": "0x60010000"}],
+        )
+        engine.fire_lifecycle("on_app_start")
+        output.clear()  # drop the load lines
+
+        # Act
+        engine.dispatch("dev.list")
+
+        # Assert
+        out = "\n".join(_texts(output))
+        assert "FPGA0@0x60000000" in out, "each instance is named with its base"
+        assert "FPGA1@0x60010000" in out, "both copies, so a collision is visible"
+
+    def test_a_fixed_address_part_has_no_placement(self, sym_env):
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+        output.clear()
+
+        # Act
+        engine.dispatch("dev.list")
+
+        # Assert
+        row = next(line for line in _texts(output) if line.startswith("  part"))
+        assert row.rstrip().endswith("rig"), "nothing trails the layer when unplaced"
+
+    def test_data_carries_the_records_not_prose(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch("dev.list --json")
+
+        # Assert
+        assert isinstance(result.data, list), "a list of records, one per device"
+        assert result.data[0]["device"] == "part", "named"
+        assert result.data[0]["registers"] == 2, "with its register count"
+        assert result.data[0]["path"].endswith("part.device.json"), "and where it came from"
+
+    def test_global_and_per_config_layers_are_distinguished(self, sym_env, tmp_path):
+        """A part every config loads and a part this board has are different facts."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_device(tmp_path / "dev", "globalpart",
+                        [{"name": "G_REG", "addr": "0x70000000", "size": 4}])
+        _install_device(config_path.parent / "dev", "localpart",
+                        [{"name": "L_REG", "addr": "0x80000000", "size": 4}])
+        engine.fire_lifecycle("on_app_start")
+        output.clear()
+
+        # Act
+        engine.dispatch("dev.list")
+
+        # Assert
+        out = "\n".join(_texts(output))
+        assert "global" in out, "the global layer is named as such"
+        assert config_path.stem in out, "the per-config layer carries the config name"
+
+
+# -- /dev.lib ----------------------------------------------------------------
+
+
+def _install_library(root: Path, category: str, name: str, **extra) -> Path:
+    """Write a library part under ``root/<category>/<name>.device.json``."""
+    folder = root / "lib" / category if category else root / "lib"
+    folder.mkdir(parents=True, exist_ok=True)
+    doc = {
+        "device_version": 1, "device": name,
+        "registers": [{"name": "R", "addr": "0x90000000", "size": 4}],
+    } | extra
+    file = folder / f"{name}.device.json"
+    file.write_text(json.dumps(doc), encoding="utf-8")
+    return file
+
+
+class TestDevLib:
+    """What the LIBRARY holds -- the 'available' half, and never loaded."""
+
+    def test_empty_library_says_so(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        result = engine.dispatch("dev.lib")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "", "nothing available, nothing named"
+
+    def test_lists_parts_with_their_category(self, sym_env, tmp_path):
+        # Arrange
+        engine, _, output = sym_env
+        _install_library(tmp_path, "microchip/mcu", "somepart")
+        output.clear()
+
+        # Act
+        result = engine.dispatch("dev.lib")
+
+        # Assert
+        assert result.value == "somepart", "the value is the part names"
+        assert "microchip/mcu" in "\n".join(_texts(output)), "category is shown"
+
+    def test_listing_does_not_load_anything(self, sym_env, tmp_path):
+        """The library is a pool; a thousand parts must not reach the table."""
+        # Arrange
+        engine, _, _ = sym_env
+        _install_library(tmp_path, "microchip/mcu", "somepart")
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        engine.dispatch("dev.lib")
+
+        # Assert
+        assert engine.dispatch("dev.list").value == "", "nothing became installed"
+        assert engine.dispatch("sym R").success is False, "its registers do not resolve"
+
+    def test_a_substring_filters_by_name_or_category(self, sym_env, tmp_path):
+        # Arrange
+        engine, _, _ = sym_env
+        _install_library(tmp_path, "microchip/mcu", "alpha")
+        _install_library(tmp_path, "lattice/fpga", "beta")
+
+        # Act
+        by_name = engine.dispatch("dev.lib alpha")
+        by_category = engine.dispatch("dev.lib lattice")
+
+        # Assert
+        assert by_name.value == "alpha", "matched on the part name"
+        assert by_category.value == "beta", "matched on the vendor folder"
+
+    def test_a_glob_filters(self, sym_env, tmp_path):
+        # Arrange
+        engine, _, _ = sym_env
+        _install_library(tmp_path, "m", "pic32cm1216")
+        _install_library(tmp_path, "m", "pic32cm2532")
+        _install_library(tmp_path, "m", "other")
+
+        # Act
+        result = engine.dispatch("dev.lib pic32cm*")
+
+        # Assert
+        assert result.value.splitlines() == ["pic32cm1216", "pic32cm2532"], \
+            "the wildcard matched both families and excluded the rest"
+
+    def test_a_loaded_part_is_marked(self, sym_env, config_dev_part, tmp_path):
+        """The listing answers 'do I already have this?' in the same glance."""
+        # Arrange
+        engine, output = config_dev_part
+        _install_library(tmp_path, "vendor", "part")
+        engine.fire_lifecycle("on_app_start")
+        output.clear()
+
+        # Act
+        engine.dispatch("dev.lib")
+
+        # Assert
+        row = next(line for line in _texts(output) if "part" in line)
+        assert "*" in row, "the part this config loaded is marked"
+
+    def test_data_is_records_not_prose(self, sym_env, tmp_path):
+        # Arrange
+        engine, _, _ = sym_env
+        _install_library(tmp_path, "microchip/mcu", "somepart", vendor="microchip")
+
+        # Act
+        result = engine.dispatch("dev.lib --json")
+
+        # Assert
+        assert isinstance(result.data, list), "one record per part"
+        assert result.data[0]["device"] == "somepart"
+        assert result.data[0]["category"] == "microchip/mcu", "browsable location"
+        assert result.data[0]["relative"].endswith("somepart.device.json"), \
+            "a path relative to the library root, for a follow-up command"
+
+
+@pytest.fixture
+def config_dev_part(sym_env, tmp_path):
+    """sym_env with a device named 'part' installed in the config's dev/."""
+    engine, config_path, output = sym_env
+    _install_device(config_path.parent / "dev", "part", _PART)
+    return engine, output

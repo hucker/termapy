@@ -21,6 +21,7 @@ from termapy.devices import (
     parse_device,
     registers_in_range,
     resolve_devices,
+    scan_library,
 )
 from termapy.protocol.core import parse_format_spec
 from termapy.symbols import Symbol
@@ -502,3 +503,116 @@ class TestDistinctSpans:
 
         # Assert
         assert actual == 2, "different extents are different reads"
+
+
+class TestScanLibrary:
+    """The library is a POOL: listed, never loaded, and checked for honesty."""
+
+    @staticmethod
+    def _tree(root):
+        """A two-vendor library, nested the way the hierarchy intends."""
+        _write(root / "microchip" / "mcu" / "pic32cm", "pic32part", _doc(
+            device="pic32part", vendor="microchip", description="A part"))
+        _write(root / "lattice" / "fpga", "icepart", _doc(
+            device="icepart", vendor="lattice"))
+        return root
+
+    def test_missing_root_is_an_empty_library(self, tmp_path):
+        # Act
+        parts, errors = scan_library(tmp_path / "nothing-here")
+
+        # Assert
+        assert parts == [], "no folder, no parts"
+        assert errors == [], "and a missing library is not an error"
+
+    def test_walks_the_tree_and_records_the_category(self, tmp_path):
+        # Arrange
+        root = self._tree(tmp_path / "lib")
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert errors == [], "both files are well-formed"
+        actual = [(part.device, part.category) for part in parts]
+        assert actual == [
+            ("icepart", "lattice/fpga"),
+            ("pic32part", "microchip/mcu/pic32cm"),
+        ], "nested folders become the category, sorted by it"
+
+    def test_a_root_level_file_has_no_category(self, tmp_path):
+        # Arrange
+        root = tmp_path / "lib"
+        _write(root, "loose", _doc(device="loose"))
+
+        # Act
+        parts, _ = scan_library(root)
+
+        # Assert
+        assert parts[0].category == "", "a file at the root sits in no category"
+
+    def test_the_filename_must_match_the_identity(self, tmp_path):
+        """A file that says two different things is the wrong-part hazard."""
+        # Arrange
+        root = tmp_path / "lib"
+        _write(root, "filename", _doc(device="different"))
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert parts == [], "a self-contradicting file is not offered"
+        assert "must agree" in errors[0], "and the disagreement is named"
+
+    def test_registers_are_counted_not_parsed(self, tmp_path):
+        """A thousand parts must list without a thousand validations."""
+        # Arrange -- an address no parse would accept, in a listable file
+        root = tmp_path / "lib"
+        _write(root, "sloppy", {
+            "device_version": 1, "device": "sloppy",
+            "registers": [{"name": "R", "addr": "not-an-address", "size": 4}],
+        })
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert errors == [], "listing does not validate registers"
+        assert parts[0].registers == 1, "the count is the list length"
+
+    def test_a_duplicate_device_is_reported_once(self, tmp_path):
+        # Arrange -- same identity, two categories
+        root = tmp_path / "lib"
+        _write(root / "a", "twin", _doc(device="twin"))
+        _write(root / "b", "twin", _doc(device="twin"))
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert len(parts) == 1, "one identity, one entry"
+        assert "already defined by" in errors[0], "the loser is named"
+
+    def test_a_broken_file_does_not_hide_the_good_ones(self, tmp_path):
+        # Arrange
+        root = self._tree(tmp_path / "lib")
+        (root / "junk.device.json").write_text("{not json", encoding="utf-8")
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert len(parts) == 2, "the well-formed parts still list"
+        assert len(errors) == 1, "and the broken one is reported, not swallowed"
+
+    def test_metadata_rides_along(self, tmp_path):
+        # Arrange
+        root = self._tree(tmp_path / "lib")
+
+        # Act
+        parts, _ = scan_library(root)
+        part = next(p for p in parts if p.device == "pic32part")
+
+        # Assert
+        assert part.vendor == "microchip", "vendor for the listing"
+        assert part.description == "A part", "and the one-line description"

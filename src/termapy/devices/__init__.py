@@ -685,6 +685,102 @@ def registers_in_range(
     return sorted(hits, key=lambda register: (register.symbol.addr, register.symbol.name))
 
 
+@dataclass(frozen=True)
+class LibraryPart:
+    """One part in the library: what it is, and where its file sits.
+
+    A listing entry, NOT a loaded device -- the registers are not parsed,
+    because a library of a thousand parts must be listable without paying
+    a thousand validations.  Only the header fields are read.
+
+    Attributes:
+        device: The ``device`` field -- the identity.
+        path: The file.
+        category: Folder path from the library root, ``vendor/type/family``
+            (``""`` for a file sitting at the root).
+        description: One line, when the file gives one.
+        vendor: Metadata, when the file gives it.
+        registers: Register count, or -1 when the file does not say (the
+            count is cheap here because it is `len` of a list already
+            decoded, but a malformed file reports -1 rather than raising).
+    """
+
+    device: str
+    path: Path
+    category: str = ""
+    description: str = ""
+    vendor: str = ""
+    registers: int = -1
+
+
+def scan_library(root: Path) -> tuple[list[LibraryPart], list[str]]:
+    """Every ``.device.json`` under ``root``, as listing entries.
+
+    Walks the tree (``vendor/type/family/part.device.json``) rather than
+    one flat folder, because a library is browsable by construction and a
+    flat thousand-file folder is not.  Nothing here loads or validates
+    registers: this answers "what do I have", and a part is only parsed
+    when something references it.
+
+    **The filename is checked against the identity.** A file whose
+    ``device`` field disagrees with its stem is reported as an error and
+    left out of the listing -- the hierarchy is how a human finds a part
+    and the ``device`` field is how termapy resolves one, so a file that
+    says two different things is the wrong-part-wrong-address hazard the
+    memory commands exist to avoid.
+
+    Args:
+        root: The library root; a missing folder is an empty library.
+
+    Returns:
+        ``(parts, errors)`` -- parts sorted by category then device.
+    """
+    if not root.is_dir():
+        return [], []
+    parts: list[LibraryPart] = []
+    errors: list[str] = []
+    seen: dict[str, Path] = {}
+    for path in sorted(root.rglob(f"*{SUFFIX}")):
+        label = path.relative_to(root).as_posix()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            errors.append(f"{label}: {e}")
+            continue
+        if not isinstance(data, dict):
+            errors.append(f"{label}: expected an object")
+            continue
+        device = data.get("device")
+        stem = path.name[: -len(SUFFIX)]
+        if not isinstance(device, str) or not device:
+            errors.append(f"{label}: no device field")
+            continue
+        if device != stem:
+            errors.append(
+                f"{label}: device is {device!r} but the file is named "
+                f"{stem!r} -- a part's name and its file must agree"
+            )
+            continue
+        if device in seen:
+            errors.append(
+                f"{label}: {device} is already defined by "
+                f"{seen[device].relative_to(root).as_posix()}"
+            )
+            continue
+        seen[device] = path
+        registers = data.get("registers")
+        parts.append(LibraryPart(
+            device=device,
+            path=path,
+            category=path.parent.relative_to(root).as_posix().strip("."),
+            description=_text(data, "description"),
+            vendor=_text(data, "vendor"),
+            registers=len(registers) if isinstance(registers, list) else -1,
+        ))
+    parts.sort(key=lambda part: (part.category, part.device))
+    return parts, errors
+
+
 def distinct_spans(registers: list[Register]) -> int:
     """How many distinct byte ranges a set of registers actually covers.
 

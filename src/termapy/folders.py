@@ -115,6 +115,16 @@ CLEARABLE = frozenset(f.name for f in FOLDERS if f.clearable)
 SHOWABLE = frozenset(f.name for f in FOLDERS if f.showable)
 DUMPABLE = frozenset(f.name for f in FOLDERS if f.dumpable)
 
+# -- Cfg-root folders (NOT per-config data folders) ---------------------------
+
+# The device library: a user-populated tree of .device.json files that a
+# config picks parts FROM.  Deliberately not a FolderSpec -- those are the
+# per-config data folders, created on first write and pruned when empty,
+# and this is neither.  It lives beside the global plugin/ and dev/ at the
+# cfg root, holds nested folders (vendor/type/family), and nothing in it
+# loads: it is a pool, never a load layer.
+LIB = "lib"
+
 # -- Migration ----------------------------------------------------------------
 
 FOLDER_MIGRATIONS = [

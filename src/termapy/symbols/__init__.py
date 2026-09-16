@@ -56,6 +56,7 @@ from termapy.symbols.session import (
     get_table,
     install_build,
     install_devices,
+    reload_devices,
 )
 from termapy.symbols.table import (
     SCALAR_TYPES,
@@ -86,6 +87,7 @@ __all__ = [
     "get_devices",
     "install_build",
     "install_devices",
+    "reload_devices",
     "autoload",
     "IN_SYNC",
     "STALE",

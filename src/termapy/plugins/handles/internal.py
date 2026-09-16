@@ -63,12 +63,17 @@ class InternalHandle:
 
     plugins: dict = field(default_factory=dict)
     directives: list = field(default_factory=list)
-    # Symbol-map converters loaded from plugin folders (ConverterSpec).
-    # The BUILT-IN converters are not here: /sym.import passes this list
-    # to symbols.converters.find_converter, which searches the built-in
-    # registry too.  Aliases the engine's list, so a config switch that
-    # drops folder converters is visible through every live context.
+    # Converters loaded from plugin folders (ConverterSpec, every KIND).
+    # The BUILT-IN converters are not here: /sym.import and /dev.import
+    # each filter this list to their kind and pass it to their registry's
+    # find_converter, which searches the built-ins too.  Aliases the
+    # engine's list, so a config switch that drops folder converters is
+    # visible through every live context.
     converters: list = field(default_factory=list)
+    # reload_devices() -> None: re-scan the dev/ folders and reinstall.
+    # /dev.import calls it after writing; only the engine knows the global
+    # root, so it is forwarded rather than reimplemented in the handler.
+    reload_devices: Callable | None = None
 
     # Bare REPL dispatch through the plugin pipeline (capability gates,
     # flag parsing) WITHOUT ctx.dispatch's serial-output sugar.  Legacy

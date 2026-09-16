@@ -252,6 +252,7 @@ The most common ones:
 | `/sym.load {path}`                   | Load a symbol table (default: the cfg sidecar `/sym.import` writes)           |
 | `/sym.search <pattern>`              | Search symbols by name: exact, glob, regex, or substring                      |
 | `/sym.unload`                        | Clear the loaded symbol table                                                 |
+| `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) to `dev/<device>.device.json` and load it |
 | `/var {name}`                        | List user variables, or show one by name                                      |
 | `/var.set <NAME> <value>`            | Set a user variable                                                           |
 | `/var.clear`                         | Clear all user variables                                                      |

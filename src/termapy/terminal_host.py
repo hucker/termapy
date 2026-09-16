@@ -283,6 +283,7 @@ class TerminalHost:
             # rebuilds it in place on every config switch, and /sym.import
             # must see the converters the CURRENT config loaded.
             converters=self.repl.converters,
+            reload_devices=self.repl.reload_devices,
             port=lambda: self.engine.port_obj if self.engine.is_connected else None,
             in_script=lambda: self.repl.in_script,
             # The dispatch gate's own "right now" answer (static env set

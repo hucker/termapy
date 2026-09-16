@@ -960,23 +960,34 @@ class ReplEngine:
         self._lifecycle_hooks.append(hook)
 
     def register_converter(self, spec) -> None:
-        """Register a symbol-map converter. Appended in load order.
+        """Register a converter (any kind). Appended in load order.
 
-        Later layers override earlier ones by format name, so a per-config
-        converter beats a global one with the same ``FORMAT`` -- the same
-        rule commands follow.  ``find_converter`` searches this list before
-        the built-ins by name, so a config folder can also override a
-        built-in format for its own board.
+        Later layers override earlier ones by ``(kind, format)``, so a
+        per-config converter beats a global one with the same ``FORMAT``
+        -- the same rule commands follow -- while a device converter and
+        a symbol converter sharing a name never collide.  Each import's
+        ``find_converter`` searches its kind of this list before the
+        built-ins, so a config folder can also override a built-in.
         """
         self._converters[:] = [
-            existing for existing in self._converters if existing.format != spec.format
+            existing for existing in self._converters
+            if (existing.kind, existing.format) != (spec.kind, spec.format)
         ]
         self._converters.append(spec)
 
     @property
     def converters(self) -> list:
-        """Folder-loaded symbol-map converters, in load order."""
+        """Folder-loaded converters of every kind, in load order."""
         return self._converters
+
+    def reload_devices(self) -> None:
+        """Re-scan the ``dev/`` folders and reinstall the device registers.
+
+        What ``/dev.import`` calls after writing a file; forwarded through
+        ``ctx.internal.reload_devices`` because only the engine knows the
+        global root (a test engine points it at a temp folder).
+        """
+        symbols_session.reload_devices(self.ctx, self.config_path, self.global_root)
 
     # -- External plugin resolution ------------------------------------------
 

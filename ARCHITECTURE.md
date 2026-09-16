@@ -56,6 +56,7 @@ src/termapy/
 │   │   ├── show.py     #  /show - show file contents
 │   │   ├── ss.py       #  /ss - screenshot commands (svg, txt + folder ops)
 │   │   ├── stop.py     #  /stop - abort a running script
+│   │   ├── dev.py      #  /dev.* - device files: import a vendor register description (SVD)
 │   │   ├── sym.py      #  /sym.* - symbol table lookup, import, search
 │   │   ├── term.py     #  /term.* - terminal display / session toggles
 │   │   ├── var.py      #  /var - user-defined variables, $(NAME) syntax
@@ -101,7 +102,10 @@ src/termapy/
 │   ├── crc.py              #   crcglot catalog shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
-├── devices.py              # Device files: a part's registers as data (format, loader, instances, layered dev/ folders); merged over the build's symbols at load
+├── converters.py           # Converter registry core shared by symbols/ and devices/: ConverterSpec, find_converter, the four plugin names (+ KIND)
+├── devices/                # Device files: a part's registers as data (format, loader, instances, layered dev/ folders); merged over the build's symbols at load
+│   └── converters/         #   Registry + one module per vendor format; a plugin adds one with KIND = "device"
+│       └── svd.py          #     CMSIS-SVD: derivedFrom, dim arrays, clusters, access/readAction/modifiedWriteValues, fields
 ├── symbols/                # (0 lines) Symbol tables (library-shaped, no Textual/pyserial): the JSON format, the address grammar, converter registry
 │   ├── table.py            #   Symbol, SymbolTable (lookup/search, load/save/validate), sidecar_path
 │   ├── address.py          #   The address grammar: 0x.., ..h, decimal, name, name+off, name@file; .suffix reserved
@@ -352,7 +356,7 @@ A converter is four names rather than a dataclass because it is one function plu
 
 ### Device files: the board's registers, not the build's
 
-A linker map holds what the firmware defines, never the registers the silicon fixes, so those live in **device files** (`devices.py`; `<cfg>/dev/*.device.json`, plus a global `termapy_cfg/dev/` that loads into every config, per-config overriding by `device` name). The symbol session (`symbols/session.py`) keeps the two inputs apart — `build` (the sidecar) and `devices` — and rebuilds one merged `table` from them through a single installer, so `/sym.import` replaces the build half and cannot drop the board half, and the sidecar never receives a device row. `Symbol` carries the three safety fields the memory commands act on (`rmw`, `access`, `read_effect`); everything a viewer shows (peripheral, description, reset, structured fields) stays on `devices.Register`. There is deliberately no shipped catalog and no cfg key: a catalog would be a copy-from folder, never a load layer, and a relocatable part cannot load until its file says where it sits (`instances`). The format normalizes whatever a vendor publishes — CMSIS-SVD first — the way `xc32.py` normalizes a linker map; converters are the next step.
+A linker map holds what the firmware defines, never the registers the silicon fixes, so those live in **device files** (`devices.py`; `<cfg>/dev/*.device.json`, plus a global `termapy_cfg/dev/` that loads into every config, per-config overriding by `device` name). The symbol session (`symbols/session.py`) keeps the two inputs apart — `build` (the sidecar) and `devices` — and rebuilds one merged `table` from them through a single installer, so `/sym.import` replaces the build half and cannot drop the board half, and the sidecar never receives a device row. `Symbol` carries the three safety fields the memory commands act on (`rmw`, `access`, `read_effect`); everything a viewer shows (peripheral, description, reset, structured fields) stays on `devices.Register`. There is deliberately no shipped catalog and no cfg key: a catalog would be a copy-from folder, never a load layer, and a relocatable part cannot load until its file says where it sits (`instances`). The format normalizes whatever a vendor publishes the way `xc32.py` normalizes a linker map: `/dev.import` runs a device converter (`devices/converters/`, CMSIS-SVD built in) and writes the document it returns as `dev/<device>.device.json`, so a converted part and a hand-written one pass the same validation and the file on disk is the source of truth. Symbol and device converters share one record type and lookup (`converters.py`); a plugin file picks its kind with `KIND`, and the engine keys them by `(kind, format)` so the two never collide or cross over.
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> None:

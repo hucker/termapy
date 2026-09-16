@@ -542,7 +542,7 @@ class LoadResult:
         directives: Successfully loaded DirectiveInfo entries.
         lifecycle_hooks: LifecycleHook entries discovered on plugin modules.
         converters: ConverterSpec entries discovered on plugin modules
-            (symbol-map converters; see ``termapy.symbols.converters``).
+            (symbol and device converters; see ``termapy.converters``).
         skipped: File names that were skipped (no COMMAND instance).
         errors: File names that raised exceptions during loading.
     """

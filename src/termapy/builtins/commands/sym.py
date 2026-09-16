@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from termapy.config import cfg_relative_path
+from termapy.converters import SYMBOLS
 from termapy.folders import SYM
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import (
@@ -94,7 +95,10 @@ def _plugin_converters(ctx: PluginContext) -> tuple:
     means "built-ins only", not an error.
     """
     internal = getattr(ctx, "internal", None)
-    return tuple(getattr(internal, "converters", ()) or ())
+    specs = getattr(internal, "converters", ()) or ()
+    # The engine holds every KIND in one list; a device converter must
+    # never be offered as a map format.
+    return tuple(spec for spec in specs if spec.kind == SYMBOLS)
 
 
 def _known_formats(ctx: PluginContext) -> list[str]:

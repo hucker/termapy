@@ -188,9 +188,23 @@ shares a register's name wins, with a warning.
 
 A relocatable file with no instances is an error, never a silent load at
 offset 0. Names must be identifiers (no dots -- `.` is the field-access
-suffix). Vendor CMSIS-SVD files carry every one of these facts; a converter
-that turns one into a device file, the way `/sym.import` turns a linker
-map into the sidecar, is the next step.
+suffix).
+
+You rarely write one by hand. Vendor CMSIS-SVD files carry every one of
+these facts, and `/dev.import` converts one the way `/sym.import` converts
+a linker map:
+
+```text
+/dev.import ATSAME54P20A.svd
+```
+
+writes `dev/atsame54p20a.device.json` and loads it at once. SVDs come from
+the vendor's CMSIS pack or the
+[cmsis-svd-data](https://github.com/cmsis-svd/cmsis-svd-data) repository;
+`derivedFrom`, `dim` arrays and nested clusters are resolved, and names
+come out as `PERIPHERAL_CLUSTER_REGISTER` (`PORT_GROUP0_DIR`). A vendor
+format termapy doesn't know is a plugin converter with `KIND = "device"`
+-- the same four names as a symbol converter.
 
 ## Commands
 

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A trimmed CMSIS-SVD exercising every shape the converter resolves:
+     device-level defaults, a dim'd cluster, a dim'd register with dimIndex,
+     the three field spellings, enumerated values, a derivedFrom peripheral,
+     a dim'd peripheral with a range dimIndex, and the access / readAction /
+     modifiedWriteValues mappings.  Shaped like a real Atmel file. -->
+<device schemaVersion="1.3" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:noNamespaceSchemaLocation="CMSIS-SVD.xsd">
+  <vendor>Sample Semiconductor</vendor>
+  <name>ATSAMPLE1</name>
+  <version>1.0</version>
+  <description>Sample device for the converter tests</description>
+  <licenseText>Copyright (c) 2026 Sample Semiconductor.\nLicensed under Apache-2.0.</licenseText>
+  <addressUnitBits>8</addressUnitBits>
+  <width>32</width>
+  <size>32</size>
+  <access>read-write</access>
+  <resetValue>0x00000000</resetValue>
+  <peripherals>
+    <peripheral>
+      <name>PORT</name>
+      <description>Port Module</description>
+      <groupName>PORT</groupName>
+      <baseAddress>0x40003000</baseAddress>
+      <registers>
+        <cluster>
+          <dim>2</dim>
+          <dimIncrement>0x80</dimIncrement>
+          <name>GROUP[%s]</name>
+          <description>Port Group</description>
+          <addressOffset>0x0</addressOffset>
+          <register>
+            <name>DIR</name>
+            <description>Data   Direction
+            register</description>
+            <addressOffset>0x00</addressOffset>
+            <fields>
+              <field>
+                <name>DIR</name>
+                <description>Port Data Direction</description>
+                <bitOffset>0</bitOffset>
+                <bitWidth>32</bitWidth>
+              </field>
+            </fields>
+          </register>
+          <register>
+            <name>IN</name>
+            <description>Data Input Value</description>
+            <addressOffset>0x20</addressOffset>
+            <access>read-only</access>
+          </register>
+          <register>
+            <dim>2</dim>
+            <dimIncrement>1</dimIncrement>
+            <dimIndex>0,1</dimIndex>
+            <name>PMUX%s</name>
+            <description>Peripheral Multiplexing</description>
+            <addressOffset>0x30</addressOffset>
+            <size>8</size>
+            <fields>
+              <field>
+                <name>PMUXE</name>
+                <description>Peripheral Multiplexing for Even-Numbered Pin</description>
+                <bitRange>[3:0]</bitRange>
+                <enumeratedValues>
+                  <enumeratedValue><name>A</name><value>0x0</value></enumeratedValue>
+                  <enumeratedValue><name>B</name><value>#0001</value></enumeratedValue>
+                  <enumeratedValue><name>ANY</name><value>#xxxx</value></enumeratedValue>
+                </enumeratedValues>
+              </field>
+              <field>
+                <name>PMUXO</name>
+                <lsb>4</lsb>
+                <msb>7</msb>
+              </field>
+            </fields>
+          </register>
+        </cluster>
+      </registers>
+    </peripheral>
+    <peripheral>
+      <name>SERCOM0</name>
+      <groupName>SERCOM</groupName>
+      <description>Serial Communication Interface 0</description>
+      <baseAddress>0x40003800</baseAddress>
+      <registers>
+        <register>
+          <name>INTFLAG</name>
+          <description>Interrupt Flag Status and Clear</description>
+          <addressOffset>0x18</addressOffset>
+          <size>8</size>
+          <modifiedWriteValues>oneToClear</modifiedWriteValues>
+          <fields>
+            <field><name>DRE</name><bitOffset>0</bitOffset><bitWidth>1</bitWidth></field>
+            <field><name>RXC</name><bitOffset>2</bitOffset><bitWidth>1</bitWidth></field>
+          </fields>
+        </register>
+        <register>
+          <name>DATA</name>
+          <description>Data</description>
+          <addressOffset>0x28</addressOffset>
+          <readAction>modifyExternal</readAction>
+        </register>
+        <register>
+          <name>DBGCTRL</name>
+          <description>Debug Control</description>
+          <addressOffset>0x30</addressOffset>
+          <size>8</size>
+          <access>write-only</access>
+          <resetValue>0x01</resetValue>
+        </register>
+      </registers>
+    </peripheral>
+    <peripheral derivedFrom="SERCOM0">
+      <name>SERCOM1</name>
+      <baseAddress>0x40003C00</baseAddress>
+    </peripheral>
+    <peripheral>
+      <dim>2</dim>
+      <dimIncrement>0x400</dimIncrement>
+      <dimIndex>0-1</dimIndex>
+      <name>TC%s</name>
+      <groupName>TC</groupName>
+      <description>Basic Timer Counter</description>
+      <baseAddress>0x40004000</baseAddress>
+      <registers>
+        <register>
+          <name>CTRLA</name>
+          <description>Control A</description>
+          <addressOffset>0x00</addressOffset>
+        </register>
+      </registers>
+    </peripheral>
+  </peripherals>
+</device>

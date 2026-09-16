@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+from termapy.converters import converter_from_module
 from termapy.plugins.command import (
     LIFECYCLE_HOOK_NAMES,
     BoundaryException,
@@ -131,8 +132,8 @@ def _load_plugin_file(
     dataclass), a ``TRANSFORM`` instance (a ``Transform`` dataclass),
     a ``DIRECTIVE`` instance (a ``Directive`` dataclass), top-level
     lifecycle functions named in :data:`LIFECYCLE_HOOK_NAMES`, and/or a
-    symbol-map converter (four top-level names -- see
-    ``termapy.symbols.converters``).
+    converter (four top-level names plus an optional ``KIND`` -- see
+    ``termapy.converters``).
 
     Args:
         path: Path to the .py plugin file.
@@ -224,13 +225,10 @@ def _load_plugin_file(
                 )
             )
 
-    # Symbol-map converters -- four top-level names, the shape the built-in
-    # converters use.  Lazy: importing the symbols package here would put it
-    # on the loader's import path for every plugin load, converter or not.
+    # Converters -- four top-level names plus an optional KIND, the shape
+    # the built-in symbol and device converters use.
     converters: list = []
     if isinstance(getattr(mod, "FORMAT", None), str):
-        from termapy.symbols.converters import converter_from_module
-
         spec = converter_from_module(mod, source)
         if spec is not None:
             converters.append(spec)

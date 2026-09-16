@@ -151,14 +151,35 @@ def autoload(
     """
     ctx.ns(SYMBOLS_NS).clear()
     build = _load_sidecar(ctx, config_path)
+    devices = _resolve_and_report(ctx, config_path, global_root, announce=True)
+    return _install(ctx, build, devices)
+
+
+def reload_devices(
+    ctx: PluginContext, config_path: str, global_root: Path | None = None,
+) -> SymbolTable | None:
+    """Re-scan the ``dev/`` folders and reinstall; the build table is kept.
+
+    What ``/dev.import`` runs after writing a file.  Quiet on success --
+    the command prints its own line -- but a broken file is still reported,
+    since an error is never silent.
+    """
+    devices = _resolve_and_report(ctx, config_path, global_root, announce=False)
+    return install_devices(ctx, devices)
+
+
+def _resolve_and_report(
+    ctx: PluginContext, config_path: str, global_root: Path | None, *, announce: bool,
+) -> list[Device]:
+    """Resolve the layers; report every error; optionally the load line."""
     devices, errors = devices_mod.resolve_devices(config_path, global_root)
     for error in errors:
         ctx.io.output(f"Device: {error}", "yellow")
-    if devices and not ctx.is_oneshot():
+    if announce and devices and not ctx.is_oneshot():
         count = sum(len(device) for device in devices)
         names = ", ".join(device.name for device in devices)
         ctx.io.output(f"Loaded {count} device registers ({names})", "dim")
-    return _install(ctx, build, devices)
+    return devices
 
 
 def _load_sidecar(ctx: PluginContext, config_path: str) -> SymbolTable | None:

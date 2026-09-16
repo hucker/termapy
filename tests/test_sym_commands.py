@@ -18,7 +18,7 @@ from termapy.folders import SYMBOLS_SUFFIX
 from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext
 from termapy.plugins.command import LifecycleHook
 from termapy.repl import ReplEngine
-from termapy.symbols import SYMBOLS_NS, get_table
+from termapy.symbols import SYMBOLS_NS, get_table, reload_devices
 from termapy.symbols.converters import FORMATS
 
 DEMO_SYMBOLS = (
@@ -62,8 +62,11 @@ def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
     internal_handle = InternalHandle(
         plugins=engine._plugins,
         # Aliases the engine's list, as TerminalHost does: converters a
-        # plugin folder loads must reach /sym.import.
+        # plugin folder loads must reach /sym.import and /dev.import.
         converters=engine.converters,
+        # /dev.import re-scans dev/ through this; the test's global layer
+        # is tmp_path/dev, never the checkout's termapy_cfg/dev.
+        reload_devices=lambda: reload_devices(engine.ctx, str(config_path), tmp_path),
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
@@ -706,6 +709,122 @@ class TestDevices:
         # Assert
         assert get_table(engine.ctx).by_name("gTemp")[0].addr == 0x1000, "the build wins"
         assert any("gTemp shadows" in text for text in _texts(output)), "and it is reported"
+
+
+# ── /dev.import ─────────────────────────────────────────────────────────────
+
+
+SVD_SAMPLE = Path(__file__).parent / "fixtures" / "devices" / "svd_sample.svd"
+SVD_COUNT = 16  # see test_devices_svd.py
+
+_DEVICE_CONVERTER = '''
+KIND = "device"
+FORMAT = "acme"
+DESCRIPTION = "Acme register dump"
+DETECT = ()
+
+
+def convert(text):
+    return {"device_version": 1, "device": "acmepart",
+            "registers": [{"name": "ACME_CTRL", "addr": "0x70000000", "size": 4}]}
+'''
+
+
+class TestDevImport:
+    """/dev.import converts a vendor file into dev/ and loads it at once."""
+
+    def test_import_writes_the_file_and_loads_it(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == str(SVD_COUNT), "the register count is the value"
+        dest = config_path.parent / "dev" / "atsample1.device.json"
+        assert dest.is_file(), "written as dev/<device>.device.json"
+        assert engine.dispatch("sym PORT_GROUP1_DIR").value == "0x40003080", (
+            "a register resolves in the same session, no config reload"
+        )
+        assert result.data["device"] == "atsample1" and result.data["format"] == "svd", (
+            "the record names the device and the converter"
+        )
+
+    def test_explicit_format_and_unknown_format(self, sym_env):
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        explicit = engine.dispatch(f"dev.import {SVD_SAMPLE} format=svd")
+        unknown = engine.dispatch(f"dev.import {SVD_SAMPLE} format=nope")
+
+        # Assert
+        assert explicit.success, explicit.error
+        assert not unknown.success, "an unknown format= is refused"
+        assert "nope" in unknown.error and "svd" in unknown.error, "names the token and the choices"
+
+    def test_missing_and_unrecognized_files(self, sym_env, tmp_path):
+        # Arrange
+        engine, _, _ = sym_env
+        notes = tmp_path / "notes.txt"
+        notes.write_text("just some notes\n", encoding="utf-8")
+
+        # Act
+        missing = engine.dispatch("dev.import nosuch.svd")
+        junk = engine.dispatch(f"dev.import {notes}")
+
+        # Assert
+        assert missing.error == "Source file not found: nosuch.svd"
+        assert junk.error == "Unknown device format: notes.txt (formats: svd)"
+
+    def test_reimport_overwrites(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Assert
+        assert result.success, result.error
+        assert len(get_table(engine.ctx)) == SVD_COUNT, "same registers, not doubled"
+
+    def test_refuses_a_second_file_for_the_same_device(self, sym_env):
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "mine", [
+            {"name": "X", "addr": 0, "size": 4},
+        ], device="atsample1")  # a differently named file claiming the same device
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"dev.import {SVD_SAMPLE}")
+
+        # Assert
+        assert not result.success, "two files for one device is the instances mistake"
+        assert "already defined by mine.device.json" in result.error
+
+    def test_plugin_device_converter_serves_dev_import_only(self, sym_env):
+        """KIND = "device" reaches /dev.import and is invisible to /sym.import."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _DEVICE_CONVERTER, name="acme")
+        engine.fire_lifecycle("on_app_start")
+        anything = config_path.parent / "part.txt"
+        anything.write_text("opaque vendor dump", encoding="utf-8")
+
+        # Act
+        imported = engine.dispatch(f"dev.import {anything} format=acme")
+        as_map = engine.dispatch(f"sym.import {anything} format=acme")
+
+        # Assert
+        assert imported.success, imported.error
+        assert engine.dispatch("sym ACME_CTRL").value == "0x70000000", "the plugin converter ran"
+        assert not as_map.success and "acme" not in as_map.error.split("formats:")[1], (
+            "/sym.import neither accepts nor lists a device converter"
+        )
 
 
 # ── Converter plugins ───────────────────────────────────────────────────────

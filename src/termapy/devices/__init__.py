@@ -582,21 +582,28 @@ def _label(device: Device) -> str:
     return device.path.name if device.path is not None else device.name
 
 
-def _layers(config_path: str, global_root: Path | None) -> list[tuple[Path, str]]:
-    """``(folder, label)`` per layer, lowest precedence first.
+def device_dir(config_path: str) -> Path:
+    """The config's own ``dev/`` folder (a path; it may not exist yet).
 
-    Lazy import of ``config``: it pulls migration and the cfg root, and
-    this module sits on the symbol load path.
+    ``cfg_data_dir``, not the cfg's parent: a bundled (read-only) config
+    resolves its data folders elsewhere, and devices must follow.  Lazy
+    import of ``config``: it pulls migration and the cfg root, and this
+    module sits on the symbol load path.
     """
-    from termapy.config import cfg_data_dir, global_devices_dir
+    from termapy.config import cfg_data_dir
+
+    try:
+        return cfg_data_dir(config_path) / folders.DEV
+    except (OSError, ValueError):
+        return Path(config_path).parent / folders.DEV
+
+
+def _layers(config_path: str, global_root: Path | None) -> list[tuple[Path, str]]:
+    """``(folder, label)`` per layer, lowest precedence first."""
+    from termapy.config import global_devices_dir
 
     global_folder = global_devices_dir(global_root)
-    # cfg_data_dir, not the cfg's parent: a bundled (read-only) config
-    # resolves its data folders elsewhere, and devices must follow.
-    try:
-        per_config = cfg_data_dir(config_path) / folders.DEV
-    except (OSError, ValueError):
-        per_config = Path(config_path).parent / folders.DEV
+    per_config = device_dir(config_path)
     layers: list[tuple[Path, str]] = []
     if global_folder != per_config:
         layers.append((global_folder, "global"))

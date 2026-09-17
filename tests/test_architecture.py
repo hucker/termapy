@@ -395,7 +395,10 @@ def test_boolean_guard_fires_on_a_probe():
 # per-config data folder (``folders.FOLDERS``): the cfg root and the demo
 # root (config.py, the picker's config editor), the OS app-state / app-config
 # dirs, the desktop-launcher files, the MCP host's own ``mcp/``, and
-# folders.py itself, where ``ensure_folder`` lives.  A data folder comes into
+# folders.py itself, where ``ensure_folder`` lives.  ``devices/`` is here for
+# the NESTED vendor/type folders inside a device library: ``lib/`` itself is
+# a data folder and goes through ``ensure_folder``, but the tree under it is
+# the library's own shape, which only that module knows.  A data folder comes into
 # being through ``folders.ensure_folder`` and goes away through
 # ``folders.prune_empty_folders``, and through nothing else -- that is what
 # keeps "reads never create, writes always create" true everywhere at once.
@@ -404,6 +407,7 @@ ALLOWED_RAW_MKDIR: frozenset[str] = frozenset({
     "termapy/builtins/commands/_cfg_icon.py",
     "termapy/builtins/commands/app.py",
     "termapy/config.py",
+    "termapy/devices/__init__.py",
     "termapy/dialogs/config_editor.py",
     "termapy/folders.py",
     "termapy/mcp/server.py",

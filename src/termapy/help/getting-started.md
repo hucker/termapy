@@ -116,6 +116,8 @@ termapy_cfg/
 │   ├── iot_device.log         # session log
 │   ├── iot_device.history     # command history
 │   ├── sym/                   # symbol tables (/sym.import)
+│   ├── dev/                   # the board's parts (/dev.import, /dev.use)
+│   ├── lib/                   # this config's part library (see Symbols)
 │   ├── ss/                    # screenshots
 │   ├── run/                   # script files
 │   ├── proto/                 # protocol test scripts (.pro)
@@ -123,7 +125,9 @@ termapy_cfg/
 │   ├── prof/                  # script profiling CSVs (/run.profile)
 │   ├── viz/                   # per-config packet visualizers
 │   └── plugin/                # per-config plugins
-└── plugin/                    # global plugins (all configs)
+├── plugin/                    # global plugins (all configs)
+├── dev/                       # parts loaded by every config
+└── lib/                       # shared part library (all configs)
 ```
 
 Only the `.cfg`, log and history are there to begin with. Each data

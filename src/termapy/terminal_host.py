@@ -284,6 +284,7 @@ class TerminalHost:
             # must see the converters the CURRENT config loaded.
             converters=self.repl.converters,
             reload_devices=self.repl.reload_devices,
+            library_layers=self.repl.library_layers,
             port=lambda: self.engine.port_obj if self.engine.is_connected else None,
             in_script=lambda: self.repl.in_script,
             # The dispatch gate's own "right now" answer (static env set

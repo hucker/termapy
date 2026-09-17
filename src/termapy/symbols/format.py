@@ -17,7 +17,7 @@ from termapy.symbols.provenance import IN_SYNC, UNKNOWN, check_staleness
 from termapy.symbols.table import Symbol, SymbolTable, hex_digits, section_label
 
 if TYPE_CHECKING:
-    from termapy.devices import Device
+    from termapy.devices import Device, LibraryPart
 
 
 def hex_addr(addr: int, address_bits: int = 32) -> str:
@@ -99,6 +99,62 @@ def lookup_record(
         "offset": parsed.offset,
         "suffix": parsed.suffix,
     }
+
+
+def device_list_rows(
+    devices: list[Device], *, address_bits: int = 32,
+) -> list[tuple[str, str, str, str]]:
+    """``(device, registers, layer, placement)`` per loaded device, for a table.
+
+    The prose twin of :func:`device_records`, and the answer to "what is on
+    this board": one row per part, with the LAYER it came from, because a
+    part loaded globally and a part loaded by this config are different
+    facts that a single flat list would hide.
+
+    Placement is the instance names and bases for a relocatable part, empty
+    for a fixed-address one -- the distinction a viewer and a reader both
+    need, since only a placed part can collide with another copy.
+
+    Args:
+        devices: Loaded devices, in load order.
+        address_bits: Address width for rendering instance bases.
+
+    Returns:
+        One tuple per device; the caller lays out the columns.
+    """
+    rows: list[tuple[str, str, str, str]] = []
+    for device in devices:
+        placed = " ".join(
+            f"{instance.name}@{hex_addr(instance.base, address_bits)}"
+            for instance in device.instances if instance.name
+        )
+        rows.append((device.name, str(len(device)), device.layer or "-", placed))
+    return rows
+
+
+def library_records(parts: list[LibraryPart]) -> list[dict[str, Any]]:
+    """The ``data=`` twin for a library listing: one record per available part.
+
+    Distinct from :func:`device_records` because these are parts a config
+    COULD use, not devices it has loaded -- there is no placement, and
+    ``registers`` is what the file claims rather than what a parse
+    produced.  ``layer`` says which library holds the part (the per-config
+    one shadows the global), so an agent can tell a shared part from a
+    board-local one.
+    """
+    return [
+        {
+            "device": part.device,
+            "description": part.description,
+            "vendor": part.vendor,
+            "category": part.category,
+            "registers": part.registers,
+            "layer": part.layer,
+            "path": str(part.path),
+            "relative": part.relative,
+        }
+        for part in parts
+    ]
 
 
 def device_records(devices: list[Device]) -> list[dict[str, Any]]:

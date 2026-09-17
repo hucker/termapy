@@ -81,6 +81,13 @@ FOLDERS = [
     # Memory-mapped device register files (*.device.json).  Static chip
     # facts, not build output -- see termapy.devices.
     FolderSpec("dev",    ".device.json"),
+    # The device library: parts a config picks FROM (nothing here loads).
+    # A nested vendor/type/family tree, so the top folder is the data
+    # folder and the pattern sees only root-level files; listing is
+    # termapy.devices.scan_library's job.  After "dev" so .device.json
+    # keeps mapping to dev/ in EXT_TO_FOLDER.  Exists at the cfg root too,
+    # like plugin/ and dev/ -- the per-config one wins a name clash.
+    FolderSpec("lib",    ".device.json"),
 ]
 
 # -- Derived from FOLDERS (do not edit manually) ------------------------------
@@ -97,6 +104,7 @@ CAP = _BY_NAME["cap"].name
 PROF = _BY_NAME["prof"].name
 SYM = _BY_NAME["sym"].name
 DEV = _BY_NAME["dev"].name
+LIB = _BY_NAME["lib"].name
 
 # All folder names as a tuple
 FOLDER_NAMES = tuple(f.name for f in FOLDERS)

@@ -25,7 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from termapy.config import cfg_relative_path
+from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import SYMBOLS
 from termapy.folders import SYM
 from termapy.help_dynamic import compose, state_line
@@ -205,7 +205,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     ctx.fs.guard_external_path(raw, "Map path")
     path = _anchor(ctx, raw)
     if not path.is_file():
-        return CmdResult.fail(msg=f"Map file not found: {raw}")
+        return CmdResult.fail(msg=not_found_message("Map file", raw, ctx.config_path))
     dest = sidecar_path(ctx.config_path)
     if dest is None:
         return CmdResult.fail(msg="No config loaded.")

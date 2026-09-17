@@ -252,7 +252,10 @@ The most common ones:
 | `/sym.load {path}`                   | Load a symbol table (default: the cfg sidecar `/sym.import` writes)           |
 | `/sym.search <pattern>`              | Search symbols by name: exact, glob, regex, or substring                      |
 | `/sym.unload`                        | Clear the loaded symbol table                                                 |
-| `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) to `dev/<device>.device.json` and load it |
+| `/dev.import <file> {format=<value>} {category=<value>} {to=<value>} {use=<value>}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
+| `/dev.lib {pattern}`                 | List the parts the libraries hold (available, not loaded), with their layer  |
+| `/dev.list`                          | List the devices this config has loaded, with layer and placement            |
+| `/dev.use <part> {at=<value>}`       | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
 | `/var {name}`                        | List user variables, or show one by name                                      |
 | `/var.set <NAME> <value>`            | Set a user variable                                                           |
 | `/var.clear`                         | Clear all user variables                                                      |
@@ -947,6 +950,10 @@ It's also a reversible toggle from inside the TUI, like `/cli` <-> `/tui`: `/vt1
 
 <details>
 <summary><strong>Extending termapy</strong> - plugins, subcommands, visualizers</summary>
+
+### Symbols, memory and parts
+
+`/sym.import build/mem.map` turns your linker map into names, so `/mem.read gTemp` reads a variable by name instead of by address. `/dev.import part.svd` does the same for the silicon: a vendor CMSIS-SVD becomes a **device file** -- every register of the part with its bit fields -- stored once in the config's `lib/` and referenced from its `dev/`, so `/mem.read PORT_GROUP0_DIR` works and a checked-in config folder carries its parts. A part on the external bus (two ADCs, an FPGA block) is written once with register offsets and placed per board: `/dev.use acme-adc16 at=ADC1@0x60000000 ADC2@0x60001000`. Registers are live silicon, not variables, so `/mem.*` refuses bulk reads over them, refuses reads of write-only registers, and logs the rest. The device side is the MEM wire spec (`examples/firmware/termapy_mem.c`, a drop-in) or a profile block describing your monitor's own peek/poke grammar. See the Symbols, Devices and Memory help pages.
 
 ### Plugins
 

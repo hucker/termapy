@@ -21,7 +21,7 @@ symbol that contains them when a table is loaded.
 
 | Command                     | Example                      | Does                                                        |
 |-----------------------------|------------------------------|-------------------------------------------------------------|
-| `/mem.dump <target> {len} {type}` | `/mem.dump gTemp 0x10`  | Hexdump; `u16`/`u32` hex-word columns, `i*` decimal, `f*` floats; `addr=off` / `ascii=off` drop columns (both off = bare values) |
+| `/mem.dump <target> {len} {type}` | `/mem.dump gTemp 0x10`  | Hexdump; `u16`/`u32` hex-word columns, `i*` decimal, `f*` floats; `addr=off` / `ascii=off` drop columns (both off = bare values). No `len` dumps the symbol's own size, else 64 bytes |
 | `/mem.read <target> {type}` | `/mem.read U1MODE.ON`        | One typed value: scalar, `char`, register field, bit (`.15`) or slice (`.4-6`) |
 | `/mem.write <target> <hex>` | `/mem.write gFlags 07000000` | Write hex bytes; with a `.field`/`.bit` target the value is masked in (audited) |
 | `/mem.or <target> <mask>`   | `/mem.or gFlags 0x10`        | The boolean set on one word: `.or` set, `.and` keep, `.clear` = `word &= ~mask`, `.xor` toggle, `.not` invert; atomic via `MEM.M` where expressible |
@@ -81,6 +81,68 @@ at `sBanner` is a value, not sixteen hex pairs. `$(V) <- /mem.str
 sBanner` captures the text; the display escapes non-printables; without
 a NUL inside the cap (default 256) the result is marked truncated.
 `/mem.read <target> char` renders one byte as `'A' (0x41)`.
+
+## Two bargains: your variables, and the silicon
+
+`/mem.*` reads two different kinds of address, and they do not come with
+the same guarantee.
+
+**Your build's symbols** -- the RAM and flash a [symbol table](symbols.md)
+names -- are the low-cost bargain termapy is built around. Reading
+`gTemp` observes a variable your firmware already keeps. It has no side
+effect, nothing else is watching that byte, and reading it twice gives
+the same answer twice.
+
+**A [device file](devices.md)'s registers** are not that. They are an intrusive probe
+on live silicon, usually through a driver that assumes it is the only
+thing on the bus. Reading a FIFO data port pops a byte the driver never
+receives; reading some status registers clears the flags an interrupt
+was waiting on. The syntax is identical, which is exactly the problem:
+the damage does not look like a terminal error, it looks like a flaky
+*device*, days later.
+
+So reads into peripheral space are treated differently:
+
+| Situation | What happens |
+|-----------|--------------|
+| A read covering two or more device registers | Refused -- read one by name |
+| `/mem.str` whose scan could reach any register | Refused -- registers are not strings |
+| A register with `"access": "wo"` | Refused, on every reading path including the read half of `/mem.or` and `/mem.not` |
+| One register, named | Allowed, and logged |
+
+`/mem.dump UMODE` reads UMODE and stops: a dump with no length takes the
+symbol's own size, so naming a register does not sweep its neighbors.
+
+The count is **distinct registers, not names.** SVD describes a peripheral
+once per operating mode, so a SERCOM's `CTRLA` arrives as six definitions
+at one address -- `I2CM_CTRLA`, `I2CS_CTRLA`, `SPIM_CTRLA`, `SPIS_CTRLA`,
+`USART_INT_CTRLA`, `USART_EXT_CTRLA`. They are six names for the same four
+bytes, so reading any one of them counts as one register, not six.
+
+Naming a register is a deliberate act and stays allowed, on the same
+principle as writing: **once you name it, it is your call.** What is
+refused is the *sweep* -- a `/mem.dump` over a peripheral range reads
+every address in it precisely because it does not know what is there,
+and that is the one move guaranteed to hit something that minds.
+
+Every allowed peripheral read is logged, beside the write audit:
+
+```text
+# MEM.R 0xBF806000 len=4 regs=UMODE origin=cli
+# MEM.R 0xBF806014 len=4 regs=UDATA read_effect=UDATA origin=cli
+```
+
+Reads of ordinary memory are not logged -- they have no side effect, and
+logging them would bury the lines that matter. The `read_effect=` note
+marks a register whose file says reading it changes device state, which
+is what makes a later "what happened on Tuesday?" answerable.
+
+These gates need no per-register knowledge beyond what a device file
+already carries, which is deliberate: `access` is populated in every
+vendor SVD, but `readAction` -- the field that would say *which*
+registers are destructive to read -- is empty in all of them. That
+knowledge lives only in datasheet prose, so termapy refuses the sweep
+rather than pretending to a safety list it cannot have.
 
 ## The wire spec
 
@@ -194,7 +256,7 @@ speak it -- names, chunking, the audit line and the MCP gate all stay:
 | `row_bytes`  | 16                                | Most bytes one row carries                                              |
 | `write`      | none (read-only)                  | Template with `{addr}` and `{byte}` (one byte per command) or `{hex}` (a block of pairs) |
 | `ack`        | none                              | Regex a successful write reply must contain (`^ok\b`)                 |
-| `error`      | `(?i)^\s*(err|error|fault)\b`     | Regex flagging a failed command anywhere in the reply                   |
+| `error`      | `(?i)^\s*(err\|error\|fault)\b`   | Regex flagging a failed command anywhere in the reply                   |
 | `terminator` | none                              | Regex that ends a reply early (a prompt); otherwise the reply ends at the idle gap |
 | `settle_ms`  | 100                               | Idle gap that ends a reply                                              |
 

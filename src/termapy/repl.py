@@ -989,6 +989,17 @@ class ReplEngine:
         """
         symbols_session.reload_devices(self.ctx, self.config_path, self.global_root)
 
+    def library_layers(self) -> list[tuple[Path, str]]:
+        """The device libraries, global then per-config (closer wins).
+
+        Forwarded for the same reason as :meth:`reload_devices`: the
+        global root is the engine's, and a handler resolving it itself
+        would read the real ``termapy_cfg/`` under a test that overrode it.
+        """
+        from termapy.devices import library_layers
+
+        return library_layers(self.config_path, self.global_root)
+
     # -- External plugin resolution ------------------------------------------
 
     def resolve_plugins(self) -> None:

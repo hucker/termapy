@@ -476,9 +476,47 @@ class TestDumpModes:
         assert "invalid addr: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)" in result.error
 
     def test_type_token_in_the_len_slot(self, cli):
+        # Act -- the type token shifts out of the len slot, leaving len unset
         result = cli.repl.dispatch("mem.dump gTemp u16")
+
+        # Assert
         assert result.success, result.error
-        assert len(result.value) == 128, "len defaulted to 64 with the type shifted"
+        assert result.value == "1B00", "gTemp's own 2 bytes, the u16 having shifted"
+
+    def test_a_named_symbol_dumps_itself(self, cli):
+        """No length means the symbol's size, not 64 bytes of its neighbors."""
+        # Act
+        result = cli.repl.dispatch("mem.dump gTemp")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "1B00", "gTemp is a u16, so a bare dump is 2 bytes"
+
+    def test_a_bare_address_still_gets_the_flat_default(self, cli):
+        """Nothing names a size, so the explore-sized default stands."""
+        # Act
+        result = cli.repl.dispatch("mem.dump 0x1000")
+
+        # Assert
+        assert result.success, result.error
+        assert len(result.value) == 128, "64 bytes as hex pairs"
+
+    def test_an_offset_target_gets_the_flat_default(self, cli):
+        """gTemp+2 is not gTemp, so its size is not the thing to read."""
+        # Act
+        result = cli.repl.dispatch("mem.dump gTemp+2")
+
+        # Assert
+        assert result.success, result.error
+        assert len(result.value) == 128, "an offset means exploring, not naming"
+
+    def test_an_explicit_length_still_wins(self, cli):
+        # Act
+        result = cli.repl.dispatch("mem.dump gTemp 8")
+
+        # Assert
+        assert result.success, result.error
+        assert len(result.value) == 16, "what the user typed beats any default"
 
 
 class TestInfo:
@@ -842,3 +880,253 @@ class TestValueContract:
         result = cli.repl.dispatch(line)
         assert result.success, result.error
         assert isinstance(result.value, str), f"{line}: value must be a str for $(X) <- capture"
+
+
+# ── Peripheral read safety ──────────────────────────────────────────────────
+
+# Registers over the demo's SFR window (0xBF806000 + 0x20), so the reads the
+# gates allow actually reach the FakeSerial backend and return real bytes.
+# UDATA stands in for a FIFO port: the vendor SVDs leave readAction empty, so
+# read_effect only ever arrives from a file that says it, which is this one.
+_SFR_DEVICE = {
+    "device_version": 1,
+    "device": "demo-uart",
+    "registers": [
+        {"name": "UMODE", "addr": "0xBF806000", "size": 4},
+        {"name": "USTAT", "addr": "0xBF806010", "size": 4},
+        {"name": "UDATA", "addr": "0xBF806014", "size": 4, "read_effect": True},
+        {"name": "UTXREG", "addr": "0xBF806018", "size": 4, "access": "wo"},
+        # One register described twice, the way SVD models a peripheral's
+        # operating modes (a SERCOM CTRLA is six such definitions).  Both
+        # names are the same four bytes at 0xBF806004.
+        {"name": "UMODE_SPI_CTRL", "addr": "0xBF806004", "size": 4},
+        {"name": "UMODE_I2C_CTRL", "addr": "0xBF806004", "size": 4},
+    ],
+}
+
+
+@pytest.fixture
+def sfr_cli(cli, tmp_path):
+    """The rig with a device file loaded over the demo's SFR window."""
+    dev = tmp_path / "rig" / "dev"
+    dev.mkdir(exist_ok=True)
+    (dev / "demo-uart.device.json").write_text(json.dumps(_SFR_DEVICE), encoding="utf-8")
+    cli.repl.fire_lifecycle("on_config_load")
+    return cli
+
+
+class TestPeripheralReadGates:
+    """Reading silicon through a driver that assumes it is the only reader."""
+
+    def test_the_device_registers_are_loaded(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.read UMODE u32")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "32776", "U1MODE's seeded 0x8008, read by its device name"
+
+    def test_dump_across_registers_is_refused(self, sfr_cli):
+        # Act -- the sweep the whole gate exists for
+        result = sfr_cli.repl.dispatch("mem.dump 0xBF806000 0x20")
+
+        # Assert
+        assert not result.success, "a sweep over peripheral space must not run"
+        assert "Bulk read refused" in result.error
+        assert "covers 5 device registers" in result.error, "it says how much it would have touched"
+        assert "UMODE" in result.error, "and names them so the user can read one"
+
+    def test_dump_of_one_register_is_allowed(self, sfr_cli):
+        """Naming a register is deliberate; only the SWEEP is refused."""
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump UMODE 4")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "08800000", "the seeded word, little-endian"
+
+    def test_a_bare_dump_of_a_register_is_allowed(self, sfr_cli):
+        """The spelling a user reaches for first must not hit the gate.
+
+        A flat 64-byte default made this sweep UMODE's neighbors and get
+        refused -- the gate firing on the one act it is meant to permit.
+        """
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump UMODE")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "08800000", "the register's own 4 bytes"
+
+    @pytest.mark.parametrize("name", ["UMODE", "USTAT", "UDATA"])
+    def test_every_register_dumps_bare(self, sfr_cli, name):
+        """Including the last ones in the window, where a 64-byte read ran on."""
+        # Act
+        result = sfr_cli.repl.dispatch(f"mem.dump {name}")
+
+        # Assert
+        assert result.success, f"{name}: naming one register is always allowed"
+
+    def test_a_mode_aliased_register_is_one_register(self, sfr_cli):
+        """SVD describes a peripheral once per MODE; that is not a sweep.
+
+        Found on a real PIC32CM: a SERCOM's CTRLA is six definitions
+        (I2CM / I2CS / SPIM / SPIS / USART_INT / USART_EXT) at one address,
+        so counting ENTRIES refused a read of a single register on every
+        aliased peripheral -- 410 such addresses on that part.
+        """
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump UMODE_SPI_CTRL")
+
+        # Assert
+        assert result.success, result.error
+        assert len(result.value) == 8, "one 4-byte register, not a two-register span"
+
+    def test_the_other_alias_reads_the_same_bytes(self, sfr_cli):
+        # Act
+        spi = sfr_cli.repl.dispatch("mem.dump UMODE_SPI_CTRL")
+        i2c = sfr_cli.repl.dispatch("mem.dump UMODE_I2C_CTRL")
+
+        # Assert
+        assert spi.value == i2c.value, "two names, one register, same silicon"
+
+    def test_a_span_over_aliases_and_a_real_neighbor_still_refuses(self, sfr_cli):
+        """Collapsing aliases must not collapse genuinely distinct registers."""
+        # Act -- 0xBF806000 covers UMODE and both CTRL aliases
+        result = sfr_cli.repl.dispatch("mem.dump 0xBF806000 8")
+
+        # Assert
+        assert not result.success, "UMODE and the CTRL pair are two real registers"
+        assert "covers 2 device registers" in result.error, "aliases counted once, not three"
+
+    def test_the_refusal_counts_and_names_by_span(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump 0xBF806000 0x20")
+
+        # Assert
+        assert "covers 5 device registers" in result.error,             "four singles plus the aliased pair as one"
+        assert result.error.count("UMODE_") == 1, "one name per span, not both aliases"
+
+    def test_dump_of_ram_is_untouched(self, sfr_cli):
+        # Act -- the same size sweep, in RAM
+        result = sfr_cli.repl.dispatch("mem.dump 0x1000 0x20")
+
+        # Assert
+        assert result.success, "no device file covers RAM, so nothing is gated"
+
+    def test_a_refused_dump_reads_nothing(self, sfr_cli):
+        # Act
+        sfr_cli.repl.dispatch("mem.dump 0xBF806000 0x20")
+
+        # Assert
+        assert not any(text.startswith("MEM.R") for _, text in sfr_cli.audit), \
+            "the refusal is before the wire: no read happened to log"
+
+    def test_write_only_register_refuses_a_read(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.read UTXREG u32")
+
+        # Assert
+        assert not result.success, "reading a wo register returns bus noise, not the value"
+        assert "Read refused: UTXREG is access: wo" in result.error
+
+    @pytest.mark.parametrize("line", [
+        "mem.dump UTXREG 4",
+        "mem.str UTXREG",
+        "mem.or UTXREG 1",
+        "mem.not UTXREG",
+    ])
+    def test_every_reading_path_honors_write_only(self, sfr_cli, line):
+        """Including the read half of a read-modify-write."""
+        # Act
+        result = sfr_cli.repl.dispatch(line)
+
+        # Assert
+        assert not result.success, f"{line}: reads a wo register"
+        assert "access: wo" in result.error
+
+    def test_write_only_register_still_accepts_a_write(self, sfr_cli):
+        """The gate is on reading; writing a wo register is its whole purpose."""
+        # Act
+        result = sfr_cli.repl.dispatch("mem.write UTXREG 41000000")
+
+        # Assert
+        assert result.success, result.error
+
+    def test_str_refuses_to_scan_into_peripheral_space(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.str UMODE")
+
+        # Assert
+        assert not result.success, "a register is not a C string"
+        assert "String read refused" in result.error
+
+    def test_str_refuses_when_the_scan_could_reach_a_register(self, sfr_cli):
+        """The span it MAY walk, not where it happens to stop."""
+        # Act -- starts below the window; 256 bytes of scan reaches into it
+        result = sfr_cli.repl.dispatch("mem.str 0xBF805F80")
+
+        # Assert
+        assert not result.success, "where a NUL scan stops is decided by unread bytes"
+        assert "String read refused" in result.error
+
+    def test_str_in_ram_is_untouched(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.str sBanner")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "Bassomatic v77", "RAM strings still read"
+
+
+class TestPeripheralReadLog:
+    """The log line that turns an undetectable bug into a grep."""
+
+    def _reads(self, cli) -> list[str]:
+        return [text for prefix, text in cli.audit if text.startswith("MEM.R")]
+
+    def test_a_named_register_read_is_logged(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.read UMODE u32")
+
+        # Assert
+        assert result.success, result.error
+        logged = self._reads(sfr_cli)
+        assert len(logged) == 1, "one read, one line"
+        assert "regs=UMODE" in logged[0], "the line names what was touched"
+        assert "origin=cli" in logged[0], "and who touched it"
+
+    def test_a_read_effect_register_is_flagged_in_the_line(self, sfr_cli):
+        """Allowed -- naming a FIFO port is deliberate -- but never silent."""
+        # Act
+        result = sfr_cli.repl.dispatch("mem.read UDATA u32")
+
+        # Assert
+        assert result.success, "a deliberate read of a FIFO port proceeds"
+        assert "read_effect=UDATA" in self._reads(sfr_cli)[0], \
+            "the side effect is what a later grep needs to find"
+
+    def test_a_field_read_is_logged(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.read UMODE.15")
+
+        # Assert
+        assert result.success, result.error
+        assert "regs=UMODE" in self._reads(sfr_cli)[0], "the bit path logs like any other"
+
+    def test_an_allowed_dump_is_logged(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump UMODE 4")
+
+        # Assert
+        assert result.success, result.error
+        assert "len=4" in self._reads(sfr_cli)[0], "the line records how much was read"
+
+    def test_ram_reads_are_not_logged(self, sfr_cli):
+        """Only peripheral reads; logging plain memory would bury them."""
+        # Act
+        result = sfr_cli.repl.dispatch("mem.dump 0x1000 0x20")
+
+        # Assert
+        assert result.success, result.error
+        assert self._reads(sfr_cli) == [], "RAM has no side effect to record"

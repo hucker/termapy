@@ -33,6 +33,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any, Callable, Final, Literal
 
+from termapy.devices import distinct_spans, registers_in_range
 from termapy.memory import (
     DeviceMemoryError,
     Dialect,
@@ -65,6 +66,7 @@ from termapy.protocol.core import apply_format, extract_column_value, parse_hex
 from termapy.scripting import strip_ansi
 from termapy.symbols import Address, get_table, parse_address, parse_number, symbolic_name
 from termapy.symbols.format import hex_addr
+from termapy.symbols.session import get_devices
 from termapy.variables import launch_var
 
 if TYPE_CHECKING:
@@ -74,6 +76,8 @@ if TYPE_CHECKING:
 MEMORY_NS: Final[str] = "memory"
 _DEFAULT_DUMP_LEN: Final[int] = 64
 _DEFAULT_STR_MAX: Final[int] = 256
+# Registers named in a bulk-read refusal before it says "+N more".
+_BULK_NAMES_SHOWN: Final[int] = 4
 # Wall-clock cap for one block exchange.  A 64-byte row block is ~250
 # bytes on the wire: ~22 ms at 115200, ~260 ms at 9600.
 _EXCHANGE_TIMEOUT_MS: Final[int] = 1000
@@ -191,8 +195,20 @@ def _engine(ctx: PluginContext) -> Memory | CmdResult:
     return Memory(_exchange_factory(ctx, dialect), info, dialect)
 
 
-def _resolve(ctx: PluginContext, target: str, *, suffix_ok: bool = False) -> Address | CmdResult:
-    """The address a token names, or the failure to return."""
+def _resolve(
+    ctx: PluginContext, target: str, *, suffix_ok: bool = False, reads: bool = False,
+) -> Address | CmdResult:
+    """The address a token names, or the failure to return.
+
+    Args:
+        ctx: Plugin context.
+        target: The address token as typed.
+        suffix_ok: Allow a trailing ``.bit`` / ``.field`` (read and write).
+        reads: True when the command will READ the target -- including the
+            read half of a read-modify-write, which is why ``/mem.or`` and
+            ``/mem.not`` pass it.  Gates ``access: "wo"``, where a read
+            returns whatever the silicon leaves on the bus.
+    """
     try:
         parsed = parse_address(target, get_table(ctx))
     except ValueError as e:
@@ -200,6 +216,14 @@ def _resolve(ctx: PluginContext, target: str, *, suffix_ok: bool = False) -> Add
     if parsed.suffix and not suffix_ok:
         return CmdResult.fail(
             msg=f"Unsupported address suffix here: .{parsed.suffix} (use /mem.read or /mem.write)"
+        )
+    symbol = parsed.symbol
+    if reads and symbol is not None and symbol.access == "wo":
+        return CmdResult.fail(
+            msg=(
+                f"Read refused: {symbol.name} is access: wo (write-only); "
+                f"the value read back is not the value written"
+            )
         )
     return parsed
 
@@ -233,6 +257,116 @@ def _audit(ctx: PluginContext, verb: str, addr_hex: str, before: bytes, after: b
         "#",
         f"{verb} {addr_hex} before={before.hex().upper()} after={after.hex().upper()} "
         f"origin={_origin()}",
+    )
+
+
+def _default_dump_len(parsed: Address) -> int:
+    """How many bytes a ``/mem.dump`` with no length reads.
+
+    A named symbol dumps ITSELF: ``/mem.dump UMODE`` is 4 bytes because
+    that is how big UMODE is, the same sizing ``/mem.read`` already does.
+    The flat 64 stays for what has no size to consult -- a bare address,
+    a linker global (size 0), or a symbol read at an offset, where the
+    user is exploring rather than naming a thing.
+
+    Without this a named register dumps 64 bytes from its address and
+    sweeps its neighbors, which the bulk-read gate then refuses -- turning
+    the most natural spelling into an error.  It was wrong for RAM too:
+    ``/mem.dump gTemp`` meant a 2-byte variable plus 62 bytes of whatever
+    the linker happened to put after it.
+    """
+    symbol = parsed.symbol
+    if symbol is not None and symbol.size > 0 and parsed.offset == 0:
+        return symbol.size
+    return _DEFAULT_DUMP_LEN
+
+
+def _guard_bulk_read(
+    ctx: PluginContext, parsed: Address, length: int,
+) -> CmdResult | None:
+    """Refuse a multi-register read that reaches into peripheral space.
+
+    A dump is a SWEEP: it reads every address in a span because it does not
+    know what is there, which is exactly the wrong move over registers a
+    driver is also using.  Reading a FIFO port pops a byte the driver never
+    sees; reading a status register can clear the flags it was waiting on.
+    The damage then surfaces as a flaky DEVICE, days later, with nothing
+    pointing back at the terminal that caused it.
+
+    So the gate is the sweep, not the register: naming one register stays
+    allowed (that is a deliberate act, and it is logged), while a range
+    that covers two or more refuses and says which.  A single register the
+    span happens to land on is a typed read spelled as a dump -- allowed,
+    and logged like any other.
+
+    The count is DISTINCT SPANS, not register entries: a SERCOM's CTRLA is
+    six SVD definitions (I2CM / I2CS / SPIM / SPIS / USART_INT / USART_EXT)
+    at one address, and reading any of them touches the same four bytes.
+    Counting entries refused a single-register read on every aliased
+    peripheral -- the gate firing on the act it exists to permit.
+
+    Returns:
+        The refusal, or None when the read may proceed.
+    """
+    hit = registers_in_range(get_devices(ctx), parsed.addr, length)
+    spans = distinct_spans(hit)
+    if spans < 2:
+        return None
+    # One name per span, so the list counts the same way the verdict does.
+    shown: list[str] = []
+    seen: set[tuple[int, int]] = set()
+    for register in hit:
+        key = (register.symbol.addr, register.symbol.size)
+        if key not in seen:
+            seen.add(key)
+            shown.append(register.symbol.name)
+    names = ", ".join(shown[:_BULK_NAMES_SHOWN])
+    if spans > _BULK_NAMES_SHOWN:
+        names += f", ... (+{spans - _BULK_NAMES_SHOWN} more)"
+    # Runs BEFORE _engine on purpose, so a sweep is refused without first
+    # paying a MEM.INFO exchange on a device that may not answer one.  The
+    # cost is hex_addr's default padding instead of the device's address
+    # width -- zero-padding only, never a truncated address.
+    return CmdResult.fail(msg=(
+        f"Bulk read refused: {length} bytes at "
+        f"{hex_addr(parsed.addr)} covers {spans} device registers "
+        f"({names}); read one by name instead"
+    ))
+
+
+def _named(parsed: Address) -> str:
+    """The symbol name the user typed, or ``""`` for a literal address."""
+    return parsed.symbol.name if parsed.symbol is not None else ""
+
+
+def _log_peripheral_read(
+    ctx: PluginContext, parsed: Address, length: int, bits: int,
+) -> None:
+    """Record a read that touched device registers, so it is never invisible.
+
+    Not a gate -- the read has already been allowed.  This is what turns
+    "the board went strange last Tuesday" from an undetectable bug into a
+    grep of the session log, which is the whole reason reading peripheral
+    space is offered at all.  Reads of plain memory are not logged: they
+    have no side effect, and logging every one would bury these.
+
+    Every name is listed, mode aliases included, so a grep for any of them
+    finds the read; the name the USER typed leads the list, so the line
+    reads as the act they performed rather than as its alphabetical twin.
+    """
+    hit = registers_in_range(get_devices(ctx), parsed.addr, length)
+    if not hit:
+        return
+    ordered = sorted(
+        hit, key=lambda register: register.symbol.name != _named(parsed),
+    )
+    names = " ".join(register.symbol.name for register in ordered)
+    effects = [register.symbol.name for register in hit if register.symbol.read_effect]
+    note = f" read_effect={','.join(effects)}" if effects else ""
+    ctx.io.log(
+        "#",
+        f"MEM.R {hex_addr(parsed.addr, bits)} len={length} "
+        f"regs={names}{note} origin={_origin()}",
     )
 
 
@@ -293,25 +427,32 @@ def _word_change(old: bytes, new: bytes, width: int, byte_order: Literal["little
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     """Hexdump or word columns, rows annotated with the containing symbol."""
-    parsed = _resolve(ctx, str(ctx.arg("target")))
+    parsed = _resolve(ctx, str(ctx.arg("target")), reads=True)
     if isinstance(parsed, CmdResult):
         return parsed
     # Positional juggling: "/mem.dump gTemp u16" gives len the type token.
     raw_len = str(ctx.arg("len"))
     type_name = str(ctx.arg("type") or "")
     if not type_name and raw_len in TYPE_TOKENS:
-        raw_len, type_name = str(_DEFAULT_DUMP_LEN), raw_len
-    # The address grammar's number rule (decimal, 0x hex, Nh), not a bare
-    # int: on a memory tool "0x10" is how people say sixteen.
-    length = parse_number(raw_len)
-    if length is None:
-        return CmdResult.fail(msg=f"Invalid length: {raw_len}")
+        raw_len, type_name = "", raw_len
+    if not raw_len:
+        length = _default_dump_len(parsed)
+    else:
+        # The address grammar's number rule (decimal, 0x hex, Nh), not a bare
+        # int: on a memory tool "0x10" is how people say sixteen.
+        parsed_len = parse_number(raw_len)
+        if parsed_len is None:
+            return CmdResult.fail(msg=f"Invalid length: {raw_len}")
+        length = parsed_len
     if type_name and type_name not in TYPE_TOKENS:
         return CmdResult.fail(
             msg=f"Unknown type: {type_name} (types: {', '.join(sorted(TYPE_TOKENS))})"
         )
     show_addr = bool(ctx.arg("addr"))
     show_ascii = bool(ctx.arg("ascii"))
+    refusal = _guard_bulk_read(ctx, parsed, length)
+    if refusal is not None:
+        return refusal
     memory = _engine(ctx)
     if isinstance(memory, CmdResult):
         return memory
@@ -319,6 +460,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
         data = memory.read(parsed.addr, length)
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
+    _log_peripheral_read(ctx, parsed, length, memory.info.address_bits)
     info = memory.info
     bits = info.address_bits
     value = data.hex().upper()
@@ -372,7 +514,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
     """One typed value: scalar, char, named field, bit or slice."""
     raw_target = str(ctx.arg("target"))
     type_name = str(ctx.arg("type") or "")
-    parsed = _resolve(ctx, raw_target, suffix_ok=True)
+    parsed = _resolve(ctx, raw_target, suffix_ok=True, reads=True)
     if isinstance(parsed, CmdResult):
         return parsed
     if type_name and type_name not in TYPE_TOKENS:
@@ -394,6 +536,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
             data = memory.read(word_addr, target.width)
         except (ValueError, DeviceMemoryError) as e:
             return CmdResult.fail(msg=str(e))
+        _log_peripheral_read(ctx, parsed, target.width, bits)
         word = int.from_bytes(data, info.byte_order)
         field_value = extract_bits(word, target)
         label = target.field or parsed.suffix
@@ -426,6 +569,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
                     data = memory.read(symbol.addr, length)
                 except (ValueError, DeviceMemoryError) as e:
                     return CmdResult.fail(msg=str(e))
+                _log_peripheral_read(ctx, parsed, length, bits)
                 headers, values = apply_format(data, columns)
                 for header, rendered in zip(headers, values):
                     ctx.io.output(f"  {header:<8} = {rendered}")
@@ -451,6 +595,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         data = memory.read(parsed.addr, size)
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
+    _log_peripheral_read(ctx, parsed, size, bits)
     if type_name == "char":
         byte = data[0]
         ctx.io.result(f"{raw_target} = {render_char(byte)}")
@@ -563,7 +708,7 @@ def _handler_mask(ctx: PluginContext, args: str, *, op: str) -> CmdResult:
     mask = parse_number(mask_text)
     if mask is None:
         return CmdResult.fail(msg=f"Invalid mask: {mask_text}")
-    parsed = _resolve(ctx, raw_target)
+    parsed = _resolve(ctx, raw_target, reads=True)
     if isinstance(parsed, CmdResult):
         return parsed
     memory = _engine(ctx)
@@ -639,7 +784,7 @@ def _handler_not(ctx: PluginContext, args: str) -> CmdResult:
     """Invert one word.  NOT depends on the old value, so like xor it is
     always a read + write-back, never MEM.M."""
     raw_target = str(ctx.arg("target"))
-    parsed = _resolve(ctx, raw_target)
+    parsed = _resolve(ctx, raw_target, reads=True)
     if isinstance(parsed, CmdResult):
         return parsed
     memory = _engine(ctx)
@@ -684,9 +829,24 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
     cap = parse_number(raw_max)
     if cap is None or cap < 1:
         return CmdResult.fail(msg=f"Invalid length: {raw_max}")
-    parsed = _resolve(ctx, raw_target)
+    parsed = _resolve(ctx, raw_target, reads=True)
     if isinstance(parsed, CmdResult):
         return parsed
+    # Stricter than the dump gate, and on the SPAN the scan may reach
+    # rather than what it will actually touch: a string walks forward
+    # until it finds a NUL, so where it stops is decided by bytes it has
+    # not read yet.  Nothing in peripheral space is a C string, so one
+    # register on that path is already a mistake -- no 2-register floor.
+    hit = registers_in_range(get_devices(ctx), parsed.addr, cap)
+    if hit:
+        # Distinct spans, as in _guard_bulk_read: the verdict does not
+        # change (any hit refuses), but the COUNT must not report a
+        # mode-aliased register six times.
+        return CmdResult.fail(msg=(
+            f"String read refused: the scan from {hex_addr(parsed.addr)} "
+            f"can reach {distinct_spans(hit)} device register(s) "
+            f"(first {hit[0].symbol.name}); registers are not strings"
+        ))
     memory = _engine(ctx)
     if isinstance(memory, CmdResult):
         return memory
@@ -832,8 +992,8 @@ COMMAND = Command(
             params=[
                 ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
                 ParamSpec(
-                    "len", "str", positional=True, default=str(_DEFAULT_DUMP_LEN),
-                    help="bytes to read: decimal, 0x hex, or Nh",
+                    "len", "str", positional=True, default="",
+                    help="bytes to read: decimal, 0x hex, or Nh (default: the symbol's size, else 64)",
                 ),
                 ParamSpec(
                     "type", "str", positional=True, default="",
@@ -842,7 +1002,7 @@ COMMAND = Command(
                 ParamSpec("addr", "bool", default=True, help="address column"),
                 ParamSpec("ascii", "bool", default=True, help="ASCII column"),
             ],
-            help="Hexdump or word columns at an address or symbol (default 64 bytes).",
+            help="Hexdump or word columns at an address or symbol (default: the symbol's size, else 64).",
             handler=_handler_dump,
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",

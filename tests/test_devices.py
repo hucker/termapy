@@ -15,10 +15,17 @@ import pytest
 from termapy.devices import (
     Field,
     derive_type,
+    distinct_spans,
+    library_layers,
+    library_path,
+    load_device,
     load_devices_from_dir,
     merge_into,
     parse_device,
+    registers_in_range,
     resolve_devices,
+    scan_libraries,
+    scan_library,
 )
 from termapy.protocol.core import parse_format_spec
 from termapy.symbols import Symbol
@@ -364,3 +371,580 @@ class TestMerge:
         # Assert
         assert [symbol.addr for symbol in merged] == [0x2000], "the user's own symbol stays"
         assert shadowed == ["CTRL"], "and the shadowed register is named"
+
+
+# ── Peripheral space ────────────────────────────────────────────────────────
+
+
+class TestRegistersInRange:
+    """The one address-containment question the read gates ask."""
+
+    @staticmethod
+    def _three() -> list:
+        """Three 4-byte registers at 0x40000000, 0x40000004, 0x40000010."""
+        return [parse_device(_doc(registers=[
+            {"name": "A", "addr": "0x40000000", "size": 4},
+            {"name": "B", "addr": "0x40000004", "size": 4},
+            {"name": "C", "addr": "0x40000010", "size": 4},
+        ]))]
+
+    def test_ram_address_touches_nothing(self):
+        # Act
+        hit = registers_in_range(self._three(), 0x20000000, 1024)
+
+        # Assert
+        assert hit == [], "RAM is not peripheral space, however big the read"
+
+    def test_a_span_returns_every_register_it_covers(self):
+        # Act
+        hit = registers_in_range(self._three(), 0x40000000, 0x14)
+
+        # Assert
+        actual = [register.symbol.name for register in hit]
+        assert actual == ["A", "B", "C"], "all three lie inside the span"
+
+    def test_partial_overlap_counts(self):
+        # Arrange: one byte of B, from inside A.
+        # Act
+        hit = registers_in_range(self._three(), 0x40000003, 2)
+
+        # Assert
+        actual = [register.symbol.name for register in hit]
+        assert actual == ["A", "B"], "touching one byte of a register is touching it"
+
+    def test_a_gap_between_registers_is_not_a_register(self):
+        # Act
+        hit = registers_in_range(self._three(), 0x40000008, 8)
+
+        # Assert
+        assert hit == [], "the hole between B and C belongs to no register"
+
+    def test_end_is_exclusive(self):
+        # Act
+        hit = registers_in_range(self._three(), 0x40000000, 4)
+
+        # Assert
+        actual = [register.symbol.name for register in hit]
+        assert actual == ["A"], "a read ending where B starts has not touched B"
+
+    @pytest.mark.parametrize("length", [0, -1])
+    def test_an_empty_read_touches_nothing(self, length):
+        # Act
+        hit = registers_in_range(self._three(), 0x40000000, length)
+
+        # Assert
+        assert hit == [], "a zero-length read reads no byte, so it hits no register"
+
+    def test_no_devices_loaded_is_the_common_case(self):
+        # Act
+        hit = registers_in_range([], 0x40000000, 0x1000)
+
+        # Assert
+        assert hit == [], "with no device file, nothing is known to be peripheral"
+
+    def test_results_are_sorted_across_devices(self):
+        # Arrange: a second part placed BELOW the first, loaded after it.
+        second = parse_device(_doc(
+            device="other",
+            registers=[{"name": "Z", "addr": "0x3FFFFFFC", "size": 4}],
+        ))
+        devices = [*self._three(), second]
+
+        # Act
+        hit = registers_in_range(devices, 0x3FFFFFFC, 0x10)
+
+        # Assert
+        actual = [register.symbol.name for register in hit]
+        assert actual == ["Z", "A", "B"], "address order, not load order"
+
+
+class TestDistinctSpans:
+    """SVD describes one register once per operating MODE; that is still one."""
+
+    @staticmethod
+    def _sercom() -> list:
+        """CTRLA six ways at one address, then a genuinely separate register.
+
+        The shape a real PIC32CM / SAM SVD emits: a SERCOM's modes each get
+        a full register definition at the same offset.
+        """
+        return parse_device(_doc(registers=[
+            {"name": f"SERCOM0_{mode}_CTRLA", "addr": "0x42000400", "size": 4}
+            for mode in ("I2CM", "I2CS", "SPIM", "SPIS", "USART_INT", "USART_EXT")
+        ] + [{"name": "SERCOM0_I2CM_CTRLB", "addr": "0x42000404", "size": 4}])).registers()
+
+    def test_mode_aliases_are_one_span(self):
+        # Arrange -- only the six CTRLA definitions
+        registers = [r for r in self._sercom() if r.symbol.addr == 0x42000400]
+
+        # Act
+        actual = distinct_spans(registers)
+
+        # Assert
+        assert len(registers) == 6, "six definitions went in"
+        assert actual == 1, "one address, one size: six names for the same four bytes"
+
+    def test_separate_registers_still_count(self):
+        # Act
+        actual = distinct_spans(self._sercom())
+
+        # Assert
+        assert actual == 2, "CTRLA and CTRLB are genuinely two registers"
+
+    def test_no_registers_is_zero(self):
+        assert distinct_spans([]) == 0, "nothing covers nothing"
+
+    def test_same_address_different_size_is_two_spans(self):
+        """A 4-byte register and a 1-byte one at one address are not aliases."""
+        # Arrange
+        registers = parse_device(_doc(registers=[
+            {"name": "WHOLE", "addr": "0x40000000", "size": 4},
+            {"name": "LOW_BYTE", "addr": "0x40000000", "size": 1},
+        ])).registers()
+
+        # Act
+        actual = distinct_spans(registers)
+
+        # Assert
+        assert actual == 2, "different extents are different reads"
+
+
+class TestScanLibrary:
+    """The library is a POOL: listed, never loaded, and checked for honesty."""
+
+    @staticmethod
+    def _tree(root):
+        """A two-vendor library, nested the way the hierarchy intends."""
+        _write(root / "microchip" / "mcu" / "pic32cm", "pic32part", _doc(
+            device="pic32part", vendor="microchip", description="A part"))
+        _write(root / "lattice" / "fpga", "icepart", _doc(
+            device="icepart", vendor="lattice"))
+        return root
+
+    def test_missing_root_is_an_empty_library(self, tmp_path):
+        # Act
+        parts, errors = scan_library(tmp_path / "nothing-here")
+
+        # Assert
+        assert parts == [], "no folder, no parts"
+        assert errors == [], "and a missing library is not an error"
+
+    def test_walks_the_tree_and_records_the_category(self, tmp_path):
+        # Arrange
+        root = self._tree(tmp_path / "lib")
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert errors == [], "both files are well-formed"
+        actual = [(part.device, part.category) for part in parts]
+        assert actual == [
+            ("icepart", "lattice/fpga"),
+            ("pic32part", "microchip/mcu/pic32cm"),
+        ], "nested folders become the category, sorted by it"
+
+    def test_a_root_level_file_has_no_category(self, tmp_path):
+        # Arrange
+        root = tmp_path / "lib"
+        _write(root, "loose", _doc(device="loose"))
+
+        # Act
+        parts, _ = scan_library(root)
+
+        # Assert
+        assert parts[0].category == "", "a file at the root sits in no category"
+
+    def test_the_filename_must_match_the_identity(self, tmp_path):
+        """A file that says two different things is the wrong-part hazard."""
+        # Arrange
+        root = tmp_path / "lib"
+        _write(root, "filename", _doc(device="different"))
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert parts == [], "a self-contradicting file is not offered"
+        assert "must agree" in errors[0], "and the disagreement is named"
+
+    def test_registers_are_counted_not_parsed(self, tmp_path):
+        """A thousand parts must list without a thousand validations."""
+        # Arrange -- an address no parse would accept, in a listable file
+        root = tmp_path / "lib"
+        _write(root, "sloppy", {
+            "device_version": 1, "device": "sloppy",
+            "registers": [{"name": "R", "addr": "not-an-address", "size": 4}],
+        })
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert errors == [], "listing does not validate registers"
+        assert parts[0].registers == 1, "the count is the list length"
+
+    def test_a_duplicate_device_is_reported_once(self, tmp_path):
+        # Arrange -- same identity, two categories
+        root = tmp_path / "lib"
+        _write(root / "a", "twin", _doc(device="twin"))
+        _write(root / "b", "twin", _doc(device="twin"))
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert len(parts) == 1, "one identity, one entry"
+        assert "already defined by" in errors[0], "the loser is named"
+
+    def test_a_broken_file_does_not_hide_the_good_ones(self, tmp_path):
+        # Arrange
+        root = self._tree(tmp_path / "lib")
+        (root / "junk.device.json").write_text("{not json", encoding="utf-8")
+
+        # Act
+        parts, errors = scan_library(root)
+
+        # Assert
+        assert len(parts) == 2, "the well-formed parts still list"
+        assert len(errors) == 1, "and the broken one is reported, not swallowed"
+
+    def test_metadata_rides_along(self, tmp_path):
+        # Arrange
+        root = self._tree(tmp_path / "lib")
+
+        # Act
+        parts, _ = scan_library(root)
+        part = next(p for p in parts if p.device == "pic32part")
+
+        # Assert
+        assert part.vendor == "microchip", "vendor for the listing"
+        assert part.description == "A part", "and the one-line description"
+
+
+class TestReferenceFiles:
+    """A dev/ file may POINT at a library part instead of copying it."""
+
+    @staticmethod
+    def _library(root):
+        """A library holding one relocatable part."""
+        _write(root / "lattice", "icepart", _doc(
+            device="icepart", relocatable=True,
+            instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
+            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}]))
+        return root
+
+    @staticmethod
+    def _ref(folder, name, **extra):
+        folder.mkdir(parents=True, exist_ok=True)
+        doc = {"device_version": 1, "ref": "icepart"} | extra
+        file = folder / f"{name}.device.json"
+        file.write_text(json.dumps(doc), encoding="utf-8")
+        return file
+
+    def test_a_reference_loads_the_library_part(self, tmp_path):
+        # Arrange -- a bare reference needs a FIXED-address part; a
+        # relocatable one must state its placement (TestRelocatable...).
+        library = tmp_path / "lib"
+        _write(library / "lattice", "icepart", _doc(
+            device="icepart",
+            registers=[{"name": "STATUS", "addr": "0x40000000", "size": 4}]))
+        ref = self._ref(tmp_path / "dev", "board")
+
+        # Act
+        device = load_device(ref, "cfg", library)
+
+        # Assert
+        assert device.name == "icepart", "the identity comes from the library part"
+        assert len(device) == 1, "and so do its registers"
+
+    def test_the_board_placement_wins(self, tmp_path):
+        """The library's instances are at best an example; the board is real."""
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        ref = self._ref(tmp_path / "dev", "board",
+                        instances=[{"name": "FPGA0", "base": "0x70000000"},
+                                   {"name": "FPGA1", "base": "0x70001000"}])
+
+        # Act
+        device = load_device(ref, "cfg", library)
+
+        # Assert
+        actual = [(r.symbol.name, r.symbol.addr) for r in device.registers()]
+        assert actual == [
+            ("FPGA0_STATUS", 0x70000000),
+            ("FPGA1_STATUS", 0x70001000),
+        ], "both copies placed where THIS board puts them"
+
+    def test_the_library_file_is_not_modified(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        part = library / "lattice" / "icepart.device.json"
+        before = part.read_text(encoding="utf-8")
+        ref = self._ref(tmp_path / "dev", "board",
+                        instances=[{"name": "X", "base": "0x70000000"}])
+
+        # Act
+        load_device(ref, "cfg", library)
+
+        # Assert
+        assert part.read_text(encoding="utf-8") == before, "the library stays pristine"
+
+    def test_a_reference_may_not_redefine_registers(self, tmp_path):
+        """That would be a fork, and not-being-a-fork is the whole value."""
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        ref = self._ref(tmp_path / "dev", "board",
+                        registers=[{"name": "SNEAKY", "addr": "0x0", "size": 4}])
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="only instances"):
+            load_device(ref, "cfg", library)
+
+    def test_an_unknown_part_is_named(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": "absent"}), encoding="utf-8")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="no library part named 'absent'"):
+            load_device(file, "cfg", library)
+
+    def test_no_library_configured_is_an_error_not_a_silent_skip(self, tmp_path):
+        # Arrange
+        ref = self._ref(tmp_path / "dev", "board")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="no library configured"):
+            load_device(ref, "cfg", None)
+
+    def test_an_empty_ref_is_refused(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": ""}), encoding="utf-8")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="non-empty device name"):
+            load_device(file, "cfg", library)
+
+    def test_a_plain_device_file_still_loads(self, tmp_path):
+        """References are an addition; a self-contained file is untouched."""
+        # Arrange
+        folder = tmp_path / "dev"
+        _write(folder, "plain", _doc(device="plain"))
+
+        # Act
+        device = load_device(folder / "plain.device.json", "cfg", None)
+
+        # Assert
+        assert device.name == "plain", "no library needed, none consulted"
+
+    def test_a_broken_reference_does_not_stop_the_folder(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        _write(folder, "plain", _doc(device="plain"))
+        (folder / "bad.device.json").write_text(
+            json.dumps({"device_version": 1, "ref": "absent"}), encoding="utf-8")
+
+        # Act
+        load = load_devices_from_dir(folder, "cfg", library)
+
+        # Assert
+        assert [d.name for d in load.devices] == ["plain"], "the good file loaded"
+        assert len(load.errors) == 1, "and the bad reference was reported"
+
+
+class TestRelocatableReferenceNeedsPlacement:
+    """A library part's instances are an EXAMPLE, never this board's addresses."""
+
+    @staticmethod
+    def _library(root):
+        _write(root / "lattice", "icepart", _doc(
+            device="icepart", relocatable=True,
+            instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
+            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}]))
+        return root
+
+    def test_a_reference_does_not_inherit_the_library_placement(self, tmp_path):
+        """Inheriting would load every register at a plausible WRONG address."""
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": "icepart"}),
+                        encoding="utf-8")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="needs at least one"):
+            load_device(file, "cfg", library)
+
+    def test_its_own_placement_is_used(self, tmp_path):
+        # Arrange
+        library = self._library(tmp_path / "lib")
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({
+            "device_version": 1, "ref": "icepart",
+            "instances": [{"name": "REAL", "base": "0x70000000"}],
+        }), encoding="utf-8")
+
+        # Act
+        device = load_device(file, "cfg", library)
+
+        # Assert
+        register = device.registers()[0]
+        assert register.symbol.name == "REAL_STATUS", "this board's instance name"
+        assert register.symbol.addr == 0x70000000, "and this board's base"
+
+    def test_a_fixed_address_part_needs_no_placement(self, tmp_path):
+        """Only a relocatable part has addresses the board must supply."""
+        # Arrange
+        library = tmp_path / "lib"
+        _write(library / "v", "fixedpart", _doc(device="fixedpart"))
+        folder = tmp_path / "dev"
+        folder.mkdir()
+        file = folder / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": "fixedpart"}),
+                        encoding="utf-8")
+
+        # Act
+        device = load_device(file, "cfg", library)
+
+        # Assert
+        assert len(device) == 1, "absolute addresses need nothing from the board"
+
+
+class TestLibraryPath:
+    """Where a converted part lands in the library."""
+
+    def test_the_vendor_becomes_a_folder(self, tmp_path):
+        # Act
+        path = library_path(tmp_path, {"device": "part", "vendor": "Microchip Technology"})
+
+        # Assert
+        actual = path.relative_to(tmp_path).as_posix()
+        assert actual == "microchip-technology/part.device.json", "prose vendor slugged"
+
+    def test_an_explicit_category_nests_under_the_vendor(self, tmp_path):
+        # Act
+        path = library_path(tmp_path, {"device": "part", "vendor": "lattice"}, "fpga/ice40")
+
+        # Assert
+        actual = path.relative_to(tmp_path).as_posix()
+        assert actual == "lattice/fpga/ice40/part.device.json", "vendor, then category"
+
+    def test_no_vendor_means_no_vendor_level(self, tmp_path):
+        """Only the levels that are KNOWN are created; nothing is guessed."""
+        # Act
+        path = library_path(tmp_path, {"device": "part", "vendor": ""})
+
+        # Assert
+        actual = path.relative_to(tmp_path).as_posix()
+        assert actual == "part.device.json", "an unknown vendor is not invented"
+
+    @pytest.mark.parametrize("vendor", ["...", "   ", "!!!"])
+    def test_a_vendor_that_slugs_to_nothing_is_dropped(self, tmp_path, vendor):
+        # Act
+        path = library_path(tmp_path, {"device": "part", "vendor": vendor})
+
+        # Assert
+        assert path.parent == tmp_path, "never a folder named '-'"
+
+
+class TestLibraryLayers:
+    """Two libraries, the config's own over the shared one -- like plugin/ and dev/."""
+
+    @staticmethod
+    def _twins(tmp_path):
+        """The same identity in both layers, with a different register each."""
+        _write(tmp_path / "lib" / "v", "twin", _doc(
+            device="twin", registers=[{"name": "SHARED", "addr": "0x1000", "size": 4}]))
+        _write(tmp_path / "rig" / "lib" / "v", "twin", _doc(
+            device="twin", registers=[{"name": "LOCAL", "addr": "0x2000", "size": 4}]))
+        return [(tmp_path / "lib", "global"), (tmp_path / "rig" / "lib", "rig")]
+
+    @staticmethod
+    def _ref(tmp_path, part):
+        dev = tmp_path / "rig" / "dev"
+        dev.mkdir(parents=True, exist_ok=True)
+        file = dev / "board.device.json"
+        file.write_text(json.dumps({"device_version": 1, "ref": part}), encoding="utf-8")
+        return file
+
+    def test_global_then_per_config_lowest_first(self, tmp_path):
+        # Arrange
+        cfg = tmp_path / "rig" / "rig.cfg"
+        cfg.parent.mkdir()
+        cfg.write_text("{}", encoding="utf-8")
+
+        # Act
+        layers = library_layers(str(cfg), tmp_path)
+
+        # Assert
+        assert [label for _, label in layers] == ["global", "rig"], "shared first, board last"
+        assert layers[0][0] == tmp_path / "lib", "the cfg root's lib/"
+        assert layers[1][0] == cfg.parent / "lib", "the config's own lib/"
+
+    def test_no_config_is_the_global_layer_alone(self, tmp_path):
+        # Act
+        layers = library_layers("", tmp_path)
+
+        # Assert
+        assert [label for _, label in layers] == ["global"], "nothing to be per-config about"
+
+    def test_the_per_config_part_shadows_the_global_one(self, tmp_path):
+        # Arrange
+        layers = self._twins(tmp_path)
+
+        # Act
+        parts, errors = scan_libraries(layers)
+
+        # Assert
+        assert errors == [], "both files are well-formed"
+        assert [(p.device, p.layer) for p in parts] == [("twin", "rig")], (
+            "one entry, the closer one"
+        )
+
+    def test_a_ref_resolves_through_the_layers_closest_first(self, tmp_path):
+        # Arrange
+        layers = self._twins(tmp_path)
+        ref = self._ref(tmp_path, "twin")
+
+        # Act
+        device = load_device(ref, "rig", layers)
+
+        # Assert
+        assert device.registers()[0].symbol.name == "LOCAL", "the board's own copy wins"
+
+    def test_a_global_only_part_still_resolves(self, tmp_path):
+        # Arrange -- no per-config lib/ at all
+        _write(tmp_path / "lib" / "v", "shared", _doc(device="shared"))
+        layers = [(tmp_path / "lib", "global"), (tmp_path / "rig" / "lib", "rig")]
+        ref = self._ref(tmp_path, "shared")
+
+        # Act
+        device = load_device(ref, "rig", layers)
+
+        # Assert
+        assert device.name == "shared", "a missing per-config lib/ falls through"
+
+    def test_layer_errors_are_prefixed(self, tmp_path):
+        # Arrange
+        root = tmp_path / "rig" / "lib"
+        root.mkdir(parents=True)
+        (root / "junk.device.json").write_text("{nope", encoding="utf-8")
+
+        # Act
+        _, errors = scan_libraries([(tmp_path / "lib", "global"), (root, "rig")])
+
+        # Assert
+        assert errors and errors[0].startswith("rig: "), "which library, so the user can find it"

@@ -83,6 +83,30 @@ until a config says where it sits.  ``TERMAPY_TRUSTED_PLUGINS_ONLY`` does
 not drop these: that switch stops arbitrary Python, and a device file is
 inert data validated on load.
 
+**A reference file** points at a part in a library instead of copying it.
+There are two libraries, layered exactly as ``dev/`` and ``plugin/`` are:
+the config's own ``<cfg>/lib/`` over the shared ``<cfg_dir>/lib/``, the
+per-config one winning a name clash (:func:`library_layers`).  Both are
+user-populated ``vendor/type/family`` trees.  The per-config layer is what
+makes a config folder self-contained: check it in and its references
+resolve on any machine, with no dependency on that machine's shared
+library::
+
+    {"device_version": 1, "ref": "lattice-ice40up5k",
+     "instances": [{"name": "FPGA0", "base": "0x70000000"}]}
+
+The library part keeps the registers and stays pristine; the reference
+supplies only ``instances`` -- what is true of THIS board.  That split is
+the point: a 2517-register MCU exists once however many configs use it,
+and re-importing a newer conversion of a part cannot lose a board's
+placement, because the placement was never in the part's file.  A
+reference may override ``instances`` (the board outranks the library's
+example) but nothing else; one that could redefine registers would be a
+fork, and not being a fork is the whole value.  ``dev/`` is still the
+bill of materials either way -- whether a file carries registers or a
+``ref`` is that file's business, and folder presence remains the
+declaration.
+
 Two files in one folder naming the same ``device`` is an error; a register
 name shared by two loaded devices is an error that skips the later one and
 says which -- both are the "give it an instance name" mistake surfacing.
@@ -94,6 +118,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Final
@@ -109,6 +134,11 @@ DEVICE_SECTION: Final[str] = "sfr"
 SUFFIX: Final[str] = ".device.json"
 
 ACCESS_MODES: Final[tuple[str, ...]] = ("rw", "ro", "wo")
+
+# What a loader may be handed to resolve a ``ref``: one library root (a
+# test convenience), the layered ``(folder, label)`` list from
+# :func:`library_layers`, or None for "no library".
+LibrarySource = Path | Sequence[tuple[Path, str]] | None
 
 # A register, field or instance name must be typeable at the prompt as a
 # bare token and must not contain ".", which the address grammar reserves
@@ -472,16 +502,97 @@ def _expand(
 # ── Loading ────────────────────────────────────────────────────────────────
 
 
-def load_device(path: Path, layer: str = "") -> Device:
-    """Read and validate one device file.
+def load_device(path: Path, layer: str = "", library: LibrarySource = None) -> Device:
+    """Read and validate one device file, resolving a ``ref`` if it has one.
+
+    Args:
+        path: The file in a ``dev/`` folder.
+        layer: Layer label recorded on the Device.
+        library: Where a ``ref`` resolves (a root, or the layers from
+            :func:`library_layers`); None = no library, so a reference
+            file cannot load.
 
     Raises:
         OSError: The file could not be read.
-        ValueError: Invalid JSON or an invalid shape.
+        ValueError: Invalid JSON, an invalid shape, or an unresolvable ref.
     """
-    return parse_device(
-        json.loads(path.read_text(encoding="utf-8")), path=path, layer=layer,
-    )
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and "ref" in data:
+        data = resolve_ref(data, library)
+    return parse_device(data, path=path, layer=layer)
+
+
+def resolve_ref(data: dict[str, Any], library: LibrarySource) -> dict[str, Any]:
+    """A reference document -> the library part's document, placed here.
+
+    A **reference file** is how a board says "this part, at these
+    addresses" without holding a copy of the part::
+
+        {"device_version": 1, "ref": "lattice-ice40up5k",
+         "instances": [{"name": "FPGA0", "base": "0x60000000"}]}
+
+    The library file keeps the registers and stays pristine; the reference
+    supplies only what is true of THIS board.  That split is why a
+    2517-register MCU exists once however many configs use it, and why
+    re-importing a newer conversion of a part cannot lose a board's
+    placement -- the placement was never in the part's file.
+
+    ``instances`` is the point of the mechanism, so a reference may give
+    it even when the library part already does: the board wins, because
+    the library's copy is at best an example.  Other keys are NOT
+    overridable; a reference that could redefine registers would be a
+    fork, and the whole value here is that it is not one.
+
+    **A relocatable part REQUIRES instances in the reference**, and does
+    not inherit the library's.  A library file's placement is an example
+    written by whoever prepared the part; this board's addresses are known
+    only here.  Inheriting them would load every register at a plausible
+    but wrong address -- the same silent-wrong-address hazard that makes a
+    bare relocatable file an error, one level up.
+
+    Args:
+        data: The reference document (has a ``ref`` key).
+        library: One root, or the layered ``(folder, label)`` list from
+            :func:`library_layers` (the closer layer wins a name clash);
+            None means no library is configured.
+
+    Returns:
+        The resolved document, ready for :func:`parse_device`.
+
+    Raises:
+        ValueError: The ref is malformed, or names a part that is absent.
+    """
+    ref = data.get("ref")
+    if not isinstance(ref, str) or not ref:
+        raise ValueError("ref: expected a non-empty device name")
+    extra = set(data) - {"ref", "instances", "device_version"}
+    if extra:
+        raise ValueError(
+            f"ref: a reference gives only instances, not "
+            f"{', '.join(sorted(extra))} (edit the library part instead)"
+        )
+    if library is None:
+        raise ValueError(f"ref: no library configured, cannot resolve {ref!r}")
+    layers = [(library, "")] if isinstance(library, Path) else list(library)
+    parts, _ = scan_libraries(layers)
+    match = next((part for part in parts if part.device == ref), None)
+    if match is None:
+        raise ValueError(f"ref: no library part named {ref!r}")
+    try:
+        target = json.loads(match.path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(f"ref: {ref}: {e}") from e
+    if not isinstance(target, dict):
+        raise ValueError(f"ref: {ref}: expected an object")
+    resolved = dict(target)
+    if "instances" in data:
+        resolved["instances"] = data["instances"]
+    elif resolved.get("relocatable"):
+        # Never inherit: see the docstring.  Dropping the library's example
+        # makes parse_device raise its own "needs instances" error, which is
+        # the message that already explains the rule.
+        resolved.pop("instances", None)
+    return resolved
 
 
 @dataclass
@@ -497,7 +608,9 @@ class DeviceLoad:
     errors: list[str] = field(default_factory=list)
 
 
-def load_devices_from_dir(folder: Path, layer: str = "") -> DeviceLoad:
+def load_devices_from_dir(
+    folder: Path, layer: str = "", library: LibrarySource = None,
+) -> DeviceLoad:
     """Load every ``*.device.json`` in one folder.
 
     A broken file is recorded and skipped, never fatal: one bad device
@@ -507,6 +620,7 @@ def load_devices_from_dir(folder: Path, layer: str = "") -> DeviceLoad:
     Args:
         folder: Directory to scan; a missing one yields an empty result.
         layer: Layer label recorded on each Device.
+        library: Where a ``ref`` resolves, for files that are references.
 
     Returns:
         The devices and the per-file errors.
@@ -517,7 +631,7 @@ def load_devices_from_dir(folder: Path, layer: str = "") -> DeviceLoad:
     seen: dict[str, str] = {}
     for file in sorted(folder.glob(f"*{SUFFIX}")):
         try:
-            device = load_device(file, layer)
+            device = load_device(file, layer, library)
         except (OSError, ValueError) as e:
             result.errors.append(f"{file.name}: {e}")
             continue
@@ -551,10 +665,11 @@ def resolve_devices(
     """
     if not config_path:
         return [], []
+    library = library_layers(config_path, global_root)
     by_name: dict[str, Device] = {}
     errors: list[str] = []
     for folder, layer in _layers(config_path, global_root):
-        load = load_devices_from_dir(folder, layer)
+        load = load_devices_from_dir(folder, layer, library)
         errors.extend(load.errors)
         for device in load.devices:
             by_name[device.name] = device
@@ -644,3 +759,287 @@ def merge_into(
             merged.append(register.symbol)
             taken.add(register.symbol.name)
     return merged, shadowed
+
+
+# ── Peripheral space ───────────────────────────────────────────────────────
+
+
+def registers_in_range(
+    devices: list[Device], addr: int, length: int,
+) -> list[Register]:
+    """Every loaded register whose bytes fall in ``[addr, addr + length)``.
+
+    This is the whole of termapy's knowledge of where peripheral space IS:
+    an address is peripheral because a loaded device file says a register
+    lives there, never because of a range table or a guess about the part.
+    Nothing here needs to know what any individual register DOES, which is
+    what makes it usable -- no vendor ships the per-register read-safety
+    data that a smarter check would need (``readAction`` is empty in every
+    SVD checked), so a bulk reader gets address containment or nothing.
+
+    A linear scan: a big part is a few thousand registers, and every caller
+    is about to pay a serial round trip that costs orders of magnitude more.
+
+    Args:
+        devices: The loaded devices (``symbols.session.get_devices``).
+        addr: First byte of the range.
+        length: Byte count; 0 or less matches nothing.
+
+    Returns:
+        The overlapping registers, sorted by address, then name.
+    """
+    if length <= 0:
+        return []
+    end = addr + length
+    hits = [
+        register
+        for device in devices
+        for register in device.registers()
+        if register.symbol.addr < end and addr < register.symbol.end
+    ]
+    return sorted(hits, key=lambda register: (register.symbol.addr, register.symbol.name))
+
+
+@dataclass(frozen=True)
+class LibraryPart:
+    """One part in the library: what it is, and where its file sits.
+
+    A listing entry, NOT a loaded device -- the registers are not parsed,
+    because a library of a thousand parts must be listable without paying
+    a thousand validations.  Only the header fields are read.
+
+    Attributes:
+        device: The ``device`` field -- the identity.
+        path: The file.
+        category: Folder path from the library root, ``vendor/type/family``
+            (``""`` for a file sitting at the root).
+        description: One line, when the file gives one.
+        vendor: Metadata, when the file gives it.
+        registers: Register count, or -1 when the file does not say (the
+            count is cheap here because it is `len` of a list already
+            decoded, but a malformed file reports -1 rather than raising).
+        layer: ``"global"`` or the config name -- which library holds the
+            part, since the per-config one shadows the global.
+        relative: Path from that library's root
+            (``vendor/type/part.device.json``).
+    """
+
+    device: str
+    path: Path
+    category: str = ""
+    description: str = ""
+    vendor: str = ""
+    registers: int = -1
+    layer: str = ""
+    relative: str = ""
+
+
+def scan_library(root: Path, layer: str = "") -> tuple[list[LibraryPart], list[str]]:
+    """Every ``.device.json`` under ``root``, as listing entries.
+
+    Walks the tree (``vendor/type/family/part.device.json``) rather than
+    one flat folder, because a library is browsable by construction and a
+    flat thousand-file folder is not.  Nothing here loads or validates
+    registers: this answers "what do I have", and a part is only parsed
+    when something references it.
+
+    **The filename is checked against the identity.** A file whose
+    ``device`` field disagrees with its stem is reported as an error and
+    left out of the listing -- the hierarchy is how a human finds a part
+    and the ``device`` field is how termapy resolves one, so a file that
+    says two different things is the wrong-part-wrong-address hazard the
+    memory commands exist to avoid.
+
+    Args:
+        root: The library root; a missing folder is an empty library.
+        layer: Label recorded on each part (``"global"`` / config name).
+
+    Returns:
+        ``(parts, errors)`` -- parts sorted by category then device.
+    """
+    if not root.is_dir():
+        return [], []
+    parts: list[LibraryPart] = []
+    errors: list[str] = []
+    seen: dict[str, Path] = {}
+    for path in sorted(root.rglob(f"*{SUFFIX}")):
+        label = path.relative_to(root).as_posix()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            errors.append(f"{label}: {e}")
+            continue
+        if not isinstance(data, dict):
+            errors.append(f"{label}: expected an object")
+            continue
+        device = data.get("device")
+        stem = path.name[: -len(SUFFIX)]
+        if not isinstance(device, str) or not device:
+            errors.append(f"{label}: no device field")
+            continue
+        if device != stem:
+            errors.append(
+                f"{label}: device is {device!r} but the file is named "
+                f"{stem!r} -- a part's name and its file must agree"
+            )
+            continue
+        if device in seen:
+            errors.append(
+                f"{label}: {device} is already defined by "
+                f"{seen[device].relative_to(root).as_posix()}"
+            )
+            continue
+        seen[device] = path
+        registers = data.get("registers")
+        parts.append(LibraryPart(
+            device=device,
+            path=path,
+            category=path.parent.relative_to(root).as_posix().strip("."),
+            description=_text(data, "description"),
+            vendor=_text(data, "vendor"),
+            registers=len(registers) if isinstance(registers, list) else -1,
+            layer=layer,
+            relative=label,
+        ))
+    parts.sort(key=lambda part: (part.category, part.device))
+    return parts, errors
+
+
+def library_slug(text: str) -> str:
+    """A folder-safe lowercase token, or ``""`` when nothing survives.
+
+    Vendor strings come from vendor files and are prose (``"Microchip
+    Technology"``, ``"STMicroelectronics"``), so the library path needs
+    them reduced to one token.  Runs of anything not alphanumeric become a
+    single ``-``; a name that reduces to nothing yields ``""`` and the
+    caller drops that level rather than creating a folder called ``-``.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", text.strip().lower()).strip("-")
+
+
+def config_library_dir(config_path: str) -> Path:
+    """The config's own ``lib/`` (a path; it may not exist yet).
+
+    Mirrors :func:`device_dir`: resolved through ``cfg_data_dir`` so a
+    bundled read-only config keeps its data elsewhere.
+    """
+    from termapy.config import cfg_data_dir
+
+    try:
+        return cfg_data_dir(config_path) / folders.LIB
+    except (OSError, ValueError):
+        return Path(config_path).parent / folders.LIB
+
+
+def library_layers(
+    config_path: str, global_root: Path | None = None,
+) -> list[tuple[Path, str]]:
+    """``(folder, label)`` per library layer, lowest precedence first.
+
+    The same two layers as ``dev/`` and ``plugin/``: the cfg root's
+    ``lib/`` (label ``"global"``), then the config's own (label = the
+    config name), the per-config one winning a name clash.  The per-config
+    layer is what makes a config folder self-contained -- check it in and
+    its references resolve on any machine, without depending on that
+    machine's global library.  No config = the global layer alone.
+    """
+    from termapy.config import library_dir
+
+    layers: list[tuple[Path, str]] = [(library_dir(global_root), "global")]
+    if config_path:
+        per_config = config_library_dir(config_path)
+        if per_config != layers[0][0]:
+            layers.append((per_config, Path(config_path).stem))
+    return layers
+
+
+def scan_libraries(
+    layers: Sequence[tuple[Path, str]],
+) -> tuple[list[LibraryPart], list[str]]:
+    """Every part across the layers, the closer layer shadowing by ``device``.
+
+    Args:
+        layers: From :func:`library_layers`, lowest precedence first.
+
+    Returns:
+        ``(parts, errors)`` -- parts sorted by category then device, one
+        per name, each knowing its ``layer``; errors prefixed by layer.
+    """
+    by_name: dict[str, LibraryPart] = {}
+    errors: list[str] = []
+    for folder, label in layers:
+        parts, found = scan_library(folder, label)
+        errors.extend(f"{label}: {error}" for error in found)
+        for part in parts:
+            by_name[part.device] = part
+    merged = sorted(by_name.values(), key=lambda part: (part.category, part.device))
+    return merged, errors
+
+
+def library_path(root: Path, data: dict[str, Any], category: str = "") -> Path:
+    """Where a converted part belongs in the library.
+
+    The hierarchy is ``vendor/type/family``, but only the levels that are
+    KNOWN are created.  A converter reports a vendor, so that level is
+    derivable; nothing in an SVD says whether the part is an MCU, an ADC
+    or an FPGA, so an explicit ``category`` supplies it and its absence
+    leaves the part one level up rather than guessing a wrong label.
+
+    Args:
+        root: The library root.
+        data: The device document (for ``device`` and ``vendor``).
+        category: Explicit sub-path under the vendor (``mcu/pic32cm``),
+            as the user typed it; ``""`` = straight under the vendor.
+
+    Returns:
+        The full destination path, including the ``.device.json`` name.
+    """
+    folder = root
+    vendor = library_slug(_text(data, "vendor"))
+    if vendor:
+        folder = folder / vendor
+    for level in category.replace("\\", "/").split("/"):
+        slug = library_slug(level)
+        if slug:
+            folder = folder / slug
+    return folder / f"{data['device']}{SUFFIX}"
+
+
+def write_library_part(root: Path, path: Path, doc: dict[str, Any]) -> None:
+    """Write a converted part into a library, creating its folders.
+
+    ``root`` (the ``lib/`` itself) is a data folder and comes into being
+    through ``folders.ensure_folder`` like any other; the nested
+    vendor/type folders under it are the library's own shape, which only
+    this module knows, so their ``mkdir`` lives here and nowhere else.
+
+    Raises:
+        OSError: The folder or the file could not be written.
+    """
+    folders.ensure_folder(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+
+def distinct_spans(registers: list[Register]) -> int:
+    """How many distinct byte ranges a set of registers actually covers.
+
+    Not ``len(registers)``, because one register is often described several
+    times.  SVD models a peripheral's operating MODES as separate register
+    definitions at one address -- a SERCOM's ``CTRLA`` appears as
+    ``I2CM_CTRLA``, ``I2CS_CTRLA``, ``SPIM_CTRLA``, ``SPIS_CTRLA``,
+    ``USART_INT_CTRLA`` and ``USART_EXT_CTRLA``, six names for the same four
+    bytes (410 such addresses on a PIC32CM5164LE00100).  Counting entries
+    would call that a six-register span and refuse a read of one register.
+
+    Reading any one of those aliases touches exactly the same silicon, so
+    for anything asking "how much would this read disturb?" they are one.
+
+    Args:
+        registers: Overlapping registers, typically from
+            :func:`registers_in_range`.
+
+    Returns:
+        The number of distinct ``(addr, size)`` ranges.
+    """
+    return len({(register.symbol.addr, register.symbol.size) for register in registers})

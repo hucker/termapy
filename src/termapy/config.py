@@ -28,6 +28,7 @@ from termapy.folders import (
     FOLDER_MIGRATIONS,
     HISTORY_FILE,
     HISTORY_SUFFIX,
+    LIB,
     LOG_SUFFIX,
     PLUGIN,
     PROFILE_TMP_GLOB,
@@ -463,6 +464,24 @@ def global_plugins_dir(root: Path | None = None) -> Path:
             temp folder so the checkout's own ``termapy_cfg/`` stays out.
     """
     return (root if root is not None else cfg_dir()) / PLUGIN
+
+
+def library_dir(root: Path | None = None) -> Path:
+    """Return the GLOBAL device library (a path; it may not exist yet).
+
+    The ``lib/`` sibling of :func:`global_devices_dir`, holding a tree of
+    ``.device.json`` files any config may pick parts FROM.  Unlike ``dev/``,
+    nothing here loads -- it is a pool, so a thousand parts can sit in it
+    without any of them reaching a symbol table.  The per-config layer
+    (``<cfg>/lib/``, which wins a name clash) is
+    ``termapy.devices.config_library_dir``; ``devices.library_layers``
+    gives both in precedence order.
+
+    Args:
+        root: The cfg root whose ``lib/`` child is the library; None
+            resolves :func:`cfg_dir`.
+    """
+    return (root if root is not None else cfg_dir()) / LIB
 
 
 def global_devices_dir(root: Path | None = None) -> Path:
@@ -978,6 +997,42 @@ def cfg_relative_path(config_path: str, raw: str) -> Path:
         return path
     anchored = Path(config_path).parent / path
     return anchored if anchored.exists() else path
+
+
+def not_found_message(subject: str, raw: str, config_path: str) -> str:
+    """``"<Subject> not found: <raw>"``, plus the folder a relative path means.
+
+    A relative path given to a command is anchored to the CONFIG folder,
+    not the shell's working directory (:func:`cfg_relative_path`), so an
+    error naming only what the user typed leaves out the one fact they
+    need -- they retype variations of the same relative path while the
+    command keeps looking somewhere else entirely.
+
+    Takes the CONFIG PATH rather than the resolved path on purpose: when
+    the anchored file does not exist, ``cfg_relative_path`` falls back to
+    the raw path, so the resolved value is exactly the input in the case
+    that most needs explaining.  The folder the relative path was measured
+    from is what the user has to know.  An absolute path is unambiguous
+    already, so it gets the short form.
+
+    Names the config FOLDER, not its absolute path: the absolute form is a
+    temp directory under test and would put a machine-specific string in
+    the CLI gold, which must stay deterministic.  ``sym._display_path``
+    makes the same trade for the same reason.
+
+    Args:
+        subject: What was missing, sentence case (``"Source file"``).
+        raw: The path as the user typed it.
+        config_path: The active config file (``""`` = no config).
+
+    Returns:
+        The message for ``CmdResult.fail(msg=...)``.
+    """
+    base = f"{subject} not found: {raw}"
+    if Path(raw).is_absolute() or not config_path:
+        return base
+    folder = Path(config_path).parent.name
+    return f"{base} (a relative path is measured from the {folder} config folder)"
 
 
 def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:

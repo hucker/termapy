@@ -37,7 +37,7 @@ class TestFolderSpec:
 
 class TestFolders:
     def test_eight_folders(self):
-        assert len(FOLDERS) == 9, "run, proto, plugin, ss, viz, cap, prof, sym, dev"
+        assert len(FOLDERS) == 10, "run, proto, plugin, ss, viz, cap, prof, sym, dev, lib"
 
     def test_folder_names_tuple(self):
         assert isinstance(FOLDER_NAMES, tuple), "immutable"

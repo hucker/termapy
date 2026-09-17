@@ -1145,7 +1145,7 @@ demo> /help.plugin
   /cfg          Show or set config values.
   /cls          Clear the terminal screen.
   /credits      Print acknowledgments / third-party attributions.
-  /dev          Device files: a part's registers as data (see /help symbols).
+  /dev          Device files: a part's registers as data (see /help devices).
   /edit         Open a project file in the system editor.
   /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).
   /exit         Exit termapy.

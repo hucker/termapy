@@ -93,7 +93,7 @@ names -- are the low-cost bargain termapy is built around. Reading
 effect, nothing else is watching that byte, and reading it twice gives
 the same answer twice.
 
-**A device file's registers** are not that. They are an intrusive probe
+**A [device file](devices.md)'s registers** are not that. They are an intrusive probe
 on live silicon, usually through a driver that assumes it is the only
 thing on the bus. Reading a FIFO data port pops a byte the driver never
 receives; reading some status registers clears the flags an interrupt

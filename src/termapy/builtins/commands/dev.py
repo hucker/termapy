@@ -412,7 +412,7 @@ _GRAMMAR_HELP: Final[str] = (
     "dev/*.device.json still works for a one-off part.  /sym.info lists loaded\n"
     "devices, /sym.search finds registers, /mem.* reads them by name.  Vendor SVDs\n"
     "come from the chip vendor's CMSIS pack or the cmsis-svd-data repository.\n"
-    "See /help symbols, \"Parts: device files\"."
+    "See /help devices."
 )
 
 
@@ -425,7 +425,7 @@ def _long_help(ctx: PluginContext) -> str:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="dev",
-    help="Device files: a part's registers as data (see /help symbols).",
+    help="Device files: a part's registers as data (see /help devices).",
     long_help=_long_help,
     sub_commands={
         "import": Command(

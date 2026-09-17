@@ -951,6 +951,10 @@ It's also a reversible toggle from inside the TUI, like `/cli` <-> `/tui`: `/vt1
 <details>
 <summary><strong>Extending termapy</strong> - plugins, subcommands, visualizers</summary>
 
+### Symbols, memory and parts
+
+`/sym.import build/mem.map` turns your linker map into names, so `/mem.read gTemp` reads a variable by name instead of by address. `/dev.import part.svd` does the same for the silicon: a vendor CMSIS-SVD becomes a **device file** -- every register of the part with its bit fields -- stored once in the config's `lib/` and referenced from its `dev/`, so `/mem.read PORT_GROUP0_DIR` works and a checked-in config folder carries its parts. A part on the external bus (two ADCs, an FPGA block) is written once with register offsets and placed per board: `/dev.use acme-adc16 at=ADC1@0x60000000 ADC2@0x60001000`. Registers are live silicon, not variables, so `/mem.*` refuses bulk reads over them, refuses reads of write-only registers, and logs the rest. The device side is the MEM wire spec (`examples/firmware/termapy_mem.c`, a drop-in) or a profile block describing your monitor's own peek/poke grammar. See the Symbols, Devices and Memory help pages.
+
 ### Plugins
 
 Every built-in command (`/help`, `/cfg`, `/grep`, all of them) is itself a plugin loaded from the same folder you'd drop your own into. If something was hard to build as a plugin, the API was wrong. [Dogfooding](https://en.wikipedia.org/wiki/Eating_your_own_dog_food) all the way down.

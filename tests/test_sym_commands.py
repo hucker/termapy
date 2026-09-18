@@ -1841,6 +1841,27 @@ class TestDevUse:
         ref = config_path.parent / "dev" / "icepart.device.json"
         assert not ref.exists(), "the half-written reference was cleaned up"
 
+    def test_a_part_that_will_not_load_reports_the_loaders_error(self, sym_env, tmp_path):
+        """Not every failed load is a missing placement; say what the loader said."""
+        # Arrange -- two fixed parts owning the same register name
+        engine, config_path, _ = sym_env
+        _install_library(tmp_path, "vendor", "one")
+        _install_library(tmp_path, "vendor", "two")
+        assert engine.dispatch("dev.use one").success, "the first owner loads"
+
+        # Act
+        result = engine.dispatch("dev.use two")
+
+        # Assert
+        assert not result.success, "R is already owned by one"
+        assert "two not added: register R is also defined by one.device.json" in result.error, (
+            "the loader's own verdict, not a placement guess"
+        )
+        assert "needs placement" not in result.error, "a fixed part is never told to place itself"
+        assert not (config_path.parent / "dev" / "two.device.json").exists(), (
+            "and the reference that would not load was removed"
+        )
+
     def test_an_unknown_part_points_at_the_listing(self, sym_env):
         # Arrange
         engine, _, _ = sym_env

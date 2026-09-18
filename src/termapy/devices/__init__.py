@@ -709,7 +709,13 @@ def device_dir(config_path: str) -> Path:
 
     try:
         return cfg_data_dir(config_path) / folders.DEV
-    except (OSError, ValueError):
+    except (OSError, ValueError, RuntimeError):
+        # RuntimeError is cfg_data_dir refusing a bundled (read-only) cfg
+        # as a runtime location -- the case ReplEngine.resolve_plugins
+        # reports for the plugin folder.  This runs inside fire_lifecycle
+        # with no channel of its own, and the bundled folder's dev/ (if
+        # any) is the right read-only answer, so it falls back like the
+        # other two instead of letting the load raise.
         return Path(config_path).parent / folders.DEV
 
 
@@ -804,9 +810,12 @@ def registers_in_range(
 class LibraryPart:
     """One part in the library: what it is, and where its file sits.
 
-    A listing entry, NOT a loaded device -- the registers are not parsed,
+    A listing entry, NOT a loaded device.  The file is decoded (JSON has
+    no partial parse) but its registers are never validated or expanded,
     because a library of a thousand parts must be listable without paying
-    a thousand validations.  Only the header fields are read.
+    a thousand validations -- and validation is where the cost is: on a
+    3527-register part the decode is about a tenth of the load.  Only the
+    header fields are kept.
 
     Attributes:
         device: The ``device`` field -- the identity.
@@ -822,6 +831,8 @@ class LibraryPart:
             part, since the per-config one shadows the global.
         relative: Path from that library's root
             (``vendor/type/part.device.json``).
+        relocatable: The header's ``relocatable`` flag -- a reference to
+            this part must say where it sits, or it cannot load.
     """
 
     device: str
@@ -832,6 +843,7 @@ class LibraryPart:
     registers: int = -1
     layer: str = ""
     relative: str = ""
+    relocatable: bool = False
 
 
 def scan_library(root: Path, layer: str = "") -> tuple[list[LibraryPart], list[str]]:
@@ -839,9 +851,11 @@ def scan_library(root: Path, layer: str = "") -> tuple[list[LibraryPart], list[s
 
     Walks the tree (``vendor/type/family/part.device.json``) rather than
     one flat folder, because a library is browsable by construction and a
-    flat thousand-file folder is not.  Nothing here loads or validates
+    flat thousand-file folder is not.  Nothing here validates or expands
     registers: this answers "what do I have", and a part is only parsed
-    when something references it.
+    into a :class:`Device` when something references it.  (Each file IS
+    decoded in full -- see :class:`LibraryPart` for why that is the cheap
+    half -- and ``resolve_ref`` decodes the referenced part once more.)
 
     **The filename is checked against the identity.** A file whose
     ``device`` field disagrees with its stem is reported as an error and
@@ -900,6 +914,7 @@ def scan_library(root: Path, layer: str = "") -> tuple[list[LibraryPart], list[s
             registers=len(registers) if isinstance(registers, list) else -1,
             layer=layer,
             relative=label,
+            relocatable=data.get("relocatable") is True,
         ))
     parts.sort(key=lambda part: (part.category, part.device))
     return parts, errors
@@ -927,7 +942,8 @@ def config_library_dir(config_path: str) -> Path:
 
     try:
         return cfg_data_dir(config_path) / folders.LIB
-    except (OSError, ValueError):
+    except (OSError, ValueError, RuntimeError):
+        # RuntimeError: a bundled cfg, as in device_dir.
         return Path(config_path).parent / folders.LIB
 
 
@@ -1021,25 +1037,50 @@ def write_library_part(root: Path, path: Path, doc: dict[str, Any]) -> None:
     path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
 
 
-def distinct_spans(registers: list[Register]) -> int:
-    """How many distinct byte ranges a set of registers actually covers.
+def span_groups(registers: list[Register]) -> list[list[Register]]:
+    """Group registers by the connected byte range they share.
 
-    Not ``len(registers)``, because one register is often described several
-    times.  SVD models a peripheral's operating MODES as separate register
-    definitions at one address -- a SERCOM's ``CTRLA`` appears as
+    Not one group per register, because one register is often described
+    several times.  SVD models a peripheral's operating MODES as separate
+    register definitions at one address -- a SERCOM's ``CTRLA`` appears as
     ``I2CM_CTRLA``, ``I2CS_CTRLA``, ``SPIM_CTRLA``, ``SPIS_CTRLA``,
     ``USART_INT_CTRLA`` and ``USART_EXT_CTRLA``, six names for the same four
-    bytes (410 such addresses on a PIC32CM5164LE00100).  Counting entries
-    would call that a six-register span and refuse a read of one register.
+    bytes (410 such addresses on a PIC32CM5164LE00100) -- and not always at
+    one WIDTH: an RTC's ``MODE0_COUNT`` is 32 bits and its ``MODE1_COUNT``
+    16 at the same address, as is every TC ``COUNT`` / ``CC`` / ``PER``
+    (267 registers on an ATSAME54P20A).  Keying on ``(addr, size)`` retired
+    the first class and refused a bare dump of every register in the
+    second: the gate firing on the act it exists to permit, one step on.
 
-    Reading any one of those aliases touches exactly the same silicon, so
-    for anything asking "how much would this read disturb?" they are one.
+    Reading any alias touches the same silicon, so for anything asking
+    "how much would this read disturb?" registers that share a byte are
+    one.  Overlapping ranges merge, through a chain too; ADJACENT ranges
+    do not -- ``DIR`` at +0x00 and ``DIRCLR`` at +0x04 share no byte and
+    are two registers, which is exactly the sweep the bulk gate refuses.
 
     Args:
         registers: Overlapping registers, typically from
             :func:`registers_in_range`.
 
     Returns:
-        The number of distinct ``(addr, size)`` ranges.
+        The groups in address order, each keeping its registers in the
+        order given (``registers_in_range`` sorts by address then name).
     """
-    return len({(register.symbol.addr, register.symbol.size) for register in registers})
+    groups: list[list[Register]] = []
+    end = -1
+    for register in sorted(registers, key=lambda register: register.symbol.addr):
+        if register.symbol.addr >= end:
+            groups.append([register])
+        else:
+            groups[-1].append(register)
+        end = max(end, register.symbol.end)
+    return groups
+
+
+def distinct_spans(registers: list[Register]) -> int:
+    """How many connected byte ranges a set of registers covers.
+
+    ``len`` of :func:`span_groups`: the number the bulk-read gate holds
+    against its floor of two.
+    """
+    return len(span_groups(registers))

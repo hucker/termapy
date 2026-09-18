@@ -980,14 +980,15 @@ class ReplEngine:
         """Folder-loaded converters of every kind, in load order."""
         return self._converters
 
-    def reload_devices(self) -> None:
+    def reload_devices(self) -> list[str]:
         """Re-scan the ``dev/`` folders and reinstall the device registers.
 
-        What ``/dev.import`` calls after writing a file; forwarded through
-        ``ctx.internal.reload_devices`` because only the engine knows the
-        global root (a test engine points it at a temp folder).
+        What ``/dev.import`` and ``/dev.use`` call after writing a file;
+        forwarded through ``ctx.internal.reload_devices`` because only the
+        engine knows the global root (a test engine points it at a temp
+        folder).  Returns the load errors, already reported.
         """
-        symbols_session.reload_devices(self.ctx, self.config_path, self.global_root)
+        return symbols_session.reload_devices(self.ctx, self.config_path, self.global_root)
 
     def library_layers(self) -> list[tuple[Path, str]]:
         """The device libraries, global then per-config (closer wins).

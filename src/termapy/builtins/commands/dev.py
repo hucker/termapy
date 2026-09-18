@@ -246,21 +246,33 @@ def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
     instances = _parse_placements(placements)
     if isinstance(instances, CmdResult):
         return instances
-    written = _write_reference(ctx, part, instances)
-    if isinstance(written, CmdResult):
-        return written
-    _reload(ctx)
-    loaded = next((d for d in get_devices(ctx) if d.name == part), None)
-    if loaded is None:
-        # The reference wrote but would not load -- a relocatable part with
-        # no placement is the likely cause, and leaving the file behind
-        # would make every later load report the same error.
-        written.unlink(missing_ok=True)
-        _reload(ctx)
+    if match.relocatable and not instances:
+        # Known from the library header, so refused before anything is
+        # written: a relocatable part never inherits the library's example
+        # placement, and a reference without one cannot load.
         return CmdResult.fail(
             msg=f"{part} needs placement: it is relocatable, so give at least "
             f"one NAME@ADDRESS ({ctx.prefix}dev.use {part} at=ADC1@0x60000000)"
         )
+    written = _write_reference(ctx, part, instances)
+    if isinstance(written, CmdResult):
+        return written
+    errors = _reload(ctx)
+    loaded = next((d for d in get_devices(ctx) if d.name == part), None)
+    if loaded is None:
+        # The reference wrote but would not load.  Leaving the file behind
+        # would make every later load report the same error, so it goes;
+        # and the loader's own verdict -- a bad register row, an instance
+        # name that is not an identifier, a register-name clash with a
+        # device already loaded -- is the message, not a guess at the cause.
+        written.unlink(missing_ok=True)
+        _reload(ctx)
+        prefix = f"{written.name}: "
+        problem = next(
+            (error[len(prefix):] for error in errors if error.startswith(prefix)),
+            "it did not load",
+        )
+        return CmdResult.fail(msg=f"{part} not added: {problem}")
     where = " ".join(
         f"{instance.name}@{hex_addr(instance.base)}"
         for instance in loaded.instances if instance.name
@@ -369,22 +381,25 @@ def _target_layer(ctx: PluginContext, to: str) -> tuple[Path, str] | CmdResult:
     return CmdResult.fail(msg=f"Invalid to: {to} (use cfg or global)")
 
 
-def _reload(ctx: PluginContext) -> None:
+def _reload(ctx: PluginContext) -> list[str]:
     """Re-scan the dev/ folders through the engine (it knows the global root).
 
-    A hand-built test context may have no forwarder; then re-resolve with
-    the real global root, which is what the engine would do unconfigured.
+    Returns the load errors (``"<file>: <problem>"``), each already
+    reported on the output channel, so a command that just wrote a file
+    can say why ITS file did not load.  A hand-built test context may have
+    no forwarder; then re-resolve with the real global root, which is what
+    the engine would do unconfigured.
     """
     reload = getattr(getattr(ctx, "internal", None), "reload_devices", None)
     if callable(reload):
-        reload()
-        return
+        return list(reload())
     from termapy.devices import resolve_devices
 
     devices, errors = resolve_devices(ctx.config_path)
     for error in errors:
         ctx.io.output(f"Device: {error}", "yellow")
     install_devices(ctx, devices)
+    return errors
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

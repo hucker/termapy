@@ -12,9 +12,13 @@ from pathlib import Path
 
 import pytest
 
+import termapy
+from termapy.config import cfg_data_dir
 from termapy.devices import (
     Field,
+    config_library_dir,
     derive_type,
+    device_dir,
     distinct_spans,
     library_layers,
     library_path,
@@ -26,6 +30,7 @@ from termapy.devices import (
     resolve_devices,
     scan_libraries,
     scan_library,
+    span_groups,
 )
 from termapy.protocol.core import parse_format_spec
 from termapy.symbols import Symbol
@@ -494,19 +499,92 @@ class TestDistinctSpans:
     def test_no_registers_is_zero(self):
         assert distinct_spans([]) == 0, "nothing covers nothing"
 
-    def test_same_address_different_size_is_two_spans(self):
-        """A 4-byte register and a 1-byte one at one address are not aliases."""
+    def test_a_width_alias_is_one_span(self):
+        """A 32-bit MODE0 definition over a 16-bit MODE1 one is one register.
+
+        Measured on the real files: an RTC's COUNT and every TC COUNT / CC /
+        PER -- 267 of 3527 registers on an ATSAME54P20A, 142 of 2517 on a
+        PIC32CM5164LE00100 -- were refused a bare dump while the count keyed
+        on ``(addr, size)``.
+        """
         # Arrange
         registers = parse_device(_doc(registers=[
-            {"name": "WHOLE", "addr": "0x40000000", "size": 4},
-            {"name": "LOW_BYTE", "addr": "0x40000000", "size": 1},
+            {"name": "RTC_MODE0_COUNT", "addr": "0x40002418", "size": 4},
+            {"name": "RTC_MODE1_COUNT", "addr": "0x40002418", "size": 2},
         ])).registers()
 
         # Act
         actual = distinct_spans(registers)
 
         # Assert
-        assert actual == 2, "different extents are different reads"
+        assert actual == 1, "registers that share a byte are the same silicon"
+
+    def test_a_narrow_alias_straddling_the_wide_one_merges_through_it(self):
+        """MODE1 COMP1 at +2 shares no byte with MODE1 COMP0; both sit inside MODE0 COMP0."""
+        # Arrange
+        registers = parse_device(_doc(registers=[
+            {"name": "RTC_MODE0_COMP0", "addr": "0x40002420", "size": 4},
+            {"name": "RTC_MODE1_COMP0", "addr": "0x40002420", "size": 2},
+            {"name": "RTC_MODE1_COMP1", "addr": "0x40002422", "size": 2},
+        ])).registers()
+
+        # Act
+        actual = distinct_spans(registers)
+
+        # Assert
+        assert actual == 1, "the overlap is connected through the wide definition"
+
+    def test_adjacent_registers_are_two_spans(self):
+        """DIR and DIRCLR share no byte: reading both IS the sweep the gate refuses."""
+        # Arrange
+        registers = parse_device(_doc(registers=[
+            {"name": "DIR", "addr": "0x41008000", "size": 4},
+            {"name": "DIRCLR", "addr": "0x41008004", "size": 4},
+        ])).registers()
+
+        # Act
+        actual = distinct_spans(registers)
+
+        # Assert
+        assert actual == 2, "adjacent is not overlapping"
+
+    def test_span_groups_run_by_address_and_keep_the_given_order_within(self):
+        # Arrange -- registers_in_range order: address, then name
+        device = parse_device(_doc(registers=[
+            {"name": "SERCOM0_SPIM_CTRLA", "addr": "0x42000400", "size": 4},
+            {"name": "SERCOM0_I2CM_CTRLA", "addr": "0x42000400", "size": 4},
+            {"name": "SERCOM0_I2CM_CTRLB", "addr": "0x42000404", "size": 4},
+        ]))
+
+        # Act
+        groups = span_groups(registers_in_range([device], 0x42000400, 8))
+
+        # Assert
+        actual = [[register.symbol.name for register in group] for group in groups]
+        expected = [["SERCOM0_I2CM_CTRLA", "SERCOM0_SPIM_CTRLA"], ["SERCOM0_I2CM_CTRLB"]]
+        assert actual == expected, "one group per span; a refusal names each group's first"
+
+
+class TestBundledConfigFolders:
+    """A bundled (read-only) cfg has no data folder; the device paths must not raise."""
+
+    BUNDLED_CFG = Path(termapy.__file__).parent / "builtins" / "demo" / "demo.cfg"
+
+    def test_cfg_data_dir_refuses_the_bundled_template(self):
+        """The premise: this is the RuntimeError the two path functions must absorb."""
+        with pytest.raises(RuntimeError):
+            cfg_data_dir(str(self.BUNDLED_CFG))
+
+    def test_device_and_library_dirs_fall_back_beside_the_template(self):
+        """As ``resolve_plugins`` absorbs it for the plugin folder -- but silently,
+        because this runs inside ``fire_lifecycle`` with no channel of its own."""
+        # Act
+        dev = device_dir(str(self.BUNDLED_CFG))
+        lib = config_library_dir(str(self.BUNDLED_CFG))
+
+        # Assert
+        assert dev == self.BUNDLED_CFG.parent / "dev", "read-only folder, read-only answer"
+        assert lib == self.BUNDLED_CFG.parent / "lib"
 
 
 class TestScanLibrary:
@@ -620,6 +698,23 @@ class TestScanLibrary:
         # Assert
         assert part.vendor == "microchip", "vendor for the listing"
         assert part.description == "A part", "and the one-line description"
+
+    def test_relocatable_is_a_header_fact(self, tmp_path):
+        """So /dev.use can refuse a placement-less reference before writing it."""
+        # Arrange
+        root = tmp_path / "lib"
+        _write(root, "fixed", _doc(device="fixed"))
+        _write(root, "movable", _doc(
+            device="movable", relocatable=True,
+            registers=[{"name": "R", "addr": "0x0", "size": 4}],
+        ))
+
+        # Act
+        parts, _ = scan_library(root)
+        actual = {part.device: part.relocatable for part in parts}
+
+        # Assert
+        assert actual == {"fixed": False, "movable": True}
 
 
 class TestReferenceFiles:

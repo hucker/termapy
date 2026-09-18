@@ -151,26 +151,32 @@ def autoload(
     """
     ctx.ns(SYMBOLS_NS).clear()
     build = _load_sidecar(ctx, config_path)
-    devices = _resolve_and_report(ctx, config_path, global_root, announce=True)
+    devices, _ = _resolve_and_report(ctx, config_path, global_root, announce=True)
     return _install(ctx, build, devices)
 
 
 def reload_devices(
     ctx: PluginContext, config_path: str, global_root: Path | None = None,
-) -> SymbolTable | None:
+) -> list[str]:
     """Re-scan the ``dev/`` folders and reinstall; the build table is kept.
 
-    What ``/dev.import`` runs after writing a file.  Quiet on success --
-    the command prints its own line -- but a broken file is still reported,
-    since an error is never silent.
+    What ``/dev.import`` and ``/dev.use`` run after writing a file.  Quiet
+    on success -- the command prints its own line -- but a broken file is
+    still reported, since an error is never silent.
+
+    Returns:
+        The load errors (``"<file>: <problem>"``), already reported, so the
+        command that just wrote a file can tell whether its file is among
+        them and say why instead of guessing.
     """
-    devices = _resolve_and_report(ctx, config_path, global_root, announce=False)
-    return install_devices(ctx, devices)
+    devices, errors = _resolve_and_report(ctx, config_path, global_root, announce=False)
+    install_devices(ctx, devices)
+    return errors
 
 
 def _resolve_and_report(
     ctx: PluginContext, config_path: str, global_root: Path | None, *, announce: bool,
-) -> list[Device]:
+) -> tuple[list[Device], list[str]]:
     """Resolve the layers; report every error; optionally the load line."""
     devices, errors = devices_mod.resolve_devices(config_path, global_root)
     for error in errors:
@@ -179,7 +185,7 @@ def _resolve_and_report(
         count = sum(len(device) for device in devices)
         names = ", ".join(device.name for device in devices)
         ctx.io.output(f"Loaded {count} device registers ({names})", "dim")
-    return devices
+    return devices, errors
 
 
 def _load_sidecar(ctx: PluginContext, config_path: str) -> SymbolTable | None:

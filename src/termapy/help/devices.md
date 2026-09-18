@@ -130,7 +130,9 @@ global one with the same `device`.
 Loading a device file changes what `/mem.*` allows at those addresses. A
 register is live silicon read through a driver that assumes it is the only
 reader, so a bulk read over registers is refused, a write-only register
-refuses every read, and single reads are logged. See
+refuses every read (a whole-word write skips its audit pre-read instead),
+a masked write refuses a target whose read half would pop or garble it,
+and single reads are logged. See
 [two bargains](memory.md#two-bargains-your-variables-and-the-silicon).
 
 See also: [Symbols](symbols.md) for the build's own symbols and the address

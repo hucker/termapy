@@ -70,9 +70,10 @@ class InternalHandle:
     # engine's list, so a config switch that drops folder converters is
     # visible through every live context.
     converters: list = field(default_factory=list)
-    # reload_devices() -> None: re-scan the dev/ folders and reinstall.
-    # /dev.import calls it after writing; only the engine knows the global
-    # root, so it is forwarded rather than reimplemented in the handler.
+    # reload_devices() -> list[str]: re-scan the dev/ folders and reinstall;
+    # returns the load errors, already reported.  /dev.import and /dev.use
+    # call it after writing; only the engine knows the global root, so it
+    # is forwarded rather than reimplemented in the handler.
     reload_devices: Callable | None = None
     # library_layers() -> [(folder, label)]: the device libraries, global
     # then per-config (devices.library_layers), for the same reason as

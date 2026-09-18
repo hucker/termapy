@@ -1059,7 +1059,8 @@ DESCRIPTION
   read + write-back that can race an ISR (xor always does).
   
   Every mutation is audited in the session log (address, word before
-  and after, origin).  Over MCP they are destructive: confirm=true.
+  and after, registers touched, origin).  Over MCP they are
+  destructive: confirm=true.
   
   Commands:
     /mem.dump <target> {len} {type}  - hexdump; u16/u32 word columns,

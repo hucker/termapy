@@ -498,3 +498,98 @@ def test_raw_mkdir_allowlist_has_no_stale_entries():
         "ALLOWED_RAW_MKDIR lists files with no raw mkdir left; drop them so the "
         "allowlist stays a description of reality:\n  " + "\n  ".join(stale)
     )
+
+
+# ── The symbols namespace has one writer ──────────────────────────────────────
+#
+# ``ctx.ns("symbols")`` holds the build table, the device list and the merged
+# view, and ``symbols/session.py`` is the only module that touches it: its
+# installers rebuild the merged view from the two inputs, so nothing else can
+# leave the three keys disagreeing (the bug that motivated the split was an
+# import dropping the device registers).  Readers go through ``get_table`` /
+# ``get_devices`` / ``get_build_table``; a direct ``ctx.ns("symbols")``, even
+# a read, is a second opinion about the namespace's shape.
+SYMBOLS_NS_OWNER = "termapy/symbols/session.py"
+
+
+def _symbols_ns_calls(tree: ast.AST, rel: str) -> list[str]:
+    """Every ``<expr>.ns("symbols")`` / ``.ns(SYMBOLS_NS)`` call in ``rel``."""
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "ns"
+            and len(node.args) == 1
+        ):
+            continue
+        arg = node.args[0]
+        names_symbols = (
+            (isinstance(arg, ast.Constant) and arg.value == "symbols")
+            or (isinstance(arg, ast.Name) and arg.id == "SYMBOLS_NS")
+            or (isinstance(arg, ast.Attribute) and arg.attr == "SYMBOLS_NS")
+        )
+        if names_symbols:
+            found.append(f"{rel}:{node.lineno}  {ast.unparse(node)}")
+    return found
+
+
+def _symbols_ns_files() -> dict[str, list[str]]:
+    """``{rel: [call lines]}`` for every package file that touches the namespace."""
+    found: dict[str, list[str]] = {}
+    for path in _package_python_files():
+        rel = path.relative_to(SRC.parent).as_posix()
+        calls = _symbols_ns_calls(ast.parse(path.read_text(encoding="utf-8")), rel)
+        if calls:
+            found[rel] = calls
+    return found
+
+
+def test_symbols_namespace_is_touched_only_by_its_session_module():
+    """No code outside ``symbols/session.py`` calls ``ctx.ns("symbols")``."""
+    # Arrange / Act
+    violations = [
+        line
+        for rel, calls in _symbols_ns_files().items()
+        if rel != SYMBOLS_NS_OWNER
+        for line in calls
+    ]
+
+    # Assert
+    assert violations == [], (
+        "the symbols namespace has one writer, symbols/session.py:\n  "
+        + "\n  ".join(violations)
+        + "\n\nRead through get_table / get_devices / get_build_table; write through"
+        "\ninstall_build / install_devices."
+    )
+
+
+def test_symbols_namespace_guard_fires_on_a_probe():
+    """The guard detects the literal, the constant, and a qualified constant."""
+    # Arrange
+    probe = (
+        'ctx.ns("symbols")["table"] = table\n'
+        "ns = ctx.ns(SYMBOLS_NS)\n"
+        "self.ctx.ns(session.SYMBOLS_NS).clear()\n"
+        'ctx.ns("memory").clear()\n'
+        "get_table(ctx)\n"
+    )
+
+    # Act
+    found = _symbols_ns_calls(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 3, (
+        "the three symbols-namespace calls flagged; the memory namespace and the getter are not"
+    )
+
+
+def test_symbols_namespace_owner_still_touches_it():
+    """The exemption describes reality: session.py is where the namespace is written."""
+    # Arrange / Act
+    actual = _symbols_ns_files()
+
+    # Assert
+    assert SYMBOLS_NS_OWNER in actual, (
+        "session.py no longer touches ctx.ns('symbols'); move the exemption to the new owner"
+    )

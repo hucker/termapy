@@ -33,7 +33,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any, Callable, Final, Literal
 
-from termapy.devices import distinct_spans, registers_in_range
+from termapy.devices import distinct_spans, registers_in_range, span_groups
 from termapy.memory import (
     DeviceMemoryError,
     Dialect,
@@ -70,6 +70,7 @@ from termapy.symbols.session import get_devices
 from termapy.variables import launch_var
 
 if TYPE_CHECKING:
+    from termapy.devices import Register
     from termapy.plugins import PluginContext
     from termapy.symbols import SymbolTable
 
@@ -251,13 +252,95 @@ def _where(parsed: Address, bits: int) -> str:
     return addr_hex
 
 
-def _audit(ctx: PluginContext, verb: str, addr_hex: str, before: bytes, after: bytes) -> None:
-    """The one line that makes "let the agent poke" defensible."""
+def _register_names(hit: list[Register], first: str) -> str:
+    """Every register name in ``hit``, the one the user typed leading.
+
+    The one producer of the ``regs=`` field, shared by the read log and
+    the write audit so a grep for a register finds both.  Every mode
+    alias is listed, so a grep for any of them finds the line; the typed
+    name leads, so the line reads as the act the user performed rather
+    than as its alphabetical twin.
+    """
+    ordered = sorted(hit, key=lambda register: register.symbol.name != first)
+    return " ".join(register.symbol.name for register in ordered)
+
+
+def _audit(
+    ctx: PluginContext,
+    verb: str,
+    parsed: Address,
+    addr: int,
+    before: bytes | None,
+    after: bytes,
+    bits: int,
+) -> None:
+    """The one line that makes "let the agent poke" defensible.
+
+    ``regs=`` names every device register the written span touches (a RAM
+    line carries none) -- the same field the read log writes, so a grep
+    for ``INTFLAG`` finds its writes as well as its reads.  ``before=?``
+    marks a pre-read the read gates skipped (:func:`_pre_read_skip`).
+    """
+    hit = registers_in_range(get_devices(ctx), addr, len(after))
+    regs = f" regs={_register_names(hit, _named(parsed))}" if hit else ""
+    was = before.hex().upper() if before is not None else "?"
     ctx.io.log(
         "#",
-        f"{verb} {addr_hex} before={before.hex().upper()} after={after.hex().upper()} "
-        f"origin={_origin()}",
+        f"{verb} {hex_addr(addr, bits)} before={was} after={after.hex().upper()}"
+        f"{regs} origin={_origin()}",
     )
+
+
+def _pre_read_skip(ctx: PluginContext, parsed: Address, length: int) -> str:
+    """Why the write path must not read its target first, or ``""``.
+
+    The plain ``/mem.write`` reads its target before writing so the audit
+    line can say ``before=``.  The register cannot tell which verb the
+    user typed -- it sees a read -- so that read answers to the read
+    gates like any other: a write-only register hands back bus noise, and
+    a ``read_effect`` register pops or clears on the way past.  The read
+    commands allow a NAMED read_effect read as a deliberate, logged act;
+    here the user asked for a write and nothing else, so the read is
+    skipped and the audit line says ``before=?``.
+
+    Skipped, never fatal: the write is the deliberate act (once you name
+    it, it is your call).  A span over several registers is no reason to
+    skip either -- the write touches every one of those bytes anyway --
+    and reads of plain memory are never skipped.
+    """
+    for register in registers_in_range(get_devices(ctx), parsed.addr, length):
+        if register.symbol.access == "wo":
+            return f"{register.symbol.name} is access: wo"
+        if register.symbol.read_effect:
+            return f"{register.symbol.name} is read_effect"
+    return ""
+
+
+def _masked_write_gate(parsed: Address) -> CmdResult | None:
+    """Refuse a masked write whose READ half is the hazard, or None.
+
+    A bit, field or mask write is a read-modify-write -- atomic on the
+    device (``MEM.M``) or host-side -- and the read half is where a
+    register bites: on ``rmw: false`` (W1C / self-clearing) writing the
+    word back clears flags the user never named; on ``access: wo`` the
+    word read back is bus noise, so every other bit of the result is
+    undefined; on ``read_effect`` the read pops or clears device state.
+    A whole-word ``/mem.write`` stays allowed on all three -- it reads
+    nothing first (:func:`_pre_read_skip`) -- which is what the message
+    says to do.  A literal address names no symbol and passes.
+    """
+    symbol = parsed.symbol
+    if symbol is None:
+        return None
+    if not symbol.rmw:
+        reason = "rmw: false (W1C/self-clearing)"
+    elif symbol.access == "wo":
+        reason = "access: wo (write-only: the word read back is bus noise)"
+    elif symbol.read_effect:
+        reason = "read_effect (reading it changes device state)"
+    else:
+        return None
+    return CmdResult.fail(msg=f"RMW refused: {symbol.name} is {reason}; write the whole word")
 
 
 def _default_dump_len(parsed: Address) -> int:
@@ -299,27 +382,24 @@ def _guard_bulk_read(
     span happens to land on is a typed read spelled as a dump -- allowed,
     and logged like any other.
 
-    The count is DISTINCT SPANS, not register entries: a SERCOM's CTRLA is
+    The count is CONNECTED SPANS, not register entries: a SERCOM's CTRLA is
     six SVD definitions (I2CM / I2CS / SPIM / SPIS / USART_INT / USART_EXT)
-    at one address, and reading any of them touches the same four bytes.
-    Counting entries refused a single-register read on every aliased
-    peripheral -- the gate firing on the act it exists to permit.
+    at one address, an RTC's COUNT is a 32-bit MODE0 definition over a
+    16-bit MODE1 one, and reading any of them touches the same bytes.
+    Counting entries, then counting ``(addr, size)`` pairs, each refused a
+    single-register read on every aliased peripheral -- the gate firing
+    on the act it exists to permit (``devices.span_groups``).
 
     Returns:
         The refusal, or None when the read may proceed.
     """
     hit = registers_in_range(get_devices(ctx), parsed.addr, length)
-    spans = distinct_spans(hit)
+    groups = span_groups(hit)
+    spans = len(groups)
     if spans < 2:
         return None
     # One name per span, so the list counts the same way the verdict does.
-    shown: list[str] = []
-    seen: set[tuple[int, int]] = set()
-    for register in hit:
-        key = (register.symbol.addr, register.symbol.size)
-        if key not in seen:
-            seen.add(key)
-            shown.append(register.symbol.name)
+    shown = [group[0].symbol.name for group in groups]
     names = ", ".join(shown[:_BULK_NAMES_SHOWN])
     if spans > _BULK_NAMES_SHOWN:
         names += f", ... (+{spans - _BULK_NAMES_SHOWN} more)"
@@ -357,10 +437,7 @@ def _log_peripheral_read(
     hit = registers_in_range(get_devices(ctx), parsed.addr, length)
     if not hit:
         return
-    ordered = sorted(
-        hit, key=lambda register: register.symbol.name != _named(parsed),
-    )
-    names = " ".join(register.symbol.name for register in ordered)
+    names = _register_names(hit, _named(parsed))
     effects = [register.symbol.name for register in hit if register.symbol.read_effect]
     note = f" read_effect={','.join(effects)}" if effects else ""
     ctx.io.log(
@@ -378,20 +455,16 @@ def _do_modify(
     and_mask: int,
     or_mask: int,
 ) -> tuple[bytes, bytes] | CmdResult:
-    """One masked word write with the rmw gate and the audit line."""
-    if parsed.symbol is not None and not parsed.symbol.rmw:
-        return CmdResult.fail(
-            msg=(
-                f"RMW refused: {parsed.symbol.name} is rmw: false "
-                f"(W1C/self-clearing); write the whole word"
-            )
-        )
+    """One masked word write with the masked-write gate and the audit line."""
+    refusal = _masked_write_gate(parsed)
+    if refusal is not None:
+        return refusal
     word_addr = parsed.addr + target.offset
     try:
         old, new = memory.modify(word_addr, target.width, and_mask, or_mask)
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
-    _audit(ctx, "MEM.M", hex_addr(word_addr, memory.info.address_bits), old, new)
+    _audit(ctx, "MEM.M", parsed, word_addr, old, new, memory.info.address_bits)
     return old, new
 
 
@@ -665,21 +738,31 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Invalid hex: {payload}")
     if not data:
         return CmdResult.fail(msg=f"Invalid hex: {payload}")
+    # The audit pre-read is a wire read like any other: gated, and logged.
+    skipped = _pre_read_skip(ctx, parsed, len(data))
+    before: bytes | None = None
+    if not skipped:
+        try:
+            before = memory.read(parsed.addr, len(data))
+        except (ValueError, DeviceMemoryError) as e:
+            return CmdResult.fail(msg=str(e))
+        _log_peripheral_read(ctx, parsed, len(data), bits)
     try:
-        before = memory.read(parsed.addr, len(data))
         count = memory.write(parsed.addr, data)
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
-    addr_hex = hex_addr(parsed.addr, bits)
-    _audit(ctx, "MEM.W", addr_hex, before, data)
-    ctx.io.result(
-        f"Wrote {count} bytes at {_where(parsed, bits)}  (was {before.hex().upper()})"
+    _audit(ctx, "MEM.W", parsed, parsed.addr, before, data, bits)
+    was = (
+        f"was {before.hex().upper()}" if before is not None
+        else f"not read first: {skipped}"
     )
+    ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}  ({was})")
     return CmdResult.ok(value=str(count), data={
         "addr": parsed.addr,
-        "addr_hex": addr_hex,
+        "addr_hex": hex_addr(parsed.addr, bits),
         "count": count,
-        "before_hex": before.hex().upper(),
+        "before_hex": before.hex().upper() if before is not None else None,
+        "before_skipped": skipped,
         "after_hex": data.hex().upper(),
         "origin": _origin(),
     })
@@ -724,13 +807,9 @@ def _handler_mask(ctx: PluginContext, args: str, *, op: str) -> CmdResult:
         # XOR is not expressible as (word & and) | or, so it is always a
         # host-side read + write-back -- racy against ISRs even when the
         # device has MEM.M.  Documented in help/memory.md.
-        if parsed.symbol is not None and not parsed.symbol.rmw:
-            return CmdResult.fail(
-                msg=(
-                    f"RMW refused: {parsed.symbol.name} is rmw: false "
-                    f"(W1C/self-clearing); write the whole word"
-                )
-            )
+        refusal = _masked_write_gate(parsed)
+        if refusal is not None:
+            return refusal
         try:
             old = memory.read(parsed.addr, width)
             new_word = int.from_bytes(old, info.byte_order) ^ mask
@@ -738,7 +817,7 @@ def _handler_mask(ctx: PluginContext, args: str, *, op: str) -> CmdResult:
             memory.write(parsed.addr, new)
         except (ValueError, DeviceMemoryError) as e:
             return CmdResult.fail(msg=str(e))
-        _audit(ctx, "MEM.W", hex_addr(parsed.addr, info.address_bits), old, new)
+        _audit(ctx, "MEM.W", parsed, parsed.addr, old, new, info.address_bits)
     else:
         if op == "or":
             and_mask, or_mask = word_mask, mask
@@ -793,13 +872,9 @@ def _handler_not(ctx: PluginContext, args: str) -> CmdResult:
     info = memory.info
     width = _mask_width(parsed, "")
     word_mask = (1 << (8 * width)) - 1
-    if parsed.symbol is not None and not parsed.symbol.rmw:
-        return CmdResult.fail(
-            msg=(
-                f"RMW refused: {parsed.symbol.name} is rmw: false "
-                f"(W1C/self-clearing); write the whole word"
-            )
-        )
+    refusal = _masked_write_gate(parsed)
+    if refusal is not None:
+        return refusal
     try:
         old = memory.read(parsed.addr, width)
         new_word = int.from_bytes(old, info.byte_order) ^ word_mask
@@ -807,7 +882,7 @@ def _handler_not(ctx: PluginContext, args: str) -> CmdResult:
         memory.write(parsed.addr, new)
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
-    _audit(ctx, "MEM.W", hex_addr(parsed.addr, info.address_bits), old, new)
+    _audit(ctx, "MEM.W", parsed, parsed.addr, old, new, info.address_bits)
     digits = width * 2
     ctx.io.result(
         f"NOT at {_where(parsed, info.address_bits)}  "
@@ -961,7 +1036,8 @@ _LONG_HELP: Final[str] = (
     "read + write-back that can race an ISR (xor always does).\n"
     "\n"
     "Every mutation is audited in the session log (address, word before\n"
-    "and after, origin).  Over MCP they are destructive: confirm=true.\n"
+    "and after, registers touched, origin).  Over MCP they are\n"
+    "destructive: confirm=true.\n"
     "\n"
     "Commands:\n"
     "  /mem.dump <target> {len} {type}  - hexdump; u16/u32 word columns,\n"

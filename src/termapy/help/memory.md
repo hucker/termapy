@@ -40,6 +40,16 @@ MCP server's log; the one-shot CLI keeps none) gets one line per write:
 # MEM.W 0x00001008 before=05000000 after=07000000 origin=cli
 ```
 
+A write into peripheral space adds `regs=` naming every register the span
+touches -- the same field the read log carries, so a grep for a register
+finds its writes as well as its reads. `before=?` means the pre-read was
+skipped: the register is write-only, or reading it has a side effect.
+
+```text
+# MEM.W 0xBF806000 before=08800000 after=09800000 regs=UMODE origin=cli
+# MEM.W 0xBF806018 before=? after=41000000 regs=UTXREG origin=cli
+```
+
 Over the [MCP server](mcp-server.md) `/mem.write` is a destructive
 command: it refuses to run until the client passes `confirm=true`, the
 same gate a destructive profile entry gets.
@@ -107,7 +117,8 @@ So reads into peripheral space are treated differently:
 |-----------|--------------|
 | A read covering two or more device registers | Refused -- read one by name |
 | `/mem.str` whose scan could reach any register | Refused -- registers are not strings |
-| A register with `"access": "wo"` | Refused, on every reading path including the read half of `/mem.or` and `/mem.not` |
+| A register with `"access": "wo"` | Refused on every reading path, including the read half of a masked write (`/mem.or`, `/mem.write X.bit`); a whole-word `/mem.write` proceeds without reading first (`before=?`) |
+| A register with `"read_effect": true` | A named read is allowed and logged with `read_effect=`; a masked write is refused (its read half would fire the effect); a whole-word `/mem.write` skips its pre-read |
 | One register, named | Allowed, and logged |
 
 `/mem.dump UMODE` reads UMODE and stops: a dump with no length takes the
@@ -117,7 +128,11 @@ The count is **distinct registers, not names.** SVD describes a peripheral
 once per operating mode, so a SERCOM's `CTRLA` arrives as six definitions
 at one address -- `I2CM_CTRLA`, `I2CS_CTRLA`, `SPIM_CTRLA`, `SPIS_CTRLA`,
 `USART_INT_CTRLA`, `USART_EXT_CTRLA`. They are six names for the same four
-bytes, so reading any one of them counts as one register, not six.
+bytes, so reading any one of them counts as one register, not six. The same
+holds across widths: an RTC's `MODE0_COUNT` (32-bit) and `MODE1_COUNT`
+(16-bit) share an address, so registers that share any byte count once.
+Neighbors that share none -- `DIR` and `DIRCLR` -- count separately, which
+is the sweep.
 
 Naming a register is a deliberate act and stays allowed, on the same
 principle as writing: **once you name it, it is your call.** What is
@@ -137,12 +152,23 @@ logging them would bury the lines that matter. The `read_effect=` note
 marks a register whose file says reading it changes device state, which
 is what makes a later "what happened on Tuesday?" answerable.
 
+"Every read" includes the one a whole-word `/mem.write` makes to fill in
+`before=`: it is logged like any other, and when the target is write-only
+or `read_effect` it is skipped instead and the audit line says
+`before=?`. A masked write's read half is recorded by its own audit
+line's `before=`.
+
 These gates need no per-register knowledge beyond what a device file
 already carries, which is deliberate: `access` is populated in every
 vendor SVD, but `readAction` -- the field that would say *which*
 registers are destructive to read -- is empty in all of them. That
 knowledge lives only in datasheet prose, so termapy refuses the sweep
 rather than pretending to a safety list it cannot have.
+
+They do need a device file. The gates know only the registers a loaded
+file describes; with none loaded, `/mem.dump 0x40000000 0x1000` is an
+ungated sweep of whatever sits there. Load the part (`/dev.use`) before
+handing `/mem.*` to an agent.
 
 ## The wire spec
 

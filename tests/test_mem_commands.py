@@ -174,7 +174,7 @@ class TestWrite:
         result = cli.repl.dispatch("mem.write 0x1000 2C 01")
         assert result.data == {
             "addr": 0x1000, "addr_hex": "0x00001000", "count": 2,
-            "before_hex": "1B00", "after_hex": "2C01", "origin": "cli",
+            "before_hex": "1B00", "before_skipped": "", "after_hex": "2C01", "origin": "cli",
         }, "spaced hex pairs accepted; record carries before and after"
 
     def test_write_crosses_the_block_limit(self, cli):
@@ -901,6 +901,11 @@ _SFR_DEVICE = {
         # names are the same four bytes at 0xBF806004.
         {"name": "UMODE_SPI_CTRL", "addr": "0xBF806004", "size": 4},
         {"name": "UMODE_I2C_CTRL", "addr": "0xBF806004", "size": 4},
+        # One register described at two WIDTHS, the way an RTC's COUNT is a
+        # 32-bit MODE0 definition over a 16-bit MODE1 one: the same silicon
+        # at 0xBF80601C, not two registers.
+        {"name": "UCNT_MODE0", "addr": "0xBF80601C", "size": 4},
+        {"name": "UCNT_MODE1", "addr": "0xBF80601C", "size": 2},
     ],
 }
 
@@ -933,7 +938,7 @@ class TestPeripheralReadGates:
         # Assert
         assert not result.success, "a sweep over peripheral space must not run"
         assert "Bulk read refused" in result.error
-        assert "covers 5 device registers" in result.error, "it says how much it would have touched"
+        assert "covers 6 device registers" in result.error, "it says how much it would have touched"
         assert "UMODE" in result.error, "and names them so the user can read one"
 
     def test_dump_of_one_register_is_allowed(self, sfr_cli):
@@ -958,7 +963,7 @@ class TestPeripheralReadGates:
         assert result.success, result.error
         assert result.value == "08800000", "the register's own 4 bytes"
 
-    @pytest.mark.parametrize("name", ["UMODE", "USTAT", "UDATA"])
+    @pytest.mark.parametrize("name", ["UMODE", "USTAT", "UDATA", "UCNT_MODE0", "UCNT_MODE1"])
     def test_every_register_dumps_bare(self, sfr_cli, name):
         """Including the last ones in the window, where a 64-byte read ran on."""
         # Act
@@ -990,6 +995,25 @@ class TestPeripheralReadGates:
         # Assert
         assert spi.value == i2c.value, "two names, one register, same silicon"
 
+    def test_a_width_alias_is_one_register(self, sfr_cli):
+        """SVD also describes one register once per WIDTH; still not a sweep.
+
+        Measured on the real files: an RTC's MODE0_COUNT (32-bit) and
+        MODE1_COUNT (16-bit) sit at one address, as does every TC COUNT /
+        CC / PER -- 267 of 3527 registers on an ATSAME54P20A, 142 of 2517
+        on a PIC32CM5164LE00100.  Keying the count on (addr, size) called
+        them two registers and refused the bare dump of either.
+        """
+        # Act
+        wide = sfr_cli.repl.dispatch("mem.dump UCNT_MODE0")
+        narrow = sfr_cli.repl.dispatch("mem.dump UCNT_MODE1")
+
+        # Assert
+        assert wide.success, wide.error
+        assert narrow.success, narrow.error
+        assert (len(wide.value), len(narrow.value)) == (8, 4), "each reads its own width"
+        assert wide.value.startswith(narrow.value), "the narrow alias is the wide one's low half"
+
     def test_a_span_over_aliases_and_a_real_neighbor_still_refuses(self, sfr_cli):
         """Collapsing aliases must not collapse genuinely distinct registers."""
         # Act -- 0xBF806000 covers UMODE and both CTRL aliases
@@ -1004,7 +1028,9 @@ class TestPeripheralReadGates:
         result = sfr_cli.repl.dispatch("mem.dump 0xBF806000 0x20")
 
         # Assert
-        assert "covers 5 device registers" in result.error,             "four singles plus the aliased pair as one"
+        assert "covers 6 device registers" in result.error, (
+            "four singles, the mode-aliased pair and the width-aliased pair: one each"
+        )
         assert result.error.count("UMODE_") == 1, "one name per span, not both aliases"
 
     def test_dump_of_ram_is_untouched(self, sfr_cli):
@@ -1130,3 +1156,152 @@ class TestPeripheralReadLog:
         # Assert
         assert result.success, result.error
         assert self._reads(sfr_cli) == [], "RAM has no side effect to record"
+
+
+class TestWritePathReadGates:
+    """The write path's audit pre-read is a read: gated and logged like one.
+
+    The plain ``/mem.write`` read its target for ``before=`` outside every
+    read gate and the read log -- writing a write-only register read it,
+    writing a FIFO port popped it, and a masked write ran a read-modify-
+    write on an unreadable word (2026-09-18 review, M1).  The register
+    cannot tell which verb the user typed; it sees a read.
+    """
+
+    def _lines(self, cli, verb: str) -> list[str]:
+        return [text for _, text in cli.audit if text.startswith(verb)]
+
+    def test_a_write_only_register_is_not_read_first(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.write UTXREG 41000000")
+
+        # Assert
+        assert result.success, "writing a wo register is its whole purpose"
+        assert self._lines(sfr_cli, "MEM.R") == [], "no pre-read reached the wire"
+        assert self._lines(sfr_cli, "MEM.W") == [
+            "MEM.W 0xBF806018 before=? after=41000000 regs=UTXREG origin=cli"
+        ], "the audit line says the before value was not read, and names the register"
+
+    def test_the_skipped_pre_read_is_explained_in_the_record(self, sfr_cli):
+        # Arrange
+        sfr_cli.ctx.wants_data = True
+
+        # Act
+        result = sfr_cli.repl.dispatch("mem.write UTXREG 41000000")
+
+        # Assert
+        assert result.data["before_hex"] is None, "unknown, not a guess"
+        assert result.data["before_skipped"] == "UTXREG is access: wo", "and the record says why"
+
+    def test_the_skipped_pre_read_is_explained_in_the_result_line(self, sfr_cli, capsys):
+        # Act
+        sfr_cli.repl.dispatch("mem.write UTXREG 41000000")
+
+        # Assert
+        assert "Wrote 4 bytes at 0xBF806018  UTXREG  (not read first: UTXREG is access: wo)" in (
+            capsys.readouterr().out
+        )
+
+    def test_a_read_effect_register_is_not_popped_by_a_write(self, sfr_cli):
+        """A NAMED read of a FIFO port is the user's call; a write asked for no read."""
+        # Act
+        result = sfr_cli.repl.dispatch("mem.write UDATA 01000000")
+
+        # Assert
+        assert result.success, result.error
+        assert self._lines(sfr_cli, "MEM.R") == [], "the FIFO was not read on the user's behalf"
+        assert "before=? after=01000000 regs=UDATA" in self._lines(sfr_cli, "MEM.W")[0]
+
+    def test_the_pre_read_of_a_plain_register_is_logged(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.write UMODE 09800000")
+
+        # Assert
+        assert result.success, result.error
+        assert self._lines(sfr_cli, "MEM.R") == [
+            "MEM.R 0xBF806000 len=4 regs=UMODE origin=cli"
+        ], "the pre-read is a peripheral read and appears in the read log"
+        assert self._lines(sfr_cli, "MEM.W") == [
+            "MEM.W 0xBF806000 before=08800000 after=09800000 regs=UMODE origin=cli"
+        ], "and the audit line still carries the true before"
+
+    def test_ram_writes_still_read_first(self, sfr_cli):
+        # Act
+        sfr_cli.repl.dispatch("mem.write gTemp 2C01")
+
+        # Assert
+        assert self._lines(sfr_cli, "MEM.R") == [], "a RAM read is not a peripheral read"
+        assert self._lines(sfr_cli, "MEM.W") == [
+            "MEM.W 0x00001000 before=1B00 after=2C01 origin=cli"
+        ], "a variable has no side effect to skip for, and no regs= to carry"
+
+    def test_a_masked_write_on_a_write_only_register_is_refused(self, sfr_cli):
+        """A read-modify-write of an unreadable word: the other bits come from the bus."""
+        # Act
+        result = sfr_cli.repl.dispatch("mem.write UTXREG.3 1")
+
+        # Assert
+        assert not result.success, "every other bit of the result would be undefined"
+        assert "RMW refused: UTXREG is access: wo" in result.error
+        assert "write the whole word" in result.error, "the whole-word write is the way to do it"
+        assert self._lines(sfr_cli, "MEM.M") == [], "nothing written, nothing audited"
+
+    @pytest.mark.parametrize("line", [
+        "mem.write UDATA.0 1",
+        "mem.or UDATA 1",
+        "mem.clear UDATA 1",
+        "mem.xor UDATA 1",
+        "mem.not UDATA",
+    ])
+    def test_every_masked_form_refuses_a_read_effect_register(self, sfr_cli, line):
+        """The read half would pop the FIFO -- the surprise is in the mechanism."""
+        # Act
+        result = sfr_cli.repl.dispatch(line)
+
+        # Assert
+        assert not result.success, f"{line}: its read half reads a read_effect register"
+        assert "RMW refused: UDATA is read_effect" in result.error
+
+
+class TestWriteAudit:
+    """The audit line names the registers it touched, as the read log does.
+
+    The stated purpose of the log is to turn "the board went strange" into
+    a grep; a grep for INTFLAG that found its reads and missed its writes
+    was half a log (2026-09-18 review, M3).
+    """
+
+    def _audits(self, cli) -> list[str]:
+        return [text for _, text in cli.audit if text.startswith("MEM.")]
+
+    def test_a_masked_write_names_the_register(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.write UMODE.15 0")
+
+        # Assert
+        assert result.success, result.error
+        assert self._audits(sfr_cli) == [
+            "MEM.M 0xBF806000 before=08800000 after=08000000 regs=UMODE origin=cli"
+        ], "MEM.M carries regs= in the same position as MEM.R"
+
+    def test_every_alias_is_named_and_the_typed_one_leads(self, sfr_cli):
+        # Act
+        result = sfr_cli.repl.dispatch("mem.write UMODE_SPI_CTRL 00000000")
+
+        # Assert
+        assert result.success, result.error
+        write = [text for text in self._audits(sfr_cli) if text.startswith("MEM.W")]
+        assert "regs=UMODE_SPI_CTRL UMODE_I2C_CTRL" in write[0], (
+            "a grep for either alias finds the write; the act performed reads first"
+        )
+
+    def test_a_grep_for_a_register_finds_its_reads_and_its_writes(self, sfr_cli):
+        # Act
+        sfr_cli.repl.dispatch("mem.read UMODE u32")
+        sfr_cli.repl.dispatch("mem.write UMODE 09800000")
+
+        # Assert
+        hits = [text for text in self._audits(sfr_cli) if "regs=UMODE" in text]
+        assert [text.split()[0] for text in hits] == ["MEM.R", "MEM.R", "MEM.W"], (
+            "the typed read, the write's pre-read, and the write itself"
+        )

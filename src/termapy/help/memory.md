@@ -178,10 +178,12 @@ the repo at `examples/firmware/termapy_mem.c`. It owns only the wire
 grammar: you hand it a `TermapyMem_Ops` with two byte operations --
 `read(addr, dst, count)` and `write(addr, src, count)` -- an optional
 IRQ-mask `lock`/`unlock` pair (that is all `MEM.M` needs), and a
-putchar-compatible output. Flat-MCU implementations of the two ops ship
-as `TermapyMem_DirectRead/Write` with an editable region table and
-width-aware accesses; banked parts, external memories and host tests
-supply their own. No allocation, no printf.
+putchar-compatible output, once, with `TermapyMem_Init`; each received
+line then goes to `TermapyMem_Cmd`. Flat-MCU implementations of the two
+ops ship as `TermapyMem_DirectRead/Write` with an editable region table
+and width-aware accesses; banked parts, external memories and host tests
+supply their own (the repo's own test drives the module on the host that
+way). No allocation, no printf.
 
 ```text
 MEM.R <addr> <len>      ->  <ADDR>: <XX XX XX ...>     one or more rows

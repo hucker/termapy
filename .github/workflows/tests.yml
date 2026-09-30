@@ -47,7 +47,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - name: Install dependencies
-        run: uv sync
-      - name: Run pip-audit
-        run: uvx pip-audit --strict --skip-editable --path .
+      - name: Audit uv.lock
+        # The same gate release_prep runs: pip-audit over the exported
+        # lock, every extra and group, nothing installed.  The previous
+        # form (uv sync without extras, then --path .) audited zero
+        # packages and stayed green; see scripts/audit_lock.py.
+        run: python3 scripts/audit_lock.py

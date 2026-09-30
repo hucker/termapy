@@ -1265,7 +1265,7 @@ All tests run automatically on push to `main` and on pull requests via GitHub Ac
 | ------------ | ------------------------------------------------------------------------------------------------- |
 | **test**     | Runs `pytest` across Python 3.11, 3.12, 3.13, and 3.14                                            |
 | **coverage** | Runs `pytest --cov` on Python 3.14 and uploads to [Codecov](https://codecov.io/gh/hucker/termapy) |
-| **audit**    | Runs `pip-audit` to check for known vulnerabilities in dependencies                               |
+| **audit**    | Audits `uv.lock` with `pip-audit` (every extra and group; `scripts/audit_lock.py`)               |
 
 The CI badge at the top of this README reflects the current status of the test workflow. See [`.github/workflows/tests.yml`](.github/workflows/tests.yml) for the full configuration.
 

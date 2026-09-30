@@ -306,15 +306,24 @@ uv run termapy --cfg-dir . # use cwd for configs
 
 Two-stage automation in `scripts/`. From clean main:
 
-1. `python scripts/release_prep.py <version>` -- cuts `release/v<version>`, bumps `pyproject.toml` and `mkdocs.yml`, refreshes `uv.lock`, refreshes line/test/coverage/ty counts in `ARCHITECTURE.md` and `README.md` (including the ty + coverage badges), inserts a CHANGELOG stub, runs `pytest` and `tox`, builds HTML with `uvx zensical build`, makes two commits (HTML rebuild, then `Release v<version>`).
+1. `python scripts/release_prep.py <version>` -- cuts `release/v<version>`, bumps `pyproject.toml` and `mkdocs.yml`, upgrades every locked dependency to its newest allowed version (`uv lock --upgrade`) and re-runs the ruff/ty gate against that environment, audits the lock for known vulnerabilities (`scripts/audit_lock.py`), refreshes line/test/coverage/ty counts in `ARCHITECTURE.md` and `README.md` (including the ty + coverage badges), inserts a CHANGELOG stub, runs `pytest` and `tox`, builds HTML with `uvx zensical build`, makes two commits (HTML rebuild, then `Release v<version>`).
 2. Manual review: edit `CHANGELOG.md` to replace the TODO stub with a user-facing summary, then `git commit --amend --no-edit`.
 3. `python scripts/release_publish.py --yes` -- merges release branch to main with `--no-ff`, tags `v<version>`, pushes main + tag + release branch, creates the GitHub release with notes pulled from CHANGELOG.
 
 Hard gates (step 1 aborts):
 
-- ruff and ty must both report zero issues
+- ruff and ty must both report zero issues -- checked before the branch is cut and again after the lock upgrade, because the upgraded environment can move ty's count
+- `uv.lock` must audit clean (`scripts/audit_lock.py`: pip-audit over the exported lock, every extra and group, nothing installed). A finding reviewed as unreachable is passed explicitly, `--ignore-vuln <ID>`, so the decision sits on the release command line
 - `main` must be in sync with `origin/main`
 - tag `v<version>` must not already exist
+
+Dependency policy, the whole of it:
+
+- Lock everything; `uv.lock` ships with every release.
+- The lock moves at release time only. `release_prep` runs `uv lock --upgrade`; the suite, tox, ruff and ty gate the result. Between releases leave the lock alone -- no Dependabot, no per-package churn under branches in flight. The one exception is a fix worth shipping now (a reachable CVE): `uv lock --upgrade-package <name>` on a chore branch.
+- The audit is of the lock, not of an environment. An environment audit sees only what it installed: the CI job `audit_lock.py` replaced ran `uv sync` without extras and pointed pip-audit at the repo root, so it audited zero packages and stayed green. CI now runs the same script as the release.
+- Exact pins are deliberate and `--upgrade` respects them: ruff and ty in the dev group, pip-audit in `audit_lock.py` (through `uvx` with `==`, the same guarantee, so the audit tool's own tree never joins the lock it audits), and the tree-sitter caps. Each moves on its own chore branch with the findings reviewed.
+- `scripts/check_dep_updates.py` is the complement: it lists which direct-dependency *bounds* are holding back a newer release, the one thing `--upgrade` cannot move.
 
 Auto-refreshed every release (`update_readme_md` / `update_architecture_md`):
 

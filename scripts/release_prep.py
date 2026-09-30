@@ -5,20 +5,23 @@ and then run release_publish.py to finish.
 
 Usage:
     python scripts/release_prep.py 0.53.0
+    python scripts/release_prep.py 0.53.0 --ignore-vuln GHSA-xxxx-xxxx-xxxx
 
 What it does:
     1. Sanity-check git state (on main, clean, in sync with origin)
     2. Cut release/v<version> branch from main
-    3. Bump version in pyproject.toml and mkdocs.yml, refresh uv.lock
-    4. Update doc counts (test count, ty count, line counts)
-    5. Update tagged config examples in help docs
-    6. Refresh USB vendor table from upstream usb.ids
-    7. Insert CHANGELOG stub
-    8. Run pytest
-    9. Run tox (multi-version)
-    10. Build HTML help with zensical
-    11. Commit HTML rebuild
-    12. Commit release
+    3. Bump version in pyproject.toml and mkdocs.yml, upgrade uv.lock,
+       re-check ruff/ty against the upgraded environment
+    4. Audit uv.lock for known vulnerabilities (scripts/audit_lock.py)
+    5. Update doc counts (test count, ty count, line counts)
+    6. Update tagged config examples in help docs
+    7. Refresh USB vendor table from upstream usb.ids
+    8. Insert CHANGELOG stub
+    9. Run pytest
+    10. Run tox (multi-version)
+    11. Build HTML help with zensical
+    12. Commit HTML rebuild
+    13. Commit release
 
 Aborts loudly on any failure. Safe-restart: if it fails halfway, delete
 the release branch and start over (`git checkout main && git branch -D
@@ -90,8 +93,19 @@ def bump_mkdocs(version: str) -> None:
 
 
 def refresh_uv_lock() -> None:
-    run(["uv", "lock"])
-    ok("uv.lock refreshed")
+    """Re-resolve every locked dependency to its newest allowed version.
+
+    ``--upgrade`` moves everything pyproject.toml does not pin -- the
+    transitive tree as well as the direct floors -- so each release ships
+    the current fixes rather than whatever was resolved the last time a
+    direct dependency changed (a plain ``uv lock`` re-resolves only what
+    the manifest changed).  Exact pins (ruff, ty) and the tree-sitter caps
+    are constraints, so they hold.  The suite, tox, ruff and ty all run
+    after this step and abort the release if a bump broke something; the
+    audit right after it checks the pins that will actually ship.
+    """
+    run(["uv", "lock", "--upgrade"])
+    ok("uv.lock refreshed (every dependency at its newest allowed version)")
 
 
 # ── line counts and test counts ──────────────────────────────────────────────
@@ -734,6 +748,11 @@ def commit_release(version: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("version", help="New version, e.g. 0.53.0 (no leading 'v')")
+    parser.add_argument(
+        "--ignore-vuln", action="append", default=[], metavar="ID",
+        help="advisory id the uv.lock audit may ignore (a finding reviewed "
+             "as unreachable); repeatable",
+    )
     args = parser.parse_args()
 
     version = args.version
@@ -741,7 +760,7 @@ def main() -> None:
 
     info(f"Preparing release v{version}")
 
-    total = 12
+    total = 13
 
     def step(n: int, label: str) -> None:
         info(f"[{n}/{total}] {label}")
@@ -762,12 +781,22 @@ def main() -> None:
     step(2, "Cutting release branch...")
     cut_release_branch(version)
 
-    step(3, "Bumping version files...")
+    step(3, "Bumping version files and upgrading uv.lock...")
     bump_pyproject(version)
     bump_mkdocs(version)
     refresh_uv_lock()
+    # The upgraded lock changes what is installed, and ty's count follows
+    # the environment (see assert_zero_lint), so the gate runs once more
+    # against the tree that will ship.  Step 1 already refused on source
+    # lint before the branch was cut; this catches a dependency bump that
+    # moved the count.
+    assert_zero_lint()
 
-    step(4, "Updating doc counts (test count, ty count, coverage, line counts)...")
+    step(4, "Auditing uv.lock for known vulnerabilities...")
+    import audit_lock
+    audit_lock.audit_uv_lock(args.ignore_vuln)
+
+    step(5, "Updating doc counts (test count, ty count, coverage, line counts)...")
     test_count = count_tests()
     ty_count = count_ty_issues()
     cov_percent = measure_coverage_percent()
@@ -775,7 +804,7 @@ def main() -> None:
     update_readme_md(test_count, ty_count, cov_percent)
     update_suppression_count()
 
-    step(5, "Refreshing generated docs (config examples, credits sync)...")
+    step(6, "Refreshing generated docs (config examples, credits sync)...")
     from update_doc_configs import update_doc_configs
     updated = update_doc_configs()
     if updated:
@@ -795,25 +824,25 @@ def main() -> None:
         )
     ok("credits.py in sync with help/acknowledgments.md")
 
-    step(6, "Refreshing USB vendor table from upstream usb.ids...")
+    step(7, "Refreshing USB vendor table from upstream usb.ids...")
     refresh_usb_vendor_table()
 
-    step(7, "Inserting CHANGELOG stub...")
+    step(8, "Inserting CHANGELOG stub...")
     insert_changelog_stub(version)
 
-    step(8, "Running pytest...")
+    step(9, "Running pytest...")
     run_pytest()
 
-    step(9, "Running tox (multi-version)...")
+    step(10, "Running tox (multi-version)...")
     run_tox()
 
-    step(10, "Building HTML help with zensical...")
+    step(11, "Building HTML help with zensical...")
     run_zensical_build()
 
-    step(11, "Committing HTML rebuild...")
+    step(12, "Committing HTML rebuild...")
     commit_html_rebuild(version)
 
-    step(12, "Committing release...")
+    step(13, "Committing release...")
     commit_release(version)
 
     # ── Done ─────────────────────────────────────────────────────────────

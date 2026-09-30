@@ -2,9 +2,11 @@
 
 Prints a table sorted with "bump available" rows first so you can
 see at a glance which deps have moved since you last capped them.
-Run manually when you want to decide whether a new release needs
-dep bumps.  Not part of release_prep -- release_prep should stay
-hermetic (no network calls).
+Run it before a release to decide whether any *bound* should move:
+release_prep upgrades everything the manifest allows (``uv lock
+--upgrade``), and a direct dependency held under a cap is the one
+thing that step cannot move.  Not a gate, because raising a cap is
+a decision, not a check.
 
 Usage:
     python scripts/check_dep_updates.py

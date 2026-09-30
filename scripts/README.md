@@ -6,6 +6,7 @@ Two-stage release automation. Stdlib only, no third-party deps. Fail loud, never
 
 - `release_common.py` - shared helpers (subprocess, git checks, version validation, ANSI output)
 - `release_prep.py` - cuts the release branch and prepares the commits
+- `audit_lock.py` - audits `uv.lock` for known vulnerabilities (a `release_prep` gate; CI runs it too)
 - `release_publish.py` - merges to main, tags, pushes, creates the GitHub release
 
 ## Workflow
@@ -18,17 +19,19 @@ python scripts/release_prep.py 0.53.2
 
 This will:
 
-1. Sanity-check git state (on main, clean tree, in sync with origin, tag doesn't exist)
+1. Sanity-check git state (on main, clean tree, in sync with origin, tag doesn't exist) and the gates: ruff and ty at zero, no undisciplined suppression added since the last tag
 2. Cut `release/v0.53.2` from main
-3. Bump version in `pyproject.toml` and `mkdocs.yml`
-4. Refresh `uv.lock`
-5. Update tracked file line counts in `ARCHITECTURE.md`
-6. Update test count in `ARCHITECTURE.md` and `README.md`, plus rounded UI line counts in `README.md`
-7. Insert a CHANGELOG stub populated from `git log <last-tag>..HEAD --oneline --no-merges`
-8. Run `pytest` and `tox`
-9. Build HTML help with `uvx zensical build`
-10. Commit the HTML rebuild
-11. Commit the version bump + CHANGELOG as `Release v0.53.2`
+3. Bump version in `pyproject.toml` and `mkdocs.yml`; `uv lock --upgrade` so every dependency the manifest does not pin moves to its newest allowed version; re-run the ruff/ty gate against that environment
+4. Audit `uv.lock` for known vulnerabilities (`audit_lock.py`); a finding reviewed as unreachable is passed with `--ignore-vuln <ID>`
+5. Refresh the release-updated counts: per-module line counts in `ARCHITECTURE.md`, the test count, coverage percent and ty badge in `README.md`, the suppression count
+6. Regenerate tagged config examples (`update_doc_configs.py`) and check `credits.py` is in sync with `help/acknowledgments.md`
+7. Refresh the USB vendor table from upstream `usb.ids`
+8. Insert a CHANGELOG stub populated from `git log <last-tag>..HEAD --oneline --no-merges`
+9. Run `pytest`
+10. Run `tox`
+11. Build HTML help with `uvx zensical build`
+12. Commit the HTML rebuild
+13. Commit the version bump + lock + CHANGELOG + counts as `Release v0.53.2`
 
 Then review the diff and rewrite the CHANGELOG stub into a real user-facing summary:
 
@@ -93,5 +96,8 @@ because they share the stdlib-only / fail-loud convention.
   our upper bound.  Run before a release (or whenever you want)
   to see if `tree-sitter`, `textual`, etc. have new minors
   worth testing.  Output is a sorted table with `BUMP AVAILABLE`
-  rows at the top.  Not wired into `release_prep.py` because
-  release prep should stay hermetic (no network).
+  rows at the top.  It complements the release's `uv lock
+  --upgrade`, which moves everything the manifest allows: a
+  direct dependency held under a cap is the one thing that step
+  cannot move, and this table is where you see it.  Not a gate,
+  because raising a cap is a decision, not a check.

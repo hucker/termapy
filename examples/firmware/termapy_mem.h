@@ -21,6 +21,10 @@
  * the base case; flat pointers, banked memory, external EEPROM/SPI flash
  * and host test buffers are all just implementations of those two ops.
  *
+ * The platform is injected ONCE, as a struct of function pointers that
+ * TermapyMem_Init copies: explicit at boot, swappable in a host test, and
+ * never threaded through the calls -- one monitor, one link.
+ *
  * Integration with a monitor-style command table:
  *
  *     #include "termapy_mem.h"
@@ -39,17 +43,20 @@
  *         putchar,                   // or your UART's int put(int)
  *     };
  *
+ *     // At boot, once:
+ *     TermapyMem_Init(&sMemOps);
+ *
  *     static void MonMemNative(const char *argP)   // table: { "MEM", ... }
  *     {
- *         TermapyMem_Cmd(argP, &sMemOps);
+ *         TermapyMem_Cmd(argP);
  *     }
  *
  * The input string is everything AFTER your dispatcher's command token;
  * the leading "MEM" and "." are optional and case-insensitive, so
  * ".R 0 16", "R 0 16" and a whole "MEM.R 0 16" line all work.
  *
- * No dynamic allocation, no printf; RAM cost is one TERMAPY_MEM_MAX_BLOCK
- * buffer on the stack during a write, a 16-byte row during a read.
+ * No dynamic allocation, no printf; RAM cost is the copied ops struct
+ * plus one TERMAPY_MEM_MAX_BLOCK buffer on the stack during MEM.R / MEM.W.
  */
 
 #ifndef TERMAPY_MEM_H
@@ -91,12 +98,24 @@ typedef struct {
 } TermapyMem_Ops;
 
 /**
+ * @brief Install the platform.  Once, at boot, before any TermapyMem_Cmd.
+ *
+ * The struct is copied, so a temporary is fine.  read, write and put are
+ * required; lock and unlock may both be NULL.  Until this is called, or
+ * if a required op is NULL, TermapyMem_Cmd answers nothing at all --
+ * there is no output to answer on -- which the host reports as a device
+ * without MEM support.
+ *
+ * @param opsP The platform operations; copied, not retained.
+ */
+void TermapyMem_Init(const TermapyMem_Ops *opsP);
+
+/**
  * @brief Handle one MEM command line.
  *
  * @param inputP The received line after your command token.
- * @param opsP   The platform operations (must outlive the call only).
  */
-void TermapyMem_Cmd(const char *inputP, const TermapyMem_Ops *opsP);
+void TermapyMem_Cmd(const char *inputP);
 
 /**
  * @brief Flat-MCU byte access: direct pointers gated by a region table.

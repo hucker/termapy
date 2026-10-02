@@ -30,7 +30,7 @@ If your plugin is generally useful, open a PR to include it in `builtins/command
 1. Create a feature branch from `main`
 2. Make your changes
 3. Run `uv run pytest` - all tests must pass
-4. Run `uv run tox` - must pass on Python 3.11-3.14
+4. Run `uv run tox` - must pass on Python 3.11-3.15
 5. Update docs if you changed commands, config, or architecture
 6. Rebuild HTML help: `uv run -- python -m mkdocs build`
 7. Open a PR

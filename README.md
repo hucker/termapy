@@ -4,7 +4,7 @@
 
 **Powered by:** [![Textual](https://img.shields.io/badge/Textual-TUI-blue?logo=python)](https://textual.textualize.io/) [![pySerial](https://img.shields.io/badge/pySerial-serial%20I%2FO-orange?logo=python)](https://pyserial.readthedocs.io/) [![zensical](https://img.shields.io/badge/zensical-docs-green)](https://github.com/hucker/zensical)
 
-**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-72%25-yellow)](https://coverage.readthedocs.io/)
+**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.15-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-72%25-yellow)](https://coverage.readthedocs.io/)
 
 Pronounced "ter-map-ee"
 
@@ -1212,7 +1212,7 @@ From the REPL:
 <details>
 <summary><strong>Portability</strong></summary>
 
-Developed and tested on **Windows**. Basic usage verified on **macOS** (serial, ANSI rendering, screenshots). macOS support is **alpha** until further testing. **Linux** is exercised by GitHub Actions CI on every push (the full test suite, including the CLI gold-standard integration test, runs on Ubuntu against Python 3.11 through 3.14), but interactive use on Linux has not been hand-verified by the author.
+Developed and tested on **Windows**. Basic usage verified on **macOS** (serial, ANSI rendering, screenshots). macOS support is **alpha** until further testing. **Linux** is exercised by GitHub Actions CI on every push (the full test suite, including the CLI gold-standard integration test, runs on Ubuntu against Python 3.11 through 3.15), but interactive use on Linux has not been hand-verified by the author.
 
 </details>
 
@@ -1263,7 +1263,7 @@ All tests run automatically on push to `main` and on pull requests via GitHub Ac
 
 | Job          | What it does                                                                                      |
 | ------------ | ------------------------------------------------------------------------------------------------- |
-| **test**     | Runs `pytest` across Python 3.11, 3.12, 3.13, and 3.14                                            |
+| **test**     | Runs `pytest` across Python 3.11, 3.12, 3.13, 3.14, and 3.15                                      |
 | **coverage** | Runs `pytest --cov` on Python 3.14 and uploads to [Codecov](https://codecov.io/gh/hucker/termapy) |
 | **audit**    | Audits `uv.lock` with `pip-audit` (every extra and group; `scripts/audit_lock.py`)               |
 

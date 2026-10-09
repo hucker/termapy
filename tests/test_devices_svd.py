@@ -131,7 +131,7 @@ class TestDocument:
         # Assert
         assert len(device) == EXPECTED_COUNT
         by_name = {register.symbol.name: register for register in device.registers()}
-        assert by_name["PORT_GROUP0_PMUX0"].symbol.type == "PMUXE:B1.0-3 PMUXO:B1.4-7", (
+        assert by_name["PORT_GROUP0_PMUX0"].symbol.type == "PMUXE:B.0-3 PMUXO:B.4-7", (
             "the type spec derives from the converted fields"
         )
         assert by_name["SERCOM0_DATA"].symbol.read_effect is True, "safety facts reach the Symbol"

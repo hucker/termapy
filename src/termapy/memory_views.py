@@ -26,6 +26,7 @@ from termapy.protocol.core import (
     extract_column_value,
     inject_column_value,
     parse_format_spec,
+    resolve_word_columns,
 )
 from termapy.symbols import Symbol
 
@@ -154,24 +155,35 @@ class BitTarget:
         return ((1 << self.bit_width) - 1) << self.low
 
 
-def symbol_columns(symbol: Symbol) -> list[ColumnSpec]:
-    """The parsed format-spec columns of a symbol's type (may be empty)."""
+def symbol_columns(symbol: Symbol, endian: str) -> list[ColumnSpec]:
+    """The format-spec columns of a symbol's type, bound to its word (may be empty).
+
+    A field written ``NAME:B.<bits>`` names bits of the register word: the
+    word's width is the symbol's size and its byte order is the device's,
+    the same fact the scalar types decode with, so one spec reads right on
+    either kind of core.  A field with its own byte range is taken as
+    written.
+
+    Raises:
+        ValueError: A word-relative field names a bit outside the word.
+    """
     if not symbol.type or symbol.type in SCALARS or symbol.type == "char":
         return []
     try:
-        return parse_format_spec(symbol.type)
+        columns = parse_format_spec(symbol.type)
     except (ValueError, IndexError, KeyError):
         return []
+    return resolve_word_columns(columns, _word_width(symbol, 4), endian)
 
 
-def find_field(symbol: Symbol, name: str) -> ColumnSpec:
-    """The named ``B`` field of a symbol's format-spec type.
+def find_field(symbol: Symbol, name: str, endian: str) -> ColumnSpec:
+    """The named ``B`` field of a symbol's format-spec type, bound to its word.
 
     Raises:
         ValueError: The symbol has no such field (the message lists what
             it does have), or the field is not a bit field.
     """
-    columns = symbol_columns(symbol)
+    columns = symbol_columns(symbol, endian)
     for column in columns:
         if column.name == name:
             if column.type_code not in ("B", "b"):
@@ -192,7 +204,7 @@ def _word_width(symbol: Symbol | None, default_width: int) -> int:
 
 
 def resolve_bit_target(
-    symbol: Symbol | None, suffix: str, *, default_width: int = 4,
+    symbol: Symbol | None, suffix: str, *, endian: str, default_width: int = 4,
 ) -> BitTarget:
     """Interpret an address-grammar suffix against an optional symbol.
 
@@ -202,6 +214,8 @@ def resolve_bit_target(
     Args:
         symbol: The symbol the target named, or None for a bare address.
         suffix: The unconsumed text after the last dot.
+        endian: The device's byte order, which binds a ``B.<bits>`` field
+            to its word.
         default_width: Word width when nothing else decides (the mask-op
             rule: 32-bit).
 
@@ -213,7 +227,7 @@ def resolve_bit_target(
     if match is None:
         if symbol is None:
             raise ValueError(f"Unknown field: .{suffix} (a bare address takes .<bit> or .<lo>-<hi>)")
-        column = find_field(symbol, suffix)
+        column = find_field(symbol, suffix, endian)
         indices = column.byte_indices
         low, bit_width = _column_slice(column)
         return BitTarget(

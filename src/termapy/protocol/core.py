@@ -964,6 +964,8 @@ class ColumnSpec:
             ``"B"``, ``"_"``, or a CRC algorithm name like ``"crc16m"``).
         byte_indices: 0-based byte indices in the specified order.
             For ascending ranges the first index is MSB (big-endian).
+            Empty for a word-relative ``B.<bits>`` column until
+            :func:`resolve_word_columns` binds it to a register word.
         bit: Bit index or range for ``B`` type, or None.
             Single bit: ``int``. Multi-byte range: ``(start, end)`` tuple.
         wildcard: True if the spec ends with ``-*`` (variable length).
@@ -1149,10 +1151,14 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
         #   B1-2.7-9 - multi-byte bit range, display as integer
         #   b1-2.0-7 - same but display as binary string (0-7 = MSB first)
         #   b1-2.7-0 - binary string (7-0 = LSB first)
+        #   B.15 - no byte range: a bit of the enclosing REGISTER WORD.
+        #          The reader binds it with resolve_word_columns (the
+        #          symbol's size, the device's byte order); a packet has
+        #          no word, so the primitives refuse it unbound.
         if type_body[0] in BIT_CODES and "." in type_body:
             type_code = type_body[0]
             byte_part, bit_part = type_body[1:].split(".", 1)
-            byte_indices, _ = _parse_byte_refs(byte_part)
+            byte_indices = [] if byte_part == "" else _parse_byte_refs(byte_part)[0]
             if "-" in bit_part:
                 bit_parts = bit_part.split("-", 1)
                 bit = (int(bit_parts[0]), int(bit_parts[1]))
@@ -1206,6 +1212,45 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
         )
 
     return columns
+
+
+def resolve_word_columns(
+    columns: list[ColumnSpec], size: int, endian: str,
+) -> list[ColumnSpec]:
+    """Bind word-relative bit columns (``NAME:B.<bits>``) to a register word.
+
+    A ``B`` column written without a byte range names bits of the word
+    the spec describes, not bytes of a packet, so the word's width and
+    byte order come from the reader -- the symbol's size and the device's
+    endian -- instead of being spelled per field.  A column that carries
+    its own byte range is returned as it is: the explicit packet form
+    stays valid and wins.
+
+    Args:
+        columns: Parsed columns (from :func:`parse_format_spec`).
+        size: The register's width in bytes.
+        endian: ``"le"`` or ``"be"``, the device's byte order.
+
+    Returns:
+        A new list; a word-relative column becomes a copy whose
+        ``byte_indices`` combine to the word the core sees.
+
+    Raises:
+        ValueError: A word-relative field names a bit outside the word.
+    """
+    word = list(range(size - 1, -1, -1)) if endian == "le" else list(range(size))
+    resolved: list[ColumnSpec] = []
+    for column in columns:
+        if column.type_code not in ("B", "b") or column.byte_indices:
+            resolved.append(column)
+            continue
+        low, width = _bit_slice(column)
+        if low + width > size * 8:
+            raise ValueError(f"Invalid bit: {column.name} (the word is {size * 8} bits)")
+        resolved.append(
+            ColumnSpec(name=column.name, type_code=column.type_code, byte_indices=word, bit=column.bit)
+        )
+    return resolved
 
 
 def _resolve_wildcards(
@@ -1296,6 +1341,7 @@ def _format_column_value(
 
     # Bit field - B (integer) or b (binary string)
     if col.type_code in ("B", "b") and col.bit is not None:
+        _require_bytes(col)
         if not indices or indices[0] >= len(data):
             return "?"
         if isinstance(col.bit, tuple):
@@ -1390,6 +1436,12 @@ def _format_column_value(
     return raw.hex().upper()
 
 
+def _require_bytes(col: ColumnSpec) -> None:
+    """Refuse a word-relative column (``B.<bits>``) nobody bound to a word."""
+    if not col.byte_indices:
+        raise ValueError(f"Field {col.name} has no byte range (B.<bits> needs a register word)")
+
+
 def _bit_slice(col: ColumnSpec) -> tuple[int, int]:
     """``(low bit, width)`` of a ``B``/``b`` column, LSB0 over the combined value."""
     if isinstance(col.bit, tuple):
@@ -1419,6 +1471,7 @@ def extract_column_value(data: bytes, col: ColumnSpec) -> int:
     """
     if col.type_code not in ("B", "b") or col.bit is None:
         raise ValueError(f"Not a bit field: {col.name} ({col.type_code})")
+    _require_bytes(col)
     if any(index >= len(data) for index in col.byte_indices):
         raise ValueError(f"Field {col.name} runs past {len(data)} bytes")
     combined = int.from_bytes(bytes(data[index] for index in col.byte_indices), "big")
@@ -1448,6 +1501,7 @@ def inject_column_value(data: bytes, col: ColumnSpec, value: int) -> bytes:
     """
     if col.type_code not in ("B", "b") or col.bit is None:
         raise ValueError(f"Not a bit field: {col.name} ({col.type_code})")
+    _require_bytes(col)
     if any(index >= len(data) for index in col.byte_indices):
         raise ValueError(f"Field {col.name} runs past {len(data)} bytes")
     low, width = _bit_slice(col)

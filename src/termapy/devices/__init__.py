@@ -359,7 +359,7 @@ def _register_template(raw: Any, where: str, device: str) -> Register:
     if fields and type_spec:
         raise ValueError(f"{where}.type: fields are given; type is derived from them")
     if fields:
-        type_spec = derive_type(size, fields)
+        type_spec = derive_type(fields)
     elif not type_spec:
         type_spec = _SCALAR_BY_SIZE.get(size, "")
     check_type(type_spec, where)
@@ -437,26 +437,25 @@ def _parse_values(raw: Any, where: str) -> tuple[tuple[int, str], ...]:
     return tuple(pairs)
 
 
-def derive_type(size: int, fields: tuple[Field, ...]) -> str:
+def derive_type(fields: tuple[Field, ...]) -> str:
     """The ``/mem.read`` format spec for a register's fields.
 
     One direction only -- fields are the source, the spec is derived --
-    so the structured view and the reader can never drift.  Uses the
-    little-endian multi-byte form (``B4-1``) the format-spec language
-    already reads, single-byte ``B1`` for 8-bit registers.
+    so the structured view and the reader can never drift.  Fields are
+    word-relative (``NAME:B.<bits>``): the register's width is its size
+    and its byte order is the device's, both supplied by the reader, so a
+    device file never encodes an endianness.
 
     Args:
-        size: Register width in bytes.
         fields: The fields, in file order.
 
     Returns:
-        A spec such as ``"EVEN:B1.0-3 ODD:B1.4-7"``.
+        A spec such as ``"EVEN:B.0-3 ODD:B.4-7"``.
     """
-    bytes_ref = "B1" if size == 1 else f"B{size}-1"
     columns = []
     for item in fields:
         bits = str(item.bit) if item.width == 1 else f"{item.bit}-{item.bit + item.width - 1}"
-        columns.append(f"{item.name}:{bytes_ref}.{bits}")
+        columns.append(f"{item.name}:B.{bits}")
     return " ".join(columns)
 
 

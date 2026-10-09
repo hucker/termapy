@@ -69,11 +69,15 @@ field is addressable -- readable and writable -- by name:
 /mem.or gFlags 0x10         ->   OR 0x00000010 at 0x00001008  gFlags  (0x00000005 -> 0x00000015)
 ```
 
-Register field specs use the format-spec language exactly as protocol
-testing does -- **byte order in the spec IS the byte order in memory** --
-so a little-endian 32-bit register lists its bytes MSB-first:
-`"ON:B4-1.15"` is bit 15 of the LE word at bytes 1-4. Bit numbers are
-LSB0 over the logical word, the hardware convention.
+Register field specs use the format-spec language from protocol testing
+in its register form: a `B` column with no byte range names bits of the
+**register word**, so `"ON:B.15 UEN:B.8-9 BRGH:B.3"` is bit 15, bits 8-9
+and bit 3 of U1MODE. The word's width is the symbol's size and its byte
+order is the device's (`/mem.info`), the same fact the scalar types use,
+so a spec never spells an endianness and reads right on either kind of
+core. Bit numbers are LSB0 over the logical word, the hardware
+convention. The packet form with explicit bytes (`"ON:B4-1.15"`) is still
+accepted, but it pins a byte order, so device files never use it.
 
 Bit and mask writes are one masked word operation: atomic on the device
 (`MEM.M`) when it advertises one, otherwise a host-side read +

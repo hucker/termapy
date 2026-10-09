@@ -593,3 +593,258 @@ def test_symbols_namespace_owner_still_touches_it():
     assert SYMBOLS_NS_OWNER in actual, (
         "session.py no longer touches ctx.ns('symbols'); move the exemption to the new owner"
     )
+
+
+# ── Test headers ─────────────────────────────────────────────────────────────
+
+TESTS = Path(__file__).parent
+
+# Test files that still hold a test with no docstring header, written before
+# the rule existed.  The list only shrinks: files come off as batches convert
+# them (the stale-entry test below forces that), and when it is empty this
+# constant and its stale-entry test are deleted.  Never add a file here -- a
+# new or edited test gets its header instead.
+ALLOWED_HEADERLESS: frozenset[str] = frozenset({
+    "test_alias_chip_coverage.py",
+    "test_app_config.py",
+    "test_app_dirs.py",
+    "test_app_pilot.py",
+    "test_app_plugin.py",
+    "test_builtins.py",
+    "test_capture.py",
+    "test_cfg_icon.py",
+    "test_cfg_info_report.py",
+    "test_cfg_load.py",
+    "test_checkbox.py",
+    "test_cli.py",
+    "test_cli_exec.py",
+    "test_cli_improvements.py",
+    "test_cli_prefix.py",
+    "test_cli_zero_config.py",
+    "test_commands_doc_sync.py",
+    "test_config_rename.py",
+    "test_crc_builtins.py",
+    "test_crcglot_abi.py",
+    "test_credits_data.py",
+    "test_defaults.py",
+    "test_demo.py",
+    "test_demo_memory.py",
+    "test_demo_ndjson.py",
+    "test_demo_profiles.py",
+    "test_demo_random_packet.py",
+    "test_demo_symbols.py",
+    "test_demo_vt100.py",
+    "test_detect_gui_apps.py",
+    "test_devices.py",
+    "test_devices_svd.py",
+    "test_dialogs.py",
+    "test_engine.py",
+    "test_env_var.py",
+    "test_env_var_gates.py",
+    "test_examples_load.py",
+    "test_expect.py",
+    "test_find.py",
+    "test_firmware_mem.py",
+    "test_folder_ops_dump.py",
+    "test_folder_ops_listing.py",
+    "test_folders.py",
+    "test_fs_sandbox.py",
+    "test_handles.py",
+    "test_hardware_loopback.py",
+    "test_help_dynamic.py",
+    "test_help_tooltip.py",
+    "test_history_nav.py",
+    "test_install_info.py",
+    "test_lazy_folders.py",
+    "test_legacy_migration.py",
+    "test_loopback.py",
+    "test_loopback_io.py",
+    "test_mcp_cfg_load.py",
+    "test_mcp_entry.py",
+    "test_mcp_lifecycle.py",
+    "test_mcp_plugin.py",
+    "test_mcp_profile_executor.py",
+    "test_mcp_prompts.py",
+    "test_mcp_safety.py",
+    "test_mcp_server.py",
+    "test_mcp_stdio.py",
+    "test_mcp_symbols.py",
+    "test_mem_commands.py",
+    "test_memory_engine.py",
+    "test_memory_views.py",
+    "test_observer_safety.py",
+    "test_output_level.py",
+    "test_palette.py",
+    "test_params.py",
+    "test_pickers.py",
+    "test_plugin_resolve.py",
+    "test_plugins.py",
+    "test_port_connect_cli.py",
+    "test_port_control.py",
+    "test_port_noninvasive.py",
+    "test_port_serial_resolution.py",
+    "test_post_dispatch_observer.py",
+    "test_profile_memory_block.py",
+    "test_profile_plugin.py",
+    "test_profile_schema.py",
+    "test_profile_types.py",
+    "test_proto_crc_custom.py",
+    "test_proto_crc_detect.py",
+    "test_proto_crc_dispatch.py",
+    "test_proto_crc_errors.py",
+    "test_proto_crc_find.py",
+    "test_proto_crc_form.py",
+    "test_proto_crc_reverse.py",
+    "test_proto_crc_styles_and_bundle.py",
+    "test_proto_crc_suggest.py",
+    "test_proto_runner.py",
+    "test_proto_send_crc.py",
+    "test_protocol.py",
+    "test_python_versions.py",
+    "test_repl_cfg.py",
+    "test_repl_coverage.py",
+    "test_request_response.py",
+    "test_resolve_config.py",
+    "test_run_docstring.py",
+    "test_run_record.py",
+    "test_scripting.py",
+    "test_search_markup.py",
+    "test_serial_engine.py",
+    "test_serial_io_safety.py",
+    "test_serial_port.py",
+    "test_shutdown_race.py",
+    "test_status_bar.py",
+    "test_suggester.py",
+    "test_suppression_audit.py",
+    "test_sym_commands.py",
+    "test_symbols_address.py",
+    "test_symbols_format.py",
+    "test_symbols_provenance.py",
+    "test_symbols_table.py",
+    "test_symbols_xc32.py",
+    "test_synopsis_validation.py",
+    "test_term_request.py",
+    "test_term_send.py",
+    "test_terminal_host.py",
+    "test_title_bar.py",
+    "test_title_tooltip.py",
+    "test_tree_render.py",
+    "test_update_check.py",
+    "test_usage_error.py",
+    "test_usb_mfg.py",
+    "test_usb_serial_chips.py",
+    "test_usb_tree.py",
+    "test_usb_vendor.py",
+    "test_value_capture_e2e.py",
+    "test_var.py",
+    "test_vt100.py",
+    "test_xmodem.py",
+})
+
+
+def _test_functions(
+    body: list[ast.stmt], prefix: str = "",
+) -> list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]]:
+    """``(qualname, def)`` for every test pytest collects from ``body``.
+
+    pytest's defaults, which pyproject does not override: ``test*`` functions
+    at module level and ``test*`` methods of ``Test*`` classes, nested
+    classes included.  Helpers, fixtures and non-``Test`` classes are not
+    tests, so they need no header.
+    """
+    found: list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]] = []
+    for node in body:
+        is_function = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        if is_function and node.name.startswith("test"):
+            found.append((prefix + node.name, node))
+        elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+            found.extend(_test_functions(node.body, f"{prefix}{node.name}."))
+    return found
+
+
+def _headerless_tests(tree: ast.Module, rel: str) -> list[str]:
+    """Every test in ``rel`` with no docstring header."""
+    return [
+        f"{rel}:{func.lineno}  {qualname}"
+        for qualname, func in _test_functions(tree.body)
+        if not ast.get_docstring(func)
+    ]
+
+
+def _headerless_files() -> dict[str, list[str]]:
+    """``{rel: [violation lines]}`` for every test file with a headerless test."""
+    found: dict[str, list[str]] = {}
+    for path in sorted(TESTS.rglob("test_*.py")):
+        rel = path.relative_to(TESTS).as_posix()
+        missing = _headerless_tests(ast.parse(path.read_text(encoding="utf-8")), rel)
+        if missing:
+            found[rel] = missing
+    return found
+
+
+def test_every_test_has_a_header():
+    """Every test outside the shrinking allowlist says what it pins in a docstring.
+
+    The name says what a test does; the header says why it matters, which
+    is what a reader has lost when they come back to it later.  See the
+    Testing section of CLAUDE.md.
+    """
+    # Arrange / Act
+    violations = [
+        line
+        for rel, missing in _headerless_files().items()
+        if rel not in ALLOWED_HEADERLESS
+        for line in missing
+    ]
+
+    # Assert
+    assert violations == [], (
+        "every test opens with a one-line docstring header saying what it pins:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_header_guard_fires_on_a_probe():
+    """The guard flags exactly the tests pytest collects, and only headerless ones."""
+    # Arrange -- two headerless tests, plus a headed test, a helper, a
+    # fixture and a non-Test class that must all pass
+    probe = (
+        "def test_bare():\n"
+        "    assert True\n"
+        "def test_headed():\n"
+        '    """Has a header."""\n'
+        "def _helper():\n"
+        "    pass\n"
+        "@pytest.fixture\n"
+        "def board():\n"
+        "    pass\n"
+        "class TestThing:\n"
+        "    def test_method(self):\n"
+        "        pass\n"
+        "    def helper(self):\n"
+        "        pass\n"
+        "class Helper:\n"
+        "    def test_not_collected(self):\n"
+        "        pass\n"
+    )
+
+    # Act
+    found = _headerless_tests(ast.parse(probe), "probe")
+
+    # Assert
+    assert found == ["probe:1  test_bare", "probe:11  TestThing.test_method"], (
+        "the module test and the Test-class method flagged; nothing pytest skips"
+    )
+
+
+def test_headerless_allowlist_has_no_stale_entries():
+    """Every allowlisted file still has a headerless test, so the list only shrinks."""
+    # Arrange / Act
+    actual = set(_headerless_files())
+
+    # Assert
+    stale = sorted(ALLOWED_HEADERLESS - actual)
+    assert stale == [], (
+        "ALLOWED_HEADERLESS lists files whose tests all have headers now; drop them:\n  "
+        + "\n  ".join(stale)
+    )

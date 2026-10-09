@@ -69,6 +69,7 @@ def probed(monkeypatch):
 
 class TestResolutionNeverProbes:
     def test_resolve_by_name_opens_no_port(self, probed):
+        """Resolving a literal port name never runs the in-use probe that resets boards."""
         # Act
         actual = port_control.resolve_port("COM7")
 
@@ -77,6 +78,7 @@ class TestResolutionNeverProbes:
         assert probed == [], f"resolve_port must not probe any port; probed {probed}"
 
     def test_resolve_by_serial_opens_no_port(self, probed):
+        """Mapping a serial number to its device reads identity only and probes nothing."""
         # Act
         actual = port_control.resolve_port("A1B2C3D4")
 
@@ -85,6 +87,7 @@ class TestResolutionNeverProbes:
         assert probed == [], f"SN resolution must not probe; probed {probed}"
 
     def test_resolve_trace_opens_no_port(self, probed):
+        """The resolution trace, with a SN|name fallback spec, also opens no port."""
         # Act
         port_control.resolve_port_trace("A1B2C3D4|COM7")
 
@@ -92,6 +95,7 @@ class TestResolutionNeverProbes:
         assert probed == [], f"resolution trace must not probe; probed {probed}"
 
     def test_list_ports_opens_no_port(self, probed):
+        """The /port.list table enumerates without opening any port."""
         # Act
         port_control.list_ports()
 
@@ -101,6 +105,7 @@ class TestResolutionNeverProbes:
 
 class TestExplicitSurfaceStillProbes:
     def test_fast_gather_skips_probe(self, probed):
+        """fast=True finds the port but leaves in_use unset instead of opening it."""
         # Act
         facts = port_control.gather_chip_facts("COM7", fast=True)
 
@@ -111,6 +116,7 @@ class TestExplicitSurfaceStillProbes:
         assert probed == [], f"fast gather must not probe; probed {probed}"
 
     def test_explicit_gather_still_probes(self, probed):
+        """A default single-port gather is a monitoring surface and probes only its target."""
         # Act -- an explicit single-port lookup (fast defaults False) is a
         # legitimate monitoring surface and must still probe the target.
         facts = port_control.gather_chip_facts("COM7")
@@ -163,6 +169,7 @@ class TestEnrichmentIsSeparateFromProbing:
     """
 
     def test_the_listing_enriches_without_probing(self, probed, enriched):
+        """/port.list fills LOCATION and DRIVER for every port while still probing none."""
         # Act
         port_control.list_ports()
 
@@ -177,6 +184,7 @@ class TestEnrichmentIsSeparateFromProbing:
         assert probed == [], f"and it still must not open a port; probed {probed}"
 
     def test_the_ports_table_enriches_without_probing(self, probed, enriched):
+        """The --ports CLI table looks up its metadata columns but opens no port."""
         # Arrange
         import argparse
         import io
@@ -199,6 +207,7 @@ class TestEnrichmentIsSeparateFromProbing:
         assert probed == [], f"--ports still opens nothing; probed {probed}"
 
     def test_resolution_does_not_enrich(self, enriched):
+        """Resolution, run on every reconnect tick, skips the registry and sysfs lookups."""
         # Act
         port_control.resolve_port("COM7")
 
@@ -211,6 +220,7 @@ class TestEnrichmentIsSeparateFromProbing:
         )
 
     def test_a_plain_fast_gather_does_not_enrich(self, enriched):
+        """Enrichment is opt-in, so the --watch poll does not pay for metadata lookups."""
         # Act -- the default: what --watch polls with.
         port_control._gather_all_chip_facts(fast=True)
 
@@ -221,6 +231,7 @@ class TestEnrichmentIsSeparateFromProbing:
         )
 
     def test_the_probing_path_still_enriches(self, enriched):
+        """A fast=False gather already pays the probe cost, so it still returns metadata."""
         # Act -- fast=False means the caller already accepted the far larger
         # probe cost, so metadata comes along as it always has.
         port_control.gather_chip_facts("COM7")

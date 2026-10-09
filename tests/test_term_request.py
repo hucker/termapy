@@ -87,6 +87,7 @@ def repl_env(tmp_path, monkeypatch):
 
 class TestTermRequestToggle:
     def test_toggle_default_off_sets_on(self, repl_env):
+        """The explicit toggle verb flips request_mode off -> on and reports the new state."""
         # Arrange
         engine, ctx, cfg, _, _ = repl_env
         assert cfg.get("request_mode") is False, "starts off (precondition)"
@@ -100,6 +101,7 @@ class TestTermRequestToggle:
         assert result.value == "on", "result.value reports new state"
 
     def test_toggle_explicit_off_when_on(self, repl_env):
+        """An explicit off disables an enabled request_mode and reports off as the value."""
         # Arrange
         engine, ctx, cfg, _, _ = repl_env
         engine._apply_cfg("request_mode", True)
@@ -112,6 +114,7 @@ class TestTermRequestToggle:
         assert result.value == "off", "value reports off"
 
     def test_toggle_explicit_on(self, repl_env):
+        """An explicit on enables request_mode from its default and reports on as the value."""
         # Arrange
         engine, ctx, cfg, _, _ = repl_env
 
@@ -124,6 +127,7 @@ class TestTermRequestToggle:
 
 
     def test_any_parse_bool_token_sets(self, repl_env):
+        """Any parse_bool token sets the mode: yes means on, not an Unknown token error."""
         # Arrange -- the one-vocabulary rule: yes/1/true are all "on"
         engine, ctx, cfg, _, _ = repl_env
 
@@ -189,6 +193,7 @@ def _wire_fake_serial(ctx, fake):
 
 class TestExecRequestMode:
     def test_value_is_response_text_and_display_carries_envelope(self, repl_env):
+        """One exchange sends cmd + EOL under a claim; value is the text, the envelope renders."""
         # Arrange
         engine, ctx, _, output, _ = repl_env
         fake = _FakeSerial(response=b"5.5\r\n")
@@ -212,6 +217,7 @@ class TestExecRequestMode:
         assert isinstance(rendered["elapsed_s"], float), "display: elapsed_s"
 
     def test_json_native_response_lands_in_data(self, repl_env):
+        """A JSON reply is parsed into data while value keeps the raw wire text."""
         # Arrange -- the device answers with a JSON object (json-to-json)
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b'{"volts": 5.5, "ok": true}\r\n')
@@ -229,6 +235,7 @@ class TestExecRequestMode:
         )
 
     def test_malformed_json_response_stays_text_only(self, repl_env):
+        """A brace-led reply that fails to parse leaves data None instead of faking structure."""
         # Arrange -- looks like JSON, isn't
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"{broken\r\n")
@@ -242,6 +249,7 @@ class TestExecRequestMode:
         assert result.value == "{broken", "raw text still delivered in value"
 
     def test_strip_device_echo_removes_echoed_command(self, repl_env):
+        """With strip_device_echo on, a half-duplex echo of the command is dropped from value."""
         # Arrange -- a half-duplex device echoes the command, then answers.
         engine, ctx, _, _, markup = repl_env
         engine._cfg_data["strip_device_echo"] = True
@@ -255,6 +263,7 @@ class TestExecRequestMode:
         assert result.value == "1.2.3", "leading echo stripped"
 
     def test_strip_device_echo_off_keeps_echo(self, repl_env):
+        """strip_device_echo defaults off, so the device's echoed command stays in value."""
         # Arrange -- default off: the echoed line stays in the response.
         engine, ctx, _, _, markup = repl_env
         fake = _FakeSerial(response=b"AT+VER\r\n1.2.3\r\n")
@@ -267,6 +276,7 @@ class TestExecRequestMode:
         assert "AT+VER" in result.value, "echo kept when strip is off"
 
     def test_ansi_stripped_from_value_when_color_off(self, repl_env):
+        """With color off, the MCP default, SGR escapes are removed from the reply value."""
         # Arrange -- MCP defaults color off; device wraps its reply in SGR.
         engine, ctx, _, _, _ = repl_env
         ctx.ns("flags")["color"] = False
@@ -280,6 +290,7 @@ class TestExecRequestMode:
         assert result.value == "5.5", "ANSI stripped from value when color off"
 
     def test_ansi_kept_in_value_when_color_on(self, repl_env):
+        """With color on, the reply's ANSI escapes pass through into value untouched."""
         # Arrange -- color on (TUI/CLI default): passthrough preserved.
         engine, ctx, _, _, _ = repl_env
         ctx.ns("flags")["color"] = True
@@ -293,6 +304,7 @@ class TestExecRequestMode:
         assert "\x1b[32m" in result.value, "ANSI preserved in value when color on"
 
     def test_err_pattern_matches_through_stripped_ansi(self, repl_env):
+        """ANSI is stripped before request_err_pattern runs, so a colored ERR still fails."""
         # Arrange -- a colored error line must still match request_err_pattern
         # because the strip runs before the match.
         engine, ctx, cfg, _, _ = repl_env
@@ -309,6 +321,7 @@ class TestExecRequestMode:
         assert result.error == "ERR: bad", "error text is ANSI-stripped"
 
     def test_envelope_rendered_to_terminal_as_single_line(self, repl_env):
+        """Request echo goes to markup; the response is one JSON line in the shared dialect."""
         # Arrange
         engine, ctx, _, output, markup = repl_env
         fake = _FakeSerial(response=b"1.2.3")
@@ -331,6 +344,7 @@ class TestExecRequestMode:
         assert response_envelope["output_lines"] == [], "device path: no prose"
 
     def test_envelope_on_send_error(self, repl_env):
+        """A write OSError fails as Send error and the rendered envelope mirrors the failure."""
         # Arrange -- writer raises OSError
         engine, ctx, _, output, _ = repl_env
 
@@ -354,6 +368,7 @@ class TestExecRequestMode:
         assert rendered["value"] == "", "display envelope: empty result"
 
     def test_empty_response_renders_empty_result(self, repl_env):
+        """A silent device is success with an empty value, and the envelope still renders."""
         # Arrange -- device timed out / no reply
         engine, ctx, _, output, _ = repl_env
         fake = _FakeSerial(response=b"")
@@ -370,6 +385,7 @@ class TestExecRequestMode:
         assert rendered["value"] == "", "display envelope: empty result"
 
     def test_decode_uses_configured_encoding(self, repl_env):
+        """Replies decode with the cfg encoding, so latin-1 bytes come back as the right text."""
         # Arrange -- latin-1 encoded response
         engine, ctx, cfg, _, _ = repl_env
         cfg["encoding"] = "latin-1"
@@ -383,6 +399,7 @@ class TestExecRequestMode:
         assert result.value == "café", "latin-1 decoded correctly"
 
     def test_strip_trims_whitespace_in_result(self, repl_env):
+        """Leading and trailing spaces and line endings are trimmed from the reply value."""
         # Arrange -- response has leading/trailing whitespace + line endings
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"  5.5\r\n  ")
@@ -395,6 +412,7 @@ class TestExecRequestMode:
         assert result.value == "5.5", "value stripped"
 
     def test_read_window_uses_cfg_default_response_timeout(self, repl_env):
+        """default_response_timeout_ms sets the read window; a wrong key once hardwired 1000."""
         # Arrange -- cfg carries a non-default response window.
         # Regression: the executor used to read the nonexistent key
         # "response_timeout_ms", so the cfg value never reached read_raw
@@ -412,6 +430,7 @@ class TestExecRequestMode:
             "cfg default_response_timeout_ms reaches the read window"
 
     def test_read_window_falls_back_to_1000_without_cfg_key(self, repl_env):
+        """With no default_response_timeout_ms in cfg, the read window is 1000 ms."""
         # Arrange -- fixture cfg deliberately lacks the key
         engine, ctx, cfg, _, _ = repl_env
         assert "default_response_timeout_ms" not in cfg, "precondition"
@@ -429,6 +448,7 @@ class TestDeviceErrorDetection:
     """request_err_pattern detects device-side error responses."""
 
     def test_default_pattern_matches_err_prefix(self, repl_env):
+        """An ERR: reply fails with the device text as the error and an empty value."""
         # Arrange
         engine, ctx, cfg, _, markup = repl_env
         cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
@@ -446,6 +466,7 @@ class TestDeviceErrorDetection:
             "value empty (text moved to error)"
 
     def test_default_pattern_matches_error_prefix(self, repl_env):
+        """The ERROR alternative of the standard pattern flags the reply as a failure."""
         # Arrange
         engine, ctx, cfg, _, _ = repl_env
         cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
@@ -460,6 +481,7 @@ class TestDeviceErrorDetection:
         assert "timeout" in result.error, "error message captured"
 
     def test_default_pattern_matches_fault_prefix(self, repl_env):
+        """The FAULT alternative flags a numbered fault reply as a failure."""
         # Arrange
         engine, ctx, cfg, _, _ = repl_env
         cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
@@ -473,6 +495,7 @@ class TestDeviceErrorDetection:
         assert result.success is False, "FAULT prefix detected"
 
     def test_default_pattern_case_insensitive(self, repl_env):
+        """The standard pattern's (?i) flag catches a lowercase err: reply too."""
         # Arrange -- lowercase also matches
         engine, ctx, cfg, _, _ = repl_env
         cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
@@ -486,6 +509,7 @@ class TestDeviceErrorDetection:
         assert result.success is False, "case-insensitive match"
 
     def test_ok_response_not_flagged(self, repl_env):
+        """An ordinary OK reply passes as success with its text in value."""
         # Arrange -- normal response shouldn't trip the pattern
         engine, ctx, cfg, _, _ = repl_env
         cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
@@ -500,6 +524,7 @@ class TestDeviceErrorDetection:
         assert "OK" in result.value, "response captured normally"
 
     def test_word_boundary_avoids_false_positives(self, repl_env):
+        """A word that merely starts with ERR, like ERRATIC, is not taken as an error."""
         # Arrange -- a response starting with "ERRATIC" shouldn't trip
         # the "ERR" alternative (word boundary required).
         engine, ctx, cfg, _, _ = repl_env
@@ -514,6 +539,7 @@ class TestDeviceErrorDetection:
         assert result.success is True, "word boundary prevents false positive"
 
     def test_empty_pattern_disables_detection(self, repl_env):
+        """An empty request_err_pattern turns detection off; ERR: text is a normal value."""
         # Arrange -- even an ERR-prefixed response is treated as normal
         engine, ctx, cfg, _, _ = repl_env
         cfg["request_err_pattern"] = ""
@@ -529,6 +555,7 @@ class TestDeviceErrorDetection:
         assert result.error == "", "no error claimed"
 
     def test_custom_pattern_override(self, repl_env):
+        """A user regex like ^FAILED replaces the standard error convention."""
         # Arrange -- user provided a different error convention
         engine, ctx, cfg, _, _ = repl_env
         cfg["request_err_pattern"] = r"^FAILED"
@@ -544,6 +571,7 @@ class TestDeviceErrorDetection:
         assert result.value == "", "value empty when errored"
 
     def test_malformed_pattern_does_not_crash(self, repl_env):
+        """An invalid regex disables detection instead of raising; the reply still arrives."""
         # Arrange -- broken regex (unclosed bracket) shouldn't crash
         engine, ctx, cfg, _, _ = repl_env
         cfg["request_err_pattern"] = r"[unclosed"
@@ -558,6 +586,7 @@ class TestDeviceErrorDetection:
         assert result.value == "OK", "response delivered despite bad pattern"
 
     def test_device_error_display_envelope_shows_error(self, repl_env):
+        """On a device error the envelope shows success false, the error, and no value."""
         # Arrange -- check the scrollback display reflects the device error
         engine, ctx, cfg, output, _ = repl_env
         cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
@@ -577,6 +606,7 @@ class TestDeviceErrorDetection:
             "display result empty when device errored"
 
     def test_session_override_takes_precedence_over_cfg(self, repl_env):
+        """An empty session override disables detection even when cfg sets a pattern."""
         # Arrange -- cfg has the standard default; session override is
         # set to "" (disabled).  An ERR response should NOT be flagged.
         engine, ctx, cfg, _, _ = repl_env
@@ -594,6 +624,7 @@ class TestDeviceErrorDetection:
         assert result.error == "", "no error claimed"
 
     def test_session_override_can_set_custom_pattern(self, repl_env):
+        """A session override pattern enables detection even when the cfg pattern is empty."""
         # Arrange -- cfg says no detection (empty); session sets ^FAIL
         engine, ctx, cfg, _, _ = repl_env
         cfg["request_err_pattern"] = ""
@@ -614,6 +645,7 @@ class TestTermRequestCommand:
     """The ``/term.request`` REPL command -- on/off + err=<regex> arg."""
 
     def test_off_then_on_resets_err_override(self, repl_env):
+        """Cycling off -> on clears the err= override; the cfg pattern returns, no retyping."""
         # Arrange -- the user-facing scenario from the design discussion:
         # disable err detection temporarily, then re-enable with
         # /term.request on.  Expected: the off->on cycle clears the
@@ -638,6 +670,7 @@ class TestTermRequestCommand:
             "/term.request on cleared the session override"
 
     def test_on_with_err_arg_sets_session_override(self, repl_env):
+        """on err=<regex> enables the mode and stores the regex as the session override."""
         # Arrange
         from termapy.builtins.commands.term import _handler_request
 
@@ -653,6 +686,7 @@ class TestTermRequestCommand:
         assert actual == "^CRITICAL", "session override set to user pattern"
 
     def test_err_arg_alone_does_not_toggle_mode(self, repl_env):
+        """err= alone sets the override but leaves request_mode where it was."""
         # Arrange -- request_mode starts off
         from termapy.builtins.commands.term import _handler_request
 
@@ -668,6 +702,7 @@ class TestTermRequestCommand:
         assert ctx.ns("flags")["request_err_pattern_override"] == "^FOO"
 
     def test_unknown_token_fails(self, repl_env):
+        """An unrecognized argument errors with Unknown token instead of flipping the mode."""
         # Arrange
         from termapy.builtins.commands.term import _handler_request
 
@@ -686,6 +721,7 @@ class TestTermRequestCommand:
 
 class TestDispatchFullRequestMode:
     def test_request_mode_off_falls_through_to_term_send(self, repl_env):
+        """With request_mode off, a bare line is a /term.send write with no envelope."""
         # Arrange -- request_mode is False; bare line goes through /term.send
         engine, ctx, cfg, output, markup = repl_env
         assert cfg.get("request_mode") is False, "precondition"
@@ -706,6 +742,7 @@ class TestDispatchFullRequestMode:
         assert markup == [], "no JSON envelope rendered"
 
     def test_request_mode_on_emits_envelope(self, repl_env):
+        """With request_mode on, a bare line is a request/response with the reply in value."""
         # Arrange
         engine, ctx, cfg, output, markup = repl_env
         cfg["request_mode"] = True
@@ -735,6 +772,7 @@ class TestDispatchFullRequestMode:
 
 class TestJsonInputUnwrapping:
     def test_json_object_with_cmd_field_unwrapped(self, repl_env):
+        """A JSON object input sends only its cmd field, and the echo shows the bare command."""
         # Arrange -- input is JSON object {"cmd":"AT+VER"}
         engine, ctx, _, _, markup = repl_env
         fake = _FakeSerial(response=b"1.2.3")
@@ -751,6 +789,7 @@ class TestJsonInputUnwrapping:
         assert result.value == "1.2.3", "device response captured in value"
 
     def test_json_object_with_extra_fields_unwrapped_extras_ignored(self, repl_env):
+        """Extra top-level fields beside cmd are ignored; only cmd reaches the wire."""
         # Arrange -- v1 ignores extra top-level fields; only `cmd` is read
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"OK")
@@ -763,6 +802,7 @@ class TestJsonInputUnwrapping:
         assert fake.writes == [b"reset\r"], "only cmd extracted; extras ignored"
 
     def test_json_array_falls_through_to_plain_text(self, repl_env):
+        """A JSON array has no cmd to extract, so it is sent to the device verbatim."""
         # Arrange -- JSON array is valid JSON but not a dict; treat as plain
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"")
@@ -775,6 +815,7 @@ class TestJsonInputUnwrapping:
         assert fake.writes == [b"[1,2,3]\r"], "array sent literally"
 
     def test_json_dict_without_cmd_falls_through_to_plain_text(self, repl_env):
+        """A JSON object without cmd is sent verbatim, for devices that speak JSON natively."""
         # Arrange -- valid JSON dict but no `cmd` field -> send literal
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"")
@@ -787,6 +828,7 @@ class TestJsonInputUnwrapping:
         assert fake.writes == [b'{"a":"b"}\r'], "dict-without-cmd sent literally"
 
     def test_malformed_json_falls_through_to_plain_text(self, repl_env):
+        """Brace-wrapped text that is not valid JSON is sent literally, without an error."""
         # Arrange -- looks like JSON (starts {, ends }) but isn't valid
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"")
@@ -799,6 +841,7 @@ class TestJsonInputUnwrapping:
         assert fake.writes == [b"{not valid json}\r"], "malformed sent literal"
 
     def test_plain_text_unaffected(self, repl_env):
+        """Ordinary text skips unwrapping: sent as typed, with the reply in value."""
         # Arrange -- plain text without any JSON shape
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"value=42")
@@ -812,6 +855,7 @@ class TestJsonInputUnwrapping:
         assert result.value == "value=42", "response text in value"
 
     def test_json_with_null_cmd_returns_error_envelope(self, repl_env):
+        """A null cmd fails before sending, with an error requiring a non-empty string."""
         # Arrange -- explicit error path: cmd field present but null
         engine, ctx, _, _, markup = repl_env
         fake = _FakeSerial(response=b"")
@@ -828,6 +872,7 @@ class TestJsonInputUnwrapping:
         )
 
     def test_json_with_empty_cmd_returns_error_envelope(self, repl_env):
+        """An empty-string cmd fails and nothing is written to the device."""
         # Arrange
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"")
@@ -841,6 +886,7 @@ class TestJsonInputUnwrapping:
         assert fake.writes == [], "no bytes sent on empty cmd"
 
     def test_json_with_numeric_cmd_returns_error_envelope(self, repl_env):
+        """A non-string cmd such as 42 fails and nothing is written to the device."""
         # Arrange
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"")
@@ -854,6 +900,7 @@ class TestJsonInputUnwrapping:
         assert fake.writes == [], "no bytes sent on non-string cmd"
 
     def test_json_input_with_whitespace_padding_still_unwraps(self, repl_env):
+        """Whitespace around a JSON object input does not defeat cmd unwrapping."""
         # Arrange -- leading/trailing whitespace shouldn't defeat detection
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"")
@@ -877,6 +924,7 @@ class TestRequestEnvelopeEcho:
     """
 
     def test_request_and_response_envelopes_always_render(self, repl_env):
+        """One exchange yields exactly one cmd-only echo on markup and one response envelope."""
         # Arrange -- request_mode is the only knob that matters
         engine, ctx, cfg, output, markup = repl_env
         fake = _FakeSerial(response=b"5.5")
@@ -898,6 +946,7 @@ class TestRequestEnvelopeEcho:
         assert response_envelope["success"] is True, "response success"
 
     def test_echo_input_off_does_not_suppress_request_envelope(self, repl_env):
+        """Echo off in cfg still renders the request envelope -- it is the protocol view."""
         # Arrange -- echo_input is irrelevant in request_mode; the
         # request envelope is the protocol view, not a debug echo.
         engine, ctx, cfg, _, markup = repl_env
@@ -918,6 +967,7 @@ class TestRequestEnvelopeEcho:
         )
 
     def test_echo_input_on_does_not_double_render(self, repl_env):
+        """Echo on in cfg adds no second request line on top of the envelope."""
         # Arrange -- echo_input=True must not produce a second request
         # envelope (regression net for the unconditional render).
         engine, ctx, cfg, _, markup = repl_env
@@ -932,6 +982,7 @@ class TestRequestEnvelopeEcho:
         assert len(markup) == 1, "echo_input=True does not double the request"
 
     def test_request_envelope_reflects_unwrapped_cmd_not_raw_input(self, repl_env):
+        """The request echo shows only the unwrapped cmd, dropping extra JSON input fields."""
         # Arrange -- JSON input gets unwrapped; the echo should show
         # the canonical form, not the raw input string.
         engine, ctx, cfg, _, markup = repl_env
@@ -960,6 +1011,7 @@ class TestDispatchFullEchoGating:
     """
 
     def test_request_mode_off_uses_legacy_echo(self, repl_env):
+        """With request_mode off, the live echo flag drives the plain-text echo callback."""
         # Arrange -- echo flag on (/echo), request_mode off: legacy echo
         # fires.  The bare-command echo now reads the live flag, not
         # cfg['echo_input'] (which seeds the flag at init).
@@ -987,6 +1039,7 @@ class TestDispatchFullEchoGating:
         assert markup == [], "no JSON envelope when request_mode=off"
 
     def test_request_mode_on_suppresses_legacy_echo(self, repl_env):
+        """With request_mode on, the JSON request envelope replaces the plain-text echo."""
         # Arrange -- echo_input on, request_mode on: legacy echo suppressed,
         # JSON request envelope rendered instead.
         engine, ctx, cfg, output, markup = repl_env
@@ -1033,6 +1086,7 @@ class TestBareLineJsonFlag:
     """
 
     def test_flag_makes_a_bare_line_a_request_response(self, repl_env):
+        """The --json flag is stripped before the wire; the reply fills value and the envelope."""
         # Arrange
         engine, ctx, _, output, _ = repl_env
         fake = _FakeSerial(response=b"00001000: 1B 00\r\nOK\r\n")
@@ -1050,6 +1104,7 @@ class TestBareLineJsonFlag:
         assert rendered["value"] == "00001000: 1B 00\r\nOK", "and carries the reply"
 
     def test_without_the_flag_the_bare_line_is_a_plain_send(self, repl_env):
+        """Without --json the line is fire-and-forget: written once, never read, no value."""
         # Arrange
         engine, ctx, _, _, _ = repl_env
         fake = _FakeSerial(response=b"OK\r\n")

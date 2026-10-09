@@ -71,6 +71,7 @@ class TestZeroConfigWelcomeBanner:
     """The welcome banner prints when no config is found + --cli is used."""
 
     def test_banner_shows_defaults_and_hint(self):
+        """No config lists ports, the default serial settings, and the /port.connect hint."""
         # Act
         result = _run_zero_config()
 
@@ -95,6 +96,7 @@ class TestZeroConfigWelcomeBanner:
         )
 
     def test_banner_mentions_help(self):
+        """The zero-config banner points a first-time user at /help."""
         # Act
         result = _run_zero_config()
 
@@ -115,6 +117,7 @@ class TestZeroConfigRunPreserved:
     """
 
     def test_run_without_config_still_errors(self):
+        """--run with no inferrable config fails instead of running the script config-less."""
         # Arrange -- --run with a script that has no nearby .cfg file.
         tmp = tempfile.mkdtemp()
         empty_cfg = os.path.join(tmp, "empty_cfg_dir")

@@ -53,14 +53,17 @@ def _run(host: MCPHost, line: str, *, confirm: bool = False) -> dict:
 class TestCommandDeclaration:
 
     def test_default_tier_is_safe(self):
+        """Command and PluginInfo both fall back to the safe tier when none is declared."""
         assert Command("Help text", name="x").safety == "safe", "commands are safe unless declared"
         assert PluginInfo(name="x", args="", help="h", handler=_zap).safety == "safe"
 
     def test_unknown_tier_fails_at_construction(self):
+        """A misspelled tier fails loud at construction, naming the command, not at call time."""
         with pytest.raises(ValueError, match="/x: unknown safety tier 'wild'"):
             Command("Help text", name="x", safety="wild")
 
     def test_tier_survives_plugin_loading(self, tmp_path):
+        """The loader carries both root and subcommand tiers from a plugin file into PluginInfo."""
         # Arrange -- a plugin file declaring a destructive subcommand
         (tmp_path / "boom.py").write_text(textwrap.dedent('''
             from termapy.plugins import CmdResult, Command
@@ -86,6 +89,7 @@ class TestCommandDeclaration:
 class TestMcpGate:
 
     def test_destructive_refused_without_confirm(self, host):
+        """No confirm -> the same structured refusal a destructive device command gets."""
         # Act
         result = _run(host, "/zap")
 
@@ -96,15 +100,18 @@ class TestMcpGate:
         assert result["value"]["safety"] == "destructive", "the tier is reported"
 
     def test_destructive_runs_with_confirm(self, host):
+        """Passing confirm=true lets a destructive command through to its handler."""
         result = _run(host, "/zap", confirm=True)
         assert result["success"] is True, result["error"]
         assert result["value"] == "zapped", "the handler ran"
 
     def test_level_suffix_does_not_dodge_the_gate(self, host):
+        """A .silent suffix resolves to the gated command, so it still needs confirm."""
         result = _run(host, "/zap.silent")
         assert result["value"]["needs_confirmation"] is True, "resolved like dispatch resolves it"
 
     def test_mem_write_is_destructive(self, host):
+        """/mem.write is gated before dispatch, so the refusal arrives even with no port."""
         # Act -- the real command that motivated the tier; no port needed,
         # the gate runs before dispatch
         result = _run(host, "/mem.write gTemp 1B00")
@@ -114,16 +121,19 @@ class TestMcpGate:
         assert result["value"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
 
     def test_mem_dump_is_not_gated(self, host):
+        """Readonly /mem.dump never asks for confirm; with no port it fails on that instead."""
         result = _run(host, "/mem.dump gTemp")
         assert not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"], (
             "a readonly command never asks for confirmation (it fails on 'not connected' instead)"
         )
 
     def test_safe_command_ignores_confirm(self, host):
+        """A safe command like /help runs without confirm=true."""
         result = _run(host, "/help")
         assert result["success"] is True, "a safe command needs no confirmation"
 
     def test_bare_device_line_is_not_gated_here(self, host):
+        """Non-slash device lines bypass the Command.safety gate; only slash commands are tiered."""
         # Arrange / Act -- no port, no profile: the literal-write path fails on
         # its own terms, never with a confirmation marker
         result = _run(host, "AT")
@@ -137,6 +147,7 @@ class TestMcpGate:
 class TestCatalog:
 
     def test_tier_exposed_like_device_commands(self, host):
+        """The catalog shows a non-safe tier on its entry and omits the key for safe commands."""
         # Act
         entries = {entry["name"]: entry for entry in build_catalog(host.ctx)["commands"]}
 

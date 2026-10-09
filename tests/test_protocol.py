@@ -45,48 +45,58 @@ from termapy.protocol.crc import _generic_crc  # private; explicit submodule
 
 class TestParseHex:
     def test_simple_hex(self):
+        """Space-separated byte pairs parse to the bytes they name."""
         actual = parse_hex("01 03 00 0A")
         expected = b"\x01\x03\x00\x0a"
         assert actual == expected, "space-separated hex should parse correctly"
 
     def test_0x_prefix(self):
+        """A 0x prefix on each byte is accepted and stripped."""
         actual = parse_hex("0x01 0x03 0xFF")
         expected = b"\x01\x03\xff"
         assert actual == expected, "0x-prefixed hex should parse correctly"
 
     def test_comma_separated(self):
+        """Commas between 0x-prefixed bytes are separators, not data."""
         actual = parse_hex("0x01, 0x03, 0x0A")
         expected = b"\x01\x03\x0a"
         assert actual == expected, "comma-separated hex should parse correctly"
 
     def test_no_spaces(self):
+        """A contiguous hex string splits into byte pairs."""
         actual = parse_hex("0103000A")
         expected = b"\x01\x03\x00\x0a"
         assert actual == expected, "contiguous hex string should parse correctly"
 
     def test_empty_raises(self):
+        """An empty string is an error, never an empty payload."""
         with pytest.raises(ValueError, match="No valid hex"):
             parse_hex("")
 
     def test_whitespace_only_raises(self):
+        """Whitespace alone is treated as empty and refused."""
         with pytest.raises(ValueError, match="No valid hex"):
             parse_hex("   ")
 
     def test_no_valid_hex_raises(self):
+        """Text with no hex digits is refused as invalid hex."""
         with pytest.raises(ValueError, match="Invalid hex"):
             parse_hex("xyz")
 
     def test_odd_nibble_raises(self):
+        """A dangling nibble is an error, not silently dropped from the payload."""
         # Regression: used to silently return b"\xab", dropping the "C".
         with pytest.raises(ValueError, match="Invalid hex"):
             parse_hex("ABC")
 
     def test_misplaced_space_raises(self):
+        """A space splitting a byte pair is refused rather than re-paired."""
         # Regression: "010 203" used to scavenge to b"\x01 " (0x01, 0x20).
         with pytest.raises(ValueError, match="Invalid hex"):
             parse_hex("010 203")
 
     def test_embedded_garbage_raises(self):
+        """Hex buried in junk is refused, not scavenged out of the text."""
         # Regression: used to scrape 0x41 out of the junk and return b"A".
         with pytest.raises(ValueError, match="Invalid hex"):
             parse_hex("zz41zz")
@@ -97,44 +107,53 @@ class TestParseHex:
 
 class TestParseData:
     def test_hex_only(self):
+        """Plain hex with no quotes parses exactly as parse_hex would."""
         actual = parse_data("01 02 03")
         expected = b"\x01\x02\x03"
         assert actual == expected, "hex-only input should parse to bytes"
 
     def test_quoted_string(self):
+        """A quoted string becomes its ASCII bytes with the quotes removed."""
         actual = parse_data('"HELLO"')
         expected = b"HELLO"
         assert actual == expected, "quoted string should parse to ASCII bytes"
 
     def test_mixed_hex_and_text(self):
+        """Hex and quoted text concatenate in order into one payload."""
         actual = parse_data('02 "HELLO" 03')
         expected = b"\x02HELLO\x03"
         assert actual == expected, "mixed hex and text should concatenate"
 
     def test_escape_sequences(self):
+        """CR and LF escapes inside quotes expand to their control bytes."""
         actual = parse_data('"OK\\r\\n"')
         expected = b"OK\r\n"
         assert actual == expected, "escape sequences should expand"
 
     def test_backslash_escape(self):
+        """A doubled backslash inside quotes yields one literal backslash byte."""
         actual = parse_data('"a\\\\b"')
         expected = b"a\\b"
         assert actual == expected, "double backslash should produce literal backslash"
 
     def test_null_escape(self):
+        """The zero escape inside quotes yields a 0x00 byte."""
         actual = parse_data('"\\0"')
         expected = b"\x00"
         assert actual == expected, "null escape should produce zero byte"
 
     def test_unterminated_string_raises(self):
+        """A missing closing quote is an error, not text to end of line."""
         with pytest.raises(ValueError, match="Unterminated"):
             parse_data('"hello')
 
     def test_empty_raises(self):
+        """Empty input is refused rather than sending nothing."""
         with pytest.raises(ValueError, match="No valid data"):
             parse_data("")
 
     def test_unexpected_char_raises(self):
+        """A non-hex, unquoted token is refused as an unexpected character."""
         with pytest.raises(ValueError, match="Unexpected character"):
             parse_data("ZZ")
 
@@ -144,6 +163,7 @@ class TestParseData:
 
 class TestParseDataSegments:
     def test_no_delays(self):
+        """Input without a ~delay comes back as one bytes segment."""
         # Act
         actual = parse_data_segments("01 02 03")
 
@@ -151,6 +171,7 @@ class TestParseDataSegments:
         assert actual == [b"\x01\x02\x03"], "no-delay input should be single segment"
 
     def test_delay_between_data(self):
+        """A ~ms token splits data into bytes, seconds-as-float, bytes segments."""
         # Act
         actual = parse_data_segments('00 ~25ms "foo"')
 
@@ -161,6 +182,7 @@ class TestParseDataSegments:
         assert actual[2] == b"foo", "third segment should be text data"
 
     def test_leading_delay(self):
+        """A delay may come first, pausing before any data is sent."""
         # Act
         actual = parse_data_segments("~100ms 01")
 
@@ -170,6 +192,7 @@ class TestParseDataSegments:
         assert actual[1] == b"\x01", "second segment should be data"
 
     def test_trailing_delay(self):
+        """A delay may come last, pausing after the data is sent."""
         # Act
         actual = parse_data_segments("01 ~50ms")
 
@@ -179,6 +202,7 @@ class TestParseDataSegments:
         assert actual[1] == pytest.approx(0.05), "trailing delay should be 50ms"
 
     def test_microsecond_delay(self):
+        """The us unit is honored, converting to fractional seconds."""
         # Act
         actual = parse_data_segments("~1us 01")
 
@@ -188,6 +212,7 @@ class TestParseDataSegments:
         assert actual[1] == b"\x01", "second segment should be data"
 
     def test_multiple_delays(self):
+        """Several delays interleave with data, preserving segment order."""
         # Act
         actual = parse_data_segments("01 ~10ms 02 ~20ms 03")
 
@@ -200,6 +225,7 @@ class TestParseDataSegments:
         assert actual[4] == b"\x03", "segment 4 should be data"
 
     def test_invalid_delay(self):
+        """A ~ token that is not a duration raises instead of being skipped."""
         with pytest.raises(ValueError):  # bad duration format
             parse_data_segments("01 ~xyz 02")
 
@@ -209,14 +235,17 @@ class TestParseDataSegments:
 
 class TestFormatHex:
     def test_basic(self):
+        """Bytes render as uppercase two-digit hex separated by single spaces."""
         actual = format_hex(b"\x01\x03\x00\x0a")
         expected = "01 03 00 0A"
         assert actual == expected, "basic hex formatting"
 
     def test_empty(self):
+        """No bytes renders as an empty string with no stray separator."""
         assert format_hex(b"") == "", "empty input should produce empty string"
 
     def test_single_byte(self):
+        """A single byte renders uppercase with no trailing space."""
         assert format_hex(b"\xff") == "FF", "single byte should format as uppercase hex"
 
     def test_roundtrip(self):
@@ -230,16 +259,19 @@ class TestFormatHex:
 
 class TestFormatHexDump:
     def test_short_data(self):
+        """Under one row of data yields a single line led by the 0000 offset."""
         lines = format_hex_dump(b"\x01\x02\x03")
         assert len(lines) == 1, "short data should produce one line"
         assert lines[0].startswith("0000 |"), "first line should start with offset 0000"
         assert "01 02 03" in lines[0], "hex bytes should appear in output"
 
     def test_includes_ascii(self):
+        """The ASCII column shows printable bytes and a dot for unprintable ones."""
         lines = format_hex_dump(b"Hello\x00")
         assert "Hello." in lines[0], "\\x00 shown as '.'"
 
     def test_multiple_lines(self):
+        """Rows wrap at the width and each row's offset advances by it."""
         data = bytes(range(32))
         lines = format_hex_dump(data, width=16)
         assert len(lines) == 2, "32 bytes at width 16 should produce 2 lines"
@@ -247,6 +279,7 @@ class TestFormatHexDump:
         assert lines[1].startswith("0010"), "second line offset should be 0010"
 
     def test_empty(self):
+        """No data yields no lines, not a blank offset row."""
         assert format_hex_dump(b"") == [], "empty input should produce empty list"
 
 
@@ -255,16 +288,19 @@ class TestFormatHexDump:
 
 class TestPatternMatching:
     def test_exact_match(self):
+        """A wildcard-free pattern matches the identical response."""
         data, mask = parse_pattern("01 03 05")
         actual = b"\x01\x03\x05"
         assert match_response(data, actual, mask) is True, "exact bytes should match"
 
     def test_exact_mismatch(self):
+        """One differing concrete byte fails the match."""
         data, mask = parse_pattern("01 03 05")
         actual = b"\x01\x03\x06"
         assert match_response(data, actual, mask) is False, "different byte should not match"
 
     def test_wildcard_match(self):
+        """Trailing ** wildcards accept whatever bytes arrive in those slots."""
         data, mask = parse_pattern("01 03 ** **")
         actual = b"\x01\x03\xff\x00"
         assert match_response(data, actual, mask) is True, "wildcard should match any byte"
@@ -282,16 +318,19 @@ class TestPatternMatching:
         assert match_response(data, actual_mid, mask) is True, "wildcard should match 0x7F"
 
     def test_length_mismatch_too_short(self):
+        """A truncated response fails even when every received byte agrees."""
         data, mask = parse_pattern("01 03 05")
         actual = b"\x01\x03"
         assert match_response(data, actual, mask) is False, "shorter response should not match"
 
     def test_overflow_is_fail(self):
+        """Extra bytes after a full match fail it; the pattern is not a prefix."""
         data, mask = parse_pattern("01 03")
         actual = b"\x01\x03\x05"
         assert match_response(data, actual, mask) is False, "extra bytes should fail"
 
     def test_quoted_text_pattern(self):
+        """Quoted text with escapes works as an expect pattern."""
         data, mask = parse_pattern('"OK\\r"')
         actual = b"OK\r"
         assert match_response(data, actual, mask) is True, "quoted text pattern should match"
@@ -307,6 +346,7 @@ class TestPatternMatching:
         assert match_response(data, actual_fail, mask) is False, "wrong text should not match"
 
     def test_all_wildcards(self):
+        """A pattern of only wildcards matches any response of the same length."""
         data, mask = parse_pattern("** ** **")
         actual = b"\xAA\xBB\xCC"
         assert match_response(data, actual, mask) is True, "all-wildcard should match any bytes"
@@ -355,6 +395,7 @@ class TestFrameCollector:
         assert frame2 == b"\x03\x04", "second frame emitted on flush"
 
     def test_reset_clears_buffer(self):
+        """reset() discards buffered bytes so a later flush emits no stale frame."""
         fc = FrameCollector(timeout_ms=50)
         fc.feed(b"\x01\x02", now=0.0)
         assert fc.pending == 2, "pending should reflect buffered bytes"
@@ -363,10 +404,12 @@ class TestFrameCollector:
         assert fc.flush(now=1.0) is None, "flush after reset should return None"
 
     def test_flush_no_data(self):
+        """Flushing an idle collector returns None, not an empty frame."""
         fc = FrameCollector(timeout_ms=50)
         assert fc.flush(now=1.0) is None, "flush with no data should return None"
 
     def test_pending_property(self):
+        """pending counts buffered bytes, starting from zero."""
         fc = FrameCollector(timeout_ms=50)
         assert fc.pending == 0, "initial pending should be 0"
         fc.feed(b"\x01\x02\x03", now=0.0)
@@ -378,6 +421,7 @@ class TestFrameCollector:
 
 class TestParseProtoScript:
     def test_basic_send_expect(self):
+        """send and expect lines become steps; expect wildcards get a zero mask."""
         script = """
 send: 01 03 00 00 00 0A
 expect: 01 03 ** **
@@ -392,6 +436,7 @@ expect: 01 03 ** **
         assert steps[1].mask[2:] == b"\x00\x00", "wildcards should produce zero mask"
 
     def test_labels(self):
+        """A label: line names the step that follows it."""
         script = """
 label: My test step
 send: AA BB
@@ -400,6 +445,7 @@ send: AA BB
         assert steps[0].label == "My test step", "label should be set on step"
 
     def test_label_resets_after_use(self):
+        """A label applies to one step only and does not leak to the next."""
         script = """
 label: Step 1
 send: 01 02
@@ -410,17 +456,20 @@ send: 03 04
         assert steps[1].label == "", "label consumed by first send"
 
     def test_delay(self):
+        """A delay: line becomes a delay step with its duration in ms."""
         script = "delay: 500ms"
         _, steps = parse_proto_script(script)
         assert steps[0].action == "delay"
         assert steps[0].timeout_ms == 500
 
     def test_delay_seconds(self):
+        """Delay durations in seconds, fractional included, convert to ms."""
         script = "delay: 1.5s"
         _, steps = parse_proto_script(script)
         assert steps[0].timeout_ms == 1500
 
     def test_comments_and_blanks_skipped(self):
+        """Comment and blank lines produce no steps."""
         script = """
 # This is a comment
 
@@ -433,6 +482,7 @@ expect: 01 02
         assert len(steps) == 2
 
     def test_at_timeout_directive(self):
+        """@timeout sets the script default that later expects inherit."""
         script = """
 @timeout 2000ms
 send: 01
@@ -443,11 +493,13 @@ expect: 02
         assert steps[1].timeout_ms == 2000, "inherits default"
 
     def test_at_frame_gap_directive(self):
+        """@frame_gap lands in settings as frame_gap_ms."""
         script = "@frame_gap 100ms"
         settings, _ = parse_proto_script(script)
         assert settings["frame_gap_ms"] == 100
 
     def test_per_step_timeout_override(self):
+        """A timeout: line overrides the @timeout default for the next expect."""
         script = """
 @timeout 1000ms
 timeout: 500ms
@@ -469,34 +521,41 @@ expect: 02
         assert steps[1].timeout_ms == 1000, "back to default"
 
     def test_text_in_send(self):
+        """send: accepts quoted text with escapes, not only hex."""
         script = 'send: "HELLO\\r"'
         _, steps = parse_proto_script(script)
         assert steps[0].data == b"HELLO\r"
 
     def test_text_in_expect(self):
+        """Quoted text in expect: is all concrete bytes, fully masked."""
         script = 'expect: "OK\\r"'
         _, steps = parse_proto_script(script)
         assert steps[0].data == b"OK\r"
         assert steps[0].mask == b"\xff\xff\xff"
 
     def test_mixed_hex_text_in_send(self):
+        """send: accepts hex and quoted text mixed on one line."""
         script = 'send: 02 "HELLO" 03'
         _, steps = parse_proto_script(script)
         assert steps[0].data == b"\x02HELLO\x03"
 
     def test_unknown_directive_raises(self):
+        """An unrecognized @directive is an error rather than ignored."""
         with pytest.raises(ValueError, match="unknown directive"):
             parse_proto_script("@bogus value")
 
     def test_unknown_key_raises(self):
+        """An unrecognized key: line is an error rather than ignored."""
         with pytest.raises(ValueError, match="unknown key"):
             parse_proto_script("bogus: value")
 
     def test_invalid_directive_raises(self):
+        """A bare @ with no name is refused as an invalid directive."""
         with pytest.raises(ValueError, match="invalid directive"):
             parse_proto_script("@")
 
     def test_missing_colon_raises(self):
+        """A line that is neither key: value nor @directive is refused."""
         with pytest.raises(ValueError, match="expected"):
             parse_proto_script("no colon here")
 
@@ -554,6 +613,7 @@ send: 55 AA
         assert steps[0].data == b"color off"
 
     def test_cmd_with_label(self):
+        """A label: line attaches to a cmd step just as it does to send."""
         script = """
 label: Disable color
 cmd: color off
@@ -1044,24 +1104,29 @@ class TestDiffBytes:
 
 class TestOverflowCount:
     def test_no_overflow(self):
+        """Equal-length actual and expected report zero overflow."""
         actual = overflow_count(b"\x01\x02\x03", b"\x01\x02\x03")
         assert actual == 0, "same length, no overflow"
 
     def test_actual_shorter(self):
+        """A short response is a shortfall, not negative overflow -- it reports 0."""
         actual = overflow_count(b"\x01\x02\x03", b"\x01")
         assert actual == 0, "shorter is not overflow"
 
     def test_overflow(self):
+        """Overflow is the count of bytes received beyond the expected length."""
         actual = overflow_count(b"\x01", b"\x01\x02\x03")
         assert actual == 2, "2 extra bytes"
 
     def test_empty_expected(self):
+        """With nothing expected, every received byte counts as overflow."""
         actual = overflow_count(b"", b"\x01\x02")
         assert actual == 2, "all bytes are overflow"
 
 
 class TestFormatDiffMarkupOverflow:
     def test_no_overflow_no_ovr_tag(self):
+        """A response of exactly the expected length carries no OVR marker."""
         result = format_diff_markup(
             actual=b"\x01\x02",
             expected=b"\x01\x02",
@@ -1072,6 +1137,7 @@ class TestFormatDiffMarkupOverflow:
         assert "OVR" not in result, "no overflow indicator"
 
     def test_overflow_appends_ovr_tag(self):
+        """Extra bytes are flagged with an OVR+N tag giving how many arrived."""
         result = format_diff_markup(
             actual=b"\x01\x02\x03\x04",
             expected=b"\x01\x02",
@@ -1205,6 +1271,7 @@ class TestCrcCatalogue:
 
 class TestExtractFmtTitle:
     def test_title_extracted(self):
+        """A leading Title: token is split off and its underscores become spaces."""
         # Act
         actual_title, actual_spec = extract_fmt_title(
             "Title:Modbus_RTU Slave:H1 Func:H2")
@@ -1214,6 +1281,7 @@ class TestExtractFmtTitle:
         assert actual_spec == "Slave:H1 Func:H2", "title stripped from spec"
 
     def test_no_title(self):
+        """A spec with no Title: token returns an empty title and the spec intact."""
         # Act
         actual_title, actual_spec = extract_fmt_title("Slave:H1 Func:H2")
 
@@ -1222,6 +1290,7 @@ class TestExtractFmtTitle:
         assert actual_spec == "Slave:H1 Func:H2", "spec unchanged"
 
     def test_title_only(self):
+        """A spec that is only a title leaves an empty remaining spec."""
         # Act
         actual_title, actual_spec = extract_fmt_title("Title:My_Custom_View")
 
@@ -1230,6 +1299,7 @@ class TestExtractFmtTitle:
         assert actual_spec == "", "no remaining spec"
 
     def test_single_word_title(self):
+        """The title ends at the first space; later tokens stay in the spec."""
         # Act
         actual_title, actual_spec = extract_fmt_title("Title:Modbus Slave:H1")
 
@@ -1799,20 +1869,24 @@ class TestColumnValueTwins:
     semantics: bytes combined in SPEC index order, bit indices LSB0."""
 
     def test_extract_single_bit(self):
+        """A single-bit field reads that bit as 0 or 1, not the masked value."""
         col = parse_format_spec("F:B1.3")[0]
         assert extract_column_value(b"\x08", col) == 1, "bit 3 of 0x08"
         assert extract_column_value(b"\x00", col) == 0
 
     def test_extract_multibyte_descending_refs(self):
+        """B4-1 reads an LE-stored word MSB-first, so bit 15 is the high byte's top bit."""
         # B4-1 = bytes MSB-first over LE-stored data (the register idiom)
         col = parse_format_spec("ON:B4-1.15")[0]
         assert extract_column_value((0x8008).to_bytes(4, "little"), col) == 1, "bit 15 of LE 0x8008"
 
     def test_extract_slice(self):
+        """A bit range is shifted down to its LSB, yielding the field's value."""
         col = parse_format_spec("M:B2-1.4-6")[0]
         assert extract_column_value((0x50).to_bytes(2, "little"), col) == 5, "bits 4-6 of 0x50"
 
     def test_inject_round_trip(self):
+        """Injecting a value then extracting returns it and leaves other bits alone."""
         col = parse_format_spec("UEN:B4-1.8-9")[0]
         data = (0x8008).to_bytes(4, "little")
         out = inject_column_value(data, col, 2)
@@ -1822,21 +1896,25 @@ class TestColumnValueTwins:
         )
 
     def test_inject_clears(self):
+        """Injecting 0 clears just the field's bit and preserves the rest."""
         col = parse_format_spec("ON:B4-1.15")[0]
         out = inject_column_value((0x8008).to_bytes(4, "little"), col, 0)
         assert out == (0x0008).to_bytes(4, "little"), "only bit 15 changed"
 
     def test_inject_value_too_big(self):
+        """A value wider than the field is refused, not truncated into it."""
         col = parse_format_spec("ON:B4-1.15")[0]
         with pytest.raises(ValueError, match=r"Invalid value: 2 \(ON is 1 bit\)"):
             inject_column_value(bytes(4), col, 2)
 
     def test_not_a_bit_field(self):
+        """Extracting from a non-bit column is an error naming the column."""
         col = parse_format_spec("T:U1-2")[0]
         with pytest.raises(ValueError, match="Not a bit field: T"):
             extract_column_value(bytes(2), col)
 
     def test_refs_past_the_data(self):
+        """Byte refs beyond the data length raise instead of reading as zero."""
         col = parse_format_spec("ON:B4-1.15")[0]
         with pytest.raises(ValueError, match="runs past 2 bytes"):
             extract_column_value(bytes(2), col)
@@ -1851,11 +1929,13 @@ class TestSingleBitMultiByte:
     """
 
     def test_display_matches_the_extract_twin(self):
+        """The rendered bit and extract_column_value agree on a multi-byte word."""
         col = parse_format_spec("ON:B4-1.15")[0]
         data = (0x8008).to_bytes(4, "little")
         assert _format_column_value(data, col) == "1", "the display branch"
         assert extract_column_value(data, col) == 1, "and the value twin agree"
 
     def test_single_byte_unchanged(self):
+        """A single-bit field over one byte still renders as before the fix."""
         col = parse_format_spec("F:B1.3")[0]
         assert _format_column_value(bytes([0x08]), col) == "1", "B1.3 as before"

@@ -37,6 +37,7 @@ def _open_item(fake: FakeSerialVT100, index: int) -> str:
 
 
 def test_initial_frame_is_menu():
+    """A fresh device paints the title and full menu with the first item selected."""
     # Arrange
     fake = FakeSerialVT100()
 
@@ -50,6 +51,7 @@ def test_initial_frame_is_menu():
 
 
 def test_down_moves_selection():
+    """Down arrow moves the cursor to the next item and off the previous one."""
     # Arrange
     fake = FakeSerialVT100()
     _frame(fake)
@@ -64,6 +66,7 @@ def test_down_moves_selection():
 
 
 def test_up_wraps_to_last_item():
+    """Up (vim k) on the first item wraps to the last item."""
     # Arrange
     fake = FakeSerialVT100()
     _frame(fake)
@@ -77,6 +80,7 @@ def test_up_wraps_to_last_item():
 
 
 def test_status_opens_gauges():
+    """Opening Status shows the temperature gauge and GPS state."""
     # Act
     text = _open_item(FakeSerialVT100(), 0)
 
@@ -86,6 +90,7 @@ def test_status_opens_gauges():
 
 
 def test_motor_slider_adjusts():
+    """The motor slider opens at 40% and Right arrow steps it up by 5."""
     # Arrange
     fake = FakeSerialVT100()
     opened = _open_item(fake, 1)
@@ -100,6 +105,7 @@ def test_motor_slider_adjusts():
 
 
 def test_calibration_shows_progress_bar():
+    """Opening Calibration shows its title and a progress bar starting at 0%."""
     # Act
     text = _open_item(FakeSerialVT100(), 2)
 
@@ -109,6 +115,7 @@ def test_calibration_shows_progress_bar():
 
 
 def test_calibration_redraws_in_place_with_cr():
+    """Progress ticks redraw the line with a bare CR, never a full-screen clear."""
     # Arrange: enter calibration (the entry frame is consumed by _open_item)
     fake = FakeSerialVT100()
     _open_item(fake, 2)
@@ -125,6 +132,7 @@ def test_calibration_redraws_in_place_with_cr():
 
 
 def test_port_name_is_demo_vt100():
+    """The fake reports DEMO_VT100 as its name, matching the reserved port."""
     # Arrange
     fake = FakeSerialVT100()
 
@@ -134,6 +142,7 @@ def test_port_name_is_demo_vt100():
 
 
 def test_open_serial_resolves_vt100_device():
+    """open_serial maps the DEMO_VT100 port to the VT100 fake, not a real port."""
     # Arrange
     cfg = default_cfg()
     cfg["serial"]["port"] = "DEMO_VT100"

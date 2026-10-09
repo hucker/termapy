@@ -30,6 +30,7 @@ def _make_cfg(root: Path, name: str, *, folder: str | None = None, history: bool
 
 class TestRenameConfig:
     def test_standard_layout_moves_folder_file_and_history(self, tmp_path):
+        """A <name>/<name>.cfg rename moves the folder, its data and the history together."""
         # Arrange
         old = _make_cfg(tmp_path, "bench", history=True)
 
@@ -47,6 +48,7 @@ class TestRenameConfig:
         assert not (tmp_path / "bench").exists(), "old folder gone"
 
     def test_typed_extension_is_not_doubled(self, tmp_path):
+        """A new name typed with .cfg is taken as the stem, not xm.cfg/xm.cfg.cfg."""
         # Arrange -- the user types the name WITH its extension
         old = _make_cfg(tmp_path, "xmitter")
 
@@ -58,6 +60,7 @@ class TestRenameConfig:
         assert (tmp_path / "xm" / "xm.cfg").is_file()
 
     def test_non_standard_layout_renames_only_the_file(self, tmp_path):
+        """A folder not named after the config is left alone; only the .cfg is renamed."""
         # Arrange -- folder named differently from the config
         old = _make_cfg(tmp_path, "bench", folder="hardware")
 
@@ -69,6 +72,7 @@ class TestRenameConfig:
         assert (tmp_path / "hardware").is_dir(), "a folder that is not named after the cfg stays"
 
     def test_refuses_to_overwrite_an_existing_config(self, tmp_path):
+        """Renaming onto an existing config fails and moves nothing."""
         # Arrange
         old = _make_cfg(tmp_path, "bench")
         _make_cfg(tmp_path, "lab")
@@ -79,16 +83,19 @@ class TestRenameConfig:
         assert old.is_file(), "nothing moved"
 
     def test_refuses_the_same_name(self, tmp_path):
+        """Renaming a config to its current name is an error, not a silent no-op."""
         old = _make_cfg(tmp_path, "bench")
         with pytest.raises(ValueError, match="already named"):
             rename_config(str(old), "bench")
 
     def test_missing_config(self, tmp_path):
+        """A config path that does not exist raises FileNotFoundError."""
         with pytest.raises(FileNotFoundError):
             rename_config(str(tmp_path / "nope" / "nope.cfg"), "lab")
 
     @pytest.mark.parametrize("bad", ["", "a b", "a/b", "a\\b", ".hidden", ".."])
     def test_refuses_names_that_cannot_be_a_stem(self, tmp_path, bad):
+        """Empty, spaced, path-separated or dot-led names are refused before any move."""
         old = _make_cfg(tmp_path, "bench")
         with pytest.raises(ValueError):
             rename_config(str(old), bad)
@@ -97,6 +104,7 @@ class TestRenameConfig:
 
 class TestValidateFileStem:
     def test_good_names_pass(self):
+        """Ordinary names with underscores or hyphens validate as None (no reason)."""
         assert validate_file_stem("smoke_test") is None
         assert validate_file_stem("bench-2") is None
 
@@ -111,6 +119,7 @@ class TestValidateFileStem:
         ],
     )
     def test_bad_names_say_why(self, bad, fragment):
+        """Each kind of bad stem returns a reason naming the specific problem."""
         reason = validate_file_stem(bad)
         assert reason is not None and fragment in reason
 
@@ -119,6 +128,7 @@ class TestRenameCarriesEverySidecar:
     """Every stem-named sidecar in ``folders.SIDECARS`` follows a rename."""
 
     def test_log_report_profile_and_symbol_table_follow(self, tmp_path):
+        """Log, report, profile and sym/ table are renamed too; no old-name file remains."""
         # Arrange -- the sidecars a real session leaves behind, log included
         old = _make_cfg(tmp_path, "bench", history=True)
         folder = old.parent

@@ -49,6 +49,7 @@ def host(tmp_path):
 class TestMcpSymbols:
 
     def test_on_app_start_loads_the_sidecar(self, host):
+        """The sidecar loads at on_app_start in the MCP host, not when the host is built."""
         # Arrange -- nothing loaded until the server's boot line fires
         assert get_table(host.ctx) is None, "construction alone loads nothing"
 
@@ -61,6 +62,7 @@ class TestMcpSymbols:
         assert len(table) == DEMO_COUNT, "the whole demo table is installed"
 
     def test_sym_envelope_carries_the_data_record(self, host):
+        """A /sym hit puts the address and the symbol record in the MCP envelope's data field."""
         # Arrange
         host.repl.fire_lifecycle("on_app_start")
 
@@ -75,6 +77,7 @@ class TestMcpSymbols:
         assert data["symbol"]["file"] == "main.c", "provenance survives into the envelope"
 
     def test_sym_miss_keeps_the_record_shape(self, host):
+        """A /sym miss succeeds with a null symbol and the resolved address, not an error."""
         # Arrange
         host.repl.fire_lifecycle("on_app_start")
 

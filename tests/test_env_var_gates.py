@@ -33,6 +33,7 @@ from termapy.migration import (
 class TestTruthyParser:
     @pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "on", "  on  "])
     def test_truthy_values(self, value):
+        """Any case and surrounding spaces are fine: 1, true, yes, and on all read as enabled."""
         # Arrange / Act
         actual = env_flags._truthy(value)
         # Assert
@@ -40,12 +41,14 @@ class TestTruthyParser:
 
     @pytest.mark.parametrize("value", ["0", "false", "no", "off", "", "   ", "maybe", "2"])
     def test_falsy_values(self, value):
+        """Off words, blanks, and junk like maybe or 2 all read as false, never an error."""
         # Arrange / Act
         actual = env_flags._truthy(value)
         # Assert
         assert actual is False, f"{value!r} should be falsy"
 
     def test_none_is_falsy(self):
+        """An unset variable (None from os.environ.get) reads as false."""
         # Arrange / Act / Assert
         assert env_flags._truthy(None) is False, "unset env var (None) reads false"
 
@@ -54,6 +57,7 @@ class TestOsCmdGate:
     """/os reads OS_CMD_ENABLED from env_flags, not from cfg."""
 
     def test_disabled_blocks_os(self, monkeypatch):
+        """With the gate off /os refuses, and the error names TERMAPY_OS_CMD_ENABLED."""
         # Arrange
         from termapy.builtins.commands import os_cmd
         monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", False)
@@ -77,6 +81,7 @@ class TestOsCmdGate:
         )
 
     def test_enabled_runs_command(self, monkeypatch):
+        """With the gate on /os runs the child and streams its stdout through io.output."""
         # Arrange
         from termapy.builtins.commands import os_cmd
         monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
@@ -127,6 +132,7 @@ class TestMigrationV18ToV19:
     """v18->v19 strips os_cmd_enabled; if it was True, a one-shot warning fires."""
 
     def test_key_stripped_when_present(self, tmp_path):
+        """The retired key is removed and the cfg advances to the current schema version."""
         # Arrange
         cfg = {"config_version": 18, "os_cmd_enabled": True}
         # Act
@@ -136,6 +142,7 @@ class TestMigrationV18ToV19:
         assert out["config_version"] == CURRENT_CONFIG_VERSION, "version advanced"
 
     def test_warning_when_was_true(self):
+        """A cfg that had /os enabled is told the switch moved to TERMAPY_OS_CMD_ENABLED."""
         # Arrange
         cfg = {"config_version": 18, "os_cmd_enabled": True}
         # Act
@@ -147,6 +154,7 @@ class TestMigrationV18ToV19:
         )
 
     def test_no_warning_when_was_false(self):
+        """Stripping a key that was off is silent; only a lost enable is worth a warning."""
         # Arrange -- the common case: user had the default off.
         cfg = {"config_version": 18, "os_cmd_enabled": False}
         # Act
@@ -158,6 +166,7 @@ class TestMigrationV18ToV19:
         )
 
     def test_no_warning_when_key_absent(self):
+        """A v18 cfg without the key migrates with no _migration_warnings entry at all."""
         # Arrange
         cfg = {"config_version": 18}
         # Act
@@ -183,6 +192,7 @@ class TestStrictPluginMode:
     """
 
     def test_constant_reads_env_var(self, monkeypatch):
+        """The documented =1 setting parses as enabled; the cached constant is not re-read."""
         # Arrange -- env_flags reads the env var once at import; we exercise
         # the parser directly to confirm the semantics it would use.
         monkeypatch.setenv("TERMAPY_TRUSTED_PLUGINS_ONLY", "1")
@@ -192,6 +202,7 @@ class TestStrictPluginMode:
         assert actual is True, "_truthy('1') is True, matching what the env read would yield"
 
     def test_unset_env_means_permissive_default(self, monkeypatch):
+        """Strict mode is opt-in: an unset TERMAPY_TRUSTED_PLUGINS_ONLY stays permissive."""
         # Arrange
         monkeypatch.delenv("TERMAPY_TRUSTED_PLUGINS_ONLY", raising=False)
         # Act
@@ -205,6 +216,7 @@ class TestCfgKeyRetired:
     """os_cmd_enabled is no longer in DEFAULT_CFG / CONFIG_FIELD_HELP."""
 
     def test_not_in_default_cfg(self):
+        """New configs are not seeded with the retired key, so it cannot creep back in."""
         # Arrange
         from termapy.defaults import DEFAULT_CFG
         # Act / Assert
@@ -213,6 +225,7 @@ class TestCfgKeyRetired:
         )
 
     def test_not_in_cfg_help(self):
+        """The cfg editor has no help text for the retired key, so it is never suggested."""
         # Arrange
         from termapy.defaults import CFG_HELP
         # Act / Assert
@@ -222,6 +235,7 @@ class TestCfgKeyRetired:
         )
 
     def test_demo_cfg_does_not_carry_key(self):
+        """The shipped demo.cfg template is free of the retired key as well."""
         # Arrange
         demo_cfg = (
             Path(__file__).resolve().parent.parent

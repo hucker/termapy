@@ -21,10 +21,12 @@ DEMO_SYMBOLS = DEMO_DIR / f"demo{SYMBOLS_SUFFIX}"
 class TestBundledSymbols:
 
     def test_file_exists(self):
+        """The demo symbol table ships inside the package, where setup_demo_config copies from."""
         # Assert
         assert DEMO_SYMBOLS.is_file(), f"bundled symbol table missing: {DEMO_SYMBOLS}"
 
     def test_loads_with_thirteen_symbols(self):
+        """The count and fixed import stamp stay put, so /sym in the CLI gold is stable."""
         # Act
         table = SymbolTable.load(DEMO_SYMBOLS)
 
@@ -33,6 +35,7 @@ class TestBundledSymbols:
         assert table.imported == "2026-08-29T00:00:00", "fixed timestamp keeps /sym.info gold-safe"
 
     def test_grammar_examples_are_present(self):
+        """One example per lookup rule: dotted name, name@file, offset, gold address."""
         # Arrange
         table = SymbolTable.load(DEMO_SYMBOLS)
 
@@ -50,6 +53,7 @@ class TestBundledSymbols:
         assert gtemp and gtemp[0].addr == 0x1000, "gTemp at the address the gold dumps"
 
     def test_typed_symbols(self):
+        """Typed rows load intact: a format-spec type, rmw:false, a size-0 global."""
         # Arrange
         table = SymbolTable.load(DEMO_SYMBOLS)
 
@@ -67,6 +71,7 @@ class TestBundledSymbols:
 class TestSetupDemoConfig:
 
     def test_materializes_sidecar_byte_identical(self, tmp_path):
+        """A fresh demo config gets the bundled table under sym/ as an exact byte copy."""
         # Act
         config_path = setup_demo_config(tmp_path)
 
@@ -75,6 +80,7 @@ class TestSetupDemoConfig:
         assert sidecar.read_bytes() == DEMO_SYMBOLS.read_bytes(), "bundled file copied verbatim"
 
     def test_keeps_a_modified_copy_without_force(self, tmp_path):
+        """Re-running setup without force leaves a user-edited sidecar alone."""
         # Arrange
         config_path = setup_demo_config(tmp_path)
         sidecar = config_path.parent / "sym" / f"demo{SYMBOLS_SUFFIX}"
@@ -87,6 +93,7 @@ class TestSetupDemoConfig:
         assert sidecar.read_text(encoding="utf-8") == "{}", "an existing copy is left alone"
 
     def test_force_refreshes(self, tmp_path):
+        """force=True overwrites an edited sidecar with the bundled table again."""
         # Arrange
         config_path = setup_demo_config(tmp_path)
         sidecar = config_path.parent / "sym" / f"demo{SYMBOLS_SUFFIX}"

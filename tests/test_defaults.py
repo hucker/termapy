@@ -24,29 +24,35 @@ from termapy.defaults import (
 
 class TestValidationConstants:
     def test_baud_rates_sorted(self):
+        """STANDARD_BAUD_RATES stays in ascending order so pickers list rates low to high."""
         # Assert
         assert STANDARD_BAUD_RATES == tuple(sorted(STANDARD_BAUD_RATES)), "ascending"
 
     def test_baud_rates_common(self):
+        """The everyday rates 9600 and 115200 are offered as standard baud rates."""
         # Assert
         assert 9600 in STANDARD_BAUD_RATES, "common rate present"
         assert 115200 in STANDARD_BAUD_RATES, "common rate present"
 
     def test_byte_sizes(self):
+        """Data bits are exactly the four sizes pyserial accepts: 5, 6, 7 and 8."""
         # Assert
         assert VALID_BYTE_SIZES == {5, 6, 7, 8}, "standard data bits"
 
     def test_parities(self):
+        """None and Even parity are both accepted as valid parity codes."""
         # Assert
         assert "N" in VALID_PARITIES, "None parity"
         assert "E" in VALID_PARITIES, "Even parity"
 
     def test_stop_bits(self):
+        """One and two stop bits are both accepted as valid stop-bit settings."""
         # Assert
         assert 1 in VALID_STOP_BITS, "standard stop bit"
         assert 2 in VALID_STOP_BITS, "two stop bits"
 
     def test_flow_controls(self):
+        """Both no flow control and RTS/CTS hardware flow control are valid choices."""
         # Assert
         assert "none" in VALID_FLOW_CONTROLS, "no flow control"
         assert "rtscts" in VALID_FLOW_CONTROLS, "hardware flow control"
@@ -89,18 +95,21 @@ class TestCfgHelpCoverage:
     VALID_MAX = 90  # "Valid: <hint>" stays on one line too
 
     def test_every_landable_key_has_help(self):
+        """Every cfg key, nested ones included, has a help entry -- no 'unknown key' line."""
         missing = sorted(_landable_cfg_keys() - set(CFG_HELP))
         assert missing == [], (
             f"cfg keys with no CFG_HELP entry (editor shows 'unknown key'): {missing}"
         )
 
     def test_no_stale_help_entries(self):
+        """A help entry whose key was renamed or removed from DEFAULT_CFG is caught."""
         stale = sorted(set(CFG_HELP) - _landable_cfg_keys())
         assert stale == [], (
             f"CFG_HELP entries for keys not in DEFAULT_CFG (rename left them behind?): {stale}"
         )
 
     def test_descriptions_are_one_line(self):
+        """Help descriptions fit one editor-panel line: no newline, at most DESC_MAX chars."""
         bad = []
         for key, entry in CFG_HELP.items():
             desc = entry[0] if isinstance(entry, tuple) else entry
@@ -111,6 +120,7 @@ class TestCfgHelpCoverage:
         )
 
     def test_valid_hints_are_one_line(self):
+        """Static 'Valid:' hints fit one line; dynamic callable hints are exempt."""
         bad = []
         for key, entry in CFG_HELP.items():
             if not isinstance(entry, tuple) or len(entry) < 2:
@@ -126,22 +136,27 @@ class TestCfgHelpCoverage:
 
 class TestDefaultCfg:
     def test_has_config_version(self):
+        """A default cfg carries config_version so later loads know what to migrate."""
         # Assert
         assert "config_version" in DEFAULT_CFG, "version key present"
 
     def test_default_baud_rate(self):
+        """A fresh config defaults to 115200 baud, nested under the serial section."""
         # Assert -- nested under cfg["serial"] post-v22.
         assert DEFAULT_CFG["serial"]["baud_rate"] == 115200, "standard default"
 
     def test_default_line_ending(self):
+        """A fresh config sends a bare carriage return as its line ending."""
         # Assert
         assert DEFAULT_CFG["eol"] == "\r", "CR default"
 
     def test_default_prefix(self):
+        """A fresh config uses / as the REPL command prefix."""
         # Assert
         assert DEFAULT_CFG["cmd_prefix"] == "/", "slash prefix"
 
     def test_custom_buttons_is_list(self):
+        """A fresh config ships four custom-button slots as a list."""
         # Assert
         assert isinstance(DEFAULT_CFG["custom_buttons"], list), "buttons array"
         assert len(DEFAULT_CFG["custom_buttons"]) == 4, "four button slots"
@@ -152,6 +167,7 @@ class TestDefaultCfg:
 
 class TestListPorts:
     def test_returns_string(self):
+        """The port-list help hint is always a string, whatever hardware is attached."""
         # Act
         actual = _list_ports()
 
@@ -159,6 +175,7 @@ class TestListPorts:
         assert isinstance(actual, str), "always returns a string"
 
     def test_with_no_ports(self):
+        """An empty port enumeration says no ports were found rather than going blank."""
         # Arrange
         with patch("serial.tools.list_ports.comports", return_value=[]):
             # Act
@@ -168,6 +185,7 @@ class TestListPorts:
         assert "no ports found" in actual, "reports empty"
 
     def test_oserror_fallback(self):
+        """An OSError from enumeration degrades to a 'cannot list' hint, not a traceback."""
         # Arrange -- OSError (udev / IOKit / WMI hiccup) degrades to a
         # friendly fallback string.  Any OTHER exception would propagate
         # so we'd see the traceback and fix whatever's actually broken.
@@ -184,6 +202,7 @@ class TestListPorts:
 
 class TestResolveColor:
     def test_direct_alias(self):
+        """A termapy color alias like brown resolves to its hex value."""
         # Act
         actual = resolve_color("brown")
 
@@ -191,6 +210,7 @@ class TestResolveColor:
         assert actual == "#8B4513", "mapped to hex"
 
     def test_alias_case_insensitive(self):
+        """Alias lookup ignores case, so BROWN resolves the same as brown."""
         # Act
         actual = resolve_color("BROWN")
 
@@ -198,6 +218,7 @@ class TestResolveColor:
         assert actual == "#8B4513", "case insensitive"
 
     def test_unknown_color_passthrough(self):
+        """A name with no alias is handed through unchanged for Rich to interpret."""
         # Act
         actual = resolve_color("blue")
 
@@ -205,6 +226,7 @@ class TestResolveColor:
         assert actual == "blue", "not in aliases, passed through"
 
     def test_hex_passthrough(self):
+        """A hex color code is returned as written, not looked up."""
         # Act
         actual = resolve_color("#ff0000")
 
@@ -212,6 +234,7 @@ class TestResolveColor:
         assert actual == "#ff0000", "hex codes pass through"
 
     def test_light_prefix_with_alias(self):
+        """light_blue matches its own alias directly before any prefix stripping."""
         # Act
         actual = resolve_color("light_blue")
 
@@ -219,6 +242,7 @@ class TestResolveColor:
         assert actual == "#ADD8E6", "direct alias match for light_blue"
 
     def test_dark_prefix_resolves(self):
+        """dark_brown matches its own alias directly to a darker hex."""
         # Act
         actual = resolve_color("dark_brown")
 
@@ -226,6 +250,7 @@ class TestResolveColor:
         assert actual == "#5C3317", "direct alias match"
 
     def test_light_prefix_strips_to_base_alias(self):
+        """lightorange, with no alias of its own, resolves via Rich or the orange base."""
         # "lightorange" is not a direct alias, but "orange" is
         # Act
         actual = resolve_color("lightorange")
@@ -234,6 +259,7 @@ class TestResolveColor:
         assert actual in ("light_orange", COLOR_ALIASES["orange"]), "Rich resolves light_orange or falls back to orange hex"
 
     def test_dark_prefix_strips_to_base_alias(self):
+        """darkorange, with no alias of its own, resolves via Rich or the orange base."""
         # "darkorange" is not a direct alias, but "orange" is
         # Act
         actual = resolve_color("darkorange")
@@ -247,6 +273,7 @@ class TestResolveColor:
 
 class TestPreviewColor:
     def test_empty_string(self):
+        """An empty color value shows no preview at all."""
         # Act
         actual = _preview_color("")
 
@@ -254,6 +281,7 @@ class TestPreviewColor:
         assert actual == "", "empty input returns empty"
 
     def test_valid_color(self):
+        """A plain Rich color name gets a Color: preview line."""
         # Act
         actual = _preview_color("red")
 
@@ -261,6 +289,7 @@ class TestPreviewColor:
         assert "Color:" in actual, "shows color info"
 
     def test_alias_color(self):
+        """An alias preview shows the -> resolution to its underlying value."""
         # Act
         actual = _preview_color("brown")
 
@@ -269,6 +298,7 @@ class TestPreviewColor:
         assert "->" in actual, "shows alias resolution"
 
     def test_unknown_color(self):
+        """An unparseable color name is flagged as unknown in the preview."""
         # Act
         actual = _preview_color("notacolor999")
 
@@ -281,6 +311,7 @@ class TestPreviewColor:
 
 class TestPreviewMarkup:
     def test_empty_string(self):
+        """An empty echo format shows no preview at all."""
         # Act
         actual = _preview_markup("")
 
@@ -288,6 +319,7 @@ class TestPreviewMarkup:
         assert actual == "", "empty input returns empty"
 
     def test_with_cmd_placeholder(self):
+        """A markup format previews with a sample command substituted for {cmd}."""
         # Act
         actual = _preview_markup("[purple]> {cmd}[/]")
 
@@ -296,6 +328,7 @@ class TestPreviewMarkup:
         assert "Preview:" in actual, "labeled as preview"
 
     def test_plain_format(self):
+        """A bare {cmd} format with no markup still gets the sample command substituted."""
         # Act
         actual = _preview_markup("{cmd}")
 

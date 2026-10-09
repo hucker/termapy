@@ -43,6 +43,7 @@ class TestValidateSynopsis:
         ],
     )
     def test_valid_synopses(self, args):
+        """Real shapes from the live registry, nested groups and keyword forms included, pass."""
         # Act / Assert -- real shapes from the live registry all pass
         assert validate_synopsis(args) == "", f"expected valid: {args!r}"
 
@@ -59,6 +60,7 @@ class TestValidateSynopsis:
         ],
     )
     def test_invalid_synopses(self, args, fragment):
+        """Each grammar violation is rejected with an error naming its specific class."""
         # Act
         error = validate_synopsis(args)
 
@@ -71,11 +73,13 @@ class TestValidateSynopsis:
 
 class TestChokepoint:
     def test_plugininfo_rejects_bad_synopsis(self):
+        """Constructing a PluginInfo with a bad synopsis raises, so registration fails loud."""
         # Act / Assert -- construction is registration; it must fail loud
         with pytest.raises(ValueError, match="invalid args synopsis"):
             PluginInfo(name="bad", args="{{filename}}", help="h", handler=_noop)
 
     def test_error_names_the_command(self):
+        """The rejection names the offending /command so a boot failure is traceable."""
         # Act
         with pytest.raises(ValueError) as exc:
             PluginInfo(name="edit.run", args="[file]", help="h", handler=_noop)
@@ -84,6 +88,7 @@ class TestChokepoint:
         assert "/edit.run" in str(exc.value), "error names the offending command"
 
     def test_register_hook_rejects_bad_synopsis(self, tmp_path):
+        """App hooks get the same check; the K2 bug arrived through register_hook."""
         # Arrange -- hooks build PluginInfo too (the K2 bug arrived this way)
         cfg = {"port": "COM4"}
         config_path = tmp_path / "sub" / "t.cfg"
@@ -103,6 +108,7 @@ class TestChokepoint:
 
 class TestRegistryConformance:
     def test_all_builtin_synopses_valid(self, tmp_path):
+        """No builtin plugin file is dropped for a bad synopsis, and the registry is populated."""
         # Arrange -- constructing the engine registers every builtin, so
         # __post_init__ has already enforced the grammar; this walk documents
         # the invariant and pins the count above zero.
@@ -133,6 +139,7 @@ class TestRegistryConformance:
         assert len(eng._plugins) > 50, "registry populated (walk is not vacuous)"
 
     def test_demo_plugin_synopses_valid(self):
+        """The demo plugins users copy as templates load cleanly with valid synopses."""
         # Arrange / Act -- the demo example plugins are the copy-me templates;
         # loading the dir constructs PluginInfo for each (validation fires).
         # builtins_dir() is .../builtins/commands; demo plugins are a sibling

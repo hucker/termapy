@@ -44,6 +44,7 @@ class TestCliFlagsImportDiscipline:
         ["textual", "rich", "prompt_toolkit"],
     )
     def test_cli_flags_does_not_import(self, module):
+        """A fresh import of cli_flags loads none of textual, rich, or prompt_toolkit."""
         # Arrange + Act
         result = subprocess.run(
             [
@@ -67,6 +68,7 @@ class TestCliFlagsImportDiscipline:
         )
 
     def test_entry_does_not_import(self):
+        """The entry point every CLI run imports stays free of all three UI libraries."""
         # Arrange + Act -- termapy.entry is the real cold path users hit.
         result = subprocess.run(
             [
@@ -132,6 +134,7 @@ class TestPortsJsonShape:
         return buf.getvalue(), exc.value.code
 
     def test_full_record_shape(self):
+        """A --ports --json record has exactly the documented keys -- none missing, none extra."""
         # Arrange
         facts = _make_facts()
 
@@ -154,6 +157,7 @@ class TestPortsJsonShape:
         )
 
     def test_vid_pid_split_to_ints(self):
+        """The vid_pid string also splits into integer vid and pid fields for consumers."""
         # Arrange
         facts = _make_facts(vid_pid="0403:6001")
 
@@ -167,6 +171,7 @@ class TestPortsJsonShape:
         assert record["vid_pid"] == "0403:6001", "formatted vid_pid lowercase"
 
     def test_in_use_is_boolean(self):
+        """The yes/no in_use string from ChipFacts reaches JSON as a true/false boolean."""
         # Arrange -- ChipFacts.in_use is a string ("yes"/"no"/"yes (this session)").
         # The JSON record exposes a clean boolean.
         facts_yes = _make_facts(in_use="yes")
@@ -181,6 +186,7 @@ class TestPortsJsonShape:
         assert records[1]["in_use"] is False, "no -> False"
 
     def test_no_ports_returns_empty_array_and_exits_1(self):
+        """An empty fleet still prints valid JSON, an empty array, and exits 1 for no match."""
         # Arrange + Act
         out, code = self._run_ports_json([])
 
@@ -190,6 +196,7 @@ class TestPortsJsonShape:
         assert code == 1, "exit 1 when nothing matched"
 
     def test_unknown_chip_serializes_as_null(self):
+        """The unknown-chip sentinel becomes null, so consumers filter on null, not a string."""
         # Arrange
         facts = _make_facts(model="unknown")
 
@@ -207,6 +214,7 @@ class TestPortsJsonShape:
 
 class TestChipsJsonShape:
     def test_record_shape(self):
+        """Each --chips --json record has exactly six keys, with vid, pid, and max_baud as ints."""
         # Arrange + Act
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
@@ -252,31 +260,37 @@ class TestMultiAxisFilters:
         return json.loads(buf.getvalue())
 
     def test_vid_filter_hex(self, fleet):
+        """A bare-hex --vid selects only the port whose vendor ID matches."""
         actual = self._run(fleet, vid="0403")
         assert len(actual) == 1, "single match"
         assert actual[0]["device"] == "COM3", "FTDI matched"
 
     def test_vid_filter_with_0x_prefix(self, fleet):
+        """A 0x-prefixed --vid value is accepted and matches like the bare hex form."""
         actual = self._run(fleet, vid="0x10C4")
         assert len(actual) == 1, "single match with 0x prefix"
         assert actual[0]["device"] == "COM4", "Silabs matched"
 
     def test_pid_filter(self, fleet):
+        """--pid matches the product half of vid_pid, picking the CH340 out of the fleet."""
         actual = self._run(fleet, pid="7523")
         assert len(actual) == 1, "single PID match"
         assert actual[0]["device"] == "COM5", "CH340 matched"
 
     def test_mfg_substring_case_insensitive(self, fleet):
+        """--mfg ignores case, so a lowercase silabs still finds the Silabs adapter."""
         actual = self._run(fleet, mfg="silabs")
         assert len(actual) == 1, "case-insensitive match"
         assert actual[0]["manufacturer"] == "Silabs", "Silabs row"
 
     def test_sn_exact_match_case_insensitive(self, fleet):
+        """--sn compares serial numbers ignoring case: ch03 selects the CH03 port."""
         actual = self._run(fleet, sn="ch03")
         assert len(actual) == 1, "single SN match"
         assert actual[0]["serial_number"] == "CH03", "WCH row"
 
     def test_filters_and_together(self, fleet):
+        """Two filters combine with AND -- a port must satisfy both --vid and --mfg to list."""
         # Arrange + Act -- vid AND mfg both narrow; both must match.
         actual = self._run(fleet, vid="0403", mfg="ftdi")
 
@@ -285,6 +299,7 @@ class TestMultiAxisFilters:
         assert actual[0]["device"] == "COM3", "FTDI matched"
 
     def test_filter_no_match_returns_empty_and_exits_1(self, fleet):
+        """A filter that matches nothing prints an empty array and exits 1, like an empty fleet."""
         # Arrange + Act
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
@@ -298,6 +313,7 @@ class TestMultiAxisFilters:
         assert actual == [], "empty array"
 
     def test_invalid_vid_exits_2(self, fleet):
+        """A non-hex --vid exits 2, keeping bad input distinct from no match (exit 1)."""
         # Arrange + Act
         with pytest.raises(SystemExit) as exc:
             cli_flags.run_ports(
@@ -313,6 +329,7 @@ class TestMultiAxisFilters:
 
 class TestDriverColumn:
     def test_driver_visible_when_any_row_has_one(self):
+        """One row with a driver is enough to keep the driver column for the whole table."""
         # Arrange -- one row with a driver, one without.  active_columns
         # keeps the column because some row has data.
         from termapy.port_format import active_columns, row_from_facts
@@ -329,6 +346,7 @@ class TestDriverColumn:
         assert "driver" in actual, "driver column kept when any row has data"
 
     def test_driver_dropped_when_every_row_blank(self):
+        """With no driver on any row (typical on macOS) the column is dropped, not shown blank."""
         # Arrange -- all rows missing driver (typical macOS case).
         from termapy.port_format import active_columns, row_from_facts
 
@@ -344,6 +362,7 @@ class TestDriverColumn:
         assert "driver" not in actual, "driver column dropped when all blank"
 
     def test_driver_appears_in_json(self):
+        """The gathered driver name reaches the --ports JSON record unchanged."""
         # Arrange
         facts = _make_facts(driver="ftdi_sio")
 
@@ -369,6 +388,7 @@ class TestReservedPortSynthesis:
     """
 
     def test_demo_not_in_unfiltered_listing(self):
+        """With no hardware a bare listing is empty and exits 1; no virtual port pads it out."""
         # Arrange + Act -- no real ports; nothing should appear bare.
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
@@ -380,6 +400,7 @@ class TestReservedPortSynthesis:
         assert exc.value.code == 1, "exit 1 on empty listing"
 
     def test_demo_synthesized_when_named(self):
+        """A named DEMO yields one virtual record: termapy maker, null VID/PID, not in use."""
         # Arrange + Act -- no real ports, but user names DEMO explicitly.
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
@@ -398,6 +419,7 @@ class TestReservedPortSynthesis:
         assert actual["in_use"] is False, "synthesized as not-in-use"
 
     def test_demo_fail_synthesized_when_named(self):
+        """DEMO_FAIL is reserved too and synthesizes a record under its own name."""
         # Arrange + Act
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
@@ -409,6 +431,7 @@ class TestReservedPortSynthesis:
         assert records[0]["device"] == "DEMO_FAIL", "DEMO_FAIL preserved"
 
     def test_unknown_reserved_name_still_errors(self):
+        """Only DEMO and DEMO_FAIL synthesize; any other absent name gives [] and exit 1."""
         # Arrange + Act -- a fake name that isn't reserved should not synthesize.
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
@@ -421,6 +444,7 @@ class TestReservedPortSynthesis:
         assert exc.value.code == 1, "exit 1 on no match"
 
     def test_demo_real_port_takes_precedence(self):
+        """An OS-enumerated port named DEMO wins over the synthetic record."""
         # Arrange -- if the OS somehow enumerates a port named "DEMO"
         # (shouldn't happen, but fence it), the real one wins.
         real_demo = _make_facts(
@@ -454,6 +478,7 @@ class TestFastGather:
     """
 
     def test_fast_gather_skips_in_use(self, monkeypatch):
+        """With fast=True the gather never calls _check_in_use, which opens every port."""
         # Arrange -- if anything calls _check_in_use, the test fails.
         from termapy import port_control
 
@@ -481,6 +506,7 @@ class TestFastGather:
         )
 
     def test_fast_gather_marks_in_use_none(self):
+        """Fast facts leave in_use and permissions None (not gathered) but fill identity."""
         # Arrange + Act
         from unittest.mock import MagicMock
 
@@ -511,6 +537,7 @@ class TestFastGather:
         assert facts.vid_pid == "0403:6001", "vid_pid populated"
 
     def test_state_column_shows_dash_when_in_use_unknown(self):
+        """An ungathered in_use (None) shows as - in the state column, not as yes or no."""
         # Arrange
         from termapy.cli_flags import _state_of
 
@@ -533,6 +560,7 @@ class TestLocationField:
     """
 
     def test_location_present_in_json_record(self):
+        """A known location such as 1-2.3 passes through to the JSON record unchanged."""
         # Arrange
         facts = _make_facts(device="COM7")
         facts.location = "1-2.3"
@@ -549,6 +577,7 @@ class TestLocationField:
         assert actual == expected, "location surfaced in JSON"
 
     def test_location_null_when_unknown(self):
+        """An unknown location is an explicit null in JSON, never a missing key."""
         # Arrange
         facts = _make_facts()
         facts.location = None
@@ -571,6 +600,7 @@ class TestVendorLookup:
     """
 
     def test_vendor_from_vid(self):
+        """Known VIDs for FTDI, Silicon Labs, and Microchip resolve to their canonical names."""
         # Arrange + Act
         from termapy.usb import vendor_for
 
@@ -580,6 +610,7 @@ class TestVendorLookup:
         assert vendor_for(0x04D8) == "Microchip", "Microchip VID resolves"
 
     def test_vendor_unknown_vid_returns_none(self):
+        """An unlisted VID, or no VID at all, resolves to None rather than a placeholder."""
         # Arrange + Act
         from termapy.usb import vendor_for
 
@@ -624,6 +655,7 @@ class TestVendorLookup:
         )
 
     def test_ftdi_all_three_fields_agree(self):
+        """For FTDI the raw manufacturer, the aliased one, and vendor all read FTDI."""
         # Arrange -- FTDI port: descriptor says FTDI, alias short-forms
         # to FTDI, VID 0x0403 also resolves to FTDI.  All three agree.
         from termapy.port_control import ChipFacts
@@ -680,6 +712,7 @@ class TestVendorLookup:
         assert actual2 == "1-8.3:x.1", "non-Windows format unchanged"
 
     def test_silicon_labs_short_form_via_alias(self):
+        """Silicon Labs shortens to SiLabs in manufacturer only; raw and vendor stay canonical."""
         # Arrange -- USB_VENDORS uses the canonical "Silicon Labs", but
         # narrow-column display goes through usb_mfg.mfg() which folds
         # it to "SiLabs".  Verify the JSON record's `manufacturer` (the
@@ -723,6 +756,7 @@ class TestInterfaceColumn:
     """
 
     def test_the_column_appears_when_a_device_has_functions_to_tell_apart(self):
+        """One composite device with an interface number keeps the column for every row."""
         # Arrange -- a composite device (a debugger with a CDC port
         # alongside it) next to a plain adapter.
         from termapy.port_format import active_columns, row_from_facts
@@ -741,6 +775,7 @@ class TestInterfaceColumn:
         )
 
     def test_the_column_vanishes_when_no_device_has_one(self):
+        """When every port is single-function the interface column is omitted entirely."""
         # Arrange -- the ordinary case: every port is a single-function
         # adapter, so there is nothing to disambiguate anywhere.
         from termapy.port_format import active_columns, row_from_facts
@@ -759,6 +794,7 @@ class TestInterfaceColumn:
         )
 
     def test_an_absent_interface_renders_blank_not_unknown(self):
+        """No interface renders blank, not ?, which would claim one exists but was unreadable."""
         # Arrange
         from termapy.port_format import row_from_facts
 

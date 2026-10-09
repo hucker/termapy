@@ -74,6 +74,7 @@ class TestCrcCodegenUnknownAlgorithm:
 
     @pytest.mark.parametrize("lang", ["c", "python", "rust"])
     def test_unknown_name_fails_gracefully(self, tmp_path, lang):
+        """Each codegen language echoes the bad name and points at /proto.crc.list."""
         # Arrange -- a name that cannot exist in the CRC catalog.
         fake = "crcDOES_NOT_EXIST"
 
@@ -107,6 +108,7 @@ class TestCrcCodegenUnknownAlgorithm:
         )
 
     def test_crc_calc_unknown_name_fails_gracefully(self, tmp_path):
+        """The /proto.crc.calc error path renders the live prefix, not a raw {prefix}."""
         # Act -- exercise the sibling _crc_calc handler's error path.
         result = _run_cli(tmp_path, ["/proto.crc.calc crcDOES_NOT_EXIST 01 02"])
 
@@ -124,6 +126,7 @@ class TestCrcCodegenUnknownAlgorithm:
         )
 
     def test_crc_info_unknown_name_fails_gracefully(self, tmp_path):
+        """The /proto.crc.info error path renders the live prefix, not a raw {prefix}."""
         # Act
         result = _run_cli(tmp_path, ["/proto.crc.info crcDOES_NOT_EXIST"])
 

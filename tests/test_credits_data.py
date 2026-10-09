@@ -31,6 +31,7 @@ def _names(requirements: list[str]) -> set[str]:
 
 class TestRegistryMatchesPyproject:
     def test_every_runtime_dependency_has_a_credit(self):
+        """Each pyproject runtime dependency is credited by some record's package or covers."""
         # Arrange
         declared = _names(_project()["dependencies"])
         credited = {name.lower() for credit in credits_of("runtime") for name in credit.names}
@@ -40,6 +41,7 @@ class TestRegistryMatchesPyproject:
         assert not missing, f"pyproject dependencies with no credits_data record: {sorted(missing)}"
 
     def test_every_runtime_credit_is_a_declared_dependency(self):
+        """A dropped dependency must lose its runtime credit; no stale records survive."""
         # Arrange
         declared = _names(_project()["dependencies"])
         credited = {name.lower() for credit in credits_of("runtime") for name in credit.names}
@@ -49,6 +51,7 @@ class TestRegistryMatchesPyproject:
         assert not stale, f"credits_data runtime records not in pyproject: {sorted(stale)}"
 
     def test_optional_credits_match_the_extras(self):
+        """Optional credits match the extras as (extra, package) pairs, the all bundle aside."""
         # Arrange -- the self-referential ``all`` extra is a bundle, not a package
         extras = _project()["optional-dependencies"]
         declared = {
@@ -68,6 +71,7 @@ class TestRegistryMatchesPyproject:
 
 class TestRegistryMatchesTheTree:
     def test_vendored_credits_exist_under_vendor(self):
+        """Each vendored credit names a folder or module under vendor/, pyserial as serial/."""
         # Arrange -- pyserial vendors as ``serial/``; the others as their own name
         aliases = {"pyserial": "serial"}
         for credit in credits_of("vendored"):
@@ -80,6 +84,7 @@ class TestRegistryMatchesTheTree:
             )
 
     def test_every_vendored_package_has_a_credit(self):
+        """Code added under vendor/ without a vendored credit fails; metadata files are skipped."""
         # Arrange -- every top-level entry under vendor/ except metadata files
         present = {
             path.stem for path in _VENDOR.iterdir()
@@ -96,6 +101,7 @@ class TestRegistryMatchesTheTree:
 
 class TestRegistryRenders:
     def test_tooltip_shows_every_flagged_credit(self):
+        """Every in_tooltip credit's name and author reach the rendered Help tooltip text."""
         # Act
         from rich.console import Console
 
@@ -109,6 +115,7 @@ class TestRegistryRenders:
             assert credit.author in out, f"{credit.author} missing from the tooltip"
 
     def test_records_are_well_formed(self):
+        """Core fields are never empty; optional/tooling need a note, optional an extra."""
         for credit in CREDITS:
             assert credit.package and credit.role and credit.author and credit.url, credit
             if credit.kind in ("optional", "tooling"):
@@ -117,6 +124,7 @@ class TestRegistryRenders:
                 assert credit.extra, f"{credit.package}: optional records name their extra"
 
     def test_prose_credited_records_appear_on_the_page(self):
+        """A runtime credit with no note must be named in the acknowledgments page prose."""
         # Arrange -- a runtime record with no note must be credited in prose instead
         page = (_REPO_ROOT / "src" / "termapy" / "help" / "acknowledgments.md").read_text(
             encoding="utf-8"

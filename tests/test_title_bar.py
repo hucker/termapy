@@ -35,6 +35,7 @@ class _FakeApp:
 
 
 def test_update_port_handles_readonly_cfg():
+    """Switching ports works on the read-only mappingproxy cfg ReplEngine exposes."""
     # Arrange -- a read-only proxied cfg, as after loading a config file
     original = {"serial": {"port": "COM4", "baud_rate": 115200}, "title": "Mag3"}
     app = _FakeApp(original)
@@ -50,6 +51,7 @@ def test_update_port_handles_readonly_cfg():
 
 
 def test_update_port_does_not_mutate_the_source_cfg():
+    """The switched cfg is a deep copy; editing it never reaches the loaded config."""
     # Arrange
     original = {"serial": {"port": "COM4"}, "title": "Mag3"}
     app = _FakeApp(original)

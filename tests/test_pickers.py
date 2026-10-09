@@ -53,6 +53,7 @@ def _quick_setup_env(tmp_path, monkeypatch):
 
 
 def test_quick_setup_with_icon_dispatches_cfg_icon(_quick_setup_env):
+    """Ticking 'add desktop icon' dispatches /cfg.icon, and only after the new cfg is loaded."""
     # Arrange -- the user ticked the "add desktop icon" checkbox,
     # so the wizard's tuple ends in add_icon=True.
     app = _StubApp()
@@ -70,6 +71,7 @@ def test_quick_setup_with_icon_dispatches_cfg_icon(_quick_setup_env):
 
 
 def test_quick_setup_without_icon_skips_dispatch(_quick_setup_env):
+    """With the icon box left unticked, finishing the wizard dispatches no /cfg.icon."""
     # Arrange -- checkbox left off; tuple ends in add_icon=False.
     app = _StubApp()
     result = ("connect", "demo", "COM1", 115200, False, False)
@@ -84,6 +86,7 @@ def test_quick_setup_without_icon_skips_dispatch(_quick_setup_env):
 
 
 def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
+    """Advanced opens the ConfigEditor and ignores the icon box; /cfg.icon is left to the user."""
     # Arrange -- Advanced action opens the ConfigEditor; we don't
     # offer the icon there even if the checkbox was somehow ticked,
     # because the user is going into power-edit mode.
@@ -105,6 +108,7 @@ def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
 
 
 def test_quick_setup_cancel_does_nothing(_quick_setup_env):
+    """A canceled wizard (None result) loads no cfg and dispatches nothing."""
     # Arrange -- user canceled the modal.
     app = _StubApp()
 
@@ -119,6 +123,7 @@ def test_quick_setup_cancel_does_nothing(_quick_setup_env):
 def test_quick_setup_writes_cfg_file_with_expected_contents(
     _quick_setup_env,
 ):
+    """The wizard writes title, serial.port and serial.baud_rate to disk, then auto-connects."""
     # Arrange / Act
     app = _StubApp()
     result = ("connect", "demo", "COM1", 115200, False, False)

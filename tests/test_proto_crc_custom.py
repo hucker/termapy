@@ -33,12 +33,14 @@ class TestParseHelpers:
     handler relies on."""
 
     def test_parse_int_decimal(self):
+        """Decimal tokens parse as int, from 0 up to the 32-bit maximum."""
         # Act / Assert
         assert _parse_int_value("16", "width") == 16, "decimal int"
         assert _parse_int_value("0", "init") == 0, "zero"
         assert _parse_int_value("4294967295", "xorout") == 4294967295, "32-bit max"
 
     def test_parse_int_hex(self):
+        """A 0x prefix in either case selects hex, up to full 32-bit width."""
         # Act / Assert -- hex with and without 0x prefix
         assert _parse_int_value("0x1021", "poly") == 0x1021, "0x-prefixed"
         assert _parse_int_value("0X1021", "poly") == 0x1021, "0X-prefixed"
@@ -47,6 +49,7 @@ class TestParseHelpers:
         )
 
     def test_parse_int_invalid(self):
+        """A non-numeric token raises the int() ValueError rather than defaulting."""
         # Act / Assert -- invalid strings should raise ValueError
         # (the underlying int() call propagates "invalid literal ...")
         with pytest.raises(ValueError, match="invalid literal"):
@@ -58,6 +61,7 @@ class TestParseHelpers:
         "token", ["true", "True", "TRUE", "1", "yes", "on", "y", "t"]
     )
     def test_parse_bool_truthy(self, token):
+        """Every shared parse_bool truthy token reads True, y and t included."""
         # Act / Assert
         assert _parse_bool_value(token, "refin") is True, f"{token!r} -> True"
 
@@ -65,15 +69,18 @@ class TestParseHelpers:
         "token", ["false", "False", "FALSE", "0", "no", "off", "n", "f"]
     )
     def test_parse_bool_falsy(self, token):
+        """Every shared parse_bool falsy token reads False, n and f included."""
         # Act / Assert
         assert _parse_bool_value(token, "refin") is False, f"{token!r} -> False"
 
     def test_parse_bool_invalid(self):
+        """An unrecognized token raises a ValueError naming true/false, never False."""
         # Act / Assert
         with pytest.raises(ValueError, match="true/false"):
             _parse_bool_value("maybe", "refin")
 
     def test_symbol_from_stem_basename(self):
+        """Without symbol=, the function name is the file= stem's basename."""
         # The handler computes ``_symbol_from_stem(file=)`` when no
         # explicit symbol= is given; verify the helper produces the
         # basename of common path shapes.
@@ -86,6 +93,7 @@ class TestParseHelpers:
         )
 
     def test_symbol_from_stem_sanitizes(self):
+        """Dashes and dots in the stem become underscores for a valid C identifier."""
         # Act / Assert -- dashes and dots become underscores; other
         # characters that aren't C-identifier-safe also get normalized.
         assert _symbol_from_stem("crc-32") == "crc_32", "dash -> underscore"
@@ -126,6 +134,7 @@ class TestPythonSlice8Fallback:
         return ctx, captured, captured_markup
 
     def test_python_slice8_falls_back_to_table_with_note(self):
+        """Python --slice8 emits a note plus table-driven code with no slice tables."""
         # Arrange
         from termapy.builtins.commands.proto import _crc_codegen
         ctx, captured, captured_markup = self._build_stub_ctx()
@@ -157,6 +166,7 @@ class TestPythonSlice8Fallback:
         )
 
     def test_python_slice8_with_table_is_rejected(self):
+        """--slice8 with --table is a mutual-exclusion error, checked before the fallback."""
         # Arrange
         from termapy.builtins.commands.proto import _crc_codegen
         ctx, _captured, _markup = self._build_stub_ctx()
@@ -203,6 +213,7 @@ class TestCustomParamsDispatch:
         return ctx, captured, captured_markup
 
     def test_custom_params_c_stdout(self):
+        """Custom params to C on stdout succeed; the banner once hit an unbound name."""
         # Arrange -- C output (tuple result) to stdout exercises the
         # banner path that referenced the formerly-unbound ``name``.
         from termapy.builtins.commands.proto import _crc_codegen
@@ -226,6 +237,7 @@ class TestCustomParamsDispatch:
         )
 
     def test_custom_params_builds_algorithm_info(self):
+        """Custom params to Python (a string result) carry the custom name through."""
         # Arrange -- Python output (string result) confirms the
         # AlgorithmInfo handoff to *_from_entry works.
         from termapy.builtins.commands.proto import _crc_codegen

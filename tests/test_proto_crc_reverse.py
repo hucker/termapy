@@ -73,6 +73,7 @@ class TestFindCmdMode:
     """``cmd=`` mode on /proto.crc.find captures + identifies."""
 
     def test_cmd_at_rnd_resolves_to_curated_algorithm(self, tmp_path):
+        """A live AT+RND capture identifies as one of the six algorithms the demo picks from."""
         # Act
         result = _run_cli(tmp_path, ["/proto.crc.find cmd=AT+RND"])
 
@@ -98,6 +99,7 @@ class TestReverseCmdMode:
     """``cmd=`` mode on /proto.crc.reverse captures + recovers."""
 
     def test_count_13_recovers_secret_polynomial(self, tmp_path):
+        """13 live packets recover the demo's secret poly 0x1A2B and every equivalent labeling."""
         # Arrange -- 13 packets at deterministic length cycle is enough
         # for crcglot.reverse_packets to recover the secret polynomial
         # (0x1A2B) reliably; the REVEAL'd init/xorout may differ from
@@ -140,6 +142,7 @@ class TestReverseCmdMode:
         )
 
     def test_reverse_value_pipes_into_codegen(self, tmp_path):
+        """A reverse result captured in $(rev) is valid input to /proto.crc.c codegen as is."""
         # Arrange -- the headline pipeline: capture recovered params via
         # $(rev), pass straight to /proto.crc.c.  Generated source must
         # contain the recovered polynomial (or its byte-reversed form
@@ -194,6 +197,7 @@ class TestReverseDeref:
         return engine
 
     def test_references_match_literals(self):
+        """$(*NAME) packets give exactly the outcome of typing the same hex literals inline."""
         # Arrange -- the same three packets, expressed both ways
         from termapy import variables as var
         engine = self._engine()
@@ -216,6 +220,7 @@ class TestReverseDeref:
         var._VARS.clear()
 
     def test_value_with_spaces_stays_one_packet(self):
+        """A spaced hex value behind $(*NAME) binds as one packet, not one packet per byte."""
         # Arrange -- the case the primitive exists for.  Spliced with $(NAME)
         # these would fork into 14 one-byte tokens; dereferenced they are three
         # packets, so the result must match the unspaced literals.
@@ -244,6 +249,7 @@ class TestReverseDeref:
         var._VARS.clear()
 
     def test_unknown_reference_errors(self):
+        """An undefined $(*NAME) fails naming the variable, not later as a hex parse error."""
         # Act
         result = self._engine().dispatch(
             f"proto.crc.reverse crc_bytes=2 $(*nope) {self.P2}"
@@ -257,6 +263,7 @@ class TestReverseDeref:
         )
 
     def test_embedded_reference_errors(self):
+        """A $(*NAME) glued inside a larger token is rejected rather than sent as literal text."""
         # Act
         result = self._engine().dispatch(
             f"proto.crc.reverse crc_bytes=2 x$(*p1)y {self.P2}"
@@ -269,6 +276,7 @@ class TestReverseDeref:
         )
 
     def test_literal_hex_still_rejected_when_malformed(self):
+        """The deref pass leaves the Invalid hex bytes error intact for a malformed literal."""
         # Act -- the deref pass must not swallow the plain-hex error path
         result = self._engine().dispatch(
             f"proto.crc.reverse crc_bytes=2 ZZZZ {self.P2}"

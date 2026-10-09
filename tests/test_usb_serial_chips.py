@@ -12,6 +12,7 @@ class TestChipLookup:
     """
 
     def test_ftdi_ft232r(self):
+        """The FTDI FT232R row carries its Full-Speed rating and 3 Mbaud datasheet max."""
         # Act
         actual = chip(0x0403, 0x6001)
 
@@ -22,6 +23,7 @@ class TestChipLookup:
         assert actual.max_baud == 3_000_000, "datasheet max baud"
 
     def test_ftdi_ft232h_is_high_speed(self):
+        """FT232H is marked High-Speed, the one FTDI part here that differs from FT232R."""
         # Act
         actual = chip(0x0403, 0x6014)
 
@@ -30,6 +32,7 @@ class TestChipLookup:
         assert actual.speed == "high", "FT232H is High-Speed"
 
     def test_silabs_cp2102(self):
+        """The Silicon Labs CP2102 VID:PID resolves to a CP2102 model name."""
         # Act
         actual = chip(0x10C4, 0xEA60)
 
@@ -38,6 +41,7 @@ class TestChipLookup:
         assert "CP2102" in actual.model, "chip name mentions CP2102"
 
     def test_wch_ch340(self):
+        """The WCH CH340 VID:PID resolves to the exact model name "WCH CH340"."""
         # Act
         actual = chip(0x1A86, 0x7523)
 
@@ -46,6 +50,7 @@ class TestChipLookup:
         assert actual.model == "WCH CH340", "chip name"
 
     def test_sparkfun(self):
+        """A SparkFun board PID (Pro Micro 5V) resolves to a SparkFun-named entry."""
         # Act
         actual = chip(0x1B4F, 0x9206)
 
@@ -54,6 +59,7 @@ class TestChipLookup:
         assert "SparkFun" in actual.model, "named SparkFun"
 
     def test_adafruit(self):
+        """An Adafruit board PID (Metro/Feather M4) resolves to an Adafruit-named entry."""
         # Act
         actual = chip(0x239A, 0x800B)
 
@@ -62,6 +68,7 @@ class TestChipLookup:
         assert "Adafruit" in actual.model, "named Adafruit"
 
     def test_unknown_vid_pid_returns_none(self):
+        """An unlisted VID:PID gives None rather than raising or guessing a vendor."""
         # Act -- a made-up VID:PID
         actual = chip(0xDEAD, 0xBEEF)
 

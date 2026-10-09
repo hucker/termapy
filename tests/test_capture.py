@@ -15,6 +15,7 @@ from termapy.capture import (
 
 class TestLifecycle:
     def test_inactive_by_default(self):
+        """A fresh engine is idle with an empty mode until start() is called."""
         # Arrange
         engine = CaptureEngine()
 
@@ -23,6 +24,7 @@ class TestLifecycle:
         assert engine.mode == "", "no mode"
 
     def test_start_text_capture(self, tmp_path):
+        """A text start with a duration opens the file and switches the engine to text mode."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.txt"
@@ -36,6 +38,7 @@ class TestLifecycle:
         assert engine.mode == "text", "text mode"
 
     def test_start_bin_capture(self, tmp_path):
+        """A binary start with a byte target opens the file in bin mode."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -50,6 +53,7 @@ class TestLifecycle:
         assert engine.mode == "bin", "binary mode"
 
     def test_start_fails_when_active(self, tmp_path):
+        """A second start while a capture runs is refused rather than replacing it."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.txt"
@@ -62,6 +66,7 @@ class TestLifecycle:
         assert result is False, "cannot start while active"
 
     def test_start_fails_bad_path(self, tmp_path):
+        """An unopenable path makes start() return False instead of raising."""
         # Arrange
         engine = CaptureEngine()
         bad_path = tmp_path / "nonexistent" / "deeply" / "nested" / "\0invalid"
@@ -73,6 +78,7 @@ class TestLifecycle:
         assert result is False, "cannot open file"
 
     def test_stop_returns_none_when_inactive(self):
+        """Stopping an idle engine is a no-op that returns None, not an empty result."""
         # Arrange
         engine = CaptureEngine()
 
@@ -83,6 +89,7 @@ class TestLifecycle:
         assert result is None, "nothing to stop"
 
     def test_stop_returns_result(self, tmp_path):
+        """stop() returns a CaptureResult for the open file and leaves the engine idle."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.txt"
@@ -98,6 +105,7 @@ class TestLifecycle:
         assert engine.active is False, "now inactive"
 
     def test_stop_calls_on_complete(self, tmp_path):
+        """stop() hands its result to on_complete exactly once."""
         # Arrange
         results = []
         engine = CaptureEngine(on_complete=results.append)
@@ -117,6 +125,7 @@ class TestLifecycle:
 
 class TestTextCapture:
     def test_feed_text_writes_lines(self, tmp_path):
+        """Each fed line lands newline-terminated and the byte count includes newlines."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.txt"
@@ -133,6 +142,7 @@ class TestTextCapture:
         assert result.byte_count == 12, "5+1+5+1 = 12"
 
     def test_feed_text_ignored_when_inactive(self, tmp_path):
+        """Text fed with no capture running is dropped without raising."""
         # Arrange
         engine = CaptureEngine()
 
@@ -140,6 +150,7 @@ class TestTextCapture:
         engine.feed_text(["hello"])
 
     def test_feed_text_ignored_in_bin_mode(self, tmp_path):
+        """A binary capture ignores text lines, so they never count toward its bytes."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -154,6 +165,7 @@ class TestTextCapture:
         assert result.byte_count == 0, "text not fed to bin capture"
 
     def test_append_mode(self, tmp_path):
+        """File mode "a" keeps the existing content and appends after it."""
         # Arrange
         path = tmp_path / "out.txt"
         path.write_text("existing\n")
@@ -174,6 +186,7 @@ class TestTextCapture:
 
 class TestBinaryRawCapture:
     def test_feed_bytes_raw(self, tmp_path):
+        """Raw bytes from several feeds are written verbatim and counted in full."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -191,6 +204,7 @@ class TestBinaryRawCapture:
         assert result.byte_count == 10, "byte count matches"
 
     def test_feed_bytes_returns_true_at_target(self, tmp_path):
+        """feed_bytes returns True only on the feed that reaches the byte target."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -205,6 +219,7 @@ class TestBinaryRawCapture:
         assert result2 is True, "target reached"
 
     def test_feed_bytes_trims_to_target(self, tmp_path):
+        """Bytes past the target are discarded, so the file never over-captures."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -219,6 +234,7 @@ class TestBinaryRawCapture:
         assert actual == b"\x01\x02\x03", "trimmed to target"
 
     def test_feed_bytes_ignored_when_inactive(self):
+        """Bytes fed with no capture running are dropped and never signal a stop."""
         # Arrange
         engine = CaptureEngine()
 
@@ -239,6 +255,7 @@ class TestBinaryFormatCapture:
         return parse_format_spec("A:U1-2 B:U3-4")
 
     def test_format_spec_csv(self, tmp_path):
+        """A format spec decodes each record into a CSV row under a column-name header."""
         # Arrange
         columns = self._make_columns()
         engine = CaptureEngine()
@@ -261,6 +278,7 @@ class TestBinaryFormatCapture:
         assert actual_lines[2] == "300,400", "second record"
 
     def test_format_spec_tab_separated(self, tmp_path):
+        """sep sets the delimiter for both the header and the decoded rows."""
         # Arrange
         columns = self._make_columns()
         engine = CaptureEngine()
@@ -281,6 +299,7 @@ class TestBinaryFormatCapture:
         assert actual_lines[1] == "42\t99", "tab-separated values"
 
     def test_echo_callback(self, tmp_path):
+        """With echo on, each decoded row is also sent to on_echo for display."""
         # Arrange
         columns = self._make_columns()
         echoed = []
@@ -306,6 +325,7 @@ class TestBinaryFormatCapture:
 
 class TestHexCapture:
     def test_hex_text_to_bytes(self, tmp_path):
+        """In hex mode, ASCII hex text from the device is decoded to the raw bytes."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -322,6 +342,7 @@ class TestHexCapture:
         assert actual == b"\x01\x02\x03", "hex decoded"
 
     def test_hex_partial_lines(self, tmp_path):
+        """Hex text split across reads is buffered until the line completes."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -344,6 +365,7 @@ class TestHexCapture:
 
 class TestProgress:
     def test_progress_inactive(self):
+        """An idle engine reports no progress at all, not a zeroed snapshot."""
         # Arrange
         engine = CaptureEngine()
 
@@ -354,6 +376,7 @@ class TestProgress:
         assert prog is None, "no progress when inactive"
 
     def test_progress_bin_mode(self, tmp_path):
+        """Binary progress reports the mode, byte target and file name."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -370,6 +393,7 @@ class TestProgress:
         assert prog.path_name == "out.bin", "path_name matches"
 
     def test_progress_text_mode(self, tmp_path):
+        """Text progress reports a positive countdown while the duration runs."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.txt"
@@ -389,6 +413,7 @@ class TestProgress:
 
 class TestCaptureResult:
     def test_size_label_bytes(self):
+        """A size under 1 KB is labeled in plain bytes."""
         # Arrange
         result = CaptureResult(path=Path("test.bin"), byte_count=500, raw=True)
 
@@ -396,6 +421,7 @@ class TestCaptureResult:
         assert result.size_label == "500 B", "size_label uses the shared format_size"
 
     def test_size_label_kb(self):
+        """A size of 1 KB or more is labeled in KB with one decimal."""
         # Arrange
         result = CaptureResult(path=Path("test.bin"), byte_count=2048, raw=True)
 
@@ -408,6 +434,7 @@ class TestFormatCaptureResult:
     (shared by the TUI, capture_view, CLI, and MCP frontends)."""
 
     def test_complete_is_green(self):
+        """A clean result reads as complete with size and elapsed time, in green."""
         # Arrange
         result = CaptureResult(path=Path("out.csv"), byte_count=2048, raw=False, elapsed_s=3.2)
 
@@ -419,6 +446,7 @@ class TestFormatCaptureResult:
         assert color == "green", "complete is green"
 
     def test_aborted_is_red(self):
+        """A result with an error reads as aborted, shows the error not the size, in red."""
         # Arrange -- a non-empty error marks an aborted capture
         result = CaptureResult(
             path=Path("out.csv"), byte_count=10, raw=False, error="disk full"
@@ -454,6 +482,7 @@ class _RaisingFile:
 
 class TestWriteFailure:
     def test_text_write_failure_signals_stop_and_records_error(self, tmp_path):
+        """A text write OSError tells the caller to stop and is kept on the result."""
         # Arrange
         engine = CaptureEngine()
         engine.start(path=tmp_path / "out.txt", file_mode="w", mode="text", duration=5.0)
@@ -469,6 +498,7 @@ class TestWriteFailure:
         assert "simulated write failure" in result.error, "write error surfaced on result"
 
     def test_bin_write_failure_signals_stop_and_records_error(self, tmp_path):
+        """A failed binary flush signals stop even with no byte target to reach."""
         # Arrange -- no byte target, so only a write error can signal stop
         engine = CaptureEngine()
         engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0)
@@ -483,6 +513,7 @@ class TestWriteFailure:
         assert "simulated write failure" in result.error, "write error surfaced on result"
 
     def test_successful_capture_has_no_error(self, tmp_path):
+        """A clean write neither signals stop nor leaves an error on the result."""
         # Arrange
         engine = CaptureEngine()
         engine.start(path=tmp_path / "ok.txt", file_mode="w", mode="text", duration=5.0)
@@ -507,6 +538,7 @@ class TestBinaryTargetAboveFlushSize:
     """
 
     def test_target_above_flush_threshold_is_reached(self, tmp_path):
+        """A 10000-byte target is reached, counted on the running total, not the buffer."""
         # Arrange -- 10000 > the 4096 internal flush point.
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -530,6 +562,7 @@ class TestBinaryTargetAboveFlushSize:
         engine.stop()
 
     def test_captured_file_is_exactly_the_target_size(self, tmp_path):
+        """Past several flushes the file and byte_count stop exactly at the target."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -551,6 +584,7 @@ class TestBinaryTargetAboveFlushSize:
         )
 
     def test_target_below_flush_threshold_still_works(self, tmp_path):
+        """A target under the flush size is still reached and trimmed exactly."""
         # Arrange -- the case that always worked; guard against regressing it.
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
@@ -576,6 +610,7 @@ class TestStopRacesTheReader:
     """
 
     def test_text_write_to_a_closed_handle_is_caught(self, tmp_path):
+        """A text write after the file closes signals stop and records an error."""
         # Arrange -- the close half of stop(), with the field still set
         engine = CaptureEngine()
         engine.start(path=tmp_path / "out.txt", file_mode="w", mode="text", duration=5.0)
@@ -592,6 +627,7 @@ class TestStopRacesTheReader:
         )
 
     def test_binary_flush_to_a_closed_handle_is_caught(self, tmp_path):
+        """A binary flush onto a closed file signals stop instead of raising ValueError."""
         # Arrange -- no byte target, so only the periodic flush writes
         engine = CaptureEngine()
         engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0)

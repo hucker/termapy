@@ -77,6 +77,7 @@ class TestCfgDataDir:
         assert actual_entries == [".gitignore"], "only the .gitignore is written; no data folder"
 
     def test_idempotent(self, tmp_path):
+        """A second call on an already-set-up config folder is a harmless no-op."""
         # Arrange
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
@@ -89,6 +90,7 @@ class TestCfgDataDir:
         assert (config_path.parent / ".gitignore").is_file(), "the .gitignore is still there"
 
     def test_creates_parent_if_needed(self, tmp_path):
+        """A config folder that does not exist yet is created, with its .gitignore."""
         # Arrange
         config_path = tmp_path / "new" / "new.cfg"
 
@@ -146,17 +148,20 @@ class TestCfgDataDir:
 
 class TestCfgHelpers:
     def test_cfg_path_for_name(self):
+        """A config name maps to <name>/<name>.cfg -- the one naming invariant."""
         actual = cfg_path_for_name("mydev")
         assert actual.name == "mydev.cfg", "filename matches"
         assert actual.parent.name == "mydev", "parent dir matches"
 
     def test_cfg_log_path(self, tmp_path):
+        """The session log is named after the config stem."""
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_log_path(str(config_path))
         assert actual.endswith("dev.log"), "log named after config"
 
     def test_cfg_history_path(self, tmp_path):
+        """Per-config history sits beside the cfg as <stem>.history, where both hosts write."""
         # Arrange
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
@@ -170,6 +175,7 @@ class TestCfgHelpers:
         assert actual == expected, "per-config history path"
 
     def test_cfg_history_path_no_config_falls_back(self):
+        """With no config loaded, history goes to a fallback file in the global cfg root."""
         # Act -- no config loaded: fallback file in the global cfg root
         actual = cfg_history_path("")
 
@@ -177,6 +183,7 @@ class TestCfgHelpers:
         assert actual.endswith(".cmd_history.txt"), "fallback filename"
 
     def test_cfg_plugins_dir(self, tmp_path):
+        """The per-config plugin/ path is computed without creating the folder."""
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_plugins_dir(str(config_path))
@@ -184,6 +191,7 @@ class TestCfgHelpers:
         assert not actual.exists(), "a read: the folder is not created"
 
     def test_cfg_data_dir_migrates_the_symbol_table_into_sym(self, tmp_path):
+        """A symbol table left beside the cfg (pre 2026-09 layout) moves into sym/."""
         # Arrange -- a table where it lived before 2026-09: beside the cfg
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
@@ -198,6 +206,7 @@ class TestCfgHelpers:
         assert (config_path.parent / "sym" / "dev.symbols.json").is_file(), "into sym/"
 
     def test_sidecar_migration_never_overwrites(self, tmp_path):
+        """When sym/ already holds the table, the migration keeps it and leaves the old copy."""
         # Arrange -- both an old and a new copy exist
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
@@ -233,6 +242,7 @@ def _custom_buttons() -> list[dict]:
 
 class TestDefaultCfg:
     def test_has_custom_buttons(self):
+        """The defaults ship at least four custom button slots."""
         assert "custom_buttons" in DEFAULT_CFG, "key exists"
         buttons = _custom_buttons()
         assert len(buttons) >= 4, "at least 4 button placeholders"
@@ -250,6 +260,7 @@ class TestDefaultCfg:
             assert btn["enabled"] is False, "placeholder disabled"
 
     def test_custom_buttons_have_required_fields(self):
+        """Every default button carries enabled, name, command and tooltip."""
         for btn in _custom_buttons():
             assert "enabled" in btn, "enabled field present"
             assert "name" in btn, "name field present"
@@ -257,6 +268,7 @@ class TestDefaultCfg:
             assert "tooltip" in btn, "tooltip field present"
 
     def test_has_essential_keys(self):
+        """Line ending and prefix stay top-level; port and baud_rate live under serial."""
         # Post-v22, port and baud_rate live nested under cfg["serial"]
         # while line_ending and cmd_prefix stay at the top level.
         for key in ("eol", "cmd_prefix"):
@@ -275,6 +287,7 @@ class TestDefaultCfg:
 
 class TestLoadConfig:
     def test_raises_if_missing(self, tmp_path):
+        """Loading a missing config raises instead of silently creating one."""
         # Arrange
         config_path = tmp_path / "test" / "test.cfg"
 
@@ -284,6 +297,7 @@ class TestLoadConfig:
             load_config(str(config_path))
 
     def test_adds_missing_keys(self, tmp_path):
+        """Missing default keys are backfilled and persisted; existing values survive."""
         # Arrange -- minimal cfg in the pre-v22 flat shape; load_config
         # should migrate it forward so port lives at cfg["serial"]["port"].
         config_path = tmp_path / "dev" / "dev.cfg"
@@ -303,6 +317,7 @@ class TestLoadConfig:
         assert "custom_buttons" in actual_saved, "persisted to disk"
 
     def test_does_not_overwrite_existing_keys(self, tmp_path):
+        """A user's own custom_buttons list is kept, not replaced by the defaults."""
         # Arrange -- pre-v22 flat cfg; load_config migrates port to
         # cfg["serial"]["port"] but leaves custom_buttons alone.
         config_path = tmp_path / "dev" / "dev.cfg"
@@ -327,6 +342,7 @@ class TestLoadConfig:
         assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
     def test_backfilled_mutable_default_is_deep_copied(self, tmp_path):
+        """A backfilled list is a copy, so editing a loaded config cannot corrupt DEFAULT_CFG."""
         # Arrange -- a config missing custom_buttons; the backfill must
         # deep-copy the default list, not alias the module-global DEFAULT_CFG
         # (otherwise an in-session edit would corrupt the process-wide default).
@@ -354,10 +370,12 @@ class TestLoadConfig:
 
 class TestScriptTemplate:
     def test_has_placeholder(self):
+        """The new-script template substitutes the script name."""
         actual = SCRIPT_TEMPLATE.format(name="test_script")
         assert "test_script" in actual, "name placeholder expanded"
 
     def test_has_comments(self):
+        """Every non-blank template line is a comment, so a fresh script sends nothing."""
         actual = SCRIPT_TEMPLATE.format(name="x")
         lines = actual.strip().splitlines()
         assert all(
@@ -365,6 +383,7 @@ class TestScriptTemplate:
         ), "all lines are comments"
 
     def test_has_example_commands(self):
+        """The template shows a REPL command example (/delay) for the user to copy."""
         actual = SCRIPT_TEMPLATE.format(name="x")
         assert "/delay" in actual, "contains REPL example"
 
@@ -391,6 +410,7 @@ class TestCustomButtonConfig:
         assert actual[1]["name"] == "C", "second enabled button"
 
     def test_missing_enabled_defaults_false(self):
+        """A button with no enabled field is hidden, not shown."""
         # Arrange
         buttons = [{"name": "X", "command": "cmd", "tooltip": "tip"}]
 
@@ -413,14 +433,17 @@ class TestCustomButtonConfig:
         assert actual == expected, "multi-command split correctly"
 
     def test_command_split_single(self):
+        """A button command with no newline separator stays a single command."""
         actual = [token.strip() for token in "ATZ".split("\\n") if token.strip()]
         assert actual == ["ATZ"], "single command unchanged"
 
     def test_command_split_empty(self):
+        """An empty button command yields no commands rather than one blank send."""
         actual = [token.strip() for token in "".split("\\n") if token.strip()]
         assert actual == [], "empty string yields empty list"
 
     def test_repl_prefix_detection(self):
+        """A /-prefixed button command routes to the REPL; anything else goes to the device."""
         prefix = "/"
         assert "/run test.run".startswith(prefix), "REPL command detected"
         assert not "ATZ".startswith(prefix), "serial command not matched"
@@ -431,6 +454,7 @@ class TestCustomButtonConfig:
 
 class TestExpandEnvStr:
     def test_known_var(self, monkeypatch):
+        """A set environment variable replaces its $(env.NAME) placeholder."""
         # Arrange
         monkeypatch.setenv("TEST_PORT_XYZ", "COM7")
 
@@ -442,6 +466,7 @@ class TestExpandEnvStr:
         assert actual == expected, "known var expanded"
 
     def test_fallback_when_missing(self, monkeypatch):
+        """An unset variable uses the |fallback value after the pipe."""
         # Arrange
         monkeypatch.delenv("MISSING_CFG_VAR", raising=False)
 
@@ -453,6 +478,7 @@ class TestExpandEnvStr:
         assert actual == expected, "fallback used"
 
     def test_unknown_without_fallback_unchanged(self, monkeypatch):
+        """An unset variable with no fallback leaves the placeholder literal, no crash."""
         # Arrange
         monkeypatch.delenv("NOPE_CFG_VAR", raising=False)
 
@@ -464,6 +490,7 @@ class TestExpandEnvStr:
         assert actual == expected, "left unchanged (no crash)"
 
     def test_plain_string_unchanged(self):
+        """A string with no placeholder passes through untouched."""
         # Act
         actual = expand_env_str("COM4")
 
@@ -474,6 +501,7 @@ class TestExpandEnvStr:
 
 class TestExpandEnvCfg:
     def test_expands_string_values(self, monkeypatch):
+        """String cfg values are expanded while numbers beside them are left alone."""
         # Arrange
         monkeypatch.setenv("CFG_PORT_TEST", "COM9")
         cfg = {"port": "$(env.CFG_PORT_TEST|COM1)", "baud_rate": 115200}
@@ -486,6 +514,7 @@ class TestExpandEnvCfg:
         assert actual["baud_rate"] == 115200, "non-string untouched"
 
     def test_skips_non_strings(self):
+        """Int and bool cfg values pass through expansion unchanged."""
         # Arrange
         cfg = {"baud_rate": 9600, "auto_connect": True, "max_lines": 10000}
 
@@ -497,6 +526,7 @@ class TestExpandEnvCfg:
         assert actual["auto_connect"] is True, "bool unchanged"
 
     def test_skips_connect_command_keys(self, monkeypatch):
+        """Connect-command keys stay literal so env values never reach the wire unchecked."""
         # Arrange -- the *_on_connect_cmd keys are dispatched through the REPL
         # on connect, where the env gate applies per command (repl commands
         # expand $(env.X), bare device text does not).  Pre-expanding them
@@ -529,6 +559,7 @@ class TestExpandEnvCfg:
 
 class TestLoadConfigEnvExpansion:
     def test_expands_env_in_loaded_config(self, tmp_path, monkeypatch):
+        """A loaded config has env placeholders expanded in memory, after migration."""
         # Arrange
         monkeypatch.setenv("LC_TEST_PORT", "COM8")
         config_path = tmp_path / "dev" / "dev.cfg"
@@ -545,6 +576,7 @@ class TestLoadConfigEnvExpansion:
         )
 
     def test_disk_keeps_template(self, tmp_path, monkeypatch):
+        """The file on disk keeps the raw $(env...) template even after a migrating save."""
         # Arrange
         monkeypatch.setenv("LC_TEST_PORT2", "COM8")
         config_path = tmp_path / "dev" / "dev.cfg"
@@ -570,6 +602,7 @@ class TestLoadConfigEnvExpansion:
 
 class TestMigrateJsonToCfg:
     def test_renames_json_to_cfg(self, tmp_path):
+        """A legacy <name>/<name>.json config is renamed to .cfg."""
         # Arrange
         sub = tmp_path / "foo"
         sub.mkdir()
@@ -584,6 +617,7 @@ class TestMigrateJsonToCfg:
         assert not json_file.exists(), ".json file removed"
 
     def test_skips_when_cfg_exists(self, tmp_path):
+        """When both .json and .cfg exist, the .cfg wins and nothing is overwritten."""
         # Arrange
         sub = tmp_path / "bar"
         sub.mkdir()
@@ -601,6 +635,7 @@ class TestMigrateJsonToCfg:
         assert actual["port"] == "COM2", ".cfg not overwritten"
 
     def test_idempotent(self, tmp_path):
+        """Running the migration again after it has run changes nothing."""
         # Arrange
         sub = tmp_path / "baz"
         sub.mkdir()
@@ -663,6 +698,7 @@ class TestMigrateJsonToCfg:
 
 class TestValidateConfig:
     def test_default_cfg_passes(self):
+        """The defaults plus a named port produce no warnings at all."""
         # Act
         actual = validate_config(_cfg_with())
 
@@ -670,6 +706,7 @@ class TestValidateConfig:
         assert actual == [], "no warnings for defaults"
 
     def test_invalid_byte_size(self):
+        """An out-of-range byte_size yields one warning naming the field and bad value."""
         # Arrange
         cfg = _cfg_with(byte_size=9)
 
@@ -682,6 +719,7 @@ class TestValidateConfig:
         assert "9" in actual[0], "shows the bad value"
 
     def test_invalid_parity(self):
+        """An unknown parity letter yields exactly one warning naming parity."""
         # Arrange
         cfg = _cfg_with(parity="X")
 
@@ -693,6 +731,7 @@ class TestValidateConfig:
         assert "parity" in actual[0], "identifies the field"
 
     def test_invalid_stop_bits(self):
+        """A stop_bits value pyserial cannot use yields exactly one warning."""
         # Arrange
         cfg = _cfg_with(stop_bits=3)
 
@@ -704,6 +743,7 @@ class TestValidateConfig:
         assert "stop_bits" in actual[0], "identifies the field"
 
     def test_invalid_flow_control(self):
+        """An unknown flow_control mode yields exactly one warning."""
         # Arrange
         cfg = _cfg_with(flow_control="bad")
 
@@ -715,6 +755,7 @@ class TestValidateConfig:
         assert "flow_control" in actual[0], "identifies the field"
 
     def test_nonstandard_baud_rate_warns(self):
+        """A nonstandard baud warns, not rejects, and points the user at custom_baud."""
         # Arrange
         cfg = _cfg_with(baud_rate=250000)
 
@@ -727,6 +768,7 @@ class TestValidateConfig:
         assert "custom_baud" in actual[0], "tells user how to fix"
 
     def test_custom_baud_accepts_nonstandard(self):
+        """With custom_baud on, a nonstandard rate like 625000 is accepted silently."""
         # Arrange
         cfg = _cfg_with(baud_rate=625000, custom_baud=True)
 
@@ -737,6 +779,7 @@ class TestValidateConfig:
         assert actual == [], "no warnings with custom_baud enabled"
 
     def test_custom_baud_rejects_below_300(self):
+        """custom_baud still enforces a 300 baud floor and says so."""
         # Arrange
         cfg = _cfg_with(baud_rate=150, custom_baud=True)
 
@@ -748,6 +791,7 @@ class TestValidateConfig:
         assert "300" in actual[0], "mentions minimum"
 
     def test_custom_baud_accepts_300(self):
+        """300 baud itself is inside the custom_baud floor."""
         # Arrange
         cfg = _cfg_with(baud_rate=300, custom_baud=True)
 
@@ -758,6 +802,7 @@ class TestValidateConfig:
         assert actual == [], "300 is accepted"
 
     def test_custom_baud_false_still_warns(self):
+        """An explicit custom_baud=False keeps the nonstandard-rate warning."""
         # Arrange
         cfg = _cfg_with(baud_rate=625000, custom_baud=False)
 
@@ -769,6 +814,7 @@ class TestValidateConfig:
         assert "not a standard rate" in actual[0], "standard warning"
 
     def test_custom_baud_wrong_type(self):
+        """A non-bool custom_baud gets a type warning, not a truthy reading."""
         # Arrange
         cfg = _cfg_with(custom_baud="yes")
 
@@ -780,6 +826,7 @@ class TestValidateConfig:
         assert "expected bool" in actual[0], "type error"
 
     def test_standard_baud_rate_ok(self):
+        """A standard rate like 9600 needs no custom_baud and draws no warning."""
         # Arrange
         cfg = _cfg_with(baud_rate=9600)
 
@@ -790,6 +837,7 @@ class TestValidateConfig:
         assert actual == [], "no warnings"
 
     def test_negative_baud_rate(self):
+        """A negative baud rate is flagged as needing to be positive."""
         # Arrange
         cfg = _cfg_with(baud_rate=-1)
 
@@ -801,6 +849,7 @@ class TestValidateConfig:
         assert "positive" in actual[0], "clear message"
 
     def test_baud_rate_wrong_type(self):
+        """A string baud_rate gets a type warning naming the expected int."""
         # Arrange
         cfg = _cfg_with(baud_rate="fast")
 
@@ -812,6 +861,7 @@ class TestValidateConfig:
         assert "expected int" in actual[0], "type error message"
 
     def test_invalid_encoding(self):
+        """An encoding Python has no codec for is flagged."""
         # Arrange
         cfg = _cfg_with(encoding="not-a-codec")
 
@@ -823,6 +873,7 @@ class TestValidateConfig:
         assert "encoding" in actual[0], "identifies the field"
 
     def test_valid_encoding(self):
+        """A real codec name such as ascii passes validation."""
         # Arrange
         cfg = _cfg_with(encoding="ascii")
 
@@ -833,6 +884,7 @@ class TestValidateConfig:
         assert actual == [], "no warnings"
 
     def test_negative_cmd_delay_ms(self):
+        """A negative inter-command delay is flagged."""
         # Arrange
         cfg = _cfg_with(cmd_delay_ms=-10)
 
@@ -844,6 +896,7 @@ class TestValidateConfig:
         assert "cmd_delay_ms" in actual[0], "identifies the field"
 
     def test_zero_max_lines(self):
+        """A scrollback limit of zero is flagged as invalid."""
         # Arrange
         cfg = _cfg_with(max_lines=0)
 
@@ -855,6 +908,7 @@ class TestValidateConfig:
         assert "max_lines" in actual[0], "identifies the field"
 
     def test_unknown_key_flagged(self):
+        """A key that never existed is reported as unknown, by name."""
         # Arrange -- a key that never existed, not a deprecated one.
         cfg = _cfg_with(not_a_real_key=9600)
 
@@ -867,6 +921,7 @@ class TestValidateConfig:
         assert "not_a_real_key" in actual[0], "shows the bad key"
 
     def test_deprecated_renamed_key_flagged_with_hint(self):
+        """A renamed key is called deprecated and names its replacement and version."""
         # Arrange -- 'baudrate' was renamed to 'baud_rate' in v4.
         cfg = _cfg_with(baudrate=9600)
 
@@ -882,6 +937,7 @@ class TestValidateConfig:
         assert "v4" in actual[0], "cites the version that retired it"
 
     def test_deprecated_removed_key_flagged_with_hint(self):
+        """A removed key is called deprecated and says the version that dropped it."""
         # Arrange -- 'cap_endian' was removed outright in v8.
         cfg = _cfg_with(cap_endian="little")
 
@@ -895,6 +951,7 @@ class TestValidateConfig:
         assert "removed in v8" in actual[0], "explains what happened"
 
     def test_internal_keys_ignored(self):
+        """Underscore-prefixed bookkeeping keys are never reported as unknown."""
         # Arrange
         cfg = _cfg_with(_migrated_from=5, _config_warnings=[])
 
@@ -905,6 +962,7 @@ class TestValidateConfig:
         assert actual == [], "internal keys not flagged"
 
     def test_older_config_version_warns_generic(self):
+        """An older schema gets an informational warning but no upgrade advice."""
         # Arrange -- a cfg with an older schema (migration will run
         # to bring it forward; the warning here is informational).
         from termapy.migration import CURRENT_CONFIG_VERSION
@@ -922,6 +980,7 @@ class TestValidateConfig:
         )
 
     def test_newer_config_version_suggests_upgrade(self):
+        """A config from a newer termapy yields one warning telling the user to upgrade."""
         # Arrange -- a cfg from a future termapy that the current
         # one can't migrate.  This is the misleading "unknown key
         # (typo?)" scenario the change fixes.
@@ -944,6 +1003,7 @@ class TestValidateConfig:
         )
 
     def test_newer_config_suppresses_unknown_key_noise(self):
+        """A future config's unfamiliar keys are not misreported as typos."""
         # Arrange -- a future cfg with fields the current termapy
         # doesn't recognize.  Without the fix these all got
         # "unknown key (typo?)" warnings, misleading users into
@@ -970,6 +1030,7 @@ class TestValidateConfig:
         )
 
     def test_multiple_errors(self):
+        """Several bad fields each get their own warning, none swallowed."""
         # Arrange
         cfg = _cfg_with(byte_size=99, parity="Z", baud_rate=-1)
 
@@ -980,6 +1041,7 @@ class TestValidateConfig:
         assert len(actual) == 3, "one warning per bad field"
 
     def test_old_config_version_warns(self):
+        """A very old config_version (3) is flagged with its version number."""
         # Arrange
         cfg = _cfg_with(config_version=3)
 
@@ -992,6 +1054,7 @@ class TestValidateConfig:
         assert "3" in actual[0], "shows the old version"
 
     def test_current_config_version_ok(self):
+        """The current config_version draws no version warning."""
         # Arrange
         cfg = _cfg_with()  # uses CURRENT_CONFIG_VERSION
 
@@ -1002,6 +1065,7 @@ class TestValidateConfig:
         assert actual == [], "no warnings"
 
     def test_empty_port_warns(self):
+        """A saved config with an empty port is flagged, since it names no device."""
         # Arrange -- the bare DEFAULT_CFG (without the _DEFAULTS_WITH_PORT
         # override) has port="".  A config actually persisted to disk
         # with an empty port is invalid -- the user needs to name a
@@ -1019,6 +1083,7 @@ class TestValidateConfig:
         )
 
     def test_port_wrong_type_warns(self):
+        """A numeric port value gets a type-mismatch warning."""
         # Arrange -- port must be a string.
         cfg = _cfg_with(port=1234)
 
@@ -1038,6 +1103,7 @@ class TestValidateConfig:
 
 class TestLoadConfigMalformed:
     def test_malformed_json_raises(self, tmp_path):
+        """Broken JSON raises ValueError with line and column, not a raw decoder error."""
         # Arrange
         cfg_file = tmp_path / "bad" / "bad.cfg"
         cfg_file.parent.mkdir()
@@ -1080,6 +1146,7 @@ class TestRunCheck:
         return result.returncode, result.stdout
 
     def test_valid_config_ok(self, tmp_path):
+        """--check on a clean config prints status ok and exits 0."""
         # Arrange
         cfg_file = tmp_path / "ok" / "ok.cfg"
         cfg_file.parent.mkdir()
@@ -1094,6 +1161,7 @@ class TestRunCheck:
         assert actual["status"] == "ok", "no warnings"
 
     def test_invalid_baud_warns(self, tmp_path):
+        """--check reports a bad baud as a warning and still exits 0."""
         # Arrange
         cfg = _cfg_with(baud_rate=999)
         cfg_file = tmp_path / "bad" / "bad.cfg"
@@ -1110,6 +1178,7 @@ class TestRunCheck:
         assert any("baud_rate" in warning for warning in actual["warnings"]), "identifies field"
 
     def test_malformed_json_errors(self, tmp_path):
+        """--check on unparseable JSON reports status error and exits 1."""
         # Arrange
         cfg_file = tmp_path / "bad" / "bad.cfg"
         cfg_file.parent.mkdir()
@@ -1124,6 +1193,7 @@ class TestRunCheck:
         assert actual["status"] == "error", "parse failure"
 
     def test_does_not_modify_file(self, tmp_path):
+        """--check is read-only: an old config is not migrated on disk."""
         # Arrange - config with old version, check should NOT migrate it
         cfg = _cfg_with(config_version=3)
         cfg_file = tmp_path / "old" / "old.cfg"
@@ -1144,6 +1214,7 @@ class TestRunCheck:
 
 class TestOpenSerialUrl:
     def test_demo_port_returns_fake(self):
+        """The DEMO port opens the simulated FakeSerial device, not real hardware."""
         # Arrange
         cfg = _cfg_with(port="DEMO")
 
@@ -1183,6 +1254,7 @@ class TestOpenSerialRxBuffer:
     """
 
     def test_buffer_is_widened_when_the_port_supports_it(self):
+        """A port with set_buffer_size gets the widened RX buffer, not 4 KB."""
         # Arrange -- stand in for serialwin32, the only backend with the API.
         from termapy.config import SERIAL_RX_BUFFER_BYTES, request_rx_buffer
 
@@ -1207,6 +1279,7 @@ class TestOpenSerialRxBuffer:
         )
 
     def test_driver_refusal_is_reported_not_raised(self):
+        """A driver refusing the buffer size returns False and does not fail the open."""
         # Arrange -- best-effort: the port is usable at the default size, so a
         # refusal must not propagate and fail the open.
         from termapy.config import request_rx_buffer
@@ -1222,6 +1295,7 @@ class TestOpenSerialRxBuffer:
         assert actual is False, "a refused request reports False rather than raising"
 
     def test_port_without_the_api_is_left_alone(self):
+        """A backend without set_buffer_size is skipped quietly, no exception."""
         # Arrange -- set_buffer_size exists only on serialwin32; POSIX and URL
         # backends must be untouched rather than erroring.
         from termapy.config import request_rx_buffer
@@ -1236,6 +1310,7 @@ class TestOpenSerialRxBuffer:
         assert actual is False, "no API means no request, and no exception"
 
     def test_real_url_port_still_opens_and_works(self):
+        """A loop:// port opens and round-trips bytes even with no buffer API."""
         # Arrange -- end-to-end through open_serial on a backend with no
         # set_buffer_size, proving the guard does not break normal opens.
         cfg = _cfg_with(port="loop://", baud_rate=115200)
@@ -1260,11 +1335,13 @@ class TestFileManagerName:
     """The picker's folder button is named for the platform's file manager."""
 
     def test_windows_and_mac_have_one_each(self):
+        """Windows names the folder button Explorer and macOS names it Finder."""
         assert file_manager_name("win32") == "Explorer"
         assert file_manager_name("darwin") == "Finder"
 
     @pytest.mark.parametrize("platform", ["linux", "freebsd14", "openbsd7", "haiku1"])
     def test_everything_else_is_files(self, platform):
+        """Every other platform gets the generic Files label, with no desktop sniffing."""
         # Act / Assert -- Linux users know their file manager as a menu entry,
         # not a project name, so no desktop detection: one generic label
         assert file_manager_name(platform) == "Files"

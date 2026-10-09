@@ -133,6 +133,7 @@ def _profile_with(commands: dict, *, error_detection: dict | None = None) -> dic
 
 class TestLiteralFormat:
     def test_returns_matched_when_response_equals_pattern(self, host):
+        """A literal match returns the text, and the wire bytes use the cfg line ending."""
         # Arrange
         _load_profile(host, _profile_with({
             "AT": {
@@ -151,6 +152,7 @@ class TestLiteralFormat:
         assert host._sent == [b"AT\r\n"], "wire bytes match cfg.line_ending"
 
     def test_returns_failure_when_response_differs(self, host):
+        """A reply that differs from the literal pattern fails with a mismatch error."""
         # Arrange
         _load_profile(host, _profile_with({
             "AT": {
@@ -168,6 +170,7 @@ class TestLiteralFormat:
 
 class TestRegexFormat:
     def test_named_groups_with_type_coercion(self, host):
+        """Named groups are coerced to their types in data; value keeps the raw reply."""
         # Arrange
         _load_profile(host, _profile_with({
             "AT+TEMP": {
@@ -191,6 +194,7 @@ class TestRegexFormat:
         assert result["value"] == "23.4C", "raw response text kept in value"
 
     def test_regex_no_match_fails_with_raw(self, host):
+        """A regex miss fails but keeps the raw reply in value and leaves data None."""
         # Arrange
         _load_profile(host, _profile_with({
             "AT+TEMP": {
@@ -214,6 +218,7 @@ class TestRegexFormat:
 
 class TestLinesFormat:
     def test_collects_until_terminator(self, host):
+        """Lines collect up to the terminator; it and anything after are excluded."""
         # Arrange — multi-line reply ending with OK terminator
         _load_profile(host, _profile_with({
             "AT+INFO": {
@@ -237,6 +242,7 @@ class TestLinesFormat:
 
 class TestTextFormat:
     def test_returns_raw_joined_text(self, host):
+        """format=text returns the reply lines newline-joined, with no parsing."""
         # Arrange -- format=text: unstructured human-oriented output,
         # no pattern needed.  Value is the newline-joined response.
         _load_profile(host, _profile_with({
@@ -255,6 +261,7 @@ class TestTextFormat:
         assert actual == expected, "raw text handed back unchanged"
 
     def test_unknown_format_degrades_to_text(self, host):
+        """A format name this host doesn't know degrades to text instead of failing."""
         # Arrange -- compatibility policy: a format name from a newer
         # spec revision degrades to text on this host instead of
         # failing, so the data stays usable.
@@ -274,6 +281,7 @@ class TestTextFormat:
 
 class TestUnknownSafetyTier:
     def test_unknown_tier_refuses_without_confirm(self, host):
+        """An unrecognized safety tier gates like destructive and sends nothing."""
         # Arrange -- fail-safe degrade: a tier this host doesn't know
         # (e.g. a future stronger-than-destructive level) must gate.
         _load_profile(host, _profile_with({
@@ -296,6 +304,7 @@ class TestUnknownSafetyTier:
         assert host._sent == [], "no bytes hit the wire"
 
     def test_unknown_tier_runs_with_confirm(self, host):
+        """Once confirmed, an unknown-tier command goes out like a confirmed destructive."""
         # Arrange -- after the human approves, the command proceeds
         # exactly like a confirmed destructive one.
         _load_profile(host, _profile_with({
@@ -316,6 +325,7 @@ class TestUnknownSafetyTier:
 
 class TestJsonFormat:
     def test_returns_parsed_object(self, host):
+        """A JSON reply is parsed into data, while value keeps the raw wire text."""
         # Arrange
         _load_profile(host, _profile_with({
             "GET_VOLT": {
@@ -338,6 +348,7 @@ class TestJsonFormat:
 
 class TestNoneFormat:
     def test_no_reply_succeeds_with_sent_marker(self, host):
+        """format=none succeeds on silence with a sent marker in data."""
         # Arrange — no reply scheduled; format=none waits briefly to
         # verify silence and then succeeds when nothing arrives.
         _load_profile(host, _profile_with({
@@ -356,6 +367,7 @@ class TestNoneFormat:
         assert host._sent == [b"RESET\r\n"], "bytes still went out"
 
     def test_unexpected_reply_fails_the_contract(self, host):
+        """A reply to a no-reply command fails and surfaces the stray output."""
         # Arrange -- profile says no reply, but the device sends one.
         # This is the misconfiguration we want to surface.
         _load_profile(host, _profile_with({
@@ -380,6 +392,7 @@ class TestNoneFormat:
         )
 
     def test_timeout_zero_opts_out_of_silence_check(self, host):
+        """timeout_ms=0 skips the silence check, so a later reply is ignored."""
         # Arrange -- explicit timeout_ms: 0 disables the wait, restoring
         # true fire-and-forget for authors who want it.
         _load_profile(host, _profile_with({
@@ -401,6 +414,7 @@ class TestNoneFormat:
         )
 
     def test_whitespace_only_reply_does_not_fail(self, host):
+        """Blank or whitespace-only lines don't count as a reply under format=none."""
         # Arrange -- some devices emit a bare newline as idle artifact.
         # That shouldn't break a format=none contract.
         _load_profile(host, _profile_with({
@@ -423,6 +437,7 @@ class TestNoneFormat:
 
 class TestErrorDetection:
     def test_error_pattern_dominates_response(self, host):
+        """An error_detection match fails the call and its message group is the error."""
         # Arrange — even though regex would match, error_detection wins
         _load_profile(host, _profile_with(
             {
@@ -457,6 +472,7 @@ class TestDestructiveGate:
     ``confirm=True`` on the MCP tool call.  Safe/readonly are unaffected."""
 
     def test_destructive_without_confirm_refuses(self, host):
+        """Destructive without confirm sends nothing and returns a needs_confirmation marker."""
         # Arrange — RESET marked destructive
         _load_profile(host, _profile_with({
             "RESET": {
@@ -485,6 +501,7 @@ class TestDestructiveGate:
         assert host._sent == [], "no bytes hit the wire when gate fires"
 
     def test_destructive_with_confirm_runs(self, host):
+        """confirm=True lets a destructive command out and parses its reply normally."""
         # Arrange
         _load_profile(host, _profile_with({
             "RESET": {
@@ -504,6 +521,7 @@ class TestDestructiveGate:
         assert host._sent == [b"RESET\r\n"], "bytes went out after confirmation"
 
     def test_safe_command_ignores_confirm(self, host):
+        """A readonly command runs without confirm; the gate is destructive-only."""
         # Arrange — safe (default) command; confirm should be a no-op
         _load_profile(host, _profile_with({
             "AT": {
@@ -520,6 +538,7 @@ class TestDestructiveGate:
         assert host._sent == [b"AT\r\n"], "readonly hit the wire normally"
 
     def test_mutable_runs_without_confirm(self, host):
+        """mutable state changes run without confirm; reversible is not destructive."""
         # Arrange — mutable: changes state but reversible (LED toggle).
         # The gate must NOT fire; only destructive does.
         _load_profile(host, _profile_with({
@@ -549,6 +568,7 @@ class TestEnabledGate:
     command can't run a draft entry."""
 
     def test_disabled_command_refuses(self, host):
+        """A hand-typed disabled entry is refused with a disabled marker; nothing sent."""
         # Arrange — entry exists in profile but enabled=false.  The
         # executor MUST refuse (defense in depth: catalog filter
         # already hid it, but if the LLM somehow learned the name
@@ -576,6 +596,7 @@ class TestEnabledGate:
         assert host._sent == [], "no bytes hit the wire when entry is disabled"
 
     def test_enabled_default_true_runs_normally(self, host):
+        """An entry that omits enabled runs, so existing profiles behave unchanged."""
         # Arrange -- entry omits ``enabled`` entirely.  Default true.
         _load_profile(host, _profile_with({
             "AT": {
@@ -592,6 +613,7 @@ class TestEnabledGate:
         assert result["value"] == "OK", "executor shaped the response"
 
     def test_disabled_takes_precedence_over_destructive(self, host):
+        """Disabled beats destructive: even confirm=True refuses, with the disabled marker."""
         # Arrange -- destructive AND disabled.  The disabled gate
         # checks first; failure carries the disabled marker, NOT the
         # needs_confirmation marker.  Either way the user gets a
@@ -620,6 +642,7 @@ class TestEnabledGate:
 
 class TestFallThrough:
     def test_slash_command_bypasses_profile(self, host):
+        """Slash commands dispatch as termapy commands even with a profile loaded."""
         # Arrange — load a profile, but dispatch a slash command
         _load_profile(host, _profile_with({
             "AT": {
@@ -634,6 +657,7 @@ class TestFallThrough:
         assert host._sent == [], "slash commands don't hit the wire"
 
     def test_unmapped_bare_line_falls_through(self, host):
+        """A bare line the profile doesn't map still goes to the device via /term.send."""
         # Arrange — profile loaded but RANDOM not in it.  Bare line
         # should fall through to /term.send (writes bytes, value="").
         _load_profile(host, _profile_with({
@@ -652,6 +676,7 @@ class TestFallThrough:
         )
 
     def test_no_profile_loaded_falls_through(self, host):
+        """With no profile a bare line is just sent, returning an empty value."""
         # Arrange — never call _load_profile.  Bare AT goes to /term.send.
         # Act
         result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
@@ -667,6 +692,7 @@ class TestFallThrough:
 
 class TestStaleArchival:
     def test_pre_send_drain_moves_buffer_to_async_events(self, host):
+        """Lines received between calls go to async_events, not into the next response."""
         # Arrange — load a profile, push some "between calls" lines into
         # the recent-lines buffer, then dispatch a profile command.
         _load_profile(host, _profile_with({
@@ -699,6 +725,7 @@ class TestStaleArchival:
 
 class TestSendTemplate:
     def test_send_template_command_matches_rendered_text(self, host):
+        """A rendered line like AT+LED=on matches its send_template entry and goes out."""
         # Arrange — AT+LED={state} entry; LLM types the rendered form.
         _load_profile(host, _profile_with({
             "AT+LED": {
@@ -730,6 +757,7 @@ class TestTypedArgValidation:
         return p
 
     def test_valid_custom_enum_passes_through(self, host):
+        """A value in a profile enum type passes and is sent unchanged."""
         # Arrange -- enum-kind type with two members.
         _load_profile(host, self._profile_with_types(
             {"on_off": {"kind": "enum", "values": ["on", "off"]}},
@@ -752,6 +780,7 @@ class TestTypedArgValidation:
         assert host._sent == [b"SET on\r\n"], "wire bytes unchanged"
 
     def test_invalid_enum_blocks_before_wire(self, host):
+        """A value outside the enum fails naming it, before any bytes are sent."""
         # Arrange
         _load_profile(host, self._profile_with_types(
             {"on_off": {"kind": "enum", "values": ["on", "off"]}},
@@ -774,6 +803,7 @@ class TestTypedArgValidation:
         assert host._sent == [], "no bytes sent -- short-circuited"
 
     def test_invalid_int_range_blocks_before_wire(self, host):
+        """An int above the int_range max fails naming the bound; nothing is sent."""
         # Arrange
         _load_profile(host, self._profile_with_types(
             {"percent": {"kind": "int_range", "min": 0, "max": 100}},
@@ -796,6 +826,7 @@ class TestTypedArgValidation:
         assert host._sent == [], "no bytes sent -- short-circuited"
 
     def test_unknown_type_name_blocks_before_wire(self, host):
+        """A typed_arg naming an undeclared type fails rather than skipping validation."""
         # Arrange -- typed_arg.type names a type that isn't declared.
         _load_profile(host, _profile_with({
             "SET": {
@@ -819,6 +850,7 @@ class TestTypedArgValidation:
         assert host._sent == [], "no bytes sent -- short-circuited"
 
     def test_builtin_type_still_works(self, host):
+        """Builtin types like str work without a profile types block."""
         # Arrange -- typed_arg uses 'str' builtin; no types block needed.
         _load_profile(host, _profile_with({
             "ECHO": {
@@ -840,6 +872,7 @@ class TestTypedArgValidation:
         assert host._sent == [b"ECHO hi\r\n"], "wire bytes unchanged"
 
     def test_failure_carries_structured_value(self, host):
+        """A rejected arg returns its name, type, value and command in a value dict."""
         # Arrange
         _load_profile(host, self._profile_with_types(
             {"on_off": {"kind": "enum", "values": ["on", "off"]}},

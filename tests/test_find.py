@@ -83,6 +83,7 @@ def env(tmp_path, monkeypatch):
 
 class TestFindHandler:
     def test_find_populates_state_and_seeks_first_match(self, env):
+        """A search stores every match, selects the first, and pushes one UI update."""
         # Arrange
         eng, payloads, _ = env
 
@@ -101,6 +102,7 @@ class TestFindHandler:
         assert payloads[0]["index"] == 0, "payload index 0"
 
     def test_find_with_no_args_closes_active_search(self, env):
+        """Bare /find closes the open search and tells the UI to hide the bar."""
         # Arrange -- an open search.
         eng, payloads, _ = env
         eng.dispatch("find AT")
@@ -115,6 +117,7 @@ class TestFindHandler:
         assert payloads == [None], "UI told to hide (state=None)"
 
     def test_find_no_matches_reports_zero_total(self, env):
+        """A search with no hits is a success that shows 0 matches and index -1."""
         # Arrange / Act
         eng, payloads, _ = env
         result = eng.dispatch("find nonexistent_xyzzy")
@@ -128,6 +131,7 @@ class TestFindHandler:
         assert payloads[-1]["index"] == -1, "payload index=-1 sentinel"
 
     def test_find_case_insensitive(self, env):
+        """Matching ignores case: a lowercase pattern finds the ERROR lines."""
         # Arrange / Act -- uppercase pattern matches lower-case ERROR lines.
         eng, _, _ = env
         eng.dispatch("find error")
@@ -141,6 +145,7 @@ class TestFindHandler:
 
 class TestNextPrev:
     def test_next_increments_and_wraps_at_end(self, env):
+        """/find.next steps forward, wraps from last to first, and updates the UI each step."""
         # Arrange -- three matches: indices 0, 1, 2.
         eng, payloads, _ = env
         eng.dispatch("find AT")
@@ -159,6 +164,7 @@ class TestNextPrev:
         assert len(payloads) == 3, "three update_find_bar calls"
 
     def test_prev_decrements_and_wraps_at_start(self, env):
+        """/find.prev from the first match wraps to the last."""
         # Arrange
         eng, _, _ = env
         eng.dispatch("find AT")
@@ -170,6 +176,7 @@ class TestNextPrev:
         assert _find._active.current == 2, "wraps from 0 to last index"
 
     def test_next_without_active_search_fails(self, env):
+        """Navigating with no open search fails with a "No active find" error."""
         # Arrange / Act -- no /find yet.
         eng, _, _ = env
         result = eng.dispatch("find.next")
@@ -179,6 +186,7 @@ class TestNextPrev:
         assert "No active find" in result.error, "clear error message"
 
     def test_next_with_zero_matches_fails(self, env):
+        """Navigating an empty match list fails instead of indexing nothing."""
         # Arrange
         eng, _, _ = env
         eng.dispatch("find nonexistent_xyzzy")
@@ -192,6 +200,7 @@ class TestNextPrev:
 
 class TestClear:
     def test_clear_closes_active_search(self, env):
+        """/find.clear drops the open search and tells the UI to hide."""
         # Arrange
         eng, payloads, _ = env
         eng.dispatch("find AT")
@@ -206,6 +215,7 @@ class TestClear:
         assert payloads == [None], "UI told to hide"
 
     def test_clear_on_idle_is_silent_success(self, env):
+        """/find.clear with nothing open still succeeds and still sends the hide."""
         # Arrange / Act -- clear with no active search.
         eng, payloads, _ = env
         result = eng.dispatch("find.clear")
@@ -218,6 +228,7 @@ class TestClear:
 
 class TestUiCallback:
     def test_update_find_bar_none_means_no_ui_no_error(self, env):
+        """A host with no find bar (CLI, MCP) still runs the search without error."""
         # Arrange -- a CLI/MCP-style host with no UI callback.
         eng, _, _ = env
         eng.ctx.internal.update_find_bar = None
@@ -230,6 +241,7 @@ class TestUiCallback:
         assert _find._active is not None, "state still populated"
 
     def test_payload_carries_line_no_and_snippet(self, env):
+        """The UI payload gives the 1-based line number and text of the current match."""
         # Arrange / Act
         eng, payloads, lines = env
         eng.dispatch("find ERROR")
@@ -249,6 +261,7 @@ class TestFindMatchesHelper:
     """The shared helper that powers both /grep and /find."""
 
     def test_returns_matches_in_order(self):
+        """Matches come back in scrollback order with 1-based line numbers."""
         # Arrange
         text = "alpha\nbeta\nALPHA\ngamma\nalpha"
 
@@ -262,6 +275,7 @@ class TestFindMatchesHelper:
         )
 
     def test_strips_ansi_from_snippet(self):
+        """Snippets have ANSI color escapes removed before they are shown."""
         # Arrange
         text = "\x1b[31mERROR\x1b[0m: failure"
 
@@ -276,6 +290,7 @@ class TestFindMatchesHelper:
         )
 
     def test_invalid_regex_returns_error(self):
+        """A bad regex returns an "Invalid pattern" error and no matches, not an exception."""
         # Arrange / Act
         matches, err = find_matches("any", "[unterminated")
 
@@ -286,6 +301,7 @@ class TestFindMatchesHelper:
         )
 
     def test_empty_text_returns_error(self):
+        """Empty scrollback, as from a CLI or MCP host, is a "No scrollback" error."""
         # Arrange / Act -- CLI/MCP returns "" from get_screen_text.
         matches, err = find_matches("", "anything")
 
@@ -296,6 +312,7 @@ class TestFindMatchesHelper:
         )
 
     def test_is_noise_filter_skips_lines(self):
+        """The is_noise filter drops lines such as the /find echo even when they match."""
         # Arrange
         text = "real match\n/find foo\nanother real match"
 
@@ -316,6 +333,7 @@ class TestMaxCount:
     """Per-session match-count cap, default 100, override via /find.max_count."""
 
     def test_find_with_too_many_matches_fails(self, env, monkeypatch):
+        """Over the cap the search is refused, naming count, cap and /find.max_count."""
         # Arrange -- stub get_screen_text to return 150 lines that
         # all match the same pattern.
         eng, payloads, _ = env
@@ -340,6 +358,7 @@ class TestMaxCount:
         assert _find._active is None, "no state populated on refuse"
 
     def test_max_count_override_raises_cap(self, env, monkeypatch):
+        """Raising the cap with /find.max_count lets a 150-match search through."""
         # Arrange -- 150 matches, default cap is 100.
         eng, payloads, _ = env
         many = "\n".join(f"Y line {i}" for i in range(150))
@@ -356,6 +375,7 @@ class TestMaxCount:
         assert _find._active is not None and len(_find._active.matches) == 150
 
     def test_max_count_bare_shows_current(self, env):
+        """Bare /find.max_count queries the cap and changes nothing."""
         # Arrange / Act
         eng, _, _ = env
         result = eng.dispatch("find.max_count")
@@ -367,6 +387,7 @@ class TestMaxCount:
         )
 
     def test_max_count_bad_arg_returns_usage(self, env):
+        """A non-integer cap is a usage error that also shows the current cap."""
         # Arrange / Act
         eng, _, _ = env
         result = eng.dispatch("find.max_count abc")
@@ -379,6 +400,7 @@ class TestMaxCount:
         )
 
     def test_max_count_zero_rejected(self, env):
+        """A cap of zero is refused, since it would make /find unusable."""
         # Arrange / Act
         eng, _, _ = env
         result = eng.dispatch("find.max_count 0")
@@ -392,6 +414,7 @@ class TestStateShape:
     """The UI build the frozen view from current_state(); verify shape."""
 
     def test_active_state_includes_matches_and_scrollback(self, env):
+        """Active state carries both the matches and the scrollback snapshot for the UI."""
         # Arrange / Act
         eng, _, lines = env
         eng.dispatch("find AT")
@@ -409,6 +432,7 @@ class TestStateShape:
         )
 
     def test_idle_state_returns_none(self, env):
+        """With no search open, current_state() is None, which tells the UI to hide."""
         # Arrange -- no /find ran.
         # Act
         state = _find.current_state()

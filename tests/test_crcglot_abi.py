@@ -48,10 +48,12 @@ def _params() -> dict:
 
 class TestCrcglotExtension:
     def test_extension_imports(self):
+        """A broken abi3 wheel fails here on import, not as a silent pure-Python fallback."""
         # Act / Assert -- a loader error here is the abi3 wheel not working on this Python
         import crcglot._c  # noqa: F401
 
     def test_generic_crc_matches_catalog_check(self):
+        """The compiled one-shot engine reproduces the crc16-modbus catalog check value."""
         # Arrange
         from crcglot import _c
 
@@ -71,6 +73,7 @@ class TestCrcglotExtension:
         assert actual == expected, "the compiled engine must reproduce the catalog check value"
 
     def test_crc_stream_matches_catalog_check(self):
+        """The compiled CrcStream carries state across two update calls to the catalog check."""
         # Arrange
         from crcglot import _c
 

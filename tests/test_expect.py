@@ -57,6 +57,7 @@ def env(tmp_path):
 
 class TestCapabilityGate:
     def test_baseline_ctx_blocks_expect(self, tmp_path):
+        """Without block_until, /expect refuses and names the missing capability."""
         # Arrange — baseline ctx WITHOUT block_until
         cfg = {"port": "DEMO"}
         config_path = tmp_path / "cfg" / "test.cfg"
@@ -86,6 +87,7 @@ class TestCapabilityGate:
 
 class TestExpectMatch:
     def test_substring_match_returns_line(self, env):
+        """A line fed before /expect starts still matches; the matched line is the value."""
         # Arrange — feed the engine a line BEFORE calling /expect (retroactive scan)
         eng, ctx, _output = env
         eng.feed_lines(["READY"])
@@ -96,6 +98,7 @@ class TestExpectMatch:
         assert "READY" in result.value, "matched line is the value"
 
     def test_regex_match_returns_line(self, env):
+        """/expect.regex matches an anchored pattern and returns the whole matched line."""
         # Arrange
         eng, ctx, _output = env
         eng.feed_lines(["+STATUS: 42"])
@@ -108,6 +111,7 @@ class TestExpectMatch:
         assert "+STATUS: 42" in result.value, "matched line returned"
 
     def test_match_arrives_after_call_starts(self, env):
+        """A line arriving from another thread mid-wait wakes /expect and succeeds."""
         # Arrange
         eng, ctx, _output = env
 
@@ -129,6 +133,7 @@ class TestExpectMatch:
 
 class TestExpectTimeout:
     def test_no_match_within_timeout_fails(self, env):
+        """No match before the deadline fails with an error that says it timed out."""
         # Arrange / Act — match= must be last (rest_keyword)
         eng, ctx, _output = env
         result = eng.dispatch("expect timeout=100ms match=NEVERAPPEARS")
@@ -137,6 +142,7 @@ class TestExpectTimeout:
         assert "timeout" in result.error.lower(), "error names timeout"
 
     def test_missing_match_keyword_fails(self, env):
+        """Omitting match= is an error naming the keyword, not an expect-anything wait."""
         # Arrange / Act
         eng, ctx, _output = env
         result = eng.dispatch("expect timeout=1s")
@@ -145,6 +151,7 @@ class TestExpectTimeout:
         assert "match" in result.error.lower(), "error names the missing keyword"
 
     def test_invalid_regex_fails_fast(self, env):
+        """A malformed pattern fails with a regex error instead of waiting out the timeout."""
         # Arrange / Act — match= last
         eng, ctx, _output = env
         result = eng.dispatch("expect.regex timeout=1s match=(unclosed")
@@ -153,6 +160,7 @@ class TestExpectTimeout:
         assert "regex" in result.error.lower(), "error names regex"
 
     def test_invalid_timeout_fails(self, env):
+        """An unparseable timeout= value fails the command rather than using a default."""
         # Arrange / Act — note: timeout= comes BEFORE match= so it's parsed
         eng, ctx, _output = env
         result = eng.dispatch("expect timeout=notaduration match=X")

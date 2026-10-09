@@ -90,6 +90,7 @@ class TestAppBoots:
     """Booting the real app is itself coverage: __init__ and compose run."""
 
     def test_mounts_its_widget_tree(self, app_factory):
+        """The full app composes a real widget tree and keeps the config path it was given."""
         async def scenario():
             app, _, path = app_factory()
             async with app.run_test() as pilot:
@@ -104,6 +105,7 @@ class TestAppBoots:
         _run(scenario)
 
     def test_starts_disconnected_when_auto_connect_is_off(self, app_factory):
+        """With auto_connect off, boot leaves the port closed instead of chasing the device."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -115,6 +117,7 @@ class TestAppBoots:
         _run(scenario)
 
     def test_repl_engine_is_wired_to_the_config(self, app_factory):
+        """After boot the REPL engine points at the same config file as the app."""
         async def scenario():
             app, _, path = app_factory()
             async with app.run_test() as pilot:
@@ -134,6 +137,7 @@ class TestSwitchConfig:
     """
 
     def test_swaps_every_piece_of_config_state(self, app_factory, tmp_path):
+        """App, repl, ctx, flags, display and every ctx.fs folder follow the new config."""
         async def scenario():
             app, _, first_path = app_factory(name="first")
             async with app.run_test() as pilot:
@@ -238,6 +242,7 @@ class TestSwitchConfig:
         _run(scenario)
 
     def test_surfaces_config_warnings(self, app_factory, tmp_path):
+        """Config warnings are popped once shown, so they cannot resurface on a later read."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -258,6 +263,7 @@ class TestSwitchConfig:
         _run(scenario)
 
     def test_reports_a_migration_and_clears_its_steps(self, app_factory, tmp_path):
+        """Both migration keys are consumed, so a later save cannot write them into the file."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -280,6 +286,7 @@ class TestSwitchConfig:
     def test_drops_stale_migration_steps_without_a_migration(
         self, app_factory, tmp_path
     ):
+        """Steps with no _migrated_from marker (a hand-edited cfg) are dropped, not reported."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -308,6 +315,7 @@ class TestInputLine:
     """
 
     def test_submitting_a_repl_command_dispatches_it(self, app_factory):
+        """Enter on a typed /command takes the submit path; the input clears after dispatch."""
         async def scenario():
             from textual.widgets import Input
             app, _, _ = app_factory()
@@ -329,6 +337,7 @@ class TestInputLine:
         _run(scenario)
 
     def test_submitted_command_enters_history(self, app_factory):
+        """A line submitted through the real input widget is recorded in app.history."""
         async def scenario():
             from textual.widgets import Input
             app, _, _ = app_factory()
@@ -351,6 +360,7 @@ class TestInputLine:
         _run(scenario)
 
     def test_empty_submit_is_ignored_by_default(self, app_factory):
+        """With send_bare_enter off, a bare Enter adds nothing to history."""
         async def scenario():
             from textual.widgets import Input
             app, _, _ = app_factory()
@@ -374,6 +384,7 @@ class TestInputLine:
         _run(scenario)
 
     def test_duplicate_command_is_not_double_recorded(self, app_factory):
+        """A repeated command keeps one history entry; the earlier copy is removed."""
         async def scenario():
             from textual.widgets import Input
             app, _, _ = app_factory()
@@ -401,6 +412,7 @@ class TestOutputBatching:
     """``_write_batch`` is the serial reader's path onto the screen."""
 
     def test_writes_lines_to_the_output_log(self, app_factory):
+        """A batched write runs against the real #output widget without raising."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -418,6 +430,7 @@ class TestOutputBatching:
         _run(scenario)
 
     def test_empty_batch_is_harmless(self, app_factory):
+        """An empty batch from the reader is a no-op, not an error."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -462,6 +475,7 @@ class TestFindBar:
         return state
 
     def test_fixture_matches_the_real_contract(self):
+        """The local _state() snapshot has exactly find.current_state()'s keys, catching drift."""
         # Arrange -- drive the real plugin so current_state() builds a
         # genuine snapshot to compare shapes against
         from termapy.builtins.commands import find
@@ -486,6 +500,7 @@ class TestFindBar:
         )
 
     def test_activating_shows_the_bar_and_freezes_output(self, app_factory):
+        """A find state hides the live #output and shows the frozen #output-find copy."""
         async def scenario():
             from textual.widgets import RichLog
             app, _, _ = app_factory()
@@ -507,6 +522,7 @@ class TestFindBar:
         _run(scenario)
 
     def test_activating_reveals_every_find_bar_widget(self, app_factory):
+        """Every selector in _FIND_BAR_WIDGETS is displayed once find activates."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -524,6 +540,7 @@ class TestFindBar:
         _run(scenario)
 
     def test_record_button_steps_aside_for_the_bar(self, app_factory):
+        """The Record button hides while the find bar owns the button row."""
         async def scenario():
             from textual.widgets import Button
             app, _, _ = app_factory()
@@ -542,6 +559,7 @@ class TestFindBar:
         _run(scenario)
 
     def test_deactivating_restores_the_live_view(self, app_factory):
+        """A None state (close find) shows live #output again and hides the frozen copy."""
         async def scenario():
             from textual.widgets import RichLog
             app, _, _ = app_factory()
@@ -565,6 +583,7 @@ class TestFindBar:
         _run(scenario)
 
     def test_zero_matches_leaves_the_live_view_alone(self, app_factory):
+        """A pattern with no matches does not freeze the output; there is nothing to show."""
         async def scenario():
             from textual.widgets import RichLog
             app, _, _ = app_factory()
@@ -586,6 +605,7 @@ class TestFindBar:
         _run(scenario)
 
     def test_status_label_reports_position(self, app_factory):
+        """The #find-status label shows a 1-based current/total, e.g. 2 of 3 matches."""
         async def scenario():
             from textual.widgets import Label
             app, _, _ = app_factory()
@@ -621,6 +641,7 @@ class TestSerialRxHandoff:
     """
 
     def test_enqueue_never_blocks_and_posts_one_wakeup(self, app_factory):
+        """Back-to-back RX events share one pending wake-up, then all drain and render."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -648,6 +669,7 @@ class TestSerialRxHandoff:
         _run(scenario)
 
     def test_clear_does_not_overtake_the_lines_before_it(self, app_factory):
+        """A queued clear wipes only the lines before it; all event kinds share one ordered list."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -673,6 +695,7 @@ class TestSerialRxHandoff:
         _run(scenario)
 
     def test_backlog_is_bounded_and_the_drop_is_reported(self, app_factory):
+        """Past _RX_EVENT_LIMIT the oldest events drop, counted and shown; newest lines survive."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -798,6 +821,7 @@ class TestSharedStateRaces:
     """
 
     def test_write_failure_is_reported_not_raised(self, app_factory):
+        """A SerialException on send shows Write failed instead of raising into the worker."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -822,6 +846,7 @@ class TestSharedStateRaces:
         _run(scenario)
 
     def test_missing_port_logs_instead_of_writing(self, app_factory):
+        """With the port already nulled by teardown, sent bytes go to the log as hex."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -907,6 +932,7 @@ class TestDispatchContention:
     def test_a_worker_waits_for_the_guard_instead_of_dropping_the_line(
         self, app_factory
     ):
+        """An off-main dispatch blocks while the guard is held, then runs once it frees."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -1102,6 +1128,7 @@ class TestConfirmIsStopAware:
     """
 
     def test_a_script_stop_releases_a_waiting_confirm(self, app_factory):
+        """A script stop with the modal up releases the waiting worker, failing closed (False)."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -1144,6 +1171,7 @@ class TestBatchedOutputIsEquivalent:
     """
 
     def test_every_line_of_a_batch_reaches_the_screen_in_order(self, app_factory):
+        """All 50 lines of one combined write render, with the first ahead of the last."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -1163,6 +1191,7 @@ class TestBatchedOutputIsEquivalent:
         _run(scenario)
 
     def test_escapes_are_stripped_when_color_is_off(self, app_factory):
+        """With color off, device SGR escapes in a batch are stripped, not shown as literals."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -1185,6 +1214,7 @@ class TestBatchedOutputIsEquivalent:
         _run(scenario)
 
     def test_the_batch_logs_one_entry_per_line(self, app_factory):
+        """One batched log write still yields one RX-prefixed log line per received line."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -1240,6 +1270,7 @@ class TestPickersNeedAConfig:
     whatever folder the shell is in."""
 
     def test_run_and_proto_buttons_refuse_without_a_config(self, app_factory):
+        """With config_path empty, the Run and Proto buttons open no picker on the cwd."""
         async def scenario():
             from textual.screen import ModalScreen
             app, _, _ = app_factory()
@@ -1274,6 +1305,7 @@ class TestDelayHook:
 
     @pytest.mark.slow  # real 1 s wait: the progress path is the point
     def test_one_second_delay_runs_the_progress_bar_to_done(self, app_factory):
+        """The 1s hook finishes on a worker without raising and reports 1.0 as its value."""
         async def scenario():
             from termapy.app_hooks import _hook_delay
             app, _, _ = app_factory()
@@ -1318,6 +1350,7 @@ class TestSymbolsAutoload:
     """
 
     def test_sidecar_loads_on_mount_and_sym_resolves(self, app_factory):
+        """A sym/ sidecar is fully installed by mount, and a typed /sym main renders its address."""
         async def scenario():
             from textual.widgets import Input, RichLog
 
@@ -1353,6 +1386,7 @@ class TestSymbolsAutoload:
         _run(scenario)
 
     def test_on_connect_hook_sees_the_table_under_auto_connect(self, app_factory):
+        """With auto_connect on, an on_connect hook already sees every demo symbol loaded."""
         async def scenario():
             from termapy.symbols import get_table
 

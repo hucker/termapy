@@ -40,6 +40,7 @@ class TestExpandVars:
     """Tests for variable expansion in strings."""
 
     def test_expand_known_var(self):
+        """A defined $(NAME) is replaced by its value inside a device command."""
         # Arrange
         _VARS["PORT"] = "COM7"
 
@@ -51,6 +52,7 @@ class TestExpandVars:
         assert actual == expected, "known variable is expanded"
 
     def test_expand_unknown_var_left_as_is(self):
+        """An undefined $(NAME) stays literal so the mistake is visible, not blanked."""
         # Act
         actual = expand_vars("$(UNKNOWN) stays")
         expected = "$(UNKNOWN) stays"
@@ -59,6 +61,7 @@ class TestExpandVars:
         assert actual == expected, "unknown variable left as literal"
 
     def test_expand_multiple_vars(self):
+        """Every reference on a line expands, not just the first."""
         # Arrange
         _VARS["A"] = "hello"
         _VARS["B"] = "world"
@@ -71,6 +74,7 @@ class TestExpandVars:
         assert actual == expected, "both variables expanded"
 
     def test_expand_mixed_known_unknown(self):
+        """Known and unknown references on one line resolve independently."""
         # Arrange
         _VARS["KNOWN"] = "yes"
 
@@ -82,6 +86,7 @@ class TestExpandVars:
         assert actual == expected, "known expanded, unknown left"
 
     def test_no_vars_in_string(self):
+        """Text with no $(NAME) reference passes through unchanged."""
         # Act
         actual = expand_vars("no variables here")
         expected = "no variables here"
@@ -90,6 +95,7 @@ class TestExpandVars:
         assert actual == expected, "string unchanged"
 
     def test_lowercase_var(self):
+        """Lowercase variable names are legal and expand like uppercase ones."""
         # Arrange
         _VARS["port"] = "COM7"
 
@@ -101,6 +107,7 @@ class TestExpandVars:
         assert actual == expected, "lowercase variable names work"
 
     def test_case_sensitive(self):
+        """Names are case-sensitive: $(port) does not find a PORT variable."""
         # Arrange
         _VARS["PORT"] = "COM7"
 
@@ -112,6 +119,7 @@ class TestExpandVars:
         assert actual == expected, "$(port) != $(PORT) (case-sensitive)"
 
     def test_var_with_underscore(self):
+        """Underscores are allowed inside a variable name."""
         # Arrange
         _VARS["MY_VAR"] = "value"
 
@@ -123,6 +131,7 @@ class TestExpandVars:
         assert actual == expected, "underscores in name work"
 
     def test_var_with_digits(self):
+        """Digits are allowed after the first character of a variable name."""
         # Arrange
         _VARS["REG0"] = "100"
 
@@ -134,6 +143,7 @@ class TestExpandVars:
         assert actual == expected, "digits in name work"
 
     def test_var_adjacent_to_text(self):
+        """A reference embedded in text with no separators expands in place."""
         # Arrange
         _VARS["PORT"] = "COM7"
 
@@ -145,6 +155,7 @@ class TestExpandVars:
         assert actual == expected, "expanded correctly at boundary"
 
     def test_var_adjacent_to_text_no_ambiguity(self):
+        """The closing paren ends the name, so trailing digits join the value."""
         # Arrange
         _VARS["PORT"] = "COM"
 
@@ -156,6 +167,7 @@ class TestExpandVars:
         assert actual == expected, "closing paren terminates the name cleanly"
 
     def test_bare_dollar_not_expanded(self):
+        """Bare $NAME without parens never expands, even when NAME is defined."""
         # Arrange
         _VARS["PORT"] = "COM7"
 
@@ -174,6 +186,7 @@ class TestExpandVarsEscape:
     """Tests for \\$ escape preventing variable expansion."""
 
     def test_escaped_dollar_not_expanded(self):
+        """An escaped reference to a defined var emits literal $(NAME), escape dropped."""
         # Arrange
         _VARS["PORT"] = "COM7"
 
@@ -185,6 +198,7 @@ class TestExpandVarsEscape:
         assert actual == expected, "escaped $ left as literal"
 
     def test_escaped_dollar_unknown_var(self):
+        """An escaped unknown reference also drops the escape and leaves $(NAME)."""
         # Act
         actual = expand_vars("\\$(UNKNOWN)")
         expected = "$(UNKNOWN)"
@@ -193,6 +207,7 @@ class TestExpandVarsEscape:
         assert actual == expected, "escaped unknown var left as literal"
 
     def test_mixed_escaped_and_expanded(self):
+        """Escaping one reference does not stop an unescaped neighbor from expanding."""
         # Arrange
         _VARS["A"] = "hello"
         _VARS["B"] = "world"
@@ -205,6 +220,7 @@ class TestExpandVarsEscape:
         assert actual == expected, "$(A) expanded, \\$(B) left as literal"
 
     def test_escaped_dollar_in_serial_context(self):
+        """An escaped $ with no paren after it still unescapes, so a device gets a $."""
         # Act
         actual = expand_vars("AT+CMD=\\$50")
         expected = "AT+CMD=$50"
@@ -220,6 +236,7 @@ class TestClearVars:
     """Tests for clearing variables."""
 
     def test_clear_removes_all(self):
+        """clear_vars empties every user variable at once."""
         # Arrange
         _VARS["A"] = "1"
         _VARS["B"] = "2"
@@ -231,6 +248,7 @@ class TestClearVars:
         assert _VARS == {}, "all variables removed"
 
     def test_clear_empty_is_ok(self):
+        """Clearing when no variables exist is a no-op, not an error."""
         # Act - no error on empty dict
         clear_vars()
 
@@ -254,6 +272,7 @@ class TestVarNameRegex:
         ("$(_PRIVATE)", "_PRIVATE"),
     ])
     def test_valid_var_names(self, text, expected_name):
+        """Either case, digits, underscores, and a leading underscore form a name."""
         # Act
         m = _VAR_REF_RE.search(text)
 
@@ -266,6 +285,7 @@ class TestVarNameRegex:
         "$PORT",         # bare $NAME (no parens)
     ])
     def test_invalid_var_names(self, text):
+        """A digit-first name, or bare $NAME without parens, is not a reference."""
         # Act
         m = _VAR_REF_RE.search(text)
 
@@ -280,6 +300,7 @@ class TestRewriteAssignment:
     """Tests for the $(VAR) = value line rewriting."""
 
     def test_basic_assignment(self):
+        """$(NAME) = value becomes a var.set command the dispatcher can run."""
         # Act
         actual = rewrite_assignment("$(PORT) = COM7")
         expected = "var.set PORT COM7"
@@ -288,6 +309,7 @@ class TestRewriteAssignment:
         assert actual == expected, "rewritten to var.set command"
 
     def test_no_spaces(self):
+        """Spacing around = is optional; $(PORT)=COM7 rewrites the same way."""
         # Act
         actual = rewrite_assignment("$(PORT)=COM7")
         expected = "var.set PORT COM7"
@@ -296,6 +318,7 @@ class TestRewriteAssignment:
         assert actual == expected, "rewritten without spaces"
 
     def test_extra_spaces(self):
+        """Extra spaces around = are trimmed, not carried into the name or value."""
         # Act
         actual = rewrite_assignment("$(PORT)  =  COM7")
         expected = "var.set PORT COM7"
@@ -304,6 +327,7 @@ class TestRewriteAssignment:
         assert actual == expected, "rewritten with extra spaces"
 
     def test_value_with_spaces(self):
+        """The value is everything after =, interior spaces included."""
         # Act
         actual = rewrite_assignment("$(MSG) = hello world")
         expected = "var.set MSG hello world"
@@ -312,6 +336,7 @@ class TestRewriteAssignment:
         assert actual == expected, "value includes everything after ="
 
     def test_lowercase_rewritten(self):
+        """Lowercase names rewrite too; assignment does not require uppercase."""
         # Act
         actual = rewrite_assignment("$(port) = COM7")
         expected = "var.set port COM7"
@@ -320,6 +345,7 @@ class TestRewriteAssignment:
         assert actual == expected, "lowercase works"
 
     def test_no_value_not_rewritten(self):
+        """Nothing after = yields no rewrite, never an empty var.set."""
         # Act
         actual = rewrite_assignment("$(PORT) =")
 
@@ -327,6 +353,7 @@ class TestRewriteAssignment:
         assert actual is None, "empty value rejected"
 
     def test_no_dollar_not_rewritten(self):
+        """Without the $( ) wrapper, NAME = value is left alone as ordinary text."""
         # Act
         actual = rewrite_assignment("PORT = COM7")
 
@@ -334,6 +361,7 @@ class TestRewriteAssignment:
         assert actual is None, "needs $() syntax"
 
     def test_bare_dollar_not_rewritten(self):
+        """Bare $NAME = value is not an assignment; that form gets a warning instead."""
         # Act
         actual = rewrite_assignment("$PORT = COM7")
 
@@ -341,6 +369,7 @@ class TestRewriteAssignment:
         assert actual is None, "bare $NAME not rewritten (needs parens)"
 
     def test_repl_command_not_rewritten(self):
+        """An explicit /var.set line is already a command and is not matched again."""
         # Act
         actual = rewrite_assignment("/var.set PORT COM7")
 
@@ -348,6 +377,7 @@ class TestRewriteAssignment:
         assert actual is None, "REPL command not matched"
 
     def test_serial_command_not_rewritten(self):
+        """An AT command containing = is device traffic, not an assignment."""
         # Act
         actual = rewrite_assignment("AT+PORT=COM7")
 
@@ -362,6 +392,7 @@ class TestCheckBareDollar:
     """Tests for the bare $NAME = value warning."""
 
     def test_bare_assignment_warns(self):
+        """The warning for $NAME = value shows the $(NAME) form the user meant."""
         # Act
         actual = check_bare_dollar("$PORT = COM7")
 
@@ -370,6 +401,7 @@ class TestCheckBareDollar:
         assert "$(PORT)" in actual, "warning suggests correct syntax"
 
     def test_bare_no_spaces_warns(self):
+        """$NAME=value with no spaces is caught too, not only the spaced form."""
         # Act
         actual = check_bare_dollar("$PORT=COM7")
 
@@ -378,6 +410,7 @@ class TestCheckBareDollar:
         assert "$(PORT)" in actual, "warning suggests correct syntax (no spaces)"
 
     def test_proper_syntax_no_warning(self):
+        """The correct $(NAME) = value form never triggers the bare-dollar warning."""
         # Act
         actual = check_bare_dollar("$(PORT) = COM7")
 
@@ -385,6 +418,7 @@ class TestCheckBareDollar:
         assert actual is None
 
     def test_serial_command_no_warning(self):
+        """An AT command with = but no $ is device traffic and draws no warning."""
         # Act
         actual = check_bare_dollar("AT+PORT=COM7")
 
@@ -392,6 +426,7 @@ class TestCheckBareDollar:
         assert actual is None
 
     def test_plain_text_no_warning(self):
+        """Ordinary text with no $ or = draws no warning."""
         # Act
         actual = check_bare_dollar("hello world")
 
@@ -406,6 +441,7 @@ class TestSessionTimeVars:
     """Tests for $(SESSION_DATE), $(SESSION_TIME), $(SESSION_DATETIME)."""
 
     def test_sets_session_date(self):
+        """Once frozen, SESSION_DATE renders as a YYYY-MM-DD date."""
         # Act - freeze the SESSION moment, then read via expansion
         set_start_time_vars()
         actual = expand_vars("$(SESSION_DATE)")
@@ -415,6 +451,7 @@ class TestSessionTimeVars:
         assert actual[4] == "-", "YYYY-MM-DD separator"
 
     def test_sets_session_time(self):
+        """Once frozen, SESSION_TIME renders as an HH:MM:SS time."""
         # Act
         set_start_time_vars()
         actual = expand_vars("$(SESSION_TIME)")
@@ -424,6 +461,7 @@ class TestSessionTimeVars:
         assert actual[2] == ":", "HH:MM:SS separator"
 
     def test_sets_session_datetime(self):
+        """SESSION_DATETIME holds the same frozen date and time, not a fresh clock read."""
         # Act
         set_start_time_vars()
         date = expand_vars("$(SESSION_DATE)")
@@ -464,6 +502,7 @@ class TestSessionTimeVars:
         assert len(actual) == 8 and actual.isdigit(), "YYYYmmdd"
 
     def test_expandable_in_strings(self):
+        """Session vars expand inline and leave the surrounding text intact."""
         # Arrange
         set_start_time_vars()
 
@@ -479,6 +518,7 @@ class TestDynamicTimeVars:
     """Tests for $(DATE), $(TIME), $(DATETIME) - dynamic (current clock)."""
 
     def test_date_expands_without_being_set(self):
+        """$(DATE) needs no setup and renders as a YYYY-MM-DD date."""
         # Act - no set_start_time_vars, $(DATE) still expands
         actual = expand_vars("today: $(DATE)")
 
@@ -488,6 +528,7 @@ class TestDynamicTimeVars:
         assert len(actual) == len("today: ") + 10, "YYYY-MM-DD"
 
     def test_time_expands_without_being_set(self):
+        """$(TIME) needs no setup and renders in HH:MM:SS form."""
         # Act
         actual = expand_vars("now: $(TIME)")
 
@@ -496,6 +537,7 @@ class TestDynamicTimeVars:
         assert actual[len("now: ") + 2] == ":", "HH:MM:SS format"
 
     def test_datetime_expands_without_being_set(self):
+        """$(DATETIME) resolves from the live clock with no prior set call."""
         # Act
         actual = expand_vars("ts: $(DATETIME)")
 
@@ -503,6 +545,7 @@ class TestDynamicTimeVars:
         assert "$(DATETIME)" not in actual
 
     def test_user_var_overrides_dynamic(self):
+        """A user variable named DATE shadows the built-in clock value."""
         # Arrange - user sets $(DATE) explicitly
         _VARS["DATE"] = "custom-date"
 
@@ -513,6 +556,7 @@ class TestDynamicTimeVars:
         assert actual == "custom-date"
 
     def test_dynamic_not_in_vars_dict(self):
+        """Clock vars are computed on read, never stored in _VARS, yet still expand."""
         # Assert - dynamic vars are NOT stored in _VARS
         assert "DATE" not in _VARS
         assert "TIME" not in _VARS
@@ -531,6 +575,7 @@ class TestDatetimeFormatSpec:
     """Tests for the $(NAME:strftime) format-spec on datetime vars."""
 
     def test_filename_safe_datetime(self):
+        """A strftime spec yields a colon-free YYYYmmdd_HHMMSS stamp for filenames."""
         # Act - the headline use: a colon-free stamp for filenames
         actual = expand_vars("$(DATETIME:%Y%m%d_%H%M%S)")
 
@@ -538,6 +583,7 @@ class TestDatetimeFormatSpec:
         assert re.fullmatch(r"\d{8}_\d{6}", actual), "filename-safe stamp"
 
     def test_format_may_contain_colons(self):
+        """Only the first colon splits name from format, so formats may hold colons."""
         # Act - the format itself has colons; we split on the FIRST colon only
         actual = expand_vars("$(TIME:%H:%M:%S)")
 
@@ -545,6 +591,7 @@ class TestDatetimeFormatSpec:
         assert re.fullmatch(r"\d{2}:\d{2}:\d{2}", actual), "colon format survives"
 
     def test_partial_format(self):
+        """A spec may select a subset of fields, such as hour and minute only."""
         # Act
         actual = expand_vars("$(TIME:%H%M)")
 
@@ -552,6 +599,7 @@ class TestDatetimeFormatSpec:
         assert re.fullmatch(r"\d{4}", actual), "HHMM"
 
     def test_format_on_frozen_var(self):
+        """Format specs apply to the frozen SESSION_* moment, not only the live clock."""
         # Act - :fmt works on frozen moments too
         set_start_time_vars()
         actual = expand_vars("$(SESSION_DATETIME:%Y%m%d)")
@@ -560,6 +608,7 @@ class TestDatetimeFormatSpec:
         assert re.fullmatch(r"\d{8}", actual), "frozen moment, custom format"
 
     def test_format_on_non_datetime_var_is_literal(self):
+        """A format on a user var leaves the reference literal so the misuse shows."""
         # Arrange - a :fmt on a user var is meaningless
         _VARS["PORT"] = "COM7"
 
@@ -570,6 +619,7 @@ class TestDatetimeFormatSpec:
         assert actual == "$(PORT:%H)", "fmt only applies to datetime vars"
 
     def test_bare_var_still_uses_default_format(self):
+        """Without a format spec, $(DATE) keeps its default YYYY-MM-DD form."""
         # Act - no colon: default format still applies
         actual = expand_vars("$(DATE)")
 
@@ -585,6 +635,7 @@ class TestRetiredPlaceholders:
     """
 
     def test_datetime_rewrites_and_expands(self):
+        """{datetime} becomes a filename-safe stamp with no placeholder left over."""
         # Act - {datetime} -> $(DATETIME:%Y%m%d_%H%M%S) -> expanded in one pass
         actual = expand_vars("run_{datetime}.log")
 
@@ -594,6 +645,7 @@ class TestRetiredPlaceholders:
         )
 
     def test_clock_rewrites_and_expands(self):
+        """{clock} becomes the current HH:MM:SS by way of $(TIME)."""
         # Act - {clock} -> $(TIME) -> expanded
         actual = expand_vars("at {clock}")
 
@@ -601,6 +653,7 @@ class TestRetiredPlaceholders:
         assert re.fullmatch(r"at \d{2}:\d{2}:\d{2}", actual), "{clock} rewrites to $(TIME)"
 
     def test_both_in_one_line(self):
+        """Both retired placeholders on one line are rewritten in the same pass."""
         # Act
         actual = expand_vars("{clock} {datetime}")
 
@@ -608,6 +661,7 @@ class TestRetiredPlaceholders:
         assert re.fullmatch(r"\d{2}:\d{2}:\d{2} \d{8}_\d{6}", actual), "both rewritten"
 
     def test_per_run_placeholders_untouched(self):
+        """Per-run {seq1+}, {starttime}, {elapsed} are left for the template expander."""
         # Act - {seqN}/{starttime}/{elapsed} are not $() vars; pass through verbatim
         actual = expand_vars("cap_{seq1+}_{starttime}_{elapsed}")
 
@@ -624,6 +678,7 @@ class TestDirectiveResult:
     """Tests for the DirectiveResult dataclass."""
 
     def test_default_is_none_action(self):
+        """A bare DirectiveResult is a no-op: action none with an empty payload."""
         # Act
         actual = DirectiveResult()
 
@@ -632,6 +687,7 @@ class TestDirectiveResult:
         assert actual.payload == ""
 
     def test_rewrite_result(self):
+        """Positional args map to action then payload; a rewrite carries the new line."""
         # Act
         actual = DirectiveResult("rewrite", "var.set PORT COM7")
 
@@ -640,6 +696,7 @@ class TestDirectiveResult:
         assert actual.payload == "var.set PORT COM7"
 
     def test_warn_result(self):
+        """A warn result carries its warning text as the payload."""
         # Act
         actual = DirectiveResult("warn", "Something wrong")
 
@@ -648,6 +705,7 @@ class TestDirectiveResult:
         assert actual.payload == "Something wrong"
 
     def test_error_result(self):
+        """An error result carries its error message as the payload."""
         # Act
         actual = DirectiveResult("error", "Bad input")
 
@@ -827,6 +885,7 @@ class TestCfgContextVars:
         var_mod._CONTEXT_VARS.update(saved)
 
     def test_cfg_port_and_baud_read_nested_serial(self, _restore_context_vars):
+        """Port and baud come from the serial section; the integer baud becomes text."""
         # Arrange -- v22 cfg: port/baud_rate live under cfg["serial"].
         var_mod = _restore_context_vars
         cfg = {"serial": {"port": "COM4", "baud_rate": 115200}}
@@ -841,6 +900,7 @@ class TestCfgContextVars:
         assert actual_baud == "115200", "CFG.BAUD reads cfg['serial']['baud_rate']"
 
     def test_cfg_port_empty_when_no_serial_section(self, _restore_context_vars):
+        """A cfg with no serial section gives an empty CFG.PORT, not a KeyError."""
         # Arrange -- defensive: a cfg missing the serial section.
         var_mod = _restore_context_vars
         var_mod.register_cfg_vars(lambda: "", lambda: {}, lambda: "")
@@ -868,6 +928,7 @@ class TestHandlerCaptureFailurePath:
     """
 
     def test_capture_fail_propagates_empty_message(self):
+        """A failed inner command fails /var.capture with no message, so it prints once."""
         # Arrange -- minimal stub PluginContext where ctx.dispatch returns
         # a failed CmdResult (simulating the inner .silent dispatch having
         # already written the error to the screen).
@@ -915,6 +976,7 @@ class TestResolveOne:
     """Tests for the resolve_one function (shared resolution logic)."""
 
     def test_resolve_user_var(self):
+        """A user variable resolves to its stored value."""
         # Arrange
         _VARS["PORT"] = "COM7"
 
@@ -925,6 +987,7 @@ class TestResolveOne:
         assert actual == "COM7", "user variable resolved"
 
     def test_resolve_unknown_returns_none(self):
+        """An unknown name returns None, letting callers leave the reference literal."""
         # Act
         actual = resolve_one("UNKNOWN", None)
 
@@ -932,6 +995,7 @@ class TestResolveOne:
         assert actual is None, "unknown variable returns None"
 
     def test_resolve_with_datetime_format(self):
+        """A datetime var with a strftime spec resolves to the formatted clock value."""
         # Act -- format suffix on a datetime var
         actual = resolve_one("DATETIME", "%Y%m%d")
 
@@ -942,6 +1006,7 @@ class TestResolveOne:
         assert actual.isdigit(), "datetime with %Y%m%d format is all digits"
 
     def test_resolve_datetime_format_on_non_datetime_returns_none(self):
+        """A format spec on a user var returns None, not the unformatted value."""
         # Arrange
         _VARS["PORT"] = "COM7"
 
@@ -954,6 +1019,7 @@ class TestResolveOne:
         )
 
     def test_resolve_context_var(self):
+        """A registered context var resolves by calling its callable."""
         # Arrange
         from termapy.variables import set_context_var
         set_context_var("TEST_CTX", lambda: "ctx_value")
@@ -977,6 +1043,7 @@ class TestDerefRef:
     """
 
     def test_resolves_user_var(self):
+        """A hex payload stored in a user var comes back as the stored string."""
         # Arrange
         _VARS["p1"] = "010300000002c40b"
 
@@ -987,11 +1054,13 @@ class TestDerefRef:
         assert actual == "010300000002c40b", "user variable resolves"
 
     def test_unknown_name_returns_none(self):
+        """An undefined name is None, which the binder makes an error, never a literal."""
         # Act / Assert -- None is the signal params.resolve_deref turns into
         # "unknown variable: 'nope'"; it must not fall back to a literal
         assert deref_ref("nope") is None, "undefined name resolves to None"
 
     def test_value_with_spaces_returned_whole(self):
+        """A spaced value returns intact, so the binder passes it as one argument."""
         # Arrange -- the case the whole feature exists for
         _VARS["spaced"] = "01 03 00 00 00 0a c5 cd"
 
@@ -1005,6 +1074,7 @@ class TestDerefRef:
         )
 
     def test_value_with_newline_returned_whole(self):
+        """Embedded newlines survive; this is the only way to put one in an argument."""
         # Arrange
         _VARS["multi"] = "line1\nline2"
 
@@ -1014,6 +1084,7 @@ class TestDerefRef:
         )
 
     def test_empty_value_is_not_none(self):
+        """An empty value returns an empty string, distinct from undefined (None)."""
         # Arrange -- an empty value must stay distinguishable from "undefined",
         # since None means error and "" means a present, empty argument
         _VARS["empty"] = ""
@@ -1025,6 +1096,7 @@ class TestDerefRef:
         assert actual == "", "empty value resolves to empty string, not None"
 
     def test_fmt_suffix_on_datetime_var(self):
+        """A :fmt suffix splits at the first colon, as in $(NAME:fmt) expansion."""
         # Act -- ":fmt" splits on the FIRST colon, same rule as $(NAME:fmt)
         actual = deref_ref("DATETIME:%Y%m%d")
 
@@ -1034,6 +1106,7 @@ class TestDerefRef:
         )
 
     def test_fmt_suffix_on_non_datetime_returns_none(self):
+        """A :fmt suffix on a non-datetime var does not resolve, matching expand_vars."""
         # Arrange
         _VARS["plain"] = "value"
 
@@ -1043,6 +1116,7 @@ class TestDerefRef:
         )
 
     def test_resolved_value_is_not_rescanned(self):
+        """A value that looks like $(other) returns verbatim and is never re-expanded."""
         # Arrange -- a value that LOOKS like another reference
         _VARS["indirect"] = "$(p1)"
         _VARS["p1"] = "resolved"
@@ -1063,6 +1137,7 @@ class TestSnapshot:
     """The structured view of the whole namespace (serves /var's data)."""
 
     def test_namespaces_and_resolution(self):
+        """Exactly four namespaces, with context callables resolved to their values."""
         # Arrange
         from termapy.variables import set_context_var, snapshot
         _VARS["PORT"] = "COM9"
@@ -1091,6 +1166,7 @@ class TestSnapshot:
         )
 
     def test_session_moment_appears_only_once_frozen(self):
+        """SESSION_* is absent from the datetime namespace until the moment is frozen."""
         # Arrange -- no SESSION frozen (autouse fixture cleared it)
         from termapy.variables import set_start_time_vars, snapshot
 

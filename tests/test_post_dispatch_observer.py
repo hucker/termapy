@@ -46,6 +46,7 @@ def engine(tmp_path):
 
 class TestPostDispatchObserver:
     def test_observer_fires_on_success(self, engine):
+        """An observer receives the raw line and the successful result after dispatch."""
         # Arrange
         seen: list[tuple[str, bool]] = []
         engine.add_post_dispatch_observer(
@@ -63,6 +64,7 @@ class TestPostDispatchObserver:
         )
 
     def test_observer_fires_on_failed_dispatch(self, engine):
+        """Failed dispatches reach observers too; each subscriber decides what to keep."""
         # Arrange -- an unknown command produces CmdResult.fail().
         seen: list[tuple[str, bool]] = []
         engine.add_post_dispatch_observer(
@@ -80,6 +82,7 @@ class TestPostDispatchObserver:
         assert success is False, "failure surfaced to observer"
 
     def test_multiple_observers_all_fire(self, engine):
+        """Every registered observer sees the dispatch, not just the first or last."""
         # Arrange
         a: list[str] = []
         b: list[str] = []
@@ -94,6 +97,7 @@ class TestPostDispatchObserver:
         assert b == ["app.ver"], "second observer fired"
 
     def test_observer_exception_does_not_break_dispatch(self, engine):
+        """A raising observer neither fails the dispatch nor starves later observers."""
         # Arrange -- one bad observer, one good observer registered after.
         good: list[str] = []
 
@@ -114,6 +118,7 @@ class TestPostDispatchObserver:
         )
 
     def test_remove_observer_stops_firing(self, engine):
+        """After removal an observer sees no further dispatches."""
         # Arrange
         seen: list[str] = []
         token = engine.add_post_dispatch_observer(
@@ -129,6 +134,7 @@ class TestPostDispatchObserver:
         assert seen == ["app.ver"], "observer removed before second dispatch"
 
     def test_remove_observer_is_idempotent(self, engine):
+        """Removing an observer that was never added is a silent no-op."""
         # Arrange / Act -- removing an unregistered observer must not raise.
         engine.remove_post_dispatch_observer(lambda _l, _r: None)
 
@@ -138,6 +144,7 @@ class TestPostDispatchObserver:
         assert result.success, "engine still works after spurious remove"
 
     def test_observer_fires_for_empty_line(self, engine):
+        """An empty line still notifies observers, so /run.record keeps blank lines."""
         # Arrange -- empty dispatch (user typed just the prefix).
         seen: list[tuple[str, bool]] = []
         engine.add_post_dispatch_observer(
@@ -154,6 +161,7 @@ class TestPostDispatchObserver:
         )
 
     def test_observer_token_is_the_callable_itself(self, engine):
+        """The add token is the callable, so either reference deregisters it."""
         # Arrange / Act -- token returned by add_* IS the callable, so
         # remove_* can take either the original ref or the returned token.
         def _obs(_l, _r):

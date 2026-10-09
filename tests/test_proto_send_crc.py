@@ -38,6 +38,7 @@ class TestParseSendAlgo:
     """Tests for algorithm name + suffix parsing."""
 
     def test_bare_algo(self):
+        """A bare algorithm name means little-endian binary CRC by default."""
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
@@ -50,6 +51,7 @@ class TestParseSendAlgo:
         assert actual_ascii is False, "bare algo defaults to binary"
 
     def test_algo_be(self):
+        """_be is stripped from the name and selects big-endian, still binary."""
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
@@ -62,6 +64,7 @@ class TestParseSendAlgo:
         assert actual_ascii is False, "_be does not set ascii mode"
 
     def test_algo_le(self):
+        """An explicit _le is accepted and stripped, matching the bare default."""
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
@@ -74,6 +77,7 @@ class TestParseSendAlgo:
         assert actual_ascii is False, "_le does not set ascii mode"
 
     def test_algo_ascii(self):
+        """_ascii selects hex-text CRC and leaves byte order at the LE default."""
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
@@ -86,6 +90,7 @@ class TestParseSendAlgo:
         assert actual_ascii is True, "_ascii sets ascii mode"
 
     def test_algo_be_ascii(self):
+        """_be_ascii combines both suffixes: big-endian order in hex text."""
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
@@ -98,6 +103,7 @@ class TestParseSendAlgo:
         assert actual_ascii is True, "_be_ascii sets ascii mode"
 
     def test_algo_le_ascii(self):
+        """_le_ascii combines both suffixes: little-endian order in hex text."""
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
@@ -110,6 +116,7 @@ class TestParseSendAlgo:
         assert actual_ascii is True, "_le_ascii sets ascii mode"
 
     def test_unknown_returns_none(self):
+        """A word that is not an algorithm gives None, so the caller sends it as data."""
         # Act
         registry = get_crc_registry()
         actual_name, _, _ = _parse_send_algo("not-an-algo", registry)
@@ -118,6 +125,7 @@ class TestParseSendAlgo:
         assert actual_name is None, "unknown algo returns None"
 
     def test_case_insensitive(self):
+        """Algorithm names and suffixes match regardless of case."""
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, _ = _parse_send_algo(
@@ -136,6 +144,7 @@ class TestSendCrcAppend:
     """CRC algorithm detection and byte append."""
 
     def test_crc16_modbus_le_default(self, send_env):
+        """A Modbus frame gets its known CRC 0x0A84 appended low byte first."""
         # Arrange
         ctx, output, tx_bytes = send_env
         # Known: CRC16-Modbus of 01 03 00 00 00 01 = 0x0A84, LE = 84 0A
@@ -150,6 +159,7 @@ class TestSendCrcAppend:
         assert actual == expected, "data with LE CRC appended"
 
     def test_crc16_modbus_be(self, send_env):
+        """With _be the same Modbus CRC is appended high byte first."""
         # Arrange
         ctx, output, tx_bytes = send_env
         args = "crc16-modbus_be 01 03 00 00 00 01"
@@ -163,6 +173,7 @@ class TestSendCrcAppend:
         assert actual == expected, "data with BE CRC appended"
 
     def test_crc16_modbus_ascii_le(self, send_env):
+        """_ascii appends the CRC as hex text with bytes in LE order (840A)."""
         # Arrange
         ctx, output, tx_bytes = send_env
         args = "crc16-modbus_ascii 01 03 00 00 00 01"
@@ -178,6 +189,7 @@ class TestSendCrcAppend:
         assert actual == expected, "data with LE ASCII CRC appended"
 
     def test_crc16_modbus_ascii_be(self, send_env):
+        """_be_ascii appends the CRC as hex text in natural BE order (0A84)."""
         # Arrange
         ctx, output, tx_bytes = send_env
         args = "crc16-modbus_be_ascii 01 03 00 00 00 01"
@@ -193,6 +205,7 @@ class TestSendCrcAppend:
         assert actual == expected, "data with BE ASCII CRC appended"
 
     def test_crc_info_displayed(self, send_env):
+        """One CRC: line reports the value, byte order, and bin mode of the append."""
         # Arrange
         ctx, output, tx_bytes = send_env
         args = "crc16-modbus 01 03 00 00 00 01"
@@ -208,6 +221,7 @@ class TestSendCrcAppend:
         assert "bin" in actual[0], "mode label shown"
 
     def test_crc_info_be_ascii(self, send_env):
+        """The CRC: line labels reflect _be_ascii as BE and ascii."""
         # Arrange
         ctx, output, tx_bytes = send_env
         args = "crc16-modbus_be_ascii 01 03 00 00 00 01"
@@ -225,6 +239,7 @@ class TestSendCrcEdgeCases:
     """Error handling and edge cases for CRC-append."""
 
     def test_no_data_after_algo(self, send_env):
+        """An algorithm with no payload fails with No data and writes nothing."""
         # Arrange
         ctx, output, tx_bytes = send_env
         args = "crc16-modbus"
@@ -238,6 +253,7 @@ class TestSendCrcEdgeCases:
         assert "No data" in result.error, "error mentions no data"
 
     def test_no_data_after_algo_with_suffix(self, send_env):
+        """A suffixed algorithm with no payload fails the same way as a bare one."""
         # Arrange
         ctx, output, tx_bytes = send_env
         args = "crc16-modbus_ascii"
@@ -251,6 +267,7 @@ class TestSendCrcEdgeCases:
         assert "No data" in result.error, "error mentions no data"
 
     def test_no_algo_sends_raw(self, send_env):
+        """When the first token is not an algorithm the bytes go out with no CRC."""
         # Arrange - first word is NOT a CRC algo, so plain send
         ctx, output, tx_bytes = send_env
         args = "01 03 00 00 00 01"
@@ -264,6 +281,7 @@ class TestSendCrcEdgeCases:
         assert actual == expected, "raw bytes, no CRC appended"
 
     def test_no_crc_info_without_algo(self, send_env):
+        """A plain send prints no CRC: line, since no CRC was added."""
         # Arrange
         ctx, output, tx_bytes = send_env
         args = "01 03 00 00 00 01"
@@ -281,6 +299,7 @@ class TestSendCrcEdgeCases:
     # capability gate lives in test_engine.TestDispatchCapabilities.
 
     def test_empty_args(self, send_env):
+        """Empty args raise UsageError and send nothing to the port."""
         # Arrange
         ctx, output, tx_bytes = send_env
 
@@ -295,6 +314,7 @@ class TestSendCrcAlgorithms:
     """Verify CRC-append works with different algorithm widths."""
 
     def test_crc8(self, send_env):
+        """A 1-byte CRC algorithm appends exactly one CRC byte."""
         # Arrange - use a CRC-8 algorithm
         ctx, output, tx_bytes = send_env
         registry = get_crc_registry()
@@ -316,6 +336,7 @@ class TestSendCrcAlgorithms:
         assert actual == data + bytes([expected_crc]), "1-byte CRC appended"
 
     def test_crc32(self, send_env):
+        """A 4-byte refout algorithm appends its CRC little-endian, its natural wire order."""
         # Arrange - use a refout=True 4-byte CRC so the natural-wire
         # default lands on LE.  Iterate the registry rather than naming
         # a specific algorithm so the test survives reordering, but
@@ -347,6 +368,7 @@ class TestSendDryRun:
     """``--dry-run`` skips serial I/O and prints the bytes that would be sent."""
 
     def test_dry_run_skips_write(self, send_env):
+        """--dry-run writes nothing to the port and prints a TX (dry-run) line."""
         # Arrange
         ctx, output, tx_bytes = send_env
         ctx.active_flags = {"--dry-run"}
@@ -360,6 +382,7 @@ class TestSendDryRun:
         assert actual_lines, "TX (dry-run) line shown"
 
     def test_dry_run_default_uses_dot_sidebar(self, send_env):
+        """Dry-run shows hex plus a dotted ASCII sidebar, not the old quoted escape text."""
         # Regression: dry-run prints hex bytes + an ASCII sidebar
         # (``|......|`` for non-printable), NOT the dual
         # hex + "\0\0\0\n" smart-text rendering the old default used.
@@ -382,6 +405,7 @@ class TestSendDryRun:
         assert "\\0" not in line, "no escape rendering of null bytes"
 
     def test_dry_run_with_ascii_flag_uses_quoted_text(self, send_env):
+        """--ascii switches the dry-run line to quoted text with escapes for CR and LF."""
         # ``--ascii`` switches to the quoted escape-text rendering.
         ctx, output, _ = send_env
         ctx.active_flags = {"--dry-run", "--ascii"}
@@ -398,6 +422,7 @@ class TestSendDryRun:
         )
 
     def test_dry_run_value_is_frame_hex(self, send_env):
+        """Dry-run returns the assembled frame, CRC included, as hex in result.value."""
         # Arrange -- crc16-modbus is refout=True so natural wire order is LE.
         ctx, output, tx_bytes = send_env
         ctx.active_flags = {"--dry-run"}
@@ -416,6 +441,7 @@ class TestSendDryRun:
         assert actual == expected, "result.value carries the assembled frame as hex"
 
     def test_dry_run_works_when_disconnected(self):
+        """--dry-run needs no connection, so frames can be previewed offline."""
         # Arrange -- is_connected returns False; --dry-run must still succeed.
         from termapy.plugins import IOHandle, SerialHandle
         output: list = []
@@ -440,6 +466,7 @@ class TestSendDryRun:
         assert result.success, "dry-run succeeds without a connection"
 
     def test_no_dry_run_when_disconnected_fails(self):
+        """A real send while disconnected fails with the standard Not connected. message."""
         # Arrange -- no --dry-run, no connection: should refuse cleanly.
         from termapy.plugins import IOHandle, SerialHandle
         output: list = []

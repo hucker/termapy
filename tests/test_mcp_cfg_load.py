@@ -55,6 +55,7 @@ def host(two_cfgs):
 
 class TestMcpCfgLoad:
     def test_load_by_name_switches_cfg(self, host, two_cfgs):
+        """Loading by bare name resolves the cfg file and repoints config_path."""
         # Arrange
         cfg_a, cfg_b = two_cfgs
 
@@ -68,6 +69,7 @@ class TestMcpCfgLoad:
         assert actual == expected, "config_path now points at beta"
 
     def test_load_swaps_in_memory_cfg(self, host):
+        """After a load the host serves the new config's values, not the old ones."""
         # Arrange - alpha has line_ending=\r, beta has \n
 
         # Act
@@ -79,6 +81,7 @@ class TestMcpCfgLoad:
         assert actual == expected, "in-memory cfg replaced with beta's contents"
 
     def test_load_unknown_name_fails(self, host):
+        """An unknown config name fails with a "No config matching" error."""
         # Act
         result = host._load_config("nonexistent_xyz")
 
@@ -88,6 +91,7 @@ class TestMcpCfgLoad:
             f"error message names the missing cfg, got: {result.error}"
 
     def test_load_via_dispatch_works(self, host, two_cfgs):
+        """/cfg.load through REPL dispatch, as an MCP call sends it, updates the host."""
         # Arrange - exercise the path end users hit: REPL dispatch of /cfg.load
         _, cfg_b = two_cfgs
 
@@ -100,6 +104,7 @@ class TestMcpCfgLoad:
             "dispatched /cfg.load actually updated host state"
 
     def test_load_fires_on_config_load_hook(self, host, two_cfgs):
+        """A load fires the on_config_load lifecycle hook exactly once."""
         # Arrange - register a marker hook so we can detect it firing
         from termapy.plugins import LifecycleHook
 
@@ -122,6 +127,7 @@ class TestMcpCfgLoad:
         assert fired == ["yes"], "on_config_load fired exactly once"
 
     def test_load_returns_path_in_value(self, host, two_cfgs):
+        """The result value is the loaded cfg path, so scripts can read it."""
         # Arrange
         _, cfg_b = two_cfgs
 
@@ -152,17 +158,20 @@ class TestZeroConfigMcpHost:
         return MCPHost(cfg, "", verbose=False)
 
     def test_starts_with_no_log_path(self, zero_host):
+        """A host started without a cfg has no log file and no mcp/ folder."""
         # Assert
         assert zero_host._log_path is None, "no log path before cfg.load"
         assert zero_host._mcp_dir is None, "no mcp dir before cfg.load"
 
     def test_log_line_no_op_without_cfg(self, zero_host):
+        """Logging before any cfg is loaded is silently dropped, never raised."""
         # Act - should not raise even with _log_path=None
         zero_host._log_line("startup message")
 
         # Assert (no exception is the test; nothing to file-check)
 
     def test_load_routes_log_to_cfg_dir(self, zero_host, tmp_path):
+        """The first /cfg.load binds the log under that cfg's mcp/ folder."""
         # Arrange - confirm starting state
         assert zero_host._log_path is None, "starts unbound"
 
@@ -177,6 +186,7 @@ class TestZeroConfigMcpHost:
             f"log lives under cfg's mcp/, got: {actual_log}"
 
     def test_switch_re_routes_log(self, zero_host, tmp_path):
+        """Switching configs moves the log to the new cfg, away from the old one."""
         # Arrange - load alpha first
         zero_host._load_config("alpha")
         first_log = zero_host._log_path
@@ -209,6 +219,7 @@ class TestCfgLoadIdentity:
     """
 
     def test_host_and_engine_share_one_dict_after_load(self, host):
+        """After a load host.cfg is the engine's dict itself, not an equal copy."""
         # Act
         host._load_config("beta")
 
@@ -217,6 +228,7 @@ class TestCfgLoadIdentity:
             "host.cfg rebinds to the engine's dict, not the transient load"
 
     def test_session_set_visible_to_cfg_query_after_load(self, host):
+        """A /cfg.auto set after a load reads back through /cfg, not a stale value."""
         # Arrange
         host._load_config("beta")
 
@@ -266,6 +278,7 @@ class TestCfgLoadFiresOnConnected:
         return cfg_path
 
     def test_cfg_load_fires_mcp_on_connect_cmd(self, tmp_path, monkeypatch):
+        """A load that auto-connects runs the new cfg's mcp_on_connect_cmd."""
         # Arrange - cfg with mcp_on_connect_cmd set, monkeypatched cfg_dir
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
         self._make_cfg(tmp_path, "target", mcp_on_connect_cmd="/ver")

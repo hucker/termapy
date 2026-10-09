@@ -38,6 +38,7 @@ def _set_platform(monkeypatch, platform: str) -> None:
 
 
 def test_override_true_wins_even_in_ssh(monkeypatch):
+    """TERMAPY_GUI=1 forces GUI apps on even in an SSH session with no display."""
     # Arrange — SSH session, no display: would normally be False
     monkeypatch.setenv("SSH_CONNECTION", "1.2.3.4 22 5.6.7.8 22")
     monkeypatch.setenv("TERMAPY_GUI", "1")
@@ -51,6 +52,7 @@ def test_override_true_wins_even_in_ssh(monkeypatch):
 
 
 def test_override_false_wins_on_native_linux(monkeypatch):
+    """TERMAPY_GUI=0 forces GUI apps off even on native Linux with a DISPLAY."""
     # Arrange — native Linux with DISPLAY: would normally be True
     monkeypatch.setenv("DISPLAY", ":0")
     monkeypatch.setenv("TERMAPY_GUI", "0")
@@ -65,6 +67,7 @@ def test_override_false_wins_on_native_linux(monkeypatch):
 
 @pytest.mark.parametrize("value", ["yes", "true", "on"])
 def test_override_truthy_aliases(monkeypatch, value):
+    """The override accepts yes/true/on as well as 1, overriding a headless Linux box."""
     # Arrange
     monkeypatch.setenv("TERMAPY_GUI", value)
     _set_platform(monkeypatch, "linux")
@@ -78,6 +81,7 @@ def test_override_truthy_aliases(monkeypatch, value):
 
 @pytest.mark.parametrize("value", ["no", "false", "off"])
 def test_override_falsy_aliases(monkeypatch, value):
+    """The override accepts no/false/off as well as 0, overriding a present DISPLAY."""
     # Arrange
     monkeypatch.setenv("TERMAPY_GUI", value)
     monkeypatch.setenv("DISPLAY", ":0")
@@ -94,6 +98,7 @@ def test_override_falsy_aliases(monkeypatch, value):
 
 
 def test_ssh_connection_no_display_returns_false(monkeypatch):
+    """A plain SSH session with no forwarded display cannot open GUI apps."""
     # Arrange
     monkeypatch.setenv("SSH_CONNECTION", "1.2.3.4 22 5.6.7.8 22")
     _set_platform(monkeypatch, "linux")
@@ -106,6 +111,7 @@ def test_ssh_connection_no_display_returns_false(monkeypatch):
 
 
 def test_ssh_with_x11_forwarding_returns_true(monkeypatch):
+    """SSH with X11 forwarding sets DISPLAY, so GUI apps are reachable after all."""
     # Arrange — SSH session with X11 forwarding sets DISPLAY too
     monkeypatch.setenv("SSH_CONNECTION", "1.2.3.4 22 5.6.7.8 22")
     monkeypatch.setenv("DISPLAY", "localhost:10.0")
@@ -119,6 +125,7 @@ def test_ssh_with_x11_forwarding_returns_true(monkeypatch):
 
 
 def test_ssh_tty_alone_treated_as_ssh(monkeypatch):
+    """SSH_TTY without SSH_CONNECTION still counts as an SSH session."""
     # Arrange — some setups set SSH_TTY but not SSH_CONNECTION
     monkeypatch.setenv("SSH_TTY", "/dev/pts/0")
     _set_platform(monkeypatch, "linux")
@@ -134,6 +141,7 @@ def test_ssh_tty_alone_treated_as_ssh(monkeypatch):
 
 
 def test_linux_with_display_returns_true(monkeypatch):
+    """A native Linux desktop with an X11 DISPLAY can open GUI apps."""
     # Arrange
     monkeypatch.setenv("DISPLAY", ":0")
     _set_platform(monkeypatch, "linux")
@@ -146,6 +154,7 @@ def test_linux_with_display_returns_true(monkeypatch):
 
 
 def test_linux_with_wayland_returns_true(monkeypatch):
+    """A Wayland-only Linux desktop counts as GUI-capable without DISPLAY."""
     # Arrange
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
     _set_platform(monkeypatch, "linux")
@@ -158,6 +167,7 @@ def test_linux_with_wayland_returns_true(monkeypatch):
 
 
 def test_linux_no_display_returns_false(monkeypatch):
+    """Headless Linux (CI, containers, servers) reports no GUI apps."""
     # Arrange — headless Linux box (CI, container, server, ...)
     _set_platform(monkeypatch, "linux")
 
@@ -169,6 +179,7 @@ def test_linux_no_display_returns_false(monkeypatch):
 
 
 def test_macos_with_display_returns_true(monkeypatch):
+    """macOS with a DISPLAY set is treated as GUI-capable."""
     # Arrange
     monkeypatch.setenv("DISPLAY", ":0")
     _set_platform(monkeypatch, "darwin")
@@ -181,6 +192,7 @@ def test_macos_with_display_returns_true(monkeypatch):
 
 
 def test_windows_returns_true(monkeypatch):
+    """Native Windows is assumed GUI-capable with no env vars set."""
     # Arrange — assume native Windows always has GUI; WSL caller can override
     _set_platform(monkeypatch, "win32")
 
@@ -192,6 +204,7 @@ def test_windows_returns_true(monkeypatch):
 
 
 def test_unknown_platform_returns_false(monkeypatch):
+    """An unrecognized platform fails safe to no GUI apps rather than guessing yes."""
     # Arrange — some hypothetical unknown platform; fail safe
     _set_platform(monkeypatch, "freebsd")
 

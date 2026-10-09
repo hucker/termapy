@@ -91,6 +91,7 @@ class TestCfgLoadFromZeroConfig:
     """Zero-config start -> /cfg.load -> real config in the same session."""
 
     def test_load_existing_config_by_name(self, tmp_path):
+        """Switching to another on-disk config mid-session announces it without restarting."""
         # Arrange -- a real config on disk, started from zero-config so
         # the app comes up with DEFAULT_CFG, then the script loads it.
         cfg_dir = tmp_path / "termapy_cfg"
@@ -141,6 +142,7 @@ class TestCfgLoadFromZeroConfig:
         )
 
     def test_load_unknown_config_errors_gracefully(self, tmp_path):
+        """An unknown config name reports an error and the script keeps running."""
         # Arrange
         cfg_dir = tmp_path / "termapy_cfg"
         cfg_dir.mkdir()
@@ -180,6 +182,7 @@ class TestCfgLoadFromZeroConfig:
         )
 
     def test_load_without_name_errors(self, tmp_path):
+        """A bare /cfg.load shows usage instead of loading anything; the script continues."""
         # Arrange
         cfg_dir = tmp_path / "termapy_cfg"
         cfg_dir.mkdir()
@@ -223,6 +226,7 @@ class TestCfgLoadSwitchesPortContext:
     """Loading a new config updates the cfg dict in-session."""
 
     def test_loaded_config_values_visible(self, tmp_path):
+        """After the switch, /cfg reads the new config's baud rate, not the old one."""
         # Arrange -- two configs with different baud rates.  Start on
         # the first, /cfg.load the second, verify the new baud_rate
         # is visible via /cfg baud_rate.

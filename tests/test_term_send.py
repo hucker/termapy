@@ -67,6 +67,7 @@ def env(tmp_path):
 
 class TestTermSendHappyPath:
     def test_sends_bytes_with_default_line_ending(self, env):
+        """/term.send writes the text plus the cfg eol, here the default CR."""
         # Arrange
         eng, ctx, _output, writes = env
         # Act
@@ -76,6 +77,7 @@ class TestTermSendHappyPath:
         assert writes == [b"AT+VER\r"], "bytes match: text + default \\r"
 
     def test_uses_lf_line_ending_from_cfg(self, env):
+        """An eol changed to LF after startup is read at send time."""
         # Arrange
         eng, ctx, _output, writes = env
         eng._cfg_data["eol"] = "\n"
@@ -85,6 +87,7 @@ class TestTermSendHappyPath:
         assert writes == [b"hello\n"], "newline line ending honored"
 
     def test_uses_crlf_line_ending(self, env):
+        """A two-character CRLF eol is appended whole."""
         # Arrange
         eng, ctx, _output, writes = env
         eng._cfg_data["eol"] = "\r\n"
@@ -94,6 +97,7 @@ class TestTermSendHappyPath:
         assert writes == [b"hello\r\n"], "CRLF line ending honored"
 
     def test_uses_utf8_encoding(self, env):
+        """Non-ASCII text is encoded with the cfg encoding, UTF-8 by default."""
         # Arrange
         eng, ctx, _output, writes = env
         # Act
@@ -102,6 +106,7 @@ class TestTermSendHappyPath:
         assert writes == [b"caf\xc3\xa9\r"], "utf-8 encoding for non-ASCII"
 
     def test_uses_latin1_encoding_when_configured(self, env):
+        """A latin-1 cfg encoding gives one byte per character instead of UTF-8."""
         # Arrange
         eng, ctx, _output, writes = env
         eng._cfg_data["encoding"] = "latin-1"
@@ -116,6 +121,7 @@ class TestTermSendHappyPath:
 
 class TestTermSendErrors:
     def test_no_args_returns_usage(self, env):
+        """Bare /term.send is a usage error and writes nothing, not an empty line."""
         # Arrange
         eng, _ctx, _output, writes = env
         # Act
@@ -126,6 +132,7 @@ class TestTermSendErrors:
         assert writes == [], "no bytes written"
 
     def test_disconnected_returns_not_connected(self, env, tmp_path):
+        """With no port open, the send fails with the standard Not connected. message."""
         # Arrange — rebuild ctx with is_connected returning False
         cfg = {"port": "COM4", "eol": "\r", "encoding": "utf-8"}
         config_path = tmp_path / "cfg2" / "test.cfg"
@@ -157,6 +164,7 @@ class TestTermSendErrors:
         assert writes == [], "nothing sent when not connected"
 
     def test_serial_write_raises_returns_send_error(self, env):
+        """An OSError from the write becomes a Send error result, not an exception."""
         # Arrange
         eng, ctx, _output, _writes = env
 
@@ -186,6 +194,7 @@ class TestByteEquivalence:
         ["AT", "ATZ", "AT+VER", "AT+CSQ", "hello world"],
     )
     def test_bare_line_matches_explicit_term_send(self, env, text):
+        """Typing a plain line puts the same bytes on the wire as /term.send with that line."""
         # Arrange — capture bytes from a bare-line dispatch_full
         eng_a, _ctx_a, _output_a, writes_a = env
         # Act
@@ -217,6 +226,7 @@ class TestByteEquivalence:
 
 class TestCatalogPresence:
     def test_term_send_resolves_as_a_subcommand(self, env):
+        """term.send is a registered command, so bare use gives Usage, not Unknown command."""
         # Arrange
         eng, _ctx, _output, _writes = env
         # Act — dispatch a no-args invocation; should fail with Usage, not
@@ -261,6 +271,7 @@ class TestCliTypedArgValidation:
     truth.  When on, bad values short-circuit before the wire."""
 
     def test_off_by_default_passes_bytes_through(self, env):
+        """With validate_typed_args unset, a bad typed value still goes to the device."""
         # Arrange -- profile says ECHO takes on_off; cfg flag is off (default).
         eng, ctx, _output, writes = env
         _load_test_profile(ctx)
@@ -279,6 +290,7 @@ class TestCliTypedArgValidation:
         )
 
     def test_on_blocks_bad_value_before_wire(self, env):
+        """With validation on, a bad value fails, sends nothing, and the status names it."""
         # Arrange -- enable the flag.
         eng, ctx, _output, writes = env
         ctx.cfg["validate_typed_args"] = True
@@ -301,6 +313,7 @@ class TestCliTypedArgValidation:
         )
 
     def test_on_passes_good_value_to_wire(self, env):
+        """With validation on, a valid typed value is sent unchanged."""
         # Arrange
         eng, ctx, _output, writes = env
         ctx.cfg["validate_typed_args"] = True
@@ -320,6 +333,7 @@ class TestCliTypedArgValidation:
         )
 
     def test_on_with_no_profile_loaded_passes_through(self, env):
+        """With validation on but no profile loaded, every line goes to the wire."""
         # Arrange -- flag is on but no profile installed.
         eng, ctx, _output, writes = env
         ctx.cfg["validate_typed_args"] = True
@@ -338,6 +352,7 @@ class TestCliTypedArgValidation:
         )
 
     def test_on_with_unmatched_command_passes_through(self, env):
+        """A line matching no profile command is sent as-is, even with validation on."""
         # Arrange -- profile has ECHO; user types something not in the profile.
         eng, ctx, _output, writes = env
         ctx.cfg["validate_typed_args"] = True

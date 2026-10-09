@@ -25,30 +25,37 @@ _MAIN = Symbol("main", 0x10FFA, 0x1BA, "text", file="main.c")
 class TestHexAddr:
 
     def test_default_width(self):
+        """With no width given, addresses render as 32-bit, eight hex digits."""
         assert hex_addr(0x2010) == "0x00002010", "32-bit -> 8 digits"
 
     def test_sixteen_bit(self):
+        """A 16-bit address width renders four hex digits."""
         assert hex_addr(0x2010, 16) == "0x2010", "16-bit -> 4 digits"
 
     def test_odd_bits_round_up(self):
+        """A width that is not a multiple of 4 rounds up to whole hex digits."""
         assert hex_addr(0x1, 20) == "0x00001", "20 bits -> 5 digits"
 
 
 class TestSymbolicName:
 
     def test_at_start(self):
+        """An address at the symbol's start is the bare name, with no +0x0."""
         assert symbolic_name(_MAIN, 0x10FFA) == "main", "no offset at the start"
 
     def test_above(self):
+        """An address inside the symbol reads name+0xNN, with no space."""
         assert symbolic_name(_MAIN, 0x1100A) == "main+0x10", "hex offset, no space"
 
     def test_below(self):
+        """An address below the start reads name-0xN, a negative offset."""
         assert symbolic_name(_MAIN, 0x10FF6) == "main-0x4", "explicit name-off reaches below"
 
 
 class TestFormatSymbol:
 
     def test_basic_format(self):
+        """The line is address, name, then [label size file] in brackets."""
         # Act
         actual = format_symbol(_MAIN)
 
@@ -56,6 +63,7 @@ class TestFormatSymbol:
         assert actual == "0x00010FFA  main  [code 442 bytes main.c]"
 
     def test_with_offset(self):
+        """Given a query address, the line shows that address and the name+offset."""
         # Act
         actual = format_symbol(_MAIN, 0x1100A)
 
@@ -65,6 +73,7 @@ class TestFormatSymbol:
         )
 
     def test_no_offset_at_start(self):
+        """A query at the exact start adds no +0x offset to the name."""
         # Act
         actual = format_symbol(_MAIN, 0x10FFA)
 
@@ -72,6 +81,7 @@ class TestFormatSymbol:
         assert "+0x" not in actual, "no offset when at the exact start"
 
     def test_global_format_no_size_no_file(self):
+        """A size-0, fileless global shows only its section label in brackets."""
         # Arrange
         symbol = Symbol("sCal", 0x20005A58, 0, "global")
 
@@ -82,6 +92,7 @@ class TestFormatSymbol:
         assert actual == "0x20005A58  sCal  [global]", "size 0 and empty file are omitted"
 
     def test_sixteen_bit_width(self):
+        """address_bits sets the printed address width."""
         # Arrange
         symbol = Symbol("x", 0x1F, 2, "bss")
 
@@ -95,6 +106,7 @@ class TestFormatSymbol:
 class TestSymbolRecord:
 
     def test_fixed_keys(self):
+        """The data record always carries every key, with int and hex address both."""
         # Act
         actual = symbol_record(_MAIN)
 
@@ -110,6 +122,7 @@ class TestSymbolRecord:
 class TestLookupRecord:
 
     def test_hit(self):
+        """A hit record carries the query, address, symbolic form and nested symbol."""
         # Arrange
         parsed = Address("0x1100A", 0x1100A)
 
@@ -124,6 +137,7 @@ class TestLookupRecord:
         assert (actual["offset"], actual["suffix"]) == (0, "")
 
     def test_miss_has_same_keys(self):
+        """A miss has the same keys as a hit, with a null symbol, so agents need no branch."""
         # Arrange
         parsed = Address("1000", 1000)
 
@@ -139,6 +153,7 @@ class TestLookupRecord:
 class TestTableRecord:
 
     def test_agrees_with_info_rows(self):
+        """The data record and the prose rows report the same count, span and sources."""
         # Arrange
         table = SymbolTable(
             [_MAIN, Symbol("sCal", 0x20005A58, 0, "global"), Symbol("buf", 0x20000000, 16, "bss")],
@@ -164,6 +179,7 @@ class TestTableRecord:
         assert (record["address_bits"], record["endian"]) == (32, "le")
 
     def test_empty_table(self):
+        """An empty table gives a null range in data and (empty)/(none) in prose."""
         # Arrange
         table = SymbolTable([])
 

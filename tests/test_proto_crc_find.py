@@ -71,6 +71,7 @@ class TestCrcFindCli:
     """End-to-end through the CLI dispatch."""
 
     def test_bin_modbus_packet_reports_match(self, tmp_path):
+        """A binary frame with a trailing LE Modbus CRC is identified as crc16-modbus."""
         # Arrange -- "123456789" + 37 4B (little-endian Modbus CRC)
         line = "/proto.crc.find bin=31 32 33 34 35 36 37 38 39 37 4B"
 
@@ -90,6 +91,7 @@ class TestCrcFindCli:
         )
 
     def test_asc_modbus_packet_reports_match(self, tmp_path):
+        """asc= text with a hex-ASCII CRC suffix is identified as crc16-modbus."""
         # Arrange -- "123456789" + "4B37" (Modbus CRC as hex-ASCII suffix)
         line = "/proto.crc.find asc=1234567894B37"
 
@@ -104,6 +106,7 @@ class TestCrcFindCli:
         )
 
     def test_missing_input_mode_fails(self, tmp_path):
+        """With neither bin= nor asc= the command prints usage instead of crashing."""
         # Arrange
         line = "/proto.crc.find"
 
@@ -117,6 +120,7 @@ class TestCrcFindCli:
         )
 
     def test_invalid_hex_fails_gracefully(self, tmp_path):
+        """A non-hex byte in bin= is an Invalid hex error, not a traceback."""
         # Arrange -- "ZZ" isn't a valid hex byte
         line = "/proto.crc.find bin=01 ZZ 03"
 
@@ -131,6 +135,7 @@ class TestCrcFindCli:
         )
 
     def test_normal_mode_suppresses_header_and_hint(self, tmp_path):
+        """At normal level only the match prints -- no N-matches header, no codegen hint."""
         # Regression -- normal mode should NOT show the old "1 match:"
         # header or the "Generate source" hint (both demoted under the
         # answer/context/hints model: header dropped as noise, hint
@@ -154,6 +159,7 @@ class TestCrcFindCli:
         )
 
     def test_verbose_mode_shows_generate_hint(self, tmp_path):
+        """The .verbose level adds the codegen hint naming the /proto.crc.<lang> command."""
         # The codegen hint lives at status level -- it only appears
         # when the user opts into verbose output.
         line = "/proto.crc.find.verbose bin=31 32 33 34 35 36 37 38 39 37 4B"

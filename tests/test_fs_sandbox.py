@@ -36,6 +36,7 @@ def _handle(tmp_path, *, unconfined: bool) -> FilesystemHandle:
 
 class TestResolveContainment:
     def test_plain_name_lands_in_folder(self, tmp_path):
+        """A bare file name resolves inside cap/ even when the handle is confined."""
         # Arrange
         fs = _handle(tmp_path, unconfined=False)
         # Act
@@ -46,6 +47,7 @@ class TestResolveContainment:
         )
 
     def test_absolute_refused_under_sandbox(self, tmp_path):
+        """A confined resolve refuses an absolute path as escaping the folder."""
         # Arrange
         fs = _handle(tmp_path, unconfined=False)
         # Act / Assert
@@ -53,6 +55,7 @@ class TestResolveContainment:
             fs.resolve(str(tmp_path / "secret.txt"), "cap")
 
     def test_traversal_refused_under_sandbox(self, tmp_path):
+        """A confined resolve refuses ../ traversal out of the folder, not only absolute paths."""
         # Arrange
         fs = _handle(tmp_path, unconfined=False)
         # Act / Assert
@@ -60,6 +63,7 @@ class TestResolveContainment:
             fs.resolve("../../secret.txt", "cap")
 
     def test_absolute_allowed_when_unconfined(self, tmp_path):
+        """An unconfined handle (CLI/TUI or opted-in MCP) resolves host-wide absolute paths."""
         # Arrange -- operator host (CLI/TUI) or opted-in MCP.
         fs = _handle(tmp_path, unconfined=True)
         target = tmp_path / "anywhere.txt"
@@ -69,6 +73,7 @@ class TestResolveContainment:
         assert actual == target.resolve(), "unconfined host keeps host-wide paths"
 
     def test_unknown_folder_raises_valueerror(self, tmp_path):
+        """An unrecognized folder key is a ValueError (caller bug), not a sandbox refusal."""
         # Arrange
         fs = _handle(tmp_path, unconfined=True)
         # Act / Assert
@@ -78,12 +83,14 @@ class TestResolveContainment:
 
 class TestGuardExternalPath:
     def test_plain_name_allowed(self, tmp_path):
+        """A bare config name is not external, so name-based loads pass the confined guard."""
         # Arrange / Act -- a bare config name is NOT external; must not raise.
         fs = _handle(tmp_path, unconfined=False)
         fs.guard_external_path("mydevice", "Config")
         # Assert -- no exception is the assertion (name-based load survives).
 
     def test_absolute_refused_under_sandbox(self, tmp_path):
+        """A confined guard refuses an absolute path as outside the config sandbox."""
         # Arrange
         fs = _handle(tmp_path, unconfined=False)
         # Act / Assert
@@ -91,6 +98,7 @@ class TestGuardExternalPath:
             fs.guard_external_path(str(tmp_path / "creds.json"), "Config")
 
     def test_traversal_refused_under_sandbox(self, tmp_path):
+        """A confined guard refuses ../ traversal, so a relative path cannot escape either."""
         # Arrange
         fs = _handle(tmp_path, unconfined=False)
         # Act / Assert
@@ -98,6 +106,7 @@ class TestGuardExternalPath:
             fs.guard_external_path("../../etc/passwd", "Profile path")
 
     def test_absolute_allowed_when_unconfined(self, tmp_path):
+        """An unconfined host passes absolute paths through the guard without raising."""
         # Arrange / Act -- operator host: no raise.
         fs = _handle(tmp_path, unconfined=True)
         fs.guard_external_path(str(tmp_path / "creds.json"), "Config")
@@ -129,6 +138,7 @@ def _mcp_host(tmp_path):
 
 class TestMcpHostSandboxed:
     def test_host_is_sandboxed_by_default(self, tmp_path):
+        """With no opt-in flags, MCP lacks both fs and network caps, and the fs handle agrees."""
         # Arrange / Act
         host = _mcp_host(tmp_path)
         # Assert -- both restrictive caps off by default.
@@ -144,6 +154,7 @@ class TestMcpHostSandboxed:
         )
 
     def test_cfg_auto_log_file_absolute_refused(self, tmp_path):
+        """An absolute log_file via cfg.auto is refused -- it was the arbitrary-read setup step."""
         # Arrange -- the CRITICAL arbitrary-read setup step.
         host = _mcp_host(tmp_path)
         # Act
@@ -153,6 +164,7 @@ class TestMcpHostSandboxed:
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
     def test_cfg_auto_nonpath_key_still_works(self, tmp_path):
+        """Only path-valued cfg keys are gated; an ordinary cfg.auto edit still succeeds."""
         # Arrange -- a normal cfg edit must NOT be gated.
         host = _mcp_host(tmp_path)
         # Act
@@ -161,6 +173,7 @@ class TestMcpHostSandboxed:
         assert result.success, "non-path cfg keys are unaffected by the sandbox"
 
     def test_cfg_load_absolute_refused_but_name_ok(self, tmp_path):
+        """Absolute cfg.load paths are refused; name-based loads (MCP hot-swap) stay ungated."""
         # Arrange
         host = _mcp_host(tmp_path)
         # Act -- absolute path refused...
@@ -175,6 +188,7 @@ class TestMcpHostSandboxed:
         )
 
     def test_crc_file_write_refused(self, tmp_path):
+        """CRC codegen with file= is a host-fs write, so the sandbox refuses it."""
         # Arrange
         host = _mcp_host(tmp_path)
         # Act -- codegen to disk is a host-fs write.
@@ -184,6 +198,7 @@ class TestMcpHostSandboxed:
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
     def test_crc_inline_still_works(self, tmp_path):
+        """Inline CRC codegen (no file=) writes nothing to disk and is not sandbox-gated."""
         # Arrange -- inline codegen (no file=) is not a host write.
         host = _mcp_host(tmp_path)
         # Act
@@ -192,6 +207,7 @@ class TestMcpHostSandboxed:
         assert result.success, "inline crc codegen is unaffected by the sandbox"
 
     def test_port_connect_socket_url_refused(self, tmp_path):
+        """A socket:// URL as the port is network egress and is refused without the opt-in."""
         # Arrange
         host = _mcp_host(tmp_path)
         # Act
@@ -201,6 +217,7 @@ class TestMcpHostSandboxed:
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
     def test_cap_poll_absolute_file_refused(self, tmp_path):
+        """An absolute file= on cap.poll is refused as escaping the config sandbox."""
         # Arrange
         host = _mcp_host(tmp_path)
         # Act -- regex=.* keeps the file; file= is an absolute escape.
@@ -214,6 +231,7 @@ class TestMcpHostSandboxed:
         )
 
     def test_crc_calc_absolute_path_refused(self, tmp_path):
+        """A host path as crc.calc data is refused -- it is an existence, size, and CRC oracle."""
         # Arrange -- crc.calc reads a file when its data arg is a path,
         # an existence/size/CRC oracle.
         host = _mcp_host(tmp_path)
@@ -224,6 +242,7 @@ class TestMcpHostSandboxed:
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
     def test_crc_calc_literal_data_still_works(self, tmp_path):
+        """Literal hex bytes to crc.calc are not a path, so the file guard leaves them alone."""
         # Arrange -- literal hex bytes are not a path; the guard is a no-op.
         host = _mcp_host(tmp_path)
         # Act
@@ -232,6 +251,7 @@ class TestMcpHostSandboxed:
         assert result.success, "literal-data crc.calc is unaffected by the sandbox"
 
     def test_cfg_icon_filtered_from_catalog(self, tmp_path):
+        """The cfg.icon command needs gui_apps, which MCP lacks, so the MCP catalog omits it."""
         # Arrange -- icon spawns a subprocess / writes a desktop launcher;
         # gated on gui_apps, which MCP lacks, so it drops out of the catalog.
         from termapy.mcp.catalog import build_catalog
@@ -245,6 +265,7 @@ class TestMcpHostSandboxed:
         )
 
     def test_cfg_icon_dispatch_refused(self, tmp_path):
+        """Calling cfg.icon directly hits the capability gate, not a command-not-found error."""
         # Arrange
         host = _mcp_host(tmp_path)
         # Act
@@ -265,6 +286,7 @@ class TestMcpHostOptedIn:
         return _mcp_host(tmp_path)
 
     def test_optin_grants_filesystem(self, unconfined_host):
+        """The fs opt-in flag grants filesystem_unconfined, and the fs handle snapshot follows."""
         # Assert -- caps + handle snapshot both reflect the opt-in.
         assert unconfined_host.ctx.capabilities.filesystem_unconfined is True, (
             "TERMAPY_MCP_FS_UNCONFINED grants the capability"
@@ -274,6 +296,7 @@ class TestMcpHostOptedIn:
         )
 
     def test_optin_allows_absolute_cfg_auto(self, unconfined_host, tmp_path):
+        """The opt-in restores the absolute log_file edit that a sandboxed host refuses."""
         # Act -- the same call that was refused under the sandbox.
         result = unconfined_host.repl.dispatch(
             rf"cfg.auto log_file {tmp_path}\ok.log"
@@ -289,6 +312,7 @@ class TestMcpRunConfined:
     ONLY inside the per-config run/ dir (same policy as ctx.fs.resolve)."""
 
     def test_run_absolute_path_refused(self, tmp_path):
+        """An absolute script path is refused even though the file exists on disk."""
         # Arrange -- a script OUTSIDE the sandbox
         host = _mcp_host(tmp_path)
         evil = tmp_path / "evil.run"
@@ -302,6 +326,7 @@ class TestMcpRunConfined:
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
     def test_run_traversal_refused(self, tmp_path):
+        """A ../ path from run/ to an out-of-sandbox script is refused, not resolved."""
         # Arrange
         host = _mcp_host(tmp_path)
         evil = tmp_path / "evil.run"
@@ -315,6 +340,7 @@ class TestMcpRunConfined:
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
     def test_run_in_sandbox_script_resolves(self, tmp_path):
+        """A bare name with no suffix still resolves to the matching .run file in run/."""
         # Arrange -- a legitimate script inside the config's run/ dir
         host = _mcp_host(tmp_path)
         run_dir = Path(host.repl.ctx.config_path).parent / "run"

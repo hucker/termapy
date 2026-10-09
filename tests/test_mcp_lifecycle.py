@@ -56,6 +56,7 @@ def _unconfined_mcp(monkeypatch):
 
 class TestTransportBlockRejected:
     def test_profile_with_transport_block_fails_validation(self):
+        """A profile with the retired transport block fails, and the error names it."""
         # Arrange -- a minimal v2 profile that carries the retired
         # transport block.  This is exactly the shape that older
         # hand-rolled profiles would have on disk.
@@ -83,6 +84,7 @@ class TestOnConnectFetchProfile:
     Replaces the retired auto_include_on_connect / device_json_cmd pair."""
 
     def test_on_connect_cmd_fetches_profile_from_device(self, tmp_path):
+        """/profile.load cmd= in mcp_on_connect_cmd fills active_profile from the device."""
         # Arrange -- DEMO answers AT+HELP.JSON with a v2 profile JSON.
         cfg = default_cfg()
         cfg["serial"]["port"] = "DEMO"
@@ -128,6 +130,7 @@ class TestBannerWatcher:
         return h
 
     def test_banner_seen_after_connect(self, host_with_profile):
+        """With the profile's banner pattern loaded, the device's ready line is recorded."""
         # Arrange
         h = host_with_profile
         try:
@@ -146,6 +149,7 @@ class TestBannerWatcher:
                 h._disconnect()
 
     def test_device_state_resource_reflects_banner(self, host_with_profile):
+        """The device_state resource reports banner_seen once the watcher has seen it."""
         # Arrange
         h = host_with_profile
         try:
@@ -194,6 +198,7 @@ class TestDisconnectClearsDeviceState:
         return MCPHost(cfg, str(config_path), verbose=False)
 
     def test_active_profile_cleared_on_disconnect(self, host):
+        """A profile loaded while connected is gone after disconnect."""
         # Arrange -- connect, load a profile, verify it stuck
         host._connect()
         host.repl.dispatch(f"profile.load {DEMO_NDJSON_PROFILE}")
@@ -209,6 +214,7 @@ class TestDisconnectClearsDeviceState:
         )
 
     def test_banner_state_cleared_on_disconnect(self, host):
+        """banner_seen and banner_text reset on disconnect."""
         # Arrange -- simulate a banner observation, then disconnect
         host._connect()
         host._banner_seen = True
@@ -220,6 +226,7 @@ class TestDisconnectClearsDeviceState:
         assert host._banner_text == "", "banner_text reset"
 
     def test_event_buffers_cleared_on_disconnect(self, host):
+        """Last command, expect history, async events and errors all reset."""
         # Arrange -- simulate captured events, then disconnect
         host._connect()
         host._last_command = {"cmd": "AT+TEMP", "success": True}
@@ -267,6 +274,7 @@ class TestAutoLoadProfileOnConnect:
         return cfg_dir
 
     def test_explicit_profile_path_loads(self, cfg_dir):
+        """A profile_path at a non-conventional name loads on connect."""
         # Arrange -- write profile at a non-conventional location
         profile = cfg_dir / "weird-name.profile.json"
         self._write_profile(profile)
@@ -291,6 +299,7 @@ class TestAutoLoadProfileOnConnect:
                 h._disconnect()
 
     def test_convention_profile_loads_when_no_explicit_path(self, cfg_dir):
+        """With profile_path empty, <cfg_name>.profile.json beside the cfg loads."""
         # Arrange -- profile at <cfg_dir>/<cfg_name>.profile.json
         profile = cfg_dir / "test.profile.json"
         self._write_profile(profile)
@@ -315,6 +324,7 @@ class TestAutoLoadProfileOnConnect:
                 h._disconnect()
 
     def test_no_profile_file_is_non_fatal(self, cfg_dir):
+        """No profile anywhere still connects and leaves active_profile empty."""
         # Arrange -- no profile file at any expected location
         cfg = default_cfg()
         cfg["serial"]["port"] = "DEMO"
@@ -335,6 +345,7 @@ class TestAutoLoadProfileOnConnect:
                 h._disconnect()
 
     def test_auto_load_method_lives_on_mcphost_only(self):
+        """Profile auto-load is on MCPHost only; the TUI/CLI base class never gets it."""
         # Arrange / Act / Assert -- the auto-load hook is MCP-only by
         # construction; TUI/CLI inherit from TerminalHost and never get
         # it.  Pinning the invariant so a future "let's hoist this to
@@ -349,6 +360,7 @@ class TestAutoLoadProfileOnConnect:
         )
 
     def test_explicit_path_beats_convention(self, cfg_dir):
+        """When both files exist, profile_path wins and the convention file is skipped."""
         # Arrange -- both files exist, explicit must win
         explicit = cfg_dir / "explicit.profile.json"
         self._write_profile(explicit)

@@ -71,6 +71,7 @@ class TestMarkup:
     """Trivial string-shape helpers."""
 
     def test_green_wraps_text(self):
+        """State text gets the Rich [green] tag that every dynamic help line shares."""
         # Act
         actual = green("hello")
 
@@ -78,6 +79,7 @@ class TestMarkup:
         assert actual == "[green]hello[/]", "green uses Rich markup tag"
 
     def test_state_line_formats_label_and_value(self):
+        """A state line reads 'Current <label> = <value>' in green, one shape for every page."""
         # Act
         actual = state_line("baud", 115200)
 
@@ -86,6 +88,7 @@ class TestMarkup:
         assert actual == expected, "state_line composes canonical shape"
 
     def test_compose_drops_empty_parts(self):
+        """Empty strings and None vanish; the remaining parts join with a blank line between."""
         # Act
         actual = compose("one", "", None, "two")
 
@@ -93,6 +96,7 @@ class TestMarkup:
         assert actual == "one\n\ntwo", "compose joins non-empty with blank line"
 
     def test_compose_all_empty_returns_empty(self):
+        """With nothing to show, compose returns an empty string, not stray blank lines."""
         # Act
         actual = compose("", "", None)
 
@@ -104,6 +108,7 @@ class TestFolderHelpers:
     """``folder_dir`` / ``file_count`` / ``folder_line``."""
 
     def test_folder_dir_uses_direct_ctx_attr(self, tmp_path):
+        """A folder with its own ctx attribute (run/ -> scripts_dir) resolves through it."""
         # Arrange
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
 
@@ -114,6 +119,7 @@ class TestFolderHelpers:
         assert actual == cfg_dir_ / "run", "run/ maps to ctx.scripts_dir"
 
     def test_folder_dir_falls_back_to_config_path_for_viz(self, tmp_path):
+        """A folder with no ctx attribute (viz/) resolves beside the active config file."""
         # Arrange - viz has no direct ctx attribute; derive from config_path
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
 
@@ -124,6 +130,7 @@ class TestFolderHelpers:
         assert actual == cfg_dir_ / "viz", "viz/ derived from config_path"
 
     def test_folder_dir_returns_none_when_ctx_has_nothing(self):
+        """No config path and no folder attribute means no folder: None, not a guessed path."""
         # Arrange - empty ctx, no config_path, no scripts_dir
         ctx = SimpleNamespace(config_path="")
 
@@ -134,6 +141,7 @@ class TestFolderHelpers:
         assert actual is None, "no state, no dir"
 
     def test_file_count_uses_folder_pattern(self, tmp_path):
+        """Only files matching the folder's FOLDER_PATTERNS glob count; strays are ignored."""
         # Arrange - create 3 .run files + 1 non-matching file
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
         for i in range(3):
@@ -149,6 +157,7 @@ class TestFolderHelpers:
         assert FOLDER_PATTERNS["run"] == "*.run", "run pattern sanity check"
 
     def test_file_count_zero_when_folder_missing(self, tmp_path):
+        """A data folder not created yet counts as zero; folders are lazy, so missing is normal."""
         # Arrange - no folder at all
         ctx = SimpleNamespace(config_path=str(tmp_path / "missing" / "x.cfg"))
 
@@ -159,6 +168,7 @@ class TestFolderHelpers:
         assert actual == 0, "missing folder yields zero, not error"
 
     def test_folder_line_pluralizes(self, tmp_path):
+        """The folder line says '1 file' but '0 files' and '2 files'."""
         # Arrange - 0, 1, 2 files -> "files", "file", "files"
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
 
@@ -177,6 +187,7 @@ class TestFolderHelpers:
         assert actual_two == "[green]2 files in run/[/]", "plural"
 
     def test_folder_line_custom_noun(self, tmp_path):
+        """A caller-supplied noun replaces 'file', as in '1 screenshot in ss/'."""
         # Arrange
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
         (cfg_dir_ / "ss" / "cap.txt").write_text("x", encoding="utf-8")
@@ -192,6 +203,7 @@ class TestPortHelpers:
     """``port_setting`` / ``port_status`` against a fake pyserial."""
 
     def test_port_setting_returns_none_when_port_missing(self, tmp_path):
+        """With no port object a setting reads as None instead of raising."""
         # Arrange
         ctx, _ = _fake_ctx(tmp_path, port=None)
 
@@ -202,6 +214,7 @@ class TestPortHelpers:
         assert actual is None, "no port => None, no exception"
 
     def test_port_setting_reads_live_attr(self, tmp_path):
+        """A setting is read from the live port object, so help shows the actual value."""
         # Arrange - fake port object with baudrate
         fake = SimpleNamespace(baudrate=9600, bytesize=8)
         ctx, _ = _fake_ctx(tmp_path, port=fake)
@@ -213,6 +226,7 @@ class TestPortHelpers:
         assert actual == 9600, "reads live pyserial attribute"
 
     def test_port_status_not_connected_when_closed(self, tmp_path):
+        """A disconnected session reports 'Not connected' in the shared green style."""
         # Arrange
         ctx, _ = _fake_ctx(tmp_path, connected=False)
 
@@ -223,6 +237,7 @@ class TestPortHelpers:
         assert actual == "[green]Not connected[/]", "closed port -> canned text"
 
     def test_port_status_summary_when_open(self, tmp_path):
+        """An open port reads 'Connected: <port> @ <baud> 8N1', built from its live attributes."""
         # Arrange
         fake = SimpleNamespace(
             port="COM3", baudrate=115200, bytesize=8, parity="N", stopbits=1,
@@ -237,6 +252,7 @@ class TestPortHelpers:
         assert actual == expected, "open port summary shape"
 
     def test_port_status_propagates_is_connected_errors(self, tmp_path):
+        """A raising is_connected surfaces instead of being masked as 'Not connected'."""
         # Arrange - a buggy is_connected that raises should surface,
         # not be swallowed into a misleading "Not connected" string.
         # Hiding bugs is the anti-pattern we're trying to avoid.
@@ -252,6 +268,7 @@ class TestCfgHelpers:
     """``cfg_name`` / ``cfg_count`` / ``cfg_status``."""
 
     def test_cfg_name_from_config_path(self, tmp_path):
+        """The config name is the name of the folder holding config_path."""
         # Arrange
         ctx, _ = _fake_ctx(tmp_path, cfg_name="acme")
 
@@ -262,6 +279,7 @@ class TestCfgHelpers:
         assert actual == "acme", "name is the parent directory's stem"
 
     def test_cfg_name_empty_when_no_path(self):
+        """No loaded config yields an empty name rather than an error."""
         # Arrange
         ctx = SimpleNamespace(config_path="")
 
@@ -272,6 +290,7 @@ class TestCfgHelpers:
         assert actual == "", "empty path -> empty name"
 
     def test_cfg_count_only_counts_dirs_with_matching_cfg(self, tmp_path):
+        """A sibling folder without its own <name>.cfg is not counted as a config."""
         # Arrange - one valid config + one stray directory without cfg
         ctx, cfg_dir_ = _fake_ctx(tmp_path, cfg_name="demo")
         stray = cfg_dir_.parent / "stray"
@@ -285,6 +304,7 @@ class TestCfgHelpers:
         assert actual == 1, "only dirs containing <name>.cfg count"
 
     def test_cfg_count_multiple(self, tmp_path):
+        """Every sibling folder holding a matching <name>.cfg counts, not just the active one."""
         # Arrange - two configs side by side
         ctx, cfg_dir_ = _fake_ctx(tmp_path, cfg_name="demo")
         other = cfg_dir_.parent / "other"
@@ -298,6 +318,7 @@ class TestCfgHelpers:
         assert actual == 2, "multiple siblings counted"
 
     def test_cfg_status_singular_and_plural(self, tmp_path):
+        """A lone config reads '(1 config available)'; only the singular form is exercised."""
         # Arrange - singular
         ctx, _ = _fake_ctx(tmp_path, cfg_name="demo")
 
@@ -309,6 +330,7 @@ class TestCfgHelpers:
         assert actual == expected, "singular form for one"
 
     def test_cfg_status_empty_when_no_active(self):
+        """No active config yields an empty status, so compose drops the line entirely."""
         # Arrange
         ctx = SimpleNamespace(config_path="")
 
@@ -321,6 +343,7 @@ class TestCfgHelpers:
 
 class TestNsCount:
     def test_ns_count_returns_len(self):
+        """The count is the number of entries in the named plugin namespace."""
         # Arrange
         ctx = SimpleNamespace(ns=lambda name: {"a": 1, "b": 2})
 
@@ -331,6 +354,7 @@ class TestNsCount:
         assert actual == 2, "returns length of namespace dict"
 
     def test_ns_count_propagates_ns_errors(self):
+        """A broken ns() raises through; only a missing ns attribute counts as zero."""
         # Arrange - a buggy ns() should surface the exception, not get
         # silently coerced to 0.  ns_count only guards MISSING ns
         # (getattr returns None), not PRESENT-but-broken ns.

@@ -31,6 +31,7 @@ class TestAtRnd:
     """``AT+RND`` emits one packet using a random catalog algorithm."""
 
     def test_response_is_payload_plus_catalogue_crc(self):
+        """The packet verifies under one curated algorithm, so /proto.crc.find can name it."""
         # Arrange
         s = FakeSerial()
 
@@ -75,6 +76,7 @@ class TestAtRndCustom:
     a deterministic length cycle."""
 
     def test_length_cycle_matches_documented_pattern(self):
+        """Payload lengths follow the 8,16,8,16,24 cycle that the reverse walkthrough relies on."""
         # Arrange -- the cycle is [8, 16, 8, 16, 24] payload bytes;
         # each packet adds 2 CRC bytes and 2 CRLF bytes.
         s = FakeSerial()
@@ -97,6 +99,7 @@ class TestAtRndCustom:
         )
 
     def test_crc_matches_reveal_params(self):
+        """Packet CRCs use the secret params, so a recovered poly can be checked against them."""
         # Arrange -- capture one packet, recompute its CRC against the
         # REVEAL'd secret params, and confirm they match.
         s = FakeSerial()
@@ -126,6 +129,7 @@ class TestAtRndCustomReveal:
     """``AT+RND.CUSTOM.REVEAL`` prints the secret params in kv form."""
 
     def test_reveal_contains_documented_params(self):
+        """REVEAL prints all six Rocksoft params with the values the docs promise."""
         # Arrange
         s = FakeSerial()
 

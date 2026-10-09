@@ -29,6 +29,7 @@ def _make_engine(cfg=None):
 
 class TestConnect:
     def test_connect_succeeds(self):
+        """A successful connect opens the port and sets up the reader alongside it."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -43,6 +44,7 @@ class TestConnect:
         engine.disconnect()
 
     def test_connect_when_already_connected(self):
+        """Connecting while already connected reports success instead of failing."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -55,6 +57,7 @@ class TestConnect:
         engine.disconnect()
 
     def test_connect_failure(self):
+        """An open_fn that raises makes connect return False and leaves it disconnected."""
         # Arrange
         capture = CaptureEngine()
         engine = SerialEngine(
@@ -71,6 +74,7 @@ class TestConnect:
         assert engine.is_connected is False, "engine should not be connected"
 
     def test_disconnect(self):
+        """Disconnect clears both the connected flag and the serial port handle."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -83,6 +87,7 @@ class TestConnect:
         assert engine.serial_port is None, "serial_port should be cleared"
 
     def test_disconnect_when_not_connected(self):
+        """Disconnecting a never-connected engine is a harmless no-op."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -98,6 +103,7 @@ class TestConnect:
 
 class TestProperties:
     def test_port_obj_is_fake_serial(self):
+        """port_obj exposes the exact object open_fn returned."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -107,6 +113,7 @@ class TestProperties:
         engine.disconnect()
 
     def test_rx_queue_exists(self):
+        """The RX queue exists from construction, before any connect."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -114,6 +121,7 @@ class TestProperties:
         assert engine.rx_queue is not None, "rx_queue should exist"
 
     def test_serial_claimed_default(self):
+        """A new engine starts with the port unclaimed."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -121,6 +129,7 @@ class TestProperties:
         assert engine.serial_claimed is False, "serial_claimed defaults to False"
 
     def test_serial_claimed_setter(self):
+        """serial_claimed is writable and reads back what was set."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -138,6 +147,7 @@ class TestProperties:
 
 class TestReadLoop:
     def test_read_loop_receives_lines(self):
+        """Bytes waiting on the port reach on_lines as decoded lines."""
         # Arrange - FakeSerial enqueues the reply synchronously on write, so
         # it is already waiting to be read.
         engine, _, _ = _make_engine()
@@ -170,6 +180,7 @@ class TestReadLoop:
         assert any("OK" in line for line in lines_received), "AT should produce OK"
 
     def test_read_loop_stops_on_event(self):
+        """Setting stop_event ends the loop, exits the thread, and signals reader_stopped."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -191,6 +202,7 @@ class TestReadLoop:
         assert engine.reader_stopped.is_set(), "flag set"
 
     def test_read_loop_calls_on_error(self):
+        """A port read that raises is reported through on_error with its message."""
         # Arrange - port that raises on read
         errors = []
 
@@ -223,6 +235,7 @@ class TestReadLoop:
         assert "read failed" in errors[0], "error message should contain 'read failed'"
 
     def test_read_loop_without_connect(self):
+        """With no port the loop returns at once and still signals reader_stopped."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -238,6 +251,7 @@ class TestReadLoop:
 
 class TestReconnect:
     def test_try_reconnect_success(self):
+        """try_reconnect returns True when the port opens."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -248,6 +262,7 @@ class TestReconnect:
         assert result is True, "FakeSerial always opens"
 
     def test_try_reconnect_failure(self):
+        """try_reconnect returns False, not an exception, when the open raises."""
         # Arrange
         capture = CaptureEngine()
         engine = SerialEngine(
@@ -269,6 +284,7 @@ class TestReconnect:
 class TestRxObservers:
 
     def test_add_and_remove(self):
+        """A removed RX observer is gone from the observer list."""
         # Arrange
         engine, _, _ = _make_engine()
         received = []
@@ -283,6 +299,7 @@ class TestRxObservers:
         assert cb not in engine._rx_observers, "observer should be removed"
 
     def test_add_duplicate_is_noop(self):
+        """Adding the same RX observer twice registers it once, so it fires once."""
         # Arrange
         engine, _, _ = _make_engine()
         def cb(data):
@@ -296,6 +313,7 @@ class TestRxObservers:
         assert engine._rx_observers.count(cb) == 1, "should not add duplicate"
 
     def test_remove_nonexistent_is_noop(self):
+        """Removing an RX observer that was never added does not raise."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -303,6 +321,7 @@ class TestRxObservers:
         engine.remove_rx_observer(lambda data: None)
 
     def test_observer_receives_rx_data(self):
+        """RX observers get the raw received bytes from the reader loop."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -333,6 +352,7 @@ class TestRxObservers:
         engine.disconnect()
 
     def test_exception_in_observer_does_not_block_others(self):
+        """One RX observer raising does not stop later observers getting data."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -372,6 +392,7 @@ class TestRxObservers:
 class TestTxObservers:
 
     def test_add_and_remove(self):
+        """A removed TX observer is gone from the observer list."""
         # Arrange
         engine, _, _ = _make_engine()
         def cb(data):
@@ -385,6 +406,7 @@ class TestTxObservers:
         assert cb not in engine._tx_observers, "observer should be removed"
 
     def test_notify_tx_fires_observers(self):
+        """notify_tx hands each payload to TX observers in send order."""
         # Arrange
         engine, _, _ = _make_engine()
         received = []
@@ -398,6 +420,7 @@ class TestTxObservers:
         assert received == [b"hello", b"world"], "observer should receive TX data"
 
     def test_exception_in_tx_observer_does_not_block_others(self):
+        """One TX observer raising does not stop later observers getting data."""
         # Arrange
         engine, _, _ = _make_engine()
         received = []
@@ -415,6 +438,7 @@ class TestTxObservers:
         assert received == [b"test"], "second observer should work despite first raising"
 
     def test_add_duplicate_is_noop(self):
+        """Adding the same TX observer twice registers it once, so it fires once."""
         # Arrange
         engine, _, _ = _make_engine()
         def cb(data):
@@ -433,6 +457,7 @@ class TestTxObservers:
 
 class TestHardwareSignals:
     def test_toggle_dtr(self):
+        """toggle_dtr on a live port returns the new DTR level as a bool."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -445,6 +470,7 @@ class TestHardwareSignals:
         engine.disconnect()
 
     def test_toggle_rts(self):
+        """toggle_rts on a live port returns the new RTS level as a bool."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -457,6 +483,7 @@ class TestHardwareSignals:
         engine.disconnect()
 
     def test_send_break(self):
+        """send_break on a live port completes without raising."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -466,6 +493,7 @@ class TestHardwareSignals:
         engine.disconnect()
 
     def test_get_hw_state(self):
+        """get_hw_state on a live port returns the DTR and RTS levels as bools."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -479,6 +507,7 @@ class TestHardwareSignals:
         engine.disconnect()
 
     def test_toggle_dtr_when_disconnected(self):
+        """toggle_dtr with no port raises OSError Not connected rather than crashing."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -487,6 +516,7 @@ class TestHardwareSignals:
             engine.toggle_dtr()
 
     def test_toggle_rts_when_disconnected(self):
+        """toggle_rts with no port raises OSError Not connected rather than crashing."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -495,6 +525,7 @@ class TestHardwareSignals:
             engine.toggle_rts()
 
     def test_send_break_when_disconnected(self):
+        """send_break with no port raises OSError Not connected rather than crashing."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -503,6 +534,7 @@ class TestHardwareSignals:
             engine.send_break()
 
     def test_get_hw_state_when_disconnected(self):
+        """get_hw_state with no port raises OSError Not connected rather than crashing."""
         # Arrange
         engine, _, _ = _make_engine()
 
@@ -517,6 +549,7 @@ class TestHardwareSignals:
 @pytest.mark.slow  # ~2.5s sleep-based reconnect simulation
 class TestReconnectLoop:
     def test_reconnect_loop_success(self):
+        """The reconnect loop reports Connecting status while it works toward a connection."""
         # Arrange
         engine, _, _ = _make_engine()
         statuses = []
@@ -534,6 +567,7 @@ class TestReconnectLoop:
         assert all("Connecting" in status for status in statuses), "status should show connecting"
 
     def test_reconnect_loop_cancelled(self):
+        """stop_event ends a reconnect loop that keeps failing, so its thread exits."""
         # Arrange - use a port that always fails
         capture = CaptureEngine()
         engine = SerialEngine(
@@ -570,6 +604,7 @@ class TestClassifySerialError:
     and on Unix tries to name the process holding the port."""
 
     def test_permission_error_without_port_name(self):
+        """A chained PermissionError reads as permission denied; no port means no holder."""
         # Arrange
         from termapy.serial_engine import _classify_serial_error
         inner = PermissionError("Access is denied")
@@ -584,6 +619,7 @@ class TestClassifySerialError:
         assert "held by" not in actual, "no holder appended when port_name empty"
 
     def test_file_not_found_returns_helpful_message(self):
+        """A chained FileNotFoundError reads as port not found and points at /port.list."""
         # Arrange
         from termapy.serial_engine import _classify_serial_error
         inner = FileNotFoundError("no such device")
@@ -598,6 +634,7 @@ class TestClassifySerialError:
         assert "/port.list" in actual, "points user at the discovery command"
 
     def test_oserror_errno_13_treated_as_permission(self, monkeypatch):
+        """A bare OSError with errno 13 (EACCES) is classified as permission denied."""
         # Arrange -- errno 13 is EACCES on POSIX
         from termapy.serial_engine import _classify_serial_error
         inner = OSError(13, "Permission denied")
@@ -612,6 +649,7 @@ class TestClassifySerialError:
         assert "Permission denied" in actual, "classified as in-use"
 
     def test_oserror_errno_2_treated_as_not_found(self):
+        """A bare OSError with errno 2 (ENOENT) is classified as port not found."""
         # Arrange -- errno 2 is ENOENT
         from termapy.serial_engine import _classify_serial_error
         inner = OSError(2, "No such file")
@@ -625,6 +663,7 @@ class TestClassifySerialError:
         assert "Port not found" in actual, "classified as missing"
 
     def test_permission_error_with_holder_is_appended(self, monkeypatch):
+        """With a port name and a known holder, the message names the holding process."""
         # Arrange -- stub out the holder lookup to return a known value.
         import termapy.serial_engine as se
         monkeypatch.setattr(se, "_find_port_holder", lambda _p: "arduino (PID 1234)")
@@ -640,6 +679,7 @@ class TestClassifySerialError:
         assert "held by arduino (PID 1234)" in actual, "holder appended"
 
     def test_permission_error_holder_lookup_returns_none(self, monkeypatch):
+        """A holder lookup that finds nothing leaves the base message without a holder."""
         # Arrange -- holder lookup fails silently (Windows, or lsof missing)
         import termapy.serial_engine as se
         monkeypatch.setattr(se, "_find_port_holder", lambda _p: None)
@@ -655,6 +695,7 @@ class TestClassifySerialError:
         assert "held by" not in actual, "no holder clause when lookup returned None"
 
     def test_pyserial_windows_permission_via_message(self):
+        """Unchained Windows pyserial errors are classified by message, raw class hidden."""
         # Arrange -- mimic the exact shape pyserial raises on Windows when
         # another app holds the port: SerialException with the OSError
         # stringified into the message and no __cause__ chaining.
@@ -676,6 +717,7 @@ class TestClassifySerialError:
             "raw exception-class text is not shown to the user"
 
     def test_pyserial_windows_file_not_found_via_message(self):
+        """An unchained Windows missing-port error is classified as not found by message."""
         # Arrange -- same pattern for a missing port.
         from termapy.serial_engine import _classify_serial_error
         exc = Exception(
@@ -695,6 +737,7 @@ class TestFindPortHolder:
     or any failure."""
 
     def test_windows_returns_none(self, monkeypatch):
+        """Windows skips the holder lookup entirely and returns None."""
         # Arrange
         import termapy.serial_engine as se
         monkeypatch.setattr(se.sys, "platform", "win32")
@@ -706,6 +749,7 @@ class TestFindPortHolder:
         assert actual is None, "no holder lookup on Windows"
 
     def test_lsof_missing_returns_none(self, monkeypatch):
+        """A missing lsof binary yields None instead of raising."""
         # Arrange -- simulate lsof not installed on PATH.
         import termapy.serial_engine as se
         monkeypatch.setattr(se.sys, "platform", "linux")
@@ -722,6 +766,7 @@ class TestFindPortHolder:
         assert actual is None, "missing lsof doesn't raise, just bails silently"
 
     def test_lsof_timeout_returns_none(self, monkeypatch):
+        """An lsof call that times out yields None instead of raising."""
         # Arrange
         import termapy.serial_engine as se
         monkeypatch.setattr(se.sys, "platform", "linux")
@@ -738,6 +783,7 @@ class TestFindPortHolder:
         assert actual is None, "timeout bails silently"
 
     def test_lsof_success_parses_pid_and_command(self, monkeypatch):
+        """lsof -F pc output is parsed into a command (PID n) label."""
         # Arrange -- simulate lsof -F pc output format.
         import termapy.serial_engine as se
         monkeypatch.setattr(se.sys, "platform", "linux")
@@ -756,6 +802,7 @@ class TestFindPortHolder:
         assert actual == expected, f"parsed as command + PID, got {actual!r}"
 
     def test_lsof_success_with_nothing_holding(self, monkeypatch):
+        """Empty lsof output means no holder, returned as None."""
         # Arrange -- lsof exit=0 but no output means nothing has the port.
         import termapy.serial_engine as se
         monkeypatch.setattr(se.sys, "platform", "linux")
@@ -773,6 +820,7 @@ class TestFindPortHolder:
         assert actual is None, "empty output -> no holder identified"
 
     def test_lsof_absolute_path_passed_through(self, monkeypatch):
+        """A port already given as an absolute path is not prefixed with /dev/ again."""
         # Arrange -- user-supplied port already looks absolute; don't
         # prepend /dev/ again.
         import termapy.serial_engine as se
@@ -810,6 +858,7 @@ class TestTeardownIsAJoin:
     """
 
     def test_disconnect_leaves_no_reader_thread_running(self):
+        """Disconnect returns only after the reader thread has exited."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -827,6 +876,7 @@ class TestTeardownIsAJoin:
         )
 
     def test_stop_reader_is_idempotent_and_safe_with_no_reader(self):
+        """stop_reader with no reader reports success, and repeat calls stay safe."""
         # Arrange -- never connected, never started.
         engine, _, _ = _make_engine()
 
@@ -835,6 +885,7 @@ class TestTeardownIsAJoin:
         assert engine.stop_reader() is True, "repeat calls stay safe"
 
     def test_start_reader_joins_the_previous_generation(self):
+        """Starting a new reader leaves no previous-generation reader alive."""
         # Arrange -- a reader is already running.
         engine, _, _ = _make_engine()
         engine.connect()
@@ -947,6 +998,7 @@ class TestReaderOwnership:
         return engine, first, second, release, thread
 
     def test_stale_reader_cannot_touch_the_next_connection(self):
+        """A stale reader neither closes the new port nor marks the new reader stopped."""
         # Arrange / Act -- release the stale generation and let its finally run.
         engine, _first, second, release, thread = self._stale_reader_scenario()
         release.set()
@@ -970,6 +1022,7 @@ class TestReaderOwnership:
         engine.disconnect()
 
     def test_stop_reader_reports_a_callback_that_will_not_let_go(self):
+        """A reader stuck in its callback makes stop_reader fail loudly with a reason."""
         # Arrange -- a reader parked in its callback, started through the
         # real path so the engine owns the thread.
         only = _ControlledPort("only")
@@ -1000,6 +1053,7 @@ class TestReaderOwnership:
         release.set()
 
     def test_reader_closes_its_own_port_on_the_normal_path(self):
+        """On a clean stop the owning reader thread closes its port and signals stopped."""
         # Arrange -- no interference: one generation, stopped normally.
         only = _ControlledPort("only")
         engine = self._engine_with_ports([only])

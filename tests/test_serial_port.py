@@ -35,12 +35,14 @@ def port_env():
 
 class TestProperties:
     def test_is_open(self, port_env):
+        """The is_open flag passes through the wrapped port's state; FakeSerial starts open."""
         sp, fake, _, _ = port_env
 
         # Assert
         assert sp.is_open is True, "FakeSerial starts open"
 
     def test_is_open_after_close(self, port_env):
+        """Closing the underlying port shows up live; is_open is not a cached flag."""
         sp, fake, _, _ = port_env
 
         # Act
@@ -50,6 +52,7 @@ class TestProperties:
         assert sp.is_open is False, "reflects closed state"
 
     def test_port_property(self, port_env):
+        """The port property hands back the wrapped object itself, not a copy or proxy."""
         sp, fake, _, _ = port_env
 
         # Assert
@@ -61,6 +64,7 @@ class TestProperties:
 
 class TestWrite:
     def test_write_sends_data(self, port_env):
+        """Written bytes reach the wrapped device: the demo answers AT with OK."""
         # Arrange
         sp, fake, _, _ = port_env
 
@@ -73,6 +77,7 @@ class TestWrite:
         assert b"OK" in data, "FakeSerial responded to AT command"
 
     def test_write_logs_tx(self, port_env):
+        """Every write is logged with the '>' TX direction and the command text."""
         # Arrange
         sp, _, _, logged = port_env
 
@@ -85,6 +90,7 @@ class TestWrite:
         assert "ATZ" in logged[0][1], "command logged"
 
     def test_write_logs_hex_for_binary(self, port_env):
+        """Non-printable writes are logged as hex bytes (01 02 ff), not raw control chars."""
         # Arrange
         sp, _, _, logged = port_env
 
@@ -101,6 +107,7 @@ class TestWrite:
 
 class TestDrain:
     def test_drain_empty_queue(self, port_env):
+        """Draining an empty receive queue reports zero bytes discarded."""
         # Arrange
         sp, _, _, _ = port_env
 
@@ -111,6 +118,7 @@ class TestDrain:
         assert actual == 0, "nothing to drain"
 
     def test_drain_returns_byte_count(self, port_env):
+        """Drain empties every queued chunk and returns the total bytes discarded."""
         # Arrange
         sp, _, rx_queue, _ = port_env
         rx_queue.put(b"\x01\x02\x03")
@@ -161,6 +169,7 @@ class TestDrain:
         )
 
     def test_drain_tolerates_a_port_that_cannot_purge(self):
+        """A duck-typed port without reset_input_buffer still drains the queue, no raise."""
         # Arrange -- duck-typed ports need not implement the full pyserial API.
         class MinimalPort:
             is_open = True
@@ -177,6 +186,7 @@ class TestDrain:
         assert actual == 2, "queue still drains when the port cannot purge"
 
     def test_drain_clears_pending_demo_output(self):
+        """The demo device honors the purge, so pre-drain replies never replay afterward."""
         # Arrange -- FakeSerial implements the purge, so the demo device
         # behaves like a real one rather than replaying pre-drain output.
         fake = FakeSerial()
@@ -197,6 +207,7 @@ class TestDrain:
 
 class TestReadRaw:
     def test_read_raw_returns_data(self, port_env):
+        """A queued frame comes back intact from read_raw within the timeout."""
         # Arrange
         sp, _, rx_queue, _ = port_env
         rx_queue.put(b"\x01\x02\x03")
@@ -208,6 +219,7 @@ class TestReadRaw:
         assert actual == b"\x01\x02\x03", "data returned"
 
     def test_read_raw_timeout_returns_empty(self, port_env):
+        """With nothing received, read_raw returns empty bytes at the timeout."""
         # Arrange
         sp, _, _, _ = port_env
 
@@ -218,6 +230,7 @@ class TestReadRaw:
         assert actual == b"", "timed out, no data"
 
     def test_read_raw_assembles_chunks(self, port_env):
+        """Chunks arriving inside the frame gap assemble into one frame, not two reads."""
         # Arrange
         sp, _, rx_queue, _ = port_env
         # Put two chunks close together - should assemble into one frame
@@ -237,6 +250,7 @@ class TestReadRaw:
 
 class TestWaitForIdle:
     def test_wait_for_idle_returns_when_no_data(self, port_env):
+        """A silent port reads idle after one gap, well before max_wait_s."""
         # Arrange
         sp, _, _, _ = port_env
 
@@ -249,6 +263,7 @@ class TestWaitForIdle:
         assert elapsed < 0.5, "returned well before max_wait"
 
     def test_wait_for_idle_respects_max_wait(self, port_env):
+        """A device that keeps talking cannot hold wait_for_idle past max_wait_s."""
         # Arrange
         sp, fake, _, _ = port_env
         # Send a command so data keeps coming
@@ -263,6 +278,7 @@ class TestWaitForIdle:
         assert elapsed < 1.0, "bounded by max_wait"
 
     def test_wait_for_idle_closed_port(self, port_env):
+        """A closed port returns at once instead of waiting out a silence gap."""
         # Arrange
         sp, fake, _, _ = port_env
         fake.close()
@@ -281,6 +297,7 @@ class TestWaitForIdle:
 
 class TestSerialReaderLines:
     def test_complete_line(self):
+        """A single CRLF-terminated chunk emits exactly one line of its text."""
         # Arrange
         reader = SerialReader()
 
@@ -291,6 +308,7 @@ class TestSerialReaderLines:
         assert result.lines == ["hello world"], "complete line extracted"
 
     def test_multiple_lines(self):
+        """One chunk holding several CRLF lines yields each line, in order."""
         # Arrange
         reader = SerialReader()
 
@@ -301,6 +319,7 @@ class TestSerialReaderLines:
         assert result.lines == ["line1", "line2", "line3"], "all lines"
 
     def test_partial_line_buffered(self):
+        """Unterminated text is held and joined with the next chunk's rest of the line."""
         # Arrange
         reader = SerialReader()
 
@@ -313,6 +332,7 @@ class TestSerialReaderLines:
         assert result2.lines == ["hello world"], "assembled"
 
     def test_blank_lines_preserved(self):
+        """Empty lines are kept for display fidelity, with each CRLF counted as one break."""
         # Arrange -- blank lines are now kept (TeraTerm-style display
         # fidelity), not dropped; each CRLF is a single break.
         reader = SerialReader()
@@ -326,6 +346,7 @@ class TestSerialReaderLines:
         assert actual == expected, "blank lines preserved, CRLF is one break"
 
     def test_cr_stripped(self):
+        """The CR half of CRLF is dropped, never left trailing on the line text."""
         # Arrange
         reader = SerialReader()
 
@@ -338,6 +359,7 @@ class TestSerialReaderLines:
 
 class TestSerialReaderIdleFlush:
     def test_flush_partial_after_silence(self):
+        """An unterminated partial line flushes once the device has been quiet long enough."""
         # Arrange
         reader = SerialReader()
         reader.process(b"partial")
@@ -352,6 +374,7 @@ class TestSerialReaderIdleFlush:
         assert result.lines == ["partial"], "flushed"
 
     def test_no_flush_during_ansi_escape(self):
+        """Idle flush holds a line that ends mid-ANSI-escape so the sequence is not cut."""
         # Arrange
         reader = SerialReader()
         reader.process(b"text\x1b[")  # incomplete ANSI escape
@@ -370,6 +393,7 @@ class TestSerialReaderUtf8Split:
     """A multi-byte char split across reads decodes once, not as two U+FFFD."""
 
     def test_two_byte_char_split_across_reads(self):
+        """A 2-byte char split between reads rejoins; nothing emits before the newline."""
         # Arrange -- 'é' is 0xC3 0xA9; split between the two reads.
         reader = SerialReader()
 
@@ -384,6 +408,7 @@ class TestSerialReaderUtf8Split:
         assert result1.lines == [], "no line until newline arrives"
 
     def test_four_byte_emoji_split_mid_stream(self):
+        """A 4-byte emoji split mid-char, with text after it, rejoins in place on the line."""
         # Arrange -- U+1F600 is 0xF0 0x9F 0x98 0x80; split inside the char,
         # with more text after it on the same line.
         reader = SerialReader()
@@ -398,6 +423,7 @@ class TestSerialReaderUtf8Split:
         assert actual == expected, "split 4-byte emoji reassembled in place"
 
     def test_split_emits_no_replacement_char(self):
+        """A 3-byte checkmark split 2+1 decodes whole, leaving no U+FFFD in the line."""
         # Arrange
         reader = SerialReader()
 
@@ -411,6 +437,7 @@ class TestSerialReaderUtf8Split:
         assert "�" not in actual[0], "no replacement char from the split"
 
     def test_truncated_multibyte_surfaces_on_idle(self):
+        """A lead byte that never completes flushes as U+FFFD on idle instead of lingering."""
         # Arrange -- a dangling lead byte that never completes, then silence.
         reader = SerialReader()
         reader.process(b"caf\xc3")  # 0xC3 is held pending (incomplete 'é')
@@ -427,6 +454,7 @@ class TestSerialReaderUtf8Split:
 
 class TestSerialReaderClearScreen:
     def test_clear_screen_detected(self):
+        """ESC[2J sets clear_screen, and text after it on the line is still emitted."""
         # Arrange
         reader = SerialReader()
 
@@ -438,6 +466,7 @@ class TestSerialReaderClearScreen:
         assert result.lines == ["hello"], "text after clear"
 
     def test_clear_screen_with_cursor_home(self):
+        """The common ESC[H ESC[2J pair is still recognized as a clear screen."""
         # Arrange
         reader = SerialReader()
 
@@ -450,6 +479,7 @@ class TestSerialReaderClearScreen:
 
 class TestSerialReaderEOLMarkers:
     def test_eol_markers_inserted(self):
+        """With show_line_endings on, a CRLF line stays one line and its CR shows as a marker."""
         # Arrange
         reader = SerialReader(show_line_endings=True)
 
@@ -461,6 +491,7 @@ class TestSerialReaderEOLMarkers:
         assert "\\r" in result.lines[0], "visible CR marker present"
 
     def test_no_markers_by_default(self):
+        """Line-ending markers are opt-in; a default reader emits clean line text."""
         # Arrange
         reader = SerialReader()
 
@@ -477,36 +508,43 @@ class TestRxNewline:
     # -- pure split function --
 
     def test_auto_splits_lf(self):
+        """Auto mode ends a line at a bare LF and tags it lf."""
         pairs, rem = split_rx_lines("a\nb\n", "auto")
         assert pairs == [("a", "lf"), ("b", "lf")], "LF terminates in auto"
         assert rem == "", "no remainder"
 
     def test_auto_crlf_is_one_break(self):
+        """Auto mode treats CRLF as one break tagged crlf, not a CR line then an LF line."""
         pairs, rem = split_rx_lines("a\r\nb\r\n", "auto")
         assert pairs == [("a", "crlf"), ("b", "crlf")], "CRLF is a single break"
         assert rem == "", "no remainder"
 
     def test_auto_bare_cr_splits(self):
+        """Auto mode ends a line at a bare CR and holds the unterminated tail as remainder."""
         pairs, rem = split_rx_lines("a\rb\rc", "auto")
         assert pairs == [("a", "cr"), ("b", "cr")], "bare CR terminates each line"
         assert rem == "c", "unterminated tail held"
 
     def test_auto_defers_trailing_cr(self):
+        """A trailing CR is held, not emitted, since the next read may bring its LF."""
         pairs, rem = split_rx_lines("foo\r", "auto")
         assert pairs == [], "trailing CR not emitted yet (may be CRLF)"
         assert rem == "foo\r", "trailing CR deferred to next read"
 
     def test_lf_mode_ignores_cr(self):
+        """Forced lf mode breaks only on LF; a lone CR stays in the line as data."""
         pairs, rem = split_rx_lines("a\rb\n", "lf")
         assert pairs == [("a\rb", "lf")], "only LF breaks; CR is data"
         assert rem == "", "no remainder"
 
     def test_cr_mode_ignores_lf(self):
+        """Forced cr mode breaks only on CR; a lone LF stays in the line as data."""
         pairs, rem = split_rx_lines("a\nb\r", "cr")
         assert pairs == [("a\nb", "cr")], "only CR breaks; LF is data"
         assert rem == "", "no remainder"
 
     def test_crlf_mode_only_pairs(self):
+        """Forced crlf mode breaks only on the CRLF pair; lone CR and LF are both data."""
         pairs, rem = split_rx_lines("a\rb\nc\r\n", "crlf")
         assert pairs == [("a\rb\nc", "crlf")], "only CRLF pair breaks; lone CR/LF are data"
         assert rem == "", "no remainder"
@@ -514,6 +552,7 @@ class TestRxNewline:
     # -- integration via SerialReader --
 
     def test_chunk_split_crlf_no_blank(self):
+        """A CRLF split across two reads is one break, with no phantom blank line."""
         # Arrange - a CRLF split across two reads must not emit a blank line.
         reader = SerialReader()  # auto
 
@@ -526,6 +565,7 @@ class TestRxNewline:
         assert second.lines == ["foo", "bar"], "CRLF across reads is one break, no blank"
 
     def test_bare_cr_progress_lines(self):
+        """Bare-CR progress updates come out as separate lines, not one merged garbled line."""
         # Arrange - a bare-CR device yields one line per update instead of a
         # single merged garbled line (the pre-rx_newline bug).
         reader = SerialReader()  # auto
@@ -537,6 +577,7 @@ class TestRxNewline:
         assert result.lines == ["25%"], "completed CR-terminated line emitted; last held"
 
     def test_lf_mode_strips_cr(self):
+        """Forced lf mode still strips the CR just before an LF, as it always has."""
         # Arrange - forced LF mode strips a stray CR (historical behavior).
         reader = SerialReader(rx_newline="lf")
 
@@ -547,6 +588,7 @@ class TestRxNewline:
         assert result.lines == ["hello"], "CR stripped in lf mode"
 
     def test_show_line_endings_crlf_single_line(self):
+        """Visible markers do not break CRLF pairing: two lines, each showing CR and LF."""
         # Arrange - markers must not break CRLF detection (the wrinkle).
         reader = SerialReader(show_line_endings=True)  # auto
 
@@ -559,6 +601,7 @@ class TestRxNewline:
         assert "\\r" in first and "\\n" in first, "both CR and LF markers on the line"
 
     def test_unknown_mode_falls_back_to_auto(self):
+        """An unknown rx_newline mode becomes auto, both at construction and via the setter."""
         # Arrange / Act
         reader = SerialReader(rx_newline="bogus")
 
@@ -568,6 +611,7 @@ class TestRxNewline:
         assert reader.rx_newline == "auto", "setter validates too"
 
     def test_idle_flush_resolves_deferred_cr(self):
+        """A deferred trailing CR is emitted as a complete line once the idle window opens."""
         # Arrange - a held trailing CR flushes as a CR-terminated line on idle.
         reader = SerialReader()
         reader.process(b"partial\r")  # trailing CR deferred
@@ -603,6 +647,7 @@ class TestRxNewlineEndToEnd:
     """
 
     def test_demo_bare_cr_splits_under_auto(self):
+        """The demo's bare-CR AT+INFO reply splits into three clean lines under auto."""
         # Arrange - switch the demo device to bare-CR line endings.
         dev = FakeSerial()
         _drain_device(dev, b"AT+EOL=cr")
@@ -629,6 +674,7 @@ class TestRxNewlineEndToEnd:
         )
 
     def test_demo_lf_only_splits_under_auto(self):
+        """The demo's LF-only AT+INFO reply also splits into three lines under auto."""
         # Arrange - device emits LF-only.
         dev = FakeSerial()
         _drain_device(dev, b"AT+EOL=lf")
@@ -643,6 +689,7 @@ class TestRxNewlineEndToEnd:
         assert len(result.lines) == 3, "LF-only multi-line splits under auto too"
 
     def test_demo_bare_cr_stalls_in_lf_mode(self):
+        """Forced lf mode emits nothing for a bare-CR device -- the failure auto exists to fix."""
         # Arrange - device speaks bare CR, but the reader is forced to lf.
         dev = FakeSerial()
         _drain_device(dev, b"AT+EOL=cr")
@@ -662,22 +709,28 @@ class TestBackspace:
     """apply_backspace resolves \\b / DEL; SerialReader interprets them."""
 
     def test_backspace_erases_previous_char(self):
+        """One BS removes the character before it, and later text continues from there."""
         assert apply_backspace("abc\bX") == "abX", "\\b erases the char before it"
 
     def test_multiple_backspaces(self):
+        """Consecutive BS characters each erase one more character back."""
         assert apply_backspace("abc\b\b") == "a", "two \\b erase two chars"
 
     def test_del_erases_like_backspace(self):
+        """DEL (0x7f) erases exactly like BS, since devices send either one."""
         assert apply_backspace("ab\x7f") == "a", "DEL (0x7f) erases like backspace"
 
     def test_backspace_at_line_start_dropped(self):
+        """A BS at line start is dropped; it never erases the preceding newline."""
         # A \b must not eat the preceding line terminator.
         assert apply_backspace("line1\n\bX") == "line1\nX", "\\b does not cross \\n"
 
     def test_no_control_is_identity(self):
+        """Text without BS or DEL passes through unchanged."""
         assert apply_backspace("plain text") == "plain text", "no-op without \\b/DEL"
 
     def test_reader_resolves_backspace_in_line(self):
+        """A progress readout rewritten in place with BS emits only its final value."""
         # Arrange - a device rewrites a progress readout in place.
         reader = SerialReader()  # auto
 
@@ -690,6 +743,7 @@ class TestBackspace:
 
 class TestSerialReaderCapture:
     def test_binary_capture_consumes_data(self):
+        """An active binary capture takes the raw bytes, and nothing reaches the display."""
         # Arrange - mock capture engine
         class MockCapture:
             active = True
@@ -710,6 +764,7 @@ class TestSerialReaderCapture:
         assert cap.fed == [b"\x01\x02\x03"], "data went to capture"
 
     def test_capture_target_reached(self):
+        """A capture reporting its target met sets capture_target_reached on the result."""
         # Arrange
         class MockCapture:
             active = True
@@ -726,6 +781,7 @@ class TestSerialReaderCapture:
         assert result.capture_target_reached is True, "capture target reached"
 
     def test_text_capture_not_consumed(self):
+        """Text-mode capture does not intercept in the reader; lines still reach the display."""
         # Arrange - text mode capture doesn't intercept in reader
         class MockCapture:
             active = True
@@ -742,6 +798,7 @@ class TestSerialReaderCapture:
 
 class TestSerialReaderClaimed:
     def test_display_suppressed_when_claimed(self):
+        """While a command has claimed the serial port, received lines skip the display."""
         # Arrange
         reader = SerialReader(serial_claimed=lambda: True)
 
@@ -752,6 +809,7 @@ class TestSerialReaderClaimed:
         assert result.lines == [], "display suppressed while serial claimed"
 
     def test_display_not_suppressed_when_not_claimed(self):
+        """With the serial port unclaimed, received lines reach the display as normal."""
         # Arrange
         reader = SerialReader(serial_claimed=lambda: False)
 
@@ -764,6 +822,7 @@ class TestSerialReaderClaimed:
 
 class TestSerialReaderReset:
     def test_reset_clears_buffer(self):
+        """A reset discards the buffered partial line so it cannot prefix the next one."""
         # Arrange
         reader = SerialReader()
         reader.process(b"partial")
@@ -787,6 +846,7 @@ class TestWaitForIdleUsesTheReaderClock:
     """
 
     def test_does_not_report_idle_while_data_is_still_arriving(self):
+        """The wait outlasts a 0.3s stream plus one gap while in_waiting reads 0 throughout."""
         # Arrange -- a port whose in_waiting is ALWAYS 0 (a reader just drained
         # it) while the device is in fact still streaming: the rx clock keeps
         # advancing.
@@ -862,6 +922,7 @@ class TestWaitForIdleUsesTheReaderClock:
         )
 
     def test_returns_once_the_device_goes_quiet(self):
+        """A quiet reader clock ends the wait one gap after the call, not at max_wait_s."""
         # Arrange -- rx clock frozen in the past: already idle.
         class DrainedPort:
             is_open = True
@@ -886,6 +947,7 @@ class TestWaitForIdleUsesTheReaderClock:
         )
 
     def test_without_a_reader_the_port_buffer_is_still_used(self):
+        """Without a last_rx provider, in_waiting is still the idle signal and still works."""
         # Arrange -- no last_rx provider means nothing is draining the port,
         # so in_waiting is the honest signal and must still work.
         fake = FakeSerial()
@@ -909,6 +971,7 @@ class TestUnterminatedStreamIsBounded:
     """
 
     def test_the_buffer_flushes_at_the_cap(self):
+        """An undelimited stream flushes cap-length lines and keeps the buffer under the cap."""
         # Arrange
         reader = SerialReader()
         chunk = b"A" * 4096
@@ -935,6 +998,7 @@ class TestUnterminatedStreamIsBounded:
         )
 
     def test_terminated_lines_are_untouched(self):
+        """Normal CRLF-terminated input is unaffected by the cap and leaves nothing pending."""
         # Arrange -- the ordinary case must not change
         reader = SerialReader()
 

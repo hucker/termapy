@@ -22,6 +22,7 @@ from termapy.demo_ndjson import FakeSerialNDJSON
 
 class TestSimulatorBasics:
     def test_open_serial_routes_demo_json(self):
+        """A DEMO_JSON port in the nested serial config opens the NDJSON simulator."""
         # Arrange / Act -- v22 nested-serial shape.
         port = open_serial({"serial": {"port": "DEMO_JSON", "baud_rate": 115200}})
         # Assert
@@ -30,6 +31,7 @@ class TestSimulatorBasics:
         )
 
     def test_first_read_delivers_ready_banner(self):
+        """The first read is a ready event naming the BASSOMATIC device and its fw version."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -44,6 +46,7 @@ class TestSimulatorBasics:
         assert "fw" in parsed, "firmware version in banner"
 
     def test_request_with_id_correlates_in_response(self):
+        """A request id is echoed in its ok response so callers can match replies to requests."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -58,6 +61,7 @@ class TestSimulatorBasics:
         assert "celsius" in parsed["result"], "result has celsius"
 
     def test_request_without_id_omits_id_in_response(self):
+        """A request without an id gets a reply without one; the simulator invents no id."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -70,6 +74,7 @@ class TestSimulatorBasics:
         assert "id" not in parsed, "no id in => no id out"
 
     def test_unknown_cmd_returns_error_with_code(self):
+        """An unknown cmd answers ok=false with code -1 and an error naming the cmd."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -84,6 +89,7 @@ class TestSimulatorBasics:
         assert "nope" in parsed["error"], "error names the unknown cmd"
 
     def test_malformed_json_routes_as_async_error(self):
+        """Unparseable input yields an id-less error, which the bridge routes as async."""
         # Arrange — broken input has no id; sim emits error without id
         # so the bridge will treat it as an async error.
         port = FakeSerialNDJSON()
@@ -98,6 +104,7 @@ class TestSimulatorBasics:
         assert parsed["error"], "error message present"
 
     def test_set_threshold_updates_state(self):
+        """set_threshold changes device state that a later get_status reports back."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -114,6 +121,7 @@ class TestSimulatorBasics:
         )
 
     def test_set_mode_validates_enum(self):
+        """set_mode rejects a value outside its enum with an unknown mode error."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -127,6 +135,7 @@ class TestSimulatorBasics:
         assert "unknown mode" in parsed["error"].lower(), "error names unknown mode"
 
     def test_reset_is_fire_and_forget_re_emits_banner(self):
+        """reset sends no response; the next read is a fresh ready banner."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -139,6 +148,7 @@ class TestSimulatorBasics:
         assert parsed.get("event") == "ready", "post-reset banner re-emitted"
 
     def test_emit_event_test_helper_queues_async_event(self):
+        """emit_event queues an unsolicited event with its name and extra fields intact."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -152,6 +162,7 @@ class TestSimulatorBasics:
         assert parsed["value"] == 42, "extra fields preserved"
 
     def test_emit_async_error_test_helper_queues_async_error(self):
+        """emit_async_error queues an id-less error carrying its message and code."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -203,6 +214,7 @@ class TestMcpHostAgainstDemoJson:
                 h._disconnect()
 
     def test_run_command_raw_get_temp_round_trips(self, host):
+        """A /raw JSON request through MCPHost.run_command_async succeeds against DEMO_JSON."""
         # Arrange / Act — send via /raw so transforms don't alter the JSON
         result = asyncio.run(
             host.run_command_async(
@@ -216,6 +228,7 @@ class TestMcpHostAgainstDemoJson:
         # for that, or /expect.regex).
 
     def test_run_command_can_use_expect_to_get_response(self, host):
+        """/expect.regex after a /raw request returns the reply line carrying its id."""
         # Arrange — send raw, then /expect to wait for response line
         # Act
         asyncio.run(

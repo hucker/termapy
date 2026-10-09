@@ -19,6 +19,7 @@ import pytest
 
 class TestArgparse:
     def test_mcp_flag_parses(self):
+        """The entry parser accepts --mcp and sets it True."""
         # Arrange
         from termapy.entry import _build_parser
 
@@ -29,6 +30,7 @@ class TestArgparse:
         assert args.mcp is True, "--mcp parses to True"
 
     def test_mcp_verbose_flag_parses(self):
+        """--mcp-verbose is accepted alongside --mcp and sets its own flag."""
         # Arrange
         from termapy.entry import _build_parser
 
@@ -40,6 +42,7 @@ class TestArgparse:
         assert args.mcp_verbose is True, "--mcp-verbose set"
 
     def test_mcp_default_false(self):
+        """With no flags, both MCP switches are off, so plain launches stay non-MCP."""
         # Arrange
         from termapy.entry import _build_parser
 

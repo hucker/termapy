@@ -22,6 +22,7 @@ from termapy.vt100 import (
 
 class TestMinitermSettings:
     def test_maps_all_fields(self):
+        """echo, eol and encoding from the cfg carry straight into the passthrough settings."""
         # Arrange
         cfg = {"echo": True, "eol": "\n", "encoding": "latin-1"}
 
@@ -33,6 +34,7 @@ class TestMinitermSettings:
         assert actual == expected, "cfg maps to passthrough settings"
 
     def test_defaults_when_keys_absent(self):
+        """An empty cfg yields no echo, a CR line ending and UTF-8 encoding."""
         # Arrange
         cfg = {}
 
@@ -44,6 +46,7 @@ class TestMinitermSettings:
         assert actual == expected, "missing keys fall back to cfg defaults"
 
     def test_echo_defaults_false(self):
+        """A cfg without an echo key never turns local echo on."""
         # Arrange
         cfg = {"eol": "\r"}
 
@@ -81,6 +84,7 @@ class TestPassthroughTransforms:
     )
 
     def test_rx_is_byte_verbatim(self):
+        """Escape sequences, CR redraws and control bytes from the device reach the screen as-is."""
         # Arrange
         rx, _tx = _passthrough_transforms("\r")
 
@@ -90,6 +94,7 @@ class TestPassthroughTransforms:
             assert actual == sample, f"RX must pass {sample!r} through verbatim"
 
     def test_tx_translates_only_enter(self):
+        """Enter becomes the cfg line ending; arrow-key escapes and text go out untouched."""
         # Arrange
         _rx, tx = _passthrough_transforms("\r")
 
@@ -104,6 +109,7 @@ class TestPassthroughTransforms:
         assert arrow == "\x1b[A", "non-Enter keys (arrow seq) pass through verbatim"
 
     def test_tx_honors_crlf_line_ending(self):
+        """A CRLF line ending sends both bytes on Enter, not just CR."""
         # Arrange
         _rx, tx = _passthrough_transforms("\r\n")
 
@@ -116,6 +122,7 @@ class TestPassthroughTransforms:
 
 class TestResolveCfgDemo:
     def test_demo_flag_uses_vt100_device(self):
+        """The --vt100 --demo launch connects to the VT100 demo device, not the plain one."""
         # Arrange: the --vt100 --demo launch case
         args = Namespace(demo=True, config=None)
 
@@ -127,6 +134,7 @@ class TestResolveCfgDemo:
         assert actual == "DEMO_VT100", "--demo selects the VT100 widget device"
 
     def test_vt100_demo_attr_uses_vt100_device(self):
+        """Switching from the TUI via /demo.vt100 also lands on the VT100 demo device."""
         # Arrange: the /demo.vt100 TUI-switch case (demo flag cleared, attr set)
         args = Namespace(demo=False, config=None, _vt100_demo=True)
 
@@ -156,6 +164,7 @@ class TestRunVt100ModeStreamRestore:
     run_vt100_mode must restore them so a second session does not crash."""
 
     def test_streams_restored_after_session(self, monkeypatch):
+        """stdout and stderr are put back after a session so a second launch does not crash."""
         # Arrange: pretend stdout/stderr are real text streams, then make a
         # fake Miniterm that (a) reads sys.stdout.buffer like the real Console
         # and (b) swaps the streams for objects without .buffer.
@@ -211,6 +220,7 @@ class TestRunVt100ModeStreamRestore:
 
 class TestVscodeKeyHint:
     def test_hint_shown_in_vscode(self, monkeypatch):
+        """Under VS Code the user is told about sendKeybindingsToShell for key capture."""
         # Arrange
         monkeypatch.setenv("TERM_PROGRAM", "vscode")
 
@@ -222,6 +232,7 @@ class TestVscodeKeyHint:
         assert "sendKeybindingsToShell" in actual, "tip names the fix setting"
 
     def test_no_hint_outside_vscode(self, monkeypatch):
+        """Terminals other than VS Code get no key-capture tip."""
         # Arrange
         monkeypatch.delenv("TERM_PROGRAM", raising=False)
 
@@ -232,6 +243,7 @@ class TestVscodeKeyHint:
         assert actual is None, "no tip when not in a VS Code terminal"
 
     def test_opt_out_suppresses_hint(self, monkeypatch):
+        """vt100_hint=false silences the tip even inside VS Code."""
         # Arrange -- under VS Code, but the user disabled the hint
         monkeypatch.setenv("TERM_PROGRAM", "vscode")
 

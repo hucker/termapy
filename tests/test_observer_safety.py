@@ -71,6 +71,7 @@ def ctx_with_registry():
 
 class TestRxObserverContextManager:
     def test_normal_exit_balances_register_unregister(self, ctx_with_registry):
+        """One add on enter and one remove on exit, leaving the callback unregistered."""
         # Arrange
         ctx, reg = ctx_with_registry
         cb = lambda data: None  # noqa: E731 -- one-line callback for tests
@@ -87,6 +88,7 @@ class TestRxObserverContextManager:
         assert reg.remove_calls == 1, "exactly one remove"
 
     def test_exception_inside_block_still_unregisters(self, ctx_with_registry):
+        """A raise inside the block propagates, yet the rx observer is still removed."""
         # Arrange
         ctx, reg = ctx_with_registry
         cb = lambda data: None  # noqa: E731
@@ -103,6 +105,7 @@ class TestRxObserverContextManager:
         assert reg.remove_calls == 1, "remove still fired"
 
     def test_nested_observers_each_unregister(self, ctx_with_registry):
+        """Nested rx observers stack in order, and each exit removes only its own callback."""
         # Arrange -- two distinct callbacks registered nested
         ctx, reg = ctx_with_registry
         outer = lambda data: None  # noqa: E731
@@ -122,6 +125,7 @@ class TestRxObserverContextManager:
         assert reg.remove_calls == 2, "two removes"
 
     def test_exception_in_outer_after_inner_completed(self, ctx_with_registry):
+        """A raise in the outer block after the inner one exits still leaves no observer behind."""
         # Arrange -- outer raises after inner has already cleanly exited
         ctx, reg = ctx_with_registry
         outer = lambda data: None  # noqa: E731
@@ -144,6 +148,7 @@ class TestRxObserverContextManager:
 
 class TestTxObserverContextManager:
     def test_normal_exit_balances_register_unregister(self, ctx_with_registry):
+        """The tx observer is registered for the block and removed on a clean exit."""
         # Arrange
         ctx, reg = ctx_with_registry
         cb = lambda data: None  # noqa: E731
@@ -156,6 +161,7 @@ class TestTxObserverContextManager:
         assert cb not in reg.tx, "removed on exit"
 
     def test_exception_inside_block_still_unregisters(self, ctx_with_registry):
+        """A raise inside a tx_observer block still removes the callback on the way out."""
         # Arrange
         ctx, reg = ctx_with_registry
         cb = lambda data: None  # noqa: E731
@@ -169,6 +175,7 @@ class TestTxObserverContextManager:
         assert cb not in reg.tx, "removed even on exception"
 
     def test_rx_and_tx_independent(self, ctx_with_registry):
+        """Rx and tx observers land in separate lists, and both clear when the block ends."""
         # Arrange -- nest rx and tx observers; each tracks its own list
         ctx, reg = ctx_with_registry
         rx_cb = lambda data: None  # noqa: E731
@@ -195,6 +202,7 @@ class TestObserverApiNotPublic:
     """
 
     def test_no_public_add_rx_observer(self):
+        """No public rx add/remove, so a plugin cannot leak an rx observer past its block."""
         # Arrange / Act
         ctx = PluginContext(io=IOHandle(_write=lambda *a, **k: None))
 
@@ -208,6 +216,7 @@ class TestObserverApiNotPublic:
         )
 
     def test_no_public_add_tx_observer(self):
+        """No public tx add/remove, so a plugin cannot leak a tx observer past its block."""
         # Arrange / Act
         ctx = PluginContext(io=IOHandle(_write=lambda *a, **k: None))
 
@@ -221,6 +230,7 @@ class TestObserverApiNotPublic:
         )
 
     def test_underscore_versions_exist_for_internal_use(self):
+        """All four private hooks stay on SerialHandle, since the context managers need them."""
         # Arrange / Act -- the context managers need to reach the engine
         # somehow; the underscore fields are how.
         ctx = PluginContext(io=IOHandle(_write=lambda *a, **k: None))

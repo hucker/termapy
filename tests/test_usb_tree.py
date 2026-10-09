@@ -61,18 +61,22 @@ class _Facts:
 
 class TestParentPath:
     def test_a_hub_tier_drops_the_last_dot_group(self):
+        """A device behind a hub finds its parent by dropping the last .N port group."""
         # Act / Assert
         assert _parent_path("1-8.4") == "1-8", "one tier up is the hub"
 
     def test_the_first_tier_drops_back_to_the_bus(self):
+        """A root-hub port such as 1-8 hangs directly off bus 1."""
         assert _parent_path("1-8") == "1", "a root-hub port hangs off the bus"
 
     def test_a_bus_has_no_parent(self):
+        """A bare bus number is a tree root, with no parent path."""
         assert _parent_path("1") is None, "the bus is a root"
 
 
 class TestBuildTree:
     def test_devices_nest_under_the_hub_they_are_plugged_into(self):
+        """Devices nest under their hub, and the hub under its bus, in one root."""
         # Act
         roots = build_tree(_bus())
 
@@ -83,6 +87,7 @@ class TestBuildTree:
         assert actual == ["1-8.2", "1-8.4"], f"devices sit under the hub; got {actual}"
 
     def test_interfaces_nest_under_their_own_device(self):
+        """Interfaces are children of their device, sharing its path, not a deeper tier."""
         # Act
         roots = build_tree(_bus())
         composite = roots[0].children[0].children[1]
@@ -99,6 +104,7 @@ class TestBuildTree:
         )
 
     def test_ports_are_ordered_numerically_not_alphabetically(self):
+        """Sibling ports sort as numbers, so 1-10 comes after 1-2 and 1-8."""
         # Arrange -- string ordering would put 1-10 before 1-2.
         records = [
             UsbRecord(path="1"),
@@ -117,6 +123,7 @@ class TestBuildTree:
         )
 
     def test_interfaces_come_before_devices_below_the_same_node(self):
+        """A hub-plus-function device lists its own interfaces before downstream devices."""
         # Arrange -- a composite device that is also a hub is unusual but
         # legal; its own functions should read before what hangs off it.
         records = [
@@ -135,6 +142,7 @@ class TestBuildTree:
         )
 
     def test_a_device_whose_hub_is_missing_still_appears(self):
+        """A device whose parent was not reported is shown as a root, never dropped."""
         # Arrange -- backend reported a leaf but not its parent.
         records = [UsbRecord(path="1-8.4", description="orphan")]
 
@@ -148,6 +156,7 @@ class TestBuildTree:
         )
 
     def test_an_interface_whose_device_is_missing_gets_one(self):
+        """An orphan interface gets a synthesized device node to hang from."""
         # Arrange
         records = [UsbRecord(path="1-8.4", interface_number="1", description="fn")]
 
@@ -163,12 +172,14 @@ class TestBuildTree:
         )
 
     def test_an_empty_bus_builds_an_empty_forest(self):
+        """No records build no roots, without error."""
         # Act / Assert
         assert build_tree([]) == [], "nothing in, nothing out"
 
 
 class TestTagSerialPorts:
     def test_an_interface_that_carries_a_port_is_marked(self):
+        """On a composite device only the interface owning the port is tagged."""
         # Arrange -- COM3 is function 1 of the device at 1-8.4.
         roots = build_tree(_bus())
         facts = [_Facts("COM3", "1-8.4", "1")]
@@ -184,6 +195,7 @@ class TestTagSerialPorts:
         )
 
     def test_a_single_function_device_is_marked_on_the_device_node(self):
+        """A port with no interface number tags the device node itself."""
         # Arrange -- a plain adapter has no interface to qualify.
         roots = build_tree(_bus())
 
@@ -197,6 +209,7 @@ class TestTagSerialPorts:
         )
 
     def test_a_port_at_an_unknown_location_marks_nothing(self):
+        """A port with no resolved location tags nothing rather than guessing a device."""
         # Arrange -- a port whose location did not resolve.
         roots = build_tree(_bus())
 
@@ -211,6 +224,7 @@ class TestTagSerialPorts:
 
 class TestRenderTree:
     def test_the_shape_is_drawn_with_ascii_connectors(self):
+        """The tree uses ASCII +-- and `-- connectors so legacy codepages can print it."""
         # Arrange -- box-drawing characters raise UnicodeEncodeError on a
         # Windows console with a legacy codepage, and this text is
         # printed with a plain print().
@@ -229,6 +243,7 @@ class TestRenderTree:
         )
 
     def test_a_tagged_node_names_its_port(self):
+        """Exactly one line shows -> COM3, and it is the interface line, not its device."""
         # Arrange
         roots = build_tree(_bus())
         tag_serial_ports(roots, [_Facts("COM3", "1-8.4", "1")])
@@ -242,6 +257,7 @@ class TestRenderTree:
         assert ":1" in hits[0], "and it is the interface line, not the device"
 
     def test_an_empty_bus_says_so(self):
+        """An empty bus renders an explicit no-devices line, not zero output."""
         # Act
         actual = render_tree([])
 
@@ -253,6 +269,7 @@ class TestRenderTree:
 
 class TestJsonRecords:
     def test_every_node_carries_the_full_schema(self):
+        """Each JSON record has the full fixed key set so consumers never probe for fields."""
         # Arrange
         roots = build_tree(_bus())
 
@@ -269,6 +286,7 @@ class TestJsonRecords:
         )
 
     def test_the_nesting_survives_the_conversion(self):
+        """Records keep the bus -> hub -> device -> interface nesting via children."""
         # Arrange
         roots = build_tree(_bus())
 
@@ -281,6 +299,7 @@ class TestJsonRecords:
         assert actual == ["0", "1"], f"interfaces stay nested; got {actual}"
 
     def test_the_result_is_serializable(self):
+        """The records go through json.dumps with no custom encoder."""
         # Act -- the point of the shape is to be dumped.
         actual = json.dumps(to_json_records(build_tree(_bus())))
 
@@ -290,6 +309,7 @@ class TestJsonRecords:
 
 class TestDescriptions:
     def test_the_inf_indirection_is_stripped(self):
+        """The Windows @file.inf,%key%; prefix is removed, leaving only readable text."""
         # Act -- Windows stores the localizable key ahead of the text.
         actual = _clean_desc("@usbser.inf,%usbserial.devicedesc%;USB Serial Device")
 
@@ -297,6 +317,7 @@ class TestDescriptions:
         assert actual == "USB Serial Device", f"only the human part; got {actual!r}"
 
     def test_trademark_symbols_are_dropped_not_spelled_out(self):
+        """Registered and trademark signs are removed, not expanded into the letters TM."""
         # Act -- NFKD alone expands a trademark sign into the letters
         # "TM", which reads worse than removing it.
         actual = _ascii_fold("MPLAB® PICkit™5")
@@ -305,6 +326,7 @@ class TestDescriptions:
         assert actual == "MPLAB PICkit5", f"reads the way it is said; got {actual!r}"
 
     def test_accents_fold_rather_than_vanish(self):
+        """Accented letters fold to their ASCII base so names stay readable and findable."""
         # Act
         actual = _ascii_fold("Café Widget")
 
@@ -313,11 +335,13 @@ class TestDescriptions:
         assert actual == "Cafe Widget", f"got {actual!r}"
 
     def test_an_empty_description_stays_empty(self):
+        """A missing description stays None instead of becoming an empty string."""
         assert _clean_desc(None) is None, "no description, no value"
 
 
 class TestGatherInjection:
     def test_an_injected_bus_needs_no_hardware(self):
+        """source= replaces the OS backend, so the tree builds from injected records alone."""
         # Act -- same injection contract as port_control's source=.
         roots = gather_usb_tree(source=_bus, facts_list=[])
 
@@ -327,6 +351,7 @@ class TestGatherInjection:
         )
 
     def test_injected_facts_tag_the_injected_bus(self):
+        """Injected port facts are cross-referenced onto the injected tree too."""
         # Act
         roots = gather_usb_tree(source=_bus, facts_list=[_Facts("COM3", "1-8.4", "1")])
 
@@ -335,6 +360,7 @@ class TestGatherInjection:
         assert marked == ["COM3"], f"cross-reference runs on injection too; got {marked}"
 
     def test_an_unsupported_platform_raises_rather_than_lying(self, monkeypatch):
+        """A platform with no backend raises, since an empty tree would mean no devices."""
         # Arrange -- no backend for this platform.
         monkeypatch.setattr("termapy.usb_tree.sys.platform", "sunos5")
 
@@ -357,6 +383,7 @@ class TestUsbFlag:
         return buf.getvalue(), exc.value.code
 
     def test_the_tree_is_printed_and_exits_zero(self):
+        """--usb prints the rendered tree to stdout and exits 0 when devices are present."""
         # Act
         out, code = self._run(_bus)
 
@@ -365,6 +392,7 @@ class TestUsbFlag:
         assert "1-8.4" in out, "the tree reached stdout"
 
     def test_an_empty_bus_exits_nonzero(self):
+        """--usb exits 1 on an empty bus, matching --ports, and still prints a message."""
         # Act
         out, code = self._run(list)
 
@@ -373,6 +401,7 @@ class TestUsbFlag:
         assert "(no USB devices found)" in out, "and says so"
 
     def test_json_emits_the_nested_records(self):
+        """--usb with --json prints the nested records as JSON instead of the text tree."""
         # Act
         out, code = self._run(_bus, json=True)
 
@@ -384,9 +413,11 @@ class TestUsbFlag:
 
 class TestNodeLabels:
     def test_a_device_labels_itself_with_its_path(self):
+        """A device node's label is its full topology path."""
         assert UsbNode(path="1-8.4").label == "1-8.4", "devices show the path"
 
     def test_an_interface_labels_itself_with_only_its_number(self):
+        """An interface label is just :N, since its device's path is the line above."""
         # The path is on the parent line directly above, and there is no
         # "x" placeholder because a tree has somewhere to put the
         # distinction pyserial has to spell inline.
@@ -437,6 +468,7 @@ class TestLinuxSysfsBackend:
     """
 
     def test_devices_and_interfaces_are_told_apart_by_name(self, tmp_path):
+        """A colon in a sysfs name marks an interface; the digit after the dot is its index."""
         # Arrange
         root = str(tmp_path)
         _fake_sysfs(root)
@@ -458,6 +490,7 @@ class TestLinuxSysfsBackend:
         )
 
     def test_a_root_hub_is_named_for_its_bus(self, tmp_path):
+        """A sysfs usbN root hub becomes bus N so devices at N-x find their parent."""
         # Arrange -- sysfs calls it usb1; the topology calls it 1.
         root = str(tmp_path)
         _fake_sysfs(root)
@@ -471,6 +504,7 @@ class TestLinuxSysfsBackend:
         )
 
     def test_identity_comes_off_the_attribute_files(self, tmp_path):
+        """VID:PID (uppercased), serial and product are read from sysfs attribute files."""
         # Arrange
         root = str(tmp_path)
         _fake_sysfs(root)
@@ -490,6 +524,7 @@ class TestLinuxSysfsBackend:
         assert adapter.description == "FT232R USB UART", f"got {adapter.description!r}"
 
     def test_a_directory_that_is_not_a_usb_path_is_skipped(self, tmp_path):
+        """sysfs entries not matching the USB topology pattern are ignored."""
         # Arrange -- sysfs holds more than device nodes.
         root = str(tmp_path)
         _fake_sysfs(root)
@@ -504,6 +539,7 @@ class TestLinuxSysfsBackend:
         )
 
     def test_the_driver_is_read_from_the_symlink(self, tmp_path):
+        """The driver name is the basename of the interface's driver symlink target."""
         # Arrange -- sysfs points an interface at its driver by symlink.
         root = str(tmp_path)
         _fake_sysfs(root)
@@ -526,6 +562,7 @@ class TestLinuxSysfsBackend:
         )
 
     def test_an_absent_sysfs_root_is_not_an_error(self, tmp_path):
+        """A missing sysfs root reads as an empty bus, not a crash."""
         # Act -- a kernel built without USB, or WSL with nothing attached.
         actual = _linux_records(str(tmp_path / "nope"))
 

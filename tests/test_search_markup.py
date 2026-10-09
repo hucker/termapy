@@ -28,6 +28,7 @@ class TestHighlightEscapesUserMarkup:
     the source text contains its own ``[...]`` tags."""
 
     def test_snippet_with_orphan_closing_tag_renders(self):
+        """A snippet that cuts off a [green] but keeps its [/] still parses in Rich."""
         # Arrange -- text mimics what `state_line("baud rate", 115200)` plus
         # a follow-up description produces.  The match is far enough into
         # the text that the context window slices through the closing
@@ -56,6 +57,7 @@ class TestHighlightEscapesUserMarkup:
             ) from e
 
     def test_snippet_with_literal_bracket_pair_renders(self):
+        """A literal [/] in the help text is escaped so the snippet still parses."""
         # Arrange -- text contains a literal "[/]" that isn't a valid
         # markup pair, plus a match elsewhere.  Without escaping, the
         # snippet would carry the bare "[/]" into Rich.
@@ -78,6 +80,7 @@ class TestHighlightEscapesUserMarkup:
             ) from e
 
     def test_match_itself_wrapped_in_yellow(self):
+        """Escaping user text leaves the yellow highlight tags around the match intact."""
         # Arrange -- a clean text with a clear match.
         text = "the quick brown fox jumps"
         start = text.index("brown")
@@ -112,6 +115,7 @@ class TestCliStatusEscapesUserText:
         return instance, buf
 
     def test_status_with_literal_closing_tag_in_text(self):
+        """A status message containing a literal [/] renders inside its color wrapper."""
         # Arrange -- text mimics the cascade-failure case: an error
         # message that mentions "[/]" literally.
         cli, buf = self._make_cli()
@@ -133,6 +137,7 @@ class TestCliStatusEscapesUserText:
         )
 
     def test_write_with_literal_closing_tag_in_text(self):
+        """Colored write() escapes a literal [/] in its text the same way status() does."""
         # Arrange / Act -- same scenario but via write().
         cli, buf = self._make_cli()
         text = "value contains [/] inside"
@@ -151,6 +156,7 @@ class TestCliStatusEscapesUserText:
         )
 
     def test_write_uncolored_still_renders_markup(self):
+        """Uncolored write() is not escaped, so callers can still pass Rich markup."""
         # Arrange / Act -- uncolored path still parses markup (callers
         # rely on this for rich content; markup-aware callers use
         # write_markup explicitly, but plain write() with no color

@@ -86,6 +86,7 @@ class TestLoopbackRoundTrip:
     """Bytes sent to ``loop://`` come back on the next read."""
 
     def test_plain_send_roundtrips(self, tmp_path):
+        """A plain line goes out with the default CR ending and returns byte for byte."""
         # Arrange -- /cap.bin with exact byte target so the capture
         # closes on target-hit (reliable), not on timeout (races
         # with --run script teardown).  Default line_ending is "\r"
@@ -108,6 +109,7 @@ class TestLoopbackRoundTrip:
         )
 
     def test_raw_send_bypasses_transforms(self, tmp_path):
+        """/raw puts exactly its bytes on the wire, with no line ending appended."""
         # Arrange -- /raw sends the exact bytes with no line ending
         # and no transforms.  "ABC-raw-XYZ" = 11 bytes, no trailing CR.
         lines = [
@@ -137,6 +139,7 @@ class TestLoopbackLineEndings:
         [("\r", b"\r"), ("\n", b"\n"), ("\r\n", b"\r\n")],
     )
     def test_line_ending_passthrough(self, tmp_path, line_ending, suffix):
+        """Each configured eol (CR, LF, CRLF) is the exact suffix on the wire."""
         # Arrange -- send "ping"; the configured ending should follow.
         # Size the capture target to the exact expected byte count so
         # the capture closes on target-hit (reliable) rather than
@@ -167,6 +170,7 @@ class TestLoopbackProtoSend:
     """/proto.send appends the CRC and the full packet round-trips."""
 
     def test_modbus_crc_roundtrip(self, tmp_path):
+        """/proto.send appends the Modbus CRC little-endian (C5 CD) to the frame."""
         # Arrange -- ``/proto.send crc16-modbus 01 03 00 00 00 0A``
         # appends CRC-16/MODBUS (little-endian: C5 CD) producing 8
         # bytes on the wire.  With loop:// the same 8 bytes come
@@ -196,6 +200,7 @@ class TestLoopbackEncoding:
     """The ``encoding`` config key affects the bytes that are sent."""
 
     def test_latin1_non_ascii_roundtrips_as_single_byte(self, tmp_path):
+        """With encoding latin-1, a non-ASCII char goes out as one byte, not UTF-8's two."""
         # Arrange -- Latin-1 encodes "é" as a single byte (0xE9);
         # UTF-8 encodes it as two bytes (0xC3 0xA9).  Sending the
         # same character under each encoding must produce different
@@ -235,6 +240,7 @@ class TestLoopbackCliReaderTaps:
     """
 
     def test_text_capture_records_rx(self, tmp_path):
+        """In CLI mode /cap.text records the echoed line instead of an empty file."""
         # Arrange -- capture text for a bounded window, send a line that
         # the loopback echoes back into that window.
         lines = [
@@ -256,6 +262,7 @@ class TestLoopbackCliReaderTaps:
         )
 
     def test_expect_matches_rx(self, tmp_path):
+        """In CLI mode /expect sees the echoed line and matches instead of timing out."""
         # Arrange -- send a line, then /expect its echo.  feed_lines
         # buffers retroactively, so the match holds even if the echo
         # lands before the predicate is installed.

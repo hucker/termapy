@@ -65,6 +65,7 @@ def _registered_commands() -> set[str]:
 
 
 def test_every_documented_command_exists():
+    """No commands.md table row names a command that no host registers or aliases."""
     # Arrange -- known real commands are builtins + CLI/TUI hooks; legacy
     # aliases (/echo -> /term.echo) are valid to document too.
     known = _registered_commands() | set(LEGACY_COMMANDS) | _TUI_ONLY

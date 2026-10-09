@@ -147,6 +147,7 @@ def _load_lines(output) -> list[str]:
 class TestLayers:
 
     def test_on_app_start_loads_global_then_config(self, rig):
+        """on_app_start loads the global layer, then the per-config one, labeled by cfg stem."""
         # Arrange
         root, config_path = rig
         _write_plugin(root / "plugin", "hello.py", _command_plugin("hello"))
@@ -166,6 +167,7 @@ class TestLayers:
         assert _load_lines(output) == expected, "one load line per layer, global first"
 
     def test_config_layer_overrides_global(self, rig):
+        """A per-config plugin replaces a same-named global one, handler included."""
         # Arrange
         root, config_path = rig
         _write_plugin(root / "plugin", "same.py", _command_plugin("same", token="global"))
@@ -180,6 +182,7 @@ class TestLayers:
         assert engine.dispatch("same").value == "rig", "and its handler is the one installed"
 
     def test_zero_config_loads_global_only(self, tmp_path):
+        """With no config path, global plugins still load and the absent layer is no error."""
         # Arrange
         root = tmp_path / "root"
         _write_plugin(root / "plugin", "hello.py", _command_plugin("hello"))
@@ -194,6 +197,7 @@ class TestLayers:
         assert errors == [], "a missing per-config layer is not an error"
 
     def test_external_hook_fires_in_same_pass(self, rig):
+        """A folder plugin's on_app_start fires in the same pass that loads it."""
         # Arrange
         root, config_path = rig
         _write_plugin(config_path.parent / "plugin", "full.py", _full_plugin("full"))
@@ -211,6 +215,7 @@ class TestLayers:
 class TestProtection:
 
     def test_app_hook_is_never_overridden(self, rig):
+        """An app-registered command keeps its name over a folder plugin, with a warning."""
         # Arrange
         root, config_path = rig
         _write_plugin(
@@ -234,6 +239,7 @@ class TestProtection:
 class TestConfigSwitch:
 
     def test_config_switch_drops_and_rebuilds(self, tmp_path):
+        """A config switch drops every export of the old config and loads only the new one."""
         # Arrange -- rig and other each carry a full plugin
         root = tmp_path / "root"
         rig_cfg = _write_cfg(root, "rig")
@@ -270,6 +276,7 @@ class TestConfigSwitch:
         assert ("Unloaded 1 plugin(s): rigfull", "dim") in output, "the drop is reported"
 
     def test_list_identity_preserved(self, rig):
+        """Resolution filters registries in place, so InternalHandle's aliases stay valid."""
         # Arrange -- InternalHandle aliases these containers
         root, config_path = rig
         _write_plugin(config_path.parent / "plugin", "full.py", _full_plugin("full"))
@@ -286,6 +293,7 @@ class TestConfigSwitch:
         assert engine._lifecycle_hooks is hooks, "the hook list is filtered in place"
 
     def test_resolve_is_idempotent(self, rig):
+        """Resolving twice replaces the folder layers rather than accumulating duplicates."""
         # Arrange
         root, config_path = rig
         _write_plugin(config_path.parent / "plugin", "full.py", _full_plugin("full"))
@@ -310,6 +318,7 @@ class TestConfigSwitch:
 class TestGateAndReporting:
 
     def test_trusted_only_loads_builtins_only(self, rig):
+        """Trusted-only mode skips both folder layers and prints its notice just once."""
         # Arrange
         root, config_path = rig
         _write_plugin(root / "plugin", "hello.py", _command_plugin("hello"))
@@ -328,6 +337,7 @@ class TestGateAndReporting:
         assert len(notices) == 1, "the notice shows once per engine, not once per resolution"
 
     def test_oneshot_suppresses_load_lines_not_errors(self, rig):
+        """Oneshot runs hide load lines but still report a broken plugin's error."""
         # Arrange
         root, config_path = rig
         _write_plugin(config_path.parent / "plugin", "good.py", _command_plugin("good"))
@@ -343,6 +353,7 @@ class TestGateAndReporting:
         assert ("Plugin error: broken.py: boom", "red") in output, "an error is never silent"
 
     def test_skipped_file_reported(self, rig):
+        """A plugin file that exports nothing is reported as skipped, not silently ignored."""
         # Arrange
         root, config_path = rig
         _write_plugin(config_path.parent / "plugin", "noop.py", "X = 1\n")

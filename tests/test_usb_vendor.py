@@ -59,6 +59,7 @@ def usb_ids_fixture():
 
 class TestParseVendors:
     def test_parses_vendor_lines(self, usb_ids_fixture):
+        """Top-level 4-hex-digit vendor lines map each VID to its full usb.ids name."""
         # Arrange
         from refresh_usb_ids import parse_vendors
 
@@ -73,6 +74,7 @@ class TestParseVendors:
         assert actual[0x10C4] == "Silicon Labs", "SiLabs parsed"
 
     def test_skips_product_lines(self, usb_ids_fixture):
+        """Tab-indented product lines are never mistaken for vendors."""
         # Arrange
         from refresh_usb_ids import parse_vendors
 
@@ -85,6 +87,7 @@ class TestParseVendors:
         assert 0x9036 not in actual, "Microchip product not treated as vendor"
 
     def test_skips_class_section_lines(self, usb_ids_fixture):
+        """Class-section lines (C, AT, HID) lack a 4-hex VID and never parse as vendors."""
         # Arrange -- "C 00  (Defined at Interface level)" etc. don't have
         # a 4-hex prefix; the regex rejects them.  Also "AT 00" / "HID 00".
         from refresh_usb_ids import parse_vendors
@@ -98,6 +101,7 @@ class TestParseVendors:
         assert 0x0001 not in actual, "C 01 not parsed as vendor 0x0001"
 
     def test_skips_comments_and_blanks(self, usb_ids_fixture):
+        """Comments and blank lines add nothing: only the five vendor lines become entries."""
         # Arrange + Act
         from refresh_usb_ids import parse_vendors
 
@@ -109,6 +113,7 @@ class TestParseVendors:
         assert len(actual) == expected_count, "comments and blanks ignored"
 
     def test_lowercase_hex(self, usb_ids_fixture):
+        """A lowercase-hex VID parses to the same integer key uppercase would."""
         # Arrange
         from refresh_usb_ids import parse_vendors
 
@@ -121,6 +126,7 @@ class TestParseVendors:
         )
 
     def test_non_ascii_name(self, usb_ids_fixture):
+        """A non-ASCII vendor name survives parsing unchanged."""
         # Arrange
         from refresh_usb_ids import parse_vendors
 
@@ -138,6 +144,7 @@ class TestParseVendors:
 
 class TestEmitPythonModule:
     def test_emits_valid_python(self):
+        """The generated module compiles and carries USB_VENDORS_FULL and a Generated: date."""
         # Arrange
         from refresh_usb_ids import emit_python_module
 
@@ -159,6 +166,7 @@ class TestEmitPythonModule:
         assert "Generated:" in text, "header includes generation date"
 
     def test_entries_are_sorted(self):
+        """Entries are emitted in VID order whatever the input order, keeping diffs stable."""
         # Arrange -- pass entries out of order; output should be sorted.
         from refresh_usb_ids import emit_python_module
 
@@ -174,6 +182,7 @@ class TestEmitPythonModule:
         assert first < middle < last, "entries sorted by VID for stable diffs"
 
     def test_handles_quotes_in_name(self):
+        """A vendor name containing double quotes round-trips through the emitted module."""
         # Arrange -- vendor names with quotes / backslashes round-trip via
         # repr().
         from refresh_usb_ids import emit_python_module
@@ -198,6 +207,7 @@ class TestVendorLookupCurated:
     """Curated USB_VENDORS table wins for known short forms."""
 
     def test_curated_short_form_used(self):
+        """FTDI's VID resolves to the short FTDI, not its long usb.ids name."""
         # Arrange + Act
         from termapy.usb import vendor_for
 
@@ -206,16 +216,19 @@ class TestVendorLookupCurated:
         assert vendor_for(0x0403) == "FTDI", "curated short form wins"
 
     def test_curated_silabs(self):
+        """The SiLabs VID 0x10C4 resolves to the curated Silicon Labs name."""
         from termapy.usb import vendor_for
 
         assert vendor_for(0x10C4) == "Silicon Labs", "SiLabs curated"
 
     def test_curated_microchip(self):
+        """The Microchip VID 0x04D8 resolves to the curated short Microchip."""
         from termapy.usb import vendor_for
 
         assert vendor_for(0x04D8) == "Microchip", "Microchip curated"
 
     def test_none_input(self):
+        """A missing VID (None) yields None rather than raising."""
         from termapy.usb import vendor_for
 
         assert vendor_for(None) is None, "None VID returns None"
@@ -225,6 +238,7 @@ class TestVendorLookupFallback:
     """USB_VENDORS_FULL fills in vendors the curated table doesn't cover."""
 
     def test_fallback_to_full_table(self):
+        """An uncurated VID (Yubico, 0x1050) falls through to its usb.ids canonical name."""
         # Arrange -- pick a VID that exists in usb.ids but NOT in our
         # curated USB_VENDORS table.  Cypress's older USB controllers
         # use 0x04B4 (curated; "Cypress"); Logitech 0x046D is curated.
@@ -243,6 +257,7 @@ class TestVendorLookupFallback:
         )
 
     def test_truly_unknown_vid_returns_none(self):
+        """A VID in neither table yields None, not a placeholder string."""
         from termapy.usb import vendor_for
 
         # Pick a VID very unlikely to be in either table.
@@ -272,6 +287,7 @@ class TestGeneratedMetadata:
     """The generator emits constants for /term.usb_db introspection."""
 
     def test_generated_date_present(self):
+        """GENERATED_DATE is an ISO YYYY-MM-DD date that /term.usb_db can report."""
         from termapy.usb import _vendors_full as _usb_vendor_full
 
         actual = _usb_vendor_full.GENERATED_DATE
@@ -283,6 +299,7 @@ class TestGeneratedMetadata:
         )
 
     def test_source_url_present(self):
+        """SOURCE_URL names usb.ids, the upstream the full table was generated from."""
         from termapy.usb import _vendors_full as _usb_vendor_full
 
         actual = _usb_vendor_full.SOURCE_URL
@@ -299,6 +316,7 @@ class TestTermUsbDbHandler:
     """The /term.usb_db command reports local metadata only -- no network."""
 
     def test_handler_writes_expected_fields(self):
+        """Output lists every metadata field and an upgrade hint, never the dev-only script."""
         # Arrange
         from termapy.builtins.commands.term import _handler_usb_db
         from termapy.plugins import IOHandle, PluginContext

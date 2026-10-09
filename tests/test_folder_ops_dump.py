@@ -42,6 +42,7 @@ def _setup(tmp_path):
 
 class TestDumpContainment:
     def test_dumps_file_inside_folder(self, tmp_path):
+        """A name inside the folder still dumps and returns its contents as the value."""
         # Arrange
         cfg_file, _cap, _secret = _setup(tmp_path)
         ctx, output = _ctx(cfg_file)
@@ -53,6 +54,7 @@ class TestDumpContainment:
         assert "1,2,3" in result.value, "contents returned for scripting"
 
     def test_absolute_path_refused(self, tmp_path):
+        """An absolute path outside the folder is refused and the file is never read."""
         # Arrange -- caller supplies an absolute path to a secret outside
         # cap/.  `cap_dir / abs_path` == abs_path in pathlib, so without
         # containment this would read it.
@@ -67,6 +69,7 @@ class TestDumpContainment:
         assert "hunter2" not in (result.value or ""), "secret never read"
 
     def test_parent_traversal_refused(self, tmp_path):
+        """A ../ name that climbs out of the folder is refused with an escape error."""
         # Arrange -- ../secret.txt climbs out of cap/ into the cfg dir.
         cfg_file, _cap, _secret = _setup(tmp_path)
         ctx, _ = _ctx(cfg_file)
@@ -78,6 +81,7 @@ class TestDumpContainment:
         assert "escapes" in result.error, "error explains containment"
 
     def test_deep_traversal_refused(self, tmp_path):
+        """A many-level ../ climb toward the filesystem root is refused."""
         # Arrange -- many-level climb toward the filesystem root.
         cfg_file, _cap, _secret = _setup(tmp_path)
         ctx, _ = _ctx(cfg_file)
@@ -88,6 +92,7 @@ class TestDumpContainment:
         assert not result.success, "deep traversal is refused"
 
     def test_missing_file_inside_folder_still_reports_not_found(self, tmp_path):
+        """A missing contained name still gets not-found, not the containment error."""
         # Arrange -- containment must not mask the ordinary not-found path
         # for a legitimate (contained) name.
         cfg_file, _cap, _secret = _setup(tmp_path)

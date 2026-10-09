@@ -58,6 +58,7 @@ def env(tmp_path, monkeypatch):
 
 class TestProfileLoad:
     def test_loads_reference_profile(self, env):
+        """Loading the AT modem fixture installs its revision and commands as active."""
         # Arrange / Act
         eng, ctx, _output = env
         path = FIXTURES / "at_modem.profile.json"
@@ -69,6 +70,7 @@ class TestProfileLoad:
         assert "AT" in active.get("commands", {}), "commands populated"
 
     def test_load_missing_file_fails(self, env):
+        """A nonexistent path fails with a not-found error rather than an empty profile."""
         # Arrange / Act
         eng, _ctx, _output = env
         result = eng.dispatch("profile.load /no/such/path.json")
@@ -77,6 +79,7 @@ class TestProfileLoad:
         assert "not found" in result.error.lower(), "error names not found"
 
     def test_load_no_args_with_nothing_loaded_fails(self, env):
+        """Bare /profile.load before any load is an error, not an empty or default profile."""
         # Arrange -- no profile loaded yet; no-args reload has no source.
         eng, _ctx, _output = env
         # Act
@@ -89,6 +92,7 @@ class TestProfileLoad:
         )
 
     def test_load_invalid_json_fails(self, env, tmp_path):
+        """A truncated JSON file fails with a parse error, not a crash or partial load."""
         # Arrange — write a malformed profile
         bad = tmp_path / "bad.profile.json"
         bad.write_text("{ this is not valid", encoding="utf-8")
@@ -100,6 +104,7 @@ class TestProfileLoad:
         assert "parse" in result.error.lower(), "error names parse"
 
     def test_load_schema_invalid_refuses(self, env, tmp_path):
+        """A structural violation (a command without help) refuses the load outright."""
         # Arrange — structural violation (command without help) is a
         # hard error under the compatibility policy.
         bad = tmp_path / "schema_bad.profile.json"
@@ -120,6 +125,7 @@ class TestProfileLoad:
         assert ctx.ns("active_profile") == {}, "active profile not set on failure"
 
     def test_load_unknown_vocabulary_warns_but_loads(self, env, tmp_path):
+        """An unknown safety tier degrades to a visible warning; the profile still installs."""
         # Arrange — unknown safety tier: degrades per the compatibility
         # policy (gates like destructive at dispatch), so the load
         # succeeds with a surfaced warning instead of refusing.
@@ -146,6 +152,7 @@ class TestProfileLoad:
         )
 
     def test_load_replaces_previous_active_profile(self, env):
+        """A second load replaces the active profile outright; the latest revision wins."""
         # Arrange — load one, then another
         eng, ctx, _output = env
         eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
@@ -163,6 +170,7 @@ class TestProfileLoad:
 
 class TestProfileInfo:
     def test_info_with_no_loaded_profile(self, env):
+        """With nothing loaded, /profile.info succeeds and says so instead of erroring."""
         # Arrange / Act
         eng, _ctx, output = env
         result = eng.dispatch("profile.info")
@@ -172,6 +180,7 @@ class TestProfileInfo:
         assert "no profile" in full.lower(), "informs user no profile loaded"
 
     def test_info_after_load_shows_metadata(self, env):
+        """/profile.info shows the revision and device block; baud stays in /cfg.dump."""
         # Arrange
         eng, _ctx, output = env
         eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
@@ -187,6 +196,7 @@ class TestProfileInfo:
         assert "AT Modem" in full, "device-block surfaced"
 
     def test_info_value_is_command_count(self, env):
+        """The scriptable value of /profile.info is the loaded profile's command count."""
         # Arrange
         eng, _ctx, _output = env
         eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
@@ -201,6 +211,7 @@ class TestProfileInfo:
 
 class TestProfileReload:
     def test_no_args_reloads_file_source(self, env, tmp_path):
+        """Bare /profile.load re-reads the file from disk, picking up edits since load."""
         # Arrange -- write a profile, load it.
         eng, ctx, _output = env
         path = tmp_path / "p.profile.json"
@@ -225,6 +236,7 @@ class TestProfileReload:
         assert "Y" in active.get("commands", {}), "new command picked up"
 
     def test_no_args_with_no_source_fails(self, env):
+        """Reload with no recorded file or cmd= source fails and explains why."""
         # Arrange / Act -- nothing loaded yet.
         eng, _ctx, _output = env
         result = eng.dispatch("profile.load")
@@ -240,6 +252,7 @@ class TestProfileReload:
 
 class TestProfileSave:
     def test_save_to_explicit_path(self, env, tmp_path):
+        """A saved profile round-trips its revision and drops internal __source_path."""
         # Arrange -- load a profile, save it elsewhere.
         eng, _ctx, _output = env
         eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
@@ -258,6 +271,7 @@ class TestProfileSave:
         )
 
     def test_save_no_args_uses_default_path(self, env):
+        """Bare /profile.save writes <cfg stem>.profile.json beside the cfg file."""
         # Arrange -- the env fixture's cfg is at <tmp>/cfg/test.cfg, so
         # the default save path is <tmp>/cfg/test.profile.json.
         eng, ctx, _output = env
@@ -270,6 +284,7 @@ class TestProfileSave:
         assert expected.exists(), f"saved at default path {expected}"
 
     def test_save_without_active_profile_fails(self, env):
+        """/profile.save with nothing loaded fails with a no-profile error."""
         # Arrange / Act -- nothing loaded.
         eng, _ctx, _output = env
         result = eng.dispatch("profile.save")
@@ -278,6 +293,7 @@ class TestProfileSave:
         assert "no profile" in result.error.lower(), "error message clear"
 
     def test_save_warns_when_all_commands_disabled(self, env, tmp_path):
+        """A profile with every command enabled=false still saves, but with a warning."""
         # Arrange -- write a profile where every command has enabled=false.
         eng, _ctx, output = env
         draft = tmp_path / "draft.profile.json"
@@ -306,6 +322,7 @@ class TestProfileSave:
 
 class TestProfileUnload:
     def test_unload_clears_active_profile(self, env):
+        """/profile.unload empties the active_profile namespace after a load."""
         # Arrange
         eng, ctx, _output = env
         eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
@@ -317,6 +334,7 @@ class TestProfileUnload:
         assert ctx.ns("active_profile") == {}, "namespace cleared"
 
     def test_unload_with_no_profile_is_noop(self, env):
+        """Unloading when nothing is loaded succeeds quietly instead of erroring."""
         # Arrange / Act -- nothing loaded.
         eng, _ctx, _output = env
         result = eng.dispatch("profile.unload")
@@ -353,6 +371,7 @@ def _mock_device_json(env, payload: dict) -> None:
 
 class TestProfileLoadFromDevice:
     def test_fetch_installs_full_profile(self, env):
+        """A device fetch installs types, commands and revision, and records cmd for reload."""
         # Arrange -- simulate a device dumping a v2 profile.  The
         # profile carries types + commands + revision; wire-level
         # settings (baud, etc.) live in cfg now, not the profile.
@@ -378,6 +397,7 @@ class TestProfileLoadFromDevice:
         )
 
     def test_fetch_when_disconnected_fails(self, env):
+        """A cmd= fetch without a serial connection fails with a not-connected error."""
         # Arrange -- explicitly NOT mocking is_connected; default False.
         eng, _ctx, _output = env
         # Act
@@ -387,6 +407,7 @@ class TestProfileLoadFromDevice:
         assert "not connected" in result.error.lower(), "error clear"
 
     def test_fetch_missing_cmd_value_fails(self, env):
+        """An empty cmd= is rejected with an error about the missing command."""
         # Arrange / Act -- cmd= with no value.
         eng, _ctx, _output = env
         result = eng.dispatch("profile.load cmd=")
@@ -395,6 +416,7 @@ class TestProfileLoadFromDevice:
         assert "command" in result.error.lower(), "error clear"
 
     def test_fetch_schema_invalid_payload_refuses(self, env):
+        """A device payload failing the schema (version 99) leaves no profile active."""
         # Arrange -- device replies with something that fails the schema.
         _mock_device_json(env, {
             "profile_version": 99,
@@ -410,6 +432,7 @@ class TestProfileLoadFromDevice:
         )
 
     def test_fetch_then_no_args_reload_refetches(self, env):
+        """After a cmd= load, bare /profile.load re-runs the device fetch, not a cache."""
         # Arrange -- first fetch, then mutate payload, then no-args reload.
         from termapy.builtins.commands import profile
 
@@ -452,6 +475,7 @@ class TestProfileLoadCfgRelative:
     """
 
     def test_bare_name_loads_the_profile_beside_the_cfg(self, env):
+        """A profile next to the cfg loads by bare name though the CWD is the repo root."""
         # Arrange
         eng, ctx, _ = env
         from pathlib import Path as _Path
@@ -470,6 +494,7 @@ class TestProfileLoadCfgRelative:
         assert ctx.ns("active_profile").get("device", {}).get("model") == "DEMO", "the demo profile is active"
 
     def test_missing_bare_name_names_what_was_typed(self, env):
+        """A bare name found nowhere reports the name as typed, not a resolved path."""
         eng, _, _ = env
         result = eng.dispatch("profile.load nosuch.profile.json")
         assert not result.success

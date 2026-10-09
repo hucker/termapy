@@ -93,6 +93,7 @@ class TestCliResolvedFromBanner:
     """On successful connect, show "Resolved <spec> -> <actual>" banner."""
 
     def test_fallback_chain_to_demo_shows_resolved_line(self, tmp_path):
+        """A chain whose leading SN misses falls back to DEMO and reports spec -> DEMO."""
         # Arrange -- spec chain where the leading SN candidate can't
         # match anything (no DEMO_FLEET here), so the DEMO fallback
         # wins and the banner should announce the resolution.
@@ -113,6 +114,7 @@ class TestCliResolvedFromBanner:
         )
 
     def test_literal_port_no_resolved_line(self, tmp_path):
+        """A literal port that opens as itself prints no Resolved line at all."""
         # Arrange -- plain DEMO in/DEMO out, no resolution happened.
         result = _run_cli(
             tmp_path,
@@ -128,6 +130,7 @@ class TestCliResolvedFromBanner:
         )
 
     def test_connected_line_shows_actual_device_not_spec(self, tmp_path):
+        """The Connected: line names the device actually opened, never the raw pipe spec."""
         # Arrange -- spec is a pipe chain that resolves to DEMO.  The
         # "Connected: X Y Z..." line should name the actual device
         # (DEMO), NOT the spec string ("UNKNOWN_SN|DEMO").
@@ -157,6 +160,7 @@ class TestCliResolvedFromBanner:
         )
 
     def test_port_info_shows_resolved_from_annotation(self, tmp_path):
+        """/port.info shows (resolved from SPEC); the bracketed form was eaten by Rich."""
         # Arrange -- regression for a Rich-markup-eats-brackets bug.
         # The "(resolved from SPEC)" annotation on /port.info's Port:
         # line was previously wrapped in square brackets which Rich
@@ -185,6 +189,7 @@ class TestPortCommandStatusMessage:
     """
 
     def test_port_command_status_uses_resolved_device(self, tmp_path):
+        """Reconnecting with /port FAKE_SN|DEMO reports DEMO, so both status lines agree."""
         # Arrange -- /port <something>|DEMO forces the fallback chain
         # to resolve to DEMO.  The status line after reconnect should
         # name DEMO, not the spec.
@@ -226,6 +231,7 @@ class TestPortCommandDoesNotWriteDisk:
     """
 
     def test_port_command_leaves_disk_config_unchanged(self, tmp_path):
+        """A scripted /port A1B2C3D4 run leaves the port written in the cfg file as it was."""
         # Arrange -- start with "DEMO" in cfg, script issues /port to
         # switch.  We don't actually connect to anything after the
         # switch (there's nothing to connect to on CI); we just verify
@@ -276,6 +282,7 @@ class TestAmbiguousSerialNumberViaEngine:
     """
 
     def test_ambiguity_produces_user_facing_message(self, tmp_path):
+        """Duplicate-SN connect fails naming the SN, both COM ports, and how to disambiguate."""
         # Arrange
         cfg = {**DEFAULT_CFG, "port": "0001"}
 
@@ -311,6 +318,7 @@ class TestClassifySerialErrorWithSpec:
     """
 
     def test_not_found_with_fallback_chain_lists_candidates(self, tmp_path):
+        """A missed chain marks each candidate not found and lists the ports that do exist."""
         # Arrange -- the demo roster gives known enumeration, spec names
         # two non-existent candidates.
         from termapy.port_control import _build_demo_fleet
@@ -335,6 +343,7 @@ class TestClassifySerialErrorWithSpec:
         )
 
     def test_not_found_single_candidate_uses_simple_message(self, tmp_path):
+        """A lone port name keeps the short Port not found message with no candidate trace."""
         # Arrange
         from termapy.serial_engine import _classify_serial_error
 

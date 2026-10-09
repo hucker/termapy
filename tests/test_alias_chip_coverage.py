@@ -45,6 +45,7 @@ class TestAliasCoverageOfChipTable:
     }
 
     def test_every_chip_family_has_a_matching_alias(self):
+        """Each vendor's real descriptor strings fold to one short alias, never pass through raw."""
         # Act / Assert -- run each descriptor through mfg and compare.
         mismatches = []
         for raw, expected in self._EXPECTED.items():

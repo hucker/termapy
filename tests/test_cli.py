@@ -67,6 +67,7 @@ def _grant_gui_apps(cli):
 
 class TestOutput:
     def test_write_plain(self, cli, capsys):
+        """Plain write output lands on stdout with the text intact."""
         # Act
         cli.write("hello world")
 
@@ -75,6 +76,7 @@ class TestOutput:
         assert "hello world" in actual, "text appears in stdout"
 
     def test_write_with_color(self, cli, capsys):
+        """A color argument styles the line but never drops its text."""
         # Act
         cli.write("error msg", "red")
 
@@ -83,6 +85,7 @@ class TestOutput:
         assert "error msg" in actual, "text appears even with color arg"
 
     def test_status_indented(self, cli, capsys):
+        """Status lines reach stdout, the same channel as plain output."""
         # Act
         cli.status("info line")
 
@@ -91,6 +94,7 @@ class TestOutput:
         assert "info line" in actual, "status text appears"
 
     def test_status_with_color(self, cli, capsys):
+        """A colored status line still carries its text through to stdout."""
         # Act
         cli.status("warning", "yellow")
 
@@ -99,6 +103,7 @@ class TestOutput:
         assert "warning" in actual, "colored status appears"
 
     def test_raw_output(self, cli, capsys):
+        """Raw output bypasses Rich and reaches stdout verbatim."""
         # Act
         cli._raw("raw text")
 
@@ -107,6 +112,7 @@ class TestOutput:
         assert "raw text" in actual, "raw text bypasses Rich"
 
     def test_err_output(self, cli, capsys):
+        """Error text goes to stderr, not stdout, so pipes stay clean."""
         # Act
         cli._err("error text")
 
@@ -120,6 +126,7 @@ class TestOutput:
 
 class TestHookDelay:
     def test_short_delay(self, cli):
+        """A valid duration like 10ms sleeps and reports success."""
         # Act
         result = cli._hook_delay(cli.ctx, "10ms")
 
@@ -127,6 +134,7 @@ class TestHookDelay:
         assert result.success, "short delay completes ok"
 
     def test_invalid_duration(self, cli):
+        """An unparseable duration fails instead of sleeping a default."""
         # Act
         result = cli._hook_delay(cli.ctx, "xyz")
 
@@ -134,6 +142,7 @@ class TestHookDelay:
         assert not result.success, "invalid duration fails"
 
     def test_delay_quiet(self, cli):
+        """The silent delay variant accepts the same duration grammar."""
         # Act
         result = cli._hook_delay_quiet(cli.ctx, "10ms")
 
@@ -141,6 +150,7 @@ class TestHookDelay:
         assert result.success, "quiet delay completes ok"
 
     def test_delay_quiet_invalid(self, cli):
+        """The silent variant still fails on a bad duration; quiet is not lenient."""
         # Act
         result = cli._hook_delay_quiet(cli.ctx, "bad")
 
@@ -155,6 +165,7 @@ class TestTermColor:
     """/term.color is now a portable builtin backed by flags['color']."""
 
     def test_color_on(self, cli):
+        """The on token sets flags[color] from off."""
         # Arrange
         cli.repl.ctx.ns("flags")["color"] = False
 
@@ -166,6 +177,7 @@ class TestTermColor:
         assert cli.repl.ctx.ns("flags")["color"] is True, "color enabled"
 
     def test_color_off(self, cli):
+        """The off token clears flags[color] from on."""
         # Arrange
         cli.repl.ctx.ns("flags")["color"] = True
 
@@ -177,6 +189,7 @@ class TestTermColor:
         assert cli.repl.ctx.ns("flags")["color"] is False, "color disabled"
 
     def test_color_bare_queries(self, cli):
+        """A bare /term.color only queries; it must not flip the setting."""
         # Arrange
         cli.repl.ctx.ns("flags")["color"] = True
 
@@ -187,6 +200,7 @@ class TestTermColor:
         assert cli.repl.ctx.ns("flags")["color"] is True, "bare query leaves state"
 
     def test_color_toggle_verb(self, cli):
+        """Only the explicit toggle verb flips the current color state."""
         # Arrange
         cli.repl.ctx.ns("flags")["color"] = True
 
@@ -197,6 +211,7 @@ class TestTermColor:
         assert cli.repl.ctx.ns("flags")["color"] is False, "toggle verb flips"
 
     def test_color_invalid_arg_errors(self, cli):
+        """An unknown token errors with the standard message and leaves state alone."""
         # Arrange
         cli.repl.ctx.ns("flags")["color"] = True
 
@@ -209,6 +224,7 @@ class TestTermColor:
         assert cli.repl.ctx.ns("flags")["color"] is True, "state unchanged"
 
     def test_legacy_color_alias(self, cli):
+        """The legacy /color name still forwards to /term.color."""
         # Arrange
         cli.repl.ctx.ns("flags")["color"] = True
 
@@ -224,6 +240,7 @@ class TestTermColor:
 
 class TestHookRaw:
     def test_raw_not_connected(self, cli):
+        """/raw refuses to send when no port is open."""
         # Arrange -- fixture is disconnected by default.
         # Act
         result = cli._hook_raw(cli.ctx, "hello")
@@ -232,6 +249,7 @@ class TestHookRaw:
         assert not result.success, "fails when disconnected"
 
     def test_raw_no_args(self, cli):
+        """/raw with no payload raises UsageError so dispatch renders usage."""
         # Arrange -- connect to DEMO so the "no args" branch is reached.
         cli._connect()
 
@@ -241,6 +259,7 @@ class TestHookRaw:
             cli._hook_raw(cli.ctx, "")
 
     def test_raw_sends_data(self, cli):
+        """/raw writes the payload byte-for-byte with no line ending appended."""
         # Arrange -- real connect to DEMO.  FakeSerial records bytes
         # in ``_input_buf`` once ``_process_input`` consumes them, so
         # we send something DEMO will NOT auto-consume by picking a
@@ -263,6 +282,7 @@ class TestHookRaw:
 
 class TestHookRun:
     def test_run_bare_shows_help(self, cli, capsys):
+        """With no picker in the CLI, bare /run falls back to its help page."""
         # Arrange -- bare /run in CLI shows /help run for parity with
         # /cfg, /proto, /port (TUI opens the Run picker; CLI has no
         # picker so the builtin's open_picker fallback prints help).
@@ -278,6 +298,7 @@ class TestHookRun:
         )
 
     def test_run_list_enumerates_scripts(self, cli, capsys):
+        """/run.list shows every .run file in the config's run/ folder."""
         # Arrange
         run_dir = Path(cli.config_path).parent / "run"
         (run_dir / "test1.run").write_text("/echo hello")
@@ -292,6 +313,7 @@ class TestHookRun:
         assert "test2.run" in actual, "second script listed"
 
     def test_run_file_not_found(self, cli):
+        """Running a script that does not exist fails instead of silently doing nothing."""
         # Act -- /run <nonexistent> goes through the builtin handler,
         # which delegates to engine.start_script for resolution.
         result = cli.repl.dispatch("run nonexistent.run")
@@ -317,6 +339,7 @@ class TestEditCfgCallableInCli:
     """
 
     def test_edit_cfg_registered_in_cli(self, cli):
+        """The CLI exposes edit.cfg, gated on gui_apps for headless hosts."""
         # Arrange / Act
         plugin = cli.repl._plugins.get("edit.cfg")
 
@@ -327,6 +350,7 @@ class TestEditCfgCallableInCli:
         )
 
     def test_edit_cfg_opens_config_file_when_gui_apps_available(self, cli):
+        """With gui_apps granted, edit.cfg opens the live config path exactly once."""
         # Arrange -- force the gui_apps gate open and capture the impl
         # call without spawning a real editor.
         from termapy.plugins import CapabilitySet
@@ -358,6 +382,7 @@ class TestHookRunProfile:
     """
 
     def test_list_empty_prof_dir(self, cli, capsys):
+        """An empty prof/ folder lists as an empty state, not an error."""
         # Act
         result = cli.repl.dispatch("run.profile.list")
 
@@ -367,6 +392,7 @@ class TestHookRunProfile:
         assert "no profile files" in actual, "reports empty state"
 
     def test_list_enumerates_csvs(self, cli, capsys):
+        """Every profile CSV in prof/ appears in the listing."""
         # Arrange
         prof_dir = cli._prof_dir()
         assert prof_dir is not None, "fixture cfg gives prof_dir"
@@ -383,6 +409,7 @@ class TestHookRunProfile:
         assert "second.csv" in actual, "second profile listed"
 
     def test_dump_empty_prof_dir_fails(self, cli):
+        """Dumping with no profiles fails instead of printing nothing."""
         # Act
         result = cli.repl.dispatch("run.profile.dump")
 
@@ -390,6 +417,7 @@ class TestHookRunProfile:
         assert not result.success, "no profile to dump"
 
     def test_dump_prints_newest_csv(self, cli, capsys):
+        """With no name given, dump prints the newest CSV's contents."""
         # Arrange
         prof_dir = cli._prof_dir()
         assert prof_dir is not None, "fixture cfg gives prof_dir"
@@ -406,6 +434,7 @@ class TestHookRunProfile:
         assert "0,1.5" in actual, "data line printed"
 
     def test_dump_named_file_not_found(self, cli):
+        """A named profile that is missing fails rather than dumping another."""
         # Act
         result = cli.repl.dispatch("run.profile.dump missing.csv")
 
@@ -413,6 +442,7 @@ class TestHookRunProfile:
         assert not result.success, "named file that doesn't exist fails"
 
     def test_show_no_profiles_fails(self, cli):
+        """Show fails when prof/ has nothing to open."""
         # Act
         result = cli.repl.dispatch("run.profile.show")
 
@@ -420,6 +450,7 @@ class TestHookRunProfile:
         assert not result.success, "nothing to show with empty prof/"
 
     def test_show_opens_newest(self, cli):
+        """Show opens the newest CSV by mtime, not by name order."""
         # Arrange -- explicitly stagger mtimes via os.utime; Windows
         # NTFS mtime resolution is coarse enough that two write_text()
         # calls in the same tick land on the same timestamp, and the
@@ -455,6 +486,7 @@ class TestHookRunProfile:
         assert opened == [str(newest)], "opened the newest .csv via ctx.fs.open_file"
 
     def test_explore_opens_prof_dir(self, cli):
+        """Explore opens the prof/ folder itself and returns its path."""
         # Arrange
         prof_dir = cli._prof_dir()
         assert prof_dir is not None, "fixture cfg gives prof_dir"
@@ -473,6 +505,7 @@ class TestHookRunProfile:
         assert opened == [str(prof_dir)], "opened prof/ folder via ctx.fs.open_file"
 
     def test_cmd_empty_fails_with_usage(self, cli, capsys):
+        """Profiling with no command fails and prints the usage line."""
         # Act
         result = cli.repl.dispatch("run.profile.cmd")
 
@@ -487,6 +520,7 @@ class TestHookRunProfile:
 
 class TestHookLogClear:
     def test_no_log_file(self, cli):
+        """log.clear fails when there is no log file to delete."""
         # Act
         result = cli._hook_log_delete(cli.ctx, "")
 
@@ -494,6 +528,7 @@ class TestHookLogClear:
         assert not result.success, "no log file to delete"
 
     def test_delete_log(self, cli):
+        """log.clear removes the file at the real cfg_log_path location."""
         # Arrange -- write the log file at the path the real
         # cfg_log_path() would compute, so the test exercises the
         # real resolution logic instead of a patched return value.
@@ -516,6 +551,7 @@ class TestHookLogClear:
 
 class TestConnect:
     def test_connect_already_connected(self, cli, capsys):
+        """A second connect warns instead of reopening the port."""
         # Arrange -- connect once for real, then try again.
         cli._connect()
         capsys.readouterr()  # drain the first-connect banner
@@ -528,6 +564,7 @@ class TestConnect:
         assert "Already connected" in actual, "warns already connected"
 
     def test_connect_success(self, cli, capsys):
+        """Connecting to DEMO announces it and leaves the engine connected."""
         # Act -- real DEMO connect, no mocks.
         cli._connect()
 
@@ -537,6 +574,7 @@ class TestConnect:
         assert cli.engine.is_connected, "engine reports connected state"
 
     def test_connect_failure(self, cli, capsys):
+        """A port that cannot open reports the failure and stays disconnected."""
         # Arrange -- switch the port to DEMO_FAIL, the reserved name
         # open_serial() treats as a simulated open failure.  Exercises
         # the real connect-failure path without needing broken hardware
@@ -554,6 +592,7 @@ class TestConnect:
         assert not cli.engine.is_connected, "engine remains disconnected"
 
     def test_connect_with_port(self, cli):
+        """An explicit port argument is written back into the serial cfg section."""
         # Act -- override with another port name (still DEMO) so the
         # cfg-update branch runs.
         cli._connect(port="DEMO")
@@ -565,6 +604,7 @@ class TestConnect:
         assert cli.engine.is_connected, "engine connected after override"
 
     def test_port_connect_command_reports_failure(self, cli):
+        """/port.connect returns a failing result on open failure, not a false ok."""
         # R2607-02: the /port.connect COMMAND must return a failing
         # CmdResult when the port can't open.  It previously returned ok()
         # unconditionally, so scripts and MCP saw a false success.
@@ -583,6 +623,7 @@ class TestConnect:
         assert not cli.engine.is_connected, "engine remains disconnected on failure"
 
     def test_port_connect_command_reports_success(self, cli):
+        """/port.connect returns ok and connects when the port opens."""
         # Act -- the happy path still returns ok.
         result = cli.repl.dispatch("port.connect DEMO")
 
@@ -591,6 +632,7 @@ class TestConnect:
         assert cli.engine.is_connected, "engine connected after a successful connect"
 
     def test_disconnect_not_connected(self, cli, capsys):
+        """Disconnecting while closed warns rather than failing silently."""
         # Arrange -- fixture is disconnected by default.
         # Act
         cli._disconnect()
@@ -600,6 +642,7 @@ class TestConnect:
         assert "Not connected" in actual, "warns not connected"
 
     def test_disconnect_success(self, cli, capsys):
+        """Disconnect closes the engine and announces it."""
         # Arrange -- real connect, then real disconnect.
         cli._connect()
         capsys.readouterr()  # drain connect banner
@@ -618,6 +661,7 @@ class TestConnect:
 
 class TestSerialWriteRaw:
     def test_not_connected(self, cli, capsys):
+        """A line typed while disconnected warns instead of being dropped silently."""
         # Arrange -- fixture is disconnected by default.
         # Act
         cli._serial_write_raw("AT")
@@ -627,6 +671,7 @@ class TestSerialWriteRaw:
         assert "Not connected" in actual, "warns not connected"
 
     def test_sends_with_line_ending(self, cli, capsys):
+        """Typed lines get the cfg eol appended, proven by DEMO answering OK."""
         # Arrange -- real DEMO connect; DEMO responds to AT<CRLF> with
         # OK<CRLF>.  Seeing "OK" in stdout proves that (a) the bytes
         # were sent, (b) DEMO recognized them as a complete AT command,
@@ -655,6 +700,7 @@ class TestSerialWriteRaw:
 
 class TestCapture:
     def test_start_capture_already_active(self, cli, tmp_path):
+        """A second capture is refused while one is still running."""
         # Arrange -- start a real capture against tmp_path, then try
         # to start a second one.  The second call must be rejected.
         first = tmp_path / "first.txt"
@@ -674,6 +720,7 @@ class TestCapture:
         cli._stop_capture()
 
     def test_start_capture_success(self, cli, tmp_path):
+        """Starting a capture creates the file and marks the engine active."""
         # Arrange
         cap_path = tmp_path / "cap.txt"
 
@@ -689,6 +736,7 @@ class TestCapture:
         cli._stop_capture()
 
     def test_stop_capture(self, cli, tmp_path, capsys):
+        """Stop flushes the file and prints Capture complete exactly once."""
         # Arrange -- real text capture of three bytes.
         cap_path = tmp_path / "cap.txt"
         cli._start_capture(
@@ -717,6 +765,7 @@ class TestCapture:
 
 class TestApplyPortEffects:
     def test_cfg_update(self, cli):
+        """A cfg_update effect lands in the serial cfg section, not the top level."""
         # Arrange
         effects = {"cfg_update": {"baud_rate": 9600}}
 
@@ -729,6 +778,7 @@ class TestApplyPortEffects:
         )
 
     def test_empty_effects(self, cli):
+        """An empty effects dict is a harmless no-op."""
         # Act / Assert - no exception on empty effects
         cli._apply_port_effects({})
 
@@ -738,6 +788,7 @@ class TestApplyPortEffects:
 
 class TestConfirm:
     def test_confirm_yes(self, cli):
+        """Answering y at the prompt confirms."""
         # Act
         with patch("builtins.input", return_value="y"):
             actual = cli._confirm("Continue?")
@@ -746,6 +797,7 @@ class TestConfirm:
         assert actual is True, "y means yes"
 
     def test_confirm_no(self, cli):
+        """Answering n at the prompt declines."""
         # Act
         with patch("builtins.input", return_value="n"):
             actual = cli._confirm("Continue?")
@@ -754,6 +806,7 @@ class TestConfirm:
         assert actual is False, "n means no"
 
     def test_confirm_empty(self, cli):
+        """A bare Enter defaults to no, so destructive actions need a real yes."""
         # Act
         with patch("builtins.input", return_value=""):
             actual = cli._confirm("Continue?")
@@ -762,6 +815,7 @@ class TestConfirm:
         assert actual is False, "empty defaults to no"
 
     def test_confirm_eof(self, cli):
+        """EOF on stdin declines instead of raising, so piped input fails closed."""
         # Act
         with patch("builtins.input", side_effect=EOFError):
             actual = cli._confirm("Continue?")
@@ -833,6 +887,7 @@ class TestVersionFlag:
     def test_version_exits_zero_and_prints_termapy_version(
         self, capsys, monkeypatch,
     ):
+        """--version exits 0 and prints termapy plus a non-empty version token."""
         # Arrange
         monkeypatch.setattr("sys.argv", ["termapy", "--version"])
         from termapy.entry import main
@@ -867,6 +922,7 @@ class TestHelpFlag:
     def test_help_exits_zero_and_produces_substantive_output(
         self, capsys, monkeypatch,
     ):
+        """--help exits 0 with a multi-line block, not a stub."""
         # Arrange
         monkeypatch.setattr("sys.argv", ["termapy", "--help"])
         from termapy.entry import main
@@ -885,6 +941,7 @@ class TestHelpFlag:
         )
 
     def test_help_documents_every_major_flag(self, capsys, monkeypatch):
+        """Every user-facing flag in the curated set appears in --help."""
         # Arrange
         monkeypatch.setattr("sys.argv", ["termapy", "--help"])
         from termapy.entry import main
@@ -916,6 +973,7 @@ class TestHelpFlag:
             )
 
     def test_help_mentions_program_description(self, capsys, monkeypatch):
+        """The parser description saying what termapy is survives in --help."""
         # Arrange
         monkeypatch.setattr("sys.argv", ["termapy", "--help"])
         from termapy.entry import main
@@ -944,6 +1002,7 @@ class TestInfoFlag:
     """
 
     def test_info_no_args_exits_cleanly(self, capsys, monkeypatch):
+        """Bare --info exits 0 or 1 with output whatever ports the machine has."""
         # Arrange - bare --info should query all ports.  We can't
         # assume the test machine has any serial ports, so we just
         # confirm the call exits with 0 or 1 (both are valid: 0 if
@@ -962,6 +1021,7 @@ class TestInfoFlag:
         assert out, "--info produced some stdout output"
 
     def test_info_with_unknown_port_exits_nonzero(self, capsys, monkeypatch):
+        """--info on an unknown port exits 1 with a not-found message."""
         # Arrange - a port name that almost certainly doesn't exist
         # on any test runner.
         monkeypatch.setattr(
@@ -981,6 +1041,7 @@ class TestInfoFlag:
         assert "No port matching" in out, "prints the not-found message"
 
     def test_info_with_equals_syntax(self, capsys, monkeypatch):
+        """The --info=NAME form passes NAME through to the lookup."""
         # Arrange - --info=NAME should parse the same as --info NAME.
         monkeypatch.setattr(
             "sys.argv", ["termapy", "--info=COM_DOES_NOT_EXIST"]
@@ -996,6 +1057,7 @@ class TestInfoFlag:
         assert "COM_DOES_NOT_EXIST" in out, "named port appears in output"
 
     def test_info_with_space_syntax(self, capsys, monkeypatch):
+        """The --info NAME form parses the same as --info=NAME."""
         # Arrange - --info NAME should parse the same as --info=NAME.
         monkeypatch.setattr(
             "sys.argv", ["termapy", "--info", "ANOTHER_FAKE_PORT"]
@@ -1011,6 +1073,7 @@ class TestInfoFlag:
         assert "ANOTHER_FAKE_PORT" in out, "named port appears in output"
 
     def test_info_help_text_appears(self, capsys, monkeypatch):
+        """--help documents the --info flag."""
         # Arrange - --help output should mention the new --info flag.
         monkeypatch.setattr("sys.argv", ["termapy", "--help"])
         from termapy.entry import main
@@ -1062,6 +1125,7 @@ class TestPortsFlag:
     """
 
     def test_ports_prints_header_and_one_row_per_port(self, capsys, monkeypatch):
+        """--ports prints the header and a row per fleet port with aliased vendors."""
         # Arrange -- DEMO_FLEET gives a deterministic 3-port roster.
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
@@ -1083,6 +1147,7 @@ class TestPortsFlag:
         assert "FTDI FT232R" in out, "chip model rendered"
 
     def test_ports_no_ports_exits_nonzero(self, capsys):
+        """An empty fleet prints the no-ports marker and exits 1."""
         # Arrange -- an empty fleet.  The env hook can't express this
         # case (it always returns three ports), so this one drives the
         # handler directly and hands the emptiness in.
@@ -1104,6 +1169,7 @@ class TestPortsFlag:
         assert "(no ports found)" in out, "prints the empty marker"
 
     def test_ports_filter_matches_one(self, capsys, monkeypatch):
+        """A --ports=NAME filter emits only the matching port's row."""
         # Arrange -- --ports=COM4 on the DEMO_FLEET 3-port roster.
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports=COM4"])
@@ -1124,6 +1190,7 @@ class TestPortsFlag:
             f"only COM4 row emitted, got: {data_lines}"
 
     def test_ports_filter_unknown_exits_nonzero(self, capsys, monkeypatch):
+        """A filter with no match exits 1 with an error on stderr."""
         # Arrange -- DEMO_FLEET ports exist but NOPE999 doesn't match.
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports=NOPE999"])
@@ -1139,6 +1206,7 @@ class TestPortsFlag:
         assert "No port matching" in err, "helpful error message"
 
     def test_ports_help_mentions_flag(self, capsys, monkeypatch):
+        """--help documents the --ports flag."""
         # Arrange
         monkeypatch.setattr("sys.argv", ["termapy", "--help"])
         from termapy.entry import main
@@ -1159,6 +1227,7 @@ class TestChipsFlag:
     """Tests for --chips: print the USB_SERIAL_CHIPS lookup table."""
 
     def test_chips_unfiltered_dumps_table(self, capsys, monkeypatch):
+        """Bare --chips dumps the whole table, ending in a Count= line."""
         # Arrange
         monkeypatch.setattr("sys.argv", ["termapy", "--chips"])
         from termapy.entry import main
@@ -1176,6 +1245,7 @@ class TestChipsFlag:
             "final line is Count=<N>"
 
     def test_chips_filter_narrows(self, capsys, monkeypatch):
+        """A --chips filter keeps matching vendors and drops the rest."""
         # Arrange
         monkeypatch.setattr("sys.argv", ["termapy", "--chips=ftdi"])
         from termapy.entry import main
@@ -1202,6 +1272,7 @@ class TestWatchFlag:
     """Tests for --watch: event-line monitor with Ctrl+C exit."""
 
     def test_the_watch_flag_reaches_the_handler(self, monkeypatch):
+        """argparse routes --watch to run_watch exactly once."""
         # Arrange -- the wiring half: argparse to run_watch, and nothing
         # more.  A recorder stands in for the handler because the real
         # one loops until interrupted, and the only lever that could stop
@@ -1230,6 +1301,7 @@ class TestWatchFlag:
         assert len(seen) == 1, f"--watch dispatches to run_watch once; got {seen}"
 
     def test_watch_exits_cleanly_on_keyboard_interrupt(self, capsys, monkeypatch):
+        """Ctrl+C ends the watch loop with exit 0 after the baseline is shown."""
         # Arrange -- the behavior half: drive the handler directly with a
         # fleet that raises on the second look, standing in for the
         # user's Ctrl+C.  The poll interval is set to zero rather than
@@ -1265,6 +1337,7 @@ class TestWatchFlag:
         assert "FTDI FT232R" in out, "baseline emits chip column"
 
     def test_watch_emits_add_and_remove_events(self, capsys, monkeypatch):
+        """A changed snapshot emits a + line for the arrival and - for the loss."""
         # Arrange -- scripted sequence: baseline (1 port), then second
         # snapshot adds COM4 and removes COM3, then KeyboardInterrupt.
         import argparse
@@ -1311,6 +1384,7 @@ class TestWatchFlag:
         assert removed_marker, f"expected a '- COM3' marker line, got: {out!r}"
 
     def test_watch_help_mentions_flag(self, capsys, monkeypatch):
+        """--help documents the --watch flag."""
         # Arrange
         monkeypatch.setattr("sys.argv", ["termapy", "--help"])
         from termapy.entry import main
@@ -1336,6 +1410,7 @@ class TestCliFreeOfTextual:
     """
 
     def test_entry_import_does_not_load_textual(self):
+        """The entry point, the root of every CLI one-shot, stays Textual-free."""
         # Arrange -- subprocess isolates the import graph.
         import subprocess
         import sys as _sys
@@ -1359,6 +1434,7 @@ class TestCliFreeOfTextual:
         )
 
     def test_cli_flags_import_does_not_load_textual(self):
+        """The one-shot flag handlers import without pulling in Textual."""
         # Arrange
         import subprocess
         import sys as _sys
@@ -1381,6 +1457,7 @@ class TestCliFreeOfTextual:
         )
 
     def test_port_format_import_does_not_load_textual(self):
+        """The port table formatter imports without pulling in Textual."""
         # Arrange
         import subprocess
         import sys as _sys
@@ -1406,6 +1483,7 @@ class TestPlainFileHistory:
     """One history file per cfg, plain lines, shared by TUI and CLI."""
 
     def test_store_appends_plain_line(self, tmp_path):
+        """Entries are stored as bare lines, the TUI's format, with no timestamps."""
         # Arrange
         path = tmp_path / "dev.history"
         hist = PlainFileHistory(str(path))
@@ -1420,6 +1498,7 @@ class TestPlainFileHistory:
         assert actual == expected, "plain lines only"
 
     def test_load_yields_newest_first(self, tmp_path):
+        """Loading reverses the file to newest first, as prompt_toolkit expects."""
         # Arrange -- a TUI-written file (plain lines, oldest first)
         path = tmp_path / "dev.history"
         path.write_text("first\nsecond\nthird\n", encoding="utf-8")
@@ -1432,6 +1511,7 @@ class TestPlainFileHistory:
         assert actual == expected, "reversed for prompt_toolkit"
 
     def test_legacy_prompt_toolkit_file_cleans_up(self, tmp_path):
+        """Old FileHistory timestamps are skipped; leading + entries are kept as-is."""
         # Arrange -- a file written by the OLD FileHistory format
         path = tmp_path / "dev.history"
         path.write_text(
@@ -1449,6 +1529,7 @@ class TestPlainFileHistory:
         assert actual == expected, "legacy timestamps dropped, entries survive"
 
     def test_missing_file_yields_nothing(self, tmp_path):
+        """A missing history file loads as empty, not an error."""
         # Act
         actual = list(
             PlainFileHistory(str(tmp_path / "absent.history")).load_history_strings()
@@ -1458,6 +1539,7 @@ class TestPlainFileHistory:
         assert actual == [], "no file, no history, no error"
 
     def test_multiline_input_flattened(self, tmp_path):
+        """Embedded newlines become spaces so one entry stays one line."""
         # Arrange
         path = tmp_path / "dev.history"
         hist = PlainFileHistory(str(path))
@@ -1470,6 +1552,7 @@ class TestPlainFileHistory:
         assert actual == "line1 line2\n", "newlines flattened to spaces"
 
     def test_tui_reads_cli_written_file_as_lines(self, tmp_path):
+        """A CLI-written history reads back in the TUI as exactly its commands."""
         # Arrange -- CLI writes via PlainFileHistory
         path = tmp_path / "dev.history"
         hist = PlainFileHistory(str(path))
@@ -1488,6 +1571,7 @@ class TestWatchPortWidth:
     """Port-column width: platform floor grown to the initial fleet."""
 
     def test_floor_wins_over_short_devices(self):
+        """Short port names never shrink the column below the floor."""
         # Arrange / Act -- explicit floor so the test is platform-free
         from termapy.cli_flags import _watch_port_width
         actual = _watch_port_width(["COM3", "COM10"], floor=6)
@@ -1496,6 +1580,7 @@ class TestWatchPortWidth:
         assert actual == 6, "short names never shrink below the floor"
 
     def test_longest_device_wins_over_floor(self):
+        """A device name longer than the floor sets the column width."""
         # Arrange / Act
         from termapy.cli_flags import _watch_port_width
         actual = _watch_port_width(
@@ -1507,6 +1592,7 @@ class TestWatchPortWidth:
         assert actual == expected, "fleet's longest name sets the width"
 
     def test_empty_fleet_gives_the_floor(self):
+        """With no ports at start, the width is the floor so later rows pad."""
         # Arrange / Act -- watch can start with zero ports
         from termapy.cli_flags import _watch_port_width
         actual = _watch_port_width([], floor=32)
@@ -1515,6 +1601,7 @@ class TestWatchPortWidth:
         assert actual == 32, "no ports -> floor, so later rows still pad"
 
     def test_mac_shaped_fleet_aligns_columns(self, capsys, monkeypatch):
+        """Mixed-length macOS names pad to one width so later columns align."""
         # Arrange -- the reported defect: macOS device names vary wildly
         # in length (COMxxx never does), so the port column must be
         # padded to the fleet max or every later column drifts per row.
@@ -1557,6 +1644,7 @@ class TestWatchPortWidth:
         )
 
     def test_late_long_arrival_grows_the_column(self, capsys, monkeypatch):
+        """A long late arrival grows the column for all later rows; it never shrinks."""
         # Arrange -- baseline is one short name; snapshot 2 adds a much
         # longer one; snapshot 3 re-emits an event on the SHORT port
         # (open-state flip).  Grow-only width means the snapshot-3 row

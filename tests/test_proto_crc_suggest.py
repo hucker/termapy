@@ -45,6 +45,7 @@ class TestDidYouMeanHelper:
     """``_did_you_mean`` forwards to ``crcglot.suggest_algorithms``."""
 
     def test_typo_returns_suggestion_suffix(self):
+        """A near-miss name yields the '; did you mean: ' suffix naming the intended algorithm."""
         # Arrange / Act
         actual = _did_you_mean("crc16-modbsu")
 
@@ -61,6 +62,7 @@ class TestDidYouMeanHelper:
         )
 
     def test_garbage_returns_empty_string(self):
+        """With nothing close in the catalog, the suffix is empty so the error reads cleanly."""
         # Arrange / Act -- nothing close in the catalog.
         actual = _did_you_mean("floozle")
 
@@ -68,6 +70,7 @@ class TestDidYouMeanHelper:
         assert actual == "", f"no suggestion expected for 'floozle'; got {actual!r}"
 
     def test_width_family_returns_variants(self):
+        """A bare family name like crc16 suggests concrete width-16 variants."""
         # Arrange / Act -- bare ``crc16`` names a family with no default;
         # crcglot suggests width-16 variants.
         actual = _did_you_mean("crc16")
@@ -82,6 +85,7 @@ class TestSuggestionRendersAtHandlerSites:
     """All five unknown-algo error sites carry the suggestion suffix."""
 
     def test_crc_info_suffix(self):
+        """/proto.crc.info fails on a typo and appends the suggestion to its error."""
         # Arrange
         ctx, _captured, _markup = _build_stub_ctx()
 
@@ -98,6 +102,7 @@ class TestSuggestionRendersAtHandlerSites:
         )
 
     def test_crc_calc_suffix(self):
+        """/proto.crc.calc carries the suggestion when the algorithm precedes data bytes."""
         # Arrange
         ctx, _captured, _markup = _build_stub_ctx()
 
@@ -111,6 +116,7 @@ class TestSuggestionRendersAtHandlerSites:
         )
 
     def test_crc_verify_suffix(self):
+        """The verify path also appends the suggestion for a typo'd algorithm."""
         # Arrange
         ctx, _captured, _markup = _build_stub_ctx()
 
@@ -124,6 +130,7 @@ class TestSuggestionRendersAtHandlerSites:
         )
 
     def test_crc_codegen_single_suffix(self):
+        """Single-algorithm code generation suggests the right name on a typo."""
         # Arrange -- catalog single-algo path
         ctx, _captured, _markup = _build_stub_ctx()
 
@@ -138,6 +145,7 @@ class TestSuggestionRendersAtHandlerSites:
         )
 
     def test_crc_codegen_bundle_suffix(self):
+        """In a codegen bundle, the one bad member's error carries its own suggestion."""
         # Arrange -- bundle path: one good name + one bad name; the bad
         # name's error should carry the suggestion.
         ctx, _captured, _markup = _build_stub_ctx()

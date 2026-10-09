@@ -39,6 +39,7 @@ class TestCliExec:
     """``--exec``/``-e`` runs one command, prints to stdout, exits."""
 
     def test_exec_success_exits_zero(self, tmp_path):
+        """A successful one-shot command exits 0 and prints its output to stdout."""
         # Arrange / Act -- /help port is a deterministic local command
         # with multi-line output.  Always succeeds.
         result = _run("--exec", "/help port", cfg_dir=str(tmp_path))
@@ -55,6 +56,7 @@ class TestCliExec:
         )
 
     def test_exec_unknown_command_exits_one(self, tmp_path):
+        """A CmdResult.fail from the one-shot command becomes exit 1 for shell callers."""
         # Arrange / Act -- a command that doesn't exist.  Dispatch
         # returns CmdResult.fail, exec mode maps that to exit code 1.
         result = _run("--exec", "/notacommand", cfg_dir=str(tmp_path))
@@ -68,6 +70,7 @@ class TestCliExec:
         )
 
     def test_exec_and_run_are_mutually_exclusive(self, tmp_path):
+        """--run with --exec is refused up front, with an error naming the mutual exclusion."""
         # Arrange / Act -- argparse-level mutual exclusion enforced
         # in entry.py.  Should reject before doing anything.
         result = _run(

@@ -27,45 +27,54 @@ def _memory_warnings(profile: dict) -> list[str]:
 class TestMemoryBlock:
 
     def test_clean_block_is_silent(self):
+        """A block with every key at a canonical value produces no memory warnings."""
         profile = {"memory": {"dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le"}}
         assert _memory_warnings(profile) == [], "canonical values raise nothing"
 
     def test_unknown_key_warns(self):
+        """An unrecognized memory key is linted by name instead of silently ignored."""
         warnings = _memory_warnings({"memory": {"row_pattern": "x"}})
         assert any("memory" in warning and "row_pattern" in warning for warning in warnings), (
             "forward-compat lint names the unknown key"
         )
 
     def test_unknown_dialect_warns_with_the_refusal_rule(self):
+        """An unknown dialect warns that /mem.* will refuse rather than guess a grammar."""
         warnings = _memory_warnings({"memory": {"dialect": "uboot"}})
         assert any("dialect" in warning and "refuse" in warning for warning in warnings), (
             "states that /mem.* refuse rather than guess a grammar"
         )
 
     def test_bad_endian_degrades_to_le(self):
+        """An endian value other than le/be warns and is treated as little-endian."""
         warnings = _memory_warnings({"memory": {"endian": "big"}})
         assert any("endian" in warning and "treated as le" in warning for warning in warnings)
 
     def test_bad_max_block_degrades_to_default(self):
+        """A zero max_block warns and falls back to the default of 64."""
         # A wrong VALUE degrades; a wrong TYPE ("64") is a schema error like
         # every other typed profile field, and that is the schema's job.
         warnings = _memory_warnings({"memory": {"max_block": 0}})
         assert any("max_block" in warning and "default 64" in warning for warning in warnings)
 
     def test_template_block_without_read_warns_with_the_refusal(self):
+        """The template dialect without a read template warns that /mem.* will refuse."""
         warnings = _memory_warnings({"memory": {"dialect": "template"}})
         assert any("memory/read: required" in warning and "refuse" in warning for warning in warnings)
 
     def test_template_bad_regex_warns(self):
+        """An uncompilable ack regex in a template block is reported by field name."""
         warnings = _memory_warnings({"memory": {"dialect": "template", "read": "r {addr} {len}", "ack": "("}})
         assert any("memory/ack: invalid regex" in warning for warning in warnings)
 
     def test_demo_legacy_profile_lints_clean(self):
+        """The shipped demo_legacy template-dialect block lints with no warnings."""
         profile = json.loads(DEMO_PROFILE.with_name("demo_legacy.profile.json").read_text(encoding="utf-8"))
         assert profile["memory"]["dialect"] == "template"
         assert _memory_warnings(profile) == [], "the shipped template block is canonical"
 
     def test_demo_profile_declares_the_block_cleanly(self):
+        """The shipped demo profile uses the native termapy dialect and lints clean."""
         # Arrange
         profile = json.loads(DEMO_PROFILE.read_text(encoding="utf-8"))
 

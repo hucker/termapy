@@ -172,6 +172,7 @@ class TestDriverBufferLoss:
     """
 
     def test_slow_consumer_does_not_lose_bytes(self, engine):
+        """A 60 ms consumer at 921600 baud loses under 5% of 64 KB; a 4 KB buffer lost ~21%."""
         # Arrange -- a consumer slower than the old 44 ms threshold at this
         # baud.  With pyserial's default buffer this lost ~21% of the stream.
         received = [0]
@@ -204,6 +205,7 @@ class TestDriverBufferLoss:
         )
 
     def test_buffer_request_is_actually_applied_to_this_port(self, loopback_device):
+        """The real driver on this adapter accepts the request_rx_buffer call."""
         # Arrange / Act -- the real Windows backend is the only one with the
         # API, so this asserts the call path end-to-end on real hardware.
         import serial
@@ -232,6 +234,7 @@ class TestDrainPurgesDriverBuffer:
     """
 
     def test_backlog_parked_in_the_driver_does_not_survive_drain(self, engine):
+        """Bytes still in the driver at drain() never reach the reader once it resumes."""
         # Arrange -- reader held off, so the backlog sits in the driver where
         # a queue-only drain cannot see it.  This is what happens when a
         # script issues /ping while the main thread is mid-render.
@@ -270,6 +273,7 @@ class TestReaderTeardown:
     """T1/T2: teardown ownership and promptness against a real driver."""
 
     def test_reader_stops_promptly_with_rx_in_flight(self, engine):
+        """stop_reader joins the reader within READER_JOIN_TIMEOUT_S while a stream is arriving."""
         # Arrange -- a live stream, then stop mid-flow.  The reader must
         # reach its stop check within a read timeout; it can only do that
         # because the RX handoff no longer blocks on the consumer.
@@ -293,6 +297,7 @@ class TestReaderTeardown:
         )
 
     def test_stale_reader_does_not_close_the_reconnected_port(self, engine):
+        """A reader outliving its disconnect leaves the reconnected port open and installed."""
         # Arrange -- park generation 1 in its callback so it outlives its own
         # disconnect, exactly as a blocked consumer used to.
         hold = threading.Event()

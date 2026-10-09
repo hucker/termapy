@@ -93,6 +93,7 @@ class TestPrefixDispatchShapes:
     """
 
     def test_bare_command_dispatches(self, tmp_path):
+        """The shortest shape, a bare !ver with no arguments, reaches the version handler."""
         # Arrange -- `!ver` is the shortest possible REPL invocation.
         result = _run_cli(
             tmp_path,
@@ -107,6 +108,7 @@ class TestPrefixDispatchShapes:
             f"!ver didn't dispatch the version handler: {actual!r}"
 
     def test_positional_string_dispatches(self, tmp_path):
+        """A free-text argument after the ! prefix reaches !print as the whole rest of the line."""
         # Arrange -- single-positional print, most common REPL shape.
         result = _run_cli(
             tmp_path,
@@ -121,6 +123,7 @@ class TestPrefixDispatchShapes:
             f"!print didn't dispatch: {actual!r}"
 
     def test_cfg_read_dispatches(self, tmp_path):
+        """A single-key read, !cfg cmd_prefix, dispatches and reports the configured value."""
         # Arrange -- read-only handler that takes one positional arg.
         result = _run_cli(
             tmp_path,
@@ -134,6 +137,7 @@ class TestPrefixDispatchShapes:
         assert "!" in actual, f"cfg didn't report the prefix value: {actual!r}"
 
     def test_dotted_subcommand_dispatches(self, tmp_path):
+        """The dot split runs after the prefix strip, so !cfg.auto reaches the subcommand."""
         # Arrange -- `.auto` is a subcommand under /cfg; the dot-split
         # happens after the prefix strip, so this proves the subcommand
         # tree is reached even with a non-default prefix.
@@ -153,6 +157,7 @@ class TestPrefixDispatchShapes:
             f"!cfg.auto set didn't take effect: {actual!r}"
 
     def test_device_command_unprefixed_still_reaches_serial(self, tmp_path):
+        """A line with no prefix still falls through to the device and gets the demo OK."""
         # Arrange -- no REPL prefix at all; the line must be sent to
         # the demo device, which responds with OK.
         result = _run_cli(
@@ -170,6 +175,7 @@ class TestPrefixDispatchShapes:
     def test_default_slash_is_not_a_repl_prefix_when_cmd_prefix_is_bang(
         self, tmp_path
     ):
+        """Once the prefix is !, a /print line goes to the device instead of the handler."""
         # Arrange -- with cmd_prefix="!", the literal `/print hello`
         # must NOT dispatch the print handler.  It's sent to the
         # demo device instead (where it's meaningless).  Absence of
@@ -208,6 +214,7 @@ class TestPrefixOutputFlowThrough:
     """
 
     def test_help_listing_uses_live_prefix_for_command_names(self, tmp_path):
+        """The !help listing names every command with !, and no row starts with /cmd."""
         # Arrange -- `!help` lists every command.  The left column
         # should read `!cmd`, never `/cmd`.
         result = _run_cli(
@@ -235,6 +242,7 @@ class TestPrefixOutputFlowThrough:
             )
 
     def test_help_detail_cross_references_use_live_prefix(self, tmp_path):
+        """Cross-references in the !help cfg prose say !cfg.auto, never a hardcoded /cfg.auto."""
         # Arrange -- drill into a single command's help.  The help
         # text (right column / long_help) commonly cross-references
         # other commands.  Catch the case where those references
@@ -258,6 +266,7 @@ class TestPrefixOutputFlowThrough:
         )
 
     def test_search_results_use_live_prefix(self, tmp_path):
+        """Search hits render with the live prefix -- !print, never /print."""
         # Arrange -- `!search` finds commands matching a query and
         # prints them.  Results should read `!cmd`, not `/cmd`.
         result = _run_cli(
@@ -280,6 +289,7 @@ class TestPrefixOutputFlowThrough:
         )
 
     def test_cfg_dump_reports_live_prefix_value(self, tmp_path):
+        """The !cfg.dump JSON shows cmd_prefix as !; other slashes are data and go unchecked."""
         # Arrange -- `!cfg.dump` prints the loaded config as JSON.  The
         # `cmd_prefix` field should show `!`.  We don't check for
         # absence of `/` in the output because the dump is JSON and
@@ -303,6 +313,7 @@ class TestPrefixExclamation:
     """Run a handful of commands with cmd_prefix='!' and assert they dispatch."""
 
     def test_print_dispatches_with_bang_prefix(self, tmp_path):
+        """Smoke case for the ! prefix: !print writes its message, proving REPL dispatch."""
         # Arrange - a config whose prefix is '!' instead of '/'
         result = _run_cli(
             tmp_path,
@@ -317,6 +328,7 @@ class TestPrefixExclamation:
             f"!print didn't dispatch, stdout: {actual!r}"
 
     def test_slash_is_not_dispatched_when_prefix_is_bang(self, tmp_path):
+        """Under !, /print is raw serial text; a bare hello line would mean it dispatched."""
         # Arrange - typing '/print foo' with a '!' prefix config should
         # send "/print foo" to the device as a raw serial command,
         # NOT dispatch to the /print REPL handler.  The demo device
@@ -340,6 +352,7 @@ class TestPrefixExclamation:
         )
 
     def test_cfg_read_with_bang_prefix(self, tmp_path):
+        """Under the ! prefix, !cfg cmd_prefix reads back the configured ! value."""
         # Arrange - read back the cmd_prefix value to prove /cfg
         # routes through the new prefix.
         result = _run_cli(
@@ -355,6 +368,7 @@ class TestPrefixExclamation:
         assert "!" in actual, f"cfg didn't report the prefix value: {actual!r}"
 
     def test_device_command_still_works(self, tmp_path):
+        """Changing the REPL prefix leaves plain device lines alone: AT still gets OK."""
         # Arrange - device commands (no prefix) should go through
         # regardless of what the REPL prefix is.
         result = _run_cli(
@@ -369,6 +383,7 @@ class TestPrefixExclamation:
         assert "OK" in actual, f"AT command didn't reach demo device: {actual!r}"
 
     def test_mixed_script_runs_end_to_end(self, tmp_path):
+        """A script alternating !print and AT lines runs every line; ordering is not pinned."""
         # Arrange - a tiny script that mixes REPL commands (!) and
         # device commands, exercising the dispatch boundary both ways.
         result = _run_cli(
@@ -405,6 +420,7 @@ class TestPrefixDefault:
     """
 
     def test_slash_print_dispatches_by_default(self, tmp_path):
+        """With no cmd_prefix override, /print still dispatches -- the default path survives."""
         # Arrange - no override; use the project default.
         result = _run_cli(
             tmp_path,

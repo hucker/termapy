@@ -25,6 +25,7 @@ class TestResolveConfigExactFile:
     """Rule 1: exact file path."""
 
     def test_absolute_cfg_path(self, tmp_path):
+        """An absolute path to an existing cfg file is returned unchanged."""
         # Arrange
         cfg = _make_cfg(tmp_path, "demo")
 
@@ -35,6 +36,7 @@ class TestResolveConfigExactFile:
         assert actual == str(cfg), "returns the exact path"
 
     def test_relative_cfg_path(self, tmp_path, monkeypatch):
+        """A cwd-relative path into a config folder resolves to that same cfg file."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         cfg = _make_cfg(tmp_path, "demo")
@@ -47,6 +49,7 @@ class TestResolveConfigExactFile:
         assert Path(actual).resolve() == cfg.resolve(), "relative path resolves to same file"
 
     def test_cfg_extension_explicit(self, tmp_path, monkeypatch):
+        """A loose name.cfg in cwd is returned as typed, without a config folder around it."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         cfg = tmp_path / "my_device.cfg"
@@ -63,6 +66,7 @@ class TestResolveConfigDirectory:
     """Rule 2: directory containing <dirname>.cfg."""
 
     def test_directory_with_matching_cfg(self, tmp_path):
+        """Naming a config folder selects the <folder>.cfg inside it."""
         # Arrange
         cfg = _make_cfg(tmp_path, "demo")
 
@@ -73,6 +77,7 @@ class TestResolveConfigDirectory:
         assert actual == str(cfg), "directory resolves to <dirname>.cfg inside it"
 
     def test_directory_without_matching_cfg(self, tmp_path):
+        """A folder holding no <folder>.cfg resolves to None rather than a guess."""
         # Arrange
         folder = tmp_path / "empty_dir"
         folder.mkdir()
@@ -84,6 +89,7 @@ class TestResolveConfigDirectory:
         assert actual is None, "directory without matching .cfg returns None"
 
     def test_nested_relative_directory(self, tmp_path, monkeypatch):
+        """A multi-segment relative folder path such as termapy_cfg/demo still resolves."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         cfg_root = tmp_path / "termapy_cfg"
@@ -101,6 +107,7 @@ class TestResolveConfigCfgDir:
     """Rule 3: cfg_dir/<name>/<name>.cfg via configured cfg dir."""
 
     def test_bare_name(self, tmp_path, monkeypatch):
+        """A bare config name is found under the configured cfg dir."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -115,6 +122,7 @@ class TestResolveConfigCfgDir:
         assert Path(actual).resolve() == cfg.resolve(), "bare name found in cfg_dir"
 
     def test_bare_name_with_cfg_extension(self, tmp_path, monkeypatch):
+        """name.cfg with no file in cwd falls through to the cfg dir by its stem."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -133,6 +141,7 @@ class TestResolveConfigCwdFallback:
     """Rule 4: ./termapy_cfg/<name>/<name>.cfg via cwd."""
 
     def test_cwd_termapy_cfg(self, tmp_path, monkeypatch):
+        """When the cfg dir lacks the name, ./termapy_cfg/<name>/<name>.cfg is used."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -152,6 +161,7 @@ class TestResolveConfigAppendCfg:
     """Rule 5: append .cfg to bare name."""
 
     def test_append_cfg_extension(self, tmp_path, monkeypatch):
+        """A bare name with no config folder anywhere finds name.cfg in cwd."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -167,6 +177,7 @@ class TestResolveConfigAppendCfg:
         assert Path(actual).resolve() == cfg.resolve(), "appends .cfg to bare name"
 
     def test_no_double_cfg_extension(self, tmp_path, monkeypatch):
+        """A missing name.cfg resolves to None; .cfg is never appended a second time."""
         # Arrange - name already ends in .cfg, rule 5 should not add another
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -183,6 +194,7 @@ class TestResolveConfigNotFound:
     """Rule 6: returns None when nothing matches."""
 
     def test_nonexistent_name(self, tmp_path, monkeypatch):
+        """A typo with no match anywhere in the chain resolves to None."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -195,6 +207,7 @@ class TestResolveConfigNotFound:
         assert actual is None, "nonexistent name returns None"
 
     def test_nonexistent_path(self, tmp_path, monkeypatch):
+        """A path-shaped argument to a missing file resolves to None."""
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -207,6 +220,7 @@ class TestResolveConfigNotFound:
         assert actual is None, "nonexistent path returns None"
 
     def test_directory_wrong_cfg_name(self, tmp_path, monkeypatch):
+        """A folder's cfg must share the folder's name; any other .cfg there is ignored."""
         # Arrange - directory "demo" exists but contains "other.cfg" not "demo.cfg"
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -226,6 +240,7 @@ class TestResolveConfigPriority:
     """Resolution chain priority - earlier rules win."""
 
     def test_exact_file_beats_directory(self, tmp_path, monkeypatch):
+        """An existing file named exactly as typed wins over a cfg-dir config of that name."""
         # Arrange - "demo" is both a file and a directory name in cfg_dir
         monkeypatch.chdir(tmp_path)
         exact = tmp_path / "demo"
@@ -242,6 +257,7 @@ class TestResolveConfigPriority:
         assert Path(actual).resolve() == exact.resolve(), "rule 1 (exact file) wins over rule 3 (cfg_dir)"
 
     def test_cfg_dir_beats_cwd_fallback(self, tmp_path, monkeypatch):
+        """The configured cfg dir wins over ./termapy_cfg when both hold the name."""
         # Arrange - same name exists in both cfg_dir and cwd/termapy_cfg
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
@@ -267,6 +283,7 @@ class TestResolveConfigPriority:
 
 class TestProtoDirFor:
     def test_sits_beside_the_config(self, tmp_path):
+        """A config's proto/ folder is a sibling of its cfg file."""
         # Arrange
         config_path = tmp_path / "proj" / "proj.cfg"
 
@@ -277,6 +294,7 @@ class TestProtoDirFor:
         assert actual == tmp_path / "proj" / "proto", "proto/ is a sibling of the cfg"
 
     def test_does_not_require_the_folder_to_exist(self, tmp_path):
+        """proto_dir_for is pure path math: it neither needs nor creates the folder."""
         # Act -- a config with no proto/ folder yet is normal, not an error
         actual = proto_dir_for(str(tmp_path / "p.cfg"))
 
@@ -294,6 +312,7 @@ class TestResolveProtoPath:
         return config_path
 
     def test_finds_script_in_the_proto_folder(self, tmp_path):
+        """--proto with a script name finds it in the config's proto/ folder."""
         # Arrange
         config_path = self._cfg(tmp_path)
         script = config_path.parent / "proto" / "smoke.pro"
@@ -306,6 +325,7 @@ class TestResolveProtoPath:
         assert actual == script, "resolves inside the config's proto/ folder"
 
     def test_appends_the_extension(self, tmp_path):
+        """--proto smoke finds smoke.pro, so the extension is optional."""
         # Arrange -- `--proto smoke` must behave like `--proto smoke.pro`
         config_path = self._cfg(tmp_path)
         script = config_path.parent / "proto" / "smoke.pro"
@@ -318,6 +338,7 @@ class TestResolveProtoPath:
         assert actual == script, "a bare name gets .pro appended"
 
     def test_does_not_double_the_extension(self, tmp_path):
+        """A name already ending in .pro is not looked up as smoke.pro.pro."""
         # Arrange
         config_path = self._cfg(tmp_path)
         script = config_path.parent / "proto" / "smoke.pro"
@@ -330,6 +351,7 @@ class TestResolveProtoPath:
         assert actual == script, "an explicit .pro is left alone"
 
     def test_direct_path_wins_over_the_proto_folder(self, tmp_path, monkeypatch):
+        """A script path relative to the shell beats a same-named file in proto/."""
         # Arrange -- same filename in both places; the one the user typed
         # relative to their shell must win, since that is what they meant
         config_path = self._cfg(tmp_path)
@@ -349,6 +371,7 @@ class TestResolveProtoPath:
         )
 
     def test_missing_script_returns_none(self, tmp_path):
+        """An unfound script yields None so the caller owns the message and exit code."""
         # Arrange
         config_path = self._cfg(tmp_path)
 
@@ -360,6 +383,7 @@ class TestResolveProtoPath:
         assert actual is None, "an unresolvable name resolves to None"
 
     def test_missing_proto_folder_is_not_an_error(self, tmp_path):
+        """A config with no proto/ folder resolves to None rather than raising."""
         # Arrange -- config with no proto/ folder at all
         config_path = tmp_path / "proj" / "proj.cfg"
         config_path.parent.mkdir(parents=True)
@@ -375,12 +399,15 @@ class TestProtoScriptName:
     """The normalization the error message and the resolver must agree on."""
 
     def test_appends_when_absent(self):
+        """A bare script name is normalized to carry .pro."""
         assert proto_script_name("smoke") == "smoke.pro", "bare name gets .pro"
 
     def test_leaves_an_explicit_extension(self):
+        """A name that already ends in .pro is left as is."""
         assert proto_script_name("smoke.pro") == "smoke.pro", "no doubling"
 
     def test_error_message_reports_the_searched_name(self, tmp_path):
+        """The not-found message names smoke.pro, the file searched, not the bare input."""
         # Arrange -- regression guard.  The "not found" message must name
         # smoke.pro, the file actually looked for, not the bare `smoke` the
         # user typed; an earlier refactor reported the un-normalized name.

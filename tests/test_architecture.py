@@ -593,3 +593,129 @@ def test_symbols_namespace_owner_still_touches_it():
     assert SYMBOLS_NS_OWNER in actual, (
         "session.py no longer touches ctx.ns('symbols'); move the exemption to the new owner"
     )
+
+
+# ── Test headers ─────────────────────────────────────────────────────────────
+
+TESTS = Path(__file__).parent
+
+# Test files that still hold a test with no docstring header, written before
+# the rule existed.  The list only shrinks: files come off as batches convert
+# them (the stale-entry test below forces that), and when it is empty this
+# constant and its stale-entry test are deleted.  Never add a file here -- a
+# new or edited test gets its header instead.
+ALLOWED_HEADERLESS: frozenset[str] = frozenset({
+    "test_devices.py",
+    "test_devices_svd.py",
+    "test_firmware_mem.py",
+    "test_memory_views.py",
+    "test_sym_commands.py",
+})
+
+
+def _test_functions(
+    body: list[ast.stmt], prefix: str = "",
+) -> list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]]:
+    """``(qualname, def)`` for every test pytest collects from ``body``.
+
+    pytest's defaults, which pyproject does not override: ``test*`` functions
+    at module level and ``test*`` methods of ``Test*`` classes, nested
+    classes included.  Helpers, fixtures and non-``Test`` classes are not
+    tests, so they need no header.
+    """
+    found: list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]] = []
+    for node in body:
+        is_function = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        if is_function and node.name.startswith("test"):
+            found.append((prefix + node.name, node))
+        elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+            found.extend(_test_functions(node.body, f"{prefix}{node.name}."))
+    return found
+
+
+def _headerless_tests(tree: ast.Module, rel: str) -> list[str]:
+    """Every test in ``rel`` with no docstring header."""
+    return [
+        f"{rel}:{func.lineno}  {qualname}"
+        for qualname, func in _test_functions(tree.body)
+        if not ast.get_docstring(func)
+    ]
+
+
+def _headerless_files() -> dict[str, list[str]]:
+    """``{rel: [violation lines]}`` for every test file with a headerless test."""
+    found: dict[str, list[str]] = {}
+    for path in sorted(TESTS.rglob("test_*.py")):
+        rel = path.relative_to(TESTS).as_posix()
+        missing = _headerless_tests(ast.parse(path.read_text(encoding="utf-8")), rel)
+        if missing:
+            found[rel] = missing
+    return found
+
+
+def test_every_test_has_a_header():
+    """Every test outside the shrinking allowlist says what it pins in a docstring.
+
+    The name says what a test does; the header says why it matters, which
+    is what a reader has lost when they come back to it later.  See the
+    Testing section of CLAUDE.md.
+    """
+    # Arrange / Act
+    violations = [
+        line
+        for rel, missing in _headerless_files().items()
+        if rel not in ALLOWED_HEADERLESS
+        for line in missing
+    ]
+
+    # Assert
+    assert violations == [], (
+        "every test opens with a one-line docstring header saying what it pins:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_header_guard_fires_on_a_probe():
+    """The guard flags exactly the tests pytest collects, and only headerless ones."""
+    # Arrange -- two headerless tests, plus a headed test, a helper, a
+    # fixture and a non-Test class that must all pass
+    probe = (
+        "def test_bare():\n"
+        "    assert True\n"
+        "def test_headed():\n"
+        '    """Has a header."""\n'
+        "def _helper():\n"
+        "    pass\n"
+        "@pytest.fixture\n"
+        "def board():\n"
+        "    pass\n"
+        "class TestThing:\n"
+        "    def test_method(self):\n"
+        "        pass\n"
+        "    def helper(self):\n"
+        "        pass\n"
+        "class Helper:\n"
+        "    def test_not_collected(self):\n"
+        "        pass\n"
+    )
+
+    # Act
+    found = _headerless_tests(ast.parse(probe), "probe")
+
+    # Assert
+    assert found == ["probe:1  test_bare", "probe:11  TestThing.test_method"], (
+        "the module test and the Test-class method flagged; nothing pytest skips"
+    )
+
+
+def test_headerless_allowlist_has_no_stale_entries():
+    """Every allowlisted file still has a headerless test, so the list only shrinks."""
+    # Arrange / Act
+    actual = set(_headerless_files())
+
+    # Assert
+    stale = sorted(ALLOWED_HEADERLESS - actual)
+    assert stale == [], (
+        "ALLOWED_HEADERLESS lists files whose tests all have headers now; drop them:\n  "
+        + "\n  ".join(stale)
+    )

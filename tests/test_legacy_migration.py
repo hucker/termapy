@@ -25,6 +25,7 @@ from termapy.run_legacy import _scan_line
 
 class TestScanSimpleRenames:
     def test_echo_quiet_to_silent(self):
+        """A .quiet suffix becomes .silent with its args kept, counted as one hit."""
         # Arrange
         line = "/echo.quiet on"
 
@@ -38,6 +39,7 @@ class TestScanSimpleRenames:
         assert len(hits) == 1, "one hit recorded"
 
     def test_term_echo_quiet_to_silent(self):
+        """Namespaced names rename too: /term.echo.quiet becomes /term.echo.silent."""
         # Arrange
         line = "/term.echo.quiet off"
 
@@ -50,6 +52,7 @@ class TestScanSimpleRenames:
         assert actual == expected, "term.echo.quiet rewritten"
 
     def test_indent_preserved(self):
+        """Leading whitespace survives a rename, so indented script lines stay aligned."""
         # Arrange -- some scripts indent commands.
         line = "    /echo.quiet on"
 
@@ -62,6 +65,7 @@ class TestScanSimpleRenames:
         assert actual == expected, "indent preserved"
 
     def test_non_command_line_untouched(self):
+        """A line without the REPL prefix is device traffic and is never rewritten."""
         # Arrange -- serial line, not a REPL command.
         line = "AT+INFO"
 
@@ -73,6 +77,7 @@ class TestScanSimpleRenames:
         assert hits == [], "no hits"
 
     def test_unknown_command_untouched(self):
+        """A slash command absent from the legacy tables passes through with no hit."""
         # Arrange
         line = "/unknown_cmd arg"
 
@@ -89,6 +94,7 @@ class TestScanSimpleRenames:
 
 class TestScanArgsAware:
     def test_verbose_on(self):
+        """/verbose on rewrites name and argument together to /term.output verbose."""
         # Arrange
         line = "/verbose on"
 
@@ -102,6 +108,7 @@ class TestScanArgsAware:
         assert len(hits) == 1, "one hit"
 
     def test_verbose_off(self):
+        """/verbose off maps to the normal level, not to a literal off argument."""
         # Arrange
         line = "/verbose off"
 
@@ -114,6 +121,7 @@ class TestScanArgsAware:
         assert actual == expected, "verbose off -> term.output normal"
 
     def test_term_verbose_on(self):
+        """The namespaced /term.verbose on gets the same rewrite as /verbose on."""
         # Arrange
         line = "/term.verbose on"
 
@@ -126,6 +134,7 @@ class TestScanArgsAware:
         assert actual == expected, "term.verbose on -> term.output verbose"
 
     def test_term_verbose_quiet_on(self):
+        """The old .quiet set-silently idiom carries over as /term.output.silent."""
         # Arrange -- old "set silently" idiom; .quiet meant silent.
         line = "/term.verbose.quiet on"
 
@@ -138,6 +147,7 @@ class TestScanArgsAware:
         assert actual == expected, ".quiet old idiom rewritten to .silent"
 
     def test_args_aware_wins_over_simple(self):
+        """When a regex rewrite and a name rename both match, the regex wins."""
         # Arrange -- both LEGACY_COMMANDS["verbose"] and a regex match.
         # The regex (longer) should win.
         line = "/verbose on"
@@ -152,6 +162,7 @@ class TestScanArgsAware:
         assert actual == expected, "args-aware wins over name-only"
 
     def test_bare_verbose_falls_back_to_simple(self):
+        """Bare /verbose misses every regex and falls back to the name-only rename."""
         # Arrange -- no args, no regex match; LEGACY_COMMANDS catches it.
         line = "/verbose"
 
@@ -171,15 +182,18 @@ class TestLegacyTablesPopulated:
     """The forwarder modules must register their entries on import."""
 
     def test_verbose_in_simple_table(self):
+        """verbose has a name-only entry, the fallback for its bare form."""
         actual = "verbose" in LEGACY_COMMANDS
         assert actual, "verbose plugin populates LEGACY_COMMANDS"
 
     def test_echo_quiet_in_simple_table(self):
+        """echo.quiet is registered with echo.silent as its rename target."""
         actual = LEGACY_COMMANDS.get("echo.quiet")
         expected = "echo.silent"
         assert actual == expected, "echo.quiet -> echo.silent registered"
 
     def test_rewrites_populated(self):
+        """Both the on and off regex rewrites for /verbose land in LEGACY_REWRITES."""
         # Arrange
         all_repls = [r for _, r in LEGACY_REWRITES]
 
@@ -222,6 +236,7 @@ def engine_with_term(tmp_path):
 
 class TestVerboseRuntimeForward:
     def test_verbose_on_sets_level_to_verbose(self, engine_with_term):
+        """Old scripts running /verbose on still raise the output level to verbose."""
         # Arrange
         eng, _ = engine_with_term
 
@@ -234,6 +249,7 @@ class TestVerboseRuntimeForward:
         assert actual == expected, "verbose on -> output_level verbose"
 
     def test_verbose_off_sets_level_to_normal(self, engine_with_term):
+        """/verbose off drops the output level from verbose back to normal."""
         # Arrange -- start at verbose, then turn off.
         eng, _ = engine_with_term
         eng.ctx.ns("flags")["output_level"] = "verbose"
@@ -247,6 +263,7 @@ class TestVerboseRuntimeForward:
         assert actual == expected, "verbose off -> output_level normal"
 
     def test_verbose_emits_deprecation_note_once(self, engine_with_term):
+        """The /verbose deprecation note prints once per session, not on every call."""
         # Arrange
         eng, writes = engine_with_term
 
@@ -266,6 +283,7 @@ class TestVerboseRuntimeForward:
         assert second_count == 0, "second /verbose call stays silent"
 
     def test_term_verbose_on_sets_level(self, engine_with_term):
+        """The /term.verbose alias reaches the same level change as /verbose."""
         # Arrange
         eng, _ = engine_with_term
 
@@ -287,6 +305,7 @@ class TestSimpleForwarderRuntime:
     """
 
     def test_echo_off_forwards_to_term_echo(self, engine_with_term):
+        """/echo off reaches /term.echo and clears the echo flag."""
         # Arrange
         eng, _ = engine_with_term
         eng.ctx.ns("flags")["echo"] = True
@@ -299,6 +318,7 @@ class TestSimpleForwarderRuntime:
         assert actual is False, "/echo off -> /term.echo set flags['echo'] False"
 
     def test_show_line_endings_on_forwards_to_term(self, engine_with_term):
+        """/show_line_endings on returns the result of /term.line_endings, proving it ran."""
         # Arrange
         eng, _ = engine_with_term
 
@@ -313,6 +333,7 @@ class TestSimpleForwarderRuntime:
         )
 
     def test_forwarder_emits_deprecation_note_once(self, engine_with_term):
+        """Generic forwarders also warn once per session; a second /echo is silent."""
         # Arrange
         eng, writes = engine_with_term
 

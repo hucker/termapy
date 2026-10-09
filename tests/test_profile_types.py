@@ -25,6 +25,7 @@ from termapy.profile import (
 
 class TestRegistryConstruction:
     def test_from_none_profile_is_empty(self):
+        """A None profile builds an empty registry instead of raising."""
         # Arrange / Act
         reg = TypeRegistry.from_profile(None)
         # Assert
@@ -32,6 +33,7 @@ class TestRegistryConstruction:
         assert actual == {}, "no profile -> empty registry"
 
     def test_from_profile_without_types_block_is_empty(self):
+        """A profile with commands but no types block defines no custom types."""
         # Arrange / Act
         reg = TypeRegistry.from_profile({"commands": {}})
         # Assert
@@ -39,6 +41,7 @@ class TestRegistryConstruction:
         assert actual == {}, "no types block -> empty registry"
 
     def test_from_profile_with_invalid_types_block_is_empty(self):
+        """A types block that is not an object degrades to empty instead of raising."""
         # Arrange -- types is not an object (schema would catch this,
         # but registry must degrade gracefully).
         # Act
@@ -47,6 +50,7 @@ class TestRegistryConstruction:
         assert reg.all() == {}, "non-dict types block -> empty registry"
 
     def test_builtin_resolution(self):
+        """Every BUILTINS name resolves with kind builtin, even from an empty profile."""
         # Arrange
         reg = TypeRegistry.from_profile({})
         # Act / Assert -- all five builtins resolve to a "builtin"-kind TypeDef
@@ -56,6 +60,7 @@ class TestRegistryConstruction:
             assert td.kind == "builtin", f"{name} has kind=builtin"
 
     def test_unknown_type_resolves_to_none(self):
+        """An undefined type name resolves to None, not a placeholder TypeDef."""
         # Arrange
         reg = TypeRegistry.from_profile({})
         # Act
@@ -64,6 +69,7 @@ class TestRegistryConstruction:
         assert actual is None, "unknown name resolves to None"
 
     def test_custom_type_cannot_shadow_builtin(self):
+        """Redefining builtin int raises ProfileTypeError rather than a soft build error."""
         # Arrange -- profile tries to redefine 'int' as an enum.
         profile = {"types": {"int": {"kind": "enum", "values": ["1", "2"]}}}
         # Act / Assert
@@ -80,6 +86,7 @@ class TestRegistryConstruction:
 
 class TestEnumKind:
     def test_enum_accepts_member(self):
+        """A listed enum value validates and comes back as its string form."""
         # Arrange — custom name (not 'bool', which is a reserved builtin).
         profile = {"types": {"on_off": {"kind": "enum", "values": ["on", "off"]}}}
         reg = TypeRegistry.from_profile(profile)
@@ -90,6 +97,7 @@ class TestEnumKind:
         assert result.value == "on", "normalized to string"
 
     def test_enum_rejects_nonmember_with_helpful_error(self):
+        """A non-member's error names the bad value and lists every allowed one."""
         # Arrange
         profile = {"types": {"on_off": {"kind": "enum", "values": ["on", "off"]}}}
         reg = TypeRegistry.from_profile(profile)
@@ -103,6 +111,7 @@ class TestEnumKind:
         )
 
     def test_enum_stringifies_numeric_values(self):
+        """Numeric enum values match their string form, so 19200 typed as text passes."""
         # Arrange -- baud rates as numbers, LLM passes string form.
         profile = {"types": {"baud": {
             "kind": "enum", "values": [9600, 19200, 115200],
@@ -114,6 +123,7 @@ class TestEnumKind:
         assert result.ok, "string form of numeric enum value passes"
 
     def test_enum_without_values_is_build_error(self):
+        """An empty values list stays in the registry, flagged as a non-empty build error."""
         # Arrange
         profile = {"types": {"bad": {"kind": "enum", "values": []}}}
         reg = TypeRegistry.from_profile(profile)
@@ -131,6 +141,7 @@ class TestEnumKind:
 
 class TestIntRange:
     def test_in_range_passes_and_coerces(self):
+        """An in-range int string passes and is coerced to int, not kept as text."""
         # Arrange
         profile = {"types": {"percent": {
             "kind": "int_range", "min": 0, "max": 100,
@@ -143,6 +154,7 @@ class TestIntRange:
         assert result.value == 42, "coerced to int"
 
     def test_below_minimum_fails_with_bound_in_message(self):
+        """Below the minimum fails, and the error names the minimum and its value."""
         # Arrange
         profile = {"types": {"percent": {
             "kind": "int_range", "min": 0, "max": 100,
@@ -157,6 +169,7 @@ class TestIntRange:
         )
 
     def test_above_maximum_fails(self):
+        """Above the maximum fails with an error that names the maximum."""
         # Arrange
         profile = {"types": {"percent": {
             "kind": "int_range", "min": 0, "max": 100,
@@ -169,6 +182,7 @@ class TestIntRange:
         assert "maximum" in result.error, "error names the maximum"
 
     def test_non_int_string_fails_cleanly(self):
+        """Non-numeric text fails with an expected-int error instead of a ValueError."""
         # Arrange
         profile = {"types": {"percent": {
             "kind": "int_range", "min": 0, "max": 100,
@@ -183,6 +197,7 @@ class TestIntRange:
 
 class TestFloatRange:
     def test_in_range_passes(self):
+        """An in-range float string passes and is coerced to float."""
         # Arrange
         profile = {"types": {"v": {
             "kind": "float_range", "min": 0.0, "max": 5.0,
@@ -196,6 +211,7 @@ class TestFloatRange:
         )
 
     def test_below_minimum_fails(self):
+        """A float just below the minimum (-0.1 against 0.0) fails."""
         # Arrange
         profile = {"types": {"v": {
             "kind": "float_range", "min": 0.0, "max": 5.0,
@@ -212,6 +228,7 @@ class TestFloatRange:
 
 class TestStrLength:
     def test_within_bounds_passes(self):
+        """A string within min_len..max_len passes with its value unchanged."""
         # Arrange
         profile = {"types": {"nickname": {
             "kind": "str_length", "min_len": 1, "max_len": 8,
@@ -224,6 +241,7 @@ class TestStrLength:
         assert result.value == "abc", "value preserved"
 
     def test_below_min_len_fails(self):
+        """A string shorter than min_len fails with an error naming the minimum."""
         # Arrange
         profile = {"types": {"nickname": {
             "kind": "str_length", "min_len": 3, "max_len": 8,
@@ -238,6 +256,7 @@ class TestStrLength:
         )
 
     def test_above_max_len_fails(self):
+        """A string longer than max_len fails with an error naming the maximum."""
         # Arrange
         profile = {"types": {"nickname": {
             "kind": "str_length", "min_len": 1, "max_len": 4,
@@ -252,6 +271,7 @@ class TestStrLength:
         )
 
     def test_only_max_len_no_min(self):
+        """With only max_len set there is no lower bound, so the empty string passes."""
         # Arrange -- one-sided bound.
         profile = {"types": {"name": {
             "kind": "str_length", "max_len": 16,
@@ -263,6 +283,7 @@ class TestStrLength:
         assert result.ok, "empty string passes when only max_len set"
 
     def test_neither_bound_is_build_error(self):
+        """A str_length with neither bound is unusable and is marked a build error."""
         # Arrange -- neither min nor max means the type is unusable.
         profile = {"types": {"name": {"kind": "str_length"}}}
         reg = TypeRegistry.from_profile(profile)
@@ -279,6 +300,7 @@ class TestStrLength:
 
 class TestPattern:
     def test_fullmatch_passes(self):
+        """A value matching the whole anchored regex passes: 5s as a duration."""
         # Arrange
         profile = {"types": {"duration": {
             "kind": "pattern", "regex": r"^\d+(us|ms|s)$",
@@ -290,6 +312,7 @@ class TestPattern:
         assert result.ok, "fullmatching value passes"
 
     def test_partial_match_fails(self):
+        """Matching uses fullmatch, so an unanchored regex rejects trailing extra text."""
         # Arrange -- pattern is anchored via fullmatch semantics, even
         # if the regex itself lacks ^$ anchors.
         profile = {"types": {"tag": {
@@ -302,6 +325,7 @@ class TestPattern:
         assert not result.ok, "partial match fails under fullmatch rule"
 
     def test_invalid_regex_is_build_error_not_crash(self):
+        """A bad regex is a build error at load and fails every later validate call."""
         # Arrange -- unbalanced paren is a regex syntax error.
         profile = {"types": {"bad": {
             "kind": "pattern", "regex": r"(unclosed",
@@ -326,6 +350,7 @@ class TestPattern:
 
 class TestFormatSpecStub:
     def test_valid_spec_parses_at_build_time(self):
+        """A valid spec is parsed at build time and its columns cached for the catalog."""
         # Arrange -- a real format-spec string from protocol.py vocabulary.
         profile = {"types": {"byte": {"kind": "format_spec", "spec": "Val:H1"}}}
         reg = TypeRegistry.from_profile(profile)
@@ -339,6 +364,7 @@ class TestFormatSpecStub:
         )
 
     def test_stub_validate_passes_through(self):
+        """Validation is a stub for now: any value passes, so dispatch is never blocked."""
         # Arrange
         profile = {"types": {"byte": {"kind": "format_spec", "spec": "Val:H1"}}}
         reg = TypeRegistry.from_profile(profile)
@@ -351,6 +377,7 @@ class TestFormatSpecStub:
         )
 
     def test_invalid_spec_is_build_error(self):
+        """A malformed spec never crashes construction; the type stays in the registry."""
         # Arrange -- a deliberately malformed spec.
         profile = {"types": {"bad": {"kind": "format_spec", "spec": "this is not a format spec"}}}
         reg = TypeRegistry.from_profile(profile)
@@ -368,6 +395,7 @@ class TestFormatSpecStub:
 
 class TestErrorPaths:
     def test_unknown_kind_is_build_error(self):
+        """An unrecognized kind is a build error, and validating it says unknown kind."""
         # Arrange
         profile = {"types": {"bad": {"kind": "totally_made_up"}}}
         reg = TypeRegistry.from_profile(profile)
@@ -381,6 +409,7 @@ class TestErrorPaths:
         assert not result.ok and "unknown kind" in result.error.lower()
 
     def test_validate_unknown_type_name(self):
+        """Validating against an undefined type name fails with an unknown-type error."""
         # Arrange
         reg = TypeRegistry.from_profile({})
         # Act
@@ -392,6 +421,7 @@ class TestErrorPaths:
         )
 
     def test_non_dict_entry_becomes_build_error(self):
+        """A type entry that is a string, not an object, is marked broken, not raised."""
         # Arrange -- types block has a string value where a dict is required.
         profile = {"types": {"bad": "this should be an object"}}
         reg = TypeRegistry.from_profile(profile)
@@ -408,6 +438,7 @@ class TestErrorPaths:
 
 class TestBuiltinValidation:
     def test_int_builtin_passes_for_int_strings(self):
+        """The int builtin accepts a decimal string and coerces it to int."""
         # Arrange / Act
         reg = TypeRegistry.from_profile({})
         result = reg.validate("int", "42")
@@ -415,6 +446,7 @@ class TestBuiltinValidation:
         assert result.ok and result.value == 42, "int builtin coerces"
 
     def test_int_builtin_fails_for_non_int(self):
+        """The int builtin rejects non-numeric text."""
         # Arrange / Act
         reg = TypeRegistry.from_profile({})
         result = reg.validate("int", "not an int")
@@ -422,6 +454,7 @@ class TestBuiltinValidation:
         assert not result.ok, "non-int string fails the builtin int check"
 
     def test_bool_builtin_accepts_lenient_forms(self):
+        """The bool builtin reads the shared parse_bool forms on, true, 1, yes as True."""
         # Arrange -- parse_bool accepts multiple forms (on/off/true/etc.)
         reg = TypeRegistry.from_profile({})
         # Act / Assert
@@ -432,6 +465,7 @@ class TestBuiltinValidation:
             )
 
     def test_str_builtin_accepts_anything(self):
+        """The str builtin is identity: any text passes."""
         # Arrange / Act
         reg = TypeRegistry.from_profile({})
         result = reg.validate("str", "anything goes")
@@ -444,6 +478,7 @@ class TestBuiltinValidation:
 
 class TestCatalogRendering:
     def test_typedef_to_catalog_enum(self):
+        """An enum's catalog entry carries its kind, values and help for agent consumers."""
         # Arrange — non-shadowing custom name.
         profile = {"types": {"on_off": {
             "kind": "enum", "values": ["on", "off"], "help": "On/Off",
@@ -458,6 +493,7 @@ class TestCatalogRendering:
         assert out["help"] == "On/Off", "help exposed"
 
     def test_typedef_to_catalog_format_spec_exposes_spec(self):
+        """A format_spec type exposes its raw spec string in the catalog for LLMs."""
         # Arrange
         profile = {"types": {"byte": {"kind": "format_spec", "spec": "Val:H1"}}}
         reg = TypeRegistry.from_profile(profile)
@@ -468,6 +504,7 @@ class TestCatalogRendering:
         assert out["spec"] == "Val:H1", "raw spec surfaced in catalog"
 
     def test_schema_kinds_returns_all_recognized_kinds(self):
+        """schema_kinds() lists all six kinds, the canonical list drift checks rely on."""
         # Arrange / Act
         kinds = schema_kinds()
         # Assert -- this is the canonical list tests use to detect drift

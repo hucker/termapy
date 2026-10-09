@@ -34,6 +34,7 @@ def _seed_state(tmp_path, monkeypatch, latest_seen: str | None) -> None:
 
 
 def test_shows_up_to_date_when_current(tmp_path, monkeypatch):
+    """A cached latest version equal to ours renders the reassurance line, no upgrade prompt."""
     _seed_state(tmp_path, monkeypatch, latest_seen="1.0.0")
     out = _render(build_help_tooltip("1.0.0"))
     assert "You have the latest version." in out, "current version -> reassurance"
@@ -41,6 +42,7 @@ def test_shows_up_to_date_when_current(tmp_path, monkeypatch):
 
 
 def test_shows_update_available_when_behind(tmp_path, monkeypatch):
+    """A newer cached release names its version and the uv command to upgrade."""
     _seed_state(tmp_path, monkeypatch, latest_seen="2.0.0")
     out = _render(build_help_tooltip("1.0.0"))
     assert "Update available: v2.0.0" in out, "behind -> shows the newer version"
@@ -48,6 +50,7 @@ def test_shows_update_available_when_behind(tmp_path, monkeypatch):
 
 
 def test_no_status_line_when_never_checked(tmp_path, monkeypatch):
+    """With no cached PyPI check the tooltip stays silent rather than guessing status."""
     _seed_state(tmp_path, monkeypatch, latest_seen=None)  # no state file
     out = _render(build_help_tooltip("1.0.0"))
     assert "You have the latest version." not in out, "silent when never checked"
@@ -55,6 +58,7 @@ def test_no_status_line_when_never_checked(tmp_path, monkeypatch):
 
 
 def test_credits_crcglot_alongside_reveng(tmp_path, monkeypatch):
+    """crcglot and frist are credited without dropping reveng, crcglot's algorithm source."""
     _seed_state(tmp_path, monkeypatch, latest_seen="1.0.0")
     out = _render(build_help_tooltip("1.0.0"))
     assert "crcglot" in out, "crcglot (the CRC engine) is credited"
@@ -63,6 +67,7 @@ def test_credits_crcglot_alongside_reveng(tmp_path, monkeypatch):
 
 
 def test_header_shows_version_and_hotkey_hint(tmp_path, monkeypatch):
+    """The header carries the running version and the hotkey hint when one is passed."""
     _seed_state(tmp_path, monkeypatch, latest_seen="1.0.0")
     out = _render(build_help_tooltip("1.2.3", hint="F1"))
     assert "Termapy v1.2.3" in out, "version in the header"

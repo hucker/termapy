@@ -45,6 +45,7 @@ def _exchange(dev: FakeSerial, command: str) -> str:
 class TestMemInfo:
 
     def test_one_json_line_then_ok(self, dev):
+        """MEM.INFO answers one JSON record of the device's memory facts, then OK."""
         # Act
         text = _exchange(dev, "MEM.INFO")
 
@@ -60,6 +61,7 @@ class TestMemInfo:
 class TestMemRead:
 
     def test_seeded_gtemp_is_readable(self, dev):
+        """A read row is an 8-digit address, spaced hex pairs, and a closing OK."""
         # Arrange -- gTemp (u16 le) is seeded to 27 at 0x1000
         # Act
         text = _exchange(dev, "MEM.R 0x1000 2")
@@ -68,6 +70,7 @@ class TestMemRead:
         assert text.splitlines() == ["00001000: 1B 00", "OK"], "row + OK, 8-digit address, hex pairs"
 
     def test_rows_are_sixteen_bytes_and_contiguous(self, dev):
+        """Long reads split into contiguous 16-byte rows with a short tail row."""
         # Act
         reply = parse_reply(_exchange(dev, "MEM.R 0x1000 40"))
 
@@ -77,9 +80,11 @@ class TestMemRead:
         assert [len(data) for _, data in reply.rows] == [16, 16, 8], "the tail row is short"
 
     def test_address_without_0x_prefix(self, dev):
+        """The device reads a bare address as hex, the same as a 0x-prefixed one."""
         assert _exchange(dev, "MEM.R 1000 2").splitlines()[0] == "00001000: 1B 00", "hex either way"
 
     def test_sfr_window(self, dev):
+        """The peripheral register window is backed and readable like RAM."""
         # Arrange -- U1MODE seeded to ON | BRGH = 0x8008 (u32 le)
         text = _exchange(dev, "MEM.R 0xBF806000 4")
         assert text.splitlines() == ["BF806000: 08 80 00 00", "OK"], "the SFR window is backed like RAM"
@@ -100,9 +105,11 @@ class TestMemRead:
         ],
     )
     def test_errors(self, dev, command, reason):
+        """Bad arity, length or unmapped range answers one ERR line with no OK."""
         assert _exchange(dev, command).splitlines() == [f"ERR {reason}"], "one ERR line, no OK"
 
     def test_every_demo_symbol_address_is_readable(self, dev):
+        """Every address the demo symbol table names lies in a window the device serves."""
         # Arrange -- the symbol table names addresses; the device must serve them
         table = json.loads(DEMO_SYMBOLS.read_text(encoding="utf-8"))
 
@@ -118,6 +125,7 @@ class TestMemRead:
 class TestMemWrite:
 
     def test_write_persists_and_reads_back(self, dev):
+        """A write answers a lone OK and its bytes read back afterward."""
         # Act
         ack = _exchange(dev, "MEM.W 0x1000 2C01")
         text = _exchange(dev, "MEM.R 0x1000 4")
@@ -127,6 +135,7 @@ class TestMemWrite:
         assert text.splitlines()[0].startswith("00001000: 2C 01"), "the new bytes are there"
 
     def test_write_tolerates_spaced_hex(self, dev):
+        """Space-separated byte pairs in a write payload are accepted like packed hex."""
         assert _exchange(dev, "MEM.W 0x1000 2C 01").splitlines() == ["OK"], "space-separated pairs accepted"
         assert _exchange(dev, "MEM.R 0x1000 2").splitlines()[0] == "00001000: 2C 01", "both bytes landed"
 
@@ -141,9 +150,11 @@ class TestMemWrite:
         ],
     )
     def test_errors(self, dev, command, reason):
+        """Missing, odd-length, non-hex, oversize or out-of-range writes answer ERR."""
         assert _exchange(dev, command).splitlines() == [f"ERR {reason}"]
 
     def test_reset_restores_the_seed(self, dev):
+        """AT+RESET re-seeds RAM, undoing earlier writes."""
         # Arrange
         _exchange(dev, "MEM.W 0x1000 FFFF")
 
@@ -154,6 +165,7 @@ class TestMemWrite:
         assert _exchange(dev, "MEM.R 0x1000 2").splitlines()[0] == "00001000: 1B 00", "RAM re-seeded on reset"
 
     def test_unknown_mem_verb(self, dev):
+        """An unrecognized MEM.* verb answers ERR usage rather than being ignored."""
         assert _exchange(dev, "MEM.X 0x1000").splitlines() == ["ERR usage"], "unknown MEM.* verb"
 
 
@@ -161,6 +173,7 @@ class TestMemModify:
     """``MEM.M`` -- the atomic masked write the demo advertises."""
 
     def test_replies_the_old_word_then_ok(self, dev):
+        """MEM.M replies the pre-modify word, then applies the mask and value."""
         # Act -- set U1MODE's bit 15 is already set; clear it (u32 masks)
         text = _exchange(dev, "MEM.M 0xBF806000 FFFF7FFF 00000000")
 
@@ -171,6 +184,7 @@ class TestMemModify:
         )
 
     def test_width_from_mask_digits(self, dev):
+        """Two-digit masks make MEM.M a byte access: (old & mask) | value."""
         # Act -- 2-digit masks = a byte access at gTemp
         text = _exchange(dev, "MEM.M 0x1000 F0 05")
 
@@ -189,12 +203,14 @@ class TestMemModify:
         ],
     )
     def test_errors(self, dev, command, reason):
+        """MEM.M rejects bad arity, mismatched digits, misalignment and unmapped addresses."""
         assert _exchange(dev, command).splitlines() == [f"ERR {reason}"], "arity, digits, alignment, range"
 
 
 class TestBannerString:
 
     def test_seeded_nul_terminated(self, dev):
+        """The seeded banner string ends in a NUL inside the window, as /mem.str expects."""
         # Act -- sBanner's bytes end in a NUL inside the window
         reply = parse_reply(_exchange(dev, "MEM.R 0x3100 15"))
 
@@ -211,6 +227,7 @@ class TestLegacyGrammar:
     """
 
     def test_dump_row_shape(self, dev):
+        """A mem dump row has 4-byte groups, an ASCII column and no OK terminator."""
         # Act
         text = _exchange(dev, "mem 0x1000 16")
 
@@ -221,15 +238,18 @@ class TestLegacyGrammar:
         assert "OK" not in text, "a monitor dump has no terminator"
 
     def test_same_bytes_as_the_native_spec(self, dev):
+        """The legacy dump and MEM.R show the same bytes -- one RAM behind both."""
         legacy = _exchange(dev, "mem 0x1000 8").splitlines()[0]
         native = _exchange(dev, "MEM.R 0x1000 8").splitlines()[0]
         assert legacy.split("|")[0].replace(" ", "") == native.replace(" ", ""), "one RAM behind both grammars"
 
     def test_short_last_row_is_space_padded(self, dev):
+        """A short row pads the missing slots so the ASCII column stays aligned."""
         line = _exchange(dev, "mem 0x1000 4").splitlines()[0]
         assert line == "00001000:  1B 00 00 50" + " " * 39 + "  |...P|", "missing slots keep the column layout"
 
     def test_count_default_and_clamp(self, dev):
+        """A bare mem dumps 16 bytes, and an oversize count is clamped to 256."""
         assert len(_exchange(dev, "mem 0x1000").splitlines()) == 1, "default count 16 = one row"
         assert len(_exchange(dev, "mem 0x1000 999").splitlines()) == 16, "count clamped to 256"
 
@@ -242,9 +262,11 @@ class TestLegacyGrammar:
         ],
     )
     def test_write_width_by_digit_count(self, dev, command, expected):
+        """A =val write is byte, half or word by digit count and reports old -> new."""
         assert _exchange(dev, command).splitlines() == [expected], "old -> new, sized by the digits typed"
 
     def test_write_persists(self, dev):
+        """A legacy =val write is visible through the native MEM.R spec."""
         _exchange(dev, "mem 0x1000 =2C")
         assert _exchange(dev, "MEM.R 0x1000 1").splitlines()[0] == "00001000: 2C", "visible through the spec too"
 
@@ -261,6 +283,7 @@ class TestLegacyGrammar:
         ],
     )
     def test_errors(self, dev, command, reason):
+        """Legacy failures answer one err: line naming the address, value or alignment."""
         assert _exchange(dev, command).splitlines() == [reason]
 
 
@@ -268,6 +291,7 @@ class TestEngineOverFakeSerial:
     """The engine end-to-end against the demo device's actual bytes."""
 
     def test_read_and_write_through_memory(self, dev):
+        """Memory chunks a 70-byte write past the 64-byte block limit and leaves others intact."""
         # Arrange
         memory = Memory(lambda command: _exchange(dev, command))
 

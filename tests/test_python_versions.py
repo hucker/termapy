@@ -62,6 +62,7 @@ def badge_range() -> tuple[str, str]:
 
 class TestSupportedVersionsAgree:
     def test_classifiers_start_at_requires_python(self):
+        """The oldest classifier is the requires-python floor, so PyPI and pip agree."""
         # Arrange
         match = _REQUIRES_PYTHON.match(_project()["requires-python"])
         assert match, "requires-python is expected to be a plain >=3.X floor"
@@ -72,6 +73,7 @@ class TestSupportedVersionsAgree:
         assert actual == expected, "the first classifier must be the requires-python floor"
 
     def test_classifiers_are_consecutive_minors(self):
+        """The classifier list has no gaps, catching a skipped or mistyped version."""
         # Arrange
         versions = classifier_versions()
         minors = [int(version.split(".")[1]) for version in versions]
@@ -80,6 +82,7 @@ class TestSupportedVersionsAgree:
         assert minors == expected, f"classifiers must be consecutive minors, got {versions}"
 
     def test_tox_envlist_matches_classifiers(self):
+        """tox runs exactly the declared versions -- none missing, none extra."""
         # Arrange
         expected = classifier_versions()
         # Act
@@ -88,6 +91,7 @@ class TestSupportedVersionsAgree:
         assert actual == expected, "tox envlist must list exactly the classifier versions"
 
     def test_ci_matrix_matches_classifiers(self):
+        """CI tests exactly the declared versions, so a new Python can't ship untested."""
         # Arrange
         expected = classifier_versions()
         # Act
@@ -96,6 +100,7 @@ class TestSupportedVersionsAgree:
         assert actual == expected, "the CI test matrix must list exactly the classifier versions"
 
     def test_readme_badge_spans_classifiers(self):
+        """The README badge range runs from the first to the last declared version."""
         # Arrange
         versions = classifier_versions()
         expected = (versions[0], versions[-1])

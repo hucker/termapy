@@ -49,6 +49,7 @@ def host(tmp_path):
 
 class TestCatalog:
     def test_catalog_has_expected_top_level_keys(self, host):
+        """The catalog carries every top-level section an agent reads, even with no profile."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
         # Assert
@@ -64,18 +65,21 @@ class TestCatalog:
             assert key in cat, f"catalog missing top-level key: {key!r}"
 
     def test_catalog_schema_version_is_one(self, host):
+        """The catalog declares schema 1 so agents can detect a future format change."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
         # Assert
         assert cat["schema"] == 1, "v1 schema"
 
     def test_catalog_prefix_matches_config(self, host):
+        """The catalog reports the session's command prefix, the default / here."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
         # Assert
         assert cat["prefix"] == "/", "default prefix"
 
     def test_catalog_includes_help_command(self, host):
+        """Catalog command names carry the prefix, and /help is always listed."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
         names = {command["name"] for command in cat["commands"]}
@@ -83,6 +87,7 @@ class TestCatalog:
         assert "/help" in names, "/help present (catalog names include prefix)"
 
     def test_catalog_includes_term_send(self, host):
+        """/term.send, the agent's raw path to the device, is advertised in the catalog."""
         # Arrange / Act — /term.send was added in Phase 2.5
         cat = build_catalog(host.ctx)
         names = {command["name"] for command in cat["commands"]}
@@ -90,6 +95,7 @@ class TestCatalog:
         assert "/term.send" in names, "/term.send present (Phase 2.5)"
 
     def test_catalog_emits_types_block_when_profile_declares_types(self, host):
+        """Profile-declared types reach the catalog with kind, values and range intact."""
         # Arrange -- seed an active profile with a types block.
         ns = host.ctx.ns("active_profile")
         ns.clear()
@@ -112,12 +118,14 @@ class TestCatalog:
         assert types_out["percent"]["max"] == 100, "int_range max preserved"
 
     def test_catalog_types_block_empty_when_no_profile_types(self, host):
+        """With no profile types the catalog holds an empty dict, never a missing key."""
         # Arrange / Act -- no profile loaded.
         cat = build_catalog(host.ctx)
         # Assert
         assert cat.get("types") == {}, "no types block -> empty dict in catalog"
 
     def test_device_typed_args_get_inlined_type_info(self, host):
+        """A device arg naming a profile type carries that type's contract inline."""
         # Arrange -- profile declares a type AND a command using it.
         # Commit B: device commands now source from active_profile.commands.
         ns = host.ctx.ns("active_profile")
@@ -151,6 +159,7 @@ class TestCatalog:
         )
 
     def test_device_typed_args_builtin_resolves_to_builtin(self, host):
+        """A device arg typed with a builtin like str resolves to kind=builtin."""
         # Arrange -- typed_arg using a builtin gets a builtin-shaped type_info.
         ns = host.ctx.ns("active_profile")
         ns.clear()
@@ -179,6 +188,7 @@ class TestCatalog:
         )
 
     def test_catalog_filters_disabled_device_commands(self, host):
+        """Device commands with enabled=false stay hidden from the agent until reviewed."""
         # Arrange -- two commands, one disabled.  Commit B: catalog
         # reads from active_profile.commands, not target_commands ns.
         ns = host.ctx.ns("active_profile")
@@ -203,6 +213,7 @@ class TestCatalog:
         )
 
     def test_catalog_command_has_required_fields(self, host):
+        """Each command entry carries the full field set an agent relies on."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
         sample = next(command for command in cat["commands"] if command["name"] == "/help")
@@ -212,6 +223,7 @@ class TestCatalog:
             assert key in sample, f"command entry missing {key!r}"
 
     def test_catalog_json_parses_back(self, host):
+        """catalog_json output is valid JSON that round-trips to the same schema."""
         # Arrange
         text = catalog_json(host.ctx)
         # Act
@@ -220,6 +232,7 @@ class TestCatalog:
         assert parsed["schema"] == 1, "round-trips through JSON"
 
     def test_catalog_profile_blocks_empty_when_no_profile(self, host):
+        """Without a loaded profile the device block and revision are empty, not absent."""
         # Arrange / Act — no /profile.load yet (Phase 4)
         cat = build_catalog(host.ctx)
         # Assert
@@ -227,6 +240,7 @@ class TestCatalog:
         assert cat["profile_revision"] == "", "no profile = empty revision"
 
     def test_catalog_hidden_flag_is_bool(self, host):
+        """Every command's hidden flag is a real bool, never None or a string."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
         # Assert
@@ -297,6 +311,7 @@ class TestCatalog:
             del host.repl._plugins[synthetic.name]
 
     def test_catalog_filters_tui_only_commands(self, host):
+        """A registered tui_mode command such as /proto.debug is left out for MCP."""
         # Arrange — /proto.debug needs tui_mode; MCP doesn't have it
         plugins = host.repl._plugins
         assert "proto.debug" in plugins, "/proto.debug registered (precondition)"
@@ -309,6 +324,7 @@ class TestCatalog:
         )
 
     def test_catalog_filter_is_meaningful(self, host):
+        """The capability filter drops at least ten commands, so it is not a no-op."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
         n_filtered = len(cat["commands"])
@@ -326,6 +342,7 @@ class TestCatalog:
 
 class TestRunCommandHappy:
     def test_help_succeeds(self, host):
+        """A clean run reports success, an empty error, the echoed cmd and elapsed time."""
         # Arrange / Act
         result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
         # Assert
@@ -335,6 +352,7 @@ class TestRunCommandHappy:
         assert isinstance(result["elapsed_s"], float), "elapsed timing recorded"
 
     def test_help_produces_output_lines(self, host):
+        """At verbose, handler output is captured into output_lines."""
         # Arrange / Act -- use "verbose" so output() is unambiguously
         # above the gate.  MCP's session default is "quiet" and /help
         # routes through output_markup (rank >= normal), so at "quiet"
@@ -347,6 +365,7 @@ class TestRunCommandHappy:
         )
 
     def test_silent_produces_no_output_lines(self, host):
+        """The silent level suppresses every output line from the response."""
         # Arrange / Act
         result = asyncio.run(host.run_command_async("/help", "silent", 5.0))
         # Assert
@@ -355,6 +374,7 @@ class TestRunCommandHappy:
         )
 
     def test_verbose_produces_more_than_normal(self, host):
+        """Raising the level never loses lines: verbose yields at least normal's output."""
         # Arrange — /port.list emits a banner (status, verbose-only)
         # Use /help for a stable comparison: it shouldn't change line
         # count by level (it always builds the full table).  Instead
@@ -372,6 +392,7 @@ class TestRunCommandHappy:
 
 class TestRunCommandErrors:
     def test_unknown_command_returns_failure(self, host):
+        """An unknown slash command fails in the envelope rather than raising."""
         # Arrange / Act
         result = asyncio.run(
             host.run_command_async("/notarealcmd", "normal", 5.0)
@@ -383,6 +404,7 @@ class TestRunCommandErrors:
         )
 
     def test_serial_send_when_disconnected_fails(self, host):
+        """A bare device line with no port falls through to send and fails as not connected."""
         # Arrange — host has no port; /term.send should fail gracefully
         # Act — bare line goes through fallthrough -> /term.send
         result = asyncio.run(
@@ -469,6 +491,7 @@ ENVELOPE_KEYS = {
 
 class TestUnifiedEnvelope:
     def test_plain_command_envelope_has_exactly_the_fixed_keys(self, host):
+        """A plain command reply has exactly the fixed envelope keys, no more, no fewer."""
         # Arrange / Act
         result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
         # Assert
@@ -478,6 +501,7 @@ class TestUnifiedEnvelope:
         )
 
     def test_converted_command_keeps_the_outer_envelope(self, host):
+        """A data-carrying command keeps the full envelope instead of a special shape."""
         # Arrange / Act -- /var attaches data; under the old duality a
         # structured value dropped cmd/success/error from the wire.
         result = asyncio.run(host.run_command_async("/var", "normal", 5.0))
@@ -489,12 +513,14 @@ class TestUnifiedEnvelope:
         assert result["cmd"] == "/var", "outer cmd present even with data"
 
     def test_mcp_context_wants_data(self, host):
+        """The MCP host sets wants_data so handlers build records instead of prose."""
         # Assert -- the MCP consumer is an agent; the host must declare it.
         assert host.ctx.wants_data is True, (
             "MCP host sets wants_data so handlers build data, not prose"
         )
 
     def test_unconverted_command_has_data_none(self, host):
+        """A command with no structured form returns data as null."""
         # Arrange / Act
         result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
         # Assert
@@ -504,6 +530,7 @@ class TestUnifiedEnvelope:
         )
 
     def test_var_returns_namespace_snapshot_in_data(self, host):
+        """/var data is one dict per namespace, holding user and launch values."""
         # Arrange
         asyncio.run(host.run_command_async("/var.set PORT COM9", "normal", 5.0))
         # Act
@@ -522,6 +549,7 @@ class TestUnifiedEnvelope:
         )
 
     def test_var_data_mode_emits_no_prose_even_at_verbose(self, host):
+        """Even at verbose, /var sends data alone so the listing is never doubled."""
         # Arrange / Act -- verbose is the loudest level; under wants_data
         # the handler must still skip the markup listing, or a big
         # namespace would ride the wire twice (once in data, once as
@@ -534,6 +562,7 @@ class TestUnifiedEnvelope:
         )
 
     def test_port_list_returns_records_in_data(self, host, monkeypatch):
+        """/port.list returns per-port records in data and comma-joined names in value."""
         # Arrange -- layer-2 fleet: the handler calls list_port_records()
         # with no source arg, so injection can't reach it; the env layer
         # exists exactly for a party outside the call (here, the test).
@@ -562,6 +591,7 @@ class TestUnifiedEnvelope:
 
 class TestCaptureArtifacts:
     def test_no_artifacts_when_no_capture(self, host):
+        """A command that writes no capture file reports no artifacts."""
         # Arrange / Act
         result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
         # Assert
@@ -570,6 +600,7 @@ class TestCaptureArtifacts:
         )
 
     def test_artifact_appears_after_capture_command(self, host):
+        """A file new to cap_dir is reported with name, URI, size and recency fields."""
         # Arrange — manually write a file into cap_dir to simulate a
         # capture without needing a serial port (capture commands
         # require a connected device).
@@ -601,6 +632,7 @@ class TestCaptureArtifacts:
 
 class TestOutputBufferLevels:
     def test_text_and_markup_entries_distinguished(self, host):
+        """Markup output is tagged with level markup, separate from plain text."""
         # Arrange / Act -- /help uses ctx.io.output_markup; run at
         # "verbose" so the OUTPUT_MIN_RANK gate passes (MCP session
         # default is "quiet").
@@ -610,6 +642,7 @@ class TestOutputBufferLevels:
         assert "markup" in levels, "/help emits markup"
 
     def test_each_buffer_entry_has_required_fields(self, host):
+        """Every output_lines entry carries level, color and a string text field."""
         # Arrange / Act -- "verbose" ensures output_lines is non-empty.
         result = asyncio.run(host.run_command_async("/help", "verbose", 5.0))
         # Assert
@@ -630,6 +663,7 @@ class TestAsyncEventsDelivery:
     keeps the cumulative view for callers who need history."""
 
     def test_async_events_field_always_present(self, host):
+        """async_events is present as an empty list when nothing arrived between calls."""
         # Arrange / Act -- no async events recorded.
         result = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
         # Assert
@@ -637,6 +671,7 @@ class TestAsyncEventsDelivery:
         assert result["async_events"] == [], "empty list when no async events"
 
     def test_async_events_field_present_in_self_describing_response(self, host):
+        """async_events survives in the reply when an event is pending at call time."""
         # Arrange -- record an async event; dispatch a /term.request-style
         # command that returns a self-describing envelope (the run_command
         # outer wrap collapses to {value, output_lines, captured_artifacts,
@@ -651,6 +686,7 @@ class TestAsyncEventsDelivery:
         )
 
     def test_pending_event_delivered_on_next_call(self, host):
+        """Lines recorded between calls arrive, in order, on the next response."""
         # Arrange -- record an async event between calls.
         host._record_async_event("<START-UP>", source="between_calls")
         host._record_async_event("  banner line", source="between_calls")
@@ -664,6 +700,7 @@ class TestAsyncEventsDelivery:
         )
 
     def test_async_events_cleared_after_delivery(self, host):
+        """An async event is delivered exactly once; the following call sees none."""
         # Arrange -- record an event, dispatch once to consume it.
         host._record_async_event("first_event", source="between_calls")
         first = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
@@ -688,11 +725,13 @@ class TestColorStripping:
     agent receives; ``/term.color on`` re-enables passthrough."""
 
     def test_color_defaults_off_for_mcp(self, host):
+        """An MCP session starts with color off regardless of the cfg setting."""
         # Assert -- MCP setup forces color off regardless of cfg.
         actual = host.ctx.ns("flags").get("color")
         assert actual is False, "MCP session defaults color off"
 
     def test_rx_text_strips_ansi_when_color_off(self, host):
+        """With color off, ANSI escapes are removed from a received line."""
         # Arrange -- default MCP state (color off).
         line = "\x1b[32mOK\x1b[0m"
 
@@ -703,6 +742,7 @@ class TestColorStripping:
         assert actual == "OK", "device ANSI stripped from rx line when color off"
 
     def test_rx_text_keeps_ansi_when_color_on(self, host):
+        """With color on, a received line keeps its ANSI escapes untouched."""
         # Arrange -- /term.color on flips the flag; passthrough preserved.
         host.ctx.ns("flags")["color"] = True
         line = "\x1b[32mOK\x1b[0m"
@@ -720,6 +760,7 @@ class TestColorStripping:
     # sets before dispatch and drains into ``output_lines`` afterward.
 
     def test_on_lines_strips_ansi_into_output_buffer_when_color_off(self, host):
+        """Device lines read during a call land in output_lines with escapes stripped."""
         # Arrange -- reproduce a run_command in flight: _buffer holds the
         # rx entries that become output_lines.
         from termapy.mcp.server import _buffer
@@ -739,6 +780,7 @@ class TestColorStripping:
         )
 
     def test_on_lines_keeps_ansi_in_output_buffer_when_color_on(self, host):
+        """With color on, device lines read during a call keep escapes in output_lines."""
         # Arrange -- /term.color on flips the flag to passthrough.
         host.ctx.ns("flags")["color"] = True
         from termapy.mcp.server import _buffer
@@ -758,6 +800,7 @@ class TestColorStripping:
         )
 
     def test_on_lines_strips_ansi_into_async_events_when_color_off(self, host):
+        """A colored line arriving between calls becomes an escape-free async event."""
         # Arrange -- no _buffer, no active call: a colored line between calls
         # becomes an async_event, which must also be escape-free.
         host._async_events = []
@@ -782,6 +825,7 @@ class TestCatalogParity:
     REPL command and a true byte-equivalence test."""
 
     def test_catalog_is_reproducible(self, host):
+        """Two catalog builds from the same context produce identical JSON."""
         # Arrange / Act
         a = catalog_json(host.ctx)
         b = catalog_json(host.ctx)
@@ -802,6 +846,7 @@ class TestLogCommandsAvailableInMCP:
     """
 
     def test_log_dump_registered_and_mcp_callable(self, host):
+        """/log.dump is a builtin whose needs MCP satisfies, so agents can read the log."""
         # Arrange / Act
         plugin = host.repl._plugins.get("log.dump")
 
@@ -813,6 +858,7 @@ class TestLogCommandsAvailableInMCP:
         )
 
     def test_log_fingerprint_registered_and_mcp_callable(self, host):
+        """/log.fingerprint is a builtin whose needs MCP fully satisfies."""
         # Arrange / Act
         plugin = host.repl._plugins.get("log.fingerprint")
 
@@ -824,6 +870,7 @@ class TestLogCommandsAvailableInMCP:
         )
 
     def test_log_show_registered_but_gated_on_gui_apps(self, host):
+        """/log.show is registered but stays unavailable to MCP for lack of gui_apps."""
         # Arrange / Act
         plugin = host.repl._plugins.get("log.show")
 
@@ -844,6 +891,7 @@ class TestRunCommandsAvailableInMCP:
     """
 
     def test_run_registered_and_callable(self, host):
+        """/run is registered with needs MCP satisfies, so agents can run .run files."""
         # Arrange / Act
         plugin = host.repl._plugins.get("run")
 
@@ -855,6 +903,7 @@ class TestRunCommandsAvailableInMCP:
         )
 
     def test_run_bare_falls_through_to_help(self, host):
+        """Bare /run with no picker succeeds by printing help rather than a usage error."""
         # Arrange / Act -- bare /run has no picker in MCP, so the
         # builtin's fallback path prints /help run + available files.
         # Success rather than a usage error -- the user got something
@@ -867,6 +916,7 @@ class TestRunCommandsAvailableInMCP:
         )
 
     def test_run_list_dump_callable_from_mcp(self, host):
+        """run.list, run.dump and run.legacy are all callable under MCP capabilities."""
         # Arrange / Act
         for name in ("run.list", "run.dump", "run.legacy"):
             plugin = host.repl._plugins.get(name)
@@ -879,6 +929,7 @@ class TestRunCommandsAvailableInMCP:
             )
 
     def test_run_show_and_explore_gated_on_gui_apps(self, host):
+        """run.show and run.explore stay gated on gui_apps in the headless MCP host."""
         # Arrange / Act
         for name in ("run.show", "run.explore"):
             plugin = host.repl._plugins.get(name)
@@ -896,6 +947,7 @@ class TestRunCommandsAvailableInMCP:
 
 class TestDeviceStateResource:
     def test_top_level_keys_present(self, host):
+        """device_state carries every top-level section, even on an idle host."""
         # Arrange
         from termapy.mcp.catalog import build_device_state
 
@@ -916,6 +968,7 @@ class TestDeviceStateResource:
             assert key in state, f"device_state missing {key!r}"
 
     def test_port_state_reflects_disconnected_host(self, host):
+        """With no port configured, device_state reports the port as closed."""
         # Arrange / Act
         from termapy.mcp.catalog import build_device_state
 
@@ -924,6 +977,7 @@ class TestDeviceStateResource:
         assert state["port"]["open"] is False, "no port = closed"
 
     def test_last_command_populated_after_run(self, host):
+        """After a run, device_state records that command and its success flag."""
         # Arrange / Act
         import asyncio
 
@@ -939,6 +993,7 @@ class TestDeviceStateResource:
         assert state["last_command"]["success"] is True, "success flag recorded"
 
     def test_expect_history_grows_after_expect_call(self, host):
+        """A timed-out /expect adds one unmatched entry to expect_history."""
         # Arrange / Act
         import asyncio
 
@@ -959,6 +1014,7 @@ class TestDeviceStateResource:
         assert state["expect_history"][0]["matched"] is False, "timeout = no match"
 
     def test_captures_list_reflects_cap_dir(self, host, tmp_path):
+        """Files in cap_dir appear in device_state captures with termapy:// URIs."""
         # Arrange — write a file to cap_dir
         from pathlib import Path
 
@@ -985,6 +1041,7 @@ class TestCaptureResourceSecurity:
     rejected."""
 
     def test_path_traversal_rejected(self, host):
+        """A ../ filename resolving outside cap_dir is refused as path traversal."""
         # Arrange — we test the underlying logic without going through
         # the SDK's tool decorator (which wraps the function).  The
         # implementation lives in mcp/server.py's _build_server.
@@ -1033,12 +1090,14 @@ class TestBareSlotCaptureExposure:
         return MCPHost(cfg, "", verbose=False)
 
     def test_active_cap_dir_is_none_without_cfg(self, bare_host):
+        """A host with no cfg has no captures directory, not a fallback to CWD."""
         # Act / Assert
         assert bare_host._active_cap_dir() is None, (
             "bare slot has no captures directory"
         )
 
     def test_active_cap_dir_is_set_with_cfg(self, host):
+        """A loaded cfg yields a captures directory equal to ctx.fs.cap_dir."""
         # Arrange / Act -- the standard fixture has a tmp cfg loaded.
         actual = host._active_cap_dir()
         # Assert
@@ -1046,6 +1105,7 @@ class TestBareSlotCaptureExposure:
         assert actual == Path(host.ctx.fs.cap_dir), "matches ctx.fs.cap_dir"
 
     def test_device_state_lists_no_captures_on_bare_slot(self, bare_host):
+        """On a bare slot device_state lists no captures, so CWD secrets never leak."""
         # Arrange -- exactly the call the device_state resource makes.
         from termapy.mcp.catalog import build_device_state
 
@@ -1059,6 +1119,7 @@ class TestBareSlotCaptureExposure:
         )
 
     def test_explicit_none_lists_nothing_even_with_cwd_files(self, bare_host):
+        """captures_dir=None makes the builder itself skip CWD, independent of the host."""
         # Arrange -- prove the None path ignores ctx.fs.cap_dir (=CWD),
         # independent of the host method, so the builder itself is safe.
         from termapy.mcp.catalog import build_device_state
@@ -1072,6 +1133,7 @@ class TestBareSlotCaptureExposure:
         )
 
     def test_capture_read_refuses_on_bare_slot(self, bare_host):
+        """Reading a capture with no cfg loaded refuses even a file present in CWD."""
         # Arrange -- the resource's guard: _active_cap_dir() None -> refuse.
         # Mirrors the inline-guard style of TestCaptureResourceSecurity.
         def read(filename: str) -> str:
@@ -1091,6 +1153,7 @@ class TestBareSlotCaptureExposure:
             read(".secrets")
 
     def test_loaded_cfg_still_lists_captures(self, host):
+        """With a cfg loaded, the bare-slot fix still lists that config's captures."""
         # Arrange -- regression: the fix must not break the normal path.
         from termapy.mcp.catalog import build_device_state
 

@@ -13,32 +13,38 @@ class TestMfg:
     """
 
     def test_empty_returns_empty(self):
+        """Empty string and None both give an empty label, so a missing descriptor shows blank."""
         # Act / Assert
         assert mfg("") == "", "empty string returns empty"
         assert mfg(None) == "", "None returns empty"
 
     def test_case_insensitive(self):
+        """Matching ignores case: FTDI, ftdi, and Ftdi all fold to the same FTDI label."""
         # Act / Assert -- same alias regardless of case
         assert mfg("FTDI") == "FTDI", "upper case"
         assert mfg("ftdi") == "FTDI", "lower case"
         assert mfg("Ftdi") == "FTDI", "mixed case"
 
     def test_ftdi_variants(self):
+        """FTDI's long Future Technology Devices International name folds to FTDI."""
         # Act / Assert -- the long descriptor also maps to FTDI
         actual = mfg("Future Technology Devices International")
         assert actual == "FTDI", "FTDI long form collapses"
 
     def test_microsoft_variants(self):
+        """Microsoft with or without Corporation folds to MSFT."""
         # Act / Assert -- short and long forms both become MSFT
         assert mfg("Microsoft") == "MSFT", "Microsoft short"
         assert mfg("Microsoft Corporation") == "MSFT", "Microsoft long"
 
     def test_silabs_variants(self):
+        """Silicon Labs and Silicon Laboratories share a prefix and both fold to SiLabs."""
         # Act / Assert -- both the short and long forms collapse
         assert mfg("Silicon Labs") == "SiLabs", "short form"
         assert mfg("Silicon Laboratories") == "SiLabs", "long form"
 
     def test_wch_variants(self):
+        """WCH.CN and QinHeng Electronics are one vendor and both fold to WCH."""
         # Act / Assert -- two distinct reported strings, same alias
         assert mfg("WCH.CN") == "WCH", "WCH short"
         assert mfg("QinHeng Electronics") == "WCH", "QinHeng becomes WCH"
@@ -59,10 +65,12 @@ class TestMfg:
             "Microchip stays Microchip"
 
     def test_unknown_passes_through(self):
+        """An unrecognized vendor comes back verbatim, never blanked or shortened."""
         # Act / Assert -- unrecognized vendors are returned verbatim
         assert mfg("Acme Corp") == "Acme Corp", "unknown vendor unchanged"
 
     def test_whitespace_stripped(self):
+        """Padding around a descriptor does not defeat the prefix match."""
         # Act / Assert -- leading/trailing whitespace doesn't break match
         assert mfg("  FTDI  ") == "FTDI", "whitespace tolerated"
 

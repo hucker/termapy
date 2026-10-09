@@ -25,6 +25,7 @@ class TestPaletteEntries:
     """The palette structure exposes the three new search actions."""
 
     def test_palette_includes_find_grep_search(self):
+        """Each search entry pairs its label with the exact _palette_* handler name."""
         # Arrange / Act -- PALETTE_CMDS is a class attribute, no
         # instantiation needed.
         entries = SerialTerminal.PALETTE_CMDS
@@ -36,6 +37,7 @@ class TestPaletteEntries:
             )
 
     def test_palette_handler_methods_exist(self):
+        """Each search entry's handler name resolves to a callable on SerialTerminal."""
         # Arrange / Act / Assert -- each handler name in the new
         # palette entries resolves to a callable on the class.
         for _label, handler in _EXPECTED_PALETTE_ADDITIONS:
@@ -44,6 +46,7 @@ class TestPaletteEntries:
             )
 
     def test_palette_search_entries_ordered_near_help(self):
+        """The search entries sit directly after Help, in find, grep, help-search order."""
         # Arrange / Act -- search entries should appear early in
         # the palette so they're easy to find while browsing.
         # Specifically: right after "Help".
@@ -61,6 +64,7 @@ class TestPaletteEntries:
             )
 
     def test_palette_includes_list_and_toggle_actions(self):
+        """One-tap list, set-variable, toggle and term-info entries exist with live handlers."""
         # Arrange / Act -- the four "useful read/set/toggle" entries
         # dispatch /port.list, /var, /var.set, /term.line_no (Set
         # Variable opens a two-field modal first) so the palette gives
@@ -89,6 +93,7 @@ class TestPaletteEntries:
             )
 
     def test_palette_includes_load_run_script(self):
+        """Load Run Script reuses _btn_scripts, the same handler as the Run button and F3."""
         # Arrange / Act -- "Load Run Script..." reuses the existing
         # _btn_scripts handler (same as the Run title-bar button /
         # F3), so users can reach the ScriptPicker from the palette
@@ -108,6 +113,7 @@ class TestPromptThenDispatch:
     """The shared helper composes ``<prefix><value>`` and dispatches it quietly."""
 
     def test_non_empty_value_dispatches_prefixed_command(self, monkeypatch):
+        """Submitted text is appended to the prefix verbatim, inner spaces kept."""
         # Arrange -- a stub App that records what _dispatch_quiet
         # sees, and a stub push_screen that fires the callback
         # synchronously with a fake user input.
@@ -137,6 +143,7 @@ class TestPromptThenDispatch:
         )
 
     def test_empty_or_none_value_does_not_dispatch(self):
+        """Both a canceled prompt (None) and an empty submit dispatch nothing."""
         # Arrange
         dispatched: list[str] = []
         captured_callback: list = []
@@ -191,6 +198,7 @@ class TestPaletteSetVar:
         return app, dispatched, captured_callback
 
     def test_bare_name_and_dollar_paren_name_produce_same_dispatch(self):
+        """TIMEOUT and $(TIMEOUT) in the Name field dispatch the identical /var.set line."""
         # Arrange
         app, dispatched, captured_callback = (
             self._make_app_with_captured_callback()
@@ -212,6 +220,7 @@ class TestPaletteSetVar:
         )
 
     def test_value_dollar_paren_is_preserved(self):
+        """A $(BAR) reference in the Value field reaches /var.set unstripped."""
         # Arrange -- the value field is the documented place to put
         # a variable reference; we must NOT strip $(...) there.
         app, dispatched, captured_callback = (
@@ -231,6 +240,7 @@ class TestPaletteSetVar:
         )
 
     def test_cancel_does_not_dispatch(self):
+        """Canceling the two-field modal sends nothing to the REPL."""
         # Arrange
         app, dispatched, captured_callback = (
             self._make_app_with_captured_callback()
@@ -279,6 +289,7 @@ class TestPaletteProvider:
         return provider
 
     def test_discover_yields_all_palette_cmds_alphabetically(self):
+        """Discover re-sorts entries by label, whatever order PALETTE_CMDS lists them in."""
         # Arrange -- input order is intentionally non-alphabetical
         # so we can assert the provider re-sorts.
         import asyncio
@@ -301,6 +312,7 @@ class TestPaletteProvider:
         )
 
     def test_search_fuzzy_filters(self):
+        """A find query matches the Find entry and excludes unrelated labels like Exit."""
         # Arrange
         import asyncio
         cmds = [
@@ -326,6 +338,7 @@ class TestPaletteProvider:
         )
 
     def test_invoking_a_hit_calls_the_named_handler(self):
+        """A search hit's command looks up the handler name on the app and calls it once."""
         # Arrange
         import asyncio
         cmds = [("Run thing", "_call_a")]

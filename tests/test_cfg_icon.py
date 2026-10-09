@@ -72,18 +72,21 @@ def _set_flag(ctx, name: str) -> None:
 
 class TestSanitizeFilename:
     def test_alnum_passes_through(self):
+        """A plain alphanumeric name comes back unchanged."""
         # Arrange / Act / Assert
         assert _cfg_icon._sanitize_filename("MyDevice123") == "MyDevice123", (
             "alnum survives untouched"
         )
 
     def test_spaces_become_underscores(self):
+        """A space becomes an underscore so the launcher name is safe on every OS."""
         # Arrange / Act / Assert
         assert _cfg_icon._sanitize_filename("Demo Device") == "Demo_Device", (
             "spaces -> underscores (filesystem-safe across all 3 OSes)"
         )
 
     def test_special_chars_become_underscores(self):
+        """Path separators and shell metacharacters each become an underscore."""
         # Arrange / Act
         actual = _cfg_icon._sanitize_filename("foo/bar:baz*qux")
 
@@ -93,6 +96,7 @@ class TestSanitizeFilename:
         )
 
     def test_dots_and_dashes_kept(self):
+        """Dots and dashes survive, so version-like names stay readable."""
         # Arrange / Act
         actual = _cfg_icon._sanitize_filename("v1.2-rc3")
 
@@ -102,11 +106,13 @@ class TestSanitizeFilename:
 
 class TestPsQuote:
     def test_simple_string_wrapped_in_single_quotes(self):
+        """A value becomes a PowerShell single-quoted literal, so nothing in it expands."""
         assert _cfg_icon._ps_quote("hello") == "'hello'", (
             "wraps in single quotes for PowerShell literal"
         )
 
     def test_single_quote_doubled(self):
+        """An embedded apostrophe is doubled, so a path like Bill's PC stays one literal."""
         # Arrange / Act -- PowerShell escapes ' as '' inside a
         # single-quoted string.  Critical for paths like
         # ``C:\Users\Bill's PC\Desktop``.
@@ -116,6 +122,7 @@ class TestPsQuote:
         assert actual == "'it''s a test'", "embedded ' is doubled"
 
     def test_accepts_path_object(self):
+        """A Path argument is stringified before quoting, not rejected."""
         # Arrange / Act -- callers pass Path objects from
         # Path.home(); the quoter must str() them.
         actual = _cfg_icon._ps_quote(Path("C:/foo/bar"))
@@ -137,6 +144,7 @@ class TestLinuxCreate:
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
 
     def test_writes_desktop_file_into_xdg_apps_dir(self, cfg_env):
+        """The launcher lands in ~/.local/share/applications and its path is the value."""
         # Arrange
         eng, cfg_dir, fake_home, _ = cfg_env
 
@@ -157,6 +165,7 @@ class TestLinuxCreate:
         )
 
     def test_content_substitutes_name_and_cfg_path(self, cfg_env):
+        """Every placeholder is filled, and Icon= names a bundled file that exists."""
         # Arrange
         eng, cfg_dir, fake_home, _ = cfg_env
 
@@ -202,6 +211,7 @@ class TestLinuxCreate:
         )
 
     def test_refuses_if_exists_without_force(self, cfg_env):
+        """A second create without --force fails instead of clobbering the launcher."""
         # Arrange -- first create succeeds; second errors.
         eng, _, _, _ = cfg_env
         eng.dispatch("cfg.icon")
@@ -216,6 +226,7 @@ class TestLinuxCreate:
         )
 
     def test_force_overwrites_existing(self, cfg_env):
+        """With --force a stale .desktop file is rewritten from the template."""
         # Arrange
         eng, _, fake_home, _ = cfg_env
         eng.dispatch("cfg.icon")
@@ -237,6 +248,7 @@ class TestLinuxCreate:
         )
 
     def test_remove_deletes_launcher(self, cfg_env):
+        """/cfg.icon.remove deletes the .desktop file this cfg created."""
         # Arrange
         eng, _, fake_home, _ = cfg_env
         eng.dispatch("cfg.icon")
@@ -272,6 +284,7 @@ class TestLinuxCreate:
         assert second is None, "nothing to retire the second time"
 
     def test_remove_without_launcher_fails(self, cfg_env):
+        """Removing when no launcher exists fails with a not-found error, not silently."""
         # Arrange / Act
         eng, _, _, _ = cfg_env
         result = eng.dispatch("cfg.icon.remove")
@@ -294,6 +307,7 @@ class TestMacosCreate:
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "darwin")
 
     def test_builds_app_bundle_under_applications(self, cfg_env):
+        """The bundle in ~/Applications carries Info.plist, a launcher and termapy.icns."""
         # Arrange
         eng, cfg_dir, fake_home, _ = cfg_env
 
@@ -322,6 +336,7 @@ class TestMacosCreate:
         )
 
     def test_plist_and_launcher_substitute_placeholders(self, cfg_env):
+        """No placeholders remain, and the launcher runs python -m termapy <cfg>."""
         # Arrange
         eng, cfg_dir, fake_home, _ = cfg_env
 
@@ -357,6 +372,7 @@ class TestMacosCreate:
         )
 
     def test_refuses_if_bundle_exists_without_force(self, cfg_env):
+        """A second create without --force fails instead of replacing the bundle."""
         # Arrange
         eng, _, _, _ = cfg_env
         eng.dispatch("cfg.icon")
@@ -369,6 +385,7 @@ class TestMacosCreate:
         assert "exists" in result.error.lower(), "error names the issue"
 
     def test_force_rewrites_bundle(self, cfg_env):
+        """With --force the old bundle is removed whole, so stray files do not survive."""
         # Arrange
         eng, _, fake_home, _ = cfg_env
         eng.dispatch("cfg.icon")
@@ -387,6 +404,7 @@ class TestMacosCreate:
         assert not stray.exists(), "stale content removed (rmtree)"
 
     def test_remove_rmtrees_bundle(self, cfg_env):
+        """Remove deletes the whole .app directory, not just its files."""
         # Arrange
         eng, _, fake_home, _ = cfg_env
         eng.dispatch("cfg.icon")
@@ -428,6 +446,7 @@ class TestWindowsCreate:
     def test_invokes_powershell_with_expected_shortcut_call(
         self, cfg_env, monkeypatch,
     ):
+        """The .lnk runs this python -m termapy on the cfg, with working dir and icon set."""
         # Arrange -- capture every subprocess.run call so we can
         # inspect the PowerShell script the implementation built.
         calls: list[list[str]] = []
@@ -497,6 +516,7 @@ class TestWindowsCreate:
     def test_refuses_if_lnk_exists_without_force(
         self, cfg_env, monkeypatch,
     ):
+        """An EXISTS: marker from PowerShell becomes a failed result naming the conflict."""
         # Arrange -- simulate PowerShell reporting EXISTS:<path>.
         def _fake_run(cmd, **kwargs):
             if cmd[-1] == _cfg_icon._PS_RESOLVE_DESKTOP:
@@ -516,6 +536,7 @@ class TestWindowsCreate:
         assert "exists" in result.error.lower(), "error names the issue"
 
     def test_force_omits_existence_guard(self, cfg_env, monkeypatch):
+        """With --force the shortcut script has no Test-Path guard, so it overwrites."""
         # Arrange -- record the shortcut-creation script so we can
         # check that the "Test-Path" guard isn't present when --force.
         scripts: list[str] = []
@@ -549,6 +570,7 @@ class TestList:
     """``/cfg.icon.list`` scans the platform's launcher dir."""
 
     def test_linux_lists_termapy_desktop_files(self, cfg_env, monkeypatch):
+        """Only termapy-* .desktop files are listed; other apps' launchers are ignored."""
         # Arrange -- create two launchers via the create path, then
         # plant a non-termapy .desktop that must be ignored.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
@@ -576,6 +598,7 @@ class TestList:
         )
 
     def test_macos_lists_bundles_by_bundle_id(self, cfg_env, monkeypatch):
+        """Bundles match by termapy's bundle id, so a foreign .app is not listed."""
         # Arrange -- one termapy .app + one foreign .app without our
         # bundle ID marker.  Scanner must keep ours, drop the other.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "darwin")
@@ -609,6 +632,7 @@ class TestList:
     def test_windows_filters_by_args_containing_termapy(
         self, cfg_env, monkeypatch,
     ):
+        """A .lnk is listed only when its arguments mention termapy."""
         # Arrange -- mock PowerShell to return two .lnks: one ours,
         # one with no termapy reference.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "win32")
@@ -654,6 +678,7 @@ class TestList:
         )
 
     def test_empty_when_none_found(self, cfg_env, monkeypatch):
+        """No launchers is a success with an empty value and a visible none-found note."""
         # Arrange -- linux but no .desktop files created.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
         eng, _, _, output = cfg_env
@@ -670,6 +695,7 @@ class TestList:
         )
 
     def test_list_works_without_loaded_cfg(self, cfg_env, monkeypatch):
+        """Listing needs no loaded cfg, unlike create and remove."""
         # Arrange -- --list is a "what's installed?" query and must
         # not require a loaded cfg.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
@@ -694,6 +720,7 @@ class TestFindLauncherForCfg:
     """
 
     def test_linux_finds_desktop_file_referencing_cfg(self, cfg_env, monkeypatch):
+        """The .desktop file whose Exec= line embeds the cfg path is the one found."""
         # Arrange -- create the launcher via the normal create path
         # so its embedded Exec= line carries the cfg path verbatim.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
@@ -713,6 +740,7 @@ class TestFindLauncherForCfg:
     def test_linux_returns_none_when_no_launcher_matches(
         self, cfg_env, monkeypatch,
     ):
+        """A cfg that no launcher references finds nothing, not a wrong launcher."""
         # Arrange -- create a launcher for one cfg, search for another.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
         eng, _, _, _ = cfg_env
@@ -727,6 +755,7 @@ class TestFindLauncherForCfg:
         assert found is None, "no launcher references the unrelated cfg"
 
     def test_macos_finds_bundle_referencing_cfg(self, cfg_env, monkeypatch):
+        """On macOS the match is the bundle directory, not a file inside it."""
         # Arrange
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "darwin")
         eng, cfg_dir, fake_home, _ = cfg_env
@@ -743,6 +772,7 @@ class TestFindLauncherForCfg:
         )
 
     def test_windows_finds_lnk_by_args_substring(self, cfg_env, monkeypatch):
+        """A .lnk matches when its arguments contain the cfg path."""
         # Arrange -- mock PowerShell to enumerate one .lnk whose
         # Arguments embed the cfg path we're searching for.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "win32")
@@ -779,6 +809,7 @@ class TestRemoveLauncherAt:
     """``remove_launcher_at`` deletes a launcher file or .app bundle."""
 
     def test_removes_a_file(self, tmp_path):
+        """A launcher that is a single file is deleted."""
         # Arrange -- a fake .desktop file (any file is fine).
         target = tmp_path / "termapy-demo.desktop"
         target.write_text("dummy", encoding="utf-8")
@@ -790,6 +821,7 @@ class TestRemoveLauncherAt:
         assert not target.exists(), "file deleted"
 
     def test_removes_a_bundle_directory(self, tmp_path):
+        """A launcher that is a directory tree is removed whole."""
         # Arrange -- a fake .app bundle (just a directory).
         bundle = tmp_path / "Demo.app"
         (bundle / "Contents").mkdir(parents=True)
@@ -802,6 +834,7 @@ class TestRemoveLauncherAt:
         assert not bundle.exists(), "whole bundle dir removed"
 
     def test_missing_path_is_a_noop(self, tmp_path):
+        """A path that does not exist is ignored without raising."""
         # Arrange / Act -- silent on missing.
         _cfg_icon.remove_launcher_at(tmp_path / "never_existed.lnk")
         # Assert -- no exception is the assertion.
@@ -809,6 +842,7 @@ class TestRemoveLauncherAt:
 
 class TestDispatch:
     def test_fails_when_no_cfg_loaded(self, cfg_env, monkeypatch):
+        """Create with no cfg loaded fails with a no-config error."""
         # Arrange -- a bare engine with no config_path.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
         eng, _, _, _ = cfg_env
@@ -824,6 +858,7 @@ class TestDispatch:
         )
 
     def test_unsupported_platform_fails_clean(self, cfg_env, monkeypatch):
+        """An unknown platform gets an unsupported error instead of a crash."""
         # Arrange -- exotic platform (e.g. aix, freebsd).  Shouldn't
         # crash; should fail with a clear message.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "haiku")

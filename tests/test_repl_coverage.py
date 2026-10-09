@@ -47,6 +47,7 @@ def engine(tmp_path):
 
 class TestEditDistance:
     def test_identical_strings(self):
+        """Equal strings are zero edits apart, so an exact name always ranks first."""
         # Act
         actual = _edit_distance("hello", "hello")
 
@@ -54,6 +55,7 @@ class TestEditDistance:
         assert actual == 0, "identical strings have distance 0"
 
     def test_single_insertion(self):
+        """One added character costs exactly one edit."""
         # Act
         actual = _edit_distance("cat", "cats")
 
@@ -61,6 +63,7 @@ class TestEditDistance:
         assert actual == 1, "one insertion is distance 1"
 
     def test_single_deletion(self):
+        """One dropped character costs exactly one edit."""
         # Act
         actual = _edit_distance("cats", "cat")
 
@@ -68,6 +71,7 @@ class TestEditDistance:
         assert actual == 1, "one deletion is distance 1"
 
     def test_substitution(self):
+        """One replaced character costs exactly one edit."""
         # Act
         actual = _edit_distance("cat", "car")
 
@@ -75,6 +79,7 @@ class TestEditDistance:
         assert actual == 1, "one substitution is distance 1"
 
     def test_transposition(self):
+        """Swapped adjacent letters count as one edit, not two -- the common typo."""
         # Act
         actual = _edit_distance("ab", "ba")
 
@@ -82,6 +87,7 @@ class TestEditDistance:
         assert actual == 1, "transposition counts as 1 edit"
 
     def test_empty_strings(self):
+        """Two empty strings are zero edits apart rather than an error."""
         # Act
         actual = _edit_distance("", "")
 
@@ -89,6 +95,7 @@ class TestEditDistance:
         assert actual == 0, "empty strings have distance 0"
 
     def test_one_empty(self):
+        """Distance to an empty string is the other string's full length."""
         # Act
         actual = _edit_distance("abc", "")
 
@@ -96,6 +103,7 @@ class TestEditDistance:
         assert actual == 3, "distance to empty is length of other string"
 
     def test_completely_different(self):
+        """No shared characters costs one substitution per position."""
         # Act
         actual = _edit_distance("abc", "xyz")
 
@@ -108,6 +116,7 @@ class TestEditDistance:
 
 class TestSuggestCommand:
     def test_close_match(self):
+        """A one-letter typo suggests the intended command with its prefix."""
         # Arrange
         plugins = {"help": None, "echo": None, "exit": None}
 
@@ -119,6 +128,7 @@ class TestSuggestCommand:
         assert "/help" in actual, "suggests /help for halp"
 
     def test_no_match(self):
+        """A name far from every command yields no suggestion at all."""
         # Arrange
         plugins = {"help": None, "echo": None}
 
@@ -129,6 +139,7 @@ class TestSuggestCommand:
         assert actual is None, "no match for distant string"
 
     def test_exact_match_distance_zero(self):
+        """An exact command name is itself offered as a suggestion."""
         # Arrange
         plugins = {"help": None, "echo": None}
 
@@ -140,6 +151,7 @@ class TestSuggestCommand:
         assert "/help" in actual, "includes exact match"
 
     def test_multiple_suggestions(self):
+        """When several commands tie at distance 1, the suggestion includes them."""
         # Arrange
         plugins = {"cap": None, "car": None, "cat": None, "xyz": None}
 
@@ -157,6 +169,7 @@ class TestSuggestCommand:
 
 class TestScriptCtxRecord:
     def test_verbose_output(self):
+        """Verbose mode prints one line per step with [step/total] and the command."""
         # Arrange
         output: list[str] = []
         sctx = ScriptCtx(
@@ -180,6 +193,7 @@ class TestScriptCtxRecord:
         assert "AT+RST" in output[0], "includes command label"
 
     def test_profile_writes_csv(self):
+        """Profile mode keeps the step timing and appends a CSV row to the file."""
         # Arrange
         buf = StringIO()
         sctx = ScriptCtx(
@@ -203,6 +217,7 @@ class TestScriptCtxRecord:
         assert "AT" in buf.getvalue(), "CSV line written"
 
     def test_sub_millisecond_formatting(self):
+        """Sub-millisecond step times render as whole microseconds, not 0ms."""
         # Arrange
         output: list[str] = []
         sctx = ScriptCtx(
@@ -229,6 +244,7 @@ class TestScriptCtxRecord:
 
 class TestScriptCtxFinish:
     def test_verbose_shows_summary(self):
+        """Verbose finish prints one done line naming the script."""
         # Arrange
         output: list[str] = []
         sctx = ScriptCtx(
@@ -251,6 +267,7 @@ class TestScriptCtxFinish:
         assert "done" in output[0], "includes 'done'"
 
     def test_profile_prints_csv_contents(self, tmp_path):
+        """Profile finish echoes the CSV rows plus a total line to the output."""
         # Arrange
         output: list[str] = []
         prof_path = tmp_path / "prof" / "test.csv"
@@ -284,6 +301,7 @@ class TestScriptCtxFinish:
 
 class TestDispatchSuggestion:
     def test_unknown_command_suggests(self, engine):
+        """An unknown command's error carries a did-you-mean for a near miss."""
         # Arrange
         eng, output = engine
         eng.register_hook("help", "", "Show help.", lambda ctx, args: CmdResult.ok(value=""),
@@ -298,6 +316,7 @@ class TestDispatchSuggestion:
         assert "/help" in result.error, "suggests /help"
 
     def test_unknown_command_no_suggestion(self, engine):
+        """With no near miss, the error is the plain Unknown command message."""
         # Arrange
         eng, output = engine
 
@@ -314,6 +333,7 @@ class TestDispatchSuggestion:
 
 class TestDispatchQuiet:
     def test_quiet_suppresses_echo(self, engine):
+        """A .quiet-suffixed command dispatches and succeeds through dispatch_full."""
         # Arrange
         eng, output = engine
         eng.register_hook("cap.quiet", "", "Quiet cap.",
@@ -340,6 +360,7 @@ class TestDispatchQuiet:
 
 class TestDispatchNoneResult:
     def test_none_result_treated_as_ok(self, engine):
+        """A handler returning None counts as success, not a dispatch failure."""
         # Arrange
         eng, output = engine
         eng.register_hook("noop", "", "Returns None.",
@@ -357,6 +378,7 @@ class TestDispatchNoneResult:
 
 class TestDispatchException:
     def test_handler_exception_caught(self, engine):
+        """A raising handler becomes a failed result carrying the exception text."""
         # Arrange
         eng, output = engine
 
@@ -378,6 +400,7 @@ class TestDispatchException:
 
 class TestDispatchDirectives:
     def test_rewrite_directive(self, engine):
+        """A rewrite directive swaps the line for another command and runs it."""
         # Arrange
         eng, output = engine
         eng.register_hook("ping", "", "Ping.",
@@ -409,6 +432,7 @@ class TestDispatchDirectives:
         assert result.value == "pong", "rewritten command executes"
 
     def test_warn_directive(self, engine):
+        """A warn directive shows its message on status and lets dispatch succeed."""
         # Arrange
         eng, output = engine
         status_msgs: list[str] = []
@@ -446,6 +470,7 @@ class TestDispatchBarePrefix:
     """
 
     def test_bare_prefix_does_not_crash(self, engine):
+        """A lone prefix returns a result instead of raising IndexError."""
         # Arrange
         eng, output = engine
 
@@ -471,6 +496,7 @@ class TestDispatchBarePrefix:
         )
 
     def test_error_directive(self, engine):
+        """An error directive fails the line with the directive's own message."""
         # Arrange
         eng, output = engine
         eng._directives = [
@@ -502,6 +528,7 @@ class TestDispatchBarePrefix:
 
 class TestRunScriptProfile:
     def test_profile_creates_csv(self, engine, tmp_path):
+        """A profiled script run leaves a timing CSV in the config's prof/ folder."""
         # Arrange
         eng, output = engine
         script = tmp_path / "sub" / "run" / "test.run"
@@ -531,6 +558,7 @@ class TestRunScriptProfile:
 
 class TestReplaceCfg:
     def test_replaces_config(self, engine):
+        """replace_cfg swaps both the cfg dict and the config path the engine holds."""
         # Arrange
         eng, output = engine
         new_cfg = {"port": "COM5", "baud_rate": 9600}

@@ -99,6 +99,7 @@ def repl_env(tmp_path, monkeypatch):
 
 class TestEcho:
     def test_echo_on(self, repl_env):
+        """Via the legacy /echo alias, 'on' sets the device-echo flag and prints a confirmation."""
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.ns("flags")["echo"] = False
@@ -111,6 +112,7 @@ class TestEcho:
         assert any("on" in t for t, _ in output), "confirmation shown"
 
     def test_echo_off(self, repl_env):
+        """'echo off' clears the device-echo flag from its default-on state and confirms."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -122,6 +124,7 @@ class TestEcho:
         assert any("off" in t for t, _ in output), "confirmation shown"
 
     def test_echo_toggle(self, repl_env):
+        """Bare /echo only queries; the explicit toggle verb is what flips the flag, both ways."""
         # Arrange
         engine, _, _, output = repl_env
         assert engine.ctx.ns("flags")["echo"] is True, "starts enabled"
@@ -139,6 +142,7 @@ class TestEcho:
         assert engine.ctx.ns("flags")["echo"] is True, "toggle flips back on"
 
     def test_echo_invalid_arg_errors(self, repl_env):
+        """An unrecognized arg is an error that leaves echo alone -- never a silent flip."""
         # Arrange -- an unrecognized arg must ERROR, never silently flip
         engine, _, _, _ = repl_env
         engine.ctx.ns("flags")["echo"] = True
@@ -152,6 +156,7 @@ class TestEcho:
         assert engine.ctx.ns("flags")["echo"] is True, "state unchanged"
 
     def test_echo_on_off_set(self, repl_env):
+        """Back-to-back off then on each set an absolute state rather than flipping."""
         # Arrange
         engine, _, _, _ = repl_env
         # Act / Assert
@@ -165,6 +170,7 @@ class TestTermSettingCycle:
     """Enum settings advance with the `cycle` verb (bare still queries)."""
 
     def test_output_cycle_advances_and_wraps(self, repl_env):
+        """/term.output cycle walks silent -> quiet and wraps past the last level to silent."""
         # Arrange
         engine, _, _, _ = repl_env
         flags = engine.ctx.ns("flags")
@@ -178,6 +184,7 @@ class TestTermSettingCycle:
         assert flags["output_level"] == "silent", "wraps back to silent"
 
     def test_output_bare_queries(self, repl_env):
+        """Bare /term.output returns the current level as its value and leaves it unchanged."""
         # Arrange
         engine, _, _, _ = repl_env
         engine.ctx.ns("flags")["output_level"] = "normal"
@@ -190,6 +197,7 @@ class TestTermSettingCycle:
         assert engine.ctx.ns("flags")["output_level"] == "normal", "unchanged"
 
     def test_eol_cycle_advances(self, repl_env):
+        """/term.eol cycle moves cr to lf, following the order of the eol token table."""
         # Arrange
         engine, cfg, _, _ = repl_env
         cfg["eol"] = "\r"  # token "cr"
@@ -208,6 +216,7 @@ class TestEchoRepl:
     """echo_repl gates REPL/slash-command echo, separately from `echo`."""
 
     def test_echo_repl_on(self, repl_env):
+        """'on' enables slash-command echo and prints a confirmation."""
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.ns("flags")["echo_repl"] = False
@@ -220,6 +229,7 @@ class TestEchoRepl:
         assert any("on" in t for t, _ in output), "confirmation shown"
 
     def test_echo_repl_off(self, repl_env):
+        """'off' disables slash-command echo and prints a confirmation."""
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.ns("flags")["echo_repl"] = True
@@ -232,6 +242,7 @@ class TestEchoRepl:
         assert any("off" in t for t, _ in output), "confirmation shown"
 
     def test_echo_repl_toggle_independent_of_echo(self, repl_env):
+        """The toggle verb flips echo_repl without touching the device-echo flag beside it."""
         # Arrange - toggling echo_repl must not disturb the device-echo flag.
         engine, _, _, output = repl_env
         flags = engine.ctx.ns("flags")
@@ -251,6 +262,7 @@ class TestEchoRepl:
 
 class TestPrint:
     def test_print_text(self, repl_env):
+        """/print emits its argument text verbatim, punctuation and spaces included."""
         engine, _, _, output = repl_env
         engine.dispatch("print Hello, world!")
         # Post-cleanup /print routes through ctx.io.output which passes
@@ -259,6 +271,7 @@ class TestPrint:
         assert "Hello, world!" in actual_texts, "text printed verbatim"
 
     def test_print_empty(self, repl_env):
+        """Bare /print emits an empty line rather than a usage error."""
         engine, _, _, output = repl_env
         engine.dispatch("print")
         actual_texts = [text for text, _ in output]
@@ -293,6 +306,7 @@ class TestRunDocstring:
     def test_run_list_shows_summary_alongside_filename(
         self, repl_env, tmp_path,
     ):
+        """A header row labels the columns; undocumented scripts list with no trailing padding."""
         # Arrange -- two scripts, one with a docstring and one without.
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -325,6 +339,7 @@ class TestRunDocstring:
         ), "undocumented script listed with no summary and no trailing padding"
 
     def test_run_list_newest_first_with_size_and_age(self, repl_env, tmp_path):
+        """Order is by mtime, not name, in both the listing and the scriptable value."""
         # Arrange -- two scripts; the one that sorts FIRST by name is an hour old.
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -351,6 +366,7 @@ class TestRunDocstring:
         )
 
     def test_run_rename_keeps_extension_and_never_overwrites(self, repl_env, tmp_path):
+        """A bare name gains .run; clobbering, extension changes and leaving run/ are refused."""
         # Arrange
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -378,6 +394,7 @@ class TestRunDocstring:
         assert (scripts_dir / "fresh.run").is_file(), "refused renames changed nothing"
 
     def test_run_rename_wrong_arity_is_a_usage_error(self, repl_env, tmp_path):
+        """One arg to /run.rename yields the dispatcher's usage line from declared params."""
         engine, _, _, _ = repl_env
         self._wire_scripts_dir(engine, tmp_path)
         result = engine.dispatch("run.rename only_one")
@@ -413,6 +430,7 @@ class TestRunDocstring:
         )
 
     def test_run_list_wants_data_returns_records_without_prose(self, repl_env, tmp_path):
+        """With wants_data, /run.list returns raw records (byte count, mtime) and prints nothing."""
         # Arrange
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -435,6 +453,7 @@ class TestRunDocstring:
     def test_run_help_script_prints_full_docstring(
         self, repl_env, tmp_path,
     ):
+        """/run.help takes a bare stem and returns the whole comment block, not just the summary."""
         # Arrange
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -463,6 +482,7 @@ class TestRunDocstring:
     def test_run_help_undocumented_script_fails(
         self, repl_env, tmp_path,
     ):
+        """A script with no comment block fails loudly so the caller knows to read the file."""
         # Arrange
         engine, _, _, _ = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -479,6 +499,7 @@ class TestRunDocstring:
         )
 
     def test_run_help_missing_script_fails(self, repl_env, tmp_path):
+        """An unknown script name fails with 'not found' rather than an empty docstring."""
         # Arrange
         engine, _, _, _ = repl_env
         self._wire_scripts_dir(engine, tmp_path)
@@ -503,6 +524,7 @@ class TestVer:
     """
 
     def test_app_ver_returns_installed_version_string(self, repl_env):
+        """The scriptable value is the human-readable 'termapy v...' line, not a bare number."""
         # Arrange / Act
         engine, _, _, _ = repl_env
         result = engine.dispatch("app.ver")
@@ -514,6 +536,7 @@ class TestVer:
         )
 
     def test_legacy_ver_forwards_to_app_ver(self, repl_env):
+        """The hidden /ver forwarder keeps the /app.ver value intact for old scripts."""
         # Arrange / Act -- the old /ver keeps working via a hidden forwarder
         engine, _, _, _ = repl_env
         result = engine.dispatch("ver")
@@ -527,6 +550,7 @@ class TestVer:
     def test_ver_latest_returns_bare_pypi_version(
         self, repl_env, monkeypatch,
     ):
+        """/app.ver.latest returns only the PyPI version string, with no prose around it."""
         # Arrange -- pin check_now() to a known value so the test
         # doesn't hit the network.
         from termapy import update_check
@@ -549,6 +573,7 @@ class TestVer:
     def test_ver_latest_fails_when_pypi_unreachable(
         self, repl_env, monkeypatch,
     ):
+        """An unreachable PyPI is a loud failure on the interactive path, naming PyPI."""
         # Arrange
         from termapy import update_check
 
@@ -568,6 +593,7 @@ class TestVer:
     def test_ver_info_reports_up_to_date_when_versions_match(
         self, repl_env, monkeypatch,
     ):
+        """Matching versions succeed with 'up to date' and the PyPI version as the value."""
         # Arrange -- pin check_now to return same version, not outdated.
         from termapy import update_check
         from termapy.builtins.commands import app as app_mod
@@ -596,6 +622,7 @@ class TestVer:
     def test_ver_info_reports_update_available_when_outdated(
         self, repl_env, monkeypatch,
     ):
+        """Being outdated is not a failure: both versions print and the value is the newer one."""
         # Arrange
         from termapy import update_check
         from termapy.builtins.commands import app as app_mod
@@ -625,6 +652,7 @@ class TestVer:
     def test_ver_info_fails_when_pypi_unreachable(
         self, repl_env, monkeypatch,
     ):
+        """With no PyPI answer, /app.ver.info fails and names PyPI instead of guessing."""
         # Arrange
         from termapy import update_check
         from termapy.builtins.commands import app as app_mod
@@ -647,6 +675,7 @@ class TestVer:
     def test_ver_info_fails_for_source_checkout(
         self, repl_env, monkeypatch,
     ):
+        """A source checkout has no installed version to compare, so it fails and says why."""
         # Arrange -- 'unknown' is the installed-version sentinel for
         # source checkouts without `pip install`.
         from termapy.builtins.commands import app as app_mod
@@ -672,6 +701,7 @@ class TestVer:
 
 class TestSeq:
     def test_seq_show_empty(self, repl_env):
+        """With no counters, /seq prints a notice and returns '' so captures never see None."""
         engine, _, _, output = repl_env
         result = engine.dispatch("seq")
         assert any("No counters" in t for t, _ in output), "empty state message"
@@ -681,6 +711,7 @@ class TestSeq:
         )
 
     def test_seq_show_with_counters(self, repl_env):
+        """The value is the same seqN=V line the user sees, minus the 'Counters:' prefix."""
         # Arrange
         engine, _, _, output = repl_env
         seq = engine.ctx.ns("seq")
@@ -699,6 +730,7 @@ class TestSeq:
         )
 
     def test_seq_reset(self, repl_env):
+        """/seq.reset drops every numeric counter and returns the stable token 'reset'."""
         # Arrange
         engine, _, _, output = repl_env
         seq = engine.ctx.ns("seq")
@@ -725,6 +757,7 @@ class TestVarHandlerValues:
     """
 
     def test_var_lookup_returns_value_when_defined(self, repl_env):
+        """Looking up a defined name returns its value for $(X) capture."""
         # Arrange
         engine, _, _, _ = repl_env
         from termapy.variables import _VARS
@@ -740,6 +773,7 @@ class TestVarHandlerValues:
         _VARS.clear()
 
     def test_var_lookup_returns_empty_when_undefined(self, repl_env):
+        """An undefined name still succeeds, with '' as the value instead of None."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -753,6 +787,7 @@ class TestVarHandlerValues:
         )
 
     def test_var_list_all_returns_joined_lines(self, repl_env):
+        """Bare /var returns every NAME=value pair, one per line, as the value."""
         # Arrange
         engine, _, _, _ = repl_env
         from termapy.variables import _VARS
@@ -771,6 +806,7 @@ class TestVarHandlerValues:
         _VARS.clear()
 
     def test_var_set_returns_new_value(self, repl_env):
+        """/var.set returns the value just assigned, like other setter commands."""
         # Arrange
         engine, _, _, _ = repl_env
         from termapy.variables import _VARS
@@ -788,6 +824,7 @@ class TestVarHandlerValues:
         _VARS.clear()
 
     def test_var_clear_returns_count_cleared(self, repl_env):
+        """/var.clear returns how many variables it removed, as a string."""
         # Arrange
         engine, _, _, _ = repl_env
         from termapy.variables import _VARS
@@ -809,11 +846,13 @@ class TestVarHandlerValues:
 
 class TestStop:
     def test_stop_no_script(self, repl_env):
+        """/stop outside a script is a harmless no-op that says no script is running."""
         engine, _, _, output = repl_env
         engine.dispatch("stop")
         assert any("No script" in t for t, _ in output), "no-op message"
 
     def test_stop_with_script(self, repl_env):
+        """Inside a script, /stop sets the engine's stop event and announces it."""
         # Arrange
         engine, _, _, output = repl_env
         engine._script_depth = 1
@@ -842,6 +881,7 @@ class TestHelp:
     """
 
     def test_help_lists_commands(self, repl_env):
+        """Bare /help renders the landscape, which includes registered commands like cfg."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -867,6 +907,7 @@ class TestHelp:
         assert any("/search" in text for text in texts), "footer mentions /search"
 
     def test_help_specific_command(self, repl_env):
+        """/help on an exact command name renders its man page, NAME section included."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -1774,6 +1815,7 @@ class TestSearch:
 
 class TestShow:
     def test_show_cfg(self, repl_env):
+        """/show.cfg prints the active config file, port value included, up to the end marker."""
         # Arrange
         engine, cfg, config_path, output = repl_env
 
@@ -1786,6 +1828,7 @@ class TestShow:
         assert any("end" in text for text in texts), "end marker shown"
 
     def test_show_file(self, repl_env, tmp_path):
+        """/show prints every line of an arbitrary file path given as its argument."""
         # Arrange
         engine, _, _, output = repl_env
         test_file = tmp_path / "test.txt"
@@ -1800,6 +1843,7 @@ class TestShow:
         assert any("line two" in text for text in texts), "second line shown"
 
     def test_show_missing_file(self, repl_env):
+        """A missing path prints 'not found' in red rather than raising."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -1811,11 +1855,13 @@ class TestShow:
         assert output[-1][1] == "red", "shown in red"
 
     def test_show_no_args(self, repl_env):
+        """Bare /show is a usage error, not a guess at which file to show."""
         engine, _, _, output = repl_env
         engine.dispatch("show")
         assert any("Usage" in t for t, _ in output), "usage message"
 
     def test_show_nonexistent_name(self, repl_env):
+        """A $-prefixed name has no special lookup; it is treated as a plain file path."""
         engine, _, _, output = repl_env
         engine.dispatch("show $bogus")
         assert any("not found" in t.lower() for t, _ in output), "treated as filename"
@@ -1826,11 +1872,13 @@ class TestShow:
 
 class TestOs:
     def test_os_disabled(self, repl_env):
+        """/os is refused by default; only the TERMAPY_OS_CMD_ENABLED env var opens it."""
         engine, _, _, output = repl_env
         engine.dispatch("os echo hi")
         assert any("disabled" in t for t, _ in output), "blocked by default"
 
     def test_os_enabled(self, repl_env, monkeypatch):
+        """With the env gate open, /os runs the shell command and captures its stdout."""
         # Arrange -- /os gating moved from cfg to env-var-only in v19;
         # patch the module-level constant the handler reads.  Use the
         # module-object form because builtins.commands is a namespace
@@ -1848,6 +1896,7 @@ class TestOs:
         assert any("hello_from_os" in text for text in texts), "shell output captured"
 
     def test_os_no_args(self, repl_env, monkeypatch):
+        """With the gate open, bare /os gets past the gate to the arg check and reports usage."""
         # Arrange
         from termapy.builtins.commands import os_cmd
         engine, _, _, output = repl_env
@@ -1865,18 +1914,21 @@ class TestOs:
 
 class TestDispatch:
     def test_unknown_command(self, repl_env):
+        """An unregistered command name is reported as Unknown, in red, as the last line."""
         engine, _, _, output = repl_env
         engine.dispatch("totally_unknown_cmd")
         assert any("Unknown" in t for t, _ in output), "error message"
         assert output[-1][1] == "red", "shown in red"
 
     def test_empty_dispatch_shows_help(self, repl_env):
+        """An empty line dispatches to help rather than doing nothing."""
         engine, _, _, output = repl_env
         engine.dispatch("")
         texts = [text for text, _ in output]
         assert any("help" in text.lower() for text in texts), "empty triggers help"
 
     def test_command_case_insensitive(self, repl_env):
+        """Command names match regardless of case: ECHO reaches the echo handler."""
         engine, _, _, output = repl_env
         engine.dispatch("ECHO off")
         assert engine.ctx.ns("flags")["echo"] is False, "uppercase command works"
@@ -1899,12 +1951,14 @@ class TestGrep:
         engine.ctx.ui._get_screen_text_impl = lambda: text
 
     def test_grep_no_args(self, repl_env):
+        """Bare /grep ends with a red usage line."""
         engine, _, _, output = repl_env
         engine.dispatch("grep")
         assert output[-1][1] == "red", "usage shown in red"
         assert "Usage" in output[-1][0], "usage text present"
 
     def test_grep_matches(self, repl_env):
+        """Hits report a match count and each matching line with its screen line number."""
         # Arrange
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
@@ -1919,6 +1973,7 @@ class TestGrep:
         assert any("5 |" in text and "error" in text for text in texts), "line 5 matched"
 
     def test_grep_no_matches(self, repl_env):
+        """A pattern that hits nothing says 'no matches' rather than printing nothing."""
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep zzzz_not_found")
@@ -1926,6 +1981,7 @@ class TestGrep:
         assert any("no matches" in text for text in texts), "no matches message shown"
 
     def test_grep_case_insensitive(self, repl_env):
+        """An uppercase pattern still finds lowercase hits; matching ignores case."""
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep ERROR")
@@ -1933,6 +1989,7 @@ class TestGrep:
         assert any("2 match(es)" in text for text in texts), "both cases matched"
 
     def test_grep_regex(self, repl_env):
+        """The pattern is a regex: alternation finds error and warning lines together."""
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep error|warning")
@@ -1940,6 +1997,7 @@ class TestGrep:
         assert any("3 match(es)" in text for text in texts), "regex alternation works"
 
     def test_grep_skips_own_output(self, repl_env):
+        """Earlier grep result lines and the echoed /grep command never match a new search."""
         # Arrange - scrollback contains prior grep output and echoed command
         engine, _, _, output = repl_env
         text = (
@@ -1960,6 +2018,7 @@ class TestGrep:
         assert len(grep_lines) == 1, "grep output and echoed cmd excluded"
 
     def test_grep_bad_regex(self, repl_env):
+        """A malformed pattern ends with a red 'Invalid pattern' line, not a traceback."""
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep [invalid")
@@ -1967,6 +2026,7 @@ class TestGrep:
         assert "Invalid pattern" in output[-1][0], "error message shown"
 
     def test_grep_max_output_default(self, repl_env):
+        """Without max_grep_lines, output stops at 100 hits and says how many were found."""
         # Arrange - create text with 150 matching lines, no max_grep_lines in cfg
         engine, _, _, output = repl_env
         lines = [f"match line {i}" for i in range(150)]
@@ -1982,6 +2042,7 @@ class TestGrep:
         assert len(grep_lines) == 100, "assert only 100 lines output"
 
     def test_grep_max_output_from_config(self, repl_env):
+        """The max_grep_lines cfg key overrides the 100-hit default cap."""
         # Arrange - set custom max_grep_lines
         engine, cfg, _, output = repl_env
         cfg["max_grep_lines"] = 5
@@ -2003,6 +2064,7 @@ class TestGrep:
 
 class TestCls:
     def test_cls_calls_clear_screen(self, repl_env):
+        """/cls goes through the io clear_screen hook exactly once; the frontend does the clear."""
         # Arrange
         engine, _, _, output = repl_env
         cleared = []
@@ -2020,6 +2082,7 @@ class TestCls:
 
 class TestEol:
     def test_eol_toggle_on(self, repl_env):
+        """/show_line_endings toggle flips the eol_markers cfg key from off to on."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = False
@@ -2031,6 +2094,7 @@ class TestEol:
         assert cfg["eol_markers"] is True, "toggle flips on"
 
     def test_eol_toggle_off(self, repl_env):
+        """/show_line_endings toggle flips the eol_markers cfg key from on to off."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = True
@@ -2042,6 +2106,7 @@ class TestEol:
         assert cfg["eol_markers"] is False, "toggle flips off"
 
     def test_eol_explicit_on(self, repl_env):
+        """An explicit 'on' sets eol_markers to true."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = False
@@ -2053,6 +2118,7 @@ class TestEol:
         assert cfg["eol_markers"] is True, "set to on"
 
     def test_eol_explicit_off(self, repl_env):
+        """An explicit 'off' sets eol_markers to false."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = True
@@ -2071,6 +2137,7 @@ class TestCapArgParsing:
     """Test cap.py keyword extraction - pure function, no serial needed."""
 
     def test_extract_keywords_basic(self):
+        """cmd= runs to end of line, spaces and all, once fmt= and records= are split off."""
         from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
@@ -2085,6 +2152,7 @@ class TestCapArgParsing:
         assert result["cmd"] == "AT+BINDUMP u16 50"
 
     def test_extract_keywords_mode(self):
+        """Single-token keywords timeout=, mode= and echo= each come back as raw strings."""
         from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
@@ -2096,6 +2164,7 @@ class TestCapArgParsing:
         assert result["echo"] == "on"
 
     def test_extract_keywords_no_cmd(self):
+        """Without cmd= the result has no cmd key at all, not an empty one."""
         from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
@@ -2106,6 +2175,7 @@ class TestCapArgParsing:
         assert result["bytes"] == "256"
 
     def test_extract_keywords_fmt_multiword(self):
+        """A space-separated fmt= spec keeps all its fields and stops at the next keyword."""
         from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
@@ -2118,6 +2188,7 @@ class TestCapArgParsing:
         assert result["records"] == "10"
 
     def test_cap_text_missing_timeout(self, repl_env):
+        """/cap.text needs timeout=; a file name alone is a usage error."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2128,6 +2199,7 @@ class TestCapArgParsing:
         assert any("Usage" in t for t, _ in output), "shows usage"
 
     def test_cap_bin_missing_bytes(self, repl_env):
+        """/cap.bin needs bytes=; a file name alone is a usage error."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2138,6 +2210,7 @@ class TestCapArgParsing:
         assert any("Usage" in t for t, _ in output), "shows usage"
 
     def test_cap_struct_missing_fmt(self, repl_env):
+        """/cap.struct needs fmt=; records= without it is a usage error."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2148,6 +2221,7 @@ class TestCapArgParsing:
         assert any("Usage" in t for t, _ in output), "shows usage"
 
     def test_cap_stop_no_capture(self, repl_env):
+        """/cap.stop with no capture running must return cleanly, not raise."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2155,6 +2229,7 @@ class TestCapArgParsing:
         engine.dispatch("cap.stop")
 
     def test_parse_mode(self):
+        """mode= accepts new/n and append/a, defaults to write, and returns None for junk."""
         from termapy.builtins.commands.cap import _parse_mode
 
         # Assert
@@ -2197,6 +2272,7 @@ class TestCapWire:
         return rx_callbacks, tx_callbacks
 
     def test_wire_no_args_fails_with_usage(self, repl_env):
+        """/cap.wire needs a command to wrap; bare is a usage error."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -2208,6 +2284,7 @@ class TestCapWire:
         assert "Usage" in result.error, "error names usage"
 
     def test_wire_envelope_shape(self, repl_env):
+        """The value envelope carries byte counts, hex and decoded text for both TX and RX."""
         # Arrange
         engine, _, _, _ = repl_env
         ctx = engine.ctx
@@ -2238,6 +2315,7 @@ class TestCapWire:
         assert envelope["rx_text"] == "VER=1.2.3\r\n", "RX decoded"
 
     def test_wire_renders_hex_and_repr(self, repl_env):
+        """Display shows hex plus repr() so CR and LF are visible for line-ending debugging."""
         # Arrange
         engine, _, _, output = repl_env
         ctx = engine.ctx
@@ -2266,6 +2344,7 @@ class TestCapWire:
         assert r"'y\r\n'" in rendered, "RX shown via repr() so \\r\\n is visible"
 
     def test_wire_no_traffic_renders_empty_envelope_with_warning(self, repl_env):
+        """No bytes still yields a 0-byte TX/RX envelope plus a no-traffic warning."""
         # Arrange -- dispatch happens but no bytes flow (dispatched
         # something that doesn't touch serial, e.g. /help).  The output
         # should be a structured envelope (TX/RX lines with 0 bytes)
@@ -2290,6 +2369,7 @@ class TestCapWire:
         assert envelope["rx_bytes"] == 0, "zero RX"
 
     def test_wire_releases_observers_on_exception(self, repl_env):
+        """Observers unregister even if the wrapped command raises; later traffic stays untapped."""
         # Arrange -- dispatch raises mid-block; observers must still be
         # unregistered so subsequent commands aren't tapped.
         engine, _, _, _ = repl_env
@@ -2312,6 +2392,7 @@ class TestCapWire:
         assert tx_cbs == [], "TX observer released even on exception"
 
     def test_wire_wait_gap_zero_skips_settle_loop(self, repl_env):
+        """wait_gap=0ms skips the idle-settle loop, returning well under the 50 ms default."""
         # Arrange -- wait_gap=0 disables the settle loop so the handler
         # returns as soon as dispatch does.  Useful as a fast path when
         # the caller doesn't care about async response settling.
@@ -2338,6 +2419,7 @@ class TestCapWire:
         )
 
     def test_wire_invalid_wait_gap_fails(self, repl_env):
+        """An unparseable wait_gap= fails and the error names the argument."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -2353,6 +2435,7 @@ class TestCapWire:
 
 class TestCapTextHandler:
     def test_cap_text_starts_capture(self, repl_env):
+        """/cap.text starts one text-mode capture with timeout= parsed to seconds."""
         # Arrange
         engine, _, _, output = repl_env
         captures = []
@@ -2369,6 +2452,7 @@ class TestCapTextHandler:
         assert captures[0]["duration"] == 3.0
 
     def test_cap_text_with_mode_append(self, repl_env):
+        """mode=append reaches start_capture as file mode 'a'."""
         # Arrange
         engine, _, _, output = repl_env
         captures = []
@@ -2388,6 +2472,7 @@ class TestCapTextHandler:
 
 class TestCapStructHandler:
     def test_cap_struct_starts_capture(self, repl_env):
+        """/cap.struct starts a binary capture whose record size comes from the fmt spec."""
         # Arrange
         engine, _, _, output = repl_env
         captures = []
@@ -2405,6 +2490,7 @@ class TestCapStructHandler:
         assert captures[0]["record_size"] == 2, "U1-2 = 2 bytes"
 
     def test_cap_struct_with_cmd(self, repl_env):
+        """cmd= is dispatched once, with its spaces intact, alongside the started capture."""
         # Arrange
         engine, _, _, output = repl_env
         captures = []
@@ -2424,6 +2510,7 @@ class TestCapStructHandler:
         assert dispatched[0] == "AT+DUMP 50", "cmd dispatched after capture starts"
 
     def test_cap_struct_invalid_fmt(self, repl_env):
+        """A malformed fmt= spec produces an 'invalid' error message."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2435,6 +2522,7 @@ class TestCapStructHandler:
                     for t, _ in output)
 
     def test_cap_struct_must_specify_size(self, repl_env):
+        """fmt= without records= or bytes= errors, naming both ways to size the capture."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2450,6 +2538,7 @@ class TestCapStructHandler:
 
 class TestExit:
     def test_exit_calls_exit_app(self, repl_env):
+        """/exit goes through the UI exit_app hook exactly once, so each frontend owns shutdown."""
         # Arrange
         engine, _, _, output = repl_env
         exited = []
@@ -2467,6 +2556,7 @@ class TestExit:
 
 class TestConfirm:
     def test_confirm_yes_continues(self, repl_env):
+        """A Yes answer prints no 'Canceled' line, so the script carries on."""
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.ui.confirm = lambda msg: True  # user clicks Yes
@@ -2478,6 +2568,7 @@ class TestConfirm:
         assert not any("Canceled" in t for t, _ in output)
 
     def test_confirm_cancel_stops_script(self, repl_env):
+        """Cancel prints 'Canceled' and sets the script stop event."""
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.ui.confirm = lambda msg: False  # user clicks Cancel
@@ -2490,6 +2581,7 @@ class TestConfirm:
         assert engine._script_stop.is_set(), "script stop triggered"
 
     def test_confirm_default_message(self, repl_env):
+        """Bare /confirm asks 'Continue?'."""
         # Arrange
         engine, _, _, output = repl_env
         messages = []
@@ -2502,6 +2594,7 @@ class TestConfirm:
         assert messages == ["Continue?"], "default message"
 
     def test_confirm_custom_message(self, repl_env):
+        """The full argument text, spaces and all, becomes the dialog prompt."""
         # Arrange
         engine, _, _, output = repl_env
         messages = []
@@ -2519,6 +2612,7 @@ class TestConfirm:
 
 class TestCfgRead:
     def test_cfg_dump_named_root_file(self, repl_env):
+        """A name in the cfg folder root prints its lines and returns the file text as value."""
         # Arrange -- a file in the cfg folder root
         engine, _, config_path, output = repl_env
         root_file = Path(config_path).parent / "dev.history"
@@ -2533,6 +2627,7 @@ class TestCfgRead:
         assert result.value == "ping\nport.list", "value carries file text"
 
     def test_cfg_dump_named_subfolder_file(self, repl_env):
+        """Names resolve relative to the cfg folder, so run/x.run reaches a subfolder file."""
         # Arrange -- names resolve relative to the root; subfolders allowed
         engine, _, config_path, output = repl_env
         sub = Path(config_path).parent / "run"
@@ -2546,6 +2641,7 @@ class TestCfgRead:
         assert result.value == "/ping", "subfolder file printed via root-relative name"
 
     def test_cfg_dump_refuses_traversal(self, repl_env):
+        """A '..' path is refused for every frontend; the cfg folder is a root jail."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2557,6 +2653,7 @@ class TestCfgRead:
         assert "relative to the config folder" in result.error, "clear refusal"
 
     def test_cfg_dump_refuses_absolute(self, repl_env):
+        """A path absolute on the running platform is refused by the same root jail."""
         # Arrange -- "absolute" is platform-dependent: "C:/Windows/win.ini" is
         # absolute on Windows but an ordinary relative name on POSIX, where the
         # guard then falls through to "File not found".  Build a path that is
@@ -2573,6 +2670,7 @@ class TestCfgRead:
         assert "relative to the config folder" in result.error, "clear refusal"
 
     def test_cfg_dump_named_missing_file(self, repl_env):
+        """A missing name fails with the standard 'File not found: <name>' phrasing."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2584,6 +2682,7 @@ class TestCfgRead:
         assert result.error == "File not found: nope.txt", "standard phrasing"
 
     def test_cfg_dump_shows_all(self, repl_env):
+        """Bare /cfg.dump prints every key, since bare /cfg now opens the picker instead."""
         # Arrange -- bare /cfg now opens the Cfg picker (TUI) or shows
         # /help cfg (CLI); /cfg.dump is the explicit "print every key"
         # path that this test guards.
@@ -2598,6 +2697,7 @@ class TestCfgRead:
         assert any("baud_rate" in text or "115200" in text for text in texts), "shows baud_rate"
 
     def test_cfg_specific_key(self, repl_env):
+        """/cfg port finds the value even though port lives under the nested serial block."""
         # Arrange
         engine, cfg, _, output = repl_env
 
@@ -2609,6 +2709,7 @@ class TestCfgRead:
         assert any("COM4" in text for text in texts), "shows port value"
 
     def test_cfg_unknown_key(self, repl_env):
+        """An unknown key reports an error rather than printing nothing."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2621,6 +2722,7 @@ class TestCfgRead:
                     for text in texts)  # error message
 
     def test_cfg_info(self, repl_env):
+        """/cfg.info runs on the minimal fixture and prints something -- a smoke check only."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2631,6 +2733,7 @@ class TestCfgRead:
         assert len(output) > 0, "produced some output"
 
     def test_cfg_dump(self, repl_env):
+        """The /cfg.dump JSON includes the port key from the nested serial block."""
         # Arrange
         engine, cfg, _, output = repl_env
 
@@ -2650,6 +2753,7 @@ class TestCfgHandlerValues:
     """
 
     def test_cfg_get_returns_value(self, repl_env):
+        """/cfg <key> returns the value as a string for $(X) capture."""
         # Arrange / Act
         engine, _, _, _ = repl_env
         result = engine.dispatch("cfg port")
@@ -2660,6 +2764,7 @@ class TestCfgHandlerValues:
         )
 
     def test_cfg_set_returns_new_value(self, repl_env):
+        """/cfg.auto sets without confirmation and returns the new value as a string."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -2672,6 +2777,7 @@ class TestCfgHandlerValues:
         )
 
     def test_cfg_set_unchanged_returns_existing_value(self, repl_env):
+        """Setting a key to its current value still returns that value, not None."""
         # Arrange -- /cfg key value where value matches current returns
         # the existing value so scripting always gets a string back.
         engine, _, _, _ = repl_env
@@ -2685,6 +2791,7 @@ class TestCfgHandlerValues:
         )
 
     def test_cfg_list_empty_returns_empty_string(self, tmp_path, monkeypatch):
+        """An empty cfg folder lists as '' so captures never get None."""
         # Arrange -- point cfg_dir at an empty tmp tree
         from termapy.builtins.commands import cfg as cfg_mod
 
@@ -2711,6 +2818,7 @@ class TestCfgHandlerValues:
     def test_cfg_list_populated_returns_joined_names(
         self, tmp_path, monkeypatch,
     ):
+        """Each config appears as <name>/<name>.cfg, one per line, in the value."""
         # Arrange
         from termapy.builtins.commands import cfg as cfg_mod
 
@@ -2743,6 +2851,7 @@ class TestCfgHandlerValues:
 
 class TestRepeat:
     def test_missing_count(self, repl_env):
+        """count= is required; omitting it names the missing parameter."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2755,6 +2864,7 @@ class TestRepeat:
             f"expected missing-count error, got: {actual}"
 
     def test_missing_cmd(self, repl_env):
+        """cmd= is required; omitting it is a usage error."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2766,6 +2876,7 @@ class TestRepeat:
         assert any("Usage:" in t for t in actual), f"expected 'Usage:' error, got: {actual}"
 
     def test_count_not_integer(self, repl_env):
+        """A non-numeric count= is rejected as not an integer."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2777,6 +2888,7 @@ class TestRepeat:
         assert any("integer" in t for t in actual), f"expected 'integer' error, got: {actual}"
 
     def test_count_zero(self, repl_env):
+        """count=0 is below the minimum of 1 and is rejected."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2788,6 +2900,7 @@ class TestRepeat:
         assert any(">= 1" in t for t in actual), f"expected '>= 1' error, got: {actual}"
 
     def test_count_negative(self, repl_env):
+        """A negative count= is rejected by the same >= 1 bound as zero."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2799,6 +2912,7 @@ class TestRepeat:
         assert any(">= 1" in t for t in actual), f"expected '>= 1' error, got: {actual}"
 
     def test_invalid_delay(self, repl_env):
+        """An unparseable delay= is rejected as an invalid duration."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2810,6 +2924,7 @@ class TestRepeat:
         assert any("duration" in t.lower() or "invalid" in t.lower() for t in actual), f"expected duration/invalid error, got: {actual}"
 
     def test_dispatches_n_times(self, repl_env):
+        """cmd= is dispatched exactly count times, verbatim each time."""
         # Arrange
         engine, _, _, output = repl_env
         dispatched = []
@@ -2822,6 +2937,7 @@ class TestRepeat:
         assert dispatched == ["AT+TEMP", "AT+TEMP", "AT+TEMP"], f"expected 3 dispatches, got: {dispatched}"
 
     def test_sets_iteration_variable(self, repl_env):
+        """REPEAT_N holds the 1-based iteration number while each command runs."""
         # Arrange
         from termapy.variables import _VARS
 
@@ -2836,6 +2952,7 @@ class TestRepeat:
         assert seen_values == ["1", "2", "3"], f"expected iteration values ['1','2','3'], got: {seen_values}"
 
     def test_custom_variable_name(self, repl_env):
+        """var= renames the iteration variable; it still counts from 1."""
         # Arrange
         from termapy.variables import _VARS
 
@@ -2850,6 +2967,7 @@ class TestRepeat:
         assert seen_values == ["1", "2"], f"expected var=I values ['1','2'], got: {seen_values}"
 
     def test_variable_cleaned_up(self, repl_env):
+        """The iteration variable is removed once the loop finishes."""
         # Arrange
         from termapy.variables import _VARS
 
@@ -2863,6 +2981,7 @@ class TestRepeat:
         assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up, but _VARS contains: {_VARS}"
 
     def test_variable_cleaned_up_on_error(self, repl_env):
+        """The iteration variable is removed even when a dispatched command raises."""
         # Arrange
         from termapy.variables import _VARS
 
@@ -2880,6 +2999,7 @@ class TestRepeat:
         assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up after error, but _VARS contains: {_VARS}"
 
     def test_completes_silently(self, repl_env):
+        """A finished loop prints no summary of its own; the commands speak for themselves."""
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.dispatch = lambda cmd: None
@@ -2892,6 +3012,7 @@ class TestRepeat:
         assert not any("Repeated" in t for t in actual), f"repeat should complete silently, got: {actual}"
 
     def test_stoppable_via_event(self, repl_env):
+        """Setting the script stop event ends the loop early and reports progress as 2/10."""
         # Arrange
         from threading import Event
 
@@ -2916,6 +3037,7 @@ class TestRepeat:
         assert any("2/10" in t for t in actual), f"expected '2/10' in stop message, got: {actual}"
 
     def test_stoppable_during_delay(self, repl_env):
+        """A stop during delay= wakes the loop at once instead of sleeping out the delay."""
         # Arrange
         from threading import Event
 
@@ -2946,6 +3068,7 @@ class TestPortChipList:
     """/port.chip.list dumps the USB-serial chip lookup table."""
 
     def test_unfiltered_lists_many_chips(self, repl_env):
+        """With no filter, a header and many rows print, and the value is 'Count=<N>'."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2965,6 +3088,7 @@ class TestPortChipList:
         assert count > 20, f"expected many chip rows, got Count={count}"
 
     def test_filter_narrows_output(self, repl_env):
+        """A vendor filter keeps only matching rows, and Count reflects the match size."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -2982,6 +3106,7 @@ class TestPortChipList:
             f"expected roughly a dozen FTDI rows, got Count={count}"
 
     def test_filter_is_case_insensitive(self, repl_env):
+        """An uppercase filter still matches mixed-case vendor names like SparkFun."""
         # Arrange
         engine, *_ = repl_env
 
@@ -2994,6 +3119,7 @@ class TestPortChipList:
         assert count > 0, "entries found despite uppercase filter"
 
     def test_no_matches_prints_yellow_warning(self, repl_env):
+        """No matches is still success: the value is Count=0 and a yellow warning prints."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -3019,6 +3145,7 @@ class TestPortHandlerValues:
     """
 
     def test_port_root_set_returns_new_name(self, repl_env):
+        """/port <name> returns the newly configured port name as its value."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -3032,6 +3159,7 @@ class TestPortHandlerValues:
         )
 
     def test_port_disconnect_returns_last_port_name(self, repl_env):
+        """/port.disconnect returns the port that was in effect, so scripts can log it."""
         # Arrange
         engine, cfg, _, _ = repl_env
         cfg["serial"]["port"] = "COM4"
@@ -3047,6 +3175,7 @@ class TestPortHandlerValues:
         )
 
     def test_port_list_returns_joined_output(self, repl_env):
+        """/port.list always yields a string value, whatever ports this machine has."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -3078,6 +3207,7 @@ class TestLogDump:
         return log
 
     def test_full_dump_prints_all(self, repl_env):
+        """Bare /log.dump covers the whole file and returns the line count as value."""
         # Arrange
         engine, cfg, config_path, output = repl_env
         self._seed_log(cfg, config_path, "a\nb\nc\n")
@@ -3091,6 +3221,7 @@ class TestLogDump:
         assert int(result.value) == 3, "value is the line count"
 
     def test_positive_n_prints_last_n(self, repl_env):
+        """Positive N is a tail: the newest N lines print and older ones do not."""
         # Arrange
         engine, cfg, config_path, output = repl_env
         self._seed_log(cfg, config_path, "a\nb\nc\nd\ne\n")
@@ -3108,6 +3239,7 @@ class TestLogDump:
         assert "a" not in printed, "earlier lines suppressed"
 
     def test_negative_n_prints_first_n(self, repl_env):
+        """Negative N is a head: the oldest N lines print and newer ones do not."""
         # Arrange
         engine, cfg, config_path, output = repl_env
         self._seed_log(cfg, config_path, "a\nb\nc\nd\ne\n")
@@ -3125,6 +3257,7 @@ class TestLogDump:
         assert "e" not in printed, "later lines suppressed"
 
     def test_zero_n_rejected(self, repl_env):
+        """N=0 is ambiguous (-0 == 0), so it is rejected with the value named."""
         # Arrange
         engine, cfg, config_path, _output = repl_env
         self._seed_log(cfg, config_path, "x\ny\n")
@@ -3137,6 +3270,7 @@ class TestLogDump:
         assert "0" in result.error, "error names the rejected value"
 
     def test_non_int_n_rejected(self, repl_env):
+        """A non-integer N is a usage error, not a silent full dump."""
         # Arrange
         engine, cfg, config_path, _output = repl_env
         self._seed_log(cfg, config_path, "x\n")
@@ -3156,6 +3290,7 @@ class TestTermEol:
     """/term.eol shows/sets the sent line ending via named tokens."""
 
     def test_bare_reports_default_cr(self, repl_env):
+        """Bare /term.eol reports the CR default by token name, not the raw character."""
         # Arrange
         engine, _cfg, _path, _output = repl_env
 
@@ -3167,6 +3302,7 @@ class TestTermEol:
         assert result.value == "cr", "default line_ending \\r reports as cr"
 
     def test_set_crlf_persists_and_reports(self, repl_env):
+        """Setting crlf writes CR LF to cfg eol, and a later bare query reads it back."""
         # Arrange
         engine, cfg, _path, _output = repl_env
 
@@ -3184,6 +3320,7 @@ class TestTermEol:
         "token,expected", [("cr", "\r"), ("lf", "\n"), ("none", "")]
     )
     def test_token_maps_to_line_ending(self, repl_env, token, expected):
+        """Each named token (cr, lf, none) stores its exact byte sequence in cfg eol."""
         # Arrange
         engine, cfg, _path, _output = repl_env
 
@@ -3195,6 +3332,7 @@ class TestTermEol:
         assert actual == expected, f"{token} -> {expected!r}"
 
     def test_unknown_token_rejected(self, repl_env):
+        """An unknown token fails and the error names the bad token."""
         # Arrange
         engine, _cfg, _path, _output = repl_env
 
@@ -3213,6 +3351,7 @@ class TestTermEolRx:
     """/term.eol.rx shows/sets the receive-newline mode (auto/cr/lf/crlf)."""
 
     def test_bare_reports_default_auto(self, repl_env):
+        """Bare /term.eol.rx reports auto when no receive mode is configured."""
         # Arrange
         engine, _cfg, _path, _output = repl_env
 
@@ -3224,6 +3363,7 @@ class TestTermEolRx:
         assert result.value == "auto", "default rx_newline reports as auto"
 
     def test_set_crlf_persists_and_reports(self, repl_env):
+        """Setting crlf stores the token itself in cfg eol_rx; a bare query reads it back."""
         # Arrange
         engine, cfg, _path, _output = repl_env
 
@@ -3238,6 +3378,7 @@ class TestTermEolRx:
 
     @pytest.mark.parametrize("mode", ["auto", "cr", "lf", "crlf"])
     def test_each_mode_accepted(self, repl_env, mode):
+        """Every receive mode (auto, cr, lf, crlf) is accepted and stored as given."""
         # Arrange
         engine, cfg, _path, _output = repl_env
 
@@ -3249,6 +3390,7 @@ class TestTermEolRx:
         assert cfg["eol_rx"] == mode, f"rx_newline set to {mode}"
 
     def test_unknown_mode_rejected(self, repl_env):
+        """An unknown receive mode fails and the error names it."""
         # Arrange
         engine, _cfg, _path, _output = repl_env
 
@@ -3260,6 +3402,7 @@ class TestTermEolRx:
         assert "bogus" in result.error, "error names the bad mode"
 
     def test_tx_eol_still_works(self, repl_env):
+        """Adding the .rx subcommand leaves /term.eol <token> routed to the TX handler."""
         # Arrange -- adding the .rx subcommand must not break bare /term.eol.
         engine, cfg, _path, _output = repl_env
 
@@ -3279,6 +3422,7 @@ class TestProtoHex:
     """
 
     def test_proto_hex_toggle_verb(self, repl_env):
+        """The toggle verb flips hex on and returns 'on' as the new state."""
         # Arrange
         engine, _, _, _ = repl_env
         engine.ctx.ns("flags")["hex"] = False
@@ -3291,6 +3435,7 @@ class TestProtoHex:
         assert result.value == "on", "returns the new state"
 
     def test_proto_hex_sets_explicitly_with_shared_tokens(self, repl_env):
+        """'y' is a parse_bool token that sets on; it was once rejected or treated as a toggle."""
         # Arrange -- 'y' was REJECTED before the parse_bool unification; it
         # also used to TOGGLE any non-on/off arg rather than set it.
         engine, _, _, _ = repl_env
@@ -3304,6 +3449,7 @@ class TestProtoHex:
         assert result.value == "on", "explicit set, not a toggle"
 
     def test_proto_hex_off(self, repl_env):
+        """'off' clears the hex flag and returns 'off' as the new state."""
         # Arrange
         engine, _, _, _ = repl_env
         engine.ctx.ns("flags")["hex"] = True

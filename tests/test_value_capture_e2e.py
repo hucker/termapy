@@ -75,6 +75,7 @@ EXPECTED_CAPTURES = [
 class TestValueCaptureE2E:
 
     def test_every_handler_populates_cmdresult_value(self, tmp_path):
+        """Each fixture handler returns a non-None value a script can capture via /var.capture."""
         # Act
         stdout = _run(tmp_path)
 
@@ -90,6 +91,7 @@ class TestValueCaptureE2E:
             )
 
     def test_script_runs_to_completion(self, tmp_path):
+        """The fixture script reaches its END banner, so no capture aborts the run midway."""
         # Act
         stdout = _run(tmp_path)
 

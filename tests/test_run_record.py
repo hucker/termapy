@@ -81,6 +81,7 @@ def env(tmp_path, monkeypatch):
 
 class TestStartStop:
     def test_start_records_successful_dispatches(self, env):
+        """Each successful command lands as one line; the start and stop calls are left out."""
         # Arrange
         eng, scripts_dir, _ = env
 
@@ -101,6 +102,7 @@ class TestStartStop:
         )
 
     def test_failed_dispatch_is_skipped(self, env):
+        """A command that fails to dispatch is not written, so replay never repeats it."""
         # Arrange
         eng, scripts_dir, _ = env
 
@@ -117,6 +119,7 @@ class TestStartStop:
         )
 
     def test_run_record_itself_never_recorded(self, env):
+        """Every spelling of /run.record, odd whitespace included, is kept out of the file."""
         # Arrange
         eng, scripts_dir, _ = env
 
@@ -136,6 +139,7 @@ class TestStartStop:
         assert recorded.count("app.ver\n") == 2, "both /app.ver lines preserved"
 
     def test_stop_message_reports_count_and_path(self, env):
+        """Stopping reports how many commands were recorded and the file they went to."""
         # Arrange
         eng, scripts_dir, output = env
 
@@ -156,6 +160,7 @@ class TestStartStop:
 
 class TestRefusal:
     def test_refuse_if_file_exists(self, env):
+        """An existing .run file is never clobbered, and the refusal leaves no recording on."""
         # Arrange
         eng, scripts_dir, _ = env
         (scripts_dir / "existing.run").write_text("# pre-existing\n")
@@ -178,6 +183,7 @@ class TestRefusal:
         ) == "# pre-existing\n", "existing file content preserved"
 
     def test_refuse_second_start_while_active(self, env):
+        """A second start is refused while recording, and the first one keeps going."""
         # Arrange
         eng, scripts_dir, _ = env
         eng.dispatch("run.record first_session")
@@ -194,6 +200,7 @@ class TestRefusal:
         assert _run_record.is_active() is True, "first recording continues"
 
     def test_stop_without_active_recording_fails(self, env):
+        """A bare /run.record with nothing recording is an error naming the idle state."""
         # Arrange
         eng, _, _ = env
 
@@ -209,6 +216,7 @@ class TestRefusal:
 
 class TestFilenameHandling:
     def test_auto_appends_run_suffix(self, env):
+        """A bare name gets .run appended so the file shows up as a runnable script."""
         # Arrange
         eng, scripts_dir, _ = env
 
@@ -222,6 +230,7 @@ class TestFilenameHandling:
         )
 
     def test_rejects_wrong_suffix(self, env):
+        """A non-.run suffix is refused with an explanation, and no file is created."""
         # Arrange
         eng, scripts_dir, _ = env
 
@@ -238,6 +247,7 @@ class TestFilenameHandling:
         )
 
     def test_rejects_path_separators(self, env):
+        """Only a bare filename is accepted; a subfolder path is refused."""
         # Arrange
         eng, _, _ = env
 
@@ -254,6 +264,7 @@ class TestFilenameHandling:
 
 class TestDurability:
     def test_flush_after_each_write(self, env):
+        """Lines reach disk as recorded, so a crash mid-session leaves a usable file."""
         # Arrange -- after recording two commands, the file on disk
         # contains both even though we haven't called stop.  This is
         # the "crash mid-recording leaves a usable file" guarantee.
@@ -282,11 +293,13 @@ class TestDurability:
 
 class TestIsActive:
     def test_is_active_false_when_idle(self, env):
+        """The recorder reports idle when no recording has been started."""
         # Arrange / Act / Assert
         _eng, _, _ = env
         assert _run_record.is_active() is False, "no recording at fixture start"
 
     def test_is_active_true_during_recording(self, env):
+        """is_active() follows the lifecycle: true after start, false again after stop."""
         # Arrange
         eng, _, _ = env
 

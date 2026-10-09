@@ -79,6 +79,7 @@ def rig(tmp_path):
 class TestReportContents:
 
     def test_tails_the_log_and_history(self, rig):
+        """The log and history sections keep exactly their newest 40 lines."""
         # Arrange -- more lines than the tail keeps, so the cut is visible
         engine, config_path, _ = rig
         Path(cfg_log_path(str(config_path))).write_text(_lines(60, "log"), encoding="utf-8")
@@ -97,6 +98,7 @@ class TestReportContents:
         assert "log 21\n" in text and "hist 21\n" in text, "exactly the last 40"
 
     def test_sections_absent_when_files_are(self, rig):
+        """A missing log or history file drops its section, but the report is still written."""
         # Arrange -- a fresh config: no log, no history yet
         engine, config_path, _ = rig
 
@@ -114,6 +116,7 @@ class TestReportContents:
         )
 
     def test_fence_survives_backticks_in_the_log(self, rig):
+        """A four-backtick fence keeps a device line of three backticks from ending the block."""
         # Arrange -- device output can contain a markdown fence
         engine, config_path, _ = rig
         Path(cfg_log_path(str(config_path))).write_text("before\n```\nafter\n", encoding="utf-8")
@@ -131,6 +134,7 @@ class TestReportContents:
 class TestExitHook:
 
     def test_on_app_stop_writes_the_report(self, rig):
+        """Graceful shutdown rewrites the report, marked as written at exit."""
         # Arrange
         engine, config_path, _ = rig
         assert not _report(config_path).exists(), "precondition: nothing written yet"
@@ -144,6 +148,7 @@ class TestExitHook:
         assert " at exit." in text, "the Written line says the exit hook produced it"
 
     def test_oneshot_does_not_write(self, tmp_path):
+        """A one-shot --run/--exec session leaves the report file alone at exit."""
         # Arrange -- --run / --exec: a scripted invocation must not churn files
         engine, config_path, _ = _build(tmp_path, oneshot=True)
 
@@ -154,6 +159,7 @@ class TestExitHook:
         assert not _report(config_path).exists(), "one-shot sessions leave the report alone"
 
     def test_non_interactive_does_not_write(self, tmp_path):
+        """A non-interactive host such as MCP never writes the report into the cfg folder."""
         # Arrange -- the MCP server's capability set has no interactive flag
         engine, config_path, _ = _build(tmp_path, interactive=False)
 
@@ -166,6 +172,7 @@ class TestExitHook:
         )
 
     def test_hook_is_silent(self, rig):
+        """The exit-hook write produces no output; only /cfg.info reports it."""
         # Arrange
         engine, config_path, output = rig
         before = len(output)
@@ -181,6 +188,7 @@ class TestExitHook:
 class TestRename:
 
     def test_rename_carries_the_report(self, tmp_path):
+        """Renaming a config moves the report to the new stem and leaves no stale copy."""
         # Arrange -- a report exists under the old name
         engine, config_path, _ = _build(tmp_path)
         engine.dispatch("cfg.info")

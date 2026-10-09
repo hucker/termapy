@@ -106,6 +106,7 @@ ENVELOPE_KEYS = {
 
 class TestMcpStdioEndToEnd:
     def test_full_agent_conversation(self, tmp_path):
+        """A real client over stdio can handshake, discover, run commands and read state."""
         # Arrange -- a demo-device cfg the server can auto-connect to.
         cfg = json.loads(json.dumps(DEFAULT_CFG))
         cfg["serial"]["port"] = "DEMO"

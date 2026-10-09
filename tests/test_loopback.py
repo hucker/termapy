@@ -24,6 +24,7 @@ from termapy.port_control import (
 
 
 def test_loopback_facts_are_honest():
+    """The loop:// row reports its URL and a description, with no invented USB identity."""
     facts = loopback_port_facts()
     assert facts.device == "loop://", "device is the real pyserial URL"
     assert "loopback" in facts.description.lower(), "described as a loopback"
@@ -35,6 +36,7 @@ def test_loopback_facts_are_honest():
 
 
 def test_loopback_opens_and_echoes():
+    """open_serial on loop:// returns a port that echoes every write back."""
     from termapy.config import open_serial
 
     cfg = {
@@ -57,6 +59,7 @@ def test_loopback_opens_and_echoes():
      "DEMO", "demo", "DEMO_JSON", "DEMO_VT100", "DEMO_FAIL"],
 )
 def test_url_and_reserved_ports_open_without_enumeration(port):
+    """URL and DEMO ports connect directly, since comports() never lists them."""
     # These never appear in comports(); the config-load availability check
     # must connect to them directly instead of popping the port picker.
     assert opens_without_enumeration(port) is True, f"{port} opens directly"
@@ -64,6 +67,7 @@ def test_url_and_reserved_ports_open_without_enumeration(port):
 
 @pytest.mark.parametrize("port", ["COM4", "/dev/ttyUSB0", "A1B2C3D4", ""])
 def test_real_and_empty_ports_need_enumeration(port):
+    """Device names, serial numbers and a blank port must go through enumeration."""
     assert opens_without_enumeration(port) is False, f"{port} is not a direct-open port"
 
 
@@ -72,6 +76,7 @@ class _Host(App):
 
 
 def test_picker_offers_loopback_and_selects_it():
+    """The port picker lists loop:// and selecting it returns that spec."""
     async def scenario():
         app = _Host()
         async with app.run_test() as pilot:

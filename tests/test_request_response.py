@@ -54,6 +54,7 @@ def _fake_wait_factory(lines: list[str]) -> callable:
 
 
 def test_send_and_collect_basic():
+    """One round trip sends command + line ending and returns lines, joined text, and timing."""
     # Arrange — fake writer; fake wait returns 2 lines
     writer = _FakeWriter()
     drain = _fake_drain_factory([])
@@ -83,6 +84,7 @@ def test_send_and_collect_basic():
 
 
 def test_drained_stale_lines_passed_to_callback():
+    """Lines left over before the send go to on_drained_line, never into the response."""
     # Arrange — drain yields 3 stale lines
     writer = _FakeWriter()
     drain = _fake_drain_factory(["leftover-1", "leftover-2", "leftover-3"])
@@ -109,6 +111,7 @@ def test_drained_stale_lines_passed_to_callback():
 
 
 def test_drained_stale_lines_silently_discarded_when_no_callback():
+    """Without on_drained_line, stale lines are dropped and the call still succeeds."""
     # Arrange — drain has stale lines but no callback supplied
     writer = _FakeWriter()
     drain = _fake_drain_factory(["junk"])
@@ -131,6 +134,7 @@ def test_drained_stale_lines_silently_discarded_when_no_callback():
 
 
 def test_send_error_returns_error_field_no_wait():
+    """A failed write is reported in the error field and the reply wait is skipped."""
     # Arrange — writer raises OSError; wait should NOT be called
     writer = _FakeWriter(raise_on_write=OSError("port closed"))
     drain = _fake_drain_factory([])
@@ -160,6 +164,7 @@ def test_send_error_returns_error_field_no_wait():
 
 
 def test_wait_false_skips_collection():
+    """wait=False still drains and sends but returns an empty envelope without waiting."""
     # Arrange
     writer = _FakeWriter()
     drain = _fake_drain_factory(["stale"])
@@ -190,6 +195,7 @@ def test_wait_false_skips_collection():
 
 
 def test_terminator_passed_to_wait_for_lines():
+    """The timeout, terminator regex and idle gap reach wait_for_lines unchanged."""
     # Arrange — capture wait kwargs to verify terminator threading
     writer = _FakeWriter()
     drain = _fake_drain_factory([])
@@ -221,6 +227,7 @@ def test_terminator_passed_to_wait_for_lines():
 
 
 def test_encoding_used_for_send():
+    """The command is encoded with the caller's encoding, not always as UTF-8."""
     # Arrange
     writer = _FakeWriter()
     drain = _fake_drain_factory([])
@@ -245,6 +252,7 @@ def test_encoding_used_for_send():
 
 @pytest.mark.parametrize("eol", ["\r", "\n", "\r\n", ""])
 def test_line_ending_appended(eol):
+    """Each line ending, including none, is appended to the command byte for byte."""
     # Arrange
     writer = _FakeWriter()
     drain = _fake_drain_factory([])

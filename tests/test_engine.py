@@ -43,6 +43,7 @@ def engine(tmp_path):
 
 class TestStartScript:
     def test_no_filename(self, engine):
+        """An empty filename fails with usage and never starts a run."""
         # Arrange
         eng, output = engine
 
@@ -55,6 +56,7 @@ class TestStartScript:
         assert "Usage" in result.error, "error message"
 
     def test_file_not_found(self, engine):
+        """A missing script is refused with a not-found error and no path."""
         # Arrange
         eng, output = engine
 
@@ -67,6 +69,7 @@ class TestStartScript:
         assert "not found" in result.error.lower(), "error message"
 
     def test_file_found_directly(self, engine, tmp_path):
+        """An existing absolute path is used as-is and bumps the script depth to 1."""
         # Arrange
         eng, output = engine
         script = tmp_path / "test_script.txt"
@@ -81,6 +84,7 @@ class TestStartScript:
         assert eng._script_depth == 1, "marks script as running"
 
     def test_file_found_in_scripts_dir(self, engine):
+        """A bare name resolves against the config's run/ folder, not the cwd."""
         # Arrange
         eng, output = engine
         scripts_dir = eng.scripts_dir
@@ -97,6 +101,7 @@ class TestStartScript:
         assert eng._script_depth == 1, "marks script as running"
 
     def test_max_depth_exceeded(self, engine, tmp_path):
+        """At the nesting limit a further /run is refused as too deep, not started."""
         # Arrange
         eng, output = engine
         eng._script_depth = eng._max_script_depth
@@ -117,29 +122,35 @@ class TestStartScript:
 
 class TestProperties:
     def test_ss_dir(self, engine):
+        """Screenshots land in the config's ss/ folder."""
         eng, _ = engine
         actual = eng.ss_dir
         assert actual.name == "ss", "correct subdir name"
         assert actual.exists(), "directory exists"
 
     def test_scripts_dir(self, engine):
+        """Scripts resolve from the config's run/ folder."""
         eng, _ = engine
         actual = eng.scripts_dir
         assert actual.name == "run", "correct subdir name"
 
     def test_ss_dir_no_config(self):
+        """With no config path the screenshot folder falls back to the cwd."""
         eng = ReplEngine({}, "", lambda t, c=None: None)
         assert eng.ss_dir == Path("."), "falls back to cwd"
 
     def test_scripts_dir_no_config(self):
+        """With no config path the scripts folder falls back to the cwd."""
         eng = ReplEngine({}, "", lambda t, c=None: None)
         assert eng.scripts_dir == Path("."), "falls back to cwd"
 
     def test_echo_default_true(self, engine):
+        """A fresh engine echoes by default."""
         eng, _ = engine
         assert eng.echo is True, "echo enabled by default"
 
     def test_in_script_default_false(self, engine):
+        """A fresh engine reports no script in progress."""
         eng, _ = engine
         assert eng.in_script is False, "no script running by default"
 
@@ -149,6 +160,7 @@ class TestProperties:
 
 class TestRegisterPlugin:
     def test_register_plugin(self, engine):
+        """A registered plugin becomes dispatchable under its own name."""
         # Arrange
         eng, _ = engine
         info = PluginInfo(
@@ -162,6 +174,7 @@ class TestRegisterPlugin:
         assert "test" in eng._plugins, "plugin registered by name"
 
     def test_register_plugin_overrides(self, engine):
+        """Re-registering a name replaces the handler -- later layers win."""
         # Arrange
         eng, _ = engine
         def h1(ctx, args):
@@ -177,6 +190,7 @@ class TestRegisterPlugin:
         assert eng._plugins["x"].handler is h2, "second handler replaced first"
 
     def test_register_hook(self, engine):
+        """An app hook is stored as a plugin with its args and a built-in source."""
         # Arrange
         eng, _ = engine
         handler = MagicMock()
@@ -195,6 +209,7 @@ class TestRegisterPlugin:
 
 class TestApplyCfg:
     def test_apply_cfg_with_callback(self, engine):
+        """A cfg change updates the value, fires the after-cfg hook, and reports it."""
         # Arrange
         eng, output = engine
         callback_calls = []
@@ -254,6 +269,7 @@ class TestRunScript:
         return eng, output, serial_writes, script
 
     def test_serial_commands(self, tmp_path):
+        """Bare lines go to serial in order with the eol, and the run clears its depth."""
         # Arrange
         eng, output, writes, script = self._make_engine(tmp_path, "ATZ\nAT+INFO\n")
 
@@ -268,6 +284,7 @@ class TestRunScript:
         assert eng._script_depth == 0, "script flag cleared"
 
     def test_comments_and_blanks_skipped(self, tmp_path):
+        """Comment and blank lines never reach the device."""
         # Arrange
         eng, output, writes, script = self._make_engine(tmp_path, "# comment\n\nATZ\n")
 
@@ -279,6 +296,7 @@ class TestRunScript:
         assert writes[0] == b"ATZ\r", "comment and blank skipped"
 
     def test_repl_command(self, tmp_path):
+        """A slash line runs as a REPL command and sends nothing to serial."""
         # Arrange
         eng, output, writes, script = self._make_engine(tmp_path, "/print hello\n")
 
@@ -290,6 +308,7 @@ class TestRunScript:
         assert len(writes) == 0, "nothing sent to serial"
 
     def test_echo_repl_forced_off_in_script_then_restored(self, tmp_path):
+        """Scripts run with echo_repl off; the interactive value returns after the run."""
         # Arrange -- interactive echo_repl on; a script's slash-commands
         # should be quiet (forced off), with the interactive value
         # restored when the outermost script ends.  _make_engine pre-sets
@@ -317,6 +336,7 @@ class TestRunScript:
             "interactive echo_repl restored after the outermost script"
 
     def test_delay_command(self, tmp_path):
+        """/delay inside a script runs and confirms the pause."""
         # Arrange
         eng, output, writes, script = self._make_engine(tmp_path, "/delay 1ms\n")
 
@@ -327,6 +347,7 @@ class TestRunScript:
         assert any("Delay" in t for t, _ in output), "delay confirmation shown"
 
     def test_invalid_delay(self, tmp_path):
+        """A bad /delay duration reports an error instead of crashing the run."""
         # Arrange
         eng, output, writes, script = self._make_engine(tmp_path, "/delay bad_value\n")
 
@@ -337,6 +358,7 @@ class TestRunScript:
         assert any("Invalid" in t for t, _ in output), "error message shown"
 
     def test_script_stop(self, tmp_path):
+        """A stop set before the run sends no lines and reports the script stopped."""
         # Arrange
         eng, output, writes, script = self._make_engine(tmp_path, "ATZ\nAT+INFO\n")
         eng._script_stop.set()
@@ -349,6 +371,7 @@ class TestRunScript:
         assert any("stopped" in t.lower() for t, _ in output), "stop message"
 
     def test_not_connected_skips_serial(self, tmp_path):
+        """Serial lines are dropped while disconnected, and the run still unwinds."""
         # Arrange
         eng, output, writes, script = self._make_engine(
             tmp_path, "ATZ\n", connected=False
@@ -362,6 +385,7 @@ class TestRunScript:
         assert eng._script_depth == 0, "script flag cleared"
 
     def test_script_error(self, tmp_path):
+        """An unreadable script reports an error and still clears the depth."""
         # Arrange
         eng, output, _, _ = self._make_engine(tmp_path, "ATZ\n")
         bad_path = tmp_path / "nonexistent.run"
@@ -379,6 +403,7 @@ class TestRunScript:
 
 class TestTransformChains:
     def test_builtin_env_var_transform_loaded(self, engine):
+        """A bare engine ships the env_var and var transforms on both chains."""
         # Arrange
         eng, _ = engine
 
@@ -390,6 +415,7 @@ class TestTransformChains:
         assert "var" in names, "var transform registered"
 
     def test_repl_transform_registered(self, engine):
+        """A REPL-only transform adds to the REPL chain without dropping serial ones."""
         # Arrange
         eng, _ = engine
 
@@ -407,6 +433,7 @@ class TestTransformChains:
         assert eng.has_serial_transforms is True, "var serial transform already loaded"
 
     def test_serial_transform_registered(self, engine):
+        """A serial-only transform adds to the serial chain without dropping REPL ones."""
         # Arrange
         eng, _ = engine
 
@@ -424,6 +451,7 @@ class TestTransformChains:
         assert eng.has_repl_transforms is True, "env_var + var REPL transforms loaded"
 
     def test_repl_transform_applied(self, engine):
+        """transform_repl runs a registered REPL transform over the line."""
         # Arrange
         eng, _ = engine
         eng.register_transform(
@@ -442,6 +470,7 @@ class TestTransformChains:
         assert actual == expected, "REPL transform uppercased"
 
     def test_serial_transform_applied(self, engine):
+        """transform_serial runs a registered serial transform over the line."""
         # Arrange
         eng, _ = engine
         eng.register_transform(
@@ -460,6 +489,7 @@ class TestTransformChains:
         assert actual == expected, "serial transform replaced $port"
 
     def test_chain_order_matches_registration(self, engine):
+        """Transforms compose in registration order, first registered applied first."""
         # Arrange
         eng, _ = engine
         eng.register_transform(
@@ -485,6 +515,7 @@ class TestTransformChains:
         assert actual == expected, "transforms applied in registration order"
 
     def test_transforms_independent(self, engine):
+        """A dual transform's REPL function never runs on serial lines, nor vice versa."""
         # Arrange - one transform with both repl and serial functions
         eng, _ = engine
         eng.register_transform(
@@ -505,6 +536,7 @@ class TestTransformChains:
         assert actual_serial == "SER:test", "serial transform applied, not repl"
 
     def test_identity_when_no_transforms(self, engine):
+        """With only the built-ins, plain text passes through both chains unchanged."""
         # Arrange
         eng, _ = engine
 
@@ -517,6 +549,7 @@ class TestTransformChains:
         assert actual_serial == "hello", "passthrough with no transforms"
 
     def test_both_chains_on_one_transform(self, engine):
+        """One transform can supply different functions for the REPL and serial chains."""
         # Arrange
         eng, _ = engine
         eng.register_transform(
@@ -537,6 +570,7 @@ class TestTransformChains:
         assert actual_serial == "hello", "serial lowercased"
 
     def test_transform_infos_tracked(self, engine):
+        """Each registered transform is recorded by name, appended at the end."""
         # Arrange
         eng, _ = engine
         before = len(eng._transform_infos)
@@ -626,6 +660,7 @@ class TestDispatchFull:
         )
 
     def test_serial_command_sent(self, dispatch_env):
+        """A bare line is sent with the eol and is not logged as a REPL command."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
 
@@ -637,6 +672,7 @@ class TestDispatchFull:
         assert len(logged) == 0, "serial commands not logged through dispatch"
 
     def test_empty_line_sends_line_ending(self, dispatch_env):
+        """An empty line sends just the eol rather than tripping the empty-send guard."""
         # Arrange -- send_bare_enter forwards an empty line; it should send
         # just the configured line ending (not error on /term.send's empty
         # guard, which was the pre-fix behavior in non-request mode).
@@ -649,6 +685,7 @@ class TestDispatchFull:
         assert writes == [b"\r"], "empty bare line sends the configured line ending"
 
     def test_repl_command_dispatched(self, dispatch_env):
+        """A slash command is logged and echoed but never sent to the device."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
 
@@ -661,6 +698,7 @@ class TestDispatchFull:
         assert any("/help" in t for t in echoed), "echoed"
 
     def test_raw_bypass(self, dispatch_env):
+        """/raw sends its text through the raw writer, skipping transforms and eol."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
 
@@ -672,6 +710,7 @@ class TestDispatchFull:
         assert len(writes) == 0, "not through normal serial_write"
 
     def test_echo_off_suppresses_output(self, dispatch_env):
+        """With echo_repl off a slash command is not echoed."""
         # Arrange -- /help is a REPL command, so its echo is gated by
         # echo_repl (device-command echo lives on the separate `echo` flag).
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
@@ -684,6 +723,7 @@ class TestDispatchFull:
         assert len(echoed) == 0, "no REPL echo when echo_repl disabled"
 
     def test_not_connected_blocks_send(self, dispatch_env):
+        """A bare line while disconnected sends nothing and shows Not connected."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
 
@@ -700,6 +740,7 @@ class TestDispatchFull:
         assert any("Not connected" in t for t, _ in statuses), "error shown"
 
     def test_serial_write_error(self, dispatch_env):
+        """An OSError from the writer surfaces as a Send error, not an exception."""
         # Arrange — bare-line input goes through /term.send via dispatch_full
         # fallthrough.  dispatch_full bridges its serial_write callback to
         # ctx.serial.write for the duration of the call, so passing a bad
@@ -725,6 +766,7 @@ class TestDispatchFull:
         ), "error reported via engine's write callback"
 
     def test_echo_input_config(self, dispatch_env):
+        """Device commands echo through the configured echo_fmt template."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
         eng._cfg_data["echo"] = True
@@ -737,6 +779,7 @@ class TestDispatchFull:
         assert any("> ATZ" in t for t in echoed), "input echoed"
 
     def test_custom_line_ending(self, dispatch_env):
+        """The configured eol, not a hardcoded CR, terminates each sent line."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
         eng._cfg_data["eol"] = "\r\n"
@@ -748,6 +791,7 @@ class TestDispatchFull:
         assert writes == [b"ATZ\r\n"], "uses configured line ending"
 
     def test_repl_command_echo_silent_suppressed(self, dispatch_env):
+        """A .silent command is not echoed even with echo_repl on."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
 
@@ -758,6 +802,7 @@ class TestDispatchFull:
         assert not any("echo.silent" in t for t in echoed), "suppressed"
 
     def test_device_echo_follows_echo_flag_not_echo_repl(self, dispatch_env):
+        """Device echo stays on with echo on even when echo_repl is off."""
         # Arrange - device-command echo is gated by `echo`; turning REPL
         # echo off must not silence it (the two echoes are independent).
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
@@ -772,6 +817,7 @@ class TestDispatchFull:
         assert any("ATZ" in t for t in echoed), "device command echoed on echo flag"
 
     def test_device_echo_off_when_echo_flag_off(self, dispatch_env):
+        """echo off silences device echo even when echo_repl is on."""
         # Arrange - echo off suppresses device echo even with echo_repl on.
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
         flags = eng.ctx.ns("flags")
@@ -785,6 +831,7 @@ class TestDispatchFull:
         assert not any("ATZ" in t for t in echoed), "no device echo when echo off"
 
     def test_repl_echo_follows_echo_repl_not_echo_flag(self, dispatch_env):
+        """Slash-command echo stays on with echo_repl on even when echo is off."""
         # Arrange - REPL/slash echo is gated by echo_repl; device echo off
         # must not silence it (the two echoes are independent).
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
@@ -1267,6 +1314,7 @@ class TestOneScriptAtATime:
         return eng, output, script
 
     def test_a_second_launch_from_another_thread_is_refused(self, tmp_path):
+        """Another thread's launch mid-run is refused as already running, depth unchanged."""
         # Arrange -- a run in progress, owned by this thread
         eng, _, script = self._engine(tmp_path)
         path, first = eng.start_script(str(script))
@@ -1291,6 +1339,7 @@ class TestOneScriptAtATime:
         assert eng._script_depth == 1, "the refused launch must not bump the depth"
 
     def test_nesting_on_the_owning_thread_is_allowed(self, tmp_path):
+        """A nested /run on the owning thread is allowed and deepens the run to 2."""
         # Arrange
         eng, _, script = self._engine(tmp_path)
         eng.start_script(str(script))
@@ -1305,6 +1354,7 @@ class TestOneScriptAtATime:
         assert actual == 2, f"nesting deepens the run, got depth {actual}"
 
     def test_ownership_is_released_when_the_run_ends(self, tmp_path):
+        """A finished run releases ownership so another thread can start the next one."""
         # Arrange -- one complete run, start to finish
         eng, _, script = self._engine(tmp_path)
         path, _ = eng.start_script(str(script))
@@ -1384,6 +1434,7 @@ class TestRepeatDoesNotEraseAScriptStop:
     """
 
     def test_a_stop_inside_repeat_aborts_the_script(self, tmp_path):
+        """A /stop inside /repeat stays set and aborts the lines after the repeat."""
         # Arrange -- /stop fires on the first iteration; the line after the
         # repeat must never run.
         eng, output, writes, script = TestRunScript()._make_engine(
@@ -1438,6 +1489,7 @@ class TestJsonFlag:
         return json.loads(text)
 
     def test_converted_command_envelope(self, engine):
+        """A data-producing command gives the fixed seven-key envelope with data, no prose."""
         # Arrange
         eng, output = engine
         eng.dispatch("var.set PORT COM9")
@@ -1465,6 +1517,7 @@ class TestJsonFlag:
         assert result.data is not None, "CmdResult carries data too"
 
     def test_unconverted_command_answer_is_captured(self, engine):
+        """A command without data has its prose captured into output_lines, flattened."""
         # Arrange -- /term.info has no data producer; in JSON mode its
         # whole answer must arrive in the envelope, not print above it.
         # (/help would be the natural pick but its landscape reads
@@ -1491,6 +1544,7 @@ class TestJsonFlag:
         ), "captured lines are the real content with markup flattened"
 
     def test_unknown_command_is_enveloped(self, engine):
+        """An unknown command fails inside the envelope, with no extra red error line."""
         # Arrange
         eng, output = engine
 
@@ -1508,6 +1562,7 @@ class TestJsonFlag:
         assert result.success is False, "CmdResult still reports failure"
 
     def test_flag_stripped_from_args(self, engine):
+        """--json is removed before the handler sees args and is absent from cmd."""
         # Arrange -- /print echoes its args; the flag must not be in them
         eng, output = engine
 
@@ -1520,6 +1575,7 @@ class TestJsonFlag:
         assert "--json" not in envelope["cmd"], "cmd shows the effective call"
 
     def test_wants_data_restored_after_dispatch(self, engine):
+        """--json sets wants_data for one call only; the session stays prose."""
         # Arrange
         eng, output = engine
 
@@ -1532,6 +1588,7 @@ class TestJsonFlag:
         )
 
     def test_silent_suppresses_the_envelope(self, engine):
+        """--silent wins over --json: nothing renders, but the result keeps its data."""
         # Arrange
         eng, output = engine
         output.clear()
@@ -1544,6 +1601,7 @@ class TestJsonFlag:
         assert result.data is not None, "the data still exists on the result"
 
     def test_quiet_still_emits_the_envelope(self, engine):
+        """--quiet still prints the envelope, since it rides the result channel."""
         # Arrange -- result channel shows at quiet+
         eng, output = engine
         output.clear()
@@ -1571,6 +1629,7 @@ class TestRequestModeSessionJson:
         _variables.set_launch_var("FRONT_END", "test")
 
     def test_termapy_command_envelopes_without_flag(self, engine):
+        """With request_mode on, a plain command renders an envelope with no --json."""
         # Arrange
         eng, output = engine
         eng._apply_cfg("request_mode", True)
@@ -1587,6 +1646,7 @@ class TestRequestModeSessionJson:
         assert result.data is not None, "converted command produced data"
 
     def test_off_returns_to_prose(self, engine):
+        """Turning request_mode back off restores plain prose output."""
         # Arrange
         eng, output = engine
         eng._apply_cfg("request_mode", True)
@@ -1602,6 +1662,7 @@ class TestRequestModeSessionJson:
             json.loads(text)
 
     def test_mcp_frontend_skips_the_render(self, engine, monkeypatch):
+        """Under MCP no envelope is printed, since MCP's response already carries it."""
         # Arrange -- MCP delivers data on its outer response envelope;
         # rendering here too would duplicate it into output_lines.
         from termapy import variables as _variables

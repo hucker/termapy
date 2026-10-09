@@ -86,6 +86,7 @@ class TestBuildSerialHandle:
     """Serial lifecycle verbs delegate to the host (moved off ctx.internal)."""
 
     def test_connect_callback_wired(self, host):
+        """ctx.serial.connect reaches host._connect with the port name unchanged."""
         # Arrange
         host._connect = MagicMock()
 
@@ -98,6 +99,7 @@ class TestBuildSerialHandle:
         host._connect.assert_called_once_with("COM1")
 
     def test_disconnect_callback_wired(self, host):
+        """ctx.serial.disconnect reaches host._disconnect."""
         # Arrange
         host._disconnect = MagicMock()
 
@@ -110,6 +112,7 @@ class TestBuildSerialHandle:
         host._disconnect.assert_called_once()
 
     def test_apply_port_effects_wired(self, host):
+        """ctx.serial.apply_port_effects reaches host._apply_port_effects."""
         # Arrange
         host._apply_port_effects = MagicMock()
 
@@ -124,6 +127,7 @@ class TestBuildSerialHandle:
 
 class TestBuildInternalHandle:
     def test_returns_internal_handle(self, host):
+        """_build_internal_handle yields the InternalHandle type that ctx.internal expects."""
         # Act
         api = host._build_internal_handle()
 
@@ -131,6 +135,7 @@ class TestBuildInternalHandle:
         assert isinstance(api, InternalHandle), "returns InternalHandle instance"
 
     def test_start_capture_wired(self, host):
+        """InternalHandle.start_capture forwards its keyword args to host._start_capture."""
         # Arrange
         host._start_capture = MagicMock(return_value=True)
 
@@ -143,6 +148,7 @@ class TestBuildInternalHandle:
         host._start_capture.assert_called_once_with(mode="text", path="/tmp/x")
 
     def test_script_stop_event_wired(self, host):
+        """script_stop_event is the REPL's own stop event, not a copy, so a stop propagates."""
         # Act
         api = host._build_internal_handle()
 
@@ -156,6 +162,7 @@ class TestBuildInternalHandle:
 
 class TestBuildPluginContext:
     def test_returns_plugin_context(self, host):
+        """_build_plugin_context yields a real PluginContext for handlers."""
         # Arrange
         api = host._build_internal_handle()
 
@@ -166,6 +173,7 @@ class TestBuildPluginContext:
         assert isinstance(ctx, PluginContext), "returns PluginContext instance"
 
     def test_cfg_wired(self, host):
+        """ctx.cfg is the host's live cfg dict, so a handler's edits are the host's."""
         # Arrange
         api = host._build_internal_handle()
 
@@ -176,6 +184,7 @@ class TestBuildPluginContext:
         assert ctx.cfg is host.cfg, "cfg is the host's cfg dict"
 
     def test_config_path_wired(self, host):
+        """ctx.config_path carries the host's config path."""
         # Arrange
         api = host._build_internal_handle()
 
@@ -186,6 +195,7 @@ class TestBuildPluginContext:
         assert ctx.config_path == host.config_path, "config_path matches host"
 
     def test_serial_write_wired(self, host):
+        """ctx.serial.write sends bytes through the engine's port unchanged."""
         # Arrange
         api = host._build_internal_handle()
         ctx = host._build_plugin_context(api)
@@ -199,6 +209,7 @@ class TestBuildPluginContext:
         host.engine.serial_port.write.assert_called_once_with(b"\x01\x02")
 
     def test_directories_wired(self, host):
+        """ctx.fs data-folder paths (ss, run, proto, cap, prof) match the REPL's."""
         # Arrange
         api = host._build_internal_handle()
 
@@ -213,6 +224,7 @@ class TestBuildPluginContext:
         assert ctx.fs.prof_dir == host.repl.prof_dir, "prof_dir matches repl"
 
     def test_is_connected_wired(self, host):
+        """ctx.serial.is_connected reads live engine state, set after the context was built."""
         # Arrange
         api = host._build_internal_handle()
         ctx = host._build_plugin_context(api)
@@ -225,6 +237,7 @@ class TestBuildPluginContext:
         assert actual is True, "is_connected reflects engine state"
 
     def test_confirm_wired(self, host):
+        """With the confirm_dialog capability, ctx.ui.confirm returns host._confirm's answer."""
         # Arrange -- TUI capability is needed for ctx.ui.confirm
         api = host._build_internal_handle()
         ctx = host._build_plugin_context(api)
@@ -244,6 +257,7 @@ class TestBuildPluginContext:
 
 class TestInitFlags:
     def test_device_echo_seeded_from_cfg_when_allowed(self, host):
+        """On an echoing host, cfg echo=True seeds the echo flag; output_level starts normal."""
         # Arrange -- device_echo_allowed=True (TUI/CLI); flags["echo"] is
         # seeded from cfg['echo_input'], the same pattern as hex_mode.
         host.cfg["echo"] = True
@@ -259,6 +273,7 @@ class TestInitFlags:
         assert flags["output_level"] == "normal", "output_level defaults to normal"
 
     def test_device_echo_off_when_cfg_off(self, host):
+        """cfg echo=False keeps device echo off even on a host allowed to echo."""
         # Arrange -- host may echo, but cfg says off -> flag off.
         host.cfg["echo"] = False
         api = host._build_internal_handle()
@@ -273,6 +288,7 @@ class TestInitFlags:
         )
 
     def test_device_echo_forced_off_for_non_echoing_host(self, host):
+        """A non-echoing host (MCP) forces device echo off even when cfg turns it on."""
         # Arrange -- MCP passes device_echo_allowed=False; force off
         # regardless of cfg (no terminal to echo to).
         host.cfg["echo"] = True
@@ -288,6 +304,7 @@ class TestInitFlags:
         )
 
     def test_echo_repl_from_host_default_not_cfg(self, host):
+        """echo_repl comes from the host default, independent of the cfg device-echo key."""
         # Arrange -- echo_repl is session-only with a per-host default:
         # TUI passes True, CLI/MCP False.  It is not read from cfg.
         host.cfg["echo"] = False  # device echo unrelated to repl echo
@@ -303,6 +320,7 @@ class TestInitFlags:
         assert flags["echo"] is False, "device echo independent of repl echo"
 
     def test_echo_repl_off_by_host_default(self, host):
+        """A host default of False (CLI, MCP) leaves REPL echo off."""
         # Arrange -- CLI/MCP pass echo_repl=False.
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
@@ -316,6 +334,7 @@ class TestInitFlags:
         )
 
     def test_hex_mode_from_cfg(self, host):
+        """The hex display flag is seeded from cfg, the same way device echo is."""
         # Arrange
         host.cfg["hex"] = True
         api = host._build_internal_handle()
@@ -334,6 +353,7 @@ class TestInitFlags:
 
 class TestSerialIO:
     def test_serial_write_no_port(self, host):
+        """With no open port, _serial_write is a silent no-op that notifies no TX observer."""
         # Arrange
         host.engine.serial_port = None
 
@@ -345,6 +365,7 @@ class TestSerialIO:
         host.engine.notify_tx.assert_not_called()
 
     def test_serial_write_with_port(self, host):
+        """_serial_write sends the bytes verbatim and tells TX observers what went out."""
         # Arrange
         host.engine.serial_port = MagicMock()
 
@@ -358,6 +379,7 @@ class TestSerialIO:
         host.engine.notify_tx.assert_called_once_with(b"\x01\x02")
 
     def test_serial_send_appends_line_ending(self, host):
+        """_serial_send appends the configured eol (CR here) and writes the encoded line."""
         # Arrange
         host.engine.serial_port = MagicMock()
 
@@ -370,6 +392,7 @@ class TestSerialIO:
         host.engine.serial_port.write.assert_called_once_with(expected)
 
     def test_serial_send_custom_encoding(self, host):
+        """_serial_send honors a non-default encoding and eol taken from cfg."""
         # Arrange
         host.cfg["encoding"] = "ascii"
         host.cfg["eol"] = "\n"
@@ -389,6 +412,7 @@ class TestSerialIO:
 
 class TestSerialWriteRaw:
     def test_not_connected(self, host):
+        """A raw-line send while disconnected tells the user via status, not silently."""
         # Arrange
         host.engine.is_connected = False
 
@@ -399,6 +423,7 @@ class TestSerialWriteRaw:
         assert "Not connected." in host._status_msgs, "shows not connected message"
 
     def test_sends_with_line_ending(self, host):
+        """A raw-line send skips transforms but still appends eol and notifies TX observers."""
         # Arrange
         host.engine.is_connected = True
         host.engine.serial_port = MagicMock()
@@ -419,6 +444,7 @@ class TestSerialWriteRaw:
 
 class TestDispatch:
     def test_dispatch_delegates_to_repl(self, host):
+        """_dispatch runs the full REPL pipeline and hands back the handler's CmdResult."""
         # Arrange
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
@@ -442,6 +468,7 @@ class TestDispatch:
 
 class TestApplyPortEffects:
     def test_cfg_update(self, host):
+        """A cfg_update key with no serial block to route into lands at the cfg top level."""
         # Act
         host._apply_port_effects({"cfg_update": {"baud_rate": 9600}})
 
@@ -449,6 +476,7 @@ class TestApplyPortEffects:
         assert host.repl._cfg_data["baud_rate"] == 9600, "cfg updated"
 
     def test_empty_effects(self, host):
+        """An effects dict with no cfg_update is a harmless no-op."""
         # Act - should not raise
         host._apply_port_effects({})
 
@@ -458,6 +486,7 @@ class TestApplyPortEffects:
 
 class TestCapture:
     def test_start_when_already_active(self, host):
+        """A second capture start is refused with a status message, never stacked."""
         # Arrange
         host.capture.active = True
 
@@ -469,6 +498,7 @@ class TestCapture:
         assert "already active" in host._status_msgs[0].lower(), "shows message"
 
     def test_start_failure(self, host):
+        """When the capture engine cannot start, _start_capture returns False."""
         # Arrange
         host.capture.active = False
         host.capture.start.return_value = False
@@ -480,6 +510,7 @@ class TestCapture:
         assert actual is False, "returns False on engine failure"
 
     def test_start_success(self, host):
+        """A started capture returns True and announces itself on the status line."""
         # Arrange
         host.capture.active = False
         host.capture.start.return_value = True
@@ -493,6 +524,7 @@ class TestCapture:
             "shows started message"
 
     def test_stop_delegates_message_to_on_complete(self, host):
+        """_stop_capture emits no completion line itself; on_complete owns it, so none doubles."""
         # Arrange -- the completion message is owned by the CaptureEngine
         # on_complete callback (fired inside stop()), NOT by _stop_capture.
         # This mocked engine never fires on_complete, so _stop_capture must
@@ -510,6 +542,7 @@ class TestCapture:
             "_stop_capture must not emit the message (on_complete owns it)"
 
     def test_stop_no_result(self, host):
+        """Stopping when the engine returns no result produces no status message."""
         # Arrange
         host.capture.stop.return_value = None
 
@@ -525,6 +558,7 @@ class TestCapture:
 
 class TestHookHelpOpen:
     def test_unknown_topic(self, host):
+        """A topic with no built HTML page fails as an unknown help topic."""
         # Act
         result = host._hook_help_open(None, "__does_not_exist__")
 
@@ -533,6 +567,7 @@ class TestHookHelpOpen:
         assert "Unknown help topic" in result.error, "error mentions topic"
 
     def test_empty_topic_resolves_to_index(self, host):
+        """No topic opens index.html from the local help server in the browser."""
         # Arrange - patch _ensure_help_server and webbrowser.open
         host._ensure_help_server = MagicMock(return_value=8080)
 
@@ -551,6 +586,7 @@ class TestHookHelpOpen:
 
 class TestEnsureHelpServer:
     def test_starts_server(self, host):
+        """The first call starts a local help server and caches its bound port."""
         # Act
         port = host._ensure_help_server()
 
@@ -559,6 +595,7 @@ class TestEnsureHelpServer:
         assert host._help_server_port == port, "caches the port"
 
     def test_returns_cached_port(self, host):
+        """A second call reuses the running server rather than starting another."""
         # Arrange
         first_port = host._ensure_help_server()
 
@@ -574,6 +611,7 @@ class TestEnsureHelpServer:
 
 class TestHookRaw:
     def test_not_connected(self, host):
+        """/raw while disconnected returns a failure, not a silent drop."""
         # Arrange
         host.engine.is_connected = False
 
@@ -584,6 +622,7 @@ class TestHookRaw:
         assert result.success is False, "fails when not connected"
 
     def test_empty_args(self, host):
+        """/raw with no text raises UsageError so the dispatcher renders the usage line."""
         # Arrange
         host.engine.is_connected = True
 
@@ -593,6 +632,7 @@ class TestHookRaw:
             host._hook_raw(None, "")
 
     def test_sends_bytes(self, host):
+        """/raw writes the text verbatim with no eol appended, unlike a raw-line send."""
         # Arrange
         host.engine.is_connected = True
         host.engine.serial_port = MagicMock()
@@ -611,6 +651,7 @@ class TestHookRaw:
 
 class TestHookLogClear:
     def test_no_log_file(self, host):
+        """Deleting the log when none exists on disk fails rather than reporting success."""
         # Arrange - config_path has no log file
 
         # Act
@@ -620,6 +661,7 @@ class TestHookLogClear:
         assert result.success is False, "fails when no log file"
 
     def test_deletes_log_file(self, host, tmp_path):
+        """The log delete hook removes the session log file from disk."""
         # Arrange
         log_path = tmp_path / "test_cfg" / "test.log"
         log_path.write_text("session log data")
@@ -632,6 +674,7 @@ class TestHookLogClear:
         assert not log_path.exists(), "log file deleted"
 
     def test_delete_oserror(self, host, tmp_path):
+        """An OSError from unlink fails the delete and passes the OS message through."""
         # Arrange
         log_path = tmp_path / "test_cfg" / "test.log"
         log_path.write_text("session log data")

@@ -9,9 +9,11 @@ class TestReadHistory:
     """The file reader: never raises, trims, drops blanks."""
 
     def test_missing_file_is_empty(self, tmp_path):
+        """A first run with no history file yields an empty list rather than raising."""
         assert read_history(tmp_path / "nope.history", 30) == [], "no file, no history"
 
     def test_blank_lines_dropped_and_whitespace_trimmed(self, tmp_path):
+        """Blank lines never become recall entries, and stray padding is stripped from each."""
         # Arrange
         path = tmp_path / "h"
         path.write_text("/one\n\n  /two  \n\n", encoding="utf-8")
@@ -20,6 +22,7 @@ class TestReadHistory:
         assert read_history(path, 30) == ["/one", "/two"], "blanks out, ends trimmed"
 
     def test_limit_keeps_the_newest(self, tmp_path):
+        """The limit trims from the front of the file, since the last lines are the newest."""
         # Arrange
         path = tmp_path / "h"
         path.write_text("\n".join(f"/cmd{i}" for i in range(10)), encoding="utf-8")
@@ -28,6 +31,7 @@ class TestReadHistory:
         assert read_history(path, 3) == ["/cmd7", "/cmd8", "/cmd9"], "the tail is the newest"
 
     def test_undecodable_file_is_empty_not_fatal(self, tmp_path):
+        """A corrupt, non-UTF-8 history file reads as empty so it cannot block startup."""
         # Arrange
         path = tmp_path / "h"
         path.write_bytes(b"\xff\xfe\x00binary")
@@ -60,6 +64,7 @@ class TestMergeHistory:
         )
 
     def test_a_shared_line_keeps_the_session_position(self):
+        """A line in both lists appears once, at the newer slot the session gave it."""
         # Act
         actual = merge_history(["/a", "/b"], ["/b", "/c"], 30)
 
@@ -77,6 +82,7 @@ class TestMergeHistory:
         )
 
     def test_limit_drops_the_oldest(self):
+        """Over the limit, the merge drops from the oldest end so recent commands survive."""
         # Act
         actual = merge_history(["/f1", "/f2"], ["/m1", "/m2"], 3)
 
@@ -84,6 +90,7 @@ class TestMergeHistory:
         assert actual == ["/f2", "/m1", "/m2"], "the oldest file line falls off"
 
     def test_empty_sides(self):
+        """Either side empty returns the other unchanged; both empty returns nothing."""
         assert merge_history([], ["/mine"], 30) == ["/mine"], "no file yet"
         assert merge_history(["/theirs"], [], 30) == ["/theirs"], "nothing typed this session"
         assert merge_history([], [], 30) == [], "both empty"
@@ -101,6 +108,7 @@ class TestMergeHistory:
 
 
 def test_starts_not_browsing():
+    """A fresh navigator is on the live draft, so the first key is not a history step."""
     nav = HistoryNavigator()
 
     # Assert
@@ -108,6 +116,7 @@ def test_starts_not_browsing():
 
 
 def test_up_on_empty_history_is_noop():
+    """Up with no history returns None and stays out of browsing, leaving input alone."""
     nav = HistoryNavigator()
 
     # Act
@@ -119,6 +128,7 @@ def test_up_on_empty_history_is_noop():
 
 
 def test_first_up_jumps_to_newest_and_stashes_draft():
+    """The first Up recalls the newest entry and enters browsing mode."""
     nav = HistoryNavigator()
     history = ["one", "two", "three"]
 
@@ -131,6 +141,7 @@ def test_first_up_jumps_to_newest_and_stashes_draft():
 
 
 def test_successive_up_walks_toward_older_and_floors():
+    """Repeated Up walks newest to oldest, then stays on the oldest instead of wrapping."""
     nav = HistoryNavigator()
     history = ["one", "two", "three"]
 
@@ -144,6 +155,7 @@ def test_successive_up_walks_toward_older_and_floors():
 
 
 def test_down_when_not_browsing_is_noop():
+    """Down outside a browse returns None so the typed input is left untouched."""
     nav = HistoryNavigator()
 
     # Act
@@ -154,6 +166,7 @@ def test_down_when_not_browsing_is_noop():
 
 
 def test_down_walks_toward_newer():
+    """Down after two Ups steps back one entry toward the newest."""
     nav = HistoryNavigator()
     history = ["one", "two", "three"]
     nav.up(history, "draft")  # -> three
@@ -167,6 +180,7 @@ def test_down_walks_toward_newer():
 
 
 def test_down_off_the_newest_restores_stashed_draft():
+    """Stepping Down past the newest entry hands back the half-typed draft and ends browsing."""
     nav = HistoryNavigator()
     history = ["one", "two"]
     nav.up(history, "half-typed")  # stashes the draft, recalls "two"
@@ -180,6 +194,7 @@ def test_down_off_the_newest_restores_stashed_draft():
 
 
 def test_empty_draft_is_restored_as_empty_string_not_none():
+    """An empty draft comes back as '' so callers can tell it from the None no-op."""
     nav = HistoryNavigator()
     history = ["one"]
     nav.up(history, "")  # started browsing from an empty input
@@ -193,6 +208,7 @@ def test_empty_draft_is_restored_as_empty_string_not_none():
 
 
 def test_reset_stops_browsing():
+    """reset() abandons the browse, as on submit, config switch, or Escape."""
     nav = HistoryNavigator()
     nav.up(["one", "two"], "draft")
 
@@ -204,6 +220,7 @@ def test_reset_stops_browsing():
 
 
 def test_up_after_reset_restashes_current_draft():
+    """After reset, the next browse stashes the current draft, not the stale earlier one."""
     nav = HistoryNavigator()
     history = ["one", "two"]
     nav.up(history, "first-draft")

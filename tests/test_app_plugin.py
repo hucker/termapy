@@ -79,6 +79,7 @@ def ctx():
 
 class TestAppExplore:
     def test_opens_both_when_different(self, pin_app_dirs, ctx):
+        """Distinct state and config folders each get opened, one call per folder."""
         # Arrange - state and config at distinct tmp paths (Linux-like).
         state_dir, config_dir = pin_app_dirs
 
@@ -96,6 +97,7 @@ class TestAppExplore:
         assert config_dir in opened, "config dir was opened"
 
     def test_dedupes_when_same(self, monkeypatch, tmp_path, ctx):
+        """When state and config share one folder it opens once, not twice."""
         # Arrange - both resolve to the SAME path (Windows/macOS behavior).
         same = tmp_path / "shared"
         monkeypatch.setenv("TERMAPY_STATE_DIR", str(same))
@@ -117,6 +119,7 @@ class TestAppExplore:
 
 class TestAppState:
     def test_prints_path(self, pin_app_dirs, ctx):
+        """Prints the full state.json path and returns it as the scriptable value."""
         # Arrange
         state_dir, _ = pin_app_dirs
 
@@ -131,6 +134,7 @@ class TestAppState:
             "value equals the path (scriptable)"
 
     def test_dump_missing_file_is_empty_object(self, pin_app_dirs, ctx):
+        """A missing state.json dumps as {} and succeeds rather than erroring."""
         # Act
         result = app_plugin._handler_state_dump(ctx, "")
 
@@ -140,6 +144,7 @@ class TestAppState:
         assert actual == "{}", f"empty dump, got {actual!r}"
 
     def test_dump_populated(self, pin_app_dirs, ctx):
+        """An existing state.json dumps with its nested keys and values intact."""
         # Arrange
         state_dir, _ = pin_app_dirs
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -161,6 +166,7 @@ class TestAppState:
 
 class TestAppConfig:
     def test_prints_path(self, pin_app_dirs, ctx):
+        """Prints the full config.json path under the app config folder."""
         # Arrange
         _, config_dir = pin_app_dirs
 
@@ -173,6 +179,7 @@ class TestAppConfig:
         assert str(config_dir / "config.json") in actual, "full path printed"
 
     def test_dump_missing_file_is_empty_object(self, pin_app_dirs, ctx):
+        """A missing config.json dumps as {} and succeeds rather than erroring."""
         # Act
         result = app_plugin._handler_config_dump(ctx, "")
 
@@ -182,6 +189,7 @@ class TestAppConfig:
         assert actual == "{}", "empty dump"
 
     def test_dump_populated(self, pin_app_dirs, ctx):
+        """An existing config.json dumps with its keys and values intact."""
         # Arrange
         _, config_dir = pin_app_dirs
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -203,6 +211,7 @@ class TestAppConfig:
 
 class TestAppConfigEdit:
     def test_creates_file_if_missing(self, pin_app_dirs, ctx):
+        """A missing config.json is seeded with {} before it is opened for editing."""
         # Arrange
         _, config_dir = pin_app_dirs
 
@@ -218,6 +227,7 @@ class TestAppConfigEdit:
         ctx.open_file.assert_called_once_with(config_file)
 
     def test_preserves_existing_file(self, pin_app_dirs, ctx):
+        """Editing opens an existing config.json without overwriting its content."""
         # Arrange
         _, config_dir = pin_app_dirs
         config_dir.mkdir(parents=True, exist_ok=True)

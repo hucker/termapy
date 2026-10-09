@@ -31,6 +31,7 @@ def _make(folder, name: str, payload: bytes, age_s: float = 0.0):
 
 class TestListEntries:
     def test_newest_first_then_name_and_no_dotfiles(self, tmp_path):
+        """The most recently modified file leads; dotfiles and subfolders never list."""
         # Arrange -- name order is b, a; mtime order puts a first.
         _make(tmp_path, "b.run", b"x", age_s=3600)
         _make(tmp_path, "a.run", b"x")
@@ -44,11 +45,13 @@ class TestListEntries:
         assert actual == ["a.run", "b.run"], "newest first; dotfiles and folders excluded"
 
     def test_missing_folder_is_empty(self, tmp_path):
+        """A folder not created yet lists as empty rather than raising."""
         assert list_entries(tmp_path / "nope", "*") == []
 
 
 class TestFileColumns:
     def test_columns_are_padded_to_the_batch(self, tmp_path):
+        """Names pad left and sizes pad right to the widest entry in the batch."""
         # Arrange
         short = _make(tmp_path, "a.run", b"x" * 10)
         long = _make(tmp_path, "longer_name.run", b"x" * 2048, age_s=3600)
@@ -66,6 +69,7 @@ class TestFileColumns:
         assert rows[0].age == "1 hr ago" and rows[1].age == "just now"
 
     def test_vanished_file_renders_question_marks(self, tmp_path):
+        """A file deleted after globbing shows ? for size and age; the listing survives."""
         # Arrange -- a path that was globbed but no longer exists
         ghost = tmp_path / "gone.run"
 
@@ -76,12 +80,14 @@ class TestFileColumns:
         assert actual == ["gone.run  ?  ?"], "a stat failure degrades one row, not the listing"
 
     def test_format_file_lines_joins_with_two_spaces(self, tmp_path):
+        """Each line is name, size, and age separated by exactly two spaces."""
         path = _make(tmp_path, "a.run", b"x" * 10)
         assert format_file_lines([path]) == ["a.run  10 B  just now"]
 
 
 class TestFileRecord:
     def test_shape_and_numeric_fields(self, tmp_path):
+        """Records carry raw byte counts, age in seconds, and ISO mtime -- not prose."""
         # Arrange
         path = _make(tmp_path, "cap.bin", b"x" * 300, age_s=120)
         now = time.time()
@@ -96,5 +102,6 @@ class TestFileRecord:
         assert actual["mtime"].count(":") == 2 and "T" in actual["mtime"], "ISO-8601 local"
 
     def test_vanished_file_keeps_the_shape(self, tmp_path):
+        """A missing file still yields every key, with zero bytes and None times."""
         actual = file_record(tmp_path / "gone.bin")
         assert actual == {"name": "gone.bin", "bytes": 0, "mtime": None, "age_s": None}

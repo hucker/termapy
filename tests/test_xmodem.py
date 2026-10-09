@@ -118,6 +118,7 @@ class TestQueueByteReader:
 
 class TestXmodemCrc16:
     def test_empty_data(self) -> None:
+        """The CRC-16 of no data is the 0x0000 initial value, unchanged."""
         actual = _xmodem_crc16(b"")
         assert actual == 0x0000, "CRC of empty data"
 
@@ -128,6 +129,7 @@ class TestXmodemCrc16:
         assert actual == 0x31C3, "standard test vector"
 
     def test_single_byte(self) -> None:
+        """A one-byte payload yields an int within the 16-bit range."""
         actual = _xmodem_crc16(b"\x00")
         assert isinstance(actual, int), "returns int"
         assert 0 <= actual <= 0xFFFF, "16-bit range"

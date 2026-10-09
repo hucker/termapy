@@ -23,25 +23,30 @@ from termapy.repl import ReplEngine, _strip_level_flags
 
 class TestParseOutputLevel:
     def test_canonical_names(self):
+        """Every name in OUTPUT_LEVELS parses back to itself."""
         for name in OUTPUT_LEVELS:
             actual = parse_output_level(name)
             assert actual == name, "canonical name passes through"
 
     def test_case_insensitive(self):
+        """Level names are matched case-insensitively and returned lowercase."""
         actual = parse_output_level("VERBOSE")
         expected = "verbose"
         assert actual == expected, "uppercase normalized"
 
     def test_unknown_returns_none(self):
+        """An unknown level name yields None so callers can report it, not a default."""
         actual = parse_output_level("loud")
         assert actual is None, "unknown level returns None"
 
     def test_default_is_normal(self):
+        """The out-of-the-box output level is normal."""
         actual = DEFAULT_OUTPUT_LEVEL
         expected = "normal"
         assert actual == expected, "default level is normal"
 
     def test_levels_are_ordered(self):
+        """OUTPUT_LEVELS runs quietest to loudest; the tuple order is the gating rank."""
         # The tuple order encodes rank: silent < quiet < normal < verbose.
         actual = OUTPUT_LEVELS
         expected = ("silent", "quiet", "normal", "verbose")
@@ -86,6 +91,7 @@ class TestChannelGating:
     )
     def test_channels_for_level(self, ctx_with_writes, level, result_shown,
                                  output_shown, status_shown):
+        """result, output and status each appear from their own level up, and not below."""
         # Arrange
         ctx, writes = ctx_with_writes
         ctx.ns("flags")["output_level"] = level
@@ -105,6 +111,7 @@ class TestChannelGating:
         assert actual_status == status_shown, f"status at {level}"
 
     def test_call_level_overrides_global(self, ctx_with_writes):
+        """A per-call level beats the global one, so verbose shows status under normal."""
         # Arrange
         ctx, writes = ctx_with_writes
         ctx.ns("flags")["output_level"] = "normal"
@@ -118,6 +125,7 @@ class TestChannelGating:
         assert "CHATTER" in texts, "verbose override shows status"
 
     def test_default_when_unset(self, ctx_with_writes):
+        """With no flag or override, ctx.output_level falls back to the default."""
         # Arrange -- no flag, no override; falls back to DEFAULT_OUTPUT_LEVEL.
         ctx, writes = ctx_with_writes
 
@@ -145,6 +153,7 @@ class TestMarkupChannelGating:
         self, ctx_with_markup_writes, level,
         result_shown, output_shown, status_shown,
     ):
+        """The _markup channels gate at the same levels as their plain twins."""
         # Arrange
         ctx, writes = ctx_with_markup_writes
         ctx.ns("flags")["output_level"] = level
@@ -170,6 +179,7 @@ class TestMarkupChannelGating:
         )
 
     def test_markup_channels_route_through_write_markup(self, ctx_with_markup_writes):
+        """output_markup reaches _write_markup and never the plain _write."""
         # Arrange -- normal level so output_markup fires.
         ctx, writes = ctx_with_markup_writes
         ctx.ns("flags")["output_level"] = "normal"
@@ -188,6 +198,7 @@ class TestMarkupChannelGating:
 
 class TestStripLevelFlags:
     def test_strips_known_flag(self):
+        """A --level flag mid-args is removed and the remaining args rejoined."""
         actual_args, actual_level = _strip_level_flags("foo --silent bar")
         expected_args = "foo bar"
         expected_level = "silent"
@@ -195,20 +206,24 @@ class TestStripLevelFlags:
         assert actual_level == expected_level, "level captured"
 
     def test_no_flag_returns_none(self):
+        """Args with no level flag report no level, leaving the global in force."""
         _, actual_level = _strip_level_flags("foo bar")
         assert actual_level is None, "no level flag means no level"
 
     def test_empty_args(self):
+        """Empty args round-trip as empty with no level."""
         actual_args, actual_level = _strip_level_flags("")
         assert actual_args == "", "empty args round-trip"
         assert actual_level is None, "no level for empty args"
 
     def test_all_levels_recognized(self):
+        """Every LEVEL_FLAGS entry is recognized and maps to its level."""
         for flag, level in LEVEL_FLAGS.items():
             _, actual = _strip_level_flags(f"cmd {flag}")
             assert actual == level, f"{flag} maps to {level}"
 
     def test_last_wins_on_duplicate(self):
+        """When two level flags appear, the later one wins."""
         _, actual = _strip_level_flags("cmd --quiet --verbose")
         expected = "verbose"
         assert actual == expected, "later flag wins on duplicate"
@@ -254,6 +269,7 @@ class TestLevelSuffixDispatch:
     """`/cmd.<level>` overrides the level for that one call."""
 
     def test_quiet_suffix_shows_only_result(self, eng_with_test_command):
+        """The .quiet suffix keeps the result and drops output and status."""
         # Arrange
         eng, writes = eng_with_test_command
 
@@ -267,6 +283,7 @@ class TestLevelSuffixDispatch:
         assert "S" not in texts, "status suppressed at quiet"
 
     def test_silent_suffix_shows_nothing(self, eng_with_test_command):
+        """The .silent suffix writes nothing but still returns CmdResult.value for scripts."""
         # Arrange
         eng, writes = eng_with_test_command
 
@@ -280,6 +297,7 @@ class TestLevelSuffixDispatch:
         assert result.value == "VALUE", "silent preserves CmdResult.value"
 
     def test_verbose_suffix_shows_status(self, eng_with_test_command):
+        """The .verbose suffix lets status chatter through."""
         # Arrange
         eng, writes = eng_with_test_command
 
@@ -291,6 +309,7 @@ class TestLevelSuffixDispatch:
         assert "S" in texts, "status shown at verbose"
 
     def test_global_unaffected_by_suffix(self, eng_with_test_command):
+        """A suffix lasts one call; the next bare call is back at the global level."""
         # Arrange
         eng, writes = eng_with_test_command
         eng.dispatch("probe.silent")
@@ -309,6 +328,7 @@ class TestLevelFlagDispatch:
     """`/cmd --<level>` overrides the level for that one call."""
 
     def test_quiet_flag(self, eng_with_test_command):
+        """The --quiet flag gates like the .quiet suffix: result only."""
         # Arrange
         eng, writes = eng_with_test_command
 
@@ -321,6 +341,7 @@ class TestLevelFlagDispatch:
         assert "O" not in texts, "output suppressed at quiet flag"
 
     def test_silent_flag(self, eng_with_test_command):
+        """The --silent flag suppresses every channel like the .silent suffix."""
         # Arrange
         eng, writes = eng_with_test_command
 
@@ -333,6 +354,7 @@ class TestLevelFlagDispatch:
         assert actual == expected, "silent flag suppresses every channel"
 
     def test_conflicting_suffix_and_flag_errors(self, eng_with_test_command):
+        """A suffix and flag naming different levels is a Conflicting error, not a pick."""
         # Arrange
         eng, writes = eng_with_test_command
 
@@ -371,6 +393,7 @@ class TestBuiltinsRespectLevels:
     """End-to-end: real builtins gated correctly across the four levels."""
 
     def test_help_silent_emits_nothing(self, real_engine):
+        """Real /help at silent writes nothing to either the text or markup channel."""
         # Arrange
         eng, writes, markup = real_engine
 
@@ -384,6 +407,7 @@ class TestBuiltinsRespectLevels:
         )
 
     def test_help_normal_emits_markup(self, real_engine):
+        """Real /help at normal renders its text through the markup channel."""
         # Arrange
         eng, writes, markup = real_engine
 
@@ -394,6 +418,7 @@ class TestBuiltinsRespectLevels:
         assert len(markup) > 0, "/help at normal emits help text via output_markup"
 
     def test_help_verbose_emits_more_than_normal(self, real_engine):
+        """/help.verbose never emits less than plain /help."""
         # Arrange / Act / Assert
         eng, writes, markup = real_engine
         eng.dispatch("help")
@@ -407,6 +432,7 @@ class TestBuiltinsRespectLevels:
         )
 
     def test_print_silent_emits_nothing(self, real_engine):
+        """/print with --silent suppresses its payload."""
         # Arrange
         eng, writes, markup = real_engine
 
@@ -418,6 +444,7 @@ class TestBuiltinsRespectLevels:
         assert texts_with_payload == [], "/print.silent emits no payload"
 
     def test_print_normal_emits_text(self, real_engine):
+        """/print at normal writes its payload as plain text."""
         # Arrange
         eng, writes, markup = real_engine
 

@@ -33,6 +33,7 @@ def _example_files() -> list[Path]:
 
 
 def test_examples_dir_exists():
+    """examples/plugins/ sits where the load guards look, so they cannot pass vacuously."""
     # Arrange / Act / Assert
     assert _EXAMPLES_DIR.is_dir(), (
         f"examples/plugins/ missing at {_EXAMPLES_DIR} -- if you moved it, "
@@ -41,6 +42,7 @@ def test_examples_dir_exists():
 
 
 def test_examples_dir_not_empty():
+    """At least one example plugin exists, so the parametrized load checks actually run."""
     # Arrange / Act
     files = _example_files()
     # Assert

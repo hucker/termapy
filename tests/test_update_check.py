@@ -75,6 +75,7 @@ class TestHappyPath:
     def test_first_check_new_version_returns_version(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """A first check finding a newer release returns it and stamps the check time."""
         # Arrange - no prior state, PyPI reports a newer release.
         mock_pypi["result"] = "0.61.0"
 
@@ -95,6 +96,7 @@ class TestCheckInterval:
     def test_recent_check_skips_fetch(
         self, pin_state_dir, freeze_time, mock_pypi, monkeypatch
     ):
+        """Inside the 7-day window with a cached version, PyPI is never contacted."""
         # Arrange - last check was 1 day ago AND a version is already
         # cached, so the throttle applies; fetch must not be called.
         now = freeze_time["now"]
@@ -123,6 +125,7 @@ class TestCheckInterval:
     def test_missing_latest_seen_forces_check_despite_recent_timestamp(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """No cached version forces one seeding fetch even inside the 7-day window."""
         # Arrange - recent last_checked but NO cached version (the state
         # of an existing user right after upgrading to this build).  The
         # tooltip needs a value, so we must fetch once to seed it even
@@ -146,6 +149,7 @@ class TestCheckInterval:
     def test_old_check_triggers_fetch(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """A check older than the window fetches again and reports the newer release."""
         # Arrange - last check was 10 days ago; due for new check.
         now = freeze_time["now"]
         _write_state(
@@ -163,6 +167,7 @@ class TestCheckInterval:
     def test_exactly_7_days_is_due(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """The window boundary is inclusive: exactly 7 days old is due for a check."""
         # Arrange - last check exactly 7 days ago is due (>=).
         now = freeze_time["now"]
         _write_state(
@@ -185,6 +190,7 @@ class TestVersionCompare:
     def test_same_version_returns_none(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """PyPI matching the installed version produces no update banner."""
         # Arrange - PyPI reports the same version we're running.
         mock_pypi["result"] = "0.60.0"
 
@@ -197,6 +203,7 @@ class TestVersionCompare:
     def test_older_version_returns_none(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """A dev install ahead of PyPI is never told to downgrade."""
         # Arrange - user is ahead of PyPI (dev install).
         mock_pypi["result"] = "0.59.0"
 
@@ -209,6 +216,7 @@ class TestVersionCompare:
     def test_invalid_version_string_returns_none(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """An unparseable PyPI version is ignored silently rather than raising."""
         # Arrange - PyPI returns garbage in the version field.
         mock_pypi["result"] = "not-a-version"
 
@@ -226,6 +234,7 @@ class TestFetchFailure:
     def test_pypi_unreachable_returns_none(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """A failed fetch still stamps the attempt so a flaky network is not hammered."""
         # Arrange - _fetch_pypi_latest returns None on any network issue.
         mock_pypi["result"] = None
 
@@ -246,6 +255,7 @@ class TestStateCorruption:
     def test_malformed_json_treated_as_empty(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """A corrupt state.json reads as never checked, so the banner still fires."""
         # Arrange - write junk bytes where JSON should be.
         (pin_state_dir / "state.json").write_text("{not valid json")
         mock_pypi["result"] = "0.61.0"
@@ -259,6 +269,7 @@ class TestStateCorruption:
     def test_missing_state_dir_still_works(
         self, monkeypatch, tmp_path, freeze_time, mock_pypi
     ):
+        """A state folder that does not exist yet is created rather than failing."""
         # Arrange - point to a dir that doesn't exist yet.
         monkeypatch.setenv("TERMAPY_STATE_DIR", str(tmp_path / "does_not_exist"))
         mock_pypi["result"] = "0.61.0"
@@ -277,6 +288,7 @@ class TestNeverRaises:
     def test_arbitrary_exception_in_fetch_is_swallowed(
         self, pin_state_dir, freeze_time, monkeypatch
     ):
+        """An unexpected exception from the fetch is swallowed into a None result."""
         # Arrange - make _fetch_pypi_latest raise something unexpected.
         def _explode():
             raise RuntimeError("totally unexpected")
@@ -299,6 +311,7 @@ class TestCheckNow:
     """
 
     def test_returns_latest_and_outdated_true_when_newer(self, mock_pypi):
+        """A newer PyPI release comes back verbatim with outdated set."""
         # Arrange
         mock_pypi["result"] = "0.66.1"
 
@@ -310,6 +323,7 @@ class TestCheckNow:
         assert outdated is True, "0.66.1 > 0.66.0 -> outdated"
 
     def test_returns_latest_and_outdated_false_when_same(self, mock_pypi):
+        """An equal PyPI version is still returned, with outdated cleared."""
         # Arrange
         mock_pypi["result"] = "0.66.0"
 
@@ -321,6 +335,7 @@ class TestCheckNow:
         assert outdated is False, "same version -> not outdated"
 
     def test_returns_none_when_pypi_fetch_fails(self, mock_pypi):
+        """A failed fetch yields (None, False) for the command to report."""
         # Arrange
         mock_pypi["result"] = None
 
@@ -334,6 +349,7 @@ class TestCheckNow:
     def test_does_not_touch_state_file(
         self, pin_state_dir, mock_pypi,
     ):
+        """The interactive path never writes state.json; only the background check does."""
         # Arrange -- check_now must NOT write state.json (that's the
         # background banner's contract; this is the interactive path).
         mock_pypi["result"] = "0.66.1"
@@ -349,6 +365,7 @@ class TestCheckNow:
     def test_bypasses_7_day_throttle(
         self, pin_state_dir, freeze_time, mock_pypi,
     ):
+        """A check one minute ago does not stop the on-demand path from fetching."""
         # Arrange -- state.json shows we just checked 1 minute ago.
         # check() would skip; check_now must fetch anyway.
         now = freeze_time["now"]
@@ -377,6 +394,7 @@ class TestLatestSeenPersistence:
     def test_caches_latest_seen_on_successful_fetch(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """A successful fetch caches the PyPI version for later network-free reads."""
         # Arrange -- first check, PyPI reports a newer release.
         mock_pypi["result"] = "0.61.0"
 
@@ -392,6 +410,7 @@ class TestLatestSeenPersistence:
     def test_caches_latest_seen_even_when_up_to_date(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """An up-to-date install returns no banner yet still caches the version."""
         # Arrange -- installed == latest; check() returns None (no banner)
         # but must still cache the version so the tooltip can say so.
         mock_pypi["result"] = "0.66.0"
@@ -409,6 +428,7 @@ class TestLatestSeenPersistence:
     def test_failed_fetch_preserves_prior_latest_seen(
         self, pin_state_dir, freeze_time, mock_pypi
     ):
+        """A failed fetch keeps the last known PyPI version instead of erasing it."""
         # Arrange -- a prior good check cached 0.66.0; now (>7 days later)
         # the network is down.  The last known version must survive.
         now = freeze_time["now"]
@@ -435,6 +455,7 @@ class TestCachedStatus:
     """Network-free status read for ambient UI (the Help tooltip)."""
 
     def test_none_when_never_checked(self, pin_state_dir, monkeypatch):
+        """With no cache it reports nothing and never falls back to the network."""
         # Arrange -- no state file, and the network must never be touched.
         def _no_network():
             raise AssertionError("cached_status must not hit the network")
@@ -449,6 +470,7 @@ class TestCachedStatus:
         assert outdated is False, "no latest -> can't be outdated"
 
     def test_outdated_true_when_cached_is_newer(self, pin_state_dir):
+        """A cached version newer than installed reports an update available."""
         # Arrange
         _write_state(pin_state_dir, {"latest_seen": "0.67.0"})
 
@@ -460,6 +482,7 @@ class TestCachedStatus:
         assert outdated is True, "0.67.0 > 0.66.0 -> update available"
 
     def test_outdated_false_when_cached_equals_current(self, pin_state_dir):
+        """A cached version equal to installed reports up to date."""
         # Arrange
         _write_state(pin_state_dir, {"latest_seen": "0.66.0"})
 
@@ -471,6 +494,7 @@ class TestCachedStatus:
         assert outdated is False, "same version -> up to date"
 
     def test_non_string_latest_seen_is_ignored(self, pin_state_dir):
+        """A non-string cached version is treated as absent rather than raising."""
         # Arrange -- corrupt state must not raise, just yield nothing.
         _write_state(pin_state_dir, {"latest_seen": 123})
 

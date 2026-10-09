@@ -18,6 +18,7 @@ class TestExtractDocstring:
     """The parser is intentionally tiny -- exhaust the corner cases."""
 
     def test_single_line_docstring(self, tmp_path):
+        """A single leading comment line is both the summary and the full docstring."""
         # Arrange
         path = _write(tmp_path, "# Smoke-test the device.\n/port.connect\n")
 
@@ -31,6 +32,7 @@ class TestExtractDocstring:
         )
 
     def test_multiline_block_summary_is_first_line(self, tmp_path):
+        """Summary is line one; the full text keeps every line with one leading space stripped."""
         # Arrange
         path = _write(
             tmp_path,
@@ -53,6 +55,7 @@ class TestExtractDocstring:
         assert full == expected_full, "full block preserved with one-space strip"
 
     def test_block_with_blank_comment_lines(self, tmp_path):
+        """A bare # line becomes a blank line, keeping paragraph breaks in the full text."""
         # Arrange -- ``#`` alone is a paragraph separator (Python-doc style).
         path = _write(
             tmp_path,
@@ -74,6 +77,7 @@ class TestExtractDocstring:
         assert "\n\nParagraph" in full, "blank line separates paragraphs"
 
     def test_block_ends_at_non_comment_line(self, tmp_path):
+        """Comments after the first command are not docstring, even though they start with #."""
         # Arrange -- a non-# line ends the block; subsequent # lines are
         # NOT part of the docstring.
         path = _write(
@@ -92,6 +96,7 @@ class TestExtractDocstring:
         assert "NOT part" not in full, "interior comments excluded"
 
     def test_block_ends_at_blank_line(self, tmp_path):
+        """A blank line closes the docstring, so a second comment block is excluded."""
         # Arrange -- a blank line ends the block (no leading-#).
         path = _write(
             tmp_path,
@@ -109,6 +114,7 @@ class TestExtractDocstring:
         assert full == "Header.", "second block excluded"
 
     def test_no_docstring_returns_empty_strings(self, tmp_path):
+        """A script with no leading comment yields two empty strings rather than None."""
         # Arrange -- script with no leading comment.
         path = _write(tmp_path, "/port.connect\n/cap.text out.txt\n")
 
@@ -120,6 +126,7 @@ class TestExtractDocstring:
         assert full == "", "no docstring -> empty full"
 
     def test_leading_blank_line_means_no_docstring(self, tmp_path):
+        """The docstring must start on line one; a leading blank line voids it, as in Python."""
         # Arrange -- strict: docstring MUST be at the very top.
         path = _write(tmp_path, "\n# Description.\n/cmd\n")
 
@@ -131,6 +138,7 @@ class TestExtractDocstring:
         assert full == "", "matches Python docstring strictness"
 
     def test_comment_without_leading_space_preserved(self, tmp_path):
+        """#text with no space is still a docstring and loses no characters to stripping."""
         # Arrange -- "#text" (no space after #) is accepted, no space stripped.
         path = _write(tmp_path, "#NoSpace\n/cmd\n")
 
@@ -142,6 +150,7 @@ class TestExtractDocstring:
         assert full == "NoSpace", "single-line ok"
 
     def test_missing_file_returns_empty(self, tmp_path):
+        """A missing .run file yields empty strings rather than raising, so listings never crash."""
         # Arrange / Act
         summary, full = extract_docstring(tmp_path / "does_not_exist.run")
 
@@ -150,6 +159,7 @@ class TestExtractDocstring:
         assert full == "", "missing file is benign"
 
     def test_trailing_whitespace_in_summary_stripped(self, tmp_path):
+        """Trailing spaces are stripped from the summary so /run.list columns stay narrow."""
         # Arrange
         path = _write(tmp_path, "# Trailing space.   \n/cmd\n")
 

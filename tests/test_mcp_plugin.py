@@ -63,6 +63,7 @@ def env(tmp_path):
 
 class TestMcpCatalog:
     def test_dispatch_succeeds(self, env):
+        """/mcp.catalog runs cleanly from a plain REPL context with no profile."""
         # Arrange / Act
         eng, _ctx, _output = env
         result = eng.dispatch("mcp.catalog")
@@ -70,6 +71,7 @@ class TestMcpCatalog:
         assert result.success is True, "/mcp.catalog returns success"
 
     def test_value_is_parseable_json(self, env):
+        """The returned value is schema-1 JSON with a commands list, not prose."""
         # Arrange / Act
         eng, _ctx, _output = env
         result = eng.dispatch("mcp.catalog")
@@ -93,6 +95,7 @@ class TestMcpCatalog:
         )
 
     def test_includes_known_command(self, env):
+        """Catalog entries carry the / prefix and include core commands like /help."""
         # Arrange / Act
         eng, _ctx, _output = env
         result = eng.dispatch("mcp.catalog")
@@ -109,6 +112,7 @@ class TestMcpCatalog:
 
 class TestMcpInfo:
     def test_dispatch_succeeds(self, env):
+        """/mcp.info runs cleanly with no profile loaded."""
         # Arrange / Act
         eng, _ctx, _output = env
         result = eng.dispatch("mcp.info")
@@ -116,6 +120,7 @@ class TestMcpInfo:
         assert result.success is True, "/mcp.info succeeds"
 
     def test_output_includes_command_count(self, env):
+        """The status page reports the commands, port and captures rows."""
         # Arrange / Act
         eng, _ctx, output = env
         eng.dispatch("mcp.info")
@@ -127,6 +132,7 @@ class TestMcpInfo:
         assert "captures" in full.lower(), "lists captures"
 
     def test_value_is_command_count(self, env):
+        """The scriptable value is the positive command count."""
         # Arrange / Act
         eng, _ctx, _output = env
         result = eng.dispatch("mcp.info")
@@ -134,6 +140,7 @@ class TestMcpInfo:
         assert int(result.value) > 0, "value is the command count integer"
 
     def test_destructive_count_zero_when_no_profile(self, env):
+        """With no profile the destructive row still appears and reads 0."""
         # Arrange / Act -- no /profile.load, no /include
         eng, _ctx, output = env
         eng.dispatch("mcp.info")
@@ -145,6 +152,7 @@ class TestMcpInfo:
         )
 
     def test_no_profile_omits_enabled_row(self, env):
+        """No profile means no profile_enabled row, rather than a meaningless 0 of 0."""
         # Arrange / Act -- no /profile.load, no /include
         eng, _ctx, output = env
         eng.dispatch("mcp.info")
@@ -156,6 +164,7 @@ class TestMcpInfo:
         )
 
     def test_enabled_split_when_profile_has_drafts(self, env):
+        """Disabled profile entries show as N of M with a drafts-pending-review count."""
         # Arrange -- seed profile with one enabled and two disabled entries
         eng, ctx, output = env
         ns = ctx.ns("active_profile")
@@ -177,6 +186,7 @@ class TestMcpInfo:
         )
 
     def test_enabled_split_all_enabled(self, env):
+        """A profile with every entry enabled reads N of N, all enabled."""
         # Arrange -- profile with everything enabled (curated steady state)
         eng, ctx, output = env
         ns = ctx.ns("active_profile")
@@ -195,6 +205,7 @@ class TestMcpInfo:
         assert "all enabled" in full, "happy-path phrasing"
 
     def test_destructive_count_lists_names_when_present(self, env):
+        """Destructive profile entries are counted and named, e.g. 1 (AT+RESET)."""
         # Arrange -- seed an active profile with one destructive entry
         eng, ctx, output = env
         ns = ctx.ns("active_profile")
@@ -237,6 +248,7 @@ class TestMcpLog:
         return log
 
     def test_log_path_reports_location_when_absent(self, env):
+        """/mcp.log.path gives the path and marks it not yet created before MCP has run."""
         # Arrange / Act -- no log file written yet
         eng, _ctx, output = env
         result = eng.dispatch("mcp.log.path")
@@ -249,6 +261,7 @@ class TestMcpLog:
         )
 
     def test_log_path_reports_location_when_present(self, env):
+        """An existing log is reported without the not-yet-created marker."""
         # Arrange
         eng, ctx, output = env
         self._seed_log(ctx, "fake log content\n")
@@ -264,6 +277,7 @@ class TestMcpLog:
         )
 
     def test_log_dump_when_absent_fails_cleanly(self, env):
+        """Dumping a missing log is a not-found error, not a crash or empty success."""
         # Arrange / Act
         eng, _ctx, _output = env
         result = eng.dispatch("mcp.log.dump")
@@ -272,6 +286,7 @@ class TestMcpLog:
         assert "not found" in result.error, "names the failure mode"
 
     def test_log_dump_prints_full_log(self, env):
+        """A bare dump prints every line and returns the line count as its value."""
         # Arrange
         eng, ctx, output = env
         self._seed_log(ctx, "line 1\nline 2\nline 3\n")
@@ -285,6 +300,7 @@ class TestMcpLog:
         assert "line 1" in text and "line 3" in text, "all lines printed"
 
     def test_log_dump_n_prints_last_n(self, env):
+        """A positive N tails the log, printing only the last N lines."""
         # Arrange
         eng, ctx, output = env
         self._seed_log(ctx, "a\nb\nc\nd\ne\n")
@@ -298,6 +314,7 @@ class TestMcpLog:
         assert "a" not in text.split("\n")[0], "earlier lines suppressed"
 
     def test_log_dump_negative_n_prints_first_n(self, env):
+        """A negative N heads the log, printing the first N lines in order."""
         # Arrange
         eng, ctx, output = env
         self._seed_log(ctx, "a\nb\nc\nd\ne\n")
@@ -313,6 +330,7 @@ class TestMcpLog:
         assert "e" not in printed, "later lines suppressed"
 
     def test_log_dump_invalid_n_fails(self, env):
+        """A non-integer N is a usage error rather than a silent full dump."""
         # Arrange
         eng, ctx, _output = env
         self._seed_log(ctx, "x\n")
@@ -323,6 +341,7 @@ class TestMcpLog:
         assert "Usage" in result.error, "usage shown"
 
     def test_log_dump_zero_n_fails(self, env):
+        """N=0 is rejected as ambiguous between head and tail, and the error names it."""
         # Arrange
         eng, ctx, _output = env
         self._seed_log(ctx, "x\ny\n")

@@ -11,6 +11,7 @@ from termapy.tree_render import FileTree, file_meta
 
 class TestEmpty:
     def test_no_sections_renders_no_lines(self):
+        """No sections yields an empty list, not a stray root or blank line."""
         # Arrange
         # Act
         actual = FileTree(sections=[]).render()
@@ -22,6 +23,7 @@ class TestEmpty:
 
 class TestRootLevelFiles:
     def test_single_file_uses_last_connector(self):
+        """A lone root file gets the closing corner connector, never a branch."""
         # Arrange
         sections = [("a.run", [])]
 
@@ -33,6 +35,7 @@ class TestRootLevelFiles:
         assert actual == expected, "lone file is the last entry"
 
     def test_multiple_files_branch_then_terminate(self):
+        """Only the final root file closes the tree; earlier ones use the branch connector."""
         # Arrange
         sections = [("a.run", []), ("b.run", []), ("c.run", [])]
 
@@ -46,6 +49,7 @@ class TestRootLevelFiles:
 
 class TestDirectories:
     def test_single_dir_with_children(self):
+        """Children of the last folder indent with spaces, since no spine continues below."""
         # Arrange
         sections = [("run/", ["a.run", "b.run"])]
 
@@ -57,6 +61,7 @@ class TestDirectories:
         assert actual == expected, "last dir uses spaces under it"
 
     def test_two_dirs_first_uses_pipe_indent(self):
+        """A non-last folder carries the vertical spine through its children."""
         # Arrange
         sections = [("run/", ["a.run"]), ("proto/", ["x.pro"])]
 
@@ -73,6 +78,7 @@ class TestDirectories:
         assert actual == expected, "non-last dir threads │ through children"
 
     def test_empty_directory_renders_header_only(self):
+        """An empty folder renders its own line and nothing under it."""
         # Arrange
         sections = [("run/", [])]
 
@@ -86,6 +92,7 @@ class TestDirectories:
 
 class TestMixed:
     def test_dirs_then_loose_files(self):
+        """A loose file after a folder makes that folder non-last, so it keeps the spine."""
         # Arrange -- caller responsibility: dirs come before loose files
         sections = [("run/", ["a.run"]), ("readme.md", [])]
 
@@ -106,6 +113,7 @@ class TestMixed:
 
 class TestColor:
     def test_color_off_emits_plain_ascii(self):
+        """color=False emits no Rich markup, so plain output can't show stray tags."""
         # Arrange
         sections = [("run/", ["a.run"])]
 
@@ -117,6 +125,7 @@ class TestColor:
             assert "[" not in line, f"plain output has no markup, got {line!r}"
 
     def test_color_on_wraps_dirs_files_connectors(self):
+        """color=True dims connectors and colors folders cyan and files blue."""
         # Arrange
         sections = [("run/", ["a.run"])]
 
@@ -137,6 +146,7 @@ class TestColor:
 
 class TestIndent:
     def test_indent_prepended_to_every_line(self):
+        """The indent prefix lands on every line, child lines included."""
         # Arrange
         sections = [("run/", ["a.run"]), ("b.run", [])]
 
@@ -153,6 +163,7 @@ class TestIndent:
 
 class TestFileDates:
     def test_file_dates_appends_metadata_columns(self, tmp_path: Path):
+        """file_dates pads names to name_width and appends size columns from disk."""
         # Arrange -- create a real file so file_meta() succeeds
         run_dir = tmp_path / "run"
         run_dir.mkdir()
@@ -177,6 +188,7 @@ class TestFileDates:
         )
 
     def test_no_file_dates_omits_padding(self):
+        """Without file_dates, name_width is ignored and names carry no padding."""
         # Arrange -- with file_dates=False, name_width has no effect
         sections = [("a.run", [])]
 
@@ -192,6 +204,7 @@ class TestFileDates:
         assert actual == expected, "no padding when file_dates=False"
 
     def test_file_meta_handles_missing_file(self, tmp_path: Path):
+        """A missing file yields ? placeholders instead of raising."""
         # Arrange -- point at a file that doesn't exist
         # Act
         actual = file_meta(tmp_path / "nonexistent.run")
@@ -208,6 +221,7 @@ class TestHelpStyleSections:
     """The shape help.py builds: ``[(dirname/, [files]), ..., (loose, [])]``."""
 
     def test_dirs_then_loose_at_root(self):
+        """The indented two-config tree the help page builds renders with the full hierarchy."""
         # Arrange
         sections = [
             ("demo/", [".target_menu.cfg", "demo.cfg"]),

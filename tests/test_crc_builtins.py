@@ -8,9 +8,11 @@ from termapy.builtins.crc.sum16 import NAME as SUM16_NAME, WIDTH as SUM16_WIDTH,
 
 class TestSum8Attributes:
     def test_name(self):
+        """NAME is sum8, the key the CRC plugin loader registers this module under."""
         assert SUM8_NAME == "sum8", "module NAME should be 'sum8'"
 
     def test_width(self):
+        """WIDTH is 1: a sum8 checksum occupies a single byte in a frame."""
         assert SUM8_WIDTH == 1, "WIDTH should be 1 byte"
 
 
@@ -19,6 +21,7 @@ class TestSum8Attributes:
 
 class TestSum8Compute:
     def test_empty(self):
+        """An empty payload sums to 0 rather than raising."""
         # Act
         actual = sum8(b"")
 
@@ -26,6 +29,7 @@ class TestSum8Compute:
         assert actual == 0, f"expected 0 for empty input, got {actual}"
 
     def test_single_byte(self):
+        """A lone byte comes back as itself, with no seed or inversion applied."""
         # Act
         actual = sum8(b"\x42")
 
@@ -33,6 +37,7 @@ class TestSum8Compute:
         assert actual == 0x42, f"expected 0x42, got {actual:#x}"
 
     def test_known_sum(self):
+        """Bytes with no carry sum plainly: 1 through 5 gives 15."""
         # Arrange
         data = bytes([1, 2, 3, 4, 5])
 
@@ -44,6 +49,7 @@ class TestSum8Compute:
         assert actual == expected, f"expected {expected}, got {actual}"
 
     def test_wraps_at_256(self):
+        """A carry out of 8 bits is discarded: 0xFF + 0x01 gives 0x00."""
         # Arrange - 0xFF + 0x01 = 0x100, should wrap to 0x00
         data = bytes([0xFF, 0x01])
 
@@ -55,6 +61,7 @@ class TestSum8Compute:
         assert actual == expected, f"expected {expected:#x}, got {actual:#x}"
 
     def test_all_ff(self):
+        """Repeated carries are all discarded: three 0xFF bytes give 0xFD."""
         # Arrange - 3 * 0xFF = 765 = 0x2FD, mod 256 = 0xFD
         data = bytes([0xFF, 0xFF, 0xFF])
 
@@ -66,6 +73,7 @@ class TestSum8Compute:
         assert actual == expected, f"expected {expected:#x}, got {actual:#x}"
 
     def test_ascii_hello(self):
+        """Text sums by byte value: Hello totals 500 and truncates to 244."""
         # Arrange
         data = b"Hello"
 
@@ -82,9 +90,11 @@ class TestSum8Compute:
 
 class TestSum16Attributes:
     def test_name(self):
+        """NAME is sum16, the key the CRC plugin loader registers this module under."""
         assert SUM16_NAME == "sum16", "module NAME should be 'sum16'"
 
     def test_width(self):
+        """WIDTH is 2: a sum16 checksum occupies two bytes in a frame."""
         assert SUM16_WIDTH == 2, "WIDTH should be 2 bytes"
 
 
@@ -93,6 +103,7 @@ class TestSum16Attributes:
 
 class TestSum16Compute:
     def test_empty(self):
+        """An empty payload sums to 0 in the 16-bit variant too."""
         # Act
         actual = sum16(b"")
 
@@ -100,6 +111,7 @@ class TestSum16Compute:
         assert actual == 0, f"expected 0 for empty input, got {actual}"
 
     def test_single_byte(self):
+        """A lone byte comes back as itself in the low half of the 16-bit sum."""
         # Act
         actual = sum16(b"\x42")
 
@@ -107,6 +119,7 @@ class TestSum16Compute:
         assert actual == 0x42, f"expected 0x42, got {actual:#x}"
 
     def test_known_sum(self):
+        """Below 8 bits of total, sum16 agrees with sum8: 1 through 5 gives 15."""
         # Arrange
         data = bytes([1, 2, 3, 4, 5])
 
@@ -118,6 +131,7 @@ class TestSum16Compute:
         assert actual == expected, f"expected {expected}, got {actual}"
 
     def test_does_not_wrap_at_256(self):
+        """The carry out of 8 bits is kept: 0xFF + 0x01 gives 0x100, not 0x00."""
         # Arrange - 0xFF + 0x01 = 0x100, should NOT wrap at 8 bits
         data = bytes([0xFF, 0x01])
 
@@ -129,6 +143,7 @@ class TestSum16Compute:
         assert actual == expected, f"expected {expected:#x}, got {actual:#x}"
 
     def test_wraps_at_65536(self):
+        """A 257-byte payload totaling 65281 comes back unchanged; despite the name, no wrap."""
         # Arrange - 0xFFFF + 0x01 = 0x10000, should wrap to 0x0000
         data = bytes([0xFF] * 256 + [0x01])
 
@@ -140,6 +155,7 @@ class TestSum16Compute:
         assert actual == expected, f"expected {expected:#x}, got {actual:#x}"
 
     def test_large_wraps(self):
+        """257 bytes of 0xFF land exactly on 0xFFFF; despite the name, nothing wraps."""
         # Arrange - 257 * 0xFF = 65535 = 0xFFFF
         data = bytes([0xFF] * 257)
 
@@ -151,6 +167,7 @@ class TestSum16Compute:
         assert actual == expected, f"expected {expected:#x}, got {actual:#x}"
 
     def test_ascii_hello(self):
+        """Hello keeps its full total of 500, the value sum8 truncates to 244."""
         # Arrange
         data = b"Hello"
 
@@ -162,6 +179,7 @@ class TestSum16Compute:
         assert actual == expected, f"expected {expected}, got {actual}"
 
     def test_sum8_vs_sum16_differ_on_overflow(self):
+        """Three 0x80 bytes: sum8 drops the carry (0x80) while sum16 keeps it (0x180)."""
         # Arrange - data that overflows 8 bits but not 16
         data = bytes([0x80, 0x80, 0x80])
 

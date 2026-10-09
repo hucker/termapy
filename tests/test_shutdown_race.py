@@ -18,6 +18,7 @@ from termapy.app import SHUTDOWN_RACE
 
 class TestShutdownRaceMembership:
     def test_contains_no_matches(self):
+        """NoMatches from a torn-down widget query is a tolerated teardown race."""
         # NoMatches is what query_one raises when a widget is gone -- the
         # most common shutdown-race exception in termapy.
         assert NoMatches in SHUTDOWN_RACE, \
@@ -25,6 +26,7 @@ class TestShutdownRaceMembership:
             "during teardown are quietly swallowed"
 
     def test_contains_runtime_error(self):
+        """RuntimeError from call_from_thread on a closing loop is tolerated."""
         # RuntimeError is raised by call_from_thread when the event
         # loop is shutting down.
         assert RuntimeError in SHUTDOWN_RACE, \
@@ -32,6 +34,7 @@ class TestShutdownRaceMembership:
             "failures during teardown are quietly swallowed"
 
     def test_does_not_contain_generic_exception(self):
+        """Bare Exception stays out of the tuple so real bugs are never swallowed."""
         # The whole point of this tuple is to avoid swallowing arbitrary
         # exceptions -- real bugs should propagate.  If Exception ever
         # ends up in the tuple (e.g. someone 'cleaning up' the types),
@@ -43,6 +46,7 @@ class TestShutdownRaceMembership:
 
 class TestShutdownRaceBehavior:
     def test_swallows_no_matches(self):
+        """An except SHUTDOWN_RACE clause actually catches a raised NoMatches."""
         # Arrange / Act / Assert -- should not raise
         try:
             raise NoMatches("gone")
@@ -50,6 +54,7 @@ class TestShutdownRaceBehavior:
             pass  # expected
 
     def test_swallows_runtime_error(self):
+        """An except SHUTDOWN_RACE clause actually catches a raised RuntimeError."""
         # Arrange / Act / Assert
         try:
             raise RuntimeError("loop closed")
@@ -57,6 +62,7 @@ class TestShutdownRaceBehavior:
             pass  # expected
 
     def test_lets_value_error_propagate(self):
+        """A ValueError passes through an except SHUTDOWN_RACE clause uncaught."""
         # Arrange / Act / Assert -- real bugs still bubble up.
         import pytest
 
@@ -67,6 +73,7 @@ class TestShutdownRaceBehavior:
                 pass  # this branch must NOT catch ValueError
 
     def test_lets_type_error_propagate(self):
+        """A TypeError passes through an except SHUTDOWN_RACE clause uncaught."""
         # Arrange / Act / Assert -- belt and suspenders.
         import pytest
 

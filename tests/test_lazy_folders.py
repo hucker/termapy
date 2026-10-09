@@ -99,6 +99,7 @@ class _Host(App):
 
 class TestEnsureFolder:
     def test_creates_nested_parents_and_returns_the_folder(self, tmp_path):
+        """Missing parents are created and the folder is returned so callers can join onto it."""
         # Arrange
         folder = tmp_path / "rig" / "cap"
 
@@ -110,6 +111,7 @@ class TestEnsureFolder:
         assert folder.is_dir(), "created, parents included"
 
     def test_idempotent_and_content_preserving(self, tmp_path):
+        """Ensuring an existing folder again is harmless and leaves its files in place."""
         # Arrange
         folder = ensure_folder(tmp_path / "cap")
         (folder / "keep.txt").write_text("x", encoding="utf-8")
@@ -123,6 +125,7 @@ class TestEnsureFolder:
 
 class TestPruneEmptyFolders:
     def test_removes_only_empty_folders_named_in_folders(self, tmp_path):
+        """Only empty FOLDERS entries go; a file or lone dotfile keeps one, foreign folders stay."""
         # Arrange -- every data folder empty except run/ (a file) and sym/ (a dotfile),
         # plus three folders that are not termapy's to remove.
         for name in FOLDER_NAMES:
@@ -145,6 +148,7 @@ class TestPruneEmptyFolders:
         )
 
     def test_missing_root_is_a_no_op(self, tmp_path):
+        """Pruning a root that does not exist returns nothing and raises nothing."""
         # Act
         actual = prune_empty_folders(tmp_path / "nope", FOLDER_NAMES)
 
@@ -152,6 +156,7 @@ class TestPruneEmptyFolders:
         assert actual == [], "nothing to prune, nothing raised"
 
     def test_global_plugins_dir_is_a_path_not_a_creation(self, tmp_path):
+        """Resolving the global plugin/ path is a read and never creates the folder."""
         # Act
         actual = global_plugins_dir(tmp_path)
 
@@ -165,6 +170,7 @@ class TestPruneEmptyFolders:
 
 class TestPruneAtLoadAndStop:
     def test_cli_config_load_drops_empty_data_folders_and_keeps_the_rest(self, tmp_path):
+        """CLI on_app_start prunes empty data folders and the global plugin/, keeping mcp/."""
         # Arrange -- the layout an older termapy left behind, plus folders that are
         # not termapy's, plus an empty global plugin/ on the cfg root.
         cfg, config_path = _write_cfg(tmp_path)
@@ -184,6 +190,7 @@ class TestPruneAtLoadAndStop:
         assert not (tmp_path / "plugin").exists(), "the global plugin/ follows the same rule"
 
     def test_app_stop_drops_a_folder_the_user_emptied_during_the_session(self, cli):
+        """A folder emptied by /cap.clear mid-session is removed when the app stops."""
         # Arrange -- a capture landed in cap/, then the user cleared it
         parent = Path(cli.config_path).parent
         (ensure_folder(parent / "cap") / "old.txt").write_text("x", encoding="utf-8")
@@ -199,6 +206,7 @@ class TestPruneAtLoadAndStop:
         assert not (parent / "cap").exists(), "an emptied folder does not survive the session"
 
     def test_tui_boot_drops_empty_data_folders(self, tmp_path):
+        """The TUI prunes empty data folders at boot exactly as the CLI does."""
         async def scenario():
             from termapy.app import SerialTerminal
 
@@ -225,6 +233,7 @@ class TestPruneAtLoadAndStop:
 
 class TestCliWritersCreateTheirFolder:
     def test_cap_text_creates_cap(self, cli):
+        """/cap.text on a bare config creates cap/ to hold its capture file."""
         # Act
         result = cli.repl.dispatch("cap.text out.txt timeout=5s")
         cli.repl.dispatch("cap.stop")
@@ -236,6 +245,7 @@ class TestCliWritersCreateTheirFolder:
         )
 
     def test_run_record_creates_run(self, cli):
+        """/run.record on a bare config creates run/ to hold the recording."""
         # Act
         result = cli.repl.dispatch("run.record session")
         cli.repl.dispatch("run.record")  # stop
@@ -247,6 +257,7 @@ class TestCliWritersCreateTheirFolder:
         )
 
     def test_run_profile_creates_prof(self, cli):
+        """/run.profile creates prof/ for its timing CSV when only run/ exists."""
         # Arrange -- the user's script; the folder it sits in is theirs to make
         parent = Path(cli.config_path).parent
         (parent / "run").mkdir()
@@ -260,6 +271,7 @@ class TestCliWritersCreateTheirFolder:
         assert list((parent / "prof").glob("*.csv")), "prof/ appeared with the timing CSV"
 
     def test_run_profile_cmd_creates_run_and_prof(self, cli):
+        """/run.profile.cmd creates run/ for its temp script and prof/ for the timing CSV."""
         # Act
         result = cli.repl.dispatch("run.profile.cmd /print hi")
 
@@ -270,6 +282,7 @@ class TestCliWritersCreateTheirFolder:
         assert list((parent / "prof").glob("*.csv")), "prof/ appeared with the timing CSV"
 
     def test_run_edit_creates_run_before_opening_the_new_file(self, cli):
+        """/run.edit makes run/ before handing a new script to the editor, so it can save."""
         # Arrange
         opened = _grant_gui_apps(cli.ctx)
 
@@ -283,6 +296,7 @@ class TestCliWritersCreateTheirFolder:
         assert opened == [str(expected)], "the new script was handed to the editor"
 
     def test_sym_import_creates_sym(self, cli):
+        """/sym.import on a bare config creates sym/ to hold the symbol table."""
         # Act
         result = cli.repl.dispatch(f"sym.import {XC32_MAP}")
 
@@ -322,6 +336,7 @@ class TestCliWritersCreateTheirFolder:
 
     @pytest.mark.slow  # a real (simulated) YMODEM transfer through the reader thread
     def test_ymodem_recv_creates_cap(self, cli):
+        """A YMODEM receive on a bare config creates cap/ for the incoming file."""
         # Arrange -- put the demo device in send mode, as tests/test_ymodem.py does;
         # the settle wait lets its "OK" reach the queue before the handler drains it.
         with cli.ctx.serial.io():
@@ -340,6 +355,7 @@ class TestCliWritersCreateTheirFolder:
 
 class TestTuiWritersCreateTheirFolder:
     def test_screenshot_actions_create_ss(self, tmp_path):
+        """The SVG and text screenshot actions both create ss/ on a bare config."""
         async def scenario():
             from termapy.app import SerialTerminal
 
@@ -362,6 +378,7 @@ class TestTuiWritersCreateTheirFolder:
         _run(scenario)
 
     def test_ss_txt_hook_creates_ss(self, tmp_path):
+        """The /ss.txt hook, run from a worker thread, creates ss/ for its output."""
         async def scenario():
             from termapy.app import SerialTerminal
             from termapy.app_hooks import _hook_ss_txt
@@ -398,6 +415,7 @@ class TestTuiWritersCreateTheirFolder:
         _run(scenario)
 
     def test_ss_and_captures_buttons_create_and_open_their_folder(self, tmp_path):
+        """The SS and Captures buttons create ss/ and cap/ before opening them."""
         async def scenario():
             from termapy.app import SerialTerminal
 
@@ -425,6 +443,7 @@ class TestTuiWritersCreateTheirFolder:
         _run(scenario)
 
     def test_script_editor_save_creates_run(self, tmp_path):
+        """Saving in ScriptEditor creates a missing run/ and returns the new script path."""
         async def scenario():
             # Arrange
             run_dir = tmp_path / "rig" / "run"
@@ -447,6 +466,7 @@ class TestTuiWritersCreateTheirFolder:
         _run(scenario)
 
     def test_proto_editor_save_creates_proto(self, tmp_path):
+        """Saving in ProtoEditor creates a missing proto/ and returns the new .pro path."""
         async def scenario():
             # Arrange
             proto_dir = tmp_path / "rig" / "proto"
@@ -474,6 +494,7 @@ class TestTuiWritersCreateTheirFolder:
 
 class TestCfgInfoTree:
     def test_lists_only_folders_that_exist(self, tmp_path):
+        """/cfg.info lists a data folder only once it exists on disk, with its files."""
         # Arrange
         _, config_path = _write_cfg(tmp_path)
 

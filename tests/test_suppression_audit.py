@@ -28,6 +28,7 @@ class TestClassify:
     """The bare/reason-less decision on individual source lines."""
 
     def test_noqa_coded_with_reason_passes(self):
+        """A noqa with a rule code and trailing reason is parsed in full and passes."""
         # Act
         s = classify("f.py", 1, "x = f()  # noqa: BLE001 -- boundary thread")
 
@@ -39,6 +40,7 @@ class TestClassify:
         assert not s.is_offender, "coded + reason passes the gate"
 
     def test_noqa_bare_is_offender(self):
+        """A noqa with no rule code is bare and fails the gate."""
         # Act
         s = classify("f.py", 1, "x = f()  # noqa")
 
@@ -47,6 +49,7 @@ class TestClassify:
         assert s.is_offender, "a bare suppression fails the gate"
 
     def test_noqa_coded_but_reasonless_is_offender(self):
+        """A rule code alone is not enough; a noqa with no reason fails."""
         # Act
         s = classify("f.py", 1, "import x  # noqa: F401")
 
@@ -56,6 +59,7 @@ class TestClassify:
         assert s.is_offender, "a reason-less suppression fails the gate"
 
     def test_ty_ignore_coded_with_reason_passes(self):
+        """A ty: ignore with a bracketed code and a reason passes."""
         # Act
         s = classify("f.py", 1, "y()  # ty: ignore[unresolved-import] -- optional extra")
 
@@ -65,6 +69,7 @@ class TestClassify:
         assert not s.is_offender, "coded + reason passes"
 
     def test_ty_ignore_bare_fails_even_with_reason(self):
+        """A reason cannot rescue a ty: ignore that has no bracketed rule code."""
         # Act -- a reason but no bracketed code
         s = classify("f.py", 1, "y()  # ty: ignore -- I have a reason")
 
@@ -73,6 +78,7 @@ class TestClassify:
         assert s.is_offender, "the gate still requires a specific rule code"
 
     def test_type_ignore_is_distinct_from_ty_ignore(self):
+        """type: ignore is its own form and never misread as ty: ignore."""
         # Act -- 'type:' must not be misread as 'ty:'
         s = classify("f.py", 1, "z = w  # type: ignore[assignment] -- narrowing")
 
@@ -81,6 +87,7 @@ class TestClassify:
         assert s.code == "assignment", "bracketed code extracted"
 
     def test_pragma_never_bare_but_needs_a_reason(self):
+        """A pragma has no rule code so is never bare, but it still needs a reason."""
         # Act
         bare = classify("f.py", 1, "except X:  # pragma: no cover")
         good = classify("f.py", 1, "except X:  # pragma: no cover -- stdlib on 3.11+")
@@ -91,6 +98,7 @@ class TestClassify:
         assert good is not None and not good.is_offender, "pragma + reason passes"
 
     def test_noqa_multiple_codes(self):
+        """Several comma-separated codes are kept together as the rule code."""
         # Act
         s = classify("f.py", 1, "x  # noqa: E501,F401 -- long vendored import line")
 
@@ -99,6 +107,7 @@ class TestClassify:
         assert not s.is_offender, "coded + reason passes"
 
     def test_plain_lines_are_not_suppressions(self):
+        """Ordinary comments and plain code are not reported as suppressions."""
         # Assert -- ordinary comments and code produce nothing
         assert classify("f.py", 1, "x = 1  # just a comment") is None, "plain comment"
         assert classify("f.py", 1, "x = 1") is None, "no comment at all"
@@ -108,6 +117,7 @@ class TestScanTree:
     """The whole-tree scan behind the release count."""
 
     def test_scan_excludes_vendor_and_finds_real_suppressions(self):
+        """The real-repo scan finds noqa lines and skips everything under vendor/."""
         # Act
         found = scan_tree(_REPO_ROOT)
         by_form = counts_by_form(found)
@@ -127,6 +137,7 @@ class TestPrecedingReason:
         (tmp_path / "sample.py").write_text(text, encoding="utf-8")
 
     def test_reason_on_line_above_clears_the_gate(self, tmp_path):
+        """A comment line just above a coded suppression counts as its reason."""
         # Arrange -- coded suppression, no inline reason, reason comment above
         self._write(tmp_path, "# deferred to dodge an import cycle\nx = y  # noqa: E402\n")
         supp = classify("sample.py", 2, "x = y  # noqa: E402")
@@ -137,6 +148,7 @@ class TestPrecedingReason:
         assert gate_offenders([supp], tmp_path) == [], "reason-above clears the gate"
 
     def test_code_line_above_is_not_a_reason(self, tmp_path):
+        """A code line above is not a reason; the suppression still fails."""
         # Arrange -- the line above is code, not a comment
         self._write(tmp_path, "x = 1\ny = z  # noqa: E402\n")
         supp = classify("sample.py", 2, "y = z  # noqa: E402")
@@ -146,6 +158,7 @@ class TestPrecedingReason:
         assert gate_offenders([supp], tmp_path) == [supp], "still an offender"
 
     def test_suppression_above_does_not_excuse(self, tmp_path):
+        """A suppression on the line above cannot serve as the next one's reason."""
         # Arrange -- the line above is itself a suppression, not a reason
         self._write(tmp_path, "a = f()  # noqa: F401\nb = g()  # noqa: E402\n")
         supp = classify("sample.py", 2, "b = g()  # noqa: E402")
@@ -154,6 +167,7 @@ class TestPrecedingReason:
         assert not reason_above(supp, tmp_path), "a suppression above isn't a reason"
 
     def test_bare_fails_even_with_a_reason_above(self, tmp_path):
+        """A reason above does not rescue a bare suppression with no rule code."""
         # Arrange -- reason comment above, but the suppression itself is bare
         self._write(tmp_path, "# explanation here\nz = h()  # type: ignore\n")
         supp = classify("sample.py", 2, "z = h()  # type: ignore")
@@ -167,6 +181,7 @@ class TestListView:
     """The --list status view: suppression_status + format_list."""
 
     def test_status_inline_reason_is_ok(self):
+        """A coded suppression with an inline reason shows as ok."""
         # Act
         s = classify("f.py", 1, "x = f()  # noqa: BLE001 -- boundary")
 
@@ -174,6 +189,7 @@ class TestListView:
         assert suppression_status(s) == "ok", "coded + inline reason reads ok"
 
     def test_status_bare(self):
+        """A suppression with no rule code shows as BARE."""
         # Act
         s = classify("f.py", 1, "x = f()  # noqa")
 
@@ -181,6 +197,7 @@ class TestListView:
         assert suppression_status(s) == "BARE", "no rule code -> BARE"
 
     def test_status_above_and_none(self, tmp_path):
+        """A reason above shows ok(above); no reason anywhere shows NO-REASON."""
         # Arrange -- one with a reason above, one with nothing
         (tmp_path / "sample.py").write_text(
             "# the reason\nx = y  # noqa: E402\nz = w  # noqa: E402\n",
@@ -194,6 +211,7 @@ class TestListView:
         assert suppression_status(without, tmp_path) == "NO-REASON", "no reason anywhere"
 
     def test_format_list_one_line_each_and_aligned(self):
+        """Each suppression gets one line, and the status column lines up across rows."""
         # Arrange
         supps = [
             classify("a.py", 1, "x  # noqa: F401 -- keep"),

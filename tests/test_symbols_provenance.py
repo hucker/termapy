@@ -53,6 +53,7 @@ def _age(path, seconds: float) -> None:
 class TestInSync:
 
     def test_untouched_source_is_in_sync(self, map_file):
+        """A map unchanged since import reads in sync, with no reason and not stale."""
         # Arrange
         table = _table(map_file)
 
@@ -80,6 +81,7 @@ class TestInSync:
 class TestStale:
 
     def test_touched_source_is_stale_and_fixable(self, map_file):
+        """A map rebuilt after import is stale, and fixable because the converter was recorded."""
         # Arrange
         table = _table(map_file)
         _age(map_file, 30.0)
@@ -94,6 +96,7 @@ class TestStale:
         assert "rebuilt" in verdict.reason, "the reason says what happened"
 
     def test_rebuild_command_re_runs_the_recipe(self, map_file):
+        """The suggested fix is /sym.import on the same map with the recorded format=."""
         # Arrange
         table = _table(map_file)
         _age(map_file, 30.0)
@@ -186,6 +189,7 @@ class TestUnknown:
         assert "not readable" in verdict.reason, "the reason says why"
 
     def test_no_source_is_unknown(self):
+        """A table that records no source at all is unknown, since there is nothing to stat."""
         # Arrange
         table = SymbolTable(ROWS)
 
@@ -200,6 +204,7 @@ class TestRoundTrip:
     """Provenance survives save/load, and its absence stays absent."""
 
     def test_provenance_round_trips_through_the_file(self, map_file, tmp_path):
+        """Recipe and witness survive save/load, so a reloaded table still reads in sync."""
         # Arrange
         table = _table(map_file)
         dest = tmp_path / "sym" / "rig.symbols.json"

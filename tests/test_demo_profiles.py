@@ -39,10 +39,12 @@ DEMO_NDJSON_PROFILE = DEMO_DIR / "demo_ndjson.profile.json"
 )
 class TestBundledProfiles:
     def test_file_exists(self, path):
+        """The profile ships at the path the demo and /profile.load expect."""
         # Arrange / Act / Assert
         assert path.exists(), f"bundled profile missing: {path}"
 
     def test_loads_and_validates(self, path):
+        """The shipped profile passes schema validation with no errors."""
         # Arrange / Act
         profile = load_profile(path)
         result = validate_profile(profile)
@@ -52,6 +54,7 @@ class TestBundledProfiles:
         )
 
     def test_profile_dataclass_load(self, path):
+        """Profile.load yields a profile carrying its path, a revision and a command catalog."""
         # Arrange / Act
         p = Profile.load(path)
         # Assert
@@ -65,6 +68,7 @@ class TestBundledProfiles:
 
 class TestDemoProfileShape:
     def test_includes_at_command(self):
+        """The text profile catalogs AT with a literal response, matching the simulator's OK."""
         # Arrange / Act
         profile = load_profile(DEMO_PROFILE)
         # Assert
@@ -74,6 +78,7 @@ class TestDemoProfileShape:
         )
 
     def test_at_temp_uses_regex_response(self):
+        """AT+TEMP is parsed by regex into a typed celsius field."""
         # Arrange / Act
         profile = load_profile(DEMO_PROFILE)
         # Assert
@@ -87,6 +92,7 @@ class TestDemoProfileShape:
 
 class TestDemoNdjsonProfileShape:
     def test_set_threshold_has_typed_args(self):
+        """set_threshold declares exactly one typed arg, celsius as a float."""
         # Arrange / Act
         profile = load_profile(DEMO_NDJSON_PROFILE)
         # Assert
@@ -96,6 +102,7 @@ class TestDemoNdjsonProfileShape:
         assert ta[0]["type"] == "float", "float type"
 
     def test_safety_classifications(self):
+        """Only calibrate and reset are destructive, so only they hit the MCP confirm gate."""
         # Arrange
         profile = load_profile(DEMO_NDJSON_PROFILE)
         commands = profile["commands"]
@@ -116,6 +123,7 @@ class TestDemoNdjsonProfileShape:
             )
 
     def test_reset_is_fire_and_forget(self):
+        """reset declares no response, since the simulator sends nothing back."""
         # Arrange / Act
         profile = load_profile(DEMO_NDJSON_PROFILE)
         # Assert
@@ -152,6 +160,7 @@ class TestProfileLoadAcceptsBundled:
         return MCPHost(cfg, str(config_path), verbose=False)
 
     def test_load_demo_profile(self, host):
+        """The text demo profile loads through /profile.load on the MCP host."""
         # Arrange / Act
         result = host.repl.dispatch(f"profile.load {DEMO_PROFILE}")
         # Assert
@@ -160,6 +169,7 @@ class TestProfileLoadAcceptsBundled:
         )
 
     def test_load_demo_ndjson_profile(self, host):
+        """The NDJSON demo profile loads through /profile.load on the MCP host."""
         # Arrange / Act
         result = host.repl.dispatch(f"profile.load {DEMO_NDJSON_PROFILE}")
         # Assert

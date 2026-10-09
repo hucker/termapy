@@ -39,6 +39,7 @@ def _run(scenario) -> None:
 
 class TestConfirmDialog:
     def test_yes_dismisses_true(self):
+        """Clicking Yes dismisses with True, the only answer that lets the action proceed."""
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -52,6 +53,7 @@ class TestConfirmDialog:
         _run(scenario)
 
     def test_cancel_dismisses_false(self):
+        """Clicking Cancel dismisses with False."""
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -65,6 +67,7 @@ class TestConfirmDialog:
         _run(scenario)
 
     def test_escape_dismisses_false(self):
+        """Escape is a safe no: it dismisses with False, never True."""
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -80,6 +83,7 @@ class TestConfirmDialog:
 
 class TestFilenameDialog:
     def test_submit_dismisses_with_stripped_name(self):
+        """Enter dismisses with the typed name, surrounding whitespace stripped."""
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -97,6 +101,7 @@ class TestFilenameDialog:
         _run(scenario)
 
     def test_cancel_dismisses_none(self):
+        """Clicking Cancel dismisses with None rather than an empty string."""
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -110,6 +115,7 @@ class TestFilenameDialog:
         _run(scenario)
 
     def test_empty_submit_keeps_dialog_open(self):
+        """Enter on an empty field neither dismisses nor closes the dialog."""
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -127,6 +133,7 @@ class TestFilenameDialog:
         _run(scenario)
 
     def test_escape_dismisses_none(self):
+        """Escape dismisses with None, the same result as Cancel."""
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -144,6 +151,7 @@ class TestScriptPicker:
     """The file pickers list newest first and show size, age, and a detail column."""
 
     def test_rows_show_newest_first_with_size_age_and_summary(self, tmp_path):
+        """Only .run files, newest first, under an aligned header; Enter runs the newest."""
         async def scenario():
             # Arrange -- the script that sorts FIRST by name is an hour old.
             run_dir = tmp_path / "run"
@@ -201,6 +209,7 @@ class TestScriptPicker:
         _run(scenario)
 
     def test_rename_button_dismisses_with_the_highlighted_path(self, tmp_path):
+        """Rename dismisses with a (rename, path) tuple for the highlighted script."""
         async def scenario():
             # Arrange
             run_dir = tmp_path / "run"
@@ -227,6 +236,7 @@ class TestConfigPickerCfgDir:
     """The header row's cfg-dir path: absolute, front-elided, and clickable."""
 
     def test_path_fits_untouched_when_short(self):
+        """A path within the width budget is displayed whole, unelided."""
         # Act
         actual = _fit_path(Path("/tmp/cfg"), 40)
 
@@ -234,6 +244,7 @@ class TestConfigPickerCfgDir:
         assert actual == str(Path("/tmp/cfg")), "a path inside the budget is shown whole"
 
     def test_long_path_keeps_the_identifying_tail(self):
+        """A long path is elided from the front so the folder name stays visible."""
         # Arrange -- CSS ellipsis would cut the tail, which is the useful half
         folder = Path("/one/two/three/four/five/termapy_cfg")
 
@@ -246,6 +257,7 @@ class TestConfigPickerCfgDir:
         assert len(actual) <= 24, "the result fits the budget it was given"
 
     def test_single_segment_too_long_is_truncated_not_looped(self):
+        """One oversize segment is hard-trimmed to the budget instead of spinning."""
         # Arrange -- nothing to drop; the loop must not spin
         # Act
         actual = _fit_path(Path("averyverylongsinglename"), 8)
@@ -254,6 +266,7 @@ class TestConfigPickerCfgDir:
         assert len(actual) == 8, "falls back to a hard trim rather than returning oversize"
 
     def test_a_click_reaches_the_handler(self, tmp_path):
+        """A real left-click on the link calls the opener with the full folder path."""
         # Arrange -- mount the link alone so the click has one possible
         # target, and inject the opener so no file manager appears.
         opened: list[str] = []
@@ -278,6 +291,7 @@ class TestConfigPickerCfgDir:
         _run(scenario)
 
     def test_link_targets_the_absolute_cfg_dir(self, tmp_path, monkeypatch):
+        """The link opens the resolved cfg dir and its tooltip names the file manager."""
         # Arrange -- cfg_dir() is RELATIVE when the cwd holds termapy_cfg,
         # so the displayed path has to be resolved or it reads "termapy_cfg".
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
@@ -319,6 +333,7 @@ class TestConfigPickerExplore:
         return folder
 
     def test_press_opens_the_selected_folder_and_keeps_the_dialog(self, tmp_path, monkeypatch):
+        """Explore opens the selected config's folder and leaves the picker open."""
         # Arrange
         folder = self._seed(tmp_path, monkeypatch)
         opened: list[str] = []
@@ -341,6 +356,7 @@ class TestConfigPickerExplore:
         _run(scenario)
 
     def test_disabled_without_a_display_and_says_why(self, tmp_path, monkeypatch):
+        """With no GUI apps the button is disabled and its tooltip names TERMAPY_GUI."""
         # Arrange
         self._seed(tmp_path, monkeypatch)
 
@@ -362,6 +378,7 @@ class TestConfigPickerExplore:
         _run(scenario)
 
     def test_hidden_when_served_in_a_browser(self, tmp_path, monkeypatch):
+        """In web mode the button is absent: a server folder is not the viewer's."""
         # Arrange
         self._seed(tmp_path, monkeypatch)
 
@@ -380,6 +397,7 @@ class TestConfigPickerExplore:
         _run(scenario)
 
     def test_disabled_with_no_configs(self, tmp_path, monkeypatch):
+        """An empty cfg dir leaves Explore disabled, since nothing is selected."""
         # Arrange -- an empty cfg dir
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
 
@@ -415,6 +433,7 @@ class TestConfigPickerDetails:
         return path
 
     def test_titles_align_after_the_widest_port(self, tmp_path):
+        """Columns pad to the widest port; blank or self-named titles leave no trailing pad."""
         # Arrange
         mac = self._write_cfg(tmp_path, "mac", "/dev/cu.usbserial-A50285BI", "Bench board")
         win = self._write_cfg(tmp_path, "win", "COM4", "Logger")
@@ -444,6 +463,7 @@ class TestConfigPickerDetails:
         )
 
     def test_unloadable_cfg_gets_an_empty_cell(self, tmp_path):
+        """A config that is not valid JSON gets an empty detail cell, not a crash."""
         # Arrange -- not JSON at all
         broken = tmp_path / "broken.cfg"
         broken.write_text("{not json", encoding="utf-8")

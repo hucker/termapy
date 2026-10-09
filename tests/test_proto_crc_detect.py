@@ -55,6 +55,7 @@ class TestCrcDetectFrames:
     """The variadic ``<frames>...`` positional."""
 
     def test_identifies_modbus_single_frame(self):
+        """One hex frame reaches crcglot and the matched algorithm comes back in value."""
         # Act
         result = _engine().dispatch(f"proto.crc.detect {FRAME_1}")
 
@@ -65,6 +66,7 @@ class TestCrcDetectFrames:
         )
 
     def test_multiple_frames_intersect(self):
+        """Several positional frames all reach crcglot as one list, not just the first."""
         # Act -- several frames is the whole point: one frame alone is often
         # ambiguous, and crcglot intersects candidates across the set
         result = _engine().dispatch(
@@ -76,6 +78,7 @@ class TestCrcDetectFrames:
         assert "crc16-modbus" in result.value, "three frames identify modbus"
 
     def test_byte_separators_inside_one_frame(self):
+        """Comma-separated bytes stay one argument, so one frame needs no quoting."""
         # Act -- commas keep a single frame in ONE argument, which is the
         # no-variable replacement for the old space-separated spelling
         result = _engine().dispatch("proto.crc.detect 01,03,00,00,00,0a,c5,cd")
@@ -86,6 +89,7 @@ class TestCrcDetectFrames:
         )
 
     def test_no_input_is_a_usage_error(self):
+        """A bare call shows termapy's usage line, never crcglot's internal param names."""
         # Act
         result = _engine().dispatch("proto.crc.detect")
 
@@ -102,6 +106,7 @@ class TestCrcDetectFrameKeyword:
     """The ``frame=`` rest keyword -- one frame that may contain spaces."""
 
     def test_spaced_frame_via_keyword(self):
+        """frame= takes a space-separated frame pasted from a log as a single frame."""
         # Act -- pasting a spaced frame from a log needs no variable round-trip
         result = _engine().dispatch(f"proto.crc.detect frame={SPACED_FRAME}")
 
@@ -110,6 +115,7 @@ class TestCrcDetectFrameKeyword:
         assert "crc16-modbus" in result.value, "the spaced frame identifies modbus"
 
     def test_keyword_composes_with_other_keywords_before_it(self):
+        """frame= runs to end of line, yet a keyword placed before it still binds."""
         # Act -- frame= runs to end of line, so other keywords precede it
         result = _engine().dispatch(f"proto.crc.detect width=16 frame={SPACED_FRAME}")
 
@@ -119,6 +125,7 @@ class TestCrcDetectFrameKeyword:
         )
 
     def test_both_input_forms_is_crcglot_error(self):
+        """Positional frames plus frame= fail with crcglot's own exclusion message."""
         # Act
         result = _engine().dispatch(
             f"proto.crc.detect {FRAME_1} frame={SPACED_FRAME}"
@@ -134,6 +141,7 @@ class TestCrcDetectVariableForms:
     """``$(NAME)`` splice and ``$(*NAME)`` dereference, on the real command."""
 
     def test_plain_splice_still_reaches_detect(self):
+        """A $(NAME) splice still expands for detect, so raw_args never got switched on."""
         # Arrange -- REGRESSION GUARD.  An earlier prototype set raw_args=True
         # on detect to get per-token dereference, which switched the blanket
         # $() transform off for the whole command; $(F) then arrived literal,
@@ -154,6 +162,7 @@ class TestCrcDetectVariableForms:
         var._VARS.clear()
 
     def test_splice_and_deref_agree_on_a_clean_value(self):
+        """On a value with no spaces, $(NAME) and $(*NAME) give the same answer."""
         # Arrange -- a value with no spaces: the two forms must reach the same
         # answer, which is what makes deref a safe drop-in for clean data
         eng = _engine()
@@ -170,6 +179,7 @@ class TestCrcDetectVariableForms:
         var._VARS.clear()
 
     def test_deref_binds_one_frame_per_reference(self):
+        """Each $(*NAME) token binds as one entry in the variadic frame list."""
         # Arrange
         eng = _engine()
         var._VARS.update({"p1": FRAME_1, "p2": FRAME_2, "p3": FRAME_3})
@@ -182,6 +192,7 @@ class TestCrcDetectVariableForms:
         var._VARS.clear()
 
     def test_deref_value_with_spaces_stays_one_frame(self):
+        """A dereferenced value containing spaces binds as one frame, not eight."""
         # Arrange -- the arity-1 guarantee, on the real command.  Spliced, this
         # value would fork into eight arguments and match nothing.
         eng = _engine()
@@ -197,6 +208,7 @@ class TestCrcDetectVariableForms:
         var._VARS.clear()
 
     def test_mixed_literal_and_reference(self):
+        """Literal frames and $(*NAME) references can mix within one frame list."""
         # Arrange
         eng = _engine()
         var._VARS["p2"] = FRAME_2
@@ -209,6 +221,7 @@ class TestCrcDetectVariableForms:
         var._VARS.clear()
 
     def test_unknown_reference_errors(self):
+        """A $(*NAME) typo fails naming the variable instead of reaching crcglot as text."""
         # Act
         result = _engine().dispatch("proto.crc.detect $(*nope)")
 
@@ -220,6 +233,7 @@ class TestCrcDetectVariableForms:
         )
 
     def test_embedded_reference_errors(self):
+        """A $(*NAME) inside a larger token is an error, not passed on as a literal."""
         # Act
         result = _engine().dispatch("proto.crc.detect x$(*p1)y")
 
@@ -234,6 +248,7 @@ class TestCrcDetectKeywordTyping:
     """Keyword coercion, which hand-rolled parsing had silently dropped."""
 
     def test_width_is_coerced_to_int(self):
+        """width= is coerced to int; a string width made crcglot silently match nothing."""
         # Act -- crcglot rejects a STRING width, so an uncoerced "16" silently
         # produced matched=False; this pins the int coercion
         result = _engine().dispatch(f"proto.crc.detect {FRAME_1} width=16")
@@ -243,6 +258,7 @@ class TestCrcDetectKeywordTyping:
         assert "crc16-modbus" in result.value, "an int-coerced width still matches"
 
     def test_bad_width_fails_before_crcglot(self):
+        """A non-integer width is rejected by the dispatcher before crcglot is called."""
         # Act
         result = _engine().dispatch(f"proto.crc.detect {FRAME_1} width=abc")
 
@@ -253,6 +269,7 @@ class TestCrcDetectKeywordTyping:
         )
 
     def test_endian_enum_little(self):
+        """The endian enum generated from the crcglot manifest accepts little."""
         # Act -- 'little' is a crcglot enum value, typed straight from the manifest
         result = _engine().dispatch(f"proto.crc.detect endian=little {FRAME_1}")
 

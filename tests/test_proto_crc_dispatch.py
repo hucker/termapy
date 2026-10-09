@@ -77,6 +77,7 @@ class TestDispatchSmoke:
 
     @pytest.mark.parametrize("lang,variant,flags", _DISPATCH_CELLS)
     def test_dispatch_produces_output(self, lang, variant, flags):
+        """Each crcglot language and native variant emits crc32 code on the markup channel."""
         # Arrange
         ctx, _captured, captured_markup = _build_stub_ctx()
         ctx.active_flags = flags
@@ -116,6 +117,7 @@ class TestUnsupportedVariantFlagRejected:
     @pytest.mark.parametrize("lang", ["vhdl", "verilog"])
     @pytest.mark.parametrize("flag", ["--table", "--slice8"])
     def test_bitwise_only_rejects_variant_flag(self, lang, flag):
+        """A variant flag arriving as a bare token fails the call, and the error names it."""
         # Arrange -- pass the unsupported flag as a bare arg token (it
         # isn't a registered flag for these languages, so it arrives in
         # the args string, mimicking real dispatch).
@@ -136,6 +138,7 @@ class TestUnsupportedVariantFlagRejected:
         )
 
     def test_native_flag_still_accepted(self):
+        """The rejection does not over-reach: c, with a native --slice8, still generates."""
         # Guard against over-rejection: a language that DOES support the
         # flag must still accept it (c has native --slice8).
         ctx, _captured, captured_markup = _build_stub_ctx()

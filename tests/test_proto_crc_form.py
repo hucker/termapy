@@ -47,6 +47,7 @@ class TestFormHappyPath:
     crc16-xmodem with the wrapper info surfaced."""
 
     def test_crclink_frame_identifies_with_form_tag(self):
+        """The match line names the algorithm and is tagged form=crclink."""
         # Arrange
         ctx, _captured, captured_markup = _build_stub_ctx()
 
@@ -64,6 +65,7 @@ class TestFormHappyPath:
         )
 
     def test_crclink_match_shows_wrapper_info(self):
+        """A Wrapper: line names the form and shows the recovered JSON message."""
         # Arrange
         ctx, captured, _captured_markup = _build_stub_ctx()
 
@@ -89,6 +91,7 @@ class TestFormValidation:
     """form= rejects bad inputs at the wrapper layer."""
 
     def test_unknown_form_rejected_with_known_list(self):
+        """An unknown form fails, and the error lists the known forms to pick from."""
         # Arrange
         ctx, _captured, _markup = _build_stub_ctx()
 
@@ -106,6 +109,7 @@ class TestFormValidation:
         )
 
     def test_empty_form_value_rejected(self):
+        """A bare form= with no value is an error saying a value is required."""
         # Arrange
         ctx, _captured, _markup = _build_stub_ctx()
 
@@ -120,6 +124,7 @@ class TestFormValidation:
         )
 
     def test_form_with_asc_rejected(self):
+        """form= with asc= fails, since asc= splits off hex; the error points to bin=."""
         # Arrange -- asc= splits trailing hex; form= matches a full
         # wrapper.  The two are mutually exclusive by construction.
         ctx, _captured, _markup = _build_stub_ctx()
@@ -142,6 +147,7 @@ class TestFormBackwardCompat:
     """Without form=, the existing detect path is unchanged."""
 
     def test_no_form_means_bare_detect(self):
+        """A plain CRC-32 packet still identifies, and its match line has no form tag."""
         # Arrange -- the canonical CRC-32 packet still identifies via
         # bare detection (no form= involved).
         ctx, _captured, captured_markup = _build_stub_ctx()

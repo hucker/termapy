@@ -48,6 +48,7 @@ from termapy import install_info
 def test_upgrade_command_detects_install_layout(
     exe_path, expected, monkeypatch,
 ):
+    """uv tool, pipx and dev .venv interpreters, Windows or POSIX, each map to their own command."""
     # Arrange
     monkeypatch.setattr(install_info.sys, "executable", exe_path)
 
@@ -61,6 +62,7 @@ def test_upgrade_command_detects_install_layout(
 
 
 def test_upgrade_command_falls_back_to_pip(monkeypatch):
+    """An interpreter path matching no known layout gets the generic pip upgrade command."""
     # Arrange -- a path that matches none of the recognized
     # layouts (typical of a plain pip install into a system
     # interpreter or a bare uv pip install).

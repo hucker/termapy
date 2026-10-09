@@ -95,6 +95,7 @@ def ctx_with_tracker(tmp_path):
 
 class TestSerialIoContextManagerSafety:
     def test_normal_exit_releases(self, ctx_with_tracker):
+        """A clean exit from ctx.serial.io() releases exactly once per claim."""
         # Arrange
         ctx, tracker = ctx_with_tracker
 
@@ -108,6 +109,7 @@ class TestSerialIoContextManagerSafety:
         assert tracker.claimed is False, "released after with-block exit"
 
     def test_exception_inside_block_still_releases(self, ctx_with_tracker):
+        """An exception in the block propagates and the port is still released."""
         # Arrange
         ctx, tracker = ctx_with_tracker
 
@@ -123,6 +125,7 @@ class TestSerialIoContextManagerSafety:
         assert tracker.claimed is False, "port released even on exception"
 
     def test_nested_blocks_each_balance(self, ctx_with_tracker):
+        """Nested blocks balance independently; the inner exit leaves the outer held."""
         # Arrange -- nested with-blocks are unusual but should each balance.
         # The release-on-inner-exit happens before the outer block's release.
         ctx, tracker = ctx_with_tracker
@@ -143,6 +146,7 @@ class TestSerialIoContextManagerSafety:
     def test_exception_in_outer_block_after_inner_completed(
         self, ctx_with_tracker,
     ):
+        """An outer raise after a completed inner block still releases the outer claim."""
         # Arrange -- exception fires after the inner block releases but before
         # the outer block exits.  The outer release must still happen.
         ctx, tracker = ctx_with_tracker
@@ -169,6 +173,7 @@ class TestEngineApiBareApiUnreachable:
     """
 
     def test_internal_handle_has_no_set_proto_active(self):
+        """Neither set_proto_active nor set_serial_claimed exists as a bypass on the handle."""
         # Arrange / Act
         api = InternalHandle(plugins={})
 

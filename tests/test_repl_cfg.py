@@ -44,6 +44,7 @@ def repl_env(tmp_path):
 
 class TestCfgShowAll:
     def test_show_all_keys(self, repl_env):
+        """/cfg.dump prints every config key; bare /cfg no longer does."""
         # Arrange -- bare /cfg now opens the Cfg picker (TUI) or shows
         # /help cfg (CLI); /cfg.dump is the explicit "print every key"
         # path.
@@ -60,11 +61,13 @@ class TestCfgShowAll:
 
 class TestCfgShowKey:
     def test_show_existing_key(self, repl_env):
+        """/cfg with a known key and no value is a query that prints the current value."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg baud_rate")
         assert any("115200" in t for t, _ in output), "value displayed"
 
     def test_show_unknown_key(self, repl_env):
+        """A query for a key not in the config is an Unknown error rendered in red."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg nonexistent")
         assert any("Unknown" in t for t, _ in output), "error message"
@@ -73,21 +76,25 @@ class TestCfgShowKey:
 
 class TestCfgChange:
     def test_same_value_no_change(self, repl_env):
+        """Setting a key to the value it already holds reports a no-op instead of saving."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg baud_rate 115200")
         assert any("already" in t for t, _ in output), "no-op message"
 
     def test_bad_type_rejected(self, repl_env):
+        """A value that cannot coerce to the key's type is refused with a Type error."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg baud_rate notanumber")
         assert any("Type error" in t for t, _ in output), "type error shown"
 
     def test_bad_bool_rejected(self, repl_env):
+        """A /cfg set with an unusable bool token ends on a red error line."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg echo_input maybe")
         assert output[-1][1] == "red", "error shown in red"
 
     def test_calls_confirm_save_cfg_hook(self, repl_env):
+        """A frontend's confirm_save_cfg hook gets the key and the already-coerced value."""
         # Arrange
         engine, _, _, output = repl_env
         called_with = []
@@ -101,6 +108,7 @@ class TestCfgChange:
         assert called_with == expected, "hook called with key and coerced value"
 
     def test_falls_back_to_apply_without_hook(self, repl_env):
+        """With no save hook (CLI), /cfg applies the change for this session only."""
         # Arrange
         engine, cfg, config_path, output = repl_env
 
@@ -114,6 +122,7 @@ class TestCfgChange:
 
 class TestCfgAuto:
     def test_auto_int(self, repl_env):
+        """/cfg.auto applies an int value in memory without prompting to save."""
         # Arrange
         engine, cfg, config_path, output = repl_env
 
@@ -125,36 +134,43 @@ class TestCfgAuto:
         assert any("session" in t for t, _ in output), "session-only confirmation"
 
     def test_auto_bool(self, repl_env):
+        """/cfg.auto coerces the token "true" to a real bool for a bool key."""
         engine, cfg, _, output = repl_env
         engine.dispatch("cfg.auto echo true")
         assert cfg["echo"] is True, "bool coerced and applied"
 
     def test_auto_string(self, repl_env):
+        """/cfg.auto stores a string key's value as given."""
         engine, cfg, _, output = repl_env
         engine.dispatch("cfg.auto port COM5")
         assert cfg["port"] == "COM5", "string value applied"
 
     def test_auto_float(self, repl_env):
+        """/cfg.auto coerces to float when the key's current value is a float."""
         engine, cfg, _, output = repl_env
         engine.dispatch("cfg.auto stop_bits 2.0")
         assert cfg["stop_bits"] == 2.0, "float coerced and applied"
 
     def test_auto_unknown_key(self, repl_env):
+        """/cfg.auto refuses a key not in the config instead of adding it."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg.auto bogus 123")
         assert any("Unknown" in t for t, _ in output), "unknown key rejected"
 
     def test_auto_bad_type(self, repl_env):
+        """/cfg.auto rejects a value that does not fit the key's type."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg.auto baud_rate abc")
         assert any("Type error" in t for t, _ in output), "type mismatch error"
 
     def test_auto_missing_args(self, repl_env):
+        """/cfg.auto with a key but no value is a usage error, not a query."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg.auto baud_rate")
         assert any("Usage" in t for t, _ in output), "missing value arg"
 
     def test_auto_no_args(self, repl_env):
+        """Bare /cfg.auto is a usage error."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg.auto")
         assert any("Usage" in t for t, _ in output), "no args at all"
@@ -164,6 +180,7 @@ class TestCfgReadOnly:
     """config_read_only only blocks UI dialogs; /cfg commands still work."""
 
     def test_cfg_set_allowed(self, repl_env):
+        """config_read_only does not block /cfg.auto from changing a value."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["config_read_only"] = True
@@ -176,6 +193,7 @@ class TestCfgReadOnly:
         assert any("session" in t for t, _ in output), "session-only confirmation"
 
     def test_cfg_show_works(self, repl_env):
+        """config_read_only leaves /cfg queries working."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["config_read_only"] = True

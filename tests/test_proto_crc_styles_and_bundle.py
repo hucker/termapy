@@ -59,6 +59,7 @@ class TestStyleKvArg:
     ``comment_style`` into the crcglot generator."""
 
     def test_style_google_python_emits_google_docstring(self):
+        """style=google reaches the Python generator and yields Args: sections."""
         # Arrange
         ctx, _captured, captured_markup = _build_stub_ctx()
 
@@ -76,6 +77,7 @@ class TestStyleKvArg:
         )
 
     def test_style_doxygen_c_emits_doxygen_marker(self):
+        """style=doxygen reaches the C generator and yields @brief/@param markers."""
         # Arrange
         ctx, _captured, captured_markup = _build_stub_ctx()
 
@@ -92,6 +94,7 @@ class TestStyleKvArg:
         )
 
     def test_style_rustdoc_rust_emits_rustdoc_marker(self):
+        """style=rustdoc reaches the Rust generator and yields /// doc comments."""
         # Arrange -- rustdoc style emits ``///`` triple-slash blocks.
         ctx, _captured, captured_markup = _build_stub_ctx()
 
@@ -108,6 +111,7 @@ class TestStyleKvArg:
         )
 
     def test_style_invalid_for_python_rejected_with_allowed_list(self):
+        """A style valid elsewhere but not for Python fails and lists Python's allowed styles."""
         # Arrange -- doxygen is a C/Java style; not valid for Python.
         ctx, _captured, _markup = _build_stub_ctx()
 
@@ -127,6 +131,7 @@ class TestStyleKvArg:
             )
 
     def test_style_unknown_rejected(self):
+        """A style no language knows fails with Unknown style."""
         # Arrange -- "nonsense" isn't a real crcglot style.
         ctx, _captured, _markup = _build_stub_ctx()
 
@@ -140,6 +145,7 @@ class TestStyleKvArg:
         )
 
     def test_style_empty_value_rejected(self):
+        """A bare style= fails as needing a value, matching file= and symbol=."""
         # Arrange -- ``style=`` with no value mirrors the file=/symbol=
         # empty-value errors.
         ctx, _captured, _markup = _build_stub_ctx()
@@ -159,6 +165,7 @@ class TestMultiAlgorithmBundle:
     """Multiple positional algorithm names bundle into a single output."""
 
     def test_bundle_three_c_algorithms_stdout_has_all_names(self):
+        """Three C algorithms bundle into one output that names each of them."""
         # Arrange
         ctx, _captured, captured_markup = _build_stub_ctx()
 
@@ -178,6 +185,7 @@ class TestMultiAlgorithmBundle:
             )
 
     def test_bundle_python_succeeds(self):
+        """Python bundling runs the string-returning combiner, unlike C's tuple one."""
         # Arrange -- Python bundling exercises the string-returning
         # combiner path (distinct from C's tuple-returning combiner).
         ctx, _captured, captured_markup = _build_stub_ctx()
@@ -193,6 +201,7 @@ class TestMultiAlgorithmBundle:
         assert len(emitted) > 0, "python bundle should emit some source"
 
     def test_bundle_rejects_symbol_override(self):
+        """symbol= with several algorithms is refused, since one name cannot fit them all."""
         # Arrange -- in bundle mode every algorithm keeps its own
         # default symbol; allowing one symbol= would be ambiguous.
         ctx, _captured, _markup = _build_stub_ctx()
@@ -213,6 +222,7 @@ class TestMultiAlgorithmBundle:
         )
 
     def test_bundle_unknown_algorithm_reports_which_one(self):
+        """One bad name in a bundle fails with that name, not a generic error."""
         # Arrange -- a single bad name among good ones should fail with
         # that name in the error, not a generic "unknown algorithm".
         ctx, _captured, _markup = _build_stub_ctx()
@@ -227,6 +237,7 @@ class TestMultiAlgorithmBundle:
         )
 
     def test_bundle_with_style_combines_styles(self):
+        """style= applies to every algorithm in a bundle, not only the first."""
         # Arrange -- style= applies to every algorithm in the bundle.
         ctx, _captured, captured_markup = _build_stub_ctx()
 
@@ -245,6 +256,7 @@ class TestMultiAlgorithmBundle:
         )
 
     def test_bundle_to_file_writes_one_file_per_extension(self, tmp_path, monkeypatch):
+        """A file= bundle writes one merged .h and .c holding both algorithms."""
         # Arrange -- file= mode writes the merged output to disk; the
         # combined unit goes to a single STEM.<ext> set (e.g. for C:
         # one my_crcs.h + one my_crcs.c containing both algorithms).

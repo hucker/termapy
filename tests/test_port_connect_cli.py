@@ -69,6 +69,7 @@ class TestPortConnectExtendedArgs:
     """/port.connect now accepts cr/lf/crlf and echo/noecho tokens."""
 
     def test_port_connect_with_all_fields(self, tmp_path):
+        """Baud, mode, line ending and echo tokens all land in the session cfg."""
         # Arrange -- start disconnected, connect DEMO with the full
         # argument set and verify each field made it into the cfg.
         # /cfg <key> reads a single cfg value back so we can assert
@@ -106,6 +107,7 @@ class TestPortConnectExtendedArgs:
         )
 
     def test_port_connect_order_independent_after_port(self, tmp_path):
+        """Tokens after the port name apply whatever order they are typed in."""
         # Arrange -- same fields, different order.  Port stays first,
         # the trailing fields are shuffled.
         result = _run_cli(
@@ -128,6 +130,7 @@ class TestPortConnectExtendedArgs:
         )
 
     def test_port_connect_noecho_disables_echo(self, tmp_path):
+        """The noecho token turns off an echo the config had enabled."""
         # Arrange -- start with echo on, /port.connect noecho turns it off.
         result = _run_cli(
             tmp_path,
@@ -149,6 +152,7 @@ class TestPortConnectExtendedArgs:
         )
 
     def test_port_connect_line_ending_lf(self, tmp_path):
+        """The lf token replaces a CRLF line ending with a bare LF."""
         # Arrange
         result = _run_cli(
             tmp_path,
@@ -170,6 +174,7 @@ class TestPortConnectExtendedArgs:
         )
 
     def test_port_connect_port_must_be_first(self, tmp_path):
+        """A port name after another token is refused, and the script survives the error."""
         # Arrange -- a port-name-looking token after another token
         # must be rejected.  Previously (position-independent) this
         # would have been accepted with port=DEMO.

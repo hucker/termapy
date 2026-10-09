@@ -23,6 +23,7 @@ from termapy.mcp.prompts import (  # noqa: E402
 
 class TestAuthoringGuide:
     def test_guide_loaded_at_import(self):
+        """The authoring guide is read from disk at import, not left empty if the file moves."""
         # Arrange / Act / Assert -- non-empty content from disk
         assert isinstance(_AUTHORING_GUIDE, str), "guide is a string"
         assert len(_AUTHORING_GUIDE) > 500, (
@@ -30,6 +31,7 @@ class TestAuthoringGuide:
         )
 
     def test_guide_includes_critical_rules(self):
+        """The guide carries the enabled=false and destructive-tier rules every draft must obey."""
         # Assert -- the LLM-targeted rules ARE in the guide so they
         # ride along inside every prompt body
         assert "enabled: false" in _AUTHORING_GUIDE, (
@@ -49,12 +51,14 @@ class TestDraftProfileMessage:
     structure (sections present, empty handling) rather than wording."""
 
     def test_body_includes_authoring_guide(self):
+        """Every draft_profile prompt embeds the full authoring guide verbatim."""
         # Act
         body = _build_draft_profile_message("", "", "", "", "")
         # Assert
         assert _AUTHORING_GUIDE in body, "guide is embedded in every prompt"
 
     def test_body_lays_out_all_input_sections(self):
+        """All five input sections appear even when every argument is empty."""
         # Act
         body = _build_draft_profile_message("", "", "", "", "")
         # Assert -- five named input sections always appear
@@ -68,6 +72,7 @@ class TestDraftProfileMessage:
             assert header in body, f"section header missing: {header!r}"
 
     def test_empty_help_output_marked_explicitly(self):
+        """Empty help output reads as "(none provided" so the LLM is not left with a blank."""
         # Arrange / Act
         body = _build_draft_profile_message(
             help_output="",
@@ -83,6 +88,7 @@ class TestDraftProfileMessage:
         )
 
     def test_help_output_wrapped_in_code_fence(self):
+        """Pasted help sits verbatim in a code fence so the LLM reads it as data."""
         # Arrange
         help_text = "command  Description\nbat      Read battery"
         # Act
@@ -93,18 +99,21 @@ class TestDraftProfileMessage:
         assert help_text in body, "help text embedded verbatim"
 
     def test_device_name_included_when_provided(self):
+        """A supplied device name surfaces in the prompt body."""
         # Act
         body = _build_draft_profile_message("", "", "", "MyDevice v3", "")
         # Assert
         assert "MyDevice v3" in body, "device name surfaces in body"
 
     def test_unspecified_device_name_marked(self):
+        """A missing device name is stated as (unspecified) rather than omitted."""
         # Act
         body = _build_draft_profile_message("", "", "", "", "")
         # Assert
         assert "(unspecified)" in body, "missing device name explicitly noted"
 
     def test_engineer_notes_passed_through(self):
+        """Engineer notes, such as safety caveats, reach the prompt body unaltered."""
         # Arrange
         notes = "gpio drives limit switches; do not mark mutable"
         # Act
@@ -113,6 +122,7 @@ class TestDraftProfileMessage:
         assert notes in body, "engineer notes embedded verbatim"
 
     def test_sample_responses_warning_when_absent(self):
+        """Without sample responses the prompt forbids inventing regex patterns."""
         # Act -- no samples provided
         body = _build_draft_profile_message("help text", "", "", "", "")
         # Assert -- LLM is told NOT to invent regex without samples
@@ -130,6 +140,7 @@ class TestRegisterPrompts:
     appears in the prompt registry afterward."""
 
     def test_draft_profile_registered(self, tmp_path):
+        """register_prompts adds draft_profile to a real MCP server's prompt listing."""
         # Arrange
         import asyncio
 

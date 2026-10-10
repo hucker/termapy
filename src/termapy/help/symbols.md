@@ -223,7 +223,9 @@ check below; both are optional, and a table without them is fine. `endian`
 and `regions` are stored now and honored by `/mem.*` later.
 Unknown keys are ignored. `type` reuses the format-spec language from
 [protocol testing](protocol-testing.md#format-spec-language), so a register
-can carry named bits: `"type": "ON:B1-4.15 UEN:B1-4.8-9 BRGH:B1-4.3"`.
+can carry named bits: `"type": "ON:B.15 UEN:B.8-9 BRGH:B.3"` -- bits of the
+register word, its width from `size` and its byte order from the device
+(see [Memory](memory.md#typed-reads-and-bits)).
 
 ## Is the table still current?
 

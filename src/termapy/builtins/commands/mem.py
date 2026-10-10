@@ -604,7 +604,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
     if parsed.suffix:
         # A bit, slice or named field of the word at the target.
         try:
-            target = resolve_bit_target(symbol, parsed.suffix)
+            target = resolve_bit_target(symbol, parsed.suffix, endian=info.endian)
             word_addr = parsed.addr + target.offset
             data = memory.read(word_addr, target.width)
         except (ValueError, DeviceMemoryError) as e:
@@ -633,7 +633,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         if symbol.type in SCALARS or symbol.type == "char":
             type_name = symbol.type
         else:
-            columns = symbol_columns(symbol)
+            columns = symbol_columns(symbol, info.endian)
             if columns:
                 # A register with named fields: show them all.
                 span = max(max(column.byte_indices) for column in columns) + 1
@@ -714,7 +714,7 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
         if value is None:
             return CmdResult.fail(msg=f"Invalid value: {payload}")
         try:
-            target = resolve_bit_target(parsed.symbol, parsed.suffix)
+            target = resolve_bit_target(parsed.symbol, parsed.suffix, endian=info.endian)
             and_mask, or_mask = mask_pair(target, value)
         except ValueError as e:
             return CmdResult.fail(msg=str(e))

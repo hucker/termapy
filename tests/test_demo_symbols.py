@@ -63,7 +63,7 @@ class TestBundledSymbols:
         scal = table.by_name("sCal")[0]
 
         # Assert
-        assert len(parse_format_spec(u1mode.type)) == 3, "U1MODE carries a 3-field format spec"
+        assert len(parse_format_spec(u1mode.type, word=True)) == 3, "U1MODE carries a 3-field format spec"
         assert u1sta.rmw is False, "U1STA is the rmw:false example"
         assert scal.size == 0, "sCal is the size-0 linker global"
 

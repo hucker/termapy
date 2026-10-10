@@ -186,6 +186,9 @@ Extract individual bits or bit ranges from bytes:
 - `B4.7` - bit 7 of byte 4 (MSB)
 - `B4.5-7` - bits 5-7 of byte 4 (3-bit value)
 - `B4-5.0-15` - 16-bit range across bytes 4-5
+- `B.15` - no byte range: bit 15 of a register word. Only a reader that
+  knows the word binds it (the [memory](memory.md#typed-reads-and-bits)
+  commands); in a packet spec it is an error
 
 `b` takes the same references but prints the bits. An ascending range reads
 like a datasheet, bit 7 leftmost (`b4.0-7` on `06` gives `00000110`); a

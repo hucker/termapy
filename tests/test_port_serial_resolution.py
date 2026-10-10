@@ -238,19 +238,22 @@ class TestPortCommandDoesNotWriteDisk:
         # the disk content doesn't change.
         proj_dir = tmp_path / "proj"
         proj_dir.mkdir(parents=True, exist_ok=True)
-        cfg = {**DEFAULT_CFG, "port": "DEMO", "auto_connect": True}
+        serial_cfg = DEFAULT_CFG["serial"]
+        assert isinstance(serial_cfg, dict), "DEFAULT_CFG['serial'] is a dict"
+        cfg = {**DEFAULT_CFG, "serial": {**serial_cfg, "port": "DEMO"}, "auto_connect": True}
         cfg_file = proj_dir / "proj.cfg"
         cfg_file.write_text(json.dumps(cfg, indent=4))
+        disk_before = cfg_file.read_text()
 
         script_path = tmp_path / "port_override.run"
         script_path.write_text(
             "/port.disconnect\n"
             "/port A1B2C3D4\n"
-            "/echo done\n"
+            "/cfg port\n"
         )
 
         # Act
-        subprocess.run(
+        result = subprocess.run(
             [
                 sys.executable, "-c",
                 "import sys; "
@@ -265,11 +268,14 @@ class TestPortCommandDoesNotWriteDisk:
             timeout=30,
         )
 
-        # Assert -- disk file still names the original port.
-        disk_cfg = json.loads(cfg_file.read_text())
-        assert disk_cfg["port"] == "DEMO", (
-            f"on-disk port should be unchanged, got {disk_cfg['port']!r}"
+        # Assert -- the script ran and switched the in-memory port...
+        assert result.returncode == 0, f"script run failed:\n{result.stdout}{result.stderr}"
+        stdout_lines = [line.strip() for line in result.stdout.splitlines()]
+        assert "A1B2C3D4" in stdout_lines, (
+            "/cfg port reports the override, so /port really ran"
         )
+        # ...and the disk file is byte-for-byte what it was.
+        assert cfg_file.read_text() == disk_before, "/port wrote the on-disk cfg"
 
 
 class TestAmbiguousSerialNumberViaEngine:

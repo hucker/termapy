@@ -142,28 +142,28 @@ class TestSum16Compute:
         expected = 0x100
         assert actual == expected, f"expected {expected:#x}, got {actual:#x}"
 
-    def test_wraps_at_65536(self):
-        """A 257-byte payload totaling 65281 comes back unchanged; despite the name, no wrap."""
-        # Arrange - 0xFFFF + 0x01 = 0x10000, should wrap to 0x0000
-        data = bytes([0xFF] * 256 + [0x01])
+    def test_wraps_modulo_65536(self):
+        """A total past 0xFFFF wraps modulo 2**16: 0xFFFF + 0x02 gives 0x0001."""
+        # Arrange - 257 * 0xFF = 0xFFFF, then + 0x02 = 0x10001
+        data = bytes([0xFF] * 257 + [0x02])
 
         # Act
         actual = sum16(data)
 
-        # Assert - 256 * 255 + 1 = 65281, mod 65536 = 65281 (no wrap yet)
-        expected = (256 * 255 + 1) & 0xFFFF
+        # Assert - 0x0001, not 0xFFFF (saturating) or 0x0000 (reset)
+        expected = 0x0001
         assert actual == expected, f"expected {expected:#x}, got {actual:#x}"
 
-    def test_large_wraps(self):
-        """257 bytes of 0xFF land exactly on 0xFFFF; despite the name, nothing wraps."""
+    def test_reaches_0xffff_without_wrapping(self):
+        """A total of exactly 0xFFFF is the largest value and comes back whole."""
         # Arrange - 257 * 0xFF = 65535 = 0xFFFF
         data = bytes([0xFF] * 257)
 
         # Act
         actual = sum16(data)
 
-        # Assert - 257 * 255 = 65535
-        expected = (257 * 255) & 0xFFFF
+        # Assert - the top of the range, one short of the wrap
+        expected = 0xFFFF
         assert actual == expected, f"expected {expected:#x}, got {actual:#x}"
 
     def test_ascii_hello(self):

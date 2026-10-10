@@ -37,13 +37,12 @@ def test_device_history_is_suggested():
     assert _suggest(s, "at") == "ATZ", "non-prefix history is offered"
 
 
-def test_prefix_history_is_not_double_counted():
-    """A REPL command found in history is not added again as a device suggestion."""
-    # A REPL command already lives in `commands`; the same entry appearing in
-    # history (it starts with the prefix) must be dropped, not listed twice.
+def test_prefix_history_is_not_suggested():
+    """REPL lines in history are never offered; REPL completions come only from the command list."""
+    # A non-default prefix, so the filter must honor the prefix it is given.
     s = CommandSuggester()
-    s.update(commands=["/status"], history=["/status"], prefix="/")
-    assert s._suggestions == ["/status"], "prefix-history excluded from device list"
+    s.update(commands=["!print"], history=["!print hello"], prefix="!")
+    assert _suggest(s, "!print h") is None, "prefix history excluded from suggestions"
 
 
 def test_no_match_returns_none():

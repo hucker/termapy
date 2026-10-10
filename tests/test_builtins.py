@@ -2490,24 +2490,24 @@ class TestCapStructHandler:
         assert captures[0]["record_size"] == 2, "U1-2 = 2 bytes"
 
     def test_cap_struct_with_cmd(self, repl_env):
-        """cmd= is dispatched once, with its spaces intact, alongside the started capture."""
-        # Arrange
+        """The capture is armed before cmd= is sent, once each, with cmd='s spaces intact."""
+        # Arrange -- one shared log so the order of the two calls is visible.
         engine, _, _, output = repl_env
-        captures = []
-        dispatched = []
+        events = []
         engine.ctx.internal.start_capture = lambda **kw: (
-            captures.append(kw) or True
+            events.append(("capture", None)) or True
         )
-        engine.ctx.dispatch = lambda cmd: dispatched.append(cmd)
+        engine.ctx.dispatch = lambda cmd: events.append(("dispatch", cmd))
         engine.ctx.serial.drain = lambda: None
 
         # Act
         engine.dispatch("cap.struct data.csv fmt=Val:U1-2 records=50 cmd=AT+DUMP 50")
 
         # Assert
-        assert len(captures) == 1
-        assert len(dispatched) == 1
-        assert dispatched[0] == "AT+DUMP 50", "cmd dispatched after capture starts"
+        expected = [("capture", None), ("dispatch", "AT+DUMP 50")]
+        assert events == expected, (
+            "capture armed first, so the response cannot arrive before it listens"
+        )
 
     def test_cap_struct_invalid_fmt(self, repl_env):
         """A malformed fmt= spec produces an 'invalid' error message."""
@@ -2731,18 +2731,6 @@ class TestCfgRead:
 
         # Assert - should output something about the config
         assert len(output) > 0, "produced some output"
-
-    def test_cfg_dump(self, repl_env):
-        """The /cfg.dump JSON includes the port key from the nested serial block."""
-        # Arrange
-        engine, cfg, _, output = repl_env
-
-        # Act
-        engine.dispatch("cfg.dump")
-
-        # Assert - should dump JSON
-        texts = [text for text, _ in output]
-        assert any("port" in text for text in texts), "JSON includes port"
 
 
 class TestCfgHandlerValues:

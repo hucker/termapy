@@ -317,9 +317,9 @@ class TestCfgHelpers:
         # Assert
         assert actual == 2, "multiple siblings counted"
 
-    def test_cfg_status_singular_and_plural(self, tmp_path):
-        """A lone config reads '(1 config available)'; only the singular form is exercised."""
-        # Arrange - singular
+    def test_cfg_status_singular(self, tmp_path):
+        """A lone config reads '(1 config available)', singular."""
+        # Arrange
         ctx, _ = _fake_ctx(tmp_path, cfg_name="demo")
 
         # Act
@@ -328,6 +328,21 @@ class TestCfgHelpers:
         # Assert
         expected = "[green]Active cfg = demo (1 config available)[/]"
         assert actual == expected, "singular form for one"
+
+    def test_cfg_status_plural(self, tmp_path):
+        """Two configs read '(2 configs available)', plural."""
+        # Arrange - a second config beside the active one
+        ctx, cfg_dir_ = _fake_ctx(tmp_path, cfg_name="demo")
+        other = cfg_dir_.parent / "other"
+        other.mkdir()
+        (other / "other.cfg").write_text("{}", encoding="utf-8")
+
+        # Act
+        actual = cfg_status(ctx)
+
+        # Assert
+        expected = "[green]Active cfg = demo (2 configs available)[/]"
+        assert actual == expected, "plural form for more than one"
 
     def test_cfg_status_empty_when_no_active(self):
         """No active config yields an empty status, so compose drops the line entirely."""

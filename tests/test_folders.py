@@ -38,9 +38,11 @@ class TestFolderSpec:
 
 
 class TestFolders:
-    def test_eight_folders(self):
-        """FOLDERS holds exactly ten data folders; adding or dropping one is a deliberate edit."""
-        assert len(FOLDERS) == 10, "run, proto, plugin, ss, viz, cap, prof, sym, dev, lib"
+    def test_folder_set_is_pinned(self):
+        """FOLDERS holds exactly these data folders; adding or dropping one is a deliberate edit."""
+        expected = {"run", "proto", "plugin", "ss", "viz", "cap", "prof", "sym", "dev", "lib"}
+        assert set(FOLDER_NAMES) == expected, "the data-folder set changed"
+        assert len(FOLDERS) == len(expected), "no duplicate folder entries"
 
     def test_folder_names_tuple(self):
         """FOLDER_NAMES is an immutable tuple including the run, proto, plugin, and sym folders."""

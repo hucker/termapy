@@ -397,6 +397,21 @@ def filename_timestamp() -> str:
 
 # ── Line selection (shared count scheme) ──────────────────────────────────────
 
+def split_cmd_lines(text: str) -> list[str]:
+    """Split a multi-command cfg value into stripped, non-blank commands.
+
+    The cfg-file convention: a literal backslash-n (``\\n`` as typed in
+    JSON) separates commands, and so does a real newline.
+
+    Args:
+        text: The raw cfg value, e.g. ``"ATZ\\\\nAT+INFO"``.
+
+    Returns:
+        One entry per command, in order; empty for a blank value.
+    """
+    return [line.strip() for line in text.replace("\\n", "\n").split("\n") if line.strip()]
+
+
 # A line-count token: an optional sign followed by digits.  Shared by every
 # command that takes a "how many lines" argument so the parse stays uniform.
 _COUNT_RE = re.compile(r"[+-]?\d+")

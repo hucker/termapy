@@ -88,9 +88,10 @@ class TestCfgChange:
         assert any("Type error" in t for t, _ in output), "type error shown"
 
     def test_bad_bool_rejected(self, repl_env):
-        """A /cfg set with an unusable bool token ends on a red error line."""
+        """A bool key given a token outside the bool vocabulary is refused with a Type error."""
         engine, _, _, output = repl_env
-        engine.dispatch("cfg echo_input maybe")
+        engine.dispatch("cfg echo maybe")
+        assert any("Type error" in t for t, _ in output), "bool validation refused 'maybe'"
         assert output[-1][1] == "red", "error shown in red"
 
     def test_calls_confirm_save_cfg_hook(self, repl_env):

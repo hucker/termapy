@@ -309,9 +309,9 @@ class TestMcpLog:
         result = eng.dispatch("mcp.log.dump 2")
         # Assert
         assert result.success, "tail-N succeeds"
-        text = "\n".join(t for t, _ in output)
-        assert "d" in text and "e" in text, "last 2 lines present"
-        assert "a" not in text.split("\n")[0], "earlier lines suppressed"
+        actual = [t for t, _ in output]
+        expected = ["d", "e"]
+        assert actual == expected, "only the last 2 lines, in order"
 
     def test_log_dump_negative_n_prints_first_n(self, env):
         """A negative N heads the log, printing the first N lines in order."""

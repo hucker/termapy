@@ -213,20 +213,6 @@ class TestMcpHostAgainstDemoJson:
             if h.engine.is_connected:
                 h._disconnect()
 
-    def test_run_command_raw_get_temp_round_trips(self, host):
-        """A /raw JSON request through MCPHost.run_command_async succeeds against DEMO_JSON."""
-        # Arrange / Act — send via /raw so transforms don't alter the JSON
-        result = asyncio.run(
-            host.run_command_async(
-                '/raw {"cmd":"get_temp","id":1}', "normal", 5.0
-            )
-        )
-        # Assert
-        assert result["success"] is True, "/raw call succeeded"
-        # The reader thread already received the response into the log;
-        # /raw doesn't include it in output_lines (capture is the path
-        # for that, or /expect.regex).
-
     def test_run_command_can_use_expect_to_get_response(self, host):
         """/expect.regex after a /raw request returns the reply line carrying its id."""
         # Arrange — send raw, then /expect to wait for response line

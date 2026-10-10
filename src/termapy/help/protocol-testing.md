@@ -138,13 +138,19 @@ Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
 | Code   | Meaning          | Example             | Output        |
 | ------ | ---------------- | ------------------- | ------------- |
 | `H`    | Hex bytes        | `H1`, `H3-4`        | `0A`, `01FF`  |
+| `h`    | Hex, per byte    | `h3-4`              | `01 FF`       |
 | `U`    | Unsigned integer | `U1`, `U3-4`        | `10`, `256`   |
 | `I`    | Signed integer   | `I1`, `I3-4`        | `-1`, `+127`  |
 | `S`    | ASCII string     | `S5-12`             | `Hello...`    |
 | `F`    | IEEE 754 float   | `F1-4`              | `3.14`        |
 | `B`    | Bit field        | `B1.3`, `B1-2.7-9`  | `1`, `5`      |
+| `b`    | Bit field, bits  | `b1.0-7`            | `00000110`    |
 | `_`    | Padding (hidden) | `_:_3-4`            | *(skipped)*   |
 | `crc*` | CRC verify       | `CRC:crc16-modbus`  | pass/fail     |
+
+Lowercase shows the pieces: `h` spaces each byte (and a protocol diff marks
+the mismatched bytes individually), `b` prints the bits as a binary string.
+Only `h` and `b` have lowercase forms.
 
 Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or
 8-byte (F64). Byte indexing is 1-based. `H7-*` = wildcard to end of packet.
@@ -176,6 +182,10 @@ Extract individual bits or bit ranges from bytes:
 - `B4.7` - bit 7 of byte 4 (MSB)
 - `B4.5-7` - bits 5-7 of byte 4 (3-bit value)
 - `B4-5.0-15` - 16-bit range across bytes 4-5
+
+`b` takes the same references but prints the bits. An ascending range reads
+like a datasheet, bit 7 leftmost (`b4.0-7` on `06` gives `00000110`); a
+descending range reverses it, bit 0 leftmost (`b4.7-0` gives `01100000`).
 
 Example: a status byte where each bit means something:
 

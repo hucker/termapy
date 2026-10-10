@@ -356,11 +356,13 @@ class TestLoadConfig:
         # Assert -- distinct object, and mutating it cannot reach DEFAULT_CFG
         assert actual["custom_buttons"] is not DEFAULT_CFG["custom_buttons"], \
             "backfilled list is a copy, not the module-global default"
-        expected_default_len = len(DEFAULT_CFG["custom_buttons"])
+        default_buttons = DEFAULT_CFG["custom_buttons"]
+        assert isinstance(default_buttons, list), "custom_buttons is a list"
+        expected_default_len = len(default_buttons)
         actual["custom_buttons"].append(
             {"enabled": True, "name": "X", "command": "X", "tooltip": ""}
         )
-        actual_default_len = len(DEFAULT_CFG["custom_buttons"])
+        actual_default_len = len(default_buttons)
         assert actual_default_len == expected_default_len, \
             "mutating the loaded config must not change DEFAULT_CFG"
 

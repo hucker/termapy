@@ -129,7 +129,7 @@ class TestPythonSlice8Fallback:
 
         ctx = PluginContext(
             io=IOHandle(_write=write, _write_markup=write_markup),
-            active_flags={},
+            active_flags=set(),
         )
         return ctx, captured, captured_markup
 
@@ -208,7 +208,7 @@ class TestCustomParamsDispatch:
 
         ctx = PluginContext(
             io=IOHandle(_write=write, _write_markup=write_markup),
-            active_flags={},
+            active_flags=set(),
         )
         return ctx, captured, captured_markup
 

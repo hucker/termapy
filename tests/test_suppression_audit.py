@@ -14,6 +14,7 @@ _SCRIPTS_DIR = _REPO_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from suppression_audit import (  # noqa: E402 -- scripts/ prepended to sys.path above
+    Suppression,
     classify,
     counts_by_form,
     format_list,
@@ -22,6 +23,13 @@ from suppression_audit import (  # noqa: E402 -- scripts/ prepended to sys.path 
     scan_tree,
     suppression_status,
 )
+
+
+def _classify(file: str, line_no: int, source_line: str) -> Suppression:
+    """classify() for a line that IS a suppression; None fails here, not later."""
+    supp = classify(file, line_no, source_line)
+    assert supp is not None, f"not a suppression: {source_line!r}"
+    return supp
 
 
 class TestClassify:
@@ -140,7 +148,7 @@ class TestPrecedingReason:
         """A comment line just above a coded suppression counts as its reason."""
         # Arrange -- coded suppression, no inline reason, reason comment above
         self._write(tmp_path, "# deferred to dodge an import cycle\nx = y  # noqa: E402\n")
-        supp = classify("sample.py", 2, "x = y  # noqa: E402")
+        supp = _classify("sample.py", 2, "x = y  # noqa: E402")
 
         # Act
         # Assert
@@ -151,7 +159,7 @@ class TestPrecedingReason:
         """A code line above is not a reason; the suppression still fails."""
         # Arrange -- the line above is code, not a comment
         self._write(tmp_path, "x = 1\ny = z  # noqa: E402\n")
-        supp = classify("sample.py", 2, "y = z  # noqa: E402")
+        supp = _classify("sample.py", 2, "y = z  # noqa: E402")
 
         # Assert
         assert not reason_above(supp, tmp_path), "code above is not a reason"
@@ -161,7 +169,7 @@ class TestPrecedingReason:
         """A suppression on the line above cannot serve as the next one's reason."""
         # Arrange -- the line above is itself a suppression, not a reason
         self._write(tmp_path, "a = f()  # noqa: F401\nb = g()  # noqa: E402\n")
-        supp = classify("sample.py", 2, "b = g()  # noqa: E402")
+        supp = _classify("sample.py", 2, "b = g()  # noqa: E402")
 
         # Assert -- stacked suppressions can't excuse each other
         assert not reason_above(supp, tmp_path), "a suppression above isn't a reason"
@@ -170,7 +178,7 @@ class TestPrecedingReason:
         """A reason above does not rescue a bare suppression with no rule code."""
         # Arrange -- reason comment above, but the suppression itself is bare
         self._write(tmp_path, "# explanation here\nz = h()  # type: ignore\n")
-        supp = classify("sample.py", 2, "z = h()  # type: ignore")
+        supp = _classify("sample.py", 2, "z = h()  # type: ignore")
 
         # Assert -- a missing rule code fails regardless of a reason above
         assert supp.is_bare, "no bracketed code = bare"
@@ -183,7 +191,7 @@ class TestListView:
     def test_status_inline_reason_is_ok(self):
         """A coded suppression with an inline reason shows as ok."""
         # Act
-        s = classify("f.py", 1, "x = f()  # noqa: BLE001 -- boundary")
+        s = _classify("f.py", 1, "x = f()  # noqa: BLE001 -- boundary")
 
         # Assert
         assert suppression_status(s) == "ok", "coded + inline reason reads ok"
@@ -191,7 +199,7 @@ class TestListView:
     def test_status_bare(self):
         """A suppression with no rule code shows as BARE."""
         # Act
-        s = classify("f.py", 1, "x = f()  # noqa")
+        s = _classify("f.py", 1, "x = f()  # noqa")
 
         # Assert
         assert suppression_status(s) == "BARE", "no rule code -> BARE"
@@ -203,8 +211,8 @@ class TestListView:
             "# the reason\nx = y  # noqa: E402\nz = w  # noqa: E402\n",
             encoding="utf-8",
         )
-        with_above = classify("sample.py", 2, "x = y  # noqa: E402")
-        without = classify("sample.py", 3, "z = w  # noqa: E402")
+        with_above = _classify("sample.py", 2, "x = y  # noqa: E402")
+        without = _classify("sample.py", 3, "z = w  # noqa: E402")
 
         # Assert
         assert suppression_status(with_above, tmp_path) == "ok(above)", "reason on line above"
@@ -214,8 +222,8 @@ class TestListView:
         """Each suppression gets one line, and the status column lines up across rows."""
         # Arrange
         supps = [
-            classify("a.py", 1, "x  # noqa: F401 -- keep"),
-            classify("bb.py", 22, "y  # ty: ignore[assignment] -- narrow"),
+            _classify("a.py", 1, "x  # noqa: F401 -- keep"),
+            _classify("bb.py", 22, "y  # ty: ignore[assignment] -- narrow"),
         ]
 
         # Act

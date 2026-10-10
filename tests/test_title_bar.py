@@ -61,6 +61,7 @@ def test_update_port_does_not_mutate_the_source_cfg():
 
     # Assert -- the read-only source's nested dict is untouched (it's a deep copy)
     assert original["serial"]["port"] == "COM4", "source cfg's nested dict not mutated"
+    assert app.switched is not None, "update_port switched the config"
     new_cfg = app.switched[0]
     new_cfg["serial"]["port"] = "COMX"  # the copy is independently mutable
     assert original["serial"]["port"] == "COM4", "copy stays independent of the source"

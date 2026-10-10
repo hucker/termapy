@@ -53,9 +53,11 @@ def _registered_commands() -> set[str]:
     tmp = Path(tempfile.mkdtemp())
     cp = tmp / "c" / "c.cfg"
     cp.parent.mkdir()
+    serial = DEFAULT_CFG["serial"]
+    assert isinstance(serial, dict), "serial is a section"
     cfg = {
         **DEFAULT_CFG,
-        "serial": {**DEFAULT_CFG["serial"], "port": "", "baud_rate": 115200},
+        "serial": {**serial, "port": "", "baud_rate": 115200},
     }
     cp.write_text(json.dumps(cfg))
     for sub in ("plugin", "ss", "run", "proto", "cap", "prof"):

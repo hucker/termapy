@@ -345,7 +345,7 @@ class TestDispatchArgAccess:
             seen["count"] = ctx.arg("count")
             seen["timeout"] = ctx.arg("timeout")
             seen["cmd"] = ctx.arg("cmd")
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
 
         eng.register_plugin(PluginInfo(
             name="p", args="", help="", handler=handler,
@@ -371,7 +371,7 @@ class TestDispatchArgAccess:
 
         def handler(ctx, args):
             ran["handler"] = True
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
 
         eng.register_plugin(PluginInfo(
             name="p", args="", help="", handler=handler,
@@ -400,13 +400,13 @@ class TestDispatchNesting:
 
         def inner(ctx, args):
             seen["inner_x"] = ctx.arg("x")
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
 
         def outer(ctx, args):
             seen["outer_before"] = ctx.arg("x")
             ctx.dispatch("inner x=inner")
             seen["outer_after"] = ctx.arg("x")  # must still be the outer's value
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
 
         eng.register_plugin(PluginInfo(
             name="inner", args="", help="", handler=inner,
@@ -691,7 +691,9 @@ class TestResolveDeref:
 
         # Assert -- silently treating it as a literal would send "x$(*P)y" to
         # a device or a filename, which is never what was meant
-        assert "invalid reference" in error, "a partial reference is an error"
+        assert error is not None and "invalid reference" in error, (
+            "a partial reference is an error"
+        )
 
     def test_malformed_reference_passes_through(self):
         """A token that only looks like the sigil, such as a regex, stays literal."""

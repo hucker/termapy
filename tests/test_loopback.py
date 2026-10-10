@@ -27,7 +27,9 @@ def test_loopback_facts_are_honest():
     """The loop:// row reports its URL and a description, with no invented USB identity."""
     facts = loopback_port_facts()
     assert facts.device == "loop://", "device is the real pyserial URL"
-    assert "loopback" in facts.description.lower(), "described as a loopback"
+    assert facts.description is not None and "loopback" in facts.description.lower(), (
+        "described as a loopback"
+    )
     # No invented identity -- a loopback has no USB attributes.
     assert facts.vid_pid is None, "no fake VID:PID"
     assert facts.serial is None, "no fake serial number"

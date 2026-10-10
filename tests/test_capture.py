@@ -486,7 +486,7 @@ class TestWriteFailure:
         # Arrange
         engine = CaptureEngine()
         engine.start(path=tmp_path / "out.txt", file_mode="w", mode="text", duration=5.0)
-        engine._fh = _RaisingFile()  # media vanishes mid-capture
+        engine._fh = _RaisingFile()  # ty: ignore[invalid-assignment] -- media vanishes mid-capture
 
         # Act
         actual_stop = engine.feed_text(["hello"])
@@ -502,7 +502,7 @@ class TestWriteFailure:
         # Arrange -- no byte target, so only a write error can signal stop
         engine = CaptureEngine()
         engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0)
-        engine._fh = _RaisingFile()
+        engine._fh = _RaisingFile()  # ty: ignore[invalid-assignment] -- a file that fails on write
 
         # Act -- 4096 bytes triggers the periodic flush, which fails
         actual_stop = engine.feed_bytes(b"\x00" * 4096)
@@ -510,6 +510,7 @@ class TestWriteFailure:
 
         # Assert
         assert actual_stop is True, "feed_bytes signals stop so the host releases the claim"
+        assert result is not None, "stop returns the finished capture"
         assert "simulated write failure" in result.error, "write error surfaced on result"
 
     def test_successful_capture_has_no_error(self, tmp_path):
@@ -524,6 +525,7 @@ class TestWriteFailure:
 
         # Assert
         assert actual_stop is False, "no stop signal on a clean write"
+        assert result is not None, "stop returns the finished capture"
         assert result.error == "", "no error on a successful capture"
 
 
@@ -614,6 +616,7 @@ class TestStopRacesTheReader:
         # Arrange -- the close half of stop(), with the field still set
         engine = CaptureEngine()
         engine.start(path=tmp_path / "out.txt", file_mode="w", mode="text", duration=5.0)
+        assert engine._fh is not None, "start opened the file"
         engine._fh.close()
 
         # Act -- the reader was already inside feed_text when the close landed
@@ -631,6 +634,7 @@ class TestStopRacesTheReader:
         # Arrange -- no byte target, so only the periodic flush writes
         engine = CaptureEngine()
         engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0)
+        assert engine._fh is not None, "start opened the file"
         engine._fh.close()
 
         # Act -- 4096 bytes triggers the flush that now hits a closed file
@@ -654,6 +658,7 @@ class TestStopRacesTheReader:
         engine = CaptureEngine()
         engine.start(path=tmp_path / "a.txt", file_mode="w", mode="text", duration=5.0)
         stale_fh = engine._fh
+        assert stale_fh is not None, "start opened the file"
         stale_fh.close()
         engine.feed_text(["doomed"])
         engine.stop()
@@ -665,7 +670,8 @@ class TestStopRacesTheReader:
         result = engine.stop()
 
         # Assert
-        assert result is not None and result.error == "", (
+        assert result is not None, "stop returns the finished capture"
+        assert result.error == "", (
             "a failure from the previous capture's handle must not be "
             f"charged to the current one, got {result.error!r}"
         )

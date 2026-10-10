@@ -493,6 +493,7 @@ class TestFindBar:
 
         # Assert -- same keys, so a contract change fails HERE rather than
         # silently diverging from what the UI actually receives
+        assert real is not None, "an active search has a state"
         actual, expected = set(self._state()), set(real)
         assert actual == expected, (
             f"fixture drifted from find.current_state(): "

@@ -43,7 +43,7 @@ class TestConfirmDialog:
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
-                results: list[bool] = []
+                results: list[bool | None] = []
                 app.push_screen(ConfirmDialog("Delete it?"), callback=results.append)
                 await pilot.pause()
                 await pilot.click("#confirm-yes")
@@ -57,7 +57,7 @@ class TestConfirmDialog:
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
-                results: list[bool] = []
+                results: list[bool | None] = []
                 app.push_screen(ConfirmDialog("Delete it?"), callback=results.append)
                 await pilot.pause()
                 await pilot.click("#confirm-no")
@@ -71,7 +71,7 @@ class TestConfirmDialog:
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
-                results: list[bool] = []
+                results: list[bool | None] = []
                 app.push_screen(ConfirmDialog("Delete it?"), callback=results.append)
                 await pilot.pause()
                 await pilot.press("escape")
@@ -304,12 +304,12 @@ class TestConfigPickerCfgDir:
                 await pilot.pause()
 
                 # Assert
-                link = app.screen.query_one("#picker-cfgdir")
+                link = app.screen.query_one("#picker-cfgdir", CfgDirLink)
                 assert link._folder == tmp_path.resolve(), (
                     "a click opens the absolute folder, not a relative name"
                 )
-                assert file_manager_name() in link.tooltip, "the tooltip names this platform's file manager"
-                assert str(tmp_path) not in link.tooltip, (
+                assert file_manager_name() in str(link.tooltip), "the tooltip names this platform's file manager"
+                assert str(tmp_path) not in str(link.tooltip), (
                     "and does not repeat the path the header already shows"
                 )
                 assert app.screen.query_one("#picker-list").tooltip == (
@@ -373,7 +373,7 @@ class TestConfigPickerExplore:
                 assert str(button.label) == file_manager_name(), (
                     "labelled with the platform's file manager, not a Windows verb"
                 )
-                assert "TERMAPY_GUI" in button.tooltip, "the tooltip names the override"
+                assert "TERMAPY_GUI" in str(button.tooltip), "the tooltip names the override"
 
         _run(scenario)
 

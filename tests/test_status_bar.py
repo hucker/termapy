@@ -37,7 +37,7 @@ def test_show_makes_it_visible_with_text():
         async with _Host().run_test() as pilot:
             bar = pilot.app.query_one(StatusBar)
             bar.show("Saved config", timeout=99)
-            assert "Saved config" in bar.content, "shows the text"
+            assert "Saved config" in str(bar.content), "shows the text"
             assert bar.has_class("visible"), "becomes visible when it has text"
 
     _run(scenario)
@@ -62,7 +62,7 @@ def test_newer_message_replaces_older():
             bar = pilot.app.query_one(StatusBar)
             bar.show("first", timeout=99)
             bar.show("second", timeout=99)
-            assert "second" in bar.content, "newest message wins"
+            assert "second" in str(bar.content), "newest message wins"
 
     _run(scenario)
 
@@ -74,7 +74,7 @@ def test_progress_is_persistent_and_hides_on_empty():
             bar = pilot.app.query_one(StatusBar)
             bar.set_progress("50%")
             assert bar.has_class("visible"), "progress text shows"
-            assert "50%" in bar.content, "progress text is correct"
+            assert "50%" in str(bar.content), "progress text is correct"
             bar.set_progress("")
             assert not bar.has_class("visible"), "empty progress hides the bar"
 

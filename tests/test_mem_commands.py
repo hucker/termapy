@@ -51,7 +51,7 @@ def cli(tmp_path):
     terminal.repl.fire_lifecycle("on_app_start")
     logged: list[tuple[str, str]] = []
     terminal.ctx.io.log = lambda prefix, text: logged.append((prefix, text))
-    terminal.audit = logged  # type: ignore[attr-defined]
+    terminal.audit = logged  # ty: ignore[unresolved-attribute]
     assert terminal._connect() is True, "the DEMO port opens"
     yield terminal
     terminal._disconnect()

@@ -485,6 +485,7 @@ class TestCatalogRendering:
         }}}
         reg = TypeRegistry.from_profile(profile)
         td = reg.resolve("on_off")
+        assert td is not None, "the type resolves"
         # Act
         out = typedef_to_catalog(td)
         # Assert
@@ -498,6 +499,7 @@ class TestCatalogRendering:
         profile = {"types": {"byte": {"kind": "format_spec", "spec": "Val:H1"}}}
         reg = TypeRegistry.from_profile(profile)
         td = reg.resolve("byte")
+        assert td is not None, "the type resolves"
         # Act
         out = typedef_to_catalog(td)
         # Assert -- the LLM gets to see the raw spec string for guidance

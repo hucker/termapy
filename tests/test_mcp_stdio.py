@@ -55,7 +55,9 @@ class _StdioClient:
         threading.Thread(target=self._pump, daemon=True).start()
 
     def _pump(self) -> None:
-        for line in self.proc.stdout:
+        stdout = self.proc.stdout
+        assert stdout is not None, "opened with stdout=PIPE"
+        for line in stdout:
             self._lines.put(line)
 
     def rpc(self, method: str, params: dict | None = None, *,
@@ -67,8 +69,10 @@ class _StdioClient:
         if not notify:
             self._id += 1
             msg["id"] = self._id
-        self.proc.stdin.write(json.dumps(msg) + "\n")
-        self.proc.stdin.flush()
+        stdin = self.proc.stdin
+        assert stdin is not None, "opened with stdin=PIPE"
+        stdin.write(json.dumps(msg) + "\n")
+        stdin.flush()
         if notify:
             return None
         while True:

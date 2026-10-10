@@ -8,6 +8,8 @@ helper behaving correctly; regression here breaks both paths.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 from termapy.request_response import request_response
@@ -28,7 +30,7 @@ class _FakeWriter:
         self.writes.append(payload)
 
 
-def _fake_drain_factory(stale: list[str]) -> callable:
+def _fake_drain_factory(stale: list[str]) -> Callable[[], list[str]]:
     """Return a drain callable that yields ``stale`` then ``[]`` thereafter."""
     state = {"first": True}
 
@@ -41,10 +43,10 @@ def _fake_drain_factory(stale: list[str]) -> callable:
     return drain
 
 
-def _fake_wait_factory(lines: list[str]) -> callable:
+def _fake_wait_factory(lines: list[str]) -> Callable[..., list[str]]:
     """Return a wait_for_lines callable that returns ``lines`` regardless of args."""
 
-    def wait(*, timeout: float, terminator: str = "", idle_gap: float = 0.05):
+    def wait(*, timeout: float, terminator: str = "", idle_gap: float = 0.05) -> list[str]:
         return list(lines)
 
     return wait

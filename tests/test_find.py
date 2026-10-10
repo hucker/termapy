@@ -153,13 +153,16 @@ class TestNextPrev:
 
         # Act -- next, next, next (should wrap back to 0).
         eng.dispatch("find.next")
-        assert _find._active.current == 1, "after one next: index 1"
+        active = _find._active
+        assert active is not None and active.current == 1, "after one next: index 1"
         eng.dispatch("find.next")
-        assert _find._active.current == 2, "after two next: index 2"
+        active = _find._active
+        assert active is not None and active.current == 2, "after two next: index 2"
         eng.dispatch("find.next")
 
         # Assert -- third next wraps to 0.
-        assert _find._active.current == 0, "wraps to 0 at end"
+        active = _find._active
+        assert active is not None and active.current == 0, "wraps to 0 at end"
         # All three steps pushed payloads.
         assert len(payloads) == 3, "three update_find_bar calls"
 
@@ -173,7 +176,8 @@ class TestNextPrev:
         eng.dispatch("find.prev")
 
         # Assert
-        assert _find._active.current == 2, "wraps from 0 to last index"
+        active = _find._active
+        assert active is not None and active.current == 2, "wraps from 0 to last index"
 
     def test_next_without_active_search_fails(self, env):
         """Navigating with no open search fails with a "No active find" error."""

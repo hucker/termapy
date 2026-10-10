@@ -45,7 +45,7 @@ def _build_stub_ctx():
 
     ctx = PluginContext(
         io=IOHandle(_write=write, _write_markup=write_markup),
-        active_flags={},
+        active_flags=set(),
         # Codegen-to-file is an operator/CLI feature; run unconfined so the
         # MCP filesystem sandbox (tested in test_fs_sandbox.py) doesn't gate
         # the file= write under test here.

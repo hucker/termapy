@@ -146,11 +146,14 @@ def count_tests() -> int:
 
 
 def count_ty_issues() -> int:
-    """Total ty diagnostics from `uv run ty check src/termapy/`.
+    """Total ty diagnostics from `uv run ty check src/termapy/ tests/`.
 
     Vendored code is excluded via [tool.ty.src] in pyproject.toml, so
-    the count reflects only first-party files.  A clean project returns
-    the literal string "All checks passed!" and we report 0.
+    the count reflects only first-party files.  tests/ is in scope, the
+    same as for ruff: before it was, typing mistakes accumulated there
+    unseen (a ``-> callable`` annotation, handlers that raised on every
+    run).  A clean project returns the literal string "All checks
+    passed!" and we report 0.
 
     ``ty check`` exits 1 when it finds diagnostics -- which is exactly
     the data we want to count, not crash on -- so we pass
@@ -161,7 +164,7 @@ def count_ty_issues() -> int:
     Since a non-zero count aborts the release, that made the gate's bar
     depend on the calendar.  ty is pinned in [dependency-groups] dev.
     """
-    out = run_out(["uv", "run", "ty", "check", "src/termapy/"], check=False)
+    out = run_out(["uv", "run", "ty", "check", "src/termapy/", "tests/"], check=False)
     if "All checks passed!" in out:
         return 0
     m = re.search(r"Found (\d+) diagnostics?", out)

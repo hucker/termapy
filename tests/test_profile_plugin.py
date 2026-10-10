@@ -362,7 +362,7 @@ def _mock_device_json(env, payload: dict) -> None:
     from termapy.builtins.commands import profile
 
     eng, ctx, _output = env
-    profile._read_profile_json = lambda c, t: payload  # type: ignore[assignment]
+    profile._read_profile_json = lambda c, t: payload  # ty: ignore[invalid-assignment]
     ctx.serial.is_connected = lambda: True
     ctx.serial.io = lambda: _NullContext()
     ctx.serial.drain = lambda: 0
@@ -450,7 +450,7 @@ class TestProfileLoadFromDevice:
         eng, ctx, _output = env
         eng.dispatch("profile.load cmd=AT+HELP.JSON")
         # Swap in the second payload; reload should re-run the cmd path.
-        profile._read_profile_json = lambda c, t: next(seq)
+        profile._read_profile_json = lambda c, t: next(seq)  # ty: ignore[invalid-assignment]
         # Act
         result = eng.dispatch("profile.load")
         # Assert

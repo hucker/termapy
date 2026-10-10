@@ -552,6 +552,7 @@ class TestDevices:
 
         # Assert
         table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
         assert len(table) == DEMO_COUNT + 2, "build symbols plus the part's registers"
         result = engine.dispatch("sym REG_A")
         assert result.value == "0x50000000", "a register resolves like any symbol"
@@ -584,6 +585,7 @@ class TestDevices:
 
         # Assert
         table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
         assert table.by_name("REG_A"), "the register survived the import"
         assert len(table) == XC32_COUNT + 2, "build symbols replaced, registers kept"
 
@@ -615,7 +617,8 @@ class TestDevices:
         engine.dispatch("sym.load")
 
         # Assert
-        assert len(get_table(engine.ctx)) == DEMO_COUNT + 2, "reload merges again"
+        table = get_table(engine.ctx)
+        assert table is not None and len(table) == DEMO_COUNT + 2, "reload merges again"
 
     def test_unload_keeps_the_board_and_says_so(self, sym_env):
         # Arrange
@@ -630,7 +633,8 @@ class TestDevices:
 
         # Assert
         assert result.value == str(DEMO_COUNT), "the value is the build count removed"
-        assert len(get_table(engine.ctx)) == 2, "the registers remain"
+        table = get_table(engine.ctx)
+        assert table is not None and len(table) == 2, "the registers remain"
         assert any("2 device registers remain" in text for text in _texts(output)), (
             "unload leaving symbols behind must not read as a failure"
         )
@@ -667,7 +671,8 @@ class TestDevices:
         assert any(text.startswith("Device: bad.device.json:") for text in _texts(output)), (
             "the file and the problem are named"
         )
-        assert len(get_table(engine.ctx)) == DEMO_COUNT, "the sidecar still loaded"
+        table = get_table(engine.ctx)
+        assert table is not None and len(table) == DEMO_COUNT, "the sidecar still loaded"
 
     def test_global_layer_loads_and_per_config_overrides(self, sym_env, tmp_path):
         """termapy_cfg/dev/ is every board's; <cfg>/dev/ wins by device name."""
@@ -684,6 +689,7 @@ class TestDevices:
 
         # Assert
         table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
         assert table.by_name("REG_A")[0].addr == 0x60000000, "the per-config file won"
         assert not table.by_name("REG_B"), "the global file was replaced whole, not merged"
 
@@ -714,7 +720,9 @@ class TestDevices:
         engine.fire_lifecycle("on_app_start")
 
         # Assert
-        assert get_table(engine.ctx).by_name("gTemp")[0].addr == 0x1000, "the build wins"
+        table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
+        assert table.by_name("gTemp")[0].addr == 0x1000, "the build wins"
         assert any("gTemp shadows" in text for text in _texts(output)), "and it is reported"
 
 
@@ -798,7 +806,8 @@ class TestDevImport:
 
         # Assert
         assert result.success, result.error
-        assert len(get_table(engine.ctx)) == SVD_COUNT, "same registers, not doubled"
+        table = get_table(engine.ctx)
+        assert table is not None and len(table) == SVD_COUNT, "same registers, not doubled"
 
     def test_refuses_a_second_file_for_the_same_device(self, sym_env):
         # Arrange
@@ -920,6 +929,7 @@ class TestBareImport:
 
         # Assert
         table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
         assert "text" not in {symbol.section for symbol in table.symbols}, (
             "the recorded plugin converter ran again, not the sniffed built-in"
         )
@@ -939,6 +949,7 @@ class TestBareImport:
 
         # Assert
         table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
         assert "text" in {symbol.section for symbol in table.symbols}, (
             "an explicit format= beats the recorded recipe"
         )
@@ -996,6 +1007,7 @@ class TestConverterPlugins:
         # Assert
         assert result.success, result.error
         table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
         sections = {symbol.section for symbol in table.symbols}
         assert "text" not in sections, "the converter dropped code symbols"
         sfr = table.by_name("U1MODE")
@@ -1016,6 +1028,7 @@ class TestConverterPlugins:
         # Assert
         assert result.success, result.error
         table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
         assert "text" in {symbol.section for symbol in table.symbols}, (
             "the sniffed built-in ran, not the explicit-only plugin converter"
         )

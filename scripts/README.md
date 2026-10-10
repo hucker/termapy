@@ -91,6 +91,13 @@ because they share the stdlib-only / fail-loud convention.
   current `DEFAULT_CFG`.  Run after adding or renaming a config
   key; `test_help_images.py` will point you at it on failure.
 
+- `sync_format_tables.py` - regenerate the format-spec type tables
+  in `README.md` and `help/protocol-testing.md` from
+  `protocol/type_codes.py`, decoding every example through the real
+  parser.  Not stdlib-only (it runs the decoder), so use
+  `uv run python scripts/sync_format_tables.py`;
+  `test_format_tables_sync.py` fails on drift.
+
 - `check_dep_updates.py` - query PyPI for the latest release of
   every direct dependency and flag which ones have moved past
   our upper bound.  Run before a release (or whenever you want)

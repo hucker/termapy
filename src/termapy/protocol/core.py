@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Literal
 
 from termapy.protocol.crc import get_crc_registry
+from termapy.protocol.type_codes import BIT_CODES, BYTE_CODES
 from termapy.scripting import parse_duration, parse_duration_ms
 
 # ---------------------------------------------------------------------------
@@ -1148,7 +1149,7 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
         #   B1-2.7-9 - multi-byte bit range, display as integer
         #   b1-2.0-7 - same but display as binary string (0-7 = MSB first)
         #   b1-2.7-0 - binary string (7-0 = LSB first)
-        if type_body[0] in "Bb" and "." in type_body:
+        if type_body[0] in BIT_CODES and "." in type_body:
             type_code = type_body[0]
             byte_part, bit_part = type_body[1:].split(".", 1)
             byte_indices, _ = _parse_byte_refs(byte_part)
@@ -1167,8 +1168,8 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
             )
             continue
 
-        # Standard types: H, h, U, I, S, F, _ (padding)
-        if type_body[0] in "HhUISF_":
+        # Byte types: H, h, U, I, S, F, _ (padding) -- see type_codes.TYPE_CODES
+        if type_body[0] in BYTE_CODES:
             type_code = type_body[0]
             refs_str = type_body[1:]
             byte_indices, wildcard = _parse_byte_refs(refs_str)

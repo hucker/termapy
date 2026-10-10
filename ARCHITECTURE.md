@@ -101,6 +101,7 @@ src/termapy/
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
 │   ├── crc.py              #   crcglot catalog shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
+│   ├── type_codes.py       #   TYPE_CODES: the format-spec type codes; parser code sets + generated doc tables
 │   └── viz.py              #   Visualizer plugin loader
 ├── converters.py           # Converter registry core shared by symbols/ and devices/: ConverterSpec, find_converter, the four plugin names (+ KIND)
 ├── devices/                # Device files: a part's registers as data (format, loader, instances, layered dev/ folders); merged over the build's symbols at load

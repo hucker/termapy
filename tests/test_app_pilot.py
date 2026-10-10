@@ -695,6 +695,31 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    def test_capture_echo_rides_the_rx_queue(self, app_factory):
+        """A capture echo line is queued like RX, never a blocking call into main from the reader.
+
+        ``on_echo`` was wired to ``_status``, whose off-main path is a
+        blocking ``call_from_thread`` -- one round trip per record from
+        ``_flush_bin`` on the reader, and a reader that teardown could not
+        join (docs/review/2026-10-10-v0.76.0-fable-5.1.md, C2).
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                on_echo = pilot.app._capture._on_echo
+                assert on_echo is not None, "the TUI wires a capture echo"
+
+                # Act -- what _flush_bin does on the reader thread, per record
+                on_echo("echo line")
+
+                # Assert -- queued, not written: the caller never waits on main
+                assert ("echo", "echo line") in pilot.app._rx_events, "echo is an RX event"
+                await pilot.pause()
+                assert "echo line" in pilot.app._get_screen_text(), "drained and rendered on main"
+
+        _run(scenario)
+
     def test_clear_does_not_overtake_the_lines_before_it(self, app_factory):
         """A queued clear wipes only the lines before it; all event kinds share one ordered list."""
         async def scenario():

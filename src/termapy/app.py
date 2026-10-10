@@ -537,8 +537,13 @@ class SerialTerminal(TerminalHost, App):
         self._find_restore_scroll_on_close: bool = True
 
         # File capture engine
+        # ``on_echo`` fires from ``_flush_bin`` on the READER thread, once per
+        # record; it rides the RX queue like every other reader callback.  A
+        # ``_status`` here was a blocking ``call_from_thread`` per line, which
+        # stalled the reader and could not be joined by the teardown waiting
+        # on it (docs/review/2026-10-10-v0.76.0-fable-5.1.md, C2).
         self._capture = CaptureEngine(
-            on_echo=lambda line: self._status(line, "dim"),
+            on_echo=lambda line: self._rx_enqueue(("echo", line)),
             on_complete=lambda result: self._on_capture_complete(result),
         )
 
@@ -2645,7 +2650,9 @@ class SerialTerminal(TerminalHost, App):
         not overtake the lines it was meant to follow.
 
         Args:
-            event: ``("lines", [...])``, ``("clear",)`` or ``("capdone",)``.
+            event: ``("lines", [...])``, ``("clear",)``, ``("capdone",)``,
+                ``("echo", line)``, ``("error", detail)`` or
+                ``("disconnect",)``.
         """
         post = False
         with self._rx_lock:
@@ -2708,6 +2715,8 @@ class SerialTerminal(TerminalHost, App):
                 self._clear_output()
             elif event[0] == "capdone":
                 self._cap_stop()
+            elif event[0] == "echo":
+                self._status(event[1], "dim")
             elif event[0] == "error":
                 self._on_rx_error(event[1])
             elif event[0] == "disconnect":
@@ -3604,7 +3613,6 @@ class SerialTerminal(TerminalHost, App):
                     widget.remove()
                 for child in bar.children:
                     child.display = True
-                self._engine.serial_claimed = False
                 self.call_after_refresh(inp.focus)
         except SHUTDOWN_RACE:
             pass  # event posted after widget tree teardown

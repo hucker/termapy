@@ -9,6 +9,7 @@ from termapy.capture import (
     CaptureResult,
     format_capture_result,
 )
+from termapy.protocol.core import parse_format_spec
 
 # -- Lifecycle -----------------------------------------------------------------
 
@@ -527,6 +528,72 @@ class TestWriteFailure:
         assert actual_stop is False, "no stop signal on a clean write"
         assert result is not None, "stop returns the finished capture"
         assert result.error == "", "no error on a successful capture"
+
+
+class TestFormattedFlushKeepsPartialRecord:
+    """A structured capture keeps the partial record at the tail of each 4 KB flush.
+
+    ``_flush_bin`` wrote the whole-record prefix and then cleared the WHOLE
+    buffer, so the 1..record_size-1 bytes of a record straddling the flush
+    were dropped: every later row was shifted and the running byte count
+    fell short of ``target_bytes`` for good -- ``records=N`` never stopped
+    (docs/review/2026-10-10-v0.76.0-fable-5.1.md, C1).  Only a chunk length
+    that is a multiple of the record size was safe, which is why the
+    4-byte-record tests above never saw it.
+    """
+
+    RECORD = 3  # divides neither 4096 nor the 100-byte chunks below
+
+    @staticmethod
+    def _records(count: int) -> bytes:
+        """Record k is the byte k repeated, so a shifted row is visible as mixed values."""
+        return b"".join(bytes([k & 0xFF] * 3) for k in range(count))
+
+    def test_rows_stay_aligned_across_flushes(self, tmp_path):
+        """2000 three-byte records fed in 100-byte chunks decode to 2000 rows of x,x,x."""
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.csv"
+        columns = parse_format_spec("A:U1 B:U2 C:U3")
+        engine.start(path=path, file_mode="w", mode="bin", columns=columns, record_size=self.RECORD)
+        data = self._records(2000)
+
+        # Act
+        for offset in range(0, len(data), 100):
+            engine.feed_bytes(data[offset : offset + 100])
+        engine.stop()
+
+        # Assert
+        rows = path.read_text().splitlines()[1:]  # after the A,B,C header
+        misframed = [row for row in rows if len(set(row.split(","))) != 1]
+        assert len(rows) == 2000, f"every record written, got {len(rows)}"
+        assert misframed == [], f"rows shifted after a flush: {misframed[:3]}"
+
+    def test_record_target_is_reached_and_counted(self, tmp_path):
+        """records=N stops at exactly N records and byte_count is N * record_size."""
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.csv"
+        columns = parse_format_spec("A:U1 B:U2 C:U3")
+        target = 2000 * self.RECORD
+        engine.start(
+            path=path, file_mode="w", mode="bin", columns=columns,
+            record_size=self.RECORD, target_bytes=target,
+        )
+        data = self._records(2100)
+
+        # Act
+        reached = False
+        for offset in range(0, len(data), 100):
+            if engine.feed_bytes(data[offset : offset + 100]):
+                reached = True
+                break
+        result = engine.stop()
+
+        # Assert
+        assert reached is True, "the target is reported -- partial tails no longer undercount"
+        assert result is not None and result.byte_count == target, "byte_count is the whole target"
+        assert len(path.read_text().splitlines()) == 2001, "2000 rows plus the header"
 
 
 class TestBinaryTargetAboveFlushSize:

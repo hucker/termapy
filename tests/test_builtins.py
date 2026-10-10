@@ -2537,6 +2537,28 @@ class TestCapStructHandler:
         assert captures == [], "no capture is armed for a spec it cannot decode"
         assert any("no byte range" in text for text, _ in output), "the error names the problem"
 
+    @pytest.mark.parametrize("line", [
+        "cap.text log.txt timeout=1s cmd=AT",
+        "cap.bin data.bin bytes=4 cmd=AT",
+        "cap.struct data.csv fmt=Val:U1-2 records=1 cmd=AT",
+    ])
+    def test_capture_that_did_not_start_is_an_error(self, repl_env, line):
+        """A refused start fails the command and never sends cmd= (it used to report success)."""
+        # Arrange -- the frontend refuses (unopenable path, capture already active)
+        engine, _, _, _ = repl_env
+        engine.ctx.internal.start_capture = lambda **kw: False
+        sent: list[str] = []
+        engine.ctx.dispatch = lambda cmd: sent.append(cmd)
+        engine.ctx.serial.drain = lambda: None
+
+        # Act
+        result = engine.dispatch(line)
+
+        # Assert
+        assert result.success is False, "a capture that did not start is not a success"
+        assert result.error == "Capture not started.", result.error
+        assert sent == [], "cmd= is not sent when nothing is listening for the reply"
+
     def test_cap_struct_must_specify_size(self, repl_env):
         """fmt= without records= or bytes= errors, naming both ways to size the capture."""
         # Arrange

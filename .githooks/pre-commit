@@ -1,0 +1,24 @@
+#!/bin/sh
+# Refuse a commit that ruff or ty would flag (CLAUDE.md, "Precommit").
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+#
+# Checks the working tree, not just the staged snapshot -- a partial
+# stage is judged by the files as they sit on disk.  The test suite is
+# not run here (about a minute); run it before committing as usual.
+
+# uv warns on every run that VIRTUAL_ENV points somewhere other than the
+# project .venv; the warning is noise here, so drop the variable.
+unset VIRTUAL_ENV
+
+echo "pre-commit: ruff check src/termapy/ tests/"
+if ! uv run --no-sync ruff check src/termapy/ tests/; then
+    echo "pre-commit: ruff found issues -- commit refused." >&2
+    exit 1
+fi
+
+echo "pre-commit: ty check src/termapy/ tests/"
+if ! uv run --no-sync ty check src/termapy/ tests/; then
+    echo "pre-commit: ty found issues -- commit refused." >&2
+    exit 1
+fi

@@ -111,6 +111,7 @@ from termapy.scripting import (  # noqa: E402
     format_age,
     format_duration,
     format_timestamp,
+    split_cmd_lines,
 )
 
 # Single source of truth for top-row hotkeys.
@@ -2417,10 +2418,7 @@ class SerialTerminal(TerminalHost, App):
         buttons = self.cfg.get("custom_buttons", [])
         if idx >= len(buttons):
             return
-        raw = buttons[idx].get("command", "").strip()
-        if not raw:
-            return
-        parts = [part.strip() for part in raw.replace("\\n", "\n").split("\n") if part.strip()]
+        parts = split_cmd_lines(buttons[idx].get("command", ""))
         if len(parts) > 1:
             self._dispatch_sequence_on_thread(parts)
         elif parts:

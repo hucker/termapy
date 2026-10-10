@@ -194,6 +194,34 @@ class TestPrefixDispatchShapes:
             f"prefix override didn't take effect. stdout: {actual!r}"
         )
 
+    def test_mixed_script_runs_end_to_end(self, tmp_path):
+        """A script alternating !print and AT lines runs every line; ordering is not pinned."""
+        # Arrange - a tiny script that mixes REPL commands (!) and
+        # device commands, exercising the dispatch boundary both ways.
+        result = _run_cli(
+            tmp_path,
+            cfg_overrides={"cmd_prefix": "!"},
+            script_lines=[
+                "!print one",
+                "AT",
+                "!print two",
+                "AT+PROD-ID",
+                "!print three",
+            ],
+        )
+
+        # Assert - all three prints ran and both AT commands got
+        # responses.  We don't assert ordering beyond "everything
+        # happened" because /print goes to the output log and AT
+        # responses come from the reader thread; the exact
+        # interleaving isn't the test's concern.
+        actual = result.stdout
+        assert result.returncode == 0, f"cli exited non-zero, stderr: {result.stderr}"
+        assert "one" in actual, "first !print dispatched"
+        assert "two" in actual, "second !print dispatched"
+        assert "three" in actual, "third !print dispatched"
+        assert "OK" in actual, "AT got response"
+
 
 class TestPrefixOutputFlowThrough:
     """Commands whose output REFERENCES other commands should render
@@ -307,108 +335,6 @@ class TestPrefixOutputFlowThrough:
         assert '"cmd_prefix": "!"' in actual, (
             f"!cfg.dump doesn't reflect the configured cmd_prefix: {actual!r}"
         )
-
-
-class TestPrefixExclamation:
-    """Run a handful of commands with cmd_prefix='!' and assert they dispatch."""
-
-    def test_print_dispatches_with_bang_prefix(self, tmp_path):
-        """Smoke case for the ! prefix: !print writes its message, proving REPL dispatch."""
-        # Arrange - a config whose prefix is '!' instead of '/'
-        result = _run_cli(
-            tmp_path,
-            cfg_overrides={"cmd_prefix": "!"},
-            script_lines=["!print hello from bang"],
-        )
-
-        # Assert - /print handler fired and wrote the message
-        actual = result.stdout
-        assert result.returncode == 0, f"cli exited non-zero, stderr: {result.stderr}"
-        assert "hello from bang" in actual, \
-            f"!print didn't dispatch, stdout: {actual!r}"
-
-    def test_slash_is_not_dispatched_when_prefix_is_bang(self, tmp_path):
-        """Under !, /print is raw serial text; a bare hello line would mean it dispatched."""
-        # Arrange - typing '/print foo' with a '!' prefix config should
-        # send "/print foo" to the device as a raw serial command,
-        # NOT dispatch to the /print REPL handler.  The demo device
-        # doesn't understand "/print foo" so there's no "hello"
-        # anywhere in the output.
-        result = _run_cli(
-            tmp_path,
-            cfg_overrides={"cmd_prefix": "!"},
-            script_lines=["/print hello"],
-        )
-
-        # Assert
-        actual = result.stdout
-        assert result.returncode == 0, f"cli exited non-zero, stderr: {result.stderr}"
-        # The REPL-handler echo would produce the bare message "hello"
-        # on its own line.  If we see that, the handler ran, which
-        # means the prefix override didn't work.
-        assert "hello\n" not in actual, (
-            f"/print dispatched even though cmd_prefix='!'; "
-            f"the prefix override didn't take effect. stdout: {actual!r}"
-        )
-
-    def test_cfg_read_with_bang_prefix(self, tmp_path):
-        """Under the ! prefix, !cfg cmd_prefix reads back the configured ! value."""
-        # Arrange - read back the cmd_prefix value to prove /cfg
-        # routes through the new prefix.
-        result = _run_cli(
-            tmp_path,
-            cfg_overrides={"cmd_prefix": "!"},
-            script_lines=["!cfg cmd_prefix"],
-        )
-
-        # Assert - the reported value should include the '!' setting.
-        actual = result.stdout
-        assert result.returncode == 0, f"cli exited non-zero, stderr: {result.stderr}"
-        # !cfg cmd_prefix prints the single value.
-        assert "!" in actual, f"cfg didn't report the prefix value: {actual!r}"
-
-    def test_device_command_still_works(self, tmp_path):
-        """Changing the REPL prefix leaves plain device lines alone: AT still gets OK."""
-        # Arrange - device commands (no prefix) should go through
-        # regardless of what the REPL prefix is.
-        result = _run_cli(
-            tmp_path,
-            cfg_overrides={"cmd_prefix": "!"},
-            script_lines=["AT"],
-        )
-
-        # Assert - demo device responds to AT with OK.
-        actual = result.stdout
-        assert result.returncode == 0, f"cli exited non-zero, stderr: {result.stderr}"
-        assert "OK" in actual, f"AT command didn't reach demo device: {actual!r}"
-
-    def test_mixed_script_runs_end_to_end(self, tmp_path):
-        """A script alternating !print and AT lines runs every line; ordering is not pinned."""
-        # Arrange - a tiny script that mixes REPL commands (!) and
-        # device commands, exercising the dispatch boundary both ways.
-        result = _run_cli(
-            tmp_path,
-            cfg_overrides={"cmd_prefix": "!"},
-            script_lines=[
-                "!print one",
-                "AT",
-                "!print two",
-                "AT+PROD-ID",
-                "!print three",
-            ],
-        )
-
-        # Assert - all three prints ran and both AT commands got
-        # responses.  We don't assert ordering beyond "everything
-        # happened" because /print goes to the output log and AT
-        # responses come from the reader thread; the exact
-        # interleaving isn't the test's concern.
-        actual = result.stdout
-        assert result.returncode == 0, f"cli exited non-zero, stderr: {result.stderr}"
-        assert "one" in actual, "first !print dispatched"
-        assert "two" in actual, "second !print dispatched"
-        assert "three" in actual, "third !print dispatched"
-        assert "OK" in actual, "AT got response"
 
 
 class TestPrefixDefault:

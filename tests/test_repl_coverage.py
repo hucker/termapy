@@ -328,33 +328,6 @@ class TestDispatchSuggestion:
         assert "Unknown command" in result.error, "generic unknown message"
 
 
-# -- dispatch: .quiet suppresses echo ----------------------------------------
-
-
-class TestDispatchQuiet:
-    def test_quiet_suppresses_echo(self, engine):
-        """A .quiet-suffixed command dispatches and succeeds through dispatch_full."""
-        # Arrange
-        eng, output = engine
-        eng.register_hook("cap.quiet", "", "Quiet cap.",
-                          lambda ctx, args: CmdResult.ok(value=""), source="test")
-
-        # Act
-        result = eng.dispatch_full(
-            "/cap.quiet",
-            log=lambda d, t: None,
-            echo_markup=lambda t: None,
-            status=lambda t, c="": None,
-            serial_write=lambda d: None,
-            serial_write_raw=lambda t: None,
-            is_connected=lambda: False,
-            eol_label=lambda le: "",
-        )
-
-        # Assert
-        assert result.success is True, "quiet command succeeds"
-
-
 # -- dispatch: handler returns None ------------------------------------------
 
 
@@ -459,6 +432,33 @@ class TestDispatchDirectives:
         assert result.success is True, "warn directive returns ok"
         assert any("watch out" in status_msg for status_msg in status_msgs), "warning shown"
 
+    def test_error_directive(self, engine):
+        """An error directive fails the line with the directive's own message."""
+        # Arrange
+        eng, output = engine
+        eng._directives = [
+            DirectiveInfo(
+                name="test_error", help="test",
+                handler=lambda cmd: DirectiveResult("error", "bad input"),
+            )
+        ]
+
+        # Act
+        result = eng.dispatch_full(
+            "anything",
+            log=lambda d, t: None,
+            echo_markup=lambda t: None,
+            status=lambda t, c="": None,
+            serial_write=lambda d: None,
+            serial_write_raw=lambda t: None,
+            is_connected=lambda: False,
+            eol_label=lambda le: "",
+        )
+
+        # Assert
+        assert result.success is False, "error directive fails"
+        assert "bad input" in result.error, "error message passed through"
+
 
 class TestDispatchBarePrefix:
     """Regression: a lone prefix character (``/``) must not crash dispatch.
@@ -494,33 +494,6 @@ class TestDispatchBarePrefix:
             "dispatch of bare prefix returned a CmdResult instead of "
             "raising IndexError"
         )
-
-    def test_error_directive(self, engine):
-        """An error directive fails the line with the directive's own message."""
-        # Arrange
-        eng, output = engine
-        eng._directives = [
-            DirectiveInfo(
-                name="test_error", help="test",
-                handler=lambda cmd: DirectiveResult("error", "bad input"),
-            )
-        ]
-
-        # Act
-        result = eng.dispatch_full(
-            "anything",
-            log=lambda d, t: None,
-            echo_markup=lambda t: None,
-            status=lambda t, c="": None,
-            serial_write=lambda d: None,
-            serial_write_raw=lambda t: None,
-            is_connected=lambda: False,
-            eol_label=lambda le: "",
-        )
-
-        # Assert
-        assert result.success is False, "error directive fails"
-        assert "bad input" in result.error, "error message passed through"
 
 
 # -- run_script with profile -------------------------------------------------

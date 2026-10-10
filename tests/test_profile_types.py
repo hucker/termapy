@@ -377,7 +377,7 @@ class TestFormatSpecStub:
         )
 
     def test_invalid_spec_is_build_error(self):
-        """A malformed spec never crashes construction; the type stays in the registry."""
+        """A malformed spec never crashes construction: the type stays, carrying a build error."""
         # Arrange -- a deliberately malformed spec.
         profile = {"types": {"bad": {"kind": "format_spec", "spec": "this is not a format spec"}}}
         reg = TypeRegistry.from_profile(profile)
@@ -385,9 +385,9 @@ class TestFormatSpecStub:
         td = reg.resolve("bad")
         # Assert
         assert td is not None, "build-error type is still in registry"
-        # build_error may or may not fire depending on parse_format_spec
-        # tolerance; if it doesn't, the type is at least present.  The
-        # important guarantee: no crash during registry construction.
+        assert td.build_error.startswith("invalid format_spec:"), (
+            "the parse failure is captured on the type, not raised"
+        )
 
 
 # ── unknown kind / missing type ───────────────────────────────────────────────

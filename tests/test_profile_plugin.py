@@ -78,19 +78,6 @@ class TestProfileLoad:
         assert result.success is False, "missing file fails"
         assert "not found" in result.error.lower(), "error names not found"
 
-    def test_load_no_args_with_nothing_loaded_fails(self, env):
-        """Bare /profile.load before any load is an error, not an empty or default profile."""
-        # Arrange -- no profile loaded yet; no-args reload has no source.
-        eng, _ctx, _output = env
-        # Act
-        result = eng.dispatch("profile.load")
-        # Assert -- new contract: no-args reloads current source; with
-        # nothing loaded, fails with a "nothing to reload" message.
-        assert result.success is False, "no source to reload fails"
-        assert "reload" in result.error.lower() or "path" in result.error.lower(), (
-            "error explains the no-source case"
-        )
-
     def test_load_invalid_json_fails(self, env, tmp_path):
         """A truncated JSON file fails with a parse error, not a crash or partial load."""
         # Arrange — write a malformed profile
@@ -236,15 +223,13 @@ class TestProfileReload:
         assert "Y" in active.get("commands", {}), "new command picked up"
 
     def test_no_args_with_no_source_fails(self, env):
-        """Reload with no recorded file or cmd= source fails and explains why."""
+        """Bare /profile.load before any load fails with nothing to reload, never a default profile."""
         # Arrange / Act -- nothing loaded yet.
         eng, _ctx, _output = env
         result = eng.dispatch("profile.load")
         # Assert
         assert result.success is False, "no source -> fail"
-        assert "reload" in result.error.lower() or "path" in result.error.lower(), (
-            "error explains the no-source case"
-        )
+        assert "nothing to reload" in result.error, "error explains the no-source case"
 
 
 # ── /profile.save ──────────────────────────────────────────────────────────

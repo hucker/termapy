@@ -259,7 +259,7 @@ class TestInitFlags:
     def test_device_echo_seeded_from_cfg_when_allowed(self, host):
         """On an echoing host, cfg echo=True seeds the echo flag; output_level starts normal."""
         # Arrange -- device_echo_allowed=True (TUI/CLI); flags["echo"] is
-        # seeded from cfg['echo_input'], the same pattern as hex_mode.
+        # seeded from cfg['echo'], the same pattern as hex_mode.
         host.cfg["echo"] = True
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
@@ -269,7 +269,7 @@ class TestInitFlags:
 
         # Assert
         flags = host.ctx.ns("flags")
-        assert flags["echo"] is True, "echo seeded True from cfg['echo_input']"
+        assert flags["echo"] is True, "echo seeded True from cfg['echo']"
         assert flags["output_level"] == "normal", "output_level defaults to normal"
 
     def test_device_echo_off_when_cfg_off(self, host):
@@ -300,7 +300,7 @@ class TestInitFlags:
 
         # Assert
         assert host.ctx.ns("flags")["echo"] is False, (
-            "echo forced off for MCP even when cfg['echo_input'] is True"
+            "echo forced off for MCP even when cfg['echo'] is True"
         )
 
     def test_echo_repl_from_host_default_not_cfg(self, host):

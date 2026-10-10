@@ -227,6 +227,40 @@ class MCPHost(TerminalHost):
             return None
         return Path(self.ctx.fs.cap_dir)
 
+    def read_capture(self, filename: str) -> str:
+        """Read a capture artifact for the ``termapy://capture/`` resource.
+
+        Refuses outright when no cfg is loaded (see ``_active_cap_dir``),
+        and refuses any name that resolves outside the captures
+        directory.  The MCP SDK's URI-template match already rejects
+        ``..`` and slashes before this runs, so the traversal check is
+        defense in depth, not the only gate.
+
+        Args:
+            filename: Name of a file in the active captures directory.
+
+        Returns:
+            The file's text, or its bytes as hex for ``.bin``/``.dat``.
+
+        Raises:
+            FileNotFoundError: No cfg loaded, or no such capture.
+            ValueError: ``filename`` resolves outside the captures dir.
+        """
+        active = self._active_cap_dir()
+        if active is None:
+            raise FileNotFoundError(
+                "No captures available: load a cfg first (/cfg.load <name>)."
+            )
+        cap_dir = active.resolve()
+        target = (cap_dir / filename).resolve()
+        if not target.is_relative_to(cap_dir):
+            raise ValueError(f"Path traversal blocked: {filename!r}")
+        if not target.exists():
+            raise FileNotFoundError(f"Capture not found: {filename!r}")
+        if target.suffix.lower() in (".bin", ".dat"):
+            return target.read_bytes().hex()
+        return target.read_text(encoding="utf-8", errors="replace")
+
     # -- TerminalHost overrides -----------------------------------------------
 
     # Note: ``_setup_context`` runs ``_refresh_log_paths`` (see below).
@@ -911,28 +945,8 @@ def _build_server(host: MCPHost) -> Any:
     # ── capture resources ──────────────────────────────────────────────────-
     @server.resource("termapy://capture/{filename}")
     def capture_resource(filename: str) -> str:
-        """Read a capture artifact from cap_dir.  Path-traversal guarded.
-
-        Refuses outright when no cfg is loaded: a bare slot has no
-        captures directory, and its ``ctx.fs.cap_dir`` fallback is the
-        process CWD -- serving files from there would leak the server's
-        launch directory (see ``MCPHost._active_cap_dir``).
-        """
-        active = host._active_cap_dir()
-        if active is None:
-            raise FileNotFoundError(
-                "No captures available: load a cfg first (/cfg.load <name>)."
-            )
-        cap_dir = active.resolve()
-        target = (cap_dir / filename).resolve()
-        if not target.is_relative_to(cap_dir):
-            raise ValueError(f"Path traversal blocked: {filename!r}")
-        if not target.exists():
-            raise FileNotFoundError(f"Capture not found: {filename!r}")
-        # Decode by extension; binary captures get base64-tagged hex prefix.
-        if target.suffix.lower() in (".bin", ".dat"):
-            return target.read_bytes().hex()
-        return target.read_text(encoding="utf-8", errors="replace")
+        """Read a capture artifact.  Guarded in ``MCPHost.read_capture``."""
+        return host.read_capture(filename)
 
     # Prompts: user-invocable conversation recipes (e.g. draft_profile).
     # Lives in mcp/prompts.py to keep this file focused on host wiring.

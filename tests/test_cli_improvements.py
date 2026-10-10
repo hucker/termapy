@@ -278,9 +278,9 @@ class TestMultiAxisFilters:
         assert actual[0]["device"] == "COM5", "CH340 matched"
 
     def test_mfg_substring_case_insensitive(self, fleet):
-        """--mfg ignores case, so a lowercase silabs still finds the Silabs adapter."""
-        actual = self._run(fleet, mfg="silabs")
-        assert len(actual) == 1, "case-insensitive match"
+        """--mfg is a case-insensitive substring: LAB finds the Silabs adapter."""
+        actual = self._run(fleet, mfg="LAB")
+        assert len(actual) == 1, "substring match, ignoring case"
         assert actual[0]["manufacturer"] == "Silabs", "Silabs row"
 
     def test_sn_exact_match_case_insensitive(self, fleet):

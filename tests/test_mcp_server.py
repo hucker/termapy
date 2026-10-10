@@ -1038,29 +1038,36 @@ class TestDeviceStateResource:
 
 
 class TestCaptureResourceSecurity:
-    """The capture resource handler must validate that the requested
-    filename resolves inside cap_dir.  Symlinks and ../ should be
-    rejected."""
+    """``MCPHost.read_capture`` refuses any name resolving outside cap_dir.
+
+    The SDK's URI-template match rejects ``..`` and slashes before the
+    resource runs, so these call the host method directly -- through the
+    server the guard is unreachable and a test would pass on the SDK's
+    behavior, not termapy's.
+    """
 
     def test_path_traversal_rejected(self, host):
         """A ../ filename resolving outside cap_dir is refused as path traversal."""
-        # Arrange — we test the underlying logic without going through
-        # the SDK's tool decorator (which wraps the function).  The
-        # implementation lives in mcp/server.py's _build_server.
-        # Equivalent guard is exercised here directly.
-        cap_dir = Path(host.ctx.fs.cap_dir).resolve()
-
-        def read(filename: str) -> str:
-            target = (cap_dir / filename).resolve()
-            if not target.is_relative_to(cap_dir):
-                raise ValueError(f"Path traversal blocked: {filename!r}")
-            if not target.exists():
-                raise FileNotFoundError(filename)
-            return target.read_text("utf-8")
-
         # Act / Assert
         with pytest.raises(ValueError, match="traversal"):
-            read("../../../../etc/passwd")
+            host.read_capture("../../../../etc/passwd")
+
+    def test_resource_serves_through_read_capture(self, host):
+        """The real server's capture resource returns a cap_dir file's text."""
+        # Arrange -- the only test that builds the server: proves the
+        # resource is wired to read_capture, one call.
+        from termapy.mcp.server import _build_server
+
+        cap_dir = Path(host.ctx.fs.cap_dir)
+        cap_dir.mkdir(parents=True, exist_ok=True)
+        (cap_dir / "smoke.txt").write_text("hello", encoding="utf-8")
+        server = _build_server(host)
+        # Act
+        contents = asyncio.run(server.read_resource("termapy://capture/smoke.txt"))
+        # Assert
+        assert [item.content for item in contents] == ["hello"], (
+            "resource returns the capture file's text"
+        )
 
 
 # ── Bare-slot capture exposure ──────────────────────────────────────────────
@@ -1136,23 +1143,9 @@ class TestBareSlotCaptureExposure:
 
     def test_capture_read_refuses_on_bare_slot(self, bare_host):
         """Reading a capture with no cfg loaded refuses even a file present in CWD."""
-        # Arrange -- the resource's guard: _active_cap_dir() None -> refuse.
-        # Mirrors the inline-guard style of TestCaptureResourceSecurity.
-        def read(filename: str) -> str:
-            active = bare_host._active_cap_dir()
-            if active is None:
-                raise FileNotFoundError(
-                    "No captures available: load a cfg first."
-                )
-            cap_dir = active.resolve()
-            target = (cap_dir / filename).resolve()
-            if not target.is_relative_to(cap_dir):
-                raise ValueError("traversal")
-            return target.read_text("utf-8")
-
         # Act / Assert -- even a plain filename that exists in CWD refuses.
         with pytest.raises(FileNotFoundError, match="load a cfg"):
-            read(".secrets")
+            bare_host.read_capture(".secrets")
 
     def test_loaded_cfg_still_lists_captures(self, host):
         """With a cfg loaded, the bare-slot fix still lists that config's captures."""

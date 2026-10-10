@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from termapy.config_resolve import (
     proto_dir_for,
     proto_script_name,
@@ -312,7 +314,7 @@ class TestResolveProtoPath:
         return config_path
 
     def test_finds_script_in_the_proto_folder(self, tmp_path):
-        """--proto with a script name finds it in the config's proto/ folder."""
+        """--proto smoke.pro finds it in the config's proto/ folder as typed, never as smoke.pro.pro."""
         # Arrange
         config_path = self._cfg(tmp_path)
         script = config_path.parent / "proto" / "smoke.pro"
@@ -336,19 +338,6 @@ class TestResolveProtoPath:
 
         # Assert
         assert actual == script, "a bare name gets .pro appended"
-
-    def test_does_not_double_the_extension(self, tmp_path):
-        """A name already ending in .pro is not looked up as smoke.pro.pro."""
-        # Arrange
-        config_path = self._cfg(tmp_path)
-        script = config_path.parent / "proto" / "smoke.pro"
-        script.write_text("", encoding="utf-8")
-
-        # Act
-        actual = resolve_proto_path("smoke.pro", str(config_path))
-
-        # Assert -- never smoke.pro.pro
-        assert actual == script, "an explicit .pro is left alone"
 
     def test_direct_path_wins_over_the_proto_folder(self, tmp_path, monkeypatch):
         """A script path relative to the shell beats a same-named file in proto/."""
@@ -407,18 +396,28 @@ class TestProtoScriptName:
         """A name that already ends in .pro is left as is."""
         assert proto_script_name("smoke.pro") == "smoke.pro", "no doubling"
 
-    def test_error_message_reports_the_searched_name(self, tmp_path):
-        """The not-found message names smoke.pro, the file searched, not the bare input."""
-        # Arrange -- regression guard.  The "not found" message must name
-        # smoke.pro, the file actually looked for, not the bare `smoke` the
-        # user typed; an earlier refactor reported the un-normalized name.
-        config_path = tmp_path / "proj.cfg"
+    def test_error_message_reports_the_searched_name(self, tmp_path, capsys):
+        """The --proto not-found message names smoke.pro, the file searched, not the bare input."""
+        # Arrange -- regression guard: an earlier refactor reported the
+        # un-normalized name the user typed.  Drives the real headless
+        # entry, which prints the message and exits 2.
+        import json
+        from types import SimpleNamespace
+
+        from termapy.app import _run_proto_headless
+        from termapy.defaults import DEFAULT_CFG
+
+        config_path = tmp_path / "proj" / "proj.cfg"
+        config_path.parent.mkdir()
+        config_path.write_text(json.dumps(DEFAULT_CFG), encoding="utf-8")
+        args = SimpleNamespace(demo=False, config=str(config_path), proto="smoke")
 
         # Act
-        resolved = resolve_proto_path("smoke", str(config_path))
+        with pytest.raises(SystemExit) as exc:
+            _run_proto_headless(args)
 
         # Assert
-        assert resolved is None, "nothing to find"
-        assert proto_script_name("smoke").endswith(".pro"), (
-            "the name used in the error message carries the extension"
-        )
+        assert exc.value.code == 2, "missing proto file is a usage-level exit"
+        message = capsys.readouterr().err.splitlines()[0]
+        assert message.startswith("termapy: proto file not found:"), message
+        assert message.endswith("smoke.pro"), "the message names the normalized file"

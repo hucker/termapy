@@ -253,15 +253,15 @@ class TestAutoLoadProfileOnConnect:
     a non-fatal log line, never a connect failure.
     """
 
-    def _write_profile(self, path: Path) -> None:
-        """Write a minimal v2 profile to the given path."""
+    def _write_profile(self, path: Path, command: str = "PING") -> None:
+        """Write a minimal valid v2 profile carrying one command."""
         path.write_text(json.dumps({
             "profile_version": 2,
             "profile_revision": "1.0.0",
             "profile_date": "2026-05-03",
             "device": {"name": "Test Device"},
             "commands": {
-                "PING": {"help": "ping the device", "safety": "readonly"},
+                command: {"help": "ping the device", "safety": "readonly"},
             },
         }))
 
@@ -364,16 +364,11 @@ class TestAutoLoadProfileOnConnect:
         # Arrange -- both files exist, explicit must win
         explicit = cfg_dir / "explicit.profile.json"
         self._write_profile(explicit)
-        # Convention path exists with a DIFFERENT command name so we can tell
+        # Convention file is the same valid shape with a DIFFERENT command,
+        # so it WOULD load on its own -- its absence below means precedence,
+        # not a validation failure.
         convention = cfg_dir / "test.profile.json"
-        convention.write_text(json.dumps({
-            "profile_version": 2,
-            "profile_revision": "1.0.0",
-            "profile_date": "2026-05-03",
-            "device": {"name": "Convention Device"},
-            "transport": {"protocol": "text"},
-            "commands": {"DIFFERENT": {"help": "from convention"}},
-        }))
+        self._write_profile(convention, command="DIFFERENT")
         cfg = default_cfg()
         cfg["serial"]["port"] = "DEMO"
         cfg["profile_path"] = str(explicit)  # explicit wins

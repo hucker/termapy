@@ -70,7 +70,7 @@ class TestMcpCfgLoad:
 
     def test_load_swaps_in_memory_cfg(self, host):
         """After a load the host serves the new config's values, not the old ones."""
-        # Arrange - alpha has line_ending=\r, beta has \n
+        # Arrange - alpha has eol=\r, beta has \n
 
         # Act
         host._load_config("beta")

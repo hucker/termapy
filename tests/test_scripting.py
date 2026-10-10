@@ -28,6 +28,7 @@ from termapy.scripting import (
     render_progress_bar,
     resolve_seq_filename,
     select_lines,
+    split_cmd_lines,
     strip_leading_echo,
 )
 
@@ -762,7 +763,7 @@ class TestCmdResult:
         # silently forget it.  Positional or missing args must error.
         import pytest as _pytest
         with _pytest.raises(TypeError):
-            CmdResult.ok()  # ty: ignore[missing-argument] -- the TypeError is the point
+            CmdResult.ok()  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument] -- the TypeError is the point
 
     def test_value_empty_explicit(self):
         """An explicit empty value is kept as the empty string."""
@@ -953,6 +954,34 @@ class TestSelectLines:
         assert select_lines([], 5) == [], "+N on empty -> empty"
         assert select_lines([], -5) == [], "-N on empty -> empty"
         assert select_lines([], None) == [], "None on empty -> empty"
+
+
+# ── split_cmd_lines (multi-command cfg values) ───────────────────
+
+
+class TestSplitCmdLines:
+    """The cfg-value command separator behind custom buttons."""
+
+    def test_literal_backslash_n_separates(self):
+        """A typed backslash-n splits commands, each one stripped."""
+        actual = split_cmd_lines("ATZ\\nAT+INFO\\n /delay 500ms ")
+        assert actual == ["ATZ", "AT+INFO", "/delay 500ms"], "literal \\n splits"
+
+    def test_real_newline_separates(self):
+        """A real newline splits commands the same way a typed backslash-n does."""
+        actual = split_cmd_lines("ATZ\nAT+INFO")
+        assert actual == ["ATZ", "AT+INFO"], "real newline splits"
+
+    def test_single_command_unchanged(self):
+        """A value with no separator stays one command."""
+        actual = split_cmd_lines("ATZ")
+        assert actual == ["ATZ"], "single command unchanged"
+
+    @pytest.mark.parametrize("text", ["", "   ", "\\n\\n", "ATZ\\n\\n"])
+    def test_blank_entries_dropped(self, text):
+        """Blank values and empty segments yield no commands, never a blank send."""
+        actual = split_cmd_lines(text)
+        assert "" not in actual, "no blank command survives"
 
 
 # ── parse_count_arg (name + optional signed count) ───────────────

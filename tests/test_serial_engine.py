@@ -9,8 +9,8 @@ from termapy.demo import FakeSerial
 from termapy.serial_engine import SerialEngine
 
 
-def _make_engine(cfg=None):
-    """Create a SerialEngine with FakeSerial as the open function."""
+def _make_engine(cfg=None, open_fn=None):
+    """Create a SerialEngine with FakeSerial (or the given open_fn) as the open function."""
     cfg = cfg or {"port": "DEMO", "baud_rate": 115200, "encoding": "utf-8",
                   "eol": "\r", "eol_markers": False}
     capture = CaptureEngine()
@@ -18,10 +18,21 @@ def _make_engine(cfg=None):
     engine = SerialEngine(
         cfg=cfg,
         capture=capture,
-        open_fn=lambda c: FakeSerial(baudrate=c["baud_rate"]),
+        open_fn=open_fn or (lambda c: FakeSerial(baudrate=c["baud_rate"])),
         log=lambda d, t: logged.append((d, t)),
     )
     return engine, capture, logged
+
+
+class _BreakRecordingSerial(FakeSerial):
+    """FakeSerial whose send_break records each duration instead of doing nothing."""
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.breaks: list[float] = []
+
+    def send_break(self, duration: float = 0.25) -> None:
+        self.breaks.append(duration)
 
 
 # -- Connection lifecycle ------------------------------------------------------
@@ -29,9 +40,12 @@ def _make_engine(cfg=None):
 
 class TestConnect:
     def test_connect_succeeds(self):
-        """A successful connect opens the port and sets up the reader alongside it."""
-        # Arrange
-        engine, _, _ = _make_engine()
+        """A successful connect holds the very port open_fn opened, plus a reader for it."""
+        # Arrange -- keep a handle on what open_fn returns.
+        opened = []
+        engine, _, _ = _make_engine(
+            open_fn=lambda c: opened.append(FakeSerial(baudrate=c["baud_rate"])) or opened[-1],
+        )
 
         # Act
         result = engine.connect()
@@ -39,6 +53,7 @@ class TestConnect:
         # Assert
         assert result is True, "connected"
         assert engine.is_connected is True, "engine should be connected"
+        assert engine.port_obj is opened[0], "engine holds the port open_fn opened"
         assert engine.serial_port is not None, "serial_port should be set"
         assert engine.reader is not None, "reader should be set"
         engine.disconnect()
@@ -457,53 +472,68 @@ class TestTxObservers:
 
 class TestHardwareSignals:
     def test_toggle_dtr(self):
-        """toggle_dtr on a live port returns the new DTR level as a bool."""
+        """toggle_dtr flips the port's DTR line and returns the new level; RTS is untouched."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
+        port = engine.port_obj
+        assert isinstance(port, FakeSerial), "DEMO engine opens a FakeSerial"
+        dtr_before, rts_before = port.dtr, port.rts
 
         # Act
         result = engine.toggle_dtr()
 
         # Assert
-        assert isinstance(result, bool), "should return bool"
+        assert result is (not dtr_before), "returns the new DTR level"
+        assert (port.dtr, port.rts) == (not dtr_before, rts_before), "only DTR flipped"
         engine.disconnect()
 
     def test_toggle_rts(self):
-        """toggle_rts on a live port returns the new RTS level as a bool."""
+        """toggle_rts flips the port's RTS line and returns the new level; DTR is untouched."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
+        port = engine.port_obj
+        assert isinstance(port, FakeSerial), "DEMO engine opens a FakeSerial"
+        dtr_before, rts_before = port.dtr, port.rts
 
         # Act
         result = engine.toggle_rts()
 
         # Assert
-        assert isinstance(result, bool), "should return bool"
+        assert result is (not rts_before), "returns the new RTS level"
+        assert (port.dtr, port.rts) == (dtr_before, not rts_before), "only RTS flipped"
         engine.disconnect()
 
     def test_send_break(self):
-        """send_break on a live port completes without raising."""
+        """send_break reaches the port once, carrying the requested duration."""
         # Arrange
-        engine, _, _ = _make_engine()
+        engine, _, _ = _make_engine(open_fn=lambda c: _BreakRecordingSerial())
         engine.connect()
+        port = engine.port_obj
+        assert isinstance(port, _BreakRecordingSerial), "engine holds the recording port"
 
-        # Act / Assert - should not raise
-        engine.send_break()
+        # Act
+        engine.send_break(duration=0.1)
+
+        # Assert
+        assert port.breaks == [0.1], "one break, duration passed through"
         engine.disconnect()
 
     def test_get_hw_state(self):
-        """get_hw_state on a live port returns the DTR and RTS levels as bools."""
-        # Arrange
+        """get_hw_state reports the port's live levels as (DTR, RTS), in that order."""
+        # Arrange -- opposite levels, so a swapped tuple cannot pass.
         engine, _, _ = _make_engine()
         engine.connect()
+        port = engine.port_obj
+        assert isinstance(port, FakeSerial), "DEMO engine opens a FakeSerial"
+        port.dtr, port.rts = False, True
 
         # Act
-        dtr, rts = engine.get_hw_state()
+        actual = engine.get_hw_state()
 
         # Assert
-        assert isinstance(dtr, bool), "DTR should be bool"
-        assert isinstance(rts, bool), "RTS should be bool"
+        assert actual == (False, True), "(DTR, RTS) mirrors the port"
         engine.disconnect()
 
     def test_toggle_dtr_when_disconnected(self):

@@ -291,10 +291,12 @@ class TestSynopsisAndBlock:
             ParamSpec("count", "int", default=1, help="number of pings"),
             ParamSpec("cmd", "command", required=True, rest=True, help="command to send"),
         ]
-        lines = render_parameters_block(params)
-        assert lines[0].strip() == "count=<N>      number of pings (default: 1)".strip() \
-            or "count=<N>" in lines[0], "default annotated"
-        assert "required, must be last" in lines[-1], "rest+required annotated"
+        actual = [line.strip() for line in render_parameters_block(params)]
+        expected = [
+            "count=<N>      number of pings (default: 1)",
+            "cmd=<command>  command to send (required, must be last)",
+        ]
+        assert actual == expected, "default annotated, rest+required annotated"
 
 
 # -- param-decl-optin / param-ctx-access / param-ctx-nesting --------------------
@@ -777,8 +779,10 @@ class TestBoolType:
     def test_unknown_token_fails_with_the_vocabulary(self):
         """An unknown token fails and the message lists the accepted vocabulary."""
         ok, reason = coerce_value(ParamSpec("flag", "bool", default=True), "maybe")
-        assert ok is False
-        assert reason == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)"
+        assert ok is False, "an unknown token errors, never silently means False"
+        assert reason == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)", (
+            "the error teaches the accepted vocabulary"
+        )
 
     def test_synopsis_hint_is_the_canonical_pair(self):
         """A bool param shows as on|off in the synopsis."""

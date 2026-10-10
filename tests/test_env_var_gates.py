@@ -191,25 +191,36 @@ class TestStrictPluginMode:
     which is the new trust boundary).
     """
 
-    def test_constant_reads_env_var(self, monkeypatch):
-        """The documented =1 setting parses as enabled; the cached constant is not re-read."""
-        # Arrange -- env_flags reads the env var once at import; we exercise
-        # the parser directly to confirm the semantics it would use.
-        monkeypatch.setenv("TERMAPY_TRUSTED_PLUGINS_ONLY", "1")
-        # Act
-        actual = env_flags._truthy("1")
-        # Assert
-        assert actual is True, "_truthy('1') is True, matching what the env read would yield"
-
-    def test_unset_env_means_permissive_default(self, monkeypatch):
-        """Strict mode is opt-in: an unset TERMAPY_TRUSTED_PLUGINS_ONLY stays permissive."""
-        # Arrange
-        monkeypatch.delenv("TERMAPY_TRUSTED_PLUGINS_ONLY", raising=False)
-        # Act
+    @pytest.mark.slow  # fresh interpreter: the constant is frozen at import
+    @pytest.mark.parametrize(("env_value", "expected"), [("1", True), (None, False)])
+    def test_env_var_reaches_the_engine_default(self, env_value, expected):
+        """The env var, read at import, becomes ReplEngine's trusted_only default; unset stays permissive."""
+        # Arrange -- a subprocess, because re-importing in-process would
+        # leave a mutated module behind for every later test.
         import os
-        actual = env_flags._truthy(os.environ.get("TERMAPY_TRUSTED_PLUGINS_ONLY"))
+        import subprocess
+        import sys
+
+        env = {k: v for k, v in os.environ.items() if k != "TERMAPY_TRUSTED_PLUGINS_ONLY"}
+        if env_value is not None:
+            env["TERMAPY_TRUSTED_PLUGINS_ONLY"] = env_value
+        probe = (
+            "import inspect\n"
+            "from termapy.env_flags import TRUSTED_PLUGINS_ONLY\n"
+            "from termapy.repl import ReplEngine\n"
+            "default = inspect.signature(ReplEngine).parameters['trusted_only'].default\n"
+            "print(TRUSTED_PLUGINS_ONLY, default)\n"
+        )
+        # Act
+        result = subprocess.run(
+            [sys.executable, "-c", probe], env=env, capture_output=True, text=True, timeout=60,
+        )
         # Assert
-        assert actual is False, "unset env var leaves the gate permissive"
+        assert result.returncode == 0, result.stderr
+        actual = result.stdout.split()
+        assert actual == [str(expected), str(expected)], (
+            "constant and engine default both follow the env var"
+        )
 
 
 class TestCfgKeyRetired:

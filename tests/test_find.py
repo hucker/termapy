@@ -132,7 +132,7 @@ class TestFindHandler:
 
     def test_find_case_insensitive(self, env):
         """Matching ignores case: a lowercase pattern finds the ERROR lines."""
-        # Arrange / Act -- uppercase pattern matches lower-case ERROR lines.
+        # Arrange / Act -- lowercase pattern matches the uppercase ERROR lines.
         eng, _, _ = env
         eng.dispatch("find error")
 

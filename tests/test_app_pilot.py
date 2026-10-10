@@ -129,6 +129,32 @@ class TestAppBoots:
         _run(scenario)
 
 
+class TestCustomButtons:
+    """Which configured custom buttons the bottom bar actually mounts."""
+
+    def test_only_enabled_buttons_mount(self, app_factory):
+        """Disabled buttons and ones with no enabled key stay off the bar, order kept."""
+        async def scenario():
+            # Arrange
+            buttons = [
+                {"enabled": True, "name": "A", "command": "/print a"},
+                {"enabled": False, "name": "B", "command": "/print b"},
+                {"name": "X", "command": "/print x"},
+                {"enabled": True, "name": "C", "command": "/print c"},
+            ]
+            app, _, _ = app_factory(custom_buttons=buttons)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Act
+                actual = [str(button.label) for button in app.query(".custom-btn")]
+                # Assert
+                assert actual == ["A", "C"], (
+                    "only enabled buttons mount; a missing enabled key means hidden"
+                )
+
+        _run(scenario)
+
+
 class TestSwitchConfig:
     """``_switch_config`` is pure orchestration -- 36 lines of self.* wiring.
 

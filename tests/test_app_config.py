@@ -390,67 +390,6 @@ class TestScriptTemplate:
         assert "/delay" in actual, "contains REPL example"
 
 
-# -- Custom button config validation ----------------------------------------
-
-
-class TestCustomButtonConfig:
-    def test_enabled_filter(self):
-        """Simulate the enabled filter used in compose."""
-        # Arrange
-        buttons = [
-            {"enabled": True, "name": "A", "command": "cmd1", "tooltip": "t1"},
-            {"enabled": False, "name": "B", "command": "cmd2", "tooltip": "t2"},
-            {"enabled": True, "name": "C", "command": "cmd3", "tooltip": "t3"},
-        ]
-
-        # Act
-        actual = [button for button in buttons if button.get("enabled", False)]
-
-        # Assert
-        assert len(actual) == 2, "only enabled buttons returned"
-        assert actual[0]["name"] == "A", "first enabled button"
-        assert actual[1]["name"] == "C", "second enabled button"
-
-    def test_missing_enabled_defaults_false(self):
-        """A button with no enabled field is hidden, not shown."""
-        # Arrange
-        buttons = [{"name": "X", "command": "cmd", "tooltip": "tip"}]
-
-        # Act
-        actual = [button for button in buttons if button.get("enabled", False)]
-
-        # Assert
-        assert len(actual) == 0, "missing enabled treated as False"
-
-    def test_command_split(self):
-        """Simulate the \\n split used in _run_custom_button."""
-        # Arrange
-        raw = "ATZ\\nAT+INFO\\n/delay 500ms"
-        expected = ["ATZ", "AT+INFO", "/delay 500ms"]
-
-        # Act
-        actual = [token.strip() for token in raw.split("\\n") if token.strip()]
-
-        # Assert
-        assert actual == expected, "multi-command split correctly"
-
-    def test_command_split_single(self):
-        """A button command with no newline separator stays a single command."""
-        actual = [token.strip() for token in "ATZ".split("\\n") if token.strip()]
-        assert actual == ["ATZ"], "single command unchanged"
-
-    def test_command_split_empty(self):
-        """An empty button command yields no commands rather than one blank send."""
-        actual = [token.strip() for token in "".split("\\n") if token.strip()]
-        assert actual == [], "empty string yields empty list"
-
-    def test_repl_prefix_detection(self):
-        """A /-prefixed button command routes to the REPL; anything else goes to the device."""
-        prefix = "/"
-        assert "/run test.run".startswith(prefix), "REPL command detected"
-        assert not "ATZ".startswith(prefix), "serial command not matched"
-
-
 # -- expand_env_str / expand_env_cfg ----------------------------------------
 
 

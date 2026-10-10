@@ -731,8 +731,8 @@ Each column is `Name:TypeBytes` where the type controls how bytes are displayed:
 
 | Type   | Description               | Example               | Display            |
 | ------ | ------------------------- | --------------------- | ------------------ |
-| `H`    | Hex (uppercase)           | `H1` / `H3-4`         | `0A` / `0A 2B`     |
-| `h`    | Hex (lowercase)           | `h1`                  | `0a`               |
+| `H`    | Hex bytes                 | `H1` / `H3-4`         | `0A` / `0A2B`      |
+| `h`    | Hex, per byte             | `h3-4`                | `0A 2B`            |
 | `U`    | Unsigned int (big-endian) | `U3-4`                | `7`                |
 | `I`    | Signed int (big-endian)   | `I3-4`                | `-1`               |
 | `S`    | ASCII string              | `S3-10`               | `HELLO`            |
@@ -1116,11 +1116,13 @@ Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
 | Code   | Meaning          | Example            | Output       |
 | ------ | ---------------- | ------------------ | ------------ |
 | `H`    | Hex bytes        | `H1`, `H3-4`       | `0A`, `01FF` |
+| `h`    | Hex, per byte    | `h3-4`             | `01 FF`      |
 | `U`    | Unsigned integer | `U1`, `U3-4`       | `10`, `256`  |
 | `I`    | Signed integer   | `I1`, `I3-4`       | `-1`, `+127` |
 | `S`    | ASCII string     | `S5-12`            | `Hello...`   |
 | `F`    | IEEE 754 float   | `F1-4`             | `3.14`       |
 | `B`    | Bit field        | `B1.3`, `B1-2.7-9` | `1`, `5`     |
+| `b`    | Bit field, bits  | `b1.0-7`           | `00000110`   |
 | `_`    | Padding (hidden) | `_:_3-4`           | *(skipped)*  |
 | `crc*` | CRC verify       | `CRC:crc16-modbus_le` | pass/fail |
 

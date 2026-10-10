@@ -1535,6 +1535,30 @@ class TestApplyFormat:
         expected = 15
         assert actual == expected, "bits 4-7 all set = 15"
 
+    def test_binary_bit_field_ascending_reads_msb_first(self):
+        """Lowercase b prints the bits as a binary string; an ascending range reads bit 7 leftmost."""
+        # Arrange - 0x06 = 0000_0110
+        cols = parse_format_spec("Flags:b1.0-7 Value:B1.0-7")
+
+        # Act
+        _, values = apply_format(b"\x06", cols)
+
+        # Assert
+        expected = ["00000110", "6"]
+        assert values == expected, "b shows the bits, B shows the same bits as a number"
+
+    def test_binary_bit_field_descending_reverses(self):
+        """A descending b range reverses the string, so bit 0 is leftmost."""
+        # Arrange - 0x06 = 0000_0110, read bit 7 down to bit 0
+        cols = parse_format_spec("Flags:b1.7-0")
+
+        # Act
+        _, values = apply_format(b"\x06", cols)
+
+        # Assert
+        expected = ["01100000"]
+        assert values == expected, "7-0 lists bit 0 first"
+
     def test_padding_skipped_in_output(self):
         """Padding columns are not included in headers or values."""
         # Arrange

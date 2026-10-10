@@ -287,6 +287,12 @@ git config core.hooksPath .githooks  # once per clone: ruff + ty gate every comm
   regenerate the page block and `credits.py`. Same principle everywhere: when
   three surfaces need the same facts, put the facts in one table and iterate
   it — never keep parallel hand-written lists.
+- **Format-spec type codes live in `protocol/type_codes.py` (`TYPE_CODES`).**
+  The parser takes its code sets from it and the type tables in README.md and
+  `help/protocol-testing.md` are generated from it (Output column decoded by
+  the real parser). Edit the table, then `uv run python
+  scripts/sync_format_tables.py`; `tests/test_format_tables_sync.py` fails on
+  a hand-edited table.
 - Update README.md and help/*.md
 - Update ARCHITECTURE.md if modules, plugins, or structure changed
 - **Do NOT hand-update the test/coverage/ty counts or badges on feature

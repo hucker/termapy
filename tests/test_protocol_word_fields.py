@@ -22,11 +22,13 @@ from termapy.protocol.core import (
 class TestParse:
 
     def test_no_byte_range_parses_as_word_relative(self):
+        """A B column with no byte range parses with empty byte_indices and keeps its bits."""
         on, mode = parse_format_spec("ON:B.15 MODE:B.8-9")
         assert (on.type_code, on.byte_indices, on.bit) == ("B", [], 15)
         assert (mode.byte_indices, mode.bit) == ([], (8, 9))
 
     def test_explicit_byte_range_is_untouched(self):
+        """The packet form B4-1.15 still parses its own descending byte order."""
         (on,) = parse_format_spec("ON:B4-1.15")
         assert on.byte_indices == [3, 2, 1, 0], "the packet form keeps its own order"
 
@@ -41,10 +43,12 @@ class TestResolve:
         (1, "be", [0]),
     ])
     def test_binds_the_word(self, size, endian, expected):
+        """The symbol's size and the device's endian decide the bound byte order."""
         (column,) = resolve_word_columns(parse_format_spec("F:B.0"), size, endian)
         assert column.byte_indices == expected
 
     def test_explicit_columns_pass_through(self):
+        """Columns that carry their own byte range come back as the same objects."""
         # Arrange
         columns = parse_format_spec("A:B.0 Len:U1 C:B1-2.3")
 
@@ -58,10 +62,12 @@ class TestResolve:
         assert resolved[1] is columns[1] and resolved[2] is columns[2], "the others are untouched"
 
     def test_bit_outside_the_word_is_refused(self):
+        """A bit past the register's width is an Invalid bit error naming the word size."""
         with pytest.raises(ValueError, match=r"Invalid bit: HI \(the word is 16 bits\)"):
             resolve_word_columns(parse_format_spec("HI:B.16"), 2, "le")
 
     def test_same_bytes_read_in_the_core_byte_order(self):
+        """One spec over the same bytes reads differently on LE and BE cores, as the core would."""
         # Arrange -- 0x8008 stored little-endian: 08 80 00 00
         data = (0x8008).to_bytes(4, "little")
         (on_le,) = resolve_word_columns(parse_format_spec("ON:B.15"), 4, "le")
@@ -76,6 +82,7 @@ class TestResolve:
         assert actual_be == 0, "a big-endian core sees 0x08800000: bit 15 clear"
 
     def test_inject_follows_the_same_binding(self):
+        """Writing a bound field puts the bit where reading it would find it."""
         (on,) = resolve_word_columns(parse_format_spec("ON:B.15"), 4, "le")
         actual = inject_column_value(bytes(4), on, 1)
         assert actual == (0x8000).to_bytes(4, "little"), "bit 15 lands in the LE word's second byte"
@@ -85,15 +92,18 @@ class TestUnboundIsAnError:
     """A packet has no register word, so the primitives refuse an unbound field."""
 
     def test_extract(self):
+        """Reading an unbound B.<bits> field raises instead of silently reading zero."""
         (column,) = parse_format_spec("ON:B.15")
         with pytest.raises(ValueError, match="no byte range"):
             extract_column_value(bytes(4), column)
 
     def test_inject(self):
+        """Writing an unbound B.<bits> field raises instead of writing nowhere."""
         (column,) = parse_format_spec("ON:B.15")
         with pytest.raises(ValueError, match="no byte range"):
             inject_column_value(bytes(4), column, 1)
 
     def test_apply_format(self):
+        """A packet display spec with an unbound B.<bits> field is refused."""
         with pytest.raises(ValueError, match="no byte range"):
             apply_format(bytes(4), parse_format_spec("ON:B.15"))

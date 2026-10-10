@@ -1127,7 +1127,7 @@ def extract_fmt_title(spec: str) -> tuple[str, str]:
     return "", spec
 
 
-def parse_format_spec(spec: str) -> list[ColumnSpec]:
+def parse_format_spec(spec: str, *, word: bool = False) -> list[ColumnSpec]:
     """Parse a format spec string into column definitions.
 
     Format: space-separated ``Name:TypeBytesRefs`` tokens.
@@ -1136,9 +1136,18 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
     Args:
         spec: Format spec string, e.g.
             ``"Slave:H1 Func:H2 Addr:U3-4 CRC:crc16-modbus_le"``.
+        word: True when the spec describes a register word, so a
+            ``B.<bits>`` field is allowed (bind it with
+            :func:`resolve_word_columns`).  A packet spec (the default)
+            refuses one here, where the user typed it, rather than in
+            the decode -- which for a capture runs on the reader path.
 
     Returns:
         List of ColumnSpec, one per column.
+
+    Raises:
+        ValueError: A malformed token, or a ``B.<bits>`` field in a
+            packet spec.
     """
     columns: list[ColumnSpec] = []
     for token in spec.split():
@@ -1154,7 +1163,8 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
         #   B.15 - no byte range: a bit of the enclosing REGISTER WORD.
         #          The reader binds it with resolve_word_columns (the
         #          symbol's size, the device's byte order); a packet has
-        #          no word, so the primitives refuse it unbound.
+        #          no word, so only word=True accepts it (and the
+        #          primitives refuse one nobody bound).
         if type_body[0] in BIT_CODES and "." in type_body:
             type_code = type_body[0]
             byte_part, bit_part = type_body[1:].split(".", 1)
@@ -1164,14 +1174,15 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
                 bit = (int(bit_parts[0]), int(bit_parts[1]))
             else:
                 bit = int(bit_part)
-            columns.append(
-                ColumnSpec(
-                    name=name,
-                    type_code=type_code,
-                    byte_indices=byte_indices,
-                    bit=bit,
-                )
+            column = ColumnSpec(
+                name=name,
+                type_code=type_code,
+                byte_indices=byte_indices,
+                bit=bit,
             )
+            if not word:
+                _require_bytes(column)
+            columns.append(column)
             continue
 
         # Byte types: H, h, U, I, S, F, _ (padding) -- see type_codes.TYPE_CODES

@@ -2521,6 +2521,22 @@ class TestCapStructHandler:
         assert any("Invalid format" in t.lower() or "invalid" in t.lower()
                     for t, _ in output)
 
+    def test_cap_struct_refuses_a_register_field(self, repl_env):
+        """fmt=ON:B.15 fails at the command, before a capture whose decode would raise on the reader path."""
+        # Arrange
+        engine, _, _, output = repl_env
+        captures = []
+        engine.ctx.internal.start_capture = lambda **kw: (
+            captures.append(kw) or True
+        )
+
+        # Act
+        engine.dispatch("cap.struct data.csv fmt=ON:B.15 records=1")
+
+        # Assert
+        assert captures == [], "no capture is armed for a spec it cannot decode"
+        assert any("no byte range" in text for text, _ in output), "the error names the problem"
+
     def test_cap_struct_must_specify_size(self, repl_env):
         """fmt= without records= or bytes= errors, naming both ways to size the capture."""
         # Arrange

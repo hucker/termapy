@@ -249,7 +249,7 @@ def check_type(spec: str, where: str) -> None:
     from termapy.protocol.core import parse_format_spec
 
     try:
-        columns = parse_format_spec(spec)
+        columns = parse_format_spec(spec, word=True)
     except (ValueError, IndexError, KeyError):
         columns = []
     if not columns:

@@ -170,7 +170,7 @@ def symbol_columns(symbol: Symbol, endian: str) -> list[ColumnSpec]:
     if not symbol.type or symbol.type in SCALARS or symbol.type == "char":
         return []
     try:
-        columns = parse_format_spec(symbol.type)
+        columns = parse_format_spec(symbol.type, word=True)
     except (ValueError, IndexError, KeyError):
         return []
     return resolve_word_columns(columns, _word_width(symbol, 4), endian)

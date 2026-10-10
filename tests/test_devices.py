@@ -170,12 +170,12 @@ class TestFields:
         assert spec == "EN:B.15 MODE:B.8-9", "no byte range: width and byte order come from the reader"
 
     def test_derived_spec_parses(self):
-        """The derivation must produce what the format-spec parser accepts."""
+        """The derivation must produce what the format-spec parser accepts as a register spec."""
         # Arrange
         spec = derive_type((Field("EN", 15), Field("MODE", 8, 2)))
 
         # Act
-        columns = parse_format_spec(spec)
+        columns = parse_format_spec(spec, word=True)
 
         # Assert
         assert [column.name for column in columns] == ["EN", "MODE"], "both columns parsed"

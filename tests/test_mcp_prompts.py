@@ -151,7 +151,7 @@ class TestRegisterPrompts:
         server = MCPServer("test")
         # ``host`` is unused by today's prompts but the signature
         # requires it; pass a sentinel
-        register_prompts(server, host=None)  # type: ignore[arg-type]
+        register_prompts(server, host=None)  # ty: ignore[invalid-argument-type]
 
         # Act -- introspect the prompt registry.  mcp 2.x exposes a
         # public async listing, so this no longer reaches into the

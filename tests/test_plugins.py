@@ -1086,7 +1086,7 @@ class TestCapabilityProfiles:
         """A shared profile cannot be mutated, so no command can alter another's needs."""
         import dataclasses
         with pytest.raises(dataclasses.FrozenInstanceError):
-            CapabilitySet.SERIAL_CONNECTED.serial_connected = False  # type: ignore[misc]
+            CapabilitySet.SERIAL_CONNECTED.serial_connected = False  # ty: ignore[invalid-assignment]
 
     def test_serial_interactive_is_the_union(self):
         """SERIAL_INTERACTIVE is exactly SERIAL_CONNECTED combined with INTERACTIVE."""

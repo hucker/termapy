@@ -762,7 +762,7 @@ class TestCmdResult:
         # silently forget it.  Positional or missing args must error.
         import pytest as _pytest
         with _pytest.raises(TypeError):
-            CmdResult.ok()  # type: ignore[call-arg]
+            CmdResult.ok()  # ty: ignore[missing-argument] -- the TypeError is the point
 
     def test_value_empty_explicit(self):
         """An explicit empty value is kept as the empty string."""

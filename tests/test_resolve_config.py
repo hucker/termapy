@@ -366,6 +366,7 @@ class TestResolveProtoPath:
         actual = resolve_proto_path("dup.pro", str(config_path))
 
         # Assert
+        assert actual is not None, "a path was resolved"
         assert actual.read_text(encoding="utf-8") == "from cwd", (
             "a path relative to the shell takes precedence over proto/"
         )

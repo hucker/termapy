@@ -201,7 +201,9 @@ markers = [
 # Vendored pyserial lives here. ty needs to see it as a search root so
 # `import serial` resolves to termapy/vendor/serial/ at type-check time,
 # matching the sys.path redirect that vendor/__init__.py does at runtime.
-extra-paths = ["src/termapy/vendor"]
+# scripts/ is here for the same reason: the tests that cover the release
+# scripts prepend it to sys.path and import them as top-level modules.
+extra-paths = ["src/termapy/vendor", "scripts"]
 
 [tool.pyright]
 # The SAME vendored-pyserial facts, taught to Pylance/pyright (which do
@@ -211,7 +213,7 @@ extra-paths = ["src/termapy/vendor"]
 # attribute diagnostics that ty -- the gate that counts -- scores as 0.
 # exclude mirrors [tool.ty.src]: don't LINT the vendored code, but it
 # stays visible for import resolution.
-extraPaths = ["src/termapy/vendor"]
+extraPaths = ["src/termapy/vendor", "scripts"]
 exclude = ["src/termapy/vendor", "src/termapy/html"]
 
 [tool.ty.src]

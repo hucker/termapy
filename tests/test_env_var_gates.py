@@ -72,7 +72,7 @@ class TestOsCmdGate:
             io = _IO()
 
         # Act
-        result = os_cmd._handler(_Ctx(), "echo hi")  # type: ignore[arg-type]
+        result = os_cmd._handler(_Ctx(), "echo hi")  # ty: ignore[invalid-argument-type]
 
         # Assert
         assert result.success is False, "blocked when env flag false"
@@ -96,7 +96,7 @@ class TestOsCmdGate:
             io = _IO()
 
         # Act -- a portable echo via python so the test works on Windows
-        result = os_cmd._handler(_Ctx(), "python -c \"print('zz_marker')\"")  # type: ignore[arg-type]
+        result = os_cmd._handler(_Ctx(), "python -c \"print('zz_marker')\"")  # ty: ignore[invalid-argument-type]
 
         # Assert
         assert result.success is True, "succeeds when env flag true"
@@ -122,7 +122,7 @@ class TestOsCmdGate:
             cfg = {"os_cmd_enabled": True}  # noise; should be ignored
 
         # Act
-        result = os_cmd._handler(_Ctx(), "echo nope")  # type: ignore[arg-type]
+        result = os_cmd._handler(_Ctx(), "echo nope")  # ty: ignore[invalid-argument-type]
 
         # Assert
         assert result.success is False, "cfg key cannot grant /os"

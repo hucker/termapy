@@ -208,7 +208,7 @@ class TestBuiltinValidator:
     def test_non_dict_root_fails(self):
         """A root that is not an object fails validation with at least one error."""
         # Arrange / Act
-        result = validate_profile("not a dict")  # type: ignore[arg-type]
+        result = validate_profile("not a dict")  # ty: ignore[invalid-argument-type]
         # Assert
         assert result.ok is False, "non-dict root rejected"
         assert len(result.errors) >= 1, "at least one error"

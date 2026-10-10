@@ -149,7 +149,9 @@ class TestRegistry:
 
     def test_sniff_explicit_and_unknown(self):
         text = SVD_SAMPLE.read_text(encoding="utf-8")
-        assert find_converter(text=text).format == "svd", "sniffed by its schema marker"
-        assert find_converter(format_name="svd").format == "svd", "explicit"
+        converter = find_converter(text=text)
+        assert converter is not None and converter.format == "svd", "sniffed by its schema marker"
+        converter = find_converter(format_name="svd")
+        assert converter is not None and converter.format == "svd", "explicit"
         assert find_converter(text="hello") is None, "junk picks nothing"
         assert find_converter(format_name="nope") is None, "unknown key -> None"

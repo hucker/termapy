@@ -80,7 +80,7 @@ class TestCreditsSync:
             io = _IO()
 
         # Act
-        result = _handler(_Ctx(), "")  # type: ignore[arg-type]
+        result = _handler(_Ctx(), "")  # ty: ignore[invalid-argument-type]
 
         # Assert
         assert result.success is True, "/credits handler reports success"

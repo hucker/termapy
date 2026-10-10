@@ -143,7 +143,9 @@ class TestDefaultCfg:
     def test_default_baud_rate(self):
         """A fresh config defaults to 115200 baud, nested under the serial section."""
         # Assert -- nested under cfg["serial"] post-v22.
-        assert DEFAULT_CFG["serial"]["baud_rate"] == 115200, "standard default"
+        serial = DEFAULT_CFG["serial"]
+        assert isinstance(serial, dict), "serial is a section"
+        assert serial["baud_rate"] == 115200, "standard default"
 
     def test_default_line_ending(self):
         """A fresh config sends a bare carriage return as its line ending."""

@@ -132,7 +132,7 @@ class TestPromptThenDispatch:
 
         # Act -- call the real method bound to our stub.
         SerialTerminal._prompt_then_dispatch(
-            app, "Test prompt:", "/foo ",  # type: ignore[arg-type]
+            app, "Test prompt:", "/foo ",  # ty: ignore[invalid-argument-type]
         )
         # Simulate the modal returning the user's input.
         captured_callback[0]("bar baz")
@@ -159,12 +159,12 @@ class TestPromptThenDispatch:
         # Act -- the user canceled (None) and the user submitted
         # empty (""); both should be silent.
         SerialTerminal._prompt_then_dispatch(
-            app, "Test:", "/foo ",  # type: ignore[arg-type]
+            app, "Test:", "/foo ",  # ty: ignore[invalid-argument-type]
         )
         captured_callback[0](None)
 
         SerialTerminal._prompt_then_dispatch(
-            app, "Test:", "/foo ",  # type: ignore[arg-type]
+            app, "Test:", "/foo ",  # ty: ignore[invalid-argument-type]
         )
         captured_callback[1]("")
 
@@ -280,12 +280,12 @@ class TestPaletteProvider:
         # Provider.matcher reads `self.__match_style` via name-mangling
         # (-> `_Provider__match_style`).  A bare Rich Style is enough
         # for the fuzzy matcher's internal needs.
-        provider._Provider__match_style = Style.null()
+        provider._Provider__match_style = Style.null()  # ty: ignore[unresolved-attribute]
         # `self.app` lookup -- stub with a SimpleNamespace carrying
         # just the PALETTE_CMDS the provider needs.
         from types import SimpleNamespace
-        provider._test_app = SimpleNamespace(PALETTE_CMDS=palette_cmds)
-        type(provider).app = property(lambda self: self._test_app)
+        provider._test_app = SimpleNamespace(PALETTE_CMDS=palette_cmds)  # ty: ignore[unresolved-attribute]
+        type(provider).app = property(lambda self: self._test_app)  # ty: ignore[invalid-assignment]
         return provider
 
     def test_discover_yields_all_palette_cmds_alphabetically(self):

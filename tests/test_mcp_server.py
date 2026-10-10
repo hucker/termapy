@@ -774,6 +774,7 @@ class TestColorStripping:
             _buffer.reset(token)
 
         # Assert -- the rx entries that become output_lines are escape-free.
+        assert buf is not None, "the buffer was set above"
         rx_text = [entry["text"] for entry in buf if entry["level"] == "rx"]
         assert rx_text == ["green", "plain line"], (
             "device ANSI stripped from output_lines rx entries when color off"
@@ -794,6 +795,7 @@ class TestColorStripping:
             _buffer.reset(token)
 
         # Assert -- escapes pass through into output_lines.
+        assert buf is not None, "the buffer was set above"
         rx_text = [entry["text"] for entry in buf if entry["level"] == "rx"]
         assert rx_text == ["\x1b[32mgreen\x1b[0m", "plain line"], (
             "device ANSI preserved in output_lines when color on"

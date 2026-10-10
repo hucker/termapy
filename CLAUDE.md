@@ -188,6 +188,7 @@ for any multi-arg command.
 uv run pytest              # run tests
 uv run termapy             # run the app
 uv run termapy --cfg-dir . # use cwd for configs
+git config core.hooksPath .githooks  # once per clone: ruff + ty gate every commit
 ```
 
 ## Testing
@@ -276,6 +277,7 @@ uv run termapy --cfg-dir . # use cwd for configs
 
 ## Precommit
 
+- **Nothing is committed with a diagnostic -- checked at EVERY commit, not at release.** Before any commit, mine or Chuck's on request, all three must be clean: `uv run ruff check src/termapy/ tests/` = 0, `uv run ty check src/termapy/ tests/` = 0, and the test suite green. Tests are code: "it's only a test" is never a reason to leave one. Clean means no errors or warnings; hints (an unused parameter in a fake) and spelling notes are not diagnostics. Every diagnostic is fixed, or suppressed with its rule code and a reason (`# ty: ignore[rule] -- why`); never left for later. In VS Code, the touched files' Problems panel must agree -- a red or yellow underline the gates miss is still a defect. The release gate is the backstop, not the check: when it was the only place ty ran, and on `src/` alone, 101 problems built up in tests unseen. **Enforced by `.githooks/pre-commit`** (ruff + ty, a few seconds; the suite is too slow for a hook and stays a manual step), active once per clone via `git config core.hooksPath .githooks`. Never bypass it with `--no-verify`; fix what it reports.
 - **A new dependency gets a `Credit` record in `credits_data.py`.** That table
   is the only place a dependency is described; the Help tooltip, `/credits`,
   and `help/acknowledgments.md` all iterate it, and
@@ -299,7 +301,7 @@ uv run termapy --cfg-dir . # use cwd for configs
 - HTML help rebuild should be a separate commit before release versions
 - Run tox, pytest, coverage review
 - **`uv run ruff check src/termapy/ tests/` must be 0** (release_prep refuses to cut a release otherwise)
-- **`uv run ty check src/termapy/` must be 0** (same gate; the README badge tracks this and turns yellow/red on regression)
+- **`uv run ty check src/termapy/ tests/` must be 0** (same gate; the README badge tracks this and turns yellow/red on regression). `tests/` is in scope like it is for ruff: while the gate covered `src/` alone, 101 typing problems built up in tests unseen, 12 of them real mistakes (a `-> callable` annotation, `active_flags={}` where a set was meant, handlers that raised on every run). In tests, suppress a deliberate wrong type or a test double with `# ty: ignore[rule]` -- ty does NOT honor mypy-coded `# type: ignore[arg-type]` -- and narrow an optional with `assert x is not None, "..."` before using it.
 - Both tools are pinned exactly in `[dependency-groups] dev` and the rule set is pinned in `[tool.ruff.lint]`. Run them through `uv run`, never `uvx` / a global install — otherwise the gate enforces whatever version happens to be around, which is how ruff 0.16's wider defaults turned a clean tree into 636 findings. Bumping either is a deliberate chore branch with the new findings reviewed.
 - **Run the gates with all extras synced** (`uv sync --all-extras`; `release_prep` does this itself before checking). ty's count depends on what's installed, not just on the source: without the extras the optional-dependency imports (mcp, jsonschema, textual_serve) report `unresolved-import`, and with them a suppression written for the missing case reads as unused. Both states are non-zero and mutually exclusive, so the gate names one environment — the richer one, which type-checks the optional code paths rather than skipping them. Consequence: do **not** add `# ty: ignore[unresolved-import]` to an optional-dependency import; guard it with `try/except ImportError` and let the extra be present at check time.
 

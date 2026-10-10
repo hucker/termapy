@@ -92,7 +92,7 @@ def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
     # because the user is going into power-edit mode.
     app = _StubApp()
     pushed: list = []
-    app.push_screen = lambda screen, callback=None: pushed.append(
+    app.push_screen = lambda screen, callback=None: pushed.append(  # ty: ignore[unresolved-attribute]
         (screen, callback)
     )
     result = ("advanced", "demo", "COM1", 115200, False, True)

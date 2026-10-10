@@ -67,7 +67,7 @@ def host(tmp_path, monkeypatch):
     # Capture outbound bytes; suppress the real port write (there is no port).
     sent: list[bytes] = []
     monkeypatch.setattr(h, "_serial_write", lambda data: sent.append(data))
-    h._sent = sent  # convenience handle for tests
+    h._sent = sent  # ty: ignore[unresolved-attribute] -- convenience handle for tests
     return h
 
 
@@ -106,7 +106,7 @@ def _reply_after_send(host: MCPHost, lines: list[str]) -> None:
 
         threading.Thread(target=_push, daemon=True).start()
 
-    host._serial_write = _wrapped
+    host._serial_write = _wrapped  # ty: ignore[invalid-assignment] -- spy on writes
 
 
 # ── Profile fixtures ────────────────────────────────────────────────────────

@@ -171,7 +171,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         self._path = path
         self._ctx = ctx
         self._script = script
-        self._running = False
+        self._run_active = False
         # Set by the Stop button; the run worker checks it between tests
         # and waits on it through the between-run delay.
         self._stop_requested = threading.Event()
@@ -304,7 +304,7 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         Suppressed while tests are running to preserve the scrolling log.
         """
-        if self._running:
+        if self._run_active:
             return
         tc = self._get_highlighted_test()
         if tc is None:
@@ -719,7 +719,7 @@ class ProtoDebugScreen(ModalScreen[None]):
     @on(Button.Pressed, "#btn-dbg-send")
     def _on_send(self) -> None:
         """Run all checked tests, or the highlighted test if none checked."""
-        if self._running:
+        if self._run_active:
             self._set_status("Already running", "bold yellow")
             return
         tests = self._get_checked_tests()
@@ -742,7 +742,7 @@ class ProtoDebugScreen(ModalScreen[None]):
 
     def _set_run_state(self, running: bool) -> None:
         """Flip the running flag and the Stop button together (main thread only)."""
-        self._running = running
+        self._run_active = running
         self.query_one("#btn-dbg-stop", Button).disabled = not running
 
     @on(Button.Pressed, "#btn-dbg-setup")
@@ -1139,8 +1139,8 @@ class ProtoDebugScreen(ModalScreen[None]):
                         log.write,
                         Text(f"  JSON: {json_file}", style="dim"))
 
-            # Clear _running *on the UI thread* so that any pending
-            # SelectionHighlighted events still see _running=True and
+            # Clear _run_active *on the UI thread* so that any pending
+            # SelectionHighlighted events still see _run_active=True and
             # don't call _show_test_detail (which clears the log).
             self.app.call_from_thread(self._set_run_state, False)
         except RuntimeError:
@@ -1158,7 +1158,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             try:
                 self.app.call_from_thread(self._set_run_state, False)
             except RuntimeError:
-                self._running = False
+                self._run_active = False
             self._close_log()
 
     @work(thread=True)

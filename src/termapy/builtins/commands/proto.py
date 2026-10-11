@@ -866,7 +866,8 @@ def _parse_crc_data(data_str: str) -> tuple[bytes, bool]:
     """
     tokens = data_str.split()
     is_hex = bool(tokens) and all(
-        len(token) == 2 and all(c in "0123456789abcdefABCDEF" for c in token) for token in tokens
+        len(token) == 2 and all(char in "0123456789abcdefABCDEF" for char in token)
+        for token in tokens
     )
     if is_hex:
         return bytes(int(token, 16) for token in tokens), True
@@ -1548,13 +1549,15 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
       - ``asc=<text>`` -- a packet whose trailing chars are the
         hex-encoded CRC.
 
+      - ``cmd=<trigger>`` -- send a plain trigger and detect on the
+        response (devices that answer without a valid-CRC query).
+
     The actual identification work is ``crcglot.detect``; termapy
-    just shuttles bytes in and formats the result.  Both modes
-    require a real captured frame -- there's no live "send and
-    detect" mode because constructing a valid query already requires
-    knowing the CRC algorithm (chicken/egg), so capture-from-sniffer
-    is the universally applicable path.
+    just shuttles bytes in and formats the result.
     """
+    # Hand-rolled (CLAUDE.md, Declarative Command Parameters): mode
+    # dispatch over three mutually exclusive to-end-of-line keywords
+    # (bin= / asc= / cmd=), which a single rest param cannot express.
     kw = _parse_find_args(args)
     if "mode" not in kw:
         raise UsageError()
@@ -1727,6 +1730,10 @@ def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
     ``encode`` and ``verify`` use); pass ``endian=le`` for low-byte-first
     trailers like Modbus.
     """
+    # Hand-rolled: a variadic positional hex list after an optional
+    # keyword -- the not-yet-migrated holdout (CLAUDE.md, Declarative
+    # Command Parameters); migrate with its tests when the parser is
+    # next changed.
     p = ctx.prefix
     parts = args.strip().split(None, 1)
     if len(parts) < 2:
@@ -1747,7 +1754,7 @@ def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
             break
 
     try:
-        packet = bytes(int(t, 16) for t in rest.split())
+        packet = bytes(int(token, 16) for token in rest.split())
     except ValueError:
         return CmdResult.fail(msg="Invalid hex bytes")
     if not packet:
@@ -2343,7 +2350,7 @@ COMMAND = Command(
         ),
         "send": Command(
             args=(
-                '{algo{_le|_be}{_ascii}} <hex|"text"|~delay ...> '
+                '{algo{_le|_be}{_ascii}} <hex|"text"|~delay>... '
                 "{--dry-run} {--ascii}"
             ),
             help="Send raw bytes (with optional CRC), show response.",
@@ -2409,7 +2416,7 @@ COMMAND = Command(
                 "find": Command(
                     args=(
                         "{width=8|16|32|64} {endian=be|le} {form=NAME} "
-                        "bin=<hex>|asc=<text>"
+                        "bin=<hex>|asc=<text>|cmd=<trigger>"
                     ),
                     help="Identify the CRC algorithm used in a captured packet.",
                     long_help=(
@@ -2463,7 +2470,7 @@ COMMAND = Command(
                     handler=_crc_calc,
                 ),
                 "verify": Command(
-                    args="<name> {endian=be|le} <hex bytes>",
+                    args="<name> {endian=be|le} <hex>...",
                     help="Verify a packet's trailing CRC against a known algorithm.",
                     long_help=(
                         "Peels the trailing CRC field off a captured packet,\n"
@@ -2480,9 +2487,12 @@ COMMAND = Command(
                     handler=_crc_verify,
                 ),
                 "reverse": Command(
+                    # Two modes, explicit packets XOR cmd= capture: both
+                    # groups are optional in the grammar and the long help
+                    # states the either/or.
                     args=(
                         "{crc_bytes=N} {width=N} "
-                        "<packet-hex> <packet-hex>...|cmd=<trigger> count=<N>"
+                        "{cmd=<trigger> count=<N>} {packet-hex}..."
                     ),
                     help="Recover the Rocksoft parameters of an unknown CRC.",
                     long_help=(

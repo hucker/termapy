@@ -7,6 +7,7 @@ or `feed_text()`, and the engine writes to the output file.
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,10 @@ from typing import IO, Any, Callable
 from termapy.folders import ensure_folder
 from termapy.protocol import apply_format, parse_hex
 from termapy.scripting import format_duration, format_size
+
+# Hex mode buffers text up to a newline; a stream that never sends one is
+# not hex text, and an unbounded buffer would grow for as long as it ran.
+_HEX_LINE_LIMIT = 4096
 
 
 @dataclass
@@ -110,10 +115,16 @@ class CaptureEngine:
         self._buf: bytearray = bytearray()
         self._hex_mode: bool = False
         self._hex_line_buf: str = ""
-        # Set to the OSError text if a write fails mid-capture; surfaced on
-        # CaptureResult so the host can report "aborted" and (binary mode)
-        # release the serial claim instead of silently truncating.
+        # Set to the OSError text if a write fails mid-capture, or to the
+        # reason hex mode refused the stream; surfaced on CaptureResult so
+        # the host can report "aborted" and (binary mode) release the
+        # serial claim instead of silently truncating.
         self._write_error: str = ""
+        # ``stop()`` runs on the caller's thread while the reader is still
+        # feeding: both flush, and without a lock each could write the
+        # same block (both snapshot the buffer before either clears it).
+        # Re-entrant because stop() flushes while holding it.
+        self._lock = threading.RLock()
 
     @property
     def active(self) -> bool:
@@ -216,21 +227,28 @@ class CaptureEngine:
         if not self._fh:
             return None
 
-        if self._mode == "bin" and self._buf:
-            self._flush_bin()
+        with self._lock:
+            if self._hex_mode and self._hex_line_buf.strip() and not self._write_error:
+                # A last line the device never terminated is still a line
+                # (unless the stream was refused: then what follows the
+                # bad line stays out).
+                self._feed_hex_line(self._hex_line_buf)
+                self._hex_line_buf = ""
+            if self._mode == "bin" and self._buf:
+                self._flush_bin()
 
-        path = self._path or Path("unknown")
-        byte_count = self._bytes
-        raw = self._raw
-        error = self._write_error
-        elapsed_s = time.monotonic() - self._started
+            path = self._path or Path("unknown")
+            byte_count = self._bytes
+            raw = self._raw
+            error = self._write_error
+            elapsed_s = time.monotonic() - self._started
 
-        try:
-            self._fh.close()
-        except OSError:
-            pass
+            try:
+                self._fh.close()
+            except OSError:
+                pass
 
-        self._reset()
+            self._reset()
 
         result = CaptureResult(
             path=path, byte_count=byte_count, raw=raw, error=error, elapsed_s=elapsed_s
@@ -254,16 +272,14 @@ class CaptureEngine:
             return True
 
         if self._hex_mode:
-            text = data.decode("utf-8", errors="replace")
-            self._hex_line_buf += text
+            self._hex_line_buf += data.decode("utf-8", errors="replace")
             while "\n" in self._hex_line_buf:
                 line, self._hex_line_buf = self._hex_line_buf.split("\n", 1)
-                line = line.strip()
-                if line:
-                    try:
-                        self._buf.extend(parse_hex(line))
-                    except ValueError:
-                        pass
+                if not self._feed_hex_line(line):
+                    return True  # refused: the caller stops the capture
+            if len(self._hex_line_buf) > _HEX_LINE_LIMIT:
+                self._write_error = f"Hex line exceeds {_HEX_LINE_LIMIT} chars without a newline"
+                return True
         else:
             self._buf.extend(data)
 
@@ -333,63 +349,87 @@ class CaptureEngine:
             remaining_s=remaining,
         )
 
+    def _feed_hex_line(self, line: str) -> bool:
+        """Decode one hex text line into the byte buffer.
+
+        A line that is not hex (an odd nibble count, a prompt, a status
+        message) used to be dropped silently, which in a struct capture
+        shifted every record after it.  Now it aborts the capture with
+        the line named, the same way a failed write does.
+
+        Returns:
+            False when the line was refused and the capture must stop.
+        """
+        line = line.strip()
+        if not line:
+            return True
+        try:
+            self._buf.extend(parse_hex(line))
+        except ValueError:
+            self._write_error = f"Invalid hex line: {line!r}"
+            return False
+        return True
+
     def _flush_bin(self) -> None:
         """Write accumulated binary buffer to file (complete records only).
 
         THREADING: runs on the reader thread while ``stop()`` runs on the
-        caller's.  The handle is bound once, so a close mid-flush surfaces
-        as ``ValueError`` on a real file object rather than
-        ``AttributeError`` on a reset ``None``.
+        caller's, under the engine lock so the two flushes serialize.  The
+        handle is bound once, so a close mid-flush surfaces as
+        ``ValueError`` on a real file object rather than ``AttributeError``
+        on a reset ``None``.
         """
-        fh = self._fh
-        if fh is None or not self._buf:
-            return
+        with self._lock:
+            fh = self._fh
+            if fh is None or not self._buf:
+                return
 
-        data = bytes(self._buf)
-        if self._raw:
-            try:
-                fh.write(data)
-                self._bytes += len(data)
-            except (OSError, ValueError) as e:
-                self._record_write_error(fh, e)
-        elif self._record_size > 0:
-            usable = len(data) - (len(data) % self._record_size)
-            if usable > 0:
-                lines: list[str] = []
-                sep = self._sep
-                if not self._header_written:
-                    headers, _ = apply_format(data[: self._record_size], self._columns)
-                    has_names = any(
-                        h != col.type_code
-                        for h, col in zip(headers, self._columns)
-                        if col.type_code != "_"
-                    )
-                    if has_names:
-                        lines.append(sep.join(headers))
-                    self._header_written = True
-
-                for offset in range(0, usable, self._record_size):
-                    record = data[offset : offset + self._record_size]
-                    _, values = apply_format(record, self._columns)
-                    lines.append(sep.join(values))
-
-                text = "\n".join(lines) + "\n"
+            data = bytes(self._buf)
+            if self._raw:
                 try:
-                    fh.write(text)
-                    self._bytes += usable
+                    fh.write(data)
+                    self._bytes += len(data)
                 except (OSError, ValueError) as e:
                     self._record_write_error(fh, e)
-                if self._echo and self._on_echo:
-                    for line in lines:
-                        self._on_echo(line)
-            # Keep the partial record at the tail for the next flush.  The
-            # reader's chunks are not record-aligned, so clearing the whole
-            # buffer here dropped 1..record_size-1 bytes per flush: every
-            # later row was shifted and ``_bytes`` fell short of the target
-            # (docs/review/2026-10-10-v0.76.0-fable-5.1.md, C1).
-            del self._buf[:usable]
-            return
-        self._buf.clear()
+            elif self._record_size > 0:
+                usable = len(data) - (len(data) % self._record_size)
+                if usable > 0:
+                    lines: list[str] = []
+                    sep = self._sep
+                    if not self._header_written:
+                        headers, _ = apply_format(data[: self._record_size], self._columns)
+                        # ``headers`` has no padding entries, so pair it with
+                        # the visible columns only (zipping against every
+                        # column misaligned the pairs and lost the header
+                        # whenever the first column was padding).
+                        visible = [col for col in self._columns if col.type_code != "_"]
+                        has_names = any(h != col.type_code for h, col in zip(headers, visible))
+                        if has_names:
+                            lines.append(sep.join(headers))
+                        self._header_written = True
+
+                    for offset in range(0, usable, self._record_size):
+                        record = data[offset : offset + self._record_size]
+                        _, values = apply_format(record, self._columns)
+                        lines.append(sep.join(values))
+
+                    text = "\n".join(lines) + "\n"
+                    try:
+                        fh.write(text)
+                        self._bytes += usable
+                    except (OSError, ValueError) as e:
+                        self._record_write_error(fh, e)
+                    if self._echo and self._on_echo:
+                        for line in lines:
+                            self._on_echo(line)
+                # Keep the partial record at the tail for the next flush.  The
+                # reader's chunks are not record-aligned, so clearing the whole
+                # buffer here dropped 1..record_size-1 bytes per flush: every
+                # later row was shifted and ``_bytes`` fell short of the target
+                # (docs/review/2026-10-10-v0.76.0-fable-5.1.md, C1).
+                del self._buf[:usable]
+                return
+            self._buf.clear()
 
     def _record_write_error(self, fh: IO[Any], exc: Exception) -> None:
         """Record a failed write, but only against the capture that made it.

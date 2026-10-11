@@ -1,7 +1,11 @@
 """Tests for CaptureEngine - file capture state machine."""
 
 import struct
+import threading
+import time
 from pathlib import Path
+
+import pytest
 
 from termapy.capture import (
     CaptureEngine,
@@ -359,6 +363,70 @@ class TestHexCapture:
         # Assert
         actual = path.read_bytes()
         assert actual == b"\x01\x02\x03", "reassembled from partial lines"
+
+    def test_last_line_without_newline_is_kept(self, tmp_path):
+        """A final hex line the device never terminated is decoded at stop, not dropped."""
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.bin"
+        engine.start(path=path, file_mode="wb", mode="bin", target_bytes=0, hex_mode=True)
+
+        # Act
+        engine.feed_bytes(b"01 02\n03 04")
+        engine.stop()
+
+        # Assert
+        assert path.read_bytes() == b"\x01\x02\x03\x04", "the unterminated 03 04 is still a line"
+
+    def test_a_non_hex_line_aborts_the_capture(self, tmp_path):
+        """A line that is not hex stops the capture with the line named; dropping it silently misframed every record after it."""
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.bin"
+        engine.start(path=path, file_mode="wb", mode="bin", target_bytes=0, hex_mode=True)
+
+        # Act
+        actual_stop = engine.feed_bytes(b"01 02\nREADY\n03 04\n")
+        result = engine.stop()
+
+        # Assert
+        assert actual_stop is True, "the caller is told to stop"
+        assert result is not None and result.error == "Invalid hex line: 'READY'"
+        assert path.read_bytes() == b"\x01\x02", "what came before the bad line is kept"
+
+    def test_a_stream_without_newlines_aborts(self, tmp_path):
+        """Hex mode refuses a stream that never sends a newline instead of buffering it without bound."""
+        # Arrange
+        engine = CaptureEngine()
+        engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0, hex_mode=True)
+
+        # Act
+        actual_stop = engine.feed_bytes(b"0" * 5000)
+        result = engine.stop()
+
+        # Assert
+        assert actual_stop is True, "the caller is told to stop"
+        assert result is not None and result.error.startswith("Hex line exceeds")
+
+
+class TestFormattedHeaderAfterPadding:
+
+    def test_header_written_when_the_first_column_is_padding(self, tmp_path):
+        """Pad:_1 Temp:U2 writes the Temp header; pairing the padding-free headers with every column used to drop it."""
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.csv"
+        engine.start(
+            path=path, file_mode="w", mode="bin", target_bytes=4,
+            columns=parse_format_spec("Pad:_1 Temp:U2"), record_size=2,
+        )
+
+        # Act
+        engine.feed_bytes(b"\x00\x05\x00\x06")
+        engine.stop()
+
+        # Assert
+        assert path.read_text(encoding="utf-8").splitlines() == ["Temp", "5", "6"]
 
 
 # -- Progress ------------------------------------------------------------------
@@ -744,3 +812,48 @@ class TestStopRacesTheReader:
         )
         actual = (tmp_path / "b.txt").read_text(encoding="utf-8")
         assert actual == "healthy\n", f"capture B wrote normally, got {actual!r}"
+
+
+class TestStopSerializesWithTheReaderFlush:
+    """``stop()`` and the reader's flush both write; the engine lock makes them take turns."""
+
+    @pytest.mark.slow
+    def test_the_block_is_written_once(self, tmp_path):
+        """stop() called while the reader's flush is mid-write waits for it, so the block is written and counted once."""
+        # Arrange -- a file whose write parks until released, so the reader
+        # is provably inside its flush when stop() arrives
+        engine = CaptureEngine()
+        path = tmp_path / "out.bin"
+        engine.start(path=path, file_mode="wb", mode="bin", target_bytes=0)
+        real_fh = engine._fh
+        assert real_fh is not None, "start opened the file"
+        entered = threading.Event()
+        release = threading.Event()
+
+        class ParkedFile:
+            def write(self, data: bytes) -> int:
+                entered.set()
+                release.wait(5)
+                return real_fh.write(data)
+
+            def flush(self) -> None:
+                real_fh.flush()
+
+            def close(self) -> None:
+                real_fh.close()
+
+        engine._fh = ParkedFile()  # ty: ignore[invalid-assignment] -- a test double for the handle
+        reader = threading.Thread(target=engine.feed_bytes, args=(b"\x01" * 4096,))
+        reader.start()
+        assert entered.wait(5), "the reader reached the write"
+
+        # Act -- stop() from another thread while that write is parked
+        stopper = threading.Thread(target=engine.stop)
+        stopper.start()
+        time.sleep(0.1)  # let stop() reach the lock before the write resumes
+        release.set()
+        reader.join(5)
+        stopper.join(5)
+
+        # Assert
+        assert path.read_bytes() == b"\x01" * 4096, "one block, written once (two flushes wrote it twice)"

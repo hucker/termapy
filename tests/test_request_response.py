@@ -55,6 +55,27 @@ def _fake_wait_factory(lines: list[str]) -> Callable[..., list[str]]:
 # ── Tests ────────────────────────────────────────────────────────────────────
 
 
+def test_unencodable_command_is_a_send_error():
+    """A character outside the configured encoding comes back as error=, not as an exception on the caller's thread."""
+    # Arrange
+    writer = _FakeWriter()
+
+    # Act
+    rr = request_response(
+        serial_write=writer,
+        drain_recent_lines=_fake_drain_factory([]),
+        wait_for_lines=_fake_wait_factory([]),
+        command="café",
+        encoding="ascii",
+        line_ending="\r",
+        timeout_s=1.0,
+    )
+
+    # Assert
+    assert rr["error"].startswith("Send error:"), "reported, not raised"
+    assert writer.writes == [], "nothing reached the port"
+
+
 def test_send_and_collect_basic():
     """One round trip sends command + line ending and returns lines, joined text, and timing."""
     # Arrange — fake writer; fake wait returns 2 lines

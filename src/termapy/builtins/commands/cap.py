@@ -10,7 +10,7 @@ from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import EnumValue, ParamSpec
-from termapy.protocol import parse_format_spec
+from termapy.protocol import get_crc_registry, parse_format_spec
 from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename
 
 if TYPE_CHECKING:
@@ -261,11 +261,26 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     except ValueError as e:
         return CmdResult.fail(msg=f"Invalid format spec: {e}")
 
-    max_idx = 0
+    # Record size: the last fixed byte any column names, plus the CRC
+    # columns, which the decoder places at the record's end.  A wildcard
+    # column has no fixed size, so a record cannot hold one (it used to
+    # become a one-byte column, silently).
+    registry = get_crc_registry()
+    max_idx = -1
+    crc_bytes = 0
     for column in columns:
-        if column.byte_indices:
+        if column.wildcard:
+            return CmdResult.fail(
+                msg=f"Invalid format spec: {column.name} is variable-length (no -* in a record)"
+            )
+        if column.crc_algo:
+            algo = registry.get(column.crc_algo)
+            if algo is None:
+                return CmdResult.fail(msg=f"Unknown CRC algorithm: {column.crc_algo}")
+            crc_bytes += algo.width
+        elif column.byte_indices:
             max_idx = max(max_idx, max(column.byte_indices))
-    record_size = max_idx + 1
+    record_size = max_idx + 1 + crc_bytes
     if record_size == 0:
         return CmdResult.fail(msg="Format spec has no byte references.")
 
@@ -350,7 +365,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
 
     # Type parsing/validation (count int+min, delay/timeout duration, fmt enum)
     # is done by the dispatcher from ``params``; read the coerced values here.
-    cmds = [c.strip() for c in ctx.arg("cmd").replace("\\n", "\n").split("\n") if c.strip()]
+    cmds = [cmd.strip() for cmd in ctx.arg("cmd").replace("\\n", "\n").split("\n") if cmd.strip()]
     if not cmds:
         return CmdResult.fail(msg="cmd= must have at least one command")
 
@@ -459,7 +474,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg=f"Cannot open {path}: {e}")
         if fmt == "csv":
             writer = _csv.writer(fh)
-            writer.writerow([c[0] for c in header_cols])
+            writer.writerow([name for name, _, _ in header_cols])
             fh.flush()
 
     # Header line to the terminal
@@ -478,7 +493,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                 break
 
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            values = [run_one(c) for c in cmds]
+            values = [run_one(cmd) for cmd in cmds]
             counter = i + 1
 
             # First-sample numeric check (skipped if regex= given)
@@ -696,7 +711,7 @@ _CAP_STRUCT_PROSE = (
     "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
     "  cmd=...           command to send after capture starts (must be last)\n"
     "\n"
-    "See {prefix}help writing-plugins for the format spec language."
+    "See {prefix}help protocol-testing for the format spec language."
 )
 
 _CAP_HEX_PROSE = (
@@ -815,14 +830,14 @@ COMMAND = Command(
             ],
         ),
         "struct": Command(
-            args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
+            args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=comma|tab|space} {echo=on|off} {timeout=<dur>} {cmd=<command>}",
             help="Capture raw bytes, decode with format spec to CSV.",
             long_help=_cap_long_help_with_prose(_CAP_STRUCT_PROSE),
             handler=_handler_struct,
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "hex": Command(
-            args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
+            args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=comma|tab|space} {echo=on|off} {timeout=<dur>} {cmd=<command>}",
             help="Capture hex text lines, decode with format spec to CSV.",
             long_help=_cap_long_help_with_prose(_CAP_HEX_PROSE),
             handler=_handler_hex,

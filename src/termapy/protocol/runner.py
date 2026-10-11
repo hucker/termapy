@@ -74,14 +74,19 @@ def _read_frame(ser, frame_gap_ms: int, timeout_ms: int) -> bytes:
     return collector.flush(time.monotonic()) or b""
 
 
+# A device that streams continuously never reports an empty buffer; the
+# drain gives up after this long so the first test can start.
+_DRAIN_LIMIT_S = 0.5
+
+
 def _drain(ser) -> None:
-    """Discard any pending bytes in the serial buffer."""
-    while True:
+    """Discard pending input, bounded in time."""
+    deadline = time.monotonic() + _DRAIN_LIMIT_S
+    while time.monotonic() < deadline:
         waiting = ser.in_waiting if hasattr(ser, "in_waiting") else 0
-        if waiting > 0:
-            ser.read(waiting)
-        else:
+        if waiting <= 0:
             break
+        ser.read(waiting)
 
 
 def _run_setup_cmds(ser, cmds: list[str], cfg: dict,
@@ -230,6 +235,66 @@ def write_results(
     return out_path
 
 
+def run_script_tests(ser, script: ProtoScript, cfg: dict) -> tuple[list[dict], int, int]:
+    """Run every test of ``script`` on an open port.
+
+    A port error mid-run (the device unplugged, a driver fault) is
+    recorded on the test in flight as its ``error`` and ends the run
+    with every earlier result kept -- it used to propagate and discard
+    them all.  The script-level teardown is skipped on that path, since
+    the port is gone.
+
+    Args:
+        ser: An open serial port (real or FakeSerial).
+        script: The parsed script.
+        cfg: Config dict (``eol``, ``encoding`` for setup commands).
+
+    Returns:
+        ``(test_results, pass_count, fail_count)``.
+    """
+    frame_gap = script.frame_gap_ms
+    pass_count = 0
+    fail_count = 0
+    test_results: list[dict] = []
+
+    _drain(ser)
+    _run_setup_cmds(ser, script.setup, cfg, frame_gap)
+
+    for test in script.tests:
+        try:
+            _run_setup_cmds(ser, test.setup, cfg, frame_gap)
+            _drain(ser)
+            ser.write(test.send_data)
+
+            t0 = time.monotonic()
+            response = _read_frame(ser, frame_gap, test.timeout_ms)
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            if script.strip_ansi:
+                response = strip_ansi(response)
+
+            if response:
+                passed = match_response(test.expect_data, response, test.expect_mask)
+            else:
+                passed = False
+                response = None
+            test_results.append(build_test_result(test, response, elapsed_ms, passed))
+            if passed:
+                pass_count += 1
+            else:
+                fail_count += 1
+
+            _run_setup_cmds(ser, test.teardown, cfg, frame_gap)
+        except OSError as e:
+            failed = build_test_result(test, None, 0.0, False)
+            failed["error"] = f"Serial error: {e}"
+            test_results.append(failed)
+            fail_count += 1
+            return test_results, pass_count, fail_count
+
+    _run_setup_cmds(ser, script.teardown, cfg, frame_gap)
+    return test_results, pass_count, fail_count
+
+
 def run_proto_tests(
     pro_path: Path,
     cfg: dict,
@@ -268,53 +333,10 @@ def run_proto_tests(
     if output_dir is None:
         output_dir = pro_path.parent / "test"
 
-    frame_gap = script.frame_gap_ms
-    pass_count = 0
-    fail_count = 0
-    test_results: list[dict] = []
     t_start = time.monotonic()
 
     try:
-        _drain(ser)
-
-        # Run script-level setup commands
-        _run_setup_cmds(ser, script.setup, cfg, frame_gap)
-
-        for test in script.tests:
-            # Per-test setup
-            _run_setup_cmds(ser, test.setup, cfg, frame_gap)
-
-            _drain(ser)
-            ser.write(test.send_data)
-
-            t0 = time.monotonic()
-            response = _read_frame(ser, frame_gap, test.timeout_ms)
-            elapsed_ms = (time.monotonic() - t0) * 1000
-
-            if script.strip_ansi:
-                response = strip_ansi(response)
-
-            if response:
-                passed = match_response(test.expect_data, response, test.expect_mask)
-                if passed:
-                    pass_count += 1
-                else:
-                    fail_count += 1
-            else:
-                passed = False
-                response = None
-                fail_count += 1
-
-            test_results.append(
-                build_test_result(test, response, elapsed_ms, passed)
-            )
-
-            # Per-test teardown
-            _run_setup_cmds(ser, test.teardown, cfg, frame_gap)
-
-        # Script-level teardown
-        _run_setup_cmds(ser, script.teardown, cfg, frame_gap)
-
+        test_results, pass_count, fail_count = run_script_tests(ser, script, cfg)
     finally:
         # Cleanup close: the only realistic failures are SerialException
         # (device vanished) or OSError; nothing actionable at this

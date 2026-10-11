@@ -770,9 +770,7 @@ def parse_toml_script(text: str) -> ProtoScript:
         teardown=doc.get("teardown", []),
         viz=doc.get("viz", []),
         send_fmt=doc.get("send_fmt", ""),
-        expect_fmt=doc.get(
-            "expect_fmt", doc.get("recv_fmt", "")
-        ),  # recv_fmt compat - remove after v7
+        expect_fmt=doc.get("expect_fmt", ""),
         json_file=doc.get("json_file", ""),
     )
     _check_fmt(script.send_fmt, "send_fmt")
@@ -795,16 +793,11 @@ def parse_toml_script(text: str) -> ProtoScript:
         if "timeout" in entry:
             timeout = parse_duration_ms(str(entry["timeout"]))
 
-        # Per-test setup/teardown - support both list and legacy "cmd" string
         test_setup: list[str] = entry.get("setup", [])
-        if not test_setup and "cmd" in entry:
-            test_setup = [entry["cmd"]]
         test_teardown: list[str] = entry.get("teardown", [])
 
         send_fmt = entry.get("send_fmt", script.send_fmt)
-        expect_fmt = entry.get(
-            "expect_fmt", entry.get("recv_fmt", script.expect_fmt)
-        )  # recv_fmt compat - remove after v7
+        expect_fmt = entry.get("expect_fmt", script.expect_fmt)
         _check_fmt(send_fmt, f"Test {i}: send_fmt")
         _check_fmt(expect_fmt, f"Test {i}: expect_fmt")
 
@@ -1043,10 +1036,9 @@ def _byte_index(text: str) -> int:
 def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
     """Parse byte index references from a type spec body.
 
-    Handles single bytes (``"1"``), ascending ranges (``"3-4"``),
-    descending ranges (``"4-1"``), explicit sequences (``"1234"`` parsed
-    as individual digits when each is a single digit, or ``"12"`` as
-    byte 12), and wildcards (``"7-*"``).
+    Handles single bytes (``"1"``, ``"12"``, ``"123"``), ascending
+    ranges (``"3-4"``), descending ranges (``"4-1"``), and wildcards
+    (``"7-*"``).
 
     All indices are converted from 1-based (user-facing) to 0-based.
 
@@ -1075,21 +1067,11 @@ def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
             indices = list(range(start, end - 1, -1))
         return indices, False
 
-    # Explicit multi-byte sequence: check for concatenated numbers
-    # "1234" with all single digits -> bytes 1,2,3,4
-    # But "12" could be byte 12. We use a heuristic:
-    # If all characters are digits and length > 1, try to parse as
-    # concatenated single-digit refs first (each char is a byte index 1-9)
+    # A number is a byte: "12" is byte 12 and "123" is byte 123.  (An
+    # undocumented heuristic once read three or more digits without a 0
+    # as one byte each -- "123" as bytes 1, 2, 3 but "100" as byte 100 --
+    # so a frame past 99 bytes could not address bytes 111-199.)
     if text.isdigit():
-        if len(text) == 1:
-            return [_byte_index(text)], False
-        # Could be a single number like "12" or concatenated like "1234"
-        # If any digit is 0, it's not valid as a 1-based index, so treat
-        # the whole thing as a single number
-        if "0" not in text and len(text) > 2:
-            # Concatenated single-digit refs: "1234" -> [0,1,2,3]
-            return [int(ch) - 1 for ch in text], False
-        # Single number: "12" -> [11]
         return [_byte_index(text)], False
 
     return [], False

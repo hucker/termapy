@@ -106,6 +106,18 @@ class TestMcpCatalog:
         assert "/term.send" in names, "/term.send in catalog"
         assert "/expect" in names, "/expect in catalog"
 
+    def test_params_say_how_each_argument_binds(self, env):
+        """A params entry marks positionals and the rest argument, so an agent does not write file=x for a positional."""
+        # Arrange / Act
+        eng, _ctx, _output = env
+        parsed = json.loads(eng.dispatch("mcp.catalog").value)
+        entry = next(command for command in parsed["commands"] if command["name"] == "/cfg.auto")
+        params = {param["name"]: param for param in entry["params"]}
+
+        # Assert
+        assert (params["key"]["positional"], params["key"]["rest"]) == (True, False), "given by place"
+        assert (params["value"]["positional"], params["value"]["rest"]) == (True, True), "runs to end of line"
+
 
 # ── /mcp.info ──────────────────────────────────────────────────────────────
 

@@ -676,8 +676,8 @@ class TerminalHost:
         claim.  Subclasses may override to add UI (timer cleanup, progress).
         """
         self.capture.stop()
-        if not self.repl.in_script:
-            self.engine.serial_claimed = False
+        # Unconditional: the capture owns its claim (see capture_view._cap_stop).
+        self.engine.serial_claimed = False
 
     # -- Help server ----------------------------------------------------------
 

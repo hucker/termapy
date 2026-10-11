@@ -28,6 +28,13 @@ _KEYWORDS = {
     "mode=", "bytes=", "records=", "sep=", "echo=", "cmd=", "fmt=", "timeout=",
 }
 
+# The frontend's ``start_capture`` says WHY on its status line (file would
+# not open, a capture is already active); the command still has to FAIL,
+# or a script logs the step as success, ``$(X) = /cap.bin ...`` binds a
+# path to a file that does not exist, and ``cmd=`` goes out with nothing
+# listening (docs/review/2026-10-10-v0.76.0-fable-5.1.md, C4).
+_NOT_STARTED = "Capture not started."
+
 
 def _extract_keyword_sections(args: str) -> dict[str, str]:
     """Split args into keyword sections.
@@ -130,8 +137,10 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
         duration=seconds,
         echo=echo,
     )
+    if not started:
+        return CmdResult.fail(msg=_NOT_STARTED)
 
-    if started and cmd:
+    if cmd:
         ctx.dispatch(cmd)
     return CmdResult.ok(value=path)
 
@@ -164,8 +173,10 @@ def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
         target_bytes=cap_bytes,
         timeout=timeout_s,
     )
+    if not started:
+        return CmdResult.fail(msg=_NOT_STARTED)
 
-    if started and cmd:
+    if cmd:
         ctx.serial.drain()
         ctx.dispatch(cmd)
     return CmdResult.ok(value=path)
@@ -288,8 +299,10 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
         hex_mode=hex_mode,
         timeout=timeout_s,
     )
+    if not started:
+        return CmdResult.fail(msg=_NOT_STARTED)
 
-    if started and cmd:
+    if cmd:
         ctx.serial.drain()
         ctx.dispatch(cmd)
     return CmdResult.ok(value=path)

@@ -382,6 +382,13 @@ class CaptureEngine:
                 if self._echo and self._on_echo:
                     for line in lines:
                         self._on_echo(line)
+            # Keep the partial record at the tail for the next flush.  The
+            # reader's chunks are not record-aligned, so clearing the whole
+            # buffer here dropped 1..record_size-1 bytes per flush: every
+            # later row was shifted and ``_bytes`` fell short of the target
+            # (docs/review/2026-10-10-v0.76.0-fable-5.1.md, C1).
+            del self._buf[:usable]
+            return
         self._buf.clear()
 
     def _record_write_error(self, fh: IO[Any], exc: Exception) -> None:

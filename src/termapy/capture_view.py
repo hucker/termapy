@@ -98,8 +98,13 @@ def _cap_stop(app) -> None:
 
     result = app._capture.stop()
 
-    if not app.repl.in_script:
-        app._engine.serial_claimed = False
+    # The capture owns its claim, start to stop.  The ``in_script`` guard
+    # that used to sit here was written for a script-wide proto mode and
+    # survived the rename; with no script-level claim left, it leaked the
+    # claim until script end -- longer in the CLI and MCP -- and every line
+    # consumer after a scripted /cap.bin went blind
+    # (docs/review/2026-10-10-v0.76.0-fable-5.1.md, C3).
+    app._engine.serial_claimed = False
 
     if app._cap_timer:
         app._cap_timer.stop()

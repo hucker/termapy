@@ -13,10 +13,10 @@ from termapy.protocol import (
     run_proto_tests,
 )
 from termapy.protocol.runner import (  # private helpers; explicit submodule
-    _build_test_result,
     _bytes_to_hex,
     _bytes_to_text,
     _read_frame,
+    build_test_result,
 )
 
 # -- Helper formatting --------------------------------------------------------
@@ -108,7 +108,7 @@ class TestBuildResult:
         elapsed_ms = 12.3
 
         # Act
-        result = _build_test_result(tc, response, elapsed_ms, True)
+        result = build_test_result(tc, response, elapsed_ms, True)
 
         # Assert
         assert result["index"] == 1, "test index"
@@ -126,7 +126,7 @@ class TestBuildResult:
                       timeout_ms=500)
 
         # Act
-        result = _build_test_result(tc, None, 500.0, False)
+        result = build_test_result(tc, None, 500.0, False)
 
         # Assert
         assert result["passed"] is False, "failed"
@@ -142,7 +142,7 @@ class TestBuildResult:
                       send_fmt="Addr:H1", expect_fmt="Resp:H1")
 
         # Act
-        result = _build_test_result(tc, b"\x02", 1.0, True)
+        result = build_test_result(tc, b"\x02", 1.0, True)
 
         # Assert
         assert result["send_fmt"] == "Addr:H1", "send format preserved"
@@ -155,7 +155,7 @@ class TestBuildResult:
                       expect_data=b"\x02", expect_mask=b"\xff")
 
         # Act
-        result = _build_test_result(tc, b"\x02", 1.0, True)
+        result = build_test_result(tc, b"\x02", 1.0, True)
 
         # Assert
         assert "send_fmt" not in result, "omitted when empty"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import threading
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -16,6 +17,8 @@ from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.protocol import (
     CRC_CATALOGUE,
     ProtoScript,
+    build_results,
+    build_test_result,
     format_hex,
     format_hex_dump,
     format_smart,
@@ -26,6 +29,7 @@ from termapy.protocol import (
     parse_data_segments,
     parse_toml_script,
     strip_ansi,
+    write_results,
 )
 from termapy.scripting import (
     SETTING_QUERY,
@@ -153,40 +157,87 @@ def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int, quiet: bool) -> 
         ctx.io.output(f"  CMD: flushed {len(response)} bytes")
 
 
-def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> None:
+def _stop_event(ctx: PluginContext) -> threading.Event | None:
+    """The engine's script-stop event (Escape), cleared when this run owns it.
+
+    Typed at the prompt, ``/proto.run`` is itself the outermost
+    cancellable operation, and a stale ``set()`` from an earlier Escape
+    would end the run before it starts.  Inside a script the event is
+    the script's, and clearing it would erase a stop the user just
+    asked for -- the rule ``/repeat`` follows.
+    """
+    event = getattr(ctx.internal, "script_stop_event", None)
+    if event is not None and not ctx.internal.in_script():
+        event.clear()
+    return event
+
+
+def _stopped(event: threading.Event | None) -> bool:
+    """True once a stop has been requested."""
+    return event is not None and event.is_set()
+
+
+def _run_toml_script(
+    ctx: PluginContext, path: Path, script: ProtoScript, source: str,
+) -> dict:
     """Execute a TOML-format proto script.
+
+    Prose goes to ``ctx.io`` unless the caller wants data, in which case
+    the run is silent and the returned document is the whole output
+    (``/proto.run … --json``, MCP).  A stop request (Escape) ends the
+    run after the current test and skips the script-level teardown: a
+    stop means stop.
 
     Args:
         ctx: Plugin context for serial I/O and output.
-        path: Path to the script file (for display).
+        path: Path to the script file (for display and the results).
         script: Parsed ProtoScript.
+        source: The script text, recorded in the results.
+
+    Returns:
+        The results document (:func:`termapy.protocol.build_results`)
+        for the tests that ran.
     """
+    stop_event = _stop_event(ctx)
+    quiet_run = ctx.wants_data
+    quiet_cmds = script.quiet or quiet_run
+
+    def say(text: str, color: str = "dim") -> None:
+        if not quiet_run:
+            ctx.io.output(text, color)
+
+    test_results: list[dict] = []
+    pass_count = 0
+    fail_count = 0
+    interrupted = False
     with ctx.serial.io():
         ctx.serial.drain()
 
         script_name = script.name or path.name
-        ctx.io.output(f"{'─' * 40}")
-        ctx.io.output(f"  {script_name}", "bold underline bright_white")
-        ctx.io.output(f"  {path.name} - {len(script.tests)} tests")
-        ctx.io.output(f"{'─' * 40}")
+        say(f"{'─' * 40}")
+        say(f"  {script_name}", "bold underline bright_white")
+        say(f"  {path.name} - {len(script.tests)} tests")
+        say(f"{'─' * 40}")
 
         frame_gap = script.frame_gap_ms
 
         # Run setup commands
         for cmd_text in script.setup:
-            _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
+            _run_cmd(ctx, cmd_text, frame_gap, quiet_cmds)
 
-        pass_count = 0
-        fail_count = 0
         t_start = time.monotonic()
 
         for test in script.tests:
+            if _stopped(stop_event):
+                interrupted = True
+                break
+
             # Run per-test setup commands
             for cmd_text in test.setup:
-                _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
+                _run_cmd(ctx, cmd_text, frame_gap, quiet_cmds)
 
-            ctx.io.output(f"[PROTO] {test.name}")
-            ctx.io.output(f"  TX:       {format_spaced(test.send_data, test.binary)}", "cyan")
+            say(f"[PROTO] {test.name}")
+            say(f"  TX:       {format_spaced(test.send_data, test.binary)}", "cyan")
             ctx.serial.drain()
             ctx.serial.write(test.send_data)
 
@@ -196,38 +247,57 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
             if script.strip_ansi:
                 response = strip_ansi(response)
 
-            ctx.io.output(f"  Expected: {format_spaced(test.expect_data, test.binary)}")
+            say(f"  Expected: {format_spaced(test.expect_data, test.binary)}")
             if response:
-                ctx.io.output(f"  Actual:   {format_spaced(response, test.binary)}", "yellow")
-                if match_response(test.expect_data, response, test.expect_mask):
-                    ctx.io.output(
+                say(f"  Actual:   {format_spaced(response, test.binary)}", "yellow")
+                passed = match_response(test.expect_data, response, test.expect_mask)
+                if passed:
+                    say(
                         f"  PASS ({len(response)} bytes, {format_duration(elapsed_s)})",
                         "bright_green",
                     )
                     pass_count += 1
                 else:
-                    ctx.io.output("  FAIL", "red")
+                    say("  FAIL", "red")
                     fail_count += 1
+                test_results.append(build_test_result(test, response, elapsed_s * 1000, passed))
             else:
-                ctx.io.output(
+                say(
                     f"  Actual:   (timeout after {format_duration(test.timeout_ms / 1000)})",
                     "red",
                 )
-                ctx.io.output("  FAIL", "red")
+                say("  FAIL", "red")
                 fail_count += 1
+                test_results.append(build_test_result(test, None, elapsed_s * 1000, False))
 
-        # Run teardown commands
-        for cmd_text in script.teardown:
-            _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
+            # Run per-test teardown commands
+            for cmd_text in test.teardown:
+                _run_cmd(ctx, cmd_text, frame_gap, quiet_cmds)
+
+        # Run teardown commands (not after a stop: a stop means stop)
+        if not interrupted:
+            for cmd_text in script.teardown:
+                _run_cmd(ctx, cmd_text, frame_gap, quiet_cmds)
 
     # Summary (after the with-block; serial port is released)
     elapsed_s = time.monotonic() - t_start
     total = pass_count + fail_count
+    if interrupted:
+        say(
+            f"  Run interrupted after {total}/{len(script.tests)} tests (teardown skipped)",
+            "yellow",
+        )
     if total > 0:
         color = "bold bright_green" if fail_count == 0 else "bold red"
-        ctx.io.output(f"{'─' * 40}")
-        ctx.io.output(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
-        ctx.io.output(f"{'─' * 40}")
+        say(f"{'─' * 40}")
+        say(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
+        say(f"{'─' * 40}")
+
+    config_name = Path(ctx.config_path).stem if ctx.config_path else ""
+    return build_results(
+        script, path, source, ctx.cfg, config_name,
+        test_results, pass_count, fail_count, elapsed_s * 1000,
+    )
 
 
 def _run_flat_script(
@@ -244,6 +314,8 @@ def _run_flat_script(
     do_strip_ansi = settings.get("strip_ansi", False)
     quiet = False
     frame_gap = settings.get("frame_gap_ms", 0)
+    stop_event = _stop_event(ctx)
+    interrupted = False
 
     with ctx.serial.io():
         ctx.serial.drain()
@@ -260,6 +332,10 @@ def _run_flat_script(
         t_start = time.monotonic()
 
         for step in steps:
+            if _stopped(stop_event):
+                interrupted = True
+                break
+
             if step.action == "quiet":
                 quiet = True
                 continue
@@ -269,7 +345,11 @@ def _run_flat_script(
                 continue
 
             if step.action == "delay":
-                time.sleep(step.timeout_ms / 1000.0)
+                # A stop request wakes the wait; the check above then ends the run.
+                if stop_event is not None:
+                    stop_event.wait(step.timeout_ms / 1000.0)
+                else:
+                    time.sleep(step.timeout_ms / 1000.0)
                 continue
 
             if step.action == "flush":
@@ -326,6 +406,8 @@ def _run_flat_script(
     # Summary (after the with-block; serial port is released)
     elapsed_s = time.monotonic() - t_start
     total = pass_count + fail_count
+    if interrupted:
+        ctx.io.output("  Run interrupted.", "yellow")
     if total > 0:
         color = "bold bright_green" if fail_count == 0 else "bold red"
         ctx.io.output(f"{'─' * 40}")
@@ -573,12 +655,25 @@ def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
         script = result[1]
         if not script.tests:
             return CmdResult.fail(msg="Script has no tests.")
-        _run_toml_script(ctx, path, script)
-    else:
-        settings, steps = result[1]
-        if not steps:
-            return CmdResult.fail(msg="Script has no steps.")
-        _run_flat_script(ctx, path, settings, steps)
+        results = _run_toml_script(ctx, path, script, text)
+        if script.json_file:
+            # Beside the script, in test/ -- where ``termapy --proto`` puts it.
+            config_name = Path(ctx.config_path).stem if ctx.config_path else ""
+            try:
+                out_path = write_results(
+                    results, path.parent / "test", script.json_file, path.stem, config_name,
+                )
+            except OSError as e:
+                return CmdResult.fail(msg=f"Write error: {e}")
+            if not ctx.wants_data:
+                ctx.io.output(f"  JSON: {out_path}")
+        # The path is the scriptable value; the results document is the
+        # structured twin for --json / MCP.
+        return CmdResult.ok(value=path, data=results if ctx.wants_data else None)
+    settings, steps = result[1]
+    if not steps:
+        return CmdResult.fail(msg="Script has no steps.")
+    _run_flat_script(ctx, path, settings, steps)
     # Return the script path so scripts can confirm what was run.
     return CmdResult.ok(value=path)
 

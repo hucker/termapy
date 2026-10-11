@@ -7,6 +7,7 @@ tests and see actual responses with per-byte color-coded comparison.
 
 from __future__ import annotations
 
+import threading
 import time
 from datetime import datetime
 from io import TextIOWrapper
@@ -36,15 +37,16 @@ from termapy.protocol import (
     TestCase,
     VisualizerInfo,
     apply_format,
+    build_results,
+    build_test_result,
     diff_columns as proto_diff_columns,
-    expand_result_template,
     extract_fmt_title,
     format_hex,
     match_response,
     parse_format_spec,
     strip_ansi,
+    write_results,
 )
-from termapy.protocol.runner import _build_test_result  # private
 from termapy.scripting import format_duration
 from termapy.widgets import StrongCheckbox
 
@@ -170,6 +172,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         self._ctx = ctx
         self._script = script
         self._running = False
+        # Set by the Stop button; the run worker checks it between tests
+        # and waits on it through the between-run delay.
+        self._stop_requested = threading.Event()
         self._log_file: TextIOWrapper | None = None
         # Filter visualizers: if script specifies viz list, keep only those
         # plus Hex and Text (always available)
@@ -252,6 +257,9 @@ class ProtoDebugScreen(ModalScreen[None]):
                                      else "No setup commands in script")
                 yield setup_btn
                 yield Button("Run", id="btn-dbg-send", variant="success")
+                stop_btn = Button("Stop", id="btn-dbg-stop", variant="error", disabled=True)
+                stop_btn.tooltip = "Stop after the current test"
+                yield stop_btn
                 td_btn = Button("Teardown", id="btn-dbg-teardown", variant="warning",
                                 disabled=not script.teardown)
                 td_btn.tooltip = ("Run teardown commands" if script.teardown
@@ -711,6 +719,9 @@ class ProtoDebugScreen(ModalScreen[None]):
     @on(Button.Pressed, "#btn-dbg-send")
     def _on_send(self) -> None:
         """Run all checked tests, or the highlighted test if none checked."""
+        if self._running:
+            self._set_status("Already running", "bold yellow")
+            return
         tests = self._get_checked_tests()
         if not tests:
             # Fall back to highlighted test
@@ -719,7 +730,20 @@ class ProtoDebugScreen(ModalScreen[None]):
                 self._set_status("No tests selected", "bold red")
                 return
             tests = [tc]
+        self._stop_requested.clear()
+        self._set_run_state(True)
         self._run_tests(tests)
+
+    @on(Button.Pressed, "#btn-dbg-stop")
+    def _on_stop(self) -> None:
+        """Ask the run worker to stop after the current test."""
+        self._stop_requested.set()
+        self._set_status("Stopping after the current test...", "bold yellow")
+
+    def _set_run_state(self, running: bool) -> None:
+        """Flip the running flag and the Stop button together (main thread only)."""
+        self._running = running
+        self.query_one("#btn-dbg-stop", Button).disabled = not running
 
     @on(Button.Pressed, "#btn-dbg-setup")
     def _on_setup(self) -> None:
@@ -862,20 +886,20 @@ class ProtoDebugScreen(ModalScreen[None]):
         self._log_lines(lines)
 
     def _log_summary(self, tests: list[TestCase], pass_count: int,
-                     fail_count: int, stopped: bool) -> None:
+                     fail_count: int, stop_reason: str) -> None:
         """Write a run summary to the log.
 
         Args:
             tests: Test cases that were executed.
             pass_count: Total passing iterations.
             fail_count: Total failing iterations.
-            stopped: Whether the run was stopped early on error.
+            stop_reason: Why the run ended early (``""`` when it did not).
         """
         total = pass_count + fail_count
         n = len(tests)
         line = f"Summary: {pass_count}/{total} PASS ({n} test{'s' if n > 1 else ''})"
-        if stopped:
-            line += " -- stopped on error"
+        if stop_reason:
+            line += f" -- {stop_reason}"
         self._log_lines([line, "-" * 80, ""])
 
     def _set_status(self, text: str, style: str = "") -> None:
@@ -942,18 +966,22 @@ class ProtoDebugScreen(ModalScreen[None]):
         return passed
 
     def _show_run_summary(self, tests: list[TestCase],
-                          pass_count: int, fail_count: int) -> None:
+                          pass_count: int, fail_count: int,
+                          stop_reason: str = "") -> None:
         """Update the status bar with a summary after running tests.
 
         Args:
             tests: Test cases that were executed.
             pass_count: Total passing iterations across all tests.
             fail_count: Total failing iterations across all tests.
+            stop_reason: Why the run ended early (``""`` when it did not).
         """
         total = pass_count + fail_count
         n_tests = len(tests)
         label = f"{n_tests} test{'s' if n_tests > 1 else ''}"
         summary = f"{pass_count}/{total} PASS ({label})"
+        if stop_reason:
+            summary += f" -- {stop_reason}"
         style = "bold bright_green" if fail_count == 0 else "bold red"
         self.app.call_from_thread(self._set_status, summary, style)
 
@@ -982,8 +1010,8 @@ class ProtoDebugScreen(ModalScreen[None]):
                             template: str) -> str | None:
         """Write JSON test results to the proto/test/ directory.
 
-        Uses the same format as the headless proto_runner, reusing
-        ``_build_test_result`` and ``expand_result_template``.
+        The same document the headless runner and ``/proto.run`` write
+        (``build_results`` / ``write_results``).
 
         Args:
             tests: Test cases that were executed.
@@ -992,51 +1020,27 @@ class ProtoDebugScreen(ModalScreen[None]):
             elapsed_ms: Total elapsed time in milliseconds.
             template: Filename template from the UI input field.
         """
-        import json
-
         cfg = self._ctx.cfg
-        output_dir = ensure_folder(cfg_data_dir(self._ctx.config_path) / "proto" / "test")
+        output_dir = cfg_data_dir(self._ctx.config_path) / "proto" / "test"
 
         test_results = []
         for test in tests:
             if test.index in self._results:
                 response, tc_elapsed, passed = self._results[test.index]
-                test_results.append(
-                    _build_test_result(test, response, tc_elapsed, passed))
+                test_results.append(build_test_result(test, response, tc_elapsed, passed))
 
-        text = self._path.read_text(encoding="utf-8")
         config_name = Path(self._ctx.config_path).stem if self._ctx.config_path else ""
-        results = {
-            "meta": {
-                "script": self._path.name,
-                "script_name": self._script.name or self._path.stem,
-                "timestamp": datetime.now().isoformat(timespec="milliseconds"),
-                "config": config_name,
-                "port": cfg["serial"]["port"],
-                "baud_rate": cfg["serial"]["baud_rate"],
-                "encoding": cfg.get("encoding", "utf-8"),
-            },
-            "summary": {
-                "total": pass_count + fail_count,
-                "passed": pass_count,
-                "failed": fail_count,
-                "elapsed_ms": round(elapsed_ms, 1),
-            },
-            "tests": test_results,
-            "source": text,
-        }
-
-        filename = expand_result_template(template, self._path.stem,
-                                          config_name)
-        out_path = output_dir / filename
+        results = build_results(
+            self._script, self._path, self._path.read_text(encoding="utf-8"), cfg,
+            config_name, test_results, pass_count, fail_count, elapsed_ms,
+        )
         try:
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(results, f, indent=2)
-            self._log(f"JSON results written to {out_path}")
-            return str(out_path.resolve())
+            out_path = write_results(results, output_dir, template, self._path.stem, config_name)
         except OSError as e:
             self._log(f"Failed to write JSON results: {e}")
             return None
+        self._log(f"JSON results written to {out_path}")
+        return str(out_path.resolve())
 
     @work(thread=True)
     def _run_tests(self, tests: list[TestCase]) -> None:
@@ -1056,11 +1060,10 @@ class ProtoDebugScreen(ModalScreen[None]):
                 self._get_active_visualizers)
             self._open_log()
             self._log_session_header(tests, repeat)
-            self._running = True
             self.app.call_from_thread(self._clear_detail)
             total_pass = 0
             total_fail = 0
-            stopped = False
+            stop_reason = ""
             t_start = time.monotonic()
             with self._ctx.serial.io():
                 for run_num in range(1, repeat + 1):
@@ -1072,9 +1075,14 @@ class ProtoDebugScreen(ModalScreen[None]):
                             self._set_status,
                             f"Delay {format_duration(delay_s)} "
                             f"({run_num}/{repeat})...", "bold yellow")
-                        time.sleep(delay_s)
+                        if self._stop_requested.wait(delay_s):
+                            stop_reason = "stopped by user"
+                            break
 
                     for ti, tc in enumerate(tests):
+                        if self._stop_requested.is_set():
+                            stop_reason = "stopped by user"
+                            break
                         if tc.setup:
                             self._log(f"  setup: {', '.join(tc.setup)}")
                         self._send_proto_cmds(tc.setup)
@@ -1103,15 +1111,15 @@ class ProtoDebugScreen(ModalScreen[None]):
                             total_fail += 1
 
                         if not passed and stop_on_error:
-                            stopped = True
+                            stop_reason = "stopped on error"
                             break
 
-                    if stopped:
+                    if stop_reason:
                         break
 
             total_elapsed_ms = (time.monotonic() - t_start) * 1000
-            self._log_summary(tests, total_pass, total_fail, stopped)
-            self._show_run_summary(tests, total_pass, total_fail)
+            self._log_summary(tests, total_pass, total_fail, stop_reason)
+            self._show_run_summary(tests, total_pass, total_fail, stop_reason)
 
             # Write JSON results if checkbox is checked
             json_enabled = self.app.call_from_thread(self._get_json_enabled)
@@ -1134,7 +1142,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             # Clear _running *on the UI thread* so that any pending
             # SelectionHighlighted events still see _running=True and
             # don't call _show_test_detail (which clears the log).
-            self.app.call_from_thread(setattr, self, "_running", False)
+            self.app.call_from_thread(self._set_run_state, False)
         except RuntimeError:
             # call_from_thread fails during app shutdown - ignore
             pass
@@ -1148,7 +1156,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             self._log(f"Test runner error: {e}")
         finally:
             try:
-                self.app.call_from_thread(setattr, self, "_running", False)
+                self.app.call_from_thread(self._set_run_state, False)
             except RuntimeError:
                 self._running = False
             self._close_log()

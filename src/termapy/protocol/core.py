@@ -775,6 +775,8 @@ def parse_toml_script(text: str) -> ProtoScript:
         ),  # recv_fmt compat - remove after v7
         json_file=doc.get("json_file", ""),
     )
+    _check_fmt(script.send_fmt, "send_fmt")
+    _check_fmt(script.expect_fmt, "expect_fmt")
 
     # Parse test cases
     for i, entry in enumerate(doc["test"], 1):
@@ -799,6 +801,13 @@ def parse_toml_script(text: str) -> ProtoScript:
             test_setup = [entry["cmd"]]
         test_teardown: list[str] = entry.get("teardown", [])
 
+        send_fmt = entry.get("send_fmt", script.send_fmt)
+        expect_fmt = entry.get(
+            "expect_fmt", entry.get("recv_fmt", script.expect_fmt)
+        )  # recv_fmt compat - remove after v7
+        _check_fmt(send_fmt, f"Test {i}: send_fmt")
+        _check_fmt(expect_fmt, f"Test {i}: expect_fmt")
+
         script.tests.append(
             TestCase(
                 index=i,
@@ -813,14 +822,29 @@ def parse_toml_script(text: str) -> ProtoScript:
                 binary=is_binary,
                 timeout_ms=timeout,
                 viz=entry.get("viz", ""),
-                send_fmt=entry.get("send_fmt", script.send_fmt),
-                expect_fmt=entry.get(
-                    "expect_fmt", entry.get("recv_fmt", script.expect_fmt)
-                ),  # recv_fmt compat - remove after v7
+                send_fmt=send_fmt,
+                expect_fmt=expect_fmt,
             )
         )
 
     return script
+
+
+def _check_fmt(spec: str, where: str) -> None:
+    """Refuse a bad ``*_fmt`` spec at load, where the file is named.
+
+    The only other place a ``.pro`` spec is parsed is the debug screen's
+    render path, which has no guard; a refusal there is a crash.
+
+    Raises:
+        ValueError: The spec does not parse, prefixed with ``where``.
+    """
+    if not spec:
+        return
+    try:
+        parse_format_spec(extract_fmt_title(spec)[1])
+    except ValueError as e:
+        raise ValueError(f"{where}: {e}") from None
 
 
 def load_proto_script(text: str) -> (
@@ -999,6 +1023,23 @@ _CRC_SPEC = re.compile(
 )
 
 
+def _byte_index(text: str) -> int:
+    """A 1-based byte reference as a 0-based index.
+
+    Refuses ``0``: the language is 1-based, and the C habit ``U0`` used
+    to parse as Python's ``-1`` -- the LAST byte -- for every consumer,
+    including :func:`inject_column_value`, which writes.
+
+    Raises:
+        ValueError: Not a number, or ``0``.
+    """
+    if not text.isdigit():
+        raise ValueError(f"Invalid byte index: {text!r}")
+    if int(text) == 0:
+        raise ValueError("Invalid byte index: 0 (bytes are numbered from 1)")
+    return int(text) - 1
+
+
 def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
     """Parse byte index references from a type spec body.
 
@@ -1014,22 +1055,24 @@ def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
 
     Returns:
         Tuple of (0-based byte indices, is_wildcard).
+
+    Raises:
+        ValueError: A byte reference of ``0``, or a range end that is
+            not a number.
     """
     # Wildcard: "7-*" or "1-*"
     if text.endswith("-*"):
-        prefix = text[:-2]
-        start = int(prefix) - 1
-        return [start], True
+        return [_byte_index(text[:-2])], True
 
     # Range: "3-4" or "4-1"
     if "-" in text:
-        parts = text.split("-", 1)
-        start = int(parts[0])
-        end = int(parts[1])
+        start_text, end_text = text.split("-", 1)
+        start = _byte_index(start_text)
+        end = _byte_index(end_text)
         if start <= end:
-            indices = list(range(start - 1, end))
+            indices = list(range(start, end + 1))
         else:
-            indices = list(range(start - 1, end - 2, -1))
+            indices = list(range(start, end - 1, -1))
         return indices, False
 
     # Explicit multi-byte sequence: check for concatenated numbers
@@ -1039,7 +1082,7 @@ def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
     # concatenated single-digit refs first (each char is a byte index 1-9)
     if text.isdigit():
         if len(text) == 1:
-            return [int(text) - 1], False
+            return [_byte_index(text)], False
         # Could be a single number like "12" or concatenated like "1234"
         # If any digit is 0, it's not valid as a 1-based index, so treat
         # the whole thing as a single number
@@ -1047,7 +1090,7 @@ def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
             # Concatenated single-digit refs: "1234" -> [0,1,2,3]
             return [int(ch) - 1 for ch in text], False
         # Single number: "12" -> [11]
-        return [int(text) - 1], False
+        return [_byte_index(text)], False
 
     return [], False
 
@@ -1151,7 +1194,9 @@ def parse_format_spec(spec: str, *, word: bool = False) -> list[ColumnSpec]:
     """
     columns: list[ColumnSpec] = []
     for token in spec.split():
-        colon = token.index(":")
+        colon = token.find(":")
+        if colon < 1 or colon == len(token) - 1:
+            raise ValueError(f"Invalid column: {token} (expected Name:Type)")
         name = token[:colon]
         type_body = token[colon + 1 :]
 
@@ -1308,7 +1353,12 @@ def _resolve_wildcards(
             if algo:
                 width = algo.width
                 crc_start = data_len - width
-                indices = list(range(crc_start, data_len))
+                if crc_start < 0:
+                    # No room for the CRC: point past the data so the
+                    # column renders as missing instead of wrapping
+                    # around to the packet's first bytes.
+                    crc_start = data_len
+                indices = list(range(crc_start, crc_start + width))
                 # Resolve byte order: an explicit ``_le`` / ``_be`` wins;
                 # otherwise use the algorithm's natural wire order
                 # (refout=True -> low byte first on the wire).
@@ -1346,22 +1396,26 @@ def _format_column_value(
         col: Resolved column specification.
 
     Returns:
-        Formatted string value for this column.
+        Formatted string value for this column, or ``"?"`` when the
+        column reaches past the data.
     """
     indices = col.byte_indices
+    is_bit_field = col.type_code in ("B", "b") and col.bit is not None
+    if is_bit_field:
+        _require_bytes(col)
+
+    # Data shorter than the spec: a column that reaches past it is
+    # missing.  Zero-padding it rendered plausible numbers (``U3-4`` on
+    # three bytes read ``512``) that nothing marked as invented.
+    if any(not 0 <= index < len(data) for index in indices):
+        return "?"
 
     # Bit field - B (integer) or b (binary string)
-    if col.type_code in ("B", "b") and col.bit is not None:
-        _require_bytes(col)
-        if not indices or indices[0] >= len(data):
-            return "?"
+    if is_bit_field:
         if isinstance(col.bit, tuple):
             # Multi-byte bit range: assemble value from byte indices,
             # extract bit range. Byte order follows index order.
-            raw_bits = bytearray()
-            for index in indices:
-                raw_bits.append(data[index] if index < len(data) else 0)
-            combined = int.from_bytes(raw_bits, "big")
+            combined = int.from_bytes(bytes(data[index] for index in indices), "big")
             start_bit, end_bit = col.bit
             if start_bit <= end_bit:
                 low = start_bit
@@ -1382,19 +1436,12 @@ def _format_column_value(
         # order), exactly like the range branch above -- reading only the
         # first byte rendered every multi-byte single-bit field (B4-1.15,
         # the register idiom) as its top byte's bit instead.
-        combined = int.from_bytes(
-            bytes(data[index] if index < len(data) else 0 for index in indices), "big",
-        )
+        combined = int.from_bytes(bytes(data[index] for index in indices), "big")
         bit_val = (combined >> col.bit) & 1
         return str(bit_val)
 
     # Gather bytes in specified order
-    raw = bytearray()
-    for index in indices:
-        if index < len(data):
-            raw.append(data[index])
-        else:
-            raw.append(0)
+    raw = bytearray(data[index] for index in indices)
 
     if not raw:
         return ""
@@ -1554,6 +1601,50 @@ def apply_format(
     return headers, values
 
 
+def _crc_status(actual: bytes, expected: bytes, mask: bytes, col: ColumnSpec) -> str:
+    """Verify a resolved CRC column of ``actual``.
+
+    ``match`` when the CRC computed over the data range equals the one
+    the packet carries -- and, where the expect pattern spells the CRC
+    bytes out rather than wildcarding them, equals those too.  The data
+    range is every byte before the CRC unless the spec gave one
+    (``crc16-modbus(2-7)``, 1-based inclusive).  Comparing the raw bytes
+    instead (the old rule) called a valid CRC against ``** **`` a
+    mismatch and an invalid one against its own literal a match.
+
+    Args:
+        actual: Actual received bytes.
+        expected: Expected bytes for comparison.
+        mask: Wildcard mask (0xFF=must match, 0x00=any).
+        col: A CRC column resolved by ``_resolve_wildcards``.
+
+    Returns:
+        ``"match"``, ``"mismatch"``, or ``"missing"`` (``actual`` is too
+        short for the CRC or its data range).
+    """
+    algo = get_crc_registry().get(col.crc_algo or "")
+    if algo is None or not col.byte_indices:
+        return "mismatch"
+    if any(index >= len(actual) for index in col.byte_indices):
+        return "missing"
+    if col.crc_data_range is not None:
+        start, end = col.crc_data_range
+        if end >= len(actual):
+            return "missing"
+        payload = actual[start : end + 1]
+    else:
+        payload = actual[: min(col.byte_indices)]
+    carried = int.from_bytes(bytes(actual[index] for index in col.byte_indices), "big")
+    if algo.compute(payload) != carried:
+        return "mismatch"
+    spelled_out = all(index < len(mask) and mask[index] == 0xFF for index in col.byte_indices)
+    if spelled_out and any(
+        index >= len(expected) or expected[index] != actual[index] for index in col.byte_indices
+    ):
+        return "mismatch"
+    return "match"
+
+
 def diff_columns(
     actual: bytes,
     expected: bytes,
@@ -1562,13 +1653,14 @@ def diff_columns(
 ) -> tuple[list[str], list[str], list[str], list[str]]:
     """Compare actual vs expected using column specs.
 
-    Each column's status is determined by comparing the underlying
-    bytes at the column's byte indices. If any byte in the range
-    mismatches (respecting the wildcard mask), the column is marked
-    as ``"mismatch"``.
+    A column's status comes from its decoded value: ``"mismatch"`` when
+    the value differs once every wildcarded byte is taken from
+    ``expected`` (so a mask covers part of a multi-byte column, not just
+    all of it), ``"wildcard"`` when every byte is masked, ``"missing"``
+    when ``actual`` is too short for it (its value then reads ``?``),
+    ``"extra"`` when ``expected`` is.
 
-    For CRC columns, the status is determined by computing the CRC
-    over the data range and comparing against the packet's CRC bytes.
+    A CRC column is verified, not compared: see :func:`_crc_status`.
 
     Args:
         actual: Actual received bytes.
@@ -1579,7 +1671,8 @@ def diff_columns(
     Returns:
         Tuple of (headers, expected_values, actual_values, statuses).
         Status per column: ``"match"``, ``"mismatch"``, ``"wildcard"``,
-        ``"missing"``.
+        ``"missing"``, ``"extra"``, or ``"mixed"`` (per-byte ``h``
+        markup).
     """
     # Resolve wildcards using expected length (for consistent column count)
     resolved = _resolve_wildcards(columns, len(expected))
@@ -1598,19 +1691,7 @@ def diff_columns(
 
         # Determine per-column status
         if col.type_code == "crc" and col.crc_algo:
-            # CRC column: compare actual vs expected bytes directly.
-            act_crc_bytes = bytearray()
-            exp_crc_bytes = bytearray()
-            for byte_index in col.byte_indices:
-                if byte_index < len(actual):
-                    act_crc_bytes.append(actual[byte_index])
-                if byte_index < len(expected):
-                    exp_crc_bytes.append(expected[byte_index])
-
-            if act_crc_bytes == exp_crc_bytes and exp_crc_bytes:
-                statuses.append("match")
-            else:
-                statuses.append("mismatch")
+            statuses.append(_crc_status(actual, expected, mask, col))
         elif col.type_code == "h" and len(col.byte_indices) > 1:
             # Per-byte hex: build Rich markup with per-byte coloring
             parts: list[str] = []
@@ -1648,10 +1729,18 @@ def diff_columns(
                 for byte_index in col.byte_indices
             ):
                 col_status = "wildcard"
-            elif exp_values[-1] != act_values[-1]:
-                col_status = "mismatch"
             else:
-                col_status = "match"
+                # Honor the mask per byte: a wildcarded byte takes the
+                # expected value, so only the bytes the pattern spells
+                # out can make the decoded values differ.
+                merged = bytearray(actual)
+                for byte_index in col.byte_indices:
+                    if byte_index < len(mask) and mask[byte_index] == 0x00:
+                        merged[byte_index] = expected[byte_index]
+                if _format_column_value(bytes(merged), col) != exp_values[-1]:
+                    col_status = "mismatch"
+                else:
+                    col_status = "match"
             statuses.append(col_status)
 
     return headers, exp_values, act_values, statuses

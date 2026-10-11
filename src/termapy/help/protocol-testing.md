@@ -157,7 +157,9 @@ the mismatched bytes individually), `b` prints the bits as a binary string.
 Only `h` and `b` have lowercase forms.
 
 Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or
-8-byte (F64). Byte indexing is 1-based. `H7-*` = wildcard to end of packet.
+8-byte (F64). Byte indexing is 1-based: `U0` is an error, not the first
+byte. `H7-*` = wildcard to end of packet. A column that reaches past the
+data shows `?` rather than a value.
 
 ### Endianness
 
@@ -177,6 +179,13 @@ Modbus, USB, CRC-32; high byte first for `refout=False` like XMODEM,
 CCITT-FALSE). Add `_le` or `_be` only when your protocol wires the CRC
 opposite to that natural order: `CRC:crc16-modbus_be` would mean
 "Modbus CRC, but the bytes go high-first on this particular wire."
+
+The CRC covers every byte before it. When a protocol leaves bytes out (a
+sync byte, say), give the range: `CRC:crc16-modbus(2-7)` computes over
+bytes 2-7, 1-based and inclusive. In a protocol diff the CRC column is
+`match` when the CRC the packet carries verifies over that range (and
+agrees with the expect pattern wherever the pattern spells the CRC bytes
+out instead of wildcarding them), `mismatch` otherwise.
 
 ### Bit fields
 

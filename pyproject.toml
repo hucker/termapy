@@ -191,7 +191,12 @@ testpaths = ["tests"]
 # loadgroup == load, except it honors @pytest.mark.xdist_group.  Needed so
 # tests sharing an exclusive resource (the hardware loopback: one process may
 # hold the port) land on a single worker instead of skipping each other out.
-addopts = "-v --cov=termapy --cov-report=term-missing -n auto --dist loadgroup"
+# Bare --cov: the source comes from [tool.coverage.run] below, a PATH.  Given
+# as a package name (--cov=termapy) coverage counted only files that ran as
+# modules of that package, and the plugin loader executes a command file from
+# its path under its own module name -- so the 26 commands nothing imported by
+# name were never measured (2026-10-12; cap.py, port.py, mem.py, term.py ...).
+addopts = "-v --cov --cov-report=term-missing -n auto --dist loadgroup"
 markers = [
     "slow: subprocess-spawning, real-serial-loopback, or sleep-based test (~80s of full-suite runtime).  Skip during fast iteration with -m 'not slow'.",
     "hardware: needs a TX-RX-jumpered USB-serial adapter attached; found by serial number (TERMAPY_LOOPBACK_SN, default BG03U7VTA) and SKIPPED when absent, so CI and other machines are unaffected.  Run just these with -m hardware.",

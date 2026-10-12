@@ -262,9 +262,10 @@ source = ["src/termapy"]
 omit = [
     "src/termapy/__init__.py",
     "src/termapy/builtins/*.py",
-    # app.py is NOT omitted: it is Pilot-tested (tests/test_app_pilot.py boots
-    # the real SerialTerminal headless), so its number is real and movable.
-    "src/termapy/dialogs/*.py",
+    # app.py and dialogs/ are NOT omitted: both are Pilot-tested
+    # (tests/test_app_pilot*.py boots the real SerialTerminal headless,
+    # tests/test_dialogs*.py pushes each dialog into a bare host), so their
+    # numbers are real and movable.
     "src/termapy/vendor/*",
 ]
 

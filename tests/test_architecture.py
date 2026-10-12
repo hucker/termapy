@@ -860,3 +860,108 @@ def test_registry_guard_fires_on_a_probe():
         "guard test_unlisted: header must start with a registered id, "
         "got 'Pins something nobody wrote down.'",
     ], "one line per defect, nothing for the good row or the listed guard"
+
+
+# ── Every command has a test ─────────────────────────────────────────────────
+#
+# 207 commands were cheap to write and expensive to verify; by 2026-10-12 a
+# documented option (/cap.poll labels=) had been untypeable for three months
+# because no test and no user touched it.  This guard makes "a new command
+# ships with a test" mechanical: every registered command must be named by at
+# least one test file.  Commands are grouped by their handler's code object,
+# so a generated family (the /proto.crc.<lang> commands, the folder
+# subcommands, the /port.chip.* fields) counts once -- one of its names in a
+# test exercises the one implementation.  The set below is what was untested
+# when the guard was written; it only shrinks.
+
+KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset({
+    "app.list", "app.state.edit", "cap.hex", "cfg.help",
+    "edit.info", "edit.log", "edit.plugin.list", "edit.proto.list", "edit.run.list",
+    "help.plugin", "help.target", "ping.quiet",
+    "port.cd", "port.cts", "port.dsr", "port.ri",
+    "port.flow_control", "port.help", "port.mode", "port.usb",
+    "print.r", "proto.crc.verify", "proto.help", "proto.info", "proto.run",
+    "term.encoding", "term.log", "term.send_bare_enter",
+    "xfer.root", "xfer.xmodem.recv", "xfer.xmodem.send", "xfer.ymodem.send",
+})
+
+
+def _command_groups() -> list[list[str]]:
+    """Every registered built-in command name, grouped by handler code object."""
+    from termapy.plugins import builtins_dir, load_plugins_from_dir
+
+    groups: dict[object, list[str]] = {}
+    for info in load_plugins_from_dir(builtins_dir(), source="built-in").plugins:
+        key = getattr(info.handler, "__code__", None) or id(info.handler)
+        groups.setdefault(key, []).append(info.name)
+    return [sorted(names) for names in groups.values()]
+
+
+def _tests_text() -> str:
+    """Every test file's source, joined, for the name search.
+
+    This file is skipped: its allowlist names every untested command and
+    would otherwise count as the test that mentions them.
+    """
+    return "\n".join(
+        path.read_text(encoding="utf-8", errors="replace")
+        for path in TESTS.rglob("test_*.py")
+        if path != Path(__file__)
+    )
+
+
+def _mentioned(name: str, tests_text: str) -> bool:
+    """True when ``name`` appears in the tests as a whole dotted token."""
+    return re.search(r"(?<![\w.])" + re.escape(name) + r"(?![\w.])", tests_text) is not None
+
+
+def _untested_groups(groups: list[list[str]], tests_text: str) -> list[list[str]]:
+    """The groups none of whose names any test file mentions."""
+    return [names for names in groups if not any(_mentioned(name, tests_text) for name in names)]
+
+
+def test_every_command_is_mentioned_by_a_test():
+    """command-has-test: every registered command is named by a test, except the shrinking known-untested set.
+
+    A family generated from one handler counts once.  A new command fails
+    this until a test names it; the fix is the test, never a new entry in
+    the allowlist.
+    """
+    # Arrange / Act
+    untested = _untested_groups(_command_groups(), _tests_text())
+    violations = [
+        " ".join(names) for names in untested if not any(name in KNOWN_UNTESTED_COMMANDS for name in names)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a registered command has no test that names it; write the test:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_command_guard_fires_on_a_probe():
+    """The guard flags a group none of whose names appear, and passes a group one of whose names does."""
+    # Arrange -- a dotted name, a name that is only a prefix of what the
+    # tests mention, and a family with one mentioned member
+    groups = [["cap.text"], ["port.open"], ["proto.crc.go", "proto.crc.rust"]]
+    tests_text = 'eng.dispatch("cap.text t.txt")\nresult = run("/port.open_wide")\nuse("/proto.crc.rust")\n'
+
+    # Act
+    untested = _untested_groups(groups, tests_text)
+
+    # Assert
+    assert untested == [["port.open"]], "a prefix of a longer token is not a mention; one member covers a family"
+
+
+def test_known_untested_commands_has_no_stale_entries():
+    """Every allowlisted command is still untested, so the set only shrinks."""
+    # Arrange / Act
+    still_untested = {name for names in _untested_groups(_command_groups(), _tests_text()) for name in names}
+
+    # Assert
+    stale = sorted(KNOWN_UNTESTED_COMMANDS - still_untested)
+    assert stale == [], (
+        "KNOWN_UNTESTED_COMMANDS lists commands a test now names; drop them:\n  "
+        + "\n  ".join(stale)
+    )

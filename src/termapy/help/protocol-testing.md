@@ -40,7 +40,11 @@ send_fmt = "Title:AT_Command Command:S1-*"      # optional inline format specs
 expect_fmt = "Title:AT_Response Response:S1-*"  # (see the format spec language below)
 ```
 
-Run with `/proto.run example.pro`. Each test reports PASS/FAIL.
+Run with `/proto.run example.pro`. Each test reports PASS/FAIL. Escape
+stops a run after the current test (the script-level teardown is then
+skipped). `/proto.run example.pro --json` returns the results document
+described under [Headless runs](#headless-runs) instead of the prose,
+which is also what an MCP client receives.
 
 ![Protocol test results](img/doc_11_proto_run.svg)
 
@@ -56,7 +60,12 @@ Header (defaults for every test):
 - `setup` / `teardown`: lists of commands run before the first test / after the last
 - `viz`: visualizer names allowed in the debug screen's dropdown (empty = all)
 - `send_fmt` / `expect_fmt`: default inline format specs for TX / RX data
-- `json_file`: write the results as JSON to this file after a run
+- `json_file`: after `/proto.run`, write the results document to this
+  file in `test/` beside the script. A filename template: `{name}` (the
+  config), `{proto_name}` (the script's stem), `{datetime}`, `{date}`,
+  `{time}`. The debug screen and `termapy --proto` write one whether or
+  not the key is set; there it overrides the `proto_results_template`
+  config value
 
 Per `[[test]]`:
 
@@ -73,7 +82,28 @@ Per `[[test]]`:
 Older scripts use a colon-keyed flat format (`@timeout 1000ms`,
 `label:`, `send:`, `expect:`, `timeout:`, `delay:`, `flush:`, `cmd:`).
 It is still parsed when a file is not valid TOML, but JSON result
-output (`json_file`, `--json`) needs the TOML form.
+output (`json_file`, `--json`, `--proto`) needs the TOML form.
+
+### Headless runs
+
+```sh
+termapy --proto smoke.pro my_device    # no TUI; exit 0 when every test passed
+termapy --proto smoke.pro --demo       # against the demo device
+```
+
+`--proto` runs one TOML script against the config's port and exits:
+0 when every test passed, 1 when any failed, 2 on a config, script, or
+port error. One summary line goes to stdout; the results document goes
+to `proto/test/` in the config's data folder, named by the
+`proto_results_template` config value unless the script sets
+`json_file`. The document has four keys: `meta` (script, config, port,
+baud rate, encoding, timestamp), `summary` (`total`, `passed`,
+`failed`, `elapsed_ms`), `tests` (one record per test that ran:
+`index`, `name`, `passed`, `elapsed_ms`, `send_hex`, `expect_hex`,
+`actual_hex`, the text forms, any `send_fmt`/`expect_fmt`, and `error`
+on a timeout), and `source` (the script text). The same document is
+what `/proto.run --json` returns and what the debug screen's JSON
+checkbox writes.
 
 ## Packet visualizers
 

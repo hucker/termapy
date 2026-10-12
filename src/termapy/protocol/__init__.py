@@ -115,8 +115,11 @@ from termapy.protocol.crc import (
     reset_crc_registry,
 )
 from termapy.protocol.runner import (
+    build_results,
+    build_test_result,
     expand_result_template,
     run_proto_tests,
+    write_results,
 )
 from termapy.protocol.viz import (
     VisualizerInfo,
@@ -184,8 +187,11 @@ __all__ = [
     "generate_vhdl",
     "generate_vhdl_from_entry",
     # runner
+    "build_results",
+    "build_test_result",
     "expand_result_template",
     "run_proto_tests",
+    "write_results",
     # viz
     "VisualizerInfo",
     "builtins_viz_dir",

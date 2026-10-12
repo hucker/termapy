@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from termapy.config import open_serial
 from termapy.folders import ensure_folder
 from termapy.protocol.core import (
     FrameCollector,
+    ProtoScript,
     TestCase,
     load_proto_script,
     match_response,
@@ -92,8 +94,8 @@ def _run_setup_cmds(ser, cmds: list[str], cfg: dict,
         _read_frame(ser, frame_gap_ms, 1000)  # drain response
 
 
-def _build_test_result(tc: TestCase, response: bytes | None,
-                       elapsed_ms: float, passed: bool | None) -> dict:
+def build_test_result(tc: TestCase, response: bytes | None,
+                      elapsed_ms: float, passed: bool | None) -> dict:
     """Build a JSON-serializable dict for a single test result."""
     result: dict = {
         "index": tc.index,
@@ -158,6 +160,76 @@ def expand_result_template(template: str, proto_name: str,
     )
 
 
+def build_results(
+    script: ProtoScript,
+    pro_path: Path,
+    source: str,
+    cfg: Mapping,
+    config_name: str,
+    test_results: list[dict],
+    pass_count: int,
+    fail_count: int,
+    elapsed_ms: float,
+) -> dict:
+    """The results document every runner produces.
+
+    One shape for ``termapy --proto``, ``/proto.run`` and the debug
+    screen, so a consumer reads one format whichever wrote the file.
+
+    Args:
+        script: The parsed script.
+        pro_path: The script's path (its name goes in the metadata).
+        source: The script text, recorded verbatim.
+        cfg: The config the run used (port, baud rate, encoding).
+        config_name: The config's name, ``""`` when none is loaded.
+        test_results: One :func:`build_test_result` per test that ran.
+        pass_count: Passing tests (iterations, under a repeat).
+        fail_count: Failing tests.
+        elapsed_ms: Whole-run wall time.
+
+    Returns:
+        A JSON-serializable dict: ``meta``, ``summary``, ``tests``,
+        ``source``.
+    """
+    return {
+        "meta": {
+            "script": pro_path.name,
+            "script_name": script.name or pro_path.stem,
+            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+            "config": config_name,
+            "port": cfg["serial"]["port"],
+            "baud_rate": cfg["serial"]["baud_rate"],
+            "encoding": cfg.get("encoding", "utf-8"),
+        },
+        "summary": {
+            "total": pass_count + fail_count,
+            "passed": pass_count,
+            "failed": fail_count,
+            "elapsed_ms": round(elapsed_ms, 1),
+        },
+        "tests": test_results,
+        "source": source,
+    }
+
+
+def write_results(
+    results: dict, output_dir: Path, template: str, proto_name: str, config_name: str,
+) -> Path:
+    """Write a results document under ``output_dir`` and return its path.
+
+    The file is named by expanding ``template``
+    (:func:`expand_result_template`); the folder is created at the write.
+
+    Raises:
+        OSError: The file cannot be written.
+    """
+    ensure_folder(output_dir)
+    out_path = output_dir / expand_result_template(template, proto_name, config_name)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+    return out_path
+
+
 def run_proto_tests(
     pro_path: Path,
     cfg: dict,
@@ -195,7 +267,6 @@ def run_proto_tests(
     # Resolve output directory
     if output_dir is None:
         output_dir = pro_path.parent / "test"
-    ensure_folder(output_dir)
 
     frame_gap = script.frame_gap_ms
     pass_count = 0
@@ -235,7 +306,7 @@ def run_proto_tests(
                 fail_count += 1
 
             test_results.append(
-                _build_test_result(test, response, elapsed_ms, passed)
+                build_test_result(test, response, elapsed_ms, passed)
             )
 
             # Per-test teardown
@@ -255,34 +326,13 @@ def run_proto_tests(
             pass
 
     total_elapsed = (time.monotonic() - t_start) * 1000
-
-    results = {
-        "meta": {
-            "script": pro_path.name,
-            "script_name": script.name or pro_path.stem,
-            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
-            "config": Path(cfg.get("_config_path", "")).stem or "",
-            "port": cfg["serial"]["port"],
-            "baud_rate": cfg["serial"]["baud_rate"],
-            "encoding": cfg.get("encoding", "utf-8"),
-        },
-        "summary": {
-            "total": pass_count + fail_count,
-            "passed": pass_count,
-            "failed": fail_count,
-            "elapsed_ms": round(total_elapsed, 1),
-        },
-        "tests": test_results,
-        "source": text,
-    }
+    config_name = Path(cfg.get("_config_path", "")).stem or ""
+    results = build_results(
+        script, pro_path, text, cfg, config_name,
+        test_results, pass_count, fail_count, total_elapsed,
+    )
 
     # Write JSON file - script-level json_file overrides config template
-    effective_template = script.json_file or template
-    config_name = Path(cfg.get("_config_path", "")).stem or ""
-    filename = expand_result_template(effective_template, pro_path.stem,
-                                      config_name)
-    out_path = output_dir / filename
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
+    write_results(results, output_dir, script.json_file or template, pro_path.stem, config_name)
 
     return results

@@ -710,7 +710,7 @@ send = "01 06 00 05 04 D2 1B 56"
 expect = "01 06 00 05 04 D2 1B 56"
 ```
 
-Run with `/proto.run <file>` or from the proto debug screen, which adds repeat count, delay between runs, stop-on-error, scrolling results, and visualizer column data.
+Run with `/proto.run <file>` (Escape stops a run after the current test; `--json` returns the results as data), from the proto debug screen, which adds repeat count, delay between runs, stop-on-error, a Stop button, scrolling results, and visualizer column data, or headlessly with `termapy --proto <file>`, which writes the JSON results and exits 0 when every test passed.
 
 <!-- TODO: screenshot - proto debug screen showing test results with pass/fail coloring and visualizer columns -->
 

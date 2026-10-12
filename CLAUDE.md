@@ -107,6 +107,7 @@ All paths relative to `src/termapy/`.
 - SS/Scripts buttons always visible with file-count tooltips
 - Plugin files end with `COMMAND` dict preceded by:
   `# ── COMMAND (must be at end of file) ──────────────────────────────────────────`
+  (`COMMAND` is the last *command* export; a plugin that also exports a `TRANSFORM` or `DIRECTIVE`, as `env.py` and `var.py` do, places those after it)
 - Subcommands = distinct operations (`port.list` vs `port.connect`)
 - Toggles/values = args (`echo on`, `cfg baudrate 9600`)
 - `needs=`: use the named `CapabilitySet` profiles (`.SERIAL_CONNECTED`,

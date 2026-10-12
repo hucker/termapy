@@ -56,6 +56,38 @@ Not in the table because they have both: the serial engine and reader
 symbol commands (09-18), the dialogs and `app.py` (Pilot tests, pending
 branches).
 
+### Carried from earlier passes
+
+Triaged 2026-10-12 (each file's Addenda has the disposition of every open
+item); what was neither fixed nor closed lands here so a later pass finds it
+listed rather than discovering it.
+
+- **Worth a fix soon:** `_send_and_capture` (`proto.py`) strips a trailing LF
+  unconditionally and can eat a CRC byte of 0x0A (06-20 F); `config.py:412`
+  is the one `except (OSError, Exception)` without a boundary annotation
+  (06-20 E); text-capture byte count is a character count (06-20 #4, issue
+  #25).
+- **Debt, known and bounded:** quoted folder names joined to paths outside
+  `folders.py` (06-20 C, ~26 sites); inline newline splits beside
+  `scripting.split_cmd_lines` (06-20 D); `config_editor.py` importing
+  `repl._edit_distance` (06-20 B); the duplicated `.pro` summary block (07-14
+  R3); the reported duplications R5–R12 (07-14, unverified); `ctx.internal`
+  outranking two stable handles (07-14 A2); the extractable script-runner
+  cluster (A3); the lazy mutual import between `serial_engine` and
+  `port_control` (A4); hook/plugin boundary drift (A5); the six stale
+  What-comments in `plugins/capabilities.py` (A6); `repl.py`'s one pyserial
+  import (A8).
+- **Leads, never verified (08-19):** auto-reconnect giving up for good after a
+  failed connect (`app.py`, `_reconnecting`); the reconnect worker surviving a
+  manual connect and a config switch, with `stop_event` serving two purposes;
+  `feed_lines` returning on the first match and dropping the rest of a batch
+  (`repl.py`); a stale `_expect_event.set()` satisfying the next
+  `wait_for_match`; the non-atomic snapshot-then-clear of `_recent_lines`;
+  config and port-effect callbacks mutating widgets on a worker thread; a
+  trailing partial line dropped on disconnect (`serial_engine.py`); the help
+  HTTP server never shut down. These are the brief for the first dedicated pass
+  over `app.py`'s connection lifecycle.
+
 ## Conventions
 
 - **Filename:** `YYYY-MM-DD-vX.Y.Z-<model>.md` — date first (sorts chronologically), then the version reviewed, then the primary reviewer model. Time-of-day may be appended (`YYYY-MM-DD-HHMM-...`) if more than one pass lands on a day.

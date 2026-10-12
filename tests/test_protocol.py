@@ -674,6 +674,29 @@ expect = '"world\\r"'
         assert script.tests[1].send_data == b"hello\r"
         assert script.tests[1].binary is False
 
+    def test_bad_fmt_spec_fails_at_load(self):
+        """A *_fmt spec that does not parse is refused at load, named by test and key, not on the debug screen's render path."""
+        toml = '''\
+[[test]]
+send = "01"
+expect = "02"
+expect_fmt = "Title:Reply X:U0"
+'''
+        with pytest.raises(ValueError, match="Test 1: expect_fmt: Invalid byte index: 0"):
+            parse_toml_script(toml)
+
+    def test_bad_script_level_fmt_spec_fails_at_load(self):
+        """The script-level send_fmt is checked too, before any test inherits it."""
+        toml = '''\
+send_fmt = "X:"
+
+[[test]]
+send = "01"
+expect = "02"
+'''
+        with pytest.raises(ValueError, match="send_fmt: Invalid column: X:"):
+            parse_toml_script(toml)
+
     def test_settings(self):
         """TOML settings are parsed correctly."""
         toml = '''\
@@ -1435,6 +1458,25 @@ class TestParseFormatSpec:
         expected_names = ["Slave", "Func", "Addr", "Count", "CRC"]
         assert actual_names == expected_names
 
+    @pytest.mark.parametrize(
+        "spec", ["X:U0", "X:H0-2", "X:H3-0", "X:H0-*", "X:B0.3", "X:0"],
+    )
+    def test_byte_index_zero_is_refused(self, spec):
+        """A byte reference of 0 fails at parse: it used to be Python's -1, the LAST byte, on every reader and on inject."""
+        with pytest.raises(ValueError, match=r"Invalid byte index: 0 \(bytes are numbered from 1\)"):
+            parse_format_spec(spec)
+
+    def test_zero_inside_a_longer_number_is_that_number(self):
+        """U10 and U100 are bytes 10 and 100; only a reference equal to 0 is refused."""
+        cols = parse_format_spec("A:U10 B:U100")
+        assert [col.byte_indices for col in cols] == [[9], [99]], "1-based -> 0-based"
+
+    @pytest.mark.parametrize("spec", ["X:", "u16", ":U1"])
+    def test_token_without_name_and_type_is_refused(self, spec):
+        """A token that is not Name:Type is a ValueError naming it, never an IndexError from the decoder."""
+        with pytest.raises(ValueError, match="Invalid column: "):
+            parse_format_spec(spec)
+
 
 # ── apply_format ─────────────────────────────────────────────────────────
 
@@ -1688,6 +1730,128 @@ class TestDiffColumns:
         # Assert
         assert headers == ["A", "B"], "padding not in output"
         assert len(statuses) == 2, "only 2 columns"
+
+
+class TestShortData:
+    """Data shorter than the spec renders ``?``, never a zero-padded number."""
+
+    def test_columns_past_the_data_show_a_marker(self):
+        """Every column that reaches past three bytes is ?; U3-4 used to read 512 and F3-6 a denormal float."""
+        cols = parse_format_spec("Slave:H1 Func:H2 Addr:U3-4 Temp:I3-4 Flt:F3-6 Bit:B3-4.1")
+        _, values = apply_format(b"\x01\x03\x02", cols)
+        assert values == ["01", "03", "?", "?", "?", "?"], "present columns decode, the rest are ?"
+
+    def test_crc_on_data_shorter_than_its_width(self):
+        """A 2-byte CRC column on a 1-byte packet is ?; it used to wrap to index -1 and show 0101."""
+        reset_crc_registry()
+        _, values = apply_format(b"\x01", parse_format_spec("D:H1 CRC:crc16-modbus"))
+        assert values == ["01", "?"]
+
+    def test_diff_reports_missing_with_the_marker(self):
+        """In a diff a short actual gives status missing and value ? for each column past it, the CRC included."""
+        # Arrange
+        payload = bytes([0x01, 0x03, 0x02, 0x00, 0x0A])
+        frame = _modbus_frame(payload)
+        cols = parse_format_spec("Slave:H1 Func:H2 Len:U3 Reg:U4-5 CRC:crc16-modbus")
+        reset_crc_registry()
+
+        # Act
+        _, _, act_values, statuses = diff_columns(b"\x01\x03\x02", frame, b"\xff" * len(frame), cols)
+
+        # Assert
+        assert statuses == ["match", "match", "match", "missing", "missing"]
+        assert act_values[3:] == ["?", "?"], "a missing column shows no invented value"
+
+
+class TestCrcColumnStatus:
+    """The CRC column verifies the CRC the packet carries; it does not compare raw bytes."""
+
+    _SPEC = "Slave:H1 Func:H2 Len:U3 Reg:U4-5 CRC:crc16-modbus"
+
+    def test_valid_crc_against_a_wildcarded_expect_matches(self):
+        """A valid CRC is match when the expect pattern wildcards the CRC bytes (the raw compare said mismatch)."""
+        # Arrange
+        payload = bytes([0x01, 0x03, 0x02, 0x00, 0x0A])
+        frame = _modbus_frame(payload)
+        expected, mask = parse_pattern("01 03 02 00 0A ** **")
+        reset_crc_registry()
+
+        # Act
+        _, _, _, statuses = diff_columns(frame, expected, mask, parse_format_spec(self._SPEC))
+
+        # Assert
+        assert statuses[-1] == "match", "the CRC verifies over the payload"
+
+    def test_invalid_crc_against_its_own_literal_mismatches(self):
+        """An invalid CRC is mismatch even when the expect pattern spells out those same bytes."""
+        # Arrange
+        frame = bytes([0x01, 0x03, 0x02, 0x00, 0x0A, 0xDE, 0xAD])
+        expected, mask = parse_pattern("01 03 02 00 0A DE AD")
+        reset_crc_registry()
+
+        # Act
+        _, _, _, statuses = diff_columns(frame, expected, mask, parse_format_spec(self._SPEC))
+
+        # Assert
+        assert statuses[-1] == "mismatch", "DE AD is not the Modbus CRC of the payload"
+
+    def test_valid_crc_against_a_different_literal_mismatches(self):
+        """A valid CRC still mismatches an expect pattern that spells out other CRC bytes."""
+        # Arrange
+        payload = bytes([0x01, 0x03, 0x02, 0x00, 0x0A])
+        frame = _modbus_frame(payload)
+        expected, mask = parse_pattern("01 03 02 00 0A DE AD")
+        reset_crc_registry()
+
+        # Act
+        _, _, _, statuses = diff_columns(frame, expected, mask, parse_format_spec(self._SPEC))
+
+        # Assert
+        assert statuses[-1] == "mismatch", "the pattern asked for DE AD"
+
+    def test_explicit_data_range_is_honored(self):
+        """crc16-modbus(2-3) computes over bytes 2-3 only, so a CRC that skips a sync byte verifies with the range and not without."""
+        # Arrange - the CRC covers bytes 2-3, not the AA sync byte
+        body = b"\xaa\x01\x02"
+        frame = body + struct.pack("<H", _modbus_crc(body[1:]))
+        mask = b"\xff" * len(frame)
+        reset_crc_registry()
+
+        # Act
+        _, _, _, with_range = diff_columns(
+            frame, frame, mask, parse_format_spec("Sync:H1 Data:H2-3 CRC:crc16-modbus(2-3)"))
+        _, _, _, without_range = diff_columns(
+            frame, frame, mask, parse_format_spec("Sync:H1 Data:H2-3 CRC:crc16-modbus"))
+
+        # Assert
+        assert with_range[-1] == "match", "computed over the range the spec gave"
+        assert without_range[-1] == "mismatch", "the default range includes the sync byte"
+
+    def test_data_range_past_the_actual_is_missing(self):
+        """A data range the actual does not reach reports missing, not a CRC over a truncated slice."""
+        frame = _modbus_frame(b"\xaa\x01\x02")
+        reset_crc_registry()
+        _, _, _, statuses = diff_columns(
+            frame, frame, b"\xff" * len(frame), parse_format_spec("Sync:H1 CRC:crc16-modbus(1-9)"))
+        assert statuses[-1] == "missing"
+
+
+class TestPartialMask:
+    """A multi-byte column honors the wildcard mask per byte, not only when every byte is masked."""
+
+    def test_masked_byte_may_differ(self):
+        """Addr:U3-4 against ** 10 is match when only the masked byte differs, mismatch when the spelled-out byte does."""
+        # Arrange
+        expected, mask = parse_pattern("01 03 ** 10")
+        cols = parse_format_spec("Slave:H1 Func:H2 Addr:U3-4")
+
+        # Act
+        _, _, _, masked_differs = diff_columns(b"\x01\x03\xff\x10", expected, mask, cols)
+        _, _, _, literal_differs = diff_columns(b"\x01\x03\xff\x11", expected, mask, cols)
+
+        # Assert
+        assert masked_differs[2] == "match", "byte 3 is wildcarded"
+        assert literal_differs[2] == "mismatch", "byte 4 is spelled out and differs"
 
 
 # ── Hex View Column API ──────────────────────────────────────────────────

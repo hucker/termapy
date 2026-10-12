@@ -11,6 +11,7 @@ a guard you meet too late.
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 import termapy
@@ -73,7 +74,7 @@ def _builtins_imports(path: Path) -> list[tuple[int, str, str]]:
 
 
 def test_core_does_not_import_from_plugins():
-    """Core may use a plugin's published surface, never its internals.
+    """core-imports-published-only: Core may use a plugin's published surface, never its internals.
 
     The plugin system is built on core-below-plugins.  When infrastructure is
     misfiled under ``builtins/``, core has to import upward to reach it, and
@@ -142,7 +143,7 @@ def _plugin_python_files() -> list[Path]:
 
 
 def test_plugins_do_not_use_engine_io_primitives():
-    """Handlers must reach the terminal through the semantic channels.
+    """io-semantic-channels: Handlers must reach the terminal through the semantic channels.
 
     Matches on the ATTRIBUTE, not on the text ``ctx.io._write``, which is what
     the equivalent CI grep keys on.  That matters twice over: a comment or
@@ -223,7 +224,7 @@ def _is_ui_layer(rel: Path) -> bool:
 
 
 def test_textual_stays_in_the_ui_layer():
-    """Only the UI layer may import Textual.
+    """ui-layer-textual: Only the UI layer may import Textual.
 
     CLAUDE.md names this layer, and the list was maintained by hand.  Pinning
     it here makes it self-verifying: a new Textual import fails until the
@@ -269,7 +270,7 @@ def test_ui_layer_list_has_no_stale_entries():
 
 
 def test_engine_modules_have_no_serial_dependency():
-    """plugins/, scripting.py, symbols/ and memory.py stay transport-agnostic.
+    """engine-transport-agnostic: plugins/, scripting.py, symbols/ and memory.py stay transport-agnostic.
 
     ``plugins/`` defines the command/context API, ``scripting.py`` is pure
     functions, ``symbols/`` is library-shaped like ``protocol/`` (a symbol
@@ -344,7 +345,7 @@ def _bool_token_violations(tree: ast.AST, rel: str) -> list[str]:
 
 
 def test_booleans_go_through_parse_bool():
-    """No command code compares tokens to on/off or declares on/off enums.
+    """bool-one-vocabulary: No command code compares tokens to on/off or declares on/off enums.
 
     One vocabulary, three sanctioned readers (see CLAUDE.md): the ``bool``
     param type, ``parse_bool_setting`` for settings, bare ``parse_bool``
@@ -445,7 +446,7 @@ def _raw_mkdir_files() -> dict[str, list[str]]:
 
 
 def test_data_folders_are_created_only_by_ensure_folder():
-    """No code outside the allowlist creates a folder with a raw ``mkdir``.
+    """folders-ensure-only: No code outside the allowlist creates a folder with a raw ``mkdir``.
 
     A data folder exists while something is in it (see ``folders``): every
     writer calls ``ensure_folder`` at the write, ``prune_empty_folders``
@@ -546,7 +547,7 @@ def _symbols_ns_files() -> dict[str, list[str]]:
 
 
 def test_symbols_namespace_is_touched_only_by_its_session_module():
-    """No code outside ``symbols/session.py`` calls ``ctx.ns("symbols")``."""
+    """symbols-one-owner: No code outside ``symbols/session.py`` calls ``ctx.ns("symbols")``."""
     # Arrange / Act
     violations = [
         line
@@ -654,7 +655,7 @@ def _headerless_files() -> dict[str, list[str]]:
 
 
 def test_every_test_has_a_header():
-    """Every test outside the shrinking allowlist says what it pins in a docstring.
+    """test-headers: Every test outside the shrinking allowlist says what it pins in a docstring.
 
     The name says what a test does; the header says why it matters, which
     is what a reader has lost when they come back to it later.  See the
@@ -719,3 +720,143 @@ def test_headerless_allowlist_has_no_stale_entries():
         "ALLOWED_HEADERLESS lists files whose tests all have headers now; drop them:\n  "
         + "\n  ".join(stale)
     )
+
+
+# ── The invariants registry ──────────────────────────────────────────────────
+#
+# docs/invariants.md is the one list of the rules this file and the rest of the
+# suite enforce, each row a stable id, a kind (guarantee = a named test, or
+# assumption = review only) and the test.  The guard below keeps the table and
+# the guards in this file agreeing both ways, so a renamed test cannot leave a
+# row pointing at nothing and a new guard cannot ship unlisted.
+
+REGISTRY = SRC.parent.parent / "docs" / "invariants.md"
+
+_INVARIANT_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
+_TEST_REF = re.compile(r"\btest_\w+(?:\.py)?")
+# A guard's companions prove it fires or keep its allowlist honest; they carry
+# no id of their own, so the reverse check skips them by name.
+_COMPANION_MARKERS = ("fires_on_a_probe", "has_no_stale_entries", "still_touches_it")
+
+
+def _registry_rows(text: str) -> list[dict[str, str]]:
+    """The registry table's data rows, each a dict keyed by the header cells."""
+    rows: list[dict[str, str]] = []
+    header: list[str] | None = None
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip().strip("`") for cell in line.strip().strip("|").split("|")]
+        if header is None:
+            header = [cell.lower() for cell in cells]
+            continue
+        if all(set(cell) <= set("-: ") for cell in cells):
+            continue  # the separator row
+        rows.append(dict(zip(header, cells, strict=False)))
+    return rows
+
+
+def _collected_tests() -> tuple[set[str], set[str]]:
+    """``(function names, file names)`` of every test under tests/."""
+    names: set[str] = set()
+    files: set[str] = set()
+    for path in TESTS.rglob("test_*.py"):
+        files.add(path.name)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names.update(qualname.rsplit(".", 1)[-1] for qualname, _ in _test_functions(tree.body))
+    return names, files
+
+
+def _guard_headers(tree: ast.Module) -> list[tuple[str, str]]:
+    """``(name, first docstring line)`` of every guard in a module, companions excluded."""
+    found: list[tuple[str, str]] = []
+    for qualname, func in _test_functions(tree.body):
+        name = qualname.rsplit(".", 1)[-1]
+        if any(marker in name for marker in _COMPANION_MARKERS):
+            continue
+        doc = ast.get_docstring(func) or ""
+        found.append((name, doc.splitlines()[0] if doc else ""))
+    return found
+
+
+def _registry_mismatches(
+    rows: list[dict[str, str]],
+    test_names: set[str],
+    test_files: set[str],
+    guards: list[tuple[str, str]],
+) -> list[str]:
+    """Every way the registry and the guards can disagree, as one line each."""
+    problems: list[str] = []
+    ids: set[str] = set()
+    for row in rows:
+        rid = row.get("id", "")
+        if not _INVARIANT_ID.match(rid):
+            problems.append(f"registry: bad id {rid!r}")
+        elif rid in ids:
+            problems.append(f"registry: duplicate id {rid}")
+        ids.add(rid)
+        kind = row.get("kind", "")
+        if kind not in ("guarantee", "assumption"):
+            problems.append(f"registry {rid}: kind must be guarantee or assumption, not {kind!r}")
+        refs = _TEST_REF.findall(row.get("enforced by", ""))
+        if kind == "guarantee" and not refs:
+            problems.append(f"registry {rid}: a guarantee names the test that enforces it")
+        for ref in refs:
+            known = test_files if ref.endswith(".py") else test_names
+            if ref not in known:
+                problems.append(f"registry {rid}: no such test {ref}")
+    for name, header in guards:
+        prefix, _, _ = header.partition(":")
+        if prefix not in ids:
+            problems.append(
+                f"guard {name}: header must start with a registered id, got {header[:40]!r}"
+            )
+    return problems
+
+
+def test_invariants_registry_matches_the_guards():
+    """invariants-registry: docs/invariants.md and the guards in this file agree both ways.
+
+    A row's tests exist, so a guarantee cannot name a test that was renamed
+    away; every guard here carries a registered id in its header, so a new
+    guard cannot ship unlisted.  The registry's intro says how to add a row.
+    """
+    # Arrange / Act
+    rows = _registry_rows(REGISTRY.read_text(encoding="utf-8"))
+    names, files = _collected_tests()
+    guards = _guard_headers(ast.parse(Path(__file__).read_text(encoding="utf-8")))
+    problems = _registry_mismatches(rows, names, files, guards)
+
+    # Assert
+    assert problems == [], "\n  ".join(["registry and guards disagree:", *problems])
+
+
+def test_registry_guard_fires_on_a_probe():
+    """The guard detects a bad id, a bad kind, a missing test, a bare guarantee, and an unregistered guard."""
+    # Arrange -- one good row and one of each defect, plus one listed and
+    # one unlisted guard
+    rows = [
+        {"id": "good-id", "kind": "guarantee", "enforced by": "test_real"},
+        {"id": "BadId", "kind": "guarantee", "enforced by": "test_real"},
+        {"id": "no-kind", "kind": "rule", "enforced by": "test_real"},
+        {"id": "gone-test", "kind": "guarantee", "enforced by": "test_renamed_away"},
+        {"id": "bare-one", "kind": "guarantee", "enforced by": "review"},
+        {"id": "by-file", "kind": "guarantee", "enforced by": "test_file.py"},
+    ]
+    guards = [
+        ("test_listed", "good-id: pins it"),
+        ("test_unlisted", "Pins something nobody wrote down."),
+    ]
+
+    # Act
+    problems = _registry_mismatches(rows, {"test_real"}, {"test_file.py"}, guards)
+
+    # Assert
+    assert problems == [
+        "registry: bad id 'BadId'",
+        "registry no-kind: kind must be guarantee or assumption, not 'rule'",
+        "registry gone-test: no such test test_renamed_away",
+        "registry bare-one: a guarantee names the test that enforces it",
+        "guard test_unlisted: header must start with a registered id, "
+        "got 'Pins something nobody wrote down.'",
+    ], "one line per defect, nothing for the good row or the listed guard"

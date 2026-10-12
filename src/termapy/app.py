@@ -3532,6 +3532,13 @@ class SerialTerminal(TerminalHost, App):
             if not has_overlay:
                 for child in bar.children:
                     child.display = False
+                # A TYPED /run reached here through _set_input_busy(True),
+                # which disabled the bar before this overlay existed; a
+                # Stop button mounted into a disabled bar is inert (only
+                # Escape stopped the script).  The script owns the bar
+                # from here, so enable it: its own buttons are hidden
+                # above and Stop must be clickable.
+                bar.disabled = False
                 label = Static(text, id="script-label")
                 label.styles.width = "1fr"
                 stop_btn = Button("Stop", id="script-stop", variant="error")

@@ -85,8 +85,10 @@ def _cap_start(
             app._cap_timer = None
 
     _cap_show_progress(app)
-    raw = not columns
-    mode_label = "raw" if raw else ("fmt" if columns else "text")
+    # Three captures, three labels.  The old ternary tested ``not columns``
+    # first, so a text capture (no columns) logged ``mode=raw`` and the
+    # "text" branch was unreachable.
+    mode_label = "text" if mode == "text" else ("fmt" if columns else "raw")
     app._log_line("#", f"capture start: {path} mode={mode_label}")
     return True
 

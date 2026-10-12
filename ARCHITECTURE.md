@@ -413,6 +413,10 @@ What it demonstrates:
 
 Copy this shape for any plugin that needs per-session state with setup/reset semantics. (The full file adds a `_start_time` for the `{starttime}` placeholder, a `seq.reset` subcommand, and a dynamic `long_help` that reads the live state.)
 
+## Invariants
+
+The rules the layers rely on are listed in [docs/invariants.md](docs/invariants.md), one row each: a stable id, whether a test enforces it (a guarantee) or review does (an assumption), and the test. The guards in `tests/test_architecture.py` lead their headers with the id, and a guard there keeps the table and the guards agreeing both ways.
+
 ## Layer diagram
 
 ```text

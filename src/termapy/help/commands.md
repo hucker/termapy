@@ -18,6 +18,7 @@ man-page detail for one.
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
+| `/cap.poll {count=N} {delay=<dur>} {file=<f>} cmd=<cmds>` | Poll commands on a schedule; print rows, optionally save CSV/JSONL |
 | `/cap.stop`               | Stop an active capture                                                      |
 | `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
 | `/cap.text <f> ...`       | Capture serial text to file for a timed duration                            |
@@ -102,9 +103,12 @@ man-page detail for one.
 | `/profile.validate <path>`| Validate an MCP device profile against the schema                           |
 | `/proto`                  | TUI: open the Proto picker. CLI: show /proto long-help.                     |
 | `/proto.crc.calc <n> {d}` | Compute CRC over hex bytes, text, or file                                   |
-| `/proto.crc.find <pkt>`   | Identify the CRC algorithm from a captured packet (bin= or asc=)            |
+| `/proto.crc.detect {<frames>...}` | Name the catalog CRC on a batch of frames' trailing bytes            |
+| `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify the CRC algorithm from a captured packet, or from a trigger's response |
 | `/proto.crc.info <name>`  | Show CRC algorithm parameters and description                               |
 | `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
+| `/proto.crc.reverse {cmd=<trigger> count=<N>} {packet-hex}...` | Recover the Rocksoft parameters of an unknown CRC |
+| `/proto.crc.verify <name> {endian=be\|le} <hex>...` | Verify a packet's trailing CRC against a named algorithm |
 | `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
 | `/proto.hex {on\|off\|toggle}`    | Toggle protocol-mode hex display for `/proto.send` responses               |

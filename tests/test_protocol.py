@@ -750,9 +750,11 @@ expect = '"FB8d\\r\\n"'
         assert script.tests[0].setup == ["echo off", "color off"]
         assert script.tests[0].teardown == ["echo on"]
 
-    def test_per_test_legacy_cmd(self):
-        """Legacy cmd field is converted to single-item setup list."""
+    def test_undocumented_aliases_are_not_read(self):
+        """A per-test cmd string and recv_fmt are plain unknown keys now; only the documented setup and expect_fmt bind."""
         toml = '''\
+recv_fmt = "X:H1"
+
 [[test]]
 name = "With cmd"
 cmd = "echo off"
@@ -761,8 +763,8 @@ expect = '"FB8d\\r\\n"'
 '''
         script = parse_toml_script(toml)
 
-        assert script.tests[0].setup == ["echo off"], "cmd \u2192 setup"
-        assert script.tests[0].teardown == []
+        assert script.tests[0].setup == [], "cmd is not a setup alias"
+        assert script.tests[0].expect_fmt == "", "recv_fmt is not an expect_fmt alias"
 
     def test_per_test_timeout(self):
         """Per-test timeout overrides default."""
@@ -1470,6 +1472,11 @@ class TestParseFormatSpec:
         """U10 and U100 are bytes 10 and 100; only a reference equal to 0 is refused."""
         cols = parse_format_spec("A:U10 B:U100")
         assert [col.byte_indices for col in cols] == [[9], [99]], "1-based -> 0-based"
+
+    def test_three_digits_are_one_byte(self):
+        """U111 is byte 111 and U123 byte 123; the digit-run heuristic that read them as bytes 1,1,1 is gone."""
+        cols = parse_format_spec("A:U111 B:U123")
+        assert [col.byte_indices for col in cols] == [[110], [122]], "a number is a byte"
 
     @pytest.mark.parametrize("spec", ["X:", "u16", ":U1"])
     def test_token_without_name_and_type_is_refused(self, spec):

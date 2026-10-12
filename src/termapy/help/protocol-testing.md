@@ -79,10 +79,12 @@ Per `[[test]]`:
 
 ### Legacy flat format
 
-Older scripts use a colon-keyed flat format (`@timeout 1000ms`,
-`label:`, `send:`, `expect:`, `timeout:`, `delay:`, `flush:`, `cmd:`).
-It is still parsed when a file is not valid TOML, but JSON result
-output (`json_file`, `--json`, `--proto`) needs the TOML form.
+Older scripts use a colon-keyed flat format: header directives
+`@name <text>`, `@timeout <dur>`, `@frame_gap <dur>`, `@strip_ansi`,
+`@quiet`, `@loud`, then `label:`, `send:`, `expect:`, `timeout:`,
+`delay:`, `flush:`, `cmd:` steps. It is still parsed when a file is not
+valid TOML, but JSON result output (`json_file`, `--json`, `--proto`)
+needs the TOML form.
 
 ### Headless runs
 

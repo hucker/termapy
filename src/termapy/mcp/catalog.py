@@ -319,6 +319,12 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
                 "help": param.help,
                 "values": [enum_value.canonical for enum_value in param.values],
                 "variadic": param.variadic,
+                # How the argument binds: a positional is given by place,
+                # a rest runs to end of line, anything else is ``name=``.
+                # Without these an agent wrote ``file=probe.txt`` for a
+                # positional and got a file literally named that.
+                "positional": param.positional,
+                "rest": param.rest,
             }
             for param in plugin.params
         ]

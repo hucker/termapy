@@ -232,13 +232,17 @@ The most common ones:
 | `/proto.help`                        | Same as `/help proto`                                                         |
 | `/proto.send <hex>`                  | Send raw hex bytes and/or quoted text, display response as hex (see below)    |
 | `/proto.run <file>`                  | Run a binary protocol test script (.pro) with pass/fail                       |
+| `/proto.debug <file>`                | Open the interactive protocol debug screen for a .pro script (TUI)            |
 | `/proto.list`                        | List .pro files in proto/, newest first, with size and age                    |
 | `/proto.rename <old> <new>`          | Rename a protocol script (`.pro` kept; never overwrites)                      |
-| `/proto.hex [on \| off]`             | Toggle hex display mode for serial I/O                                        |
+| `/proto.hex {on\|off\|toggle}`       | Hex display mode for serial I/O: bare shows, on/off sets, toggle flips       |
 | `/proto.crc.list {pat}`              | List available CRC algorithms (optional glob filter)                          |
 | `/proto.crc.info <name>`             | Show CRC algorithm parameters and description                                 |
 | `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, text, or file; omit data to verify check string   |
-| `/proto.crc.find <pkt>`              | Identify CRC algorithm from a captured packet (bin= hex or asc= text)         |
+| `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify the CRC algorithm from a captured packet, or from a trigger's response |
+| `/proto.crc.detect {<frames>...}`    | Name the catalog CRC on a batch of frames' trailing bytes                     |
+| `/proto.crc.verify <name> {endian=be\|le} <hex>...` | Verify a packet's trailing CRC against a named algorithm         |
+| `/proto.crc.reverse {cmd=<trigger> count=<N>} {packet-hex}...` | Recover the Rocksoft parameters of an unknown CRC from packets or a trigger |
 | `/proto.info`                        | Print current protocol state                                                  |
 | `/mem.dump <target> {len} {type}`    | Hexdump or typed word columns at an address or symbol                         |
 | `/mem.read <target> {type}`          | One typed value: scalar, char, register field, bit or slice                   |
@@ -266,6 +270,8 @@ The most common ones:
 | `/cap.bin <f> ...`                   | Capture raw binary bytes to a file                                            |
 | `/cap.struct <f> ...`                | Capture binary data, decode with format spec to CSV                           |
 | `/cap.hex <f> ...`                   | Capture hex text lines, decode with format spec to CSV                        |
+| `/cap.poll {count=N} {delay=<dur>} {file=<f>} cmd=<cmds>` | Poll commands on a schedule; print rows, optionally save CSV/JSONL |
+| `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr                 |
 | `/cap.stop`                          | Stop an active capture                                                        |
 | `/raw <text>`                        | Send text to serial with no variable expansion or transforms                  |
 | `/exit`                              | Exit termapy                                                                  |
@@ -1262,7 +1268,7 @@ generator permutation.
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` is driven headless by `tests/test_app_pilot.py` (Textual Pilot boots the real app), and the dialogs have Pilot tests of their own; `proto_debug.py` is still exercised manually. The headline coverage figure is **core-module** coverage, measured with `dialogs/`, the `builtins/` package top level, and vendored code **omitted** (see `[tool.coverage.run]` in `pyproject.toml`) — so it is *not* whole-repo coverage. Counting the whole repo (only vendored third-party code omitted) is lower, and that gap is exactly this untested UI layer. The omit is deliberate — the focus has been on extracting business logic into unit-testable modules and keeping the UI as thin delegation — but the headline number is core-module, not overall.
+**UI code:** `app.py` is driven headless by `tests/test_app_pilot.py` (Textual Pilot boots the real app), and the dialogs have Pilot tests of their own; `proto_debug.py` has Pilot coverage for its Run and Stop controls (`tests/test_proto_debug_pilot.py`) and is otherwise exercised manually. The headline coverage figure is **core-module** coverage, measured with `dialogs/`, the `builtins/` package top level, and vendored code **omitted** (see `[tool.coverage.run]` in `pyproject.toml`) — so it is *not* whole-repo coverage. Counting the whole repo (only vendored third-party code omitted) is lower, and that gap is exactly this untested UI layer. The omit is deliberate — the focus has been on extracting business logic into unit-testable modules and keeping the UI as thin delegation — but the headline number is core-module, not overall.
 
 </details>
 

@@ -2521,6 +2521,47 @@ class TestCapStructHandler:
         assert any("Invalid format" in t.lower() or "invalid" in t.lower()
                     for t, _ in output)
 
+    def test_cap_struct_refuses_a_wildcard_column(self, repl_env):
+        """fmt=D:H2-* fails at the command: a record has no variable-length column (it used to become one byte)."""
+        # Arrange
+        engine, _, _, output = repl_env
+        captures = []
+        engine.ctx.internal.start_capture = lambda **kw: captures.append(kw) or True
+
+        # Act
+        engine.dispatch("cap.struct data.csv fmt=Hdr:H1 D:H2-* records=5")
+
+        # Assert
+        assert captures == [], "nothing started"
+        assert any("D is variable-length" in text for text, _ in output), "the column is named"
+
+    def test_cap_struct_counts_the_crc_in_the_record(self, repl_env):
+        """fmt=Val:U1-2 CRC:crc16-modbus sizes the record at 4, so the CRC bytes are not read as the next record's Val."""
+        # Arrange
+        engine, _, _, output = repl_env
+        captures = []
+        engine.ctx.internal.start_capture = lambda **kw: captures.append(kw) or True
+
+        # Act
+        engine.dispatch("cap.struct data.csv fmt=Val:U1-2 CRC:crc16-modbus records=5")
+
+        # Assert
+        assert captures[0]["record_size"] == 4, "two data bytes plus a two-byte CRC"
+
+    def test_cap_struct_refuses_a_spec_without_bytes(self, repl_env):
+        """fmt=X:H names no byte, so there is no record size; the guard was unreachable before."""
+        # Arrange
+        engine, _, _, output = repl_env
+        captures = []
+        engine.ctx.internal.start_capture = lambda **kw: captures.append(kw) or True
+
+        # Act
+        engine.dispatch("cap.struct data.csv fmt=X:H records=5")
+
+        # Assert
+        assert captures == [], "nothing started"
+        assert any("no byte references" in text for text, _ in output)
+
     def test_cap_struct_refuses_a_register_field(self, repl_env):
         """fmt=ON:B.15 fails at the command, before a capture whose decode would raise on the reader path."""
         # Arrange

@@ -91,10 +91,12 @@ def request_response(
         for line in stale:
             on_drained_line(line)
 
-    # Send.
+    # Send.  The encode is inside the try: a character outside the
+    # configured encoding is a send failure to report, not an exception
+    # for the caller's worker thread.
     t0 = time.perf_counter()
-    payload = (command + line_ending).encode(encoding)
     try:
+        payload = (command + line_ending).encode(encoding)
         serial_write(payload)
     except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
         return {

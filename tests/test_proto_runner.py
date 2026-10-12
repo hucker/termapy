@@ -15,8 +15,10 @@ from termapy.protocol import (
 from termapy.protocol.runner import (  # private helpers; explicit submodule
     _bytes_to_hex,
     _bytes_to_text,
+    _drain,
     _read_frame,
     build_test_result,
+    run_script_tests,
 )
 
 # -- Helper formatting --------------------------------------------------------
@@ -190,6 +192,76 @@ class TestReadFrame:
 
         # Assert
         assert frame == b"", "timeout → empty bytes"
+
+
+class _StreamingPort:
+    """A port that always reports bytes waiting."""
+
+    in_waiting = 1
+
+    def read(self, n: int) -> bytes:
+        return b"\x00" * n
+
+
+class TestDrainIsBounded:
+    @pytest.mark.slow
+    def test_a_streaming_device_does_not_hold_the_drain(self) -> None:
+        """_drain gives up on a device that never goes quiet, so the first test can start."""
+        t0 = time.monotonic()
+        _drain(_StreamingPort())
+        assert time.monotonic() - t0 < 2.0, "bounded, not until the device stops talking"
+
+
+class _DyingPort:
+    """The demo device for the first test; the second write raises like an unplugged port."""
+
+    def __init__(self) -> None:
+        self._device = FakeSerial()
+        self._writes = 0
+
+    @property
+    def in_waiting(self) -> int:
+        return self._device.in_waiting
+
+    def read(self, n: int) -> bytes:
+        return self._device.read(n)
+
+    def write(self, data: bytes) -> int:
+        self._writes += 1
+        if self._writes > 1:
+            raise OSError("device disconnected")
+        return self._device.write(data)
+
+
+class TestPortErrorMidRun:
+    def test_results_so_far_are_kept(self) -> None:
+        """A port error on the second test is recorded as that test's error and the first result survives."""
+        # Arrange
+        from termapy.protocol import parse_toml_script
+
+        script = parse_toml_script('''\
+frame_gap = "100ms"
+
+[[test]]
+name = "first"
+send = '"AT\\r"'
+expect = '"OK\\r\\n"'
+
+[[test]]
+name = "second"
+send = '"AT\\r"'
+expect = '"OK\\r\\n"'
+''')
+
+        # Act
+        results, passed, failed = run_script_tests(
+            _DyingPort(), script, {"eol": "\r", "encoding": "utf-8"},
+        )
+
+        # Assert
+        assert (passed, failed) == (1, 1), "the first passed, the second is the failure"
+        assert results[0]["passed"] is True, "kept, not discarded with the exception"
+        assert results[1]["error"] == "Serial error: device disconnected"
 
 
 # -- Full test runner ---------------------------------------------------------

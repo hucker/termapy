@@ -135,6 +135,12 @@ class TestCustomBaud:
                 await pilot.click("#qs-standard-baud")
                 await pilot.pause()
                 custom_state = (str(button.label), baud_list.has_class("qs-hidden"), baud_input.has_class("qs-hidden"))
+                # Textual drops a click on a button still showing its 0.2 s
+                # active effect; wait it out before clicking the same one again.
+                for _ in range(50):
+                    if not button.has_class("-active"):
+                        break
+                    await pilot.pause(0.02)
                 await pilot.click("#qs-standard-baud")
                 await pilot.pause()
                 standard_state = (str(button.label), baud_list.has_class("qs-hidden"), baud_input.has_class("qs-hidden"))

@@ -375,17 +375,20 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
     fmt = ctx.arg("fmt")                           # enum -> "csv" | "json"
 
     # Labels (default: command strings) -- domain checks stay here.
+    # Comma-separated: a keyword value is one token to the dispatcher and
+    # quotes are not honored, so the space-separated form this once
+    # documented could not be typed at all (2026-10-12).
     labels_raw = ctx.arg("labels")
     if labels_raw:
-        labels = labels_raw.split()
+        labels = [label for label in _re.split(r"[,\s]+", labels_raw) if label]
         if len(labels) != len(cmds):
             return CmdResult.fail(
                 msg=f"labels count ({len(labels)}) must match cmd count ({len(cmds)})"
             )
-        for lbl in labels:
-            if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", lbl):
+        for label in labels:
+            if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", label):
                 return CmdResult.fail(
-                    msg=f"Invalid label: {lbl!r} (must be identifier chars)"
+                    msg=f"Invalid label: {label!r} (must be identifier chars)"
                 )
     else:
         labels = cmds[:]
@@ -862,7 +865,7 @@ COMMAND = Command(
                 ParamSpec("file", "path", default="",
                           help="output CSV/JSONL file (terminal-only if omitted)"),
                 ParamSpec("labels", "str", default="",
-                          help="space-separated column labels (default: the commands)"),
+                          help="comma-separated column labels (default: the commands)"),
                 ParamSpec("regex", "str", default="",
                           help="regex to extract a value from each response"),
                 ParamSpec("fmt", "enum", default="csv",

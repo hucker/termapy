@@ -4,7 +4,8 @@
 on a machine where the bench is unplugged, while plain ``--run-hardware``
 keeps skipping so a developer run on a machine that is not the rig stays
 green.  On GitHub Actions both flags are refused before collection, so the
-suite never runs there in any form.  Each is driven as a real child pytest
+physical suite never runs there in any form; pyserial ``loop://`` tests are
+not hardware and are not affected.  Each is driven as a real child pytest
 run aimed at a serial number no adapter carries: ``resolve_port`` only
 enumerates, so no port is opened and nothing is written to any device.
 
@@ -35,8 +36,8 @@ _bench_only = pytest.mark.skipif(
 )
 
 
-def _run_loopback_suite(flag: str, *, on_github: bool = False) -> subprocess.CompletedProcess[str]:
-    """Run the loopback suite in a child pytest, aimed at an adapter that does not exist.
+def _run_hardware_suite(flag: str, *, on_github: bool = False) -> subprocess.CompletedProcess[str]:
+    """Run the physical loopback suite in a child pytest, aimed at an adapter that does not exist.
 
     ``on_github`` sets ``GITHUB_ACTIONS`` in the child, the way a runner does.
     """
@@ -62,7 +63,7 @@ def _run_loopback_suite(flag: str, *, on_github: bool = False) -> subprocess.Com
 def test_hardware_flags_are_refused_on_github_actions(flag):
     """hardware-never-on-github: on GitHub Actions either hardware flag stops the session before any test is collected."""
     # Act
-    result = _run_loopback_suite(flag, on_github=True)
+    result = _run_hardware_suite(flag, on_github=True)
 
     # Assert
     assert result.returncode == 4, (
@@ -77,7 +78,7 @@ def test_hardware_flags_are_refused_on_github_actions(flag):
 def test_require_hardware_fails_without_the_rig():
     """hardware-demanded-fails-loud: under --require-hardware a missing adapter fails the run and names the adapter."""
     # Act
-    result = _run_loopback_suite("--require-hardware")
+    result = _run_hardware_suite("--require-hardware")
 
     # Assert
     assert result.returncode == 1, (
@@ -92,7 +93,7 @@ def test_require_hardware_fails_without_the_rig():
 def test_run_hardware_still_skips_without_the_rig():
     """Plain --run-hardware on a machine that is not the rig skips, so developer runs elsewhere stay green."""
     # Act
-    result = _run_loopback_suite("--run-hardware")
+    result = _run_hardware_suite("--run-hardware")
 
     # Assert
     assert result.returncode == 0, f"an absent rig is a skip, not a failure:\n{result.stdout[-2000:]}"

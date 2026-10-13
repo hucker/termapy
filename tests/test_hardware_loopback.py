@@ -82,7 +82,7 @@ def _rig_unusable(config: pytest.Config, reason: str) -> NoReturn:
     """
     if config.getoption("--require-hardware"):
         pytest.fail(
-            f"{reason} -- --require-hardware demands the loopback rig (release_prep "
+            f"{reason} -- --require-hardware demands the physical loopback adapter (release_prep "
             f"passes it; release with --skip-hardware only on purpose)",
             pytrace=False,
         )

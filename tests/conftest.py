@@ -89,7 +89,7 @@ def pytest_addoption(parser) -> None:
         action="store_true",
         default=False,
         help=(
-            "Like --run-hardware, but a loopback rig that is absent, busy, "
+            "Like --run-hardware, but a physical loopback adapter that is absent, busy, "
             "ambiguous or not echoing FAILS the run instead of skipping it.  "
             "release_prep passes it, so a release cannot read green with the "
             "bench unplugged."
@@ -100,13 +100,15 @@ def pytest_addoption(parser) -> None:
 def pytest_configure(config) -> None:
     """Refuse both hardware flags on GitHub Actions, before anything is collected.
 
-    The hardware suite must never run there, not even far enough to
+    The physical loopback suite must never run there, not even far enough to
     enumerate a runner's serial ports: a refusal at configure time stops the
-    session before the loopback fixture exists, and it is loud, so a workflow
+    session before its fixture exists, and it is loud, so a workflow
     edit that adds a hardware flag turns CI red with this message rather than
     quietly skipping.  GitHub sets ``GITHUB_ACTIONS`` on every hosted and
     self-hosted runner; its presence is the signal, a switch rather than a
     boolean read from user text (the ``bool-one-vocabulary`` exemption).
+    pyserial ``loop://`` tests carry no hardware marker and are untouched:
+    they need no hardware and run on GitHub like every other test.
     """
     import os
 
@@ -121,7 +123,7 @@ def pytest_configure(config) -> None:
     ]
     if demanded:
         raise pytest.UsageError(
-            f"{' '.join(demanded)} refused: the hardware loopback suite never runs on "
+            f"{' '.join(demanded)} refused: the physical loopback suite never runs on "
             f"GitHub Actions (registry hardware-never-on-github); run it on the bench"
         )
 

@@ -108,6 +108,38 @@ class TestRunButton:
         _run(scenario)
 
 
+class TestArguments:
+
+    def test_bad_arguments_are_refused_before_a_screen_opens(self, tmp_path):
+        """/proto.debug refuses a bare call, a missing file, a flat script and a TOML script without tests, each by its own message, and opens no screen."""
+        async def scenario():
+            # Arrange -- the TUI rig, since the CLI refuses /proto.debug by capability
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            flat = script.parent / "flat.pro"
+            flat.write_text('send: "AT\\r"\nexpect: "OK\\r\\n"\n', encoding="utf-8")
+            none = script.parent / "none.pro"
+            none.write_text('name = "none"\ntest = []\n', encoding="utf-8")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert pilot.app._connect() is True, "DEMO port should connect"
+                await pilot.pause()
+
+                # Act
+                bare = pilot.app._dispatch_single("/proto.debug")
+                missing = pilot.app._dispatch_single("/proto.debug nope")
+                not_toml = pilot.app._dispatch_single(f"/proto.debug {flat}")
+                no_tests = pilot.app._dispatch_single(f"/proto.debug {none}")
+                await pilot.pause()
+
+                # Assert
+                assert bare.error.startswith("Usage: /proto.debug "), bare.error
+                assert missing.error.startswith("File not found: nope"), missing.error
+                assert not_toml.error.startswith("Script error: TOML parse error"), "the debug screen is TOML-only"
+                assert no_tests.error == "Script has no tests."
+                assert not isinstance(pilot.app.screen, ProtoDebugScreen), "no refusal opened the screen"
+        _run(scenario)
+
+
 class TestStopButton:
 
     @pytest.mark.slow

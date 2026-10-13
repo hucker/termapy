@@ -1077,6 +1077,25 @@ expect: "FB8d\\r"
         # assert (settings, steps)
         assert isinstance(parsed, tuple), "load_proto_script returns tuple for flat format"
 
+    def test_a_toml_scripts_own_error_is_reported_as_toml(self):
+        """Text that parses as TOML is a TOML script: its validation error surfaces instead of a flat-format error on line 1."""
+        toml = '[[test]]\nname = "no send"\nexpect = "01"\n'
+        with pytest.raises(ValueError, match="Test 1: missing 'send' field"):
+            load_proto_script(toml)
+
+    def test_toml_without_a_test_section_is_still_toml(self):
+        """Non-empty TOML with no [[test]] reports the missing section, not a flat parse of its first line."""
+        with pytest.raises(ValueError, match=r"at least one \[\[test\]\] section"):
+            load_proto_script('name = "settings only"\n')
+
+    def test_comments_only_text_is_flat(self):
+        """Comments and blank lines are valid but empty TOML, so they parse as a flat script with no steps."""
+        fmt, parsed = load_proto_script("# nothing yet\n\n")
+        assert fmt == "flat"
+        assert isinstance(parsed, tuple), "flat parses to (settings, steps)"
+        _settings, steps = parsed
+        assert steps == [], "no directives, no steps"
+
 
 # ── diff_bytes ───────────────────────────────────────────────────────────
 

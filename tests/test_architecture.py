@@ -303,13 +303,37 @@ def test_engine_modules_have_no_serial_dependency():
 # ── Boolean vocabulary ───────────────────────────────────────────────────────
 
 # Token constants that mark a hand-rolled boolean comparison.  Comparing
-# user input against these is how ``/term.request yes`` gets rejected and
-# ``echo=false`` silently means off; the sanctioned readers are
-# ``ParamSpec(type="bool")``, ``parse_bool_setting`` and bare ``parse_bool``.
+# user input against these is how ``/term.request yes`` got rejected and
+# ``TERMAPY_OS_CMD_ENABLED=ture`` silently meant off; the one reader is
+# ``scripting.parse_bool``, directly or through ``parse_bool_setting``
+# and ``ParamSpec(type="bool")``.
 _BOOL_TOKENS: frozenset[str] = frozenset({"on", "off", "true", "false", "yes", "no"})
 
-# Command-surface modules scanned in addition to builtins/.
-_BOOL_SCAN_EXTRA: tuple[str, ...] = ("repl.py", "cli.py", "app.py", "app_hooks.py")
+# The whole package is scanned, minus vendor/ and this allowlist, each
+# entry with the reason it may name the tokens.  An entry whose reason
+# has gone (the file no longer names a token) fails the companion test
+# below, so the list only shrinks.  scripting.py needs no entry: its
+# vocabulary is a table bound to a name, and the matcher flags literal
+# tokens at the point of comparison, which is exactly the shape the rule
+# forbids -- a second table bound to a name elsewhere is the one blind
+# spot, left to review.
+_BOOL_SCAN_ALLOWLIST: dict[str, str] = {
+    "termapy/demo.py": "the simulated device's own AT+LED on|off grammar, not termapy's",
+}
+
+
+def _bool_rel(path: Path) -> str:
+    """A module's path as the scan names it: ``termapy/...`` with forward slashes."""
+    return str(path.relative_to(SRC.parent)).replace("\\", "/")
+
+
+def _bool_scan_targets() -> list[Path]:
+    """Every module under src/termapy except the vendored tree and the allowlist."""
+    return sorted(
+        path for path in SRC.rglob("*.py")
+        if "vendor" not in path.relative_to(SRC).parts
+        and _bool_rel(path) not in _BOOL_SCAN_ALLOWLIST
+    )
 
 
 def _bool_token_violations(tree: ast.AST, rel: str) -> list[str]:
@@ -325,6 +349,18 @@ def _bool_token_violations(tree: ast.AST, rel: str) -> list[str]:
                 elif isinstance(operand, (ast.Tuple, ast.List, ast.Set)):
                     constants.extend(
                         element for element in operand.elts
+                        if isinstance(element, ast.Constant)
+                    )
+                elif (
+                    isinstance(operand, ast.Call)
+                    and isinstance(operand.func, ast.Name)
+                    and operand.func.id in ("frozenset", "set", "tuple", "list")
+                    and operand.args
+                    and isinstance(operand.args[0], (ast.Tuple, ast.List, ast.Set))
+                ):
+                    # ``x in frozenset({...})``: the literal wrapped in a call.
+                    constants.extend(
+                        element for element in operand.args[0].elts
                         if isinstance(element, ast.Constant)
                     )
             if any(
@@ -345,25 +381,19 @@ def _bool_token_violations(tree: ast.AST, rel: str) -> list[str]:
 
 
 def test_booleans_go_through_parse_bool():
-    """bool-one-vocabulary: No command code compares tokens to on/off or declares on/off enums.
+    """bool-one-vocabulary: every text-to-boolean read under src/termapy goes through parse_bool; no module outside the allowlist compares a token to the vocabulary.
 
-    One vocabulary, three sanctioned readers (see CLAUDE.md): the ``bool``
-    param type, ``parse_bool_setting`` for settings, bare ``parse_bool``
-    in documented hand-rolled parsers.  A literal comparison accepts only
-    the tokens the author remembered (``/term.request yes`` was rejected)
-    and usually treats typos as False instead of erroring.
+    One vocabulary, one reader (see CLAUDE.md): ``parse_bool`` directly,
+    or through ``parse_bool_setting`` and the ``bool`` param type.  A
+    literal comparison accepts only the tokens the author remembered
+    (``/term.request yes`` was rejected) and treats a typo as False
+    instead of erroring (``TERMAPY_OS_CMD_ENABLED=ture`` meant off).
     """
-    # Arrange
-    targets = sorted(BUILTINS_DIR.rglob("*.py")) + [
-        SRC / name for name in _BOOL_SCAN_EXTRA
-    ]
+    # Arrange / Act
     violations: list[str] = []
-
-    # Act
-    for path in targets:
-        rel = str(path.relative_to(SRC.parent)).replace("\\", "/")
+    for path in _bool_scan_targets():
         violations.extend(
-            _bool_token_violations(ast.parse(path.read_text(encoding="utf-8")), rel)
+            _bool_token_violations(ast.parse(path.read_text(encoding="utf-8")), _bool_rel(path))
         )
 
     # Assert
@@ -376,18 +406,39 @@ def test_booleans_go_through_parse_bool():
 
 def test_boolean_guard_fires_on_a_probe():
     """The guard actually detects the patterns it exists to forbid."""
-    # Arrange -- the three shapes the audit found in the wild
+    # Arrange -- the three shapes the audit found in the wild, plus the
+    # set-literal-in-a-call shape env_flags used
     probe = (
         "x = tok == 'on'\n"
         "y = tok in ('on', 'off', 'toggle')\n"
         "z = EnumValue('on')\n"
+        "w = tok in frozenset({'1', 'true'})\n"
     )
 
     # Act
     found = _bool_token_violations(ast.parse(probe), "probe")
 
     # Assert
-    assert len(found) == 3, "a comparison, a membership test, and an enum all flagged"
+    assert len(found) == 4, "a comparison, a membership test, an enum and a wrapped set all flagged"
+
+
+def test_boolean_allowlist_has_no_stale_entries():
+    """Every allowlisted file exists, is left out of the scan, and still names a token, so an entry never outlives its reason."""
+    # Arrange / Act
+    scanned = {_bool_rel(path) for path in _bool_scan_targets()}
+    stale: list[str] = []
+    for rel, reason in _BOOL_SCAN_ALLOWLIST.items():
+        path = SRC.parent / rel
+        if not path.exists():
+            stale.append(f"{rel}: no such file ({reason})")
+        elif rel in scanned:
+            stale.append(f"{rel}: scanned despite the allowlist")
+        elif not _bool_token_violations(ast.parse(path.read_text(encoding="utf-8")), rel):
+            stale.append(f"{rel}: names no token any more; drop the entry ({reason})")
+
+    # Assert
+    assert stale == [], "\n  ".join(["the allowlist only shrinks:", *stale])
+    assert not any(rel.startswith("termapy/vendor/") for rel in scanned), "the vendored tree is never scanned"
 
 
 # ── Data folders: one creator ────────────────────────────────────────────────

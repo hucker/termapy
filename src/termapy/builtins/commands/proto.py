@@ -113,29 +113,36 @@ def _display_bytes(
             ctx.io.output(f"    {line}")
 
 
-def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
+def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path:
     """Resolve a proto script filename to a full path.
+
+    Tries the name as given, then with ``.pro`` appended, then that
+    name inside the config's proto folder.
 
     Args:
         ctx: Plugin context with proto_dir.
         filename: Filename or path to resolve.
 
     Returns:
-        Resolved Path, or None if not found (message written to ctx).
+        The first existing path.
+
+    Raises:
+        FileNotFoundError: with the message the caller reports -- the
+            file, and the proto folder that was also searched when it
+            is not the working directory.
     """
     path = Path(filename)
     if not path.exists() and not path.suffix:
         path = Path(filename + ".pro")
-    if not path.exists():
-        alt = ctx.fs.proto_dir / path.name
-        if alt.exists():
-            path = alt
-        else:
-            ctx.io.output(f"File not found: {filename}", "red")
-            if ctx.fs.proto_dir != Path("."):
-                ctx.io.output(f"  (also checked {ctx.fs.proto_dir})")
-            return None
-    return path
+    if path.exists():
+        return path
+    alt = ctx.fs.proto_dir / path.name
+    if alt.exists():
+        return alt
+    message = f"File not found: {filename}"
+    if ctx.fs.proto_dir != Path("."):
+        message += f" (also checked {ctx.fs.proto_dir})"
+    raise FileNotFoundError(message)
 
 
 def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int, quiet: bool) -> None:
@@ -641,9 +648,10 @@ def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
     if not filename:
         raise UsageError()
 
-    path = _resolve_proto_file(ctx, filename)
-    if path is None:
-        return CmdResult.fail(msg=f"File not found: {filename}")
+    try:
+        path = _resolve_proto_file(ctx, filename)
+    except FileNotFoundError as e:
+        return CmdResult.fail(msg=str(e))
 
     try:
         text = path.read_text(encoding="utf-8")
@@ -689,9 +697,10 @@ def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
     if not filename:
         raise UsageError()
 
-    path = _resolve_proto_file(ctx, filename)
-    if path is None:
-        return CmdResult.fail(msg=f"File not found: {filename}")
+    try:
+        path = _resolve_proto_file(ctx, filename)
+    except FileNotFoundError as e:
+        return CmdResult.fail(msg=str(e))
 
     try:
         text = path.read_text(encoding="utf-8")

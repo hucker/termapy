@@ -1,4 +1,4 @@
-"""Tests that run only when a real hardware loopback is plugged in.
+"""hw_loopback: tests that run only on the hardware loopback, the TX-RX-jumpered adapter.
 
 These automate the checks that were previously done by hand against a
 TX-RX-jumpered USB-serial adapter.  They exist because a whole class of
@@ -12,11 +12,11 @@ Detection uses termapy's own serial-number resolution, so the rig is
 identified by identity rather than by a COM number that moves between boots.
 They are opt-in; run them, or point them at a different adapter, with::
 
-    uv run pytest --run-hardware -m hardware -n 0 --no-cov
-    TERMAPY_LOOPBACK_SN=<serial-number> uv run pytest --run-hardware -m hardware -n 0 --no-cov
+    uv run pytest --run-hw-loopback -m hw_loopback -n 0 --no-cov
+    TERMAPY_HW_LOOPBACK_SN=<serial-number> uv run pytest --run-hw-loopback -m hw_loopback -n 0 --no-cov
 
-Under ``--run-hardware`` everything here skips cleanly when the rig is
-absent, so other machines are unaffected.  ``--require-hardware``, which
+Under ``--run-hw-loopback`` everything here skips cleanly when the rig is
+absent, so other machines are unaffected.  ``--require-hw-loopback``, which
 ``release_prep`` passes, turns an absent, busy, ambiguous or silent rig into
 a failure instead: a run that demanded the bench cannot read green without
 it.  On GitHub Actions both flags are refused before collection
@@ -46,13 +46,13 @@ from termapy.serial_engine import READER_JOIN_TIMEOUT_S, SerialEngine
 # would surface as a SKIP that reads exactly like "no hardware attached".
 pytestmark = [
     pytest.mark.slow,
-    pytest.mark.hardware,
-    pytest.mark.xdist_group("serial_hardware"),
+    pytest.mark.hw_loopback,
+    pytest.mark.xdist_group("hw_loopback"),
 ]
 
 # The rig this suite was written against.  Overridable so the tests are not
 # welded to one person's hardware.
-LOOPBACK_SN = os.environ.get("TERMAPY_LOOPBACK_SN", "BG03U7VTA")
+HW_LOOPBACK_SN = os.environ.get("TERMAPY_HW_LOOPBACK_SN", "BG03U7VTA")
 
 BAUD = 921600
 # Stall that used to cost ~21% of the stream: above 4096 / (baud / 10) ms,
@@ -75,15 +75,15 @@ def _open_raw(device: str, baud: int = BAUD):
 
 
 def _rig_unusable(config: pytest.Config, reason: str) -> NoReturn:
-    """Skip, or fail when the run demanded the rig with ``--require-hardware``.
+    """Skip, or fail when the run demanded the rig with ``--require-hw-loopback``.
 
     Every way the rig can be unusable goes through here, so a run that asked
     for the bench reads red for each of them and an ordinary run skips.
     """
-    if config.getoption("--require-hardware"):
+    if config.getoption("--require-hw-loopback"):
         pytest.fail(
-            f"{reason} -- --require-hardware demands the physical loopback adapter (release_prep "
-            f"passes it; release with --skip-hardware only on purpose)",
+            f"{reason} -- --require-hw-loopback demands the hw_loopback adapter (release_prep "
+            f"passes it; release with --skip-hw-loopback only on purpose)",
             pytrace=False,
         )
     pytest.skip(reason)
@@ -91,7 +91,7 @@ def _rig_unusable(config: pytest.Config, reason: str) -> NoReturn:
 
 @pytest.fixture(scope="session")
 def loopback_device(pytestconfig: pytest.Config) -> str:
-    """Resolve the loopback adapter by serial number, or skip (fail under ``--require-hardware``).
+    """Resolve the loopback adapter by serial number, or skip (fail under ``--require-hw-loopback``).
 
     Verifies the port genuinely echoes before handing it over -- see the
     SAFETY note in the module docstring.
@@ -99,16 +99,16 @@ def loopback_device(pytestconfig: pytest.Config) -> str:
     from termapy.port_control import AmbiguousSerialNumberError
 
     try:
-        device = resolve_port(LOOPBACK_SN)
+        device = resolve_port(HW_LOOPBACK_SN)
     except AmbiguousSerialNumberError as exc:
         # Two adapters advertising the same serial number.  Rare, but it must
         # SKIP rather than error unless the run demanded the rig: absent or
         # unusable hardware may never turn a run red on a machine that simply
         # isn't the rig.
-        _rig_unusable(pytestconfig, f"serial number {LOOPBACK_SN!r} is ambiguous: {exc}")
-    if device == LOOPBACK_SN:
+        _rig_unusable(pytestconfig, f"serial number {HW_LOOPBACK_SN!r} is ambiguous: {exc}")
+    if device == HW_LOOPBACK_SN:
         # resolve_port returns the spec verbatim when nothing matched.
-        _rig_unusable(pytestconfig, f"no serial adapter with serial number {LOOPBACK_SN!r} attached")
+        _rig_unusable(pytestconfig, f"no serial adapter with serial number {HW_LOOPBACK_SN!r} attached")
 
     import serial
 
@@ -122,7 +122,7 @@ def loopback_device(pytestconfig: pytest.Config) -> str:
         # that these checks never ran.
         _rig_unusable(
             pytestconfig,
-            f"{device} (SN {LOOPBACK_SN}) is ATTACHED BUT BUSY -- close the "
+            f"{device} (SN {HW_LOOPBACK_SN}) is ATTACHED BUT BUSY -- close the "
             f"app holding it and re-run; these tests did NOT execute ({exc})",
         )
     try:
@@ -139,7 +139,7 @@ def loopback_device(pytestconfig: pytest.Config) -> str:
     if probe.strip() not in seen:
         _rig_unusable(
             pytestconfig,
-            f"{device} (SN {LOOPBACK_SN}) did not echo -- refusing to run "
+            f"{device} (SN {HW_LOOPBACK_SN}) did not echo -- refusing to run "
             f"throughput tests against what may be a live device",
         )
     return device

@@ -72,24 +72,24 @@ _fix_msys2_path_on_windows()
 
 
 def pytest_addoption(parser) -> None:
-    """Add ``--run-hardware`` (see ``tests/test_hardware_loopback.py``)."""
+    """Add ``--run-hw-loopback`` (see ``tests/test_hw_loopback.py``)."""
     parser.addoption(
-        "--run-hardware",
+        "--run-hw-loopback",
         action="store_true",
         default=False,
         help=(
-            "Run the real-hardware loopback tests.  Needs a TX-RX-jumpered "
-            "USB-serial adapter (found by serial number, TERMAPY_LOOPBACK_SN). "
+            "Run the hw_loopback tests (hardware loopback).  Needs a TX-RX-jumpered "
+            "USB-serial adapter (found by serial number, TERMAPY_HW_LOOPBACK_SN). "
             "Off by default because their measurements are only valid when "
             "they are not competing for CPU -- run with -n 0."
         ),
     )
     parser.addoption(
-        "--require-hardware",
+        "--require-hw-loopback",
         action="store_true",
         default=False,
         help=(
-            "Like --run-hardware, but a physical loopback adapter that is absent, busy, "
+            "Like --run-hw-loopback, but a jumpered adapter that is absent, busy, "
             "ambiguous or not echoing FAILS the run instead of skipping it.  "
             "release_prep passes it, so a release cannot read green with the "
             "bench unplugged."
@@ -100,15 +100,15 @@ def pytest_addoption(parser) -> None:
 def pytest_configure(config) -> None:
     """Refuse both hardware flags on GitHub Actions, before anything is collected.
 
-    The physical loopback suite must never run there, not even far enough to
+    The hw_loopback suite must never run there, not even far enough to
     enumerate a runner's serial ports: a refusal at configure time stops the
     session before its fixture exists, and it is loud, so a workflow
     edit that adds a hardware flag turns CI red with this message rather than
     quietly skipping.  GitHub sets ``GITHUB_ACTIONS`` on every hosted and
     self-hosted runner; its presence is the signal, a switch rather than a
     boolean read from user text (the ``bool-one-vocabulary`` exemption).
-    pyserial ``loop://`` tests carry no hardware marker and are untouched:
-    they need no hardware and run on GitHub like every other test.
+    ``sw_loopback`` tests (pyserial's ``loop://``) are untouched: they need
+    no hardware and run on GitHub like every other test.
     """
     import os
 
@@ -118,18 +118,18 @@ def pytest_configure(config) -> None:
         return
     demanded = [
         flag
-        for flag, dest in (("--run-hardware", "run_hardware"), ("--require-hardware", "require_hardware"))
+        for flag, dest in (("--run-hw-loopback", "run_hw_loopback"), ("--require-hw-loopback", "require_hw_loopback"))
         if config.getoption(dest)
     ]
     if demanded:
         raise pytest.UsageError(
-            f"{' '.join(demanded)} refused: the physical loopback suite never runs on "
-            f"GitHub Actions (registry hardware-never-on-github); run it on the bench"
+            f"{' '.join(demanded)} refused: the hw_loopback suite never runs on "
+            f"GitHub Actions (registry hw-loopback-never-on-github); run it on the bench"
         )
 
 
 def pytest_collection_modifyitems(config, items) -> None:
-    """Deselect hardware tests unless ``--run-hardware`` was passed.
+    """Deselect hardware tests unless ``--run-hw-loopback`` was passed.
 
     An opt-in FLAG rather than a marker filter, because pytest's ``-m`` is a
     single expression: a ``-m 'not hardware'`` default in ``addopts`` is
@@ -146,12 +146,12 @@ def pytest_collection_modifyitems(config, items) -> None:
     """
     import pytest
 
-    if config.getoption("--run-hardware") or config.getoption("--require-hardware"):
+    if config.getoption("--run-hw-loopback") or config.getoption("--require-hw-loopback"):
         return
     skip = pytest.mark.skip(
-        reason="needs --run-hardware (and a loopback adapter); "
-               "run: uv run pytest --run-hardware -m hardware -n 0"
+        reason="hw_loopback: needs --run-hw-loopback and the jumpered adapter; "
+               "run: uv run pytest --run-hw-loopback -m hw_loopback -n 0"
     )
     for item in items:
-        if "hardware" in item.keywords:
+        if "hw_loopback" in item.keywords:
             item.add_marker(skip)

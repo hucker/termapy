@@ -198,8 +198,9 @@ testpaths = ["tests"]
 # name were never measured (2026-10-12; cap.py, port.py, mem.py, term.py ...).
 addopts = "-v --cov --cov-report=term-missing -n auto --dist loadgroup"
 markers = [
-    "slow: subprocess-spawning, real-serial-loopback, or sleep-based test (~80s of full-suite runtime).  Skip during fast iteration with -m 'not slow'.",
-    "hardware: needs a TX-RX-jumpered USB-serial adapter attached; found by serial number (TERMAPY_LOOPBACK_SN, default BG03U7VTA) and SKIPPED when absent, so CI and other machines are unaffected.  Run just these with -m hardware.",
+    "slow: subprocess-spawning, hw_loopback, or sleep-based test (~80s of full-suite runtime).  Skip during fast iteration with -m 'not slow'.",
+    "sw_loopback: software loopback, pyserial's virtual loop:// port.  No hardware; runs anywhere, CI included.",
+    "hw_loopback: hardware loopback, a TX-RX-jumpered USB-serial adapter attached; found by serial number (TERMAPY_HW_LOOPBACK_SN, default BG03U7VTA).  Gated: deselected unless --run-hw-loopback, FAILS when absent under --require-hw-loopback (release_prep), refused on GitHub Actions.  Run with --run-hw-loopback -m hw_loopback -n 0 --no-cov.",
 ]
 
 [tool.ty.environment]

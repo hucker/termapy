@@ -1236,6 +1236,7 @@ class TestOpenSerialUrl:
         # Assert
         assert ser.__class__.__name__ == "FakeSerial", "DEMO port returns FakeSerial"
 
+    @pytest.mark.sw_loopback
     def test_loopback_url_works(self):
         """loop:// URL round-trips bytes through pyserial's loopback handler."""
         # Arrange
@@ -1321,6 +1322,7 @@ class TestOpenSerialRxBuffer:
         # Assert
         assert actual is False, "no API means no request, and no exception"
 
+    @pytest.mark.sw_loopback
     def test_real_url_port_still_opens_and_works(self):
         """A loop:// port opens and round-trips bytes even with no buffer API."""
         # Arrange -- end-to-end through open_serial on a backend with no

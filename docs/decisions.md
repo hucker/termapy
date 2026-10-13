@@ -179,25 +179,30 @@ existed in three files and one copy was wrong; the project's own rule for
 tables ("one table, iterated by every surface") applies to prose. **Where:**
 review only.
 
-## 2026-10-13 — Real hardware is tested at every merge it can be, and at every release
+## 2026-10-13 — Two loopbacks, two labels: `sw_loopback` runs anywhere, `hw_loopback` is gated
 
-The physical loopback suite (`tests/test_hardware_loopback.py`, against the
-TX-RX-jumpered adapter) runs before a branch is handed for merge whenever the
-adapter is attached, and `release_prep` refuses a release unless it passes:
-`--require-hardware` turns an absent, busy or silent rig into a failure rather
-than a skip, and releasing without it is an explicit `--skip-hardware` on the
-release command line. A skipped run is reported as skipped, never as a pass.
-It never runs on GitHub Actions in any form: both hardware flags are refused
-there before collection, so a runner's ports are never enumerated, let alone
-written. pyserial's `loop://` tests are a different thing: they need no
-hardware, carry no hardware marker, and run everywhere, CI included. Chuck: "having real hardware break because it was never tested is
-embarrassing", and "it is critical that this doesn't ever run on github." **Why:** the physical suite is the only test of the OS driver,
-bridge FIFO and real baud pacing, which `FakeSerial` and pyserial's `loop://`
-cannot model; it had been opt-in since August and no gate passed the flag, so a
-release could ship with it never run, and the documented command had stopped
-running it at all. **Where:** registry `hardware-demanded-fails-loud` and
-`hardware-never-on-github`; `tests/test_hardware_gate.py`; `release_prep`
-step 5; `tests/conftest.py`.
+`sw_loopback` is the software loopback, pyserial's virtual `loop://` port; a
+marker on every test that uses it, and it runs anywhere, CI included.
+`hw_loopback` is the hardware loopback, the TX-RX-jumpered adapter
+(`tests/test_hw_loopback.py`, `TERMAPY_HW_LOOPBACK_SN`); its marker is gated.
+It runs before a branch is handed for merge whenever the adapter is attached,
+and `release_prep` refuses a release unless it passes: `--require-hw-loopback`
+turns an absent, busy or silent adapter into a failure rather than a skip, and
+releasing without it is an explicit `--skip-hw-loopback` on the release command
+line. A skipped run is reported as skipped, never as a pass. It never runs on
+GitHub Actions in any form: both of its flags are refused there before
+collection, so a runner's ports are never enumerated, let alone written. Every
+flag, file, marker, variable and message names its loopback by label. Chuck:
+"having real hardware break because it was never tested is embarrassing", "it
+is critical that this doesn't ever run on github", and "I need to have clear
+words and labeling for these like sw_loopback and hw_loopback." **Why:** the
+hardware loopback is the only test of the OS driver, bridge FIFO and real baud
+pacing, which `FakeSerial` and the software loopback cannot model; it had been
+opt-in since August with no gate passing the flag, so a release could ship with
+it never run, and "the loopback suite" read as either one. **Where:** registry
+`hw-loopback-demanded-fails-loud`, `hw-loopback-never-on-github` and
+`sw-loopback-labeled`; `tests/test_hw_loopback_gate.py`; `tests/conftest.py`;
+`release_prep` step 5.
 
 ## 2026-10-13 — The invariants registry says what each row is
 

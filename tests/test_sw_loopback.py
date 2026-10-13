@@ -1,4 +1,4 @@
-"""The pyserial loopback (loop://) as a selectable virtual port.
+"""sw_loopback: the software loopback (pyserial's loop://) as a selectable virtual port.
 
 loop:// echoes writes straight back -- a hardware-free way to exercise the
 real serial read/write path (CI or by hand).  It's offered as a picker row
@@ -21,6 +21,9 @@ from termapy.port_control import (
     loopback_port_facts,
     opens_without_enumeration,
 )
+
+# The software loopback needs no hardware: it runs anywhere, CI included.
+pytestmark = pytest.mark.sw_loopback
 
 
 def test_loopback_facts_are_honest():

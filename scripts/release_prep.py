@@ -6,7 +6,7 @@ and then run release_publish.py to finish.
 Usage:
     python scripts/release_prep.py 0.53.0
     python scripts/release_prep.py 0.53.0 --ignore-vuln GHSA-xxxx-xxxx-xxxx
-    python scripts/release_prep.py 0.53.0 --skip-hardware
+    python scripts/release_prep.py 0.53.0 --skip-hw-loopback
 
 What it does:
     1. Sanity-check git state (on main, clean, in sync with origin)
@@ -14,8 +14,8 @@ What it does:
     3. Bump version in pyproject.toml and mkdocs.yml, upgrade uv.lock,
        re-check ruff/ty against the upgraded environment
     4. Audit uv.lock for known vulnerabilities (scripts/audit_lock.py)
-    5. Run the physical loopback suite with --require-hardware (refuses
-       unless it passes, or --skip-hardware is on the command line)
+    5. Run the hw_loopback suite with --require-hw-loopback (refuses
+       unless it passes, or --skip-hw-loopback is on the command line)
     6. Update doc counts (test count, ty count, line counts)
     7. Update tagged config examples in help docs
     8. Refresh USB vendor table from upstream usb.ids
@@ -651,13 +651,13 @@ def run_tox() -> None:
     ok("tox passed")
 
 
-def run_hardware_suite(skip: bool) -> None:
-    """Run the physical loopback suite; the release refuses unless it passes.
+def run_hw_loopback_suite(skip: bool) -> None:
+    """Run the hw_loopback suite; the release refuses unless it passes.
 
-    The suite (``tests/test_hardware_loopback.py``, against the TX-RX-jumpered
+    The suite (``tests/test_hw_loopback.py``, against the TX-RX-jumpered
     adapter) is the only test of the OS driver, bridge FIFO and real baud
     pacing -- ``FakeSerial`` and pyserial's ``loop://`` cannot drop a byte --
-    and it is opt-in, so no other gate runs it.  ``--require-hardware`` turns an
+    and it is opt-in, so no other gate runs it.  ``--require-hw-loopback`` turns an
     absent, busy or silent rig into a failure rather than a skip, so an
     unplugged bench cannot read green.  It runs serially and without coverage
     because CPU contention fakes the data-loss signature the suite exists to
@@ -666,24 +666,24 @@ def run_hardware_suite(skip: bool) -> None:
     """
     if skip:
         warn(
-            "hardware suite SKIPPED (--skip-hardware): this release was NOT "
-            "tested on the physical loopback adapter"
+            "hw_loopback suite SKIPPED (--skip-hw-loopback): this release was NOT "
+            "tested on the jumpered adapter"
         )
         return
-    info("Running the physical loopback suite (serial, no coverage)...")
+    info("Running the hw_loopback suite (serial, no coverage)...")
     result = run(
-        ["uv", "run", "pytest", "--require-hardware", "-m", "hardware",
+        ["uv", "run", "pytest", "--require-hw-loopback", "-m", "hw_loopback",
          "-n", "0", "--no-cov", "-q"],
         check=False,
     )
     if result.returncode != 0:
         die(
-            "hardware suite failed or the physical loopback adapter is unusable (see above).  "
-            "Attach the TX-RX-jumpered adapter (TERMAPY_LOOPBACK_SN, default "
+            "hw_loopback suite failed or the jumpered adapter is unusable (see above).  "
+            "Attach the TX-RX-jumpered adapter (TERMAPY_HW_LOOPBACK_SN, default "
             "BG03U7VTA), close any app holding it, delete the release branch and "
-            "re-run -- or pass --skip-hardware to release without it on purpose."
+            "re-run -- or pass --skip-hw-loopback to release without it on purpose."
         )
-    ok("hardware suite passed on the physical loopback adapter")
+    ok("hw_loopback suite passed on the jumpered adapter")
 
 
 def run_zensical_build() -> None:
@@ -794,9 +794,9 @@ def main() -> None:
              "as unreachable); repeatable",
     )
     parser.add_argument(
-        "--skip-hardware", action="store_true",
-        help="release without running the physical loopback suite; the "
-             "default refuses unless it passes on the attached rig",
+        "--skip-hw-loopback", action="store_true",
+        help="release without running the hw_loopback suite; the "
+             "default refuses unless it passes on the attached jumpered adapter",
     )
     args = parser.parse_args()
 
@@ -843,8 +843,8 @@ def main() -> None:
 
     # Early, before the long suite: an unplugged bench should cost seconds,
     # and nothing else is loading the CPU yet.
-    step(5, "Running the physical loopback suite...")
-    run_hardware_suite(args.skip_hardware)
+    step(5, "Running the hw_loopback suite...")
+    run_hw_loopback_suite(args.skip_hw_loopback)
 
     step(6, "Updating doc counts (test count, ty count, coverage, line counts)...")
     test_count = count_tests()
@@ -898,8 +898,8 @@ def main() -> None:
     # ── Done ─────────────────────────────────────────────────────────────
     print()
     ok(f"Release v{version} prepped on branch release/v{version}")
-    if args.skip_hardware:
-        warn("Reminder: --skip-hardware -- this release was NOT tested on the physical loopback adapter")
+    if args.skip_hw_loopback:
+        warn("Reminder: --skip-hw-loopback -- this release was NOT tested on the hw_loopback adapter")
     print()
     info("Next steps:")
     print("  1. Review the diff:        git log -p main..HEAD")

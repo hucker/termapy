@@ -620,28 +620,43 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 
 ```text
 ┌─────────────────────┐
-│ Main thread         │  Textual event loop - all UI updates
-│ (async)             │  dispatch, modals, button handlers,
-│                     │  Message handlers (ScriptStarted, etc.)
+│ Main thread         │  Textual event loop - all UI updates,
+│ (async)             │  modals, button handlers, Message handlers
+│                     │  (ScriptStarted, etc.).  Dispatches NOTHING:
+│                     │  a typed line, a button or a palette entry
+│                     │  only launches a worker.
 ├─────────────────────┤
 │ reader thread       │  Long-lived; OWNED BY SerialEngine
 │ engine.start_reader │  (start_reader / stop_reader), so teardown
 │                     │  can Thread.join() it.  Callbacks hand off
 │                     │  via _rx_enqueue and NEVER block on main.
 ├─────────────────────┤
-│ _run_script()       │  Short-lived per script/command
-│ @work(thread=True)  │  /delay, /confirm, /expect, /run are run
-│                     │  here by the script runner itself -- they
-│                     │  need ScriptCtx or _script_stop, not a
+│ _dispatch_on_thread │  One short-lived worker per typed line,
+│ (+ _interactive,    │  button or palette entry; runs
+│  _sequence_)        │  repl.dispatch_full INLINE on that thread,
+│ @work(thread=True)  │  serialized by _acquire_dispatch_guard.
+├─────────────────────┤
+│ _run_script()       │  Short-lived per script; every line is
+│ @work(thread=True)  │  dispatched on this thread.  /delay,
+│                     │  /confirm, /expect, /run are run here by
+│                     │  the script runner itself -- they need
+│                     │  ScriptCtx or _script_stop, not a
 │                     │  particular thread.  Nested /run is inline.
 ├─────────────────────┤
-│ _auto_reconnect()   │  Short-lived, retries connection
-│ _send_test()        │  Short-lived, protocol test case
-│ _run_cmds()         │  Short-lived, setup/teardown commands
+│ _run_reconnect()    │  Short-lived, retries the connection
+│ _run_lines()        │  Short-lived, multi-line send with delays
+│ _start_demo_async() │  Short-lived, demo start-up
+│ _check_for_updates  │  Short-lived, version check
+│ proto_debug:        │
+│  _run_tests()       │  Short-lived, the debug screen's Run
+│  _run_cmds()        │  Short-lived, setup/teardown commands
 └─────────────────────┘
 ```
 
-At most two workers run concurrently: the serial reader plus one command/script/test worker.
+Only the reader is long-lived. Dispatch and scripts are each serialized: one
+`dispatch_full` at a time (nested dispatch on the same thread is allowed) and
+one outermost script; the reconnect, demo-start and update-check workers run
+independently of both.
 
 That is enforced in two places, not assumed. `ReplEngine.start_script` holds
 the thread id of the run in progress, so a nested `/run` (same thread, inline)

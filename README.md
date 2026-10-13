@@ -1231,18 +1231,7 @@ Developed and tested on **Windows**. Basic usage verified on **macOS** (serial, 
 <details>
 <summary><strong>Architecture</strong> - threading model</summary>
 
-Textual runs on a single async event loop. Termapy uses `@work(thread=True)` for blocking operations, posting UI updates via `call_from_thread()`.
-
-| Worker              | Lifetime    | Purpose                                                 |
-| ------------------- | ----------- | ------------------------------------------------------- |
-| `SerialEngine.read_loop()` | Long-lived | The reader thread (`start_reader` / `stop_reader`); hands RX to the UI without blocking |
-| `_run_reconnect()`  | Short-lived | Retries serial connection every 2.5s until success      |
-| `_run_lines()`      | Short-lived | Sends multiple commands with inter-command delay        |
-| `_run_script()`     | Short-lived | Executes a `.run` script file line by line              |
-| `_send_test()`      | Short-lived | Runs a single protocol test case (`proto_debug.py`)     |
-| `_run_cmds()`       | Short-lived | Sends setup/teardown commands for protocol tests (`proto_debug.py`) |
-
-Only the reader is long-lived. At most two workers run concurrently: the serial reader plus one command/script/test worker.
+Every command runs on a worker thread, the serial reader is the only long-lived thread, and the UI thread never parks on a lock a worker holds. The one description of the threads, their hand-offs, and the rules each relies on is the [Threading model](ARCHITECTURE.md#threading-model) section of ARCHITECTURE.md.
 
 </details>
 

@@ -332,7 +332,7 @@ Since COM port names differ between machines, use `$(env.NAME)` placeholders in 
 }
 ```
 
-On a machine with `COMPORT=COM7`, termapy connects to COM7. On a machine without `COMPORT` set, it falls back to COM4. The config file on disk keeps the raw `$(env.COMPORT|COM4)` template. It's expanded in memory at load time, so your checked-in config stays portable.
+On a machine with `COMPORT=COM7`, termapy connects to COM7. On a machine without `COMPORT` set, it falls back to COM4. The config file on disk keeps the raw `$(env.COMPORT|COM4)` template. It's expanded in memory at load time, so your checked-in config stays portable. A boolean key can be templated the same way (`"echo": "$(env.ECHO|false)"`); the expanded text is read with the boolean vocabulary (`on`, `off`, `true`, `false`, `yes`, `no`, `1`, `0`, ...), and a value outside it refuses the load naming the key.
 
 Environment variables work in any string config value, not just `port`:
 

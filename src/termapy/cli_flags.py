@@ -609,7 +609,7 @@ def run_check(args: argparse.Namespace) -> None:
 
     Read-only -- does not migrate or write to disk.
     """
-    from termapy.config import validate_config
+    from termapy.config import expand_env_cfg, validate_config
     from termapy.config_resolve import find_config
     from termapy.defaults import DEFAULT_CFG
 
@@ -639,7 +639,18 @@ def run_check(args: argparse.Namespace) -> None:
         if key not in cfg:
             cfg[key] = val
 
-    warnings = validate_config(cfg)
+    # A templated boolean is read with the vocabulary here as at load, so
+    # --check neither warns "got str" on one nor passes a value a load
+    # would refuse.
+    expand_warnings: list[str] = []
+    try:
+        expand_env_cfg(cfg, expand_warnings)
+    except ValueError as e:
+        result = {"status": "error", "message": str(e)}
+        print(json.dumps(result, indent=2))
+        sys.exit(1)
+
+    warnings = expand_warnings + validate_config(cfg)
     if warnings:
         result = {"status": "warn", "warnings": warnings}
     else:

@@ -20,10 +20,12 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, TextArea
 
 from termapy.config import (
+    BOOL_CFG_PATHS,
     cfg_path_for_name,
 )
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.scripting import parse_bool
 
 
 class ConfigEditor(ModalScreen[tuple | None]):
@@ -150,11 +152,10 @@ class ConfigEditor(ModalScreen[tuple | None]):
     }
     # Derived from DEFAULT_CFG so adding a new bool/int key to defaults
     # automatically picks up validation here -- no parallel list to drift.
-    # "enabled" is added explicitly because it lives nested inside
-    # custom_buttons rather than at the top level of DEFAULT_CFG.
-    _BOOL_KEYS = {
-        k for k, v in DEFAULT_CFG.items() if isinstance(v, bool)
-    } | {"enabled"}
+    # The bool keys come from BOOL_CFG_PATHS, which covers the nested
+    # serial keys (custom_baud) too; "enabled" is added explicitly because
+    # it lives inside the custom_buttons list rather than at a dict path.
+    _BOOL_KEYS = {path[-1] for path in BOOL_CFG_PATHS} | {"enabled"}
     _INT_KEYS = {
         k for k, v in DEFAULT_CFG.items()
         if isinstance(v, int) and not isinstance(v, bool)
@@ -186,6 +187,14 @@ class ConfigEditor(ModalScreen[tuple | None]):
             if resolved == template:
                 return (f"[yellow]{key}[/] = {highlighted}",
                         "[yellow]variable - not resolved[/]")
+            if key in self._BOOL_KEYS:
+                # A templated boolean is read with the vocabulary at load
+                # (config.expand_env_cfg); show what it reads as.
+                try:
+                    flag = parse_bool(resolved, what=key)
+                except ValueError as e:
+                    return (f"[red]{key}[/] = {highlighted}", f"[red]{e}[/]")
+                return (f"[green]{key}[/] = {highlighted} -> {json.dumps(flag)}", "")
             # Recurse: validate the resolved value
             fake_raw = f'"{resolved}"' if isinstance(resolved, str) else str(resolved)
             status, error = self._validate_value(key, fake_raw)
@@ -194,7 +203,13 @@ class ConfigEditor(ModalScreen[tuple | None]):
         val = raw_val.strip().strip('"')
         error = ""
         if key in self._BOOL_KEYS:
-            if raw_val.strip() not in ("true", "false"):
+            # JSON grammar, not termapy's vocabulary: the editor edits the
+            # JSON text, so the value must be the literal true or false.
+            try:
+                parsed_bool = json.loads(raw_val.strip())
+            except (json.JSONDecodeError, ValueError):
+                parsed_bool = None
+            if not isinstance(parsed_bool, bool):
                 error = "[red]must be true or false[/]"
         elif key in self._VALID_VALUES:
             try:

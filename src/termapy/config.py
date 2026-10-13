@@ -42,6 +42,7 @@ from termapy.migration import (
     DEPRECATED_CFG,
     migrate_config,
 )
+from termapy.scripting import parse_bool
 
 CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
 
@@ -541,7 +542,53 @@ _ENV_EXPAND_EXCLUDED_KEYS = frozenset(
 )
 
 
-def expand_env_cfg(cfg: dict) -> dict:
+def _collect_bool_paths() -> frozenset[tuple[str, ...]]:
+    """Every DEFAULT_CFG key whose default is a bool, as a path, one level deep like the backfill."""
+    paths: set[tuple[str, ...]] = set()
+    for key, val in DEFAULT_CFG.items():
+        if isinstance(val, bool):
+            paths.add((key,))
+        elif isinstance(val, dict):
+            for sub_key, sub_val in val.items():
+                if isinstance(sub_val, bool):
+                    paths.add((key, sub_key))
+    return frozenset(paths)
+
+
+# The cfg keys that hold a boolean, by path (("echo",), ("serial",
+# "custom_baud")), derived from DEFAULT_CFG's types so a new boolean key
+# is covered without a second list.  bool-one-vocabulary: a templated
+# value landing on one of these is read with the vocabulary at
+# expansion; a bare JSON string there is type-checked by validate_config.
+BOOL_CFG_PATHS: frozenset[tuple[str, ...]] = _collect_bool_paths()
+
+
+def _default_at(path: tuple[str, ...]) -> Any:
+    """The DEFAULT_CFG value at a key path."""
+    node: Any = DEFAULT_CFG
+    for part in path:
+        node = node[part]
+    return node
+
+
+def _expand_bool_value(
+    path: tuple[str, ...], raw: str, expanded: str, warnings: list[str] | None,
+) -> bool:
+    """A templated boolean key: unresolved falls back to the default, loudly; anything else is read with the vocabulary."""
+    dotted = ".".join(path)
+    if "$(env." in expanded:
+        default = _default_at(path)
+        if warnings is not None:
+            warnings.append(
+                f"{dotted}: {raw} did not resolve; using default {json.dumps(default)}"
+            )
+        return default
+    return parse_bool(expanded, what=dotted)
+
+
+def expand_env_cfg(
+    cfg: dict, warnings: list[str] | None = None, _path: tuple[str, ...] = (),
+) -> dict:
     """Expand $(env.NAME) in string values of a config dict, recursively.
 
     Mutates and returns *cfg*.  Recurses into nested dict values so
@@ -552,19 +599,37 @@ def expand_env_cfg(cfg: dict) -> dict:
     values are left untouched, as are the connect-command keys in
     ``_ENV_EXPAND_EXCLUDED_KEYS`` (see that constant).
 
+    A templated value on a boolean key (``BOOL_CFG_PATHS``) is read with
+    the one vocabulary after expansion, so the cfg holds a real bool:
+    the text ``"false"`` used to stay a string and read as True.  One
+    that does not resolve falls back to the default and says so in
+    *warnings*.
+
     Args:
         cfg: Config dict to expand in place.
+        warnings: Collects a line for each templated boolean that did
+            not resolve and fell back to its default.
+        _path: The key path of *cfg* within the root, for the recursion.
 
     Returns:
         The same dict with string values expanded.
+
+    Raises:
+        ValueError: A templated boolean resolved to text outside the
+            vocabulary (``Invalid echo: maybe (use ...)``).
     """
     for key, val in cfg.items():
         if key in _ENV_EXPAND_EXCLUDED_KEYS:
             continue
+        path = (*_path, key)
         if isinstance(val, str) and "$(" in val:
-            cfg[key] = expand_env_str(val)
+            expanded = expand_env_str(val)
+            if path in BOOL_CFG_PATHS:
+                cfg[key] = _expand_bool_value(path, val, expanded, warnings)
+            else:
+                cfg[key] = expanded
         elif isinstance(val, dict):
-            expand_env_cfg(val)
+            expand_env_cfg(val, warnings, path)
     return cfg
 
 
@@ -650,10 +715,16 @@ def validate_config(cfg: dict) -> list[str]:
     _check_set(serial, "stop_bits", (int, float), VALID_STOP_BITS, warnings, key_prefix="serial.")
     _check_set(serial, "flow_control", str, VALID_FLOW_CONTROLS, warnings, key_prefix="serial.")
 
-    # custom_baud - must be bool
-    cb = serial.get("custom_baud")
-    if cb is not None and not isinstance(cb, bool):
-        warnings.append(f"serial.custom_baud: expected bool, got {type(cb).__name__}")
+    # Boolean keys hold a JSON boolean: a string or number here is
+    # type-checked, never parsed (bool-one-vocabulary; a templated value
+    # was read with the vocabulary at expansion).
+    for path in sorted(BOOL_CFG_PATHS):
+        node: Any = cfg
+        for part in path[:-1]:
+            node = node.get(part) if isinstance(node, dict) else None
+        value = node.get(path[-1]) if isinstance(node, dict) else None
+        if value is not None and not isinstance(value, bool):
+            warnings.append(f"{'.'.join(path)}: expected bool, got {type(value).__name__}")
 
     # Baud rate - standard rates only unless custom_baud is enabled
     val = serial.get("baud_rate")
@@ -810,14 +881,16 @@ def load_config(path: str) -> dict:
             json.dump(cfg, f, indent=4)
     if migrated:
         cfg["_migrated_from"] = old_version
-    cfg = expand_env_cfg(cfg)
+    expand_warnings: list[str] = []
+    cfg = expand_env_cfg(cfg, expand_warnings)
     # Migration functions may stash one-shot warnings in
     # ``_migration_warnings`` (e.g. "your retired key was true; set
-    # the env var").  Merge them with structural validation warnings
-    # so the user sees both through the single existing display path.
+    # the env var").  Merge them with the expansion and structural
+    # validation warnings so the user sees all through the single
+    # existing display path.
     mig_warnings = cfg.pop("_migration_warnings", [])
     config_warnings = validate_config(cfg)
-    all_warnings = list(mig_warnings) + config_warnings
+    all_warnings = list(mig_warnings) + expand_warnings + config_warnings
     if all_warnings:
         cfg["_config_warnings"] = all_warnings
     cleanup_profile_temps(path)

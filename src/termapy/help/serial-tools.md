@@ -21,8 +21,15 @@ Hex bytes and quoted strings can be mixed freely:
 /proto.send 01 03 00 00 00 0A           hex bytes
 /proto.send "HELLO\r"                    quoted text (supports \r \n \t \0 \\)
 /proto.send 02 "DATA" 03                mix hex and text
-/proto.send 0x01 "hello" 0D             0x prefix is optional
+/proto.send 0x01 "hello" 0D             0x prefix is optional, one byte each
+/proto.send DEADBEEF                    run together: DE AD BE EF, in order
 ```
+
+Hex reads the same in every command, in either case. A `0x` prefix marks
+one byte, so `0xDEADBEEF` is refused (write `DE AD BE EF`, or
+`"0xDEADBEEF"` for the text). Quoted text is accepted wherever a payload
+can hold text (`/proto.send`, `/proto.crc.calc`, `.pro` files); the packet
+commands (`/proto.crc.verify`, `.find bin=`, `.reverse`) take hex only.
 
 ### Inline delays
 

@@ -28,6 +28,7 @@ from termapy.protocol import (
     match_response,
     parse_data,
     parse_data_segments,
+    parse_hex,
     parse_toml_script,
     strip_ansi,
     write_results,
@@ -919,7 +920,10 @@ def _handler_crc_calc(ctx: PluginContext, args: str) -> CmdResult:
                 data = parse_data(data_str)
             except ValueError as e:
                 # Unquoted text is the one way to land here by habit.
-                hint = "" if '"' in data_str else f' (text goes in quotes: "{data_str}")'
+                # The reader names its own fix for a 0x token; text typed
+                # bare by habit is the other way to land here.
+                quoted = '"' in data_str or "0x prefix" in str(e)
+                hint = "" if quoted else f' (text goes in quotes: "{data_str}")'
                 return CmdResult.fail(msg=f"Parse error: {e}{hint}")
 
     if not data:
@@ -1585,7 +1589,8 @@ def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
     mode = kw["mode"]
     if mode == "bin":
         try:
-            packet: bytes = parse_data(kw["payload"])
+            # A packet is hex only; text has its own keyword, asc=.
+            packet: bytes = parse_hex(kw["payload"])
         except ValueError as e:
             return CmdResult.fail(msg=f"Parse error: {e}")
         if form is not None:
@@ -1738,7 +1743,7 @@ def _handler_crc_verify(ctx: PluginContext, args: str) -> CmdResult:
             break
 
     try:
-        packet = parse_data(rest)
+        packet = parse_hex(rest)  # a packet is hex only
     except ValueError as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
     if not packet:
@@ -1886,7 +1891,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
             if not ok:
                 return CmdResult.fail(msg=resolved)
             try:
-                packets.append(parse_data(resolved))
+                packets.append(parse_hex(resolved))  # one hex-only packet per token
             except ValueError as e:
                 return CmdResult.fail(msg=f"Parse error: {e}")
         if len(packets) < 2:

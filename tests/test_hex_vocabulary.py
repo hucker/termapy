@@ -5,9 +5,11 @@ Until 2026-10-13 the byte-payload commands each read hex their own way:
 ``0x`` tokens but refused a run-together frame, ``.reverse`` refused ``0x``, and
 ``/proto.crc.calc`` guessed -- anything that was not all two-character pairs
 became text, so ``0x01 0x03 ...`` silently got the CRC of its characters.  Now
-every byte payload is read by ``protocol.parse_data`` (hex in any spelling and
-either case, quoted text for ASCII), and every hex value a command prints or
-returns is uppercase.  These tests drive the commands the way a user does, on
+hex reads the same everywhere, in any spelling and either case, and a ``0x``
+prefix marks exactly one byte.  Quoted text is allowed only where a payload can
+hold text: ``protocol.parse_data`` for ``/proto.send``, calc, snoop and ``.pro``
+files, ``protocol.parse_hex`` for the packet commands.  Every hex value a
+command prints or returns is uppercase.  These tests drive the commands the way a user does, on
 a CLI with no port open (none of them needs a device).
 """
 
@@ -98,15 +100,59 @@ class TestOnePayloadGrammar:
         assert result.success is True, result.error
         assert "crc16-modbus" in str(result.value), "the Modbus CRC is identified"
 
-    def test_reverse_reads_0x_packets(self, cli):
-        """/proto.crc.reverse reads each packet token with the shared reader, so 0x is accepted there too."""
-        # Arrange -- a malformed token, then the same packet spelled with 0x
+    def test_reverse_reads_each_packet_with_the_hex_reader(self, cli):
+        """/proto.crc.reverse reads each packet token as hex; a 0x prefix on a whole packet is refused with the fix."""
+        # Arrange / Act
         bad = cli.repl.dispatch_full("/proto.crc.reverse crc_bytes=2 ZZ 0102AABB")
-        prefixed = cli.repl.dispatch_full("/proto.crc.reverse crc_bytes=2 0x01020304AABB 0x0102AABB")
+        prefixed = cli.repl.dispatch_full("/proto.crc.reverse crc_bytes=2 0x01020304AABB 0102AABB")
+        bare = cli.repl.dispatch_full("/proto.crc.reverse crc_bytes=2 01020304AABB 0102AABB")
 
-        # Assert -- the reader refuses ZZ and accepts 0x; what follows is the reversal's own verdict
+        # Assert -- what follows the reader is the reversal's own verdict
         assert bad.error.startswith("Parse error: "), bad.error
-        assert not prefixed.error.startswith("Parse error"), "0x is a spelling, not an error"
+        assert "write 01 02 03 04 AA BB" in prefixed.error, prefixed.error
+        assert not bare.error.startswith("Parse error"), "run-together hex is a packet"
+
+
+class TestZeroXMarksOneByte:
+
+    def test_a_multi_byte_0x_token_is_refused_with_the_fix(self):
+        """hex-one-reader: 0xDEADBEEF reads as a number of unstated byte order, so every reader refuses it and names the fix."""
+        with pytest.raises(ValueError, match=r"a 0x prefix marks one byte; write DE AD BE EF\)"):
+            parse_hex("0xDEADBEEF")
+        with pytest.raises(ValueError, match=r'write DE AD BE EF, or "0xDEADBEEF" for text'):
+            parse_data("0xDEADBEEF")
+        with pytest.raises(ValueError, match="a 0x prefix marks one byte"):
+            parse_pattern("0x0102 **")
+
+    def test_single_0x_bytes_and_bare_words_are_fine(self):
+        """0x on one byte is a spelling; bare run-together hex is bytes in the order written."""
+        assert parse_hex("0xDE 0xAD 0xBE 0xEF") == bytes.fromhex("DEADBEEF")
+        assert parse_data("DEADBEEF") == bytes.fromhex("DEADBEEF")
+
+    def test_calc_and_send_refuse_0xdeadbeef_and_quote_it_for_text(self, cli):
+        """/proto.crc.calc and /proto.send refuse 0xDEADBEEF; quoted, it is the ten characters."""
+        refused_calc = cli.repl.dispatch_full("/proto.crc.calc crc32 0xDEADBEEF")
+        refused_send = cli.repl.dispatch_full("/proto.send --dry-run 0xDEADBEEF")
+        text = cli.repl.dispatch_full('/proto.crc.calc crc32 "0xDEADBEEF"')
+        assert "a 0x prefix marks one byte" in refused_calc.error, refused_calc.error
+        assert "text goes in quotes" not in refused_calc.error, "one hint, the reader's"
+        assert "a 0x prefix marks one byte" in refused_send.error, refused_send.error
+        assert text.value == "0x476CBA72", "crc32 of the ten characters 0xDEADBEEF"
+
+
+class TestQuotesOnlyWhereTextBelongs:
+
+    def test_packet_commands_are_hex_only(self, cli):
+        """/proto.crc.verify and .find bin= take a packet, hex only; quoted text is refused as such."""
+        verify = cli.repl.dispatch_full('/proto.crc.verify crc16-modbus endian=le "AT" C5 CD')
+        find = cli.repl.dispatch_full('/proto.crc.find bin="AT"')
+        assert "this payload is hex only" in verify.error, verify.error
+        assert "this payload is hex only" in find.error, find.error
+
+    def test_text_capable_commands_mix_text_and_bytes(self, cli):
+        """/proto.send takes framing bytes around quoted text, the STX "data" ETX shape."""
+        result = cli.repl.dispatch_full('/proto.send --dry-run 02 "HELLO" 03')
+        assert result.value == "0248454C4C4F03"
 
 
 class TestCalcText:

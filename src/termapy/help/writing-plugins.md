@@ -498,12 +498,13 @@ returns `Not connected.` automatically when the port is down.
 
 ## Bytes and hex
 
-Read bytes the user typed with `termapy.protocol.parse_data`: hex in any
-spelling or case (`01 03`, `0x01 0x03`, `0103`) and quoted text
-(`"AT\r"`), freely mixed. It is the reader every built-in uses, so your
-command accepts exactly what `/proto.send` does; `parse_hex` is the
-hex-only form. Print and return hex in uppercase: `format_hex(data)` for
-display (`01 0A FF`), `data.hex().upper()` for a scriptable value.
+Read bytes the user typed with `termapy.protocol.parse_data` when the
+payload may hold text: hex in any spelling or case (`01 03`, `0x01 0x03`,
+`0103`) and quoted text (`"AT\r"`), freely mixed, exactly what
+`/proto.send` accepts. Use `parse_hex` when it is a packet, hex only. In
+both, a `0x` prefix marks one byte, so `0xDEADBEEF` is refused with the
+fix in the message. Print and return hex in uppercase: `format_hex(data)`
+for display (`01 0A FF`), `data.hex().upper()` for a scriptable value.
 
 ```python
 from termapy.protocol import format_hex, parse_data

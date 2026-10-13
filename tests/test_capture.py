@@ -394,6 +394,22 @@ class TestHexCapture:
         assert result is not None and result.error == "Invalid hex line: 'READY'"
         assert path.read_bytes() == b"\x01\x02", "what came before the bad line is kept"
 
+    def test_a_multi_byte_0x_word_aborts_the_capture(self, tmp_path):
+        """A device line like 0xDEADBEEF is refused like any non-hex line: a 0x prefix marks one byte, and a word's byte order is unstated."""
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.bin"
+        engine.start(path=path, file_mode="wb", mode="bin", target_bytes=0, hex_mode=True)
+
+        # Act
+        actual_stop = engine.feed_bytes(b"0x01 0x02\n0xDEADBEEF\n")
+        result = engine.stop()
+
+        # Assert
+        assert actual_stop is True, "the caller is told to stop"
+        assert result is not None and result.error == "Invalid hex line: '0xDEADBEEF'"
+        assert path.read_bytes() == b"\x01\x02", "single 0x bytes are fine; the word is the refusal"
+
     def test_a_stream_without_newlines_aborts(self, tmp_path):
         """Hex mode refuses a stream that never sends a newline instead of buffering it without bound."""
         # Arrange

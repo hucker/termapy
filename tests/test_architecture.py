@@ -1160,9 +1160,8 @@ SRC_REL = SRC  # src/termapy
 
 # (module, function): why it may read hex itself.
 HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
-    ("protocol/core.py", "parse_hex"): "the published byte reader",
-    ("protocol/core.py", "parse_data"): "the published byte reader",
-    ("protocol/core.py", "parse_pattern"): "the published byte reader",
+    ("protocol/core.py", "parse_hex"): "the published hex-only reader",
+    ("protocol/core.py", "_match_hex_byte"): "the one hex-byte tokenizer behind parse_data, parse_data_segments and parse_pattern",
     ("symbols/address.py", "parse_number"): "the published number reader",
     ("port_format.py", "split_vid_pid"): "the USB id reader; USB ids are hex by convention",
     ("cli_flags.py", "_parse_hex_int"): "a --ports VID/PID filter, hex by USB convention",

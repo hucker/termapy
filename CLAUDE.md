@@ -105,12 +105,16 @@ All other paths relative to `src/termapy/`.
     `port_format.split_vid_pid`.
   - **Durations.** `ParamSpec(type="duration")` / `scripting.parse_duration`
     only. A `* 1000` after parsing is unit conversion, not parsing.
-  - **Hex payloads / packets.** One reader per shape, every spelling and
-    case accepted (`01 03`, `0x01 0x03`, `0X01`, `0103`):
-    `protocol.core.parse_data` for any byte payload a user types (hex +
-    quoted text, what `/proto.send` and every `/proto.crc.*` command use),
-    `parse_hex` for hex only, `parse_pattern` for expect wildcards. A bad
-    payload is `Parse error: {e}`. **Output is uppercase**: `format_hex`
+  - **Hex payloads / packets.** Hex reads the same everywhere, every
+    spelling and case (`01 03`, `0x01 0x03`, `0X01`, `0103`); a `0x`
+    prefix marks exactly one byte (`0xDEADBEEF` is refused: a number of
+    unstated byte order), and bare run-together hex is bytes in the order
+    written. Quoted text is allowed only where a payload can hold text:
+    `protocol.core.parse_data` (hex + quoted text) for `/proto.send`,
+    `/proto.crc.calc`, `/traffic.snoop` and `.pro` files; `parse_hex`
+    (hex only) for the packet commands `/proto.crc.verify`, `.find bin=`,
+    `.reverse` and `/mem.write`; `parse_pattern` for expect wildcards. A
+    bad payload is `Parse error: {e}`. **Output is uppercase**: `format_hex`
     for display, `.hex().upper()` for a value, `X` in format specs.
     **Enforced by `tests/test_architecture.py` (registry `hex-one-reader`,
     `hex-output-uppercase`)**: an `ast` walk with a function-level

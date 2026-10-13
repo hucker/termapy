@@ -333,13 +333,9 @@ The narrative — the thread diagram, the two hand-off mechanisms and why each r
 
 ## Release
 
-Two-stage automation in `scripts/`. From clean main:
+Two-stage automation in `scripts/`, run from clean main: `python scripts/release_prep.py <version>` cuts `release/v<version>`, upgrades the lock, audits it, refreshes the counts, runs `pytest` and `tox`, rebuilds the HTML help and makes two commits; you rewrite the CHANGELOG stub into a user-facing summary and `git commit --amend --no-edit`; `python scripts/release_publish.py --yes` merges `--no-ff`, tags, pushes and creates the GitHub release. The step-by-step mechanics and the recovery procedure are in `scripts/README.md`, the one home for them; what follows here is policy.
 
-1. `python scripts/release_prep.py <version>` -- cuts `release/v<version>`, bumps `pyproject.toml` and `mkdocs.yml`, upgrades every locked dependency to its newest allowed version (`uv lock --upgrade`) and re-runs the ruff/ty gate against that environment, audits the lock for known vulnerabilities (`scripts/audit_lock.py`), refreshes line/test/coverage/ty counts in `ARCHITECTURE.md` and `README.md` (including the ty + coverage badges), inserts a CHANGELOG stub, runs `pytest` and `tox`, builds HTML with `uvx zensical build`, makes two commits (HTML rebuild, then `Release v<version>`).
-2. Manual review: edit `CHANGELOG.md` to replace the TODO stub with a user-facing summary, then `git commit --amend --no-edit`.
-3. `python scripts/release_publish.py --yes` -- merges release branch to main with `--no-ff`, tags `v<version>`, pushes main + tag + release branch, creates the GitHub release with notes pulled from CHANGELOG.
-
-Hard gates (step 1 aborts):
+Hard gates (`release_prep` aborts):
 
 - ruff and ty must both report zero issues -- checked before the branch is cut and again after the lock upgrade, because the upgraded environment can move ty's count
 - `uv.lock` must audit clean (`scripts/audit_lock.py`: pip-audit over the exported lock, every extra and group, nothing installed). A finding reviewed as unreachable is passed explicitly, `--ignore-vuln <ID>`, so the decision sits on the release command line

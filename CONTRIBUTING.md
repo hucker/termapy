@@ -31,25 +31,12 @@ If your plugin is generally useful, open a PR to include it in `builtins/command
 2. Make your changes
 3. Run `uv run pytest` - all tests must pass
 4. Run `uv run tox` - must pass on Python 3.11-3.15
-5. Update docs if you changed commands, config, or architecture
-6. Rebuild HTML help: `uv run -- python -m mkdocs build`
-7. Open a PR
+5. Update docs if you changed commands, config, or architecture (the Markdown under `src/termapy/help/`; do not rebuild the HTML help in a PR, the release does that)
+6. Open a PR
 
-### Code style
+### Conventions
 
-- Google-style docstrings and type hints
-- Pure functions in `scripting.py` and the `plugins/` package - no Textual/pyserial imports
-- New commands go in `builtins/commands/` unless they need Textual
-- Plugin files end with a `COMMAND` dict
-- OS-independent paths: use `pathlib.Path`, never split on `/` or `\\`
-- No Unicode in output strings - use ASCII only (hyphens, not em dashes)
-- See `CLAUDE.md` for the full conventions
-
-### Testing
-
-- AAA comments (`# Arrange`, `# Act`, `# Assert`) for non-trivial tests
-- Assert order: `actual == expected`
-- The CLI gold test (`tests/cli_gold/`) catches regressions across the full command pipeline. If you change command output, regenerate and review the gold file.
+The project's engineering rulebook is `CLAUDE.md` at the repo root. The filename is the AI tooling's convention; the content is for every contributor: the architecture rules and the invariants registry they point at (`docs/invariants.md`), code style, error-message style, the testing conventions (test headers, AAA comments, assert order, the CLI gold test), the threading rules and the release process. Read it before a non-trivial change; `ARCHITECTURE.md` explains the structure those rules protect.
 
 ## Reporting issues
 

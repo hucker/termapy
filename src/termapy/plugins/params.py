@@ -246,6 +246,12 @@ def validate_param_specs(params: list[ParamSpec], command_name: str) -> None:
             raise ValueError(
                 f"{label}: required parameter {spec.name!r} must not have a default"
             )
+        if spec.type == "bool" and not spec.required and spec.default is None:
+            # bool-one-vocabulary: absence has a declared meaning, so an
+            # optional boolean says what leaving it out means.
+            raise ValueError(
+                f"{label}: optional bool parameter {spec.name!r} must declare a default"
+            )
         if spec.variadic and not spec.positional:
             raise ValueError(
                 f"{label}: variadic parameter {spec.name!r} must be positional "

@@ -43,7 +43,7 @@ would keep drawing from; it shrinks by a pass or a test file at a time.
 | `/proto.*` command module | 988 | 453 | 54% | 10-10 for `/proto.run`; the `/proto.crc.*` half deliberately out of scope | crcglot-backed; `tests/test_proto_crc_*` cover the verbs behaviorally |
 | port control + USB enumeration | 1165 | 308 | 74% | 07-03 covered ports in part | `usb_tree.py` 62%, `port_control.py` 75% |
 | demo device and its plugins | 1218 | 322 | 74% | none | `builtins/demo/plugin/*` at 0 to 16%; demo content, lowest priority |
-| `port`, `edit`, `ping`, `log` commands | 491 | 267 | 46% | none | `/cap.poll` and `/log.fingerprint` got their first tests 2026-10-12 (pending branch) |
+| `port`, `edit`, `ping`, `log` commands | 491 | 267 | 46% | none | `/cap.poll` and `/log.fingerprint` got their first tests 2026-10-12 (pending branch); the `/port.*` handlers their first in-process run the same day (`tests/test_port_commands.py`, pending branch) |
 | MCP server + profiles | 1245 | 189 | 85% | none as a subsystem; 07-03 covered security | `server.py` 80% |
 | help, palette, info views | 633 | 171 | 73% | none | `info_views.py` has Pilot tests on a pending branch |
 | `app_hooks.py` | 217 | 135 | 38% | 08-19 touched the script hooks | plain calls on a booted app |

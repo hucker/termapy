@@ -13,7 +13,7 @@ The form-matching algorithm itself lives in crcglot.
 
 from __future__ import annotations
 
-from termapy.builtins.commands.proto import _crc_find
+from termapy.builtins.commands.proto import _handler_crc_find
 from termapy.plugins import IOHandle, PluginContext
 
 _CRCLINK_FRAME = '{"t":1234,"v":42,"crc":"1352"}'
@@ -52,7 +52,7 @@ class TestFormHappyPath:
         ctx, _captured, captured_markup = _build_stub_ctx()
 
         # Act
-        result = _crc_find(ctx, f"form=crclink bin={_hex(_CRCLINK_FRAME)}")
+        result = _handler_crc_find(ctx, f"form=crclink bin={_hex(_CRCLINK_FRAME)}")
 
         # Assert -- match line includes the algorithm + form tag
         assert result.success, f"crclink frame should match: {result.error!r}"
@@ -70,7 +70,7 @@ class TestFormHappyPath:
         ctx, captured, _captured_markup = _build_stub_ctx()
 
         # Act
-        _crc_find(ctx, f"form=crclink bin={_hex(_CRCLINK_FRAME)}")
+        _handler_crc_find(ctx, f"form=crclink bin={_hex(_CRCLINK_FRAME)}")
 
         # Assert -- a "Wrapper:" line carries the recovered message
         wrapper_lines = [t for t, _color in captured if "Wrapper:" in t]
@@ -96,7 +96,7 @@ class TestFormValidation:
         ctx, _captured, _markup = _build_stub_ctx()
 
         # Act
-        result = _crc_find(ctx, "form=nosuch bin=01 02 03")
+        result = _handler_crc_find(ctx, "form=nosuch bin=01 02 03")
 
         # Assert -- error names what's known so the user can pick
         assert not result.success, "unknown form should fail"
@@ -114,7 +114,7 @@ class TestFormValidation:
         ctx, _captured, _markup = _build_stub_ctx()
 
         # Act
-        result = _crc_find(ctx, "form= bin=01 02 03")
+        result = _handler_crc_find(ctx, "form= bin=01 02 03")
 
         # Assert
         assert not result.success, "empty form= should fail"
@@ -130,7 +130,7 @@ class TestFormValidation:
         ctx, _captured, _markup = _build_stub_ctx()
 
         # Act
-        result = _crc_find(ctx, "form=crclink asc=foo")
+        result = _handler_crc_find(ctx, "form=crclink asc=foo")
 
         # Assert
         assert not result.success, "form= with asc= should fail"
@@ -153,7 +153,7 @@ class TestFormBackwardCompat:
         ctx, _captured, captured_markup = _build_stub_ctx()
 
         # Act
-        result = _crc_find(ctx, "bin=31 32 33 34 35 36 37 38 39 CB F4 39 26")
+        result = _handler_crc_find(ctx, "bin=31 32 33 34 35 36 37 38 39 CB F4 39 26")
 
         # Assert
         assert result.success, f"bare detect should still work: {result.error!r}"

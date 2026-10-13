@@ -1347,3 +1347,74 @@ def test_hex_allowlist_has_no_stale_entries():
     # Assert
     stale = sorted(set(HEX_PARSE_ALLOWED) - parse_used) + sorted(set(HEX_LOWERCASE_ALLOWED) - lower_used)
     assert stale == [], f"allowlisted but no longer a hex site; drop them: {stale}"
+
+
+# ── Handler naming: cookie-cutter plugins ────────────────────────────────────
+#
+# A command's handler is `_handler` for the root and `_handler_<sub>` for a
+# subcommand (`_handler_crc_calc` for /proto.crc.calc), in the built-ins, the
+# demo plugins and the examples alike, so adding a command is copying one
+# shape.  Until 2026-10-13 five styles were in use (`_cmd_send`, `_crc_list`,
+# `_proto_root_handler`, `_icon_handler`, ...), three of them in proto.py.
+# A handler built by a factory (a call, a lambda) is not a name and not
+# checked: the folder-op and per-language families are generated.
+
+PLUGIN_FOLDERS = (
+    SRC / "builtins" / "commands",
+    SRC / "builtins" / "demo" / "plugin",
+    SRC.parent.parent / "examples" / "plugins",
+)
+_HANDLER_NAME = re.compile(r"^_handler(_[a-z0-9]+)*$")
+
+
+def _misnamed_handlers(tree: ast.Module) -> list[str]:
+    """Names passed as ``Command(handler=...)`` that break the ``_handler`` / ``_handler_<sub>`` shape."""
+    return sorted({
+        keyword.value.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "Command"
+        for keyword in node.keywords
+        if keyword.arg == "handler"
+        and isinstance(keyword.value, ast.Name)
+        and not _HANDLER_NAME.match(keyword.value.id)
+    })
+
+
+def test_handlers_follow_one_naming_shape():
+    """handler-naming: every command handler is `_handler` or `_handler_<sub>`, in built-ins, demo and example plugins."""
+    # Arrange / Act
+    violations = [
+        f"{path.relative_to(SRC.parent.parent).as_posix()}: {name}"
+        for folder in PLUGIN_FOLDERS
+        for path in sorted(folder.glob("*.py"))
+        for name in _misnamed_handlers(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+
+    # Assert
+    assert violations == [], (
+        "name a command handler _handler (root) or _handler_<sub> (subcommand):\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_handler_naming_guard_fires_on_a_probe():
+    """The guard flags the old styles and passes the shape, a nested subcommand, and a factory-built handler."""
+    # Arrange
+    source = '''
+COMMAND = Command(name="x", handler=_handler, sub_commands={
+    "a": Command(handler=_handler_a),
+    "b": Command(handler=_handler_crc_calc),
+    "c": Command(handler=_cmd_send),
+    "d": Command(handler=_proto_root_handler),
+    "e": Command(handler=_make_list_handler("x", "*")),
+    "f": Command(handler=_HandlerTypo),
+})
+'''
+
+    # Act
+    actual = _misnamed_handlers(ast.parse(source))
+
+    # Assert
+    assert actual == ["_HandlerTypo", "_cmd_send", "_proto_root_handler"], (
+        "old styles and a case typo are flagged; the shape and factories pass"
+    )

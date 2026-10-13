@@ -500,7 +500,7 @@ def _delay_at_least(seconds: float) -> None:
             pass
 
 
-def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """Send raw bytes to the serial port and display the response.
 
     Parses hex, quoted text, and inline delays (``~25ms``) into segments.
@@ -642,7 +642,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=response.hex().upper() if response else "")
 
 
-def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
     """Execute a ``.pro`` test script (TOML or flat format).
 
     Auto-detects the format: TOML (structured with ``[[test]]`` sections)
@@ -694,7 +694,7 @@ def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_debug(ctx: PluginContext, args: str) -> CmdResult:
     """Open the interactive protocol debug screen for a TOML .pro script.
 
     Args:
@@ -723,7 +723,7 @@ def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     """Query, set, or toggle hex display mode for all serial I/O.
 
     When enabled, received serial data is shown as hex bytes instead of
@@ -754,7 +754,7 @@ def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value="on" if flags["hex"] else "off")
 
 
-def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show current protocol mode state.
 
     Displays hex display mode and connection status.
@@ -776,7 +776,7 @@ def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
 # ---- CRC subcommand handlers ----------------------------------------------
 
 
-def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_crc_list(ctx: PluginContext, args: str) -> CmdResult:
     """List available CRC algorithms, optionally filtered by glob pattern.
 
     Args:
@@ -815,7 +815,7 @@ def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value="\n".join(names))
 
 
-def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_crc_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show detailed parameters for a named CRC algorithm.
 
     Args:
@@ -867,7 +867,7 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=name)
 
 
-def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     """Compute a CRC over the provided data.
 
     The data is read exactly as ``/proto.send`` reads it
@@ -1525,7 +1525,7 @@ def _parse_find_args(text: str) -> dict[str, str]:
     return result
 
 
-def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
     """Identify the CRC algorithm used in a captured packet.
 
     Two input modes:
@@ -1705,7 +1705,7 @@ def _send_and_capture(
     return captured if captured else None
 
 
-def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_crc_verify(ctx: PluginContext, args: str) -> CmdResult:
     """Verify that a packet's trailing CRC matches the named algorithm.
 
     Use when the algorithm is known and you just want a yes/no check on
@@ -1778,7 +1778,7 @@ def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.fail(msg="CRC mismatch")
 
 
-def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
     """Recover the Rocksoft parameters of an unknown CRC algorithm.
 
     Wraps ``crcglot.reverse_packets`` with ``std_algo_only=False`` so
@@ -2143,7 +2143,7 @@ def _proto_long_help(ctx: PluginContext) -> str:
     return compose(_proto_folder_line(ctx), _PROTO_PROSE)
 
 
-def _proto_root_handler(ctx: PluginContext, args: str) -> CmdResult:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Bare /proto: TUI opens the Proto picker, CLI shows /help proto.
 
     With args, /proto is a namespace -- the dispatcher routes to a
@@ -2156,10 +2156,10 @@ def _proto_root_handler(ctx: PluginContext, args: str) -> CmdResult:
         )
     if ctx.internal.open_picker is not None:
         return ctx.internal.open_picker("proto")
-    return _proto_help_handler(ctx, args)
+    return _handler_help(ctx, args)
 
 
-def _proto_help_handler(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     """Same as /help proto, plus an AVAILABLE PROTO FILES list."""
     from termapy.builtins.commands.help import (
         _show_command_help,
@@ -2326,11 +2326,11 @@ COMMAND = Command(
     name="proto",
     help="Binary protocol tools: send, run, debug, hex, crc, info.",
     long_help=_proto_long_help,
-    handler=_proto_root_handler,
+    handler=_handler,
     sub_commands={
         "help": Command(
             help="Show /proto help.",
-            handler=_proto_help_handler,
+            handler=_handler_help,
         ),
         "send": Command(
             args=(
@@ -2338,7 +2338,7 @@ COMMAND = Command(
                 "{--dry-run} {--ascii}"
             ),
             help="Send raw bytes (with optional CRC), show response.",
-            handler=_cmd_send,
+            handler=_handler_send,
             flags={
                 "--dry-run": (
                     "Print the bytes that would be sent without writing "
@@ -2355,20 +2355,20 @@ COMMAND = Command(
             args="<file.pro>",
             help="Run a protocol test script.",
             long_help=_proto_folder_line,
-            handler=_cmd_run,
+            handler=_handler_run,
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "debug": Command(
             args="<file.pro>",
             help="Interactive protocol debug screen.",
             long_help=_proto_folder_line,
-            handler=_cmd_debug,
+            handler=_handler_debug,
             needs=CapabilitySet(tui_mode=True, serial_connected=True),
         ),
         "hex": Command(
             args="{on|off|toggle}",
             help="Toggle hex display mode.",
-            handler=_cmd_hex,
+            handler=_handler_hex,
         ),
         "crc": Command(
             help="Browse and compute CRC algorithms.",
@@ -2385,7 +2385,7 @@ COMMAND = Command(
                 "list": Command(
                     args="{pattern}",
                     help="List algorithms (optional glob filter).",
-                    handler=_crc_list,
+                    handler=_handler_crc_list,
                 ),
                 "info": Command(
                     args="<name>",
@@ -2395,7 +2395,7 @@ COMMAND = Command(
                         "value for one CRC algorithm. Use {prefix}proto.crc.list to see\n"
                         "every available name."
                     ),
-                    handler=_crc_info,
+                    handler=_handler_crc_info,
                 ),
                 "find": Command(
                     args=(
@@ -2434,7 +2434,7 @@ COMMAND = Command(
                         "  {prefix}proto.crc.find form=crclink bin=7B 22 74 22 3A 31 32 33 34 ...\n"
                         "  {prefix}proto.crc.find cmd=AT+RND\n"
                     ),
-                    handler=_crc_find,
+                    handler=_handler_crc_find,
                 ),
                 # Generated entirely from crcglot.VERBS['detect'] -- params, help,
                 # and execution (via crcglot.call_verb) all come from crcglot's
@@ -2455,7 +2455,7 @@ COMMAND = Command(
                         "  {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01\n"
                         '  {prefix}proto.crc.calc crc32 "123456789"'
                     ),
-                    handler=_crc_calc,
+                    handler=_handler_crc_calc,
                 ),
                 "verify": Command(
                     args="<name> {endian=be|le} <hex>...",
@@ -2472,7 +2472,7 @@ COMMAND = Command(
                         "  {prefix}proto.crc.verify crc32 31 32 33 34 35 36 37 38 39 CB F4 39 26\n"
                         "  {prefix}proto.crc.verify crc16-modbus endian=le 01 03 00 00 00 0A C5 CD"
                     ),
-                    handler=_crc_verify,
+                    handler=_handler_crc_verify,
                 ),
                 "reverse": Command(
                     # Two modes, explicit packets XOR cmd= capture: both
@@ -2517,7 +2517,7 @@ COMMAND = Command(
                         "(count= and crc_bytes= are recovered from the trigger\n"
                         "text), which is why this command parses its own args."
                     ),
-                    handler=_crc_reverse,
+                    handler=_handler_crc_reverse,
                 ),
                 # /proto.crc.<lang> commands are built dynamically from
                 # crcglot.LANGUAGES so every language crcglot ships gets a
@@ -2528,7 +2528,7 @@ COMMAND = Command(
         ),
         "info": Command(
             help="Print current protocol state.",
-            handler=_cmd_status,
+            handler=_handler_info,
         ),
         **build_folder_subcommands("proto"),
     },

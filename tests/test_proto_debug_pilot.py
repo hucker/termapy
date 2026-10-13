@@ -86,6 +86,21 @@ async def _status_after(pilot, screen: ProtoDebugScreen, needle: str, seconds: f
     return str(status.render())
 
 
+async def _disabled_after(pilot, button: Button, seconds: float) -> bool:
+    """Poll until ``button`` is disabled or ``seconds`` pass; return its final state.
+
+    The run worker posts the summary to the status bar BEFORE it clears the
+    run state (the optional JSON write sits between the two), so reading
+    Stop the moment PASS appears races the worker; under full-suite load the
+    read lost twice on 2026-10-13.  Wait for the end state the test asserts.
+    """
+    for _ in range(int(seconds * 10)):
+        if button.disabled:
+            return True
+        await pilot.pause(0.1)
+    return button.disabled
+
+
 class TestRunButton:
 
     def test_run_starts_a_run_and_reports_the_summary(self, tmp_path):
@@ -101,10 +116,11 @@ class TestRunButton:
                 # Stop's live state during a run is pinned by the Stop test
                 await pilot.click("#btn-dbg-send")
                 text = await _status_after(pilot, screen, "PASS", 5.0)
+                stop_dark = await _disabled_after(pilot, stop, 5.0)
 
                 # Assert
                 assert "1/1 PASS" in text, f"the run ran, got {text!r}"
-                assert stop.disabled is True, "Stop goes dark when the run ends"
+                assert stop_dark is True, "Stop goes dark when the run ends"
         _run(scenario)
 
 

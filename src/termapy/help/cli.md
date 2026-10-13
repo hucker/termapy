@@ -355,7 +355,8 @@ Want to see what `--ports`, `--watch`, or `--info` look like without any
 USB-serial adapters plugged in?  Set `TERMAPY_DEMO_FLEET=1` and termapy
 will enumerate a fixed three-port synthetic fleet (FTDI FT232R on COM3,
 Silicon Labs CP2102 on COM4, Microsoft USB Serial on COM7) instead of
-calling the OS.
+calling the OS.  It is a switch, not a boolean: any non-empty value
+turns it on.
 
 ```sh
 TERMAPY_DEMO_FLEET=1 termapy --ports    # fake three-port table

@@ -141,7 +141,7 @@ The MCP server runs with no interactive session, so termapy's capability gate bl
 - **Destructive commands** -- device commands a profile marks `safety: destructive`, and termapy's own destructive commands (`/mem.write`) -- refuse to run without an explicit `confirm=true`, which a well-behaved client elicits from the user.  The catalog carries the `safety` tier of every command that declares one.
 - **Peripheral read gates need a device file.**  `/mem.dump` refuses a sweep over registers and `/mem.read` refuses a write-only one only for registers a loaded [device file](devices.md) describes (`/dev.use`); with none loaded, peripheral space is ungated memory.  Load the part before pointing an agent at `/mem.*` (see [Memory](memory.md)).
 
-Wire-level device control (send bytes, read responses, run profiled commands) is of course available -- that's the point.  The gates above are about *host* access, not device access.  The three `TERMAPY_MCP_*` opt-in flags live in the server's shell, not the cfg, so a shared or device-fetched config can never grant itself host access (the same rationale as `/os`'s `TERMAPY_OS_CMD_ENABLED`).
+Wire-level device control (send bytes, read responses, run profiled commands) is of course available -- that's the point.  The gates above are about *host* access, not device access.  The three `TERMAPY_MCP_*` opt-in flags live in the server's shell, not the cfg, so a shared or device-fetched config can never grant itself host access (the same rationale as `/os`'s `TERMAPY_OS_CMD_ENABLED`).  Each takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
 
 ---
 

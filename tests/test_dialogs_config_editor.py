@@ -171,6 +171,8 @@ class TestValueValidation:
         ("key", "raw", "fragment"),
         [
             ("echo", "maybe", "must be true or false"),
+            ("echo", '"false"', "must be true or false"),
+            ("custom_baud", "maybe", "must be true or false"),
             ("parity", '"X"', "must be one of: E, M, N, O, S"),
             ("baud_rate", '"fast"', "must be a positive integer"),
             ("baud_rate", "0", "must be a positive integer"),
@@ -189,6 +191,24 @@ class TestValueValidation:
                 status, error = screen._validate_value(key, raw)
                 assert status.startswith("[red]"), "an invalid value renders red"
                 assert fragment in error, error
+
+        _run(scenario)
+
+    def test_a_templated_bool_shows_what_it_reads_as(self, tmp_path, monkeypatch):
+        """A $(env.X) in a boolean key is read with the vocabulary: yes shows green as true, maybe shows the Invalid message in red."""
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _ = await _open(app, pilot, cfg, path)
+                monkeypatch.setenv("CFG_ED_BOOL", "yes")
+                status, error = screen._validate_value("echo", '"$(env.CFG_ED_BOOL)"')
+                assert status.startswith("[green]") and status.endswith("-> true"), status
+                assert error == "", "a readable token is not an error"
+                monkeypatch.setenv("CFG_ED_BOOL", "maybe")
+                status, error = screen._validate_value("echo", '"$(env.CFG_ED_BOOL)"')
+                assert status.startswith("[red]"), status
+                assert "Invalid echo: maybe (use on/off/" in error, error
 
         _run(scenario)
 

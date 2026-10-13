@@ -720,11 +720,10 @@ def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for internal-handle access.
         args: bare (query), on/off (set), or ``toggle`` (flip).
     """
-    action = parse_bool_setting(args)
-    if action is None:
-        return CmdResult.fail(
-            msg=f"Invalid value: {args.strip()} (use on/off/toggle)"
-        )
+    try:
+        action = parse_bool_setting(args)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     flags = ctx.ns("flags")
     if action is SETTING_QUERY:
         pass
@@ -1044,21 +1043,6 @@ def _parse_int_value(value: str, key: str) -> int:
     return int(s)
 
 
-def _parse_bool_value(value: str, key: str) -> bool:
-    """Parse a permissive boolean via the shared ``scripting.parse_bool``.
-
-    Keeps a key-named ``ValueError`` (``parse_bool`` returns ``None`` on a
-    miss) so a bad ``refin=``/``refout=`` names the offending keyword,
-    while sharing the canonical token set -- so ``/proto`` accepts the
-    same ``y``/``n``/``t``/``f`` every other command does instead of its
-    own smaller list.
-    """
-    result = parse_bool(value)
-    if result is None:
-        raise ValueError(f"{key} must be true/false (got {value!r})")
-    return result
-
-
 def _did_you_mean(name: str) -> str:
     """Build a "; did you mean: X, Y, Z" suffix for an unknown algorithm.
 
@@ -1271,8 +1255,8 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             poly = _parse_int_value(kv["poly"], "poly")
             init = _parse_int_value(kv.get("init", "0"), "init")
             xorout = _parse_int_value(kv.get("xorout", "0"), "xorout")
-            refin = _parse_bool_value(kv.get("refin", "false"), "refin")
-            refout = _parse_bool_value(kv.get("refout", "false"), "refout")
+            refin = parse_bool(kv.get("refin"), default=False, what="refin")
+            refout = parse_bool(kv.get("refout"), default=False, what="refout")
         except ValueError as e:
             return CmdResult.fail(msg=f"Custom CRC param: {e}")
         if width not in (8, 16, 32, 64):

@@ -152,7 +152,7 @@ class TestEcho:
 
         # Assert
         assert result.success is False, "invalid arg fails"
-        assert result.error == "Invalid value: 2 (use on/off/toggle)", "clear msg"
+        assert result.error == "Invalid value: 2 (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)", "clear msg"
         assert engine.ctx.ns("flags")["echo"] is True, "state unchanged"
 
     def test_echo_on_off_set(self, repl_env):

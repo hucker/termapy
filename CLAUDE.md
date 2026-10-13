@@ -57,26 +57,43 @@ All paths relative to `src/termapy/`.
   is the `stty`/`git config` standard. A boolean setting takes `{on|off|toggle}`:
   bare shows state, `on`/`off` (any `scripting.parse_bool` token) sets, the
   explicit verb `toggle` flips, anything else errors
-  (`Invalid value: X (use on/off/toggle)`). An enum setting takes
+  (`Invalid value: X (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)`).
+  An enum setting takes
   `{val1|val2|...|cycle}`: bare shows, a value sets, `cycle` advances (wraps),
   anything else errors. Route booleans through `scripting.parse_bool_setting`
-  (QUERY/TOGGLE sentinels + bool + None) and `_bool_setting`/`_cfg_toggle`;
+  (QUERY/TOGGLE sentinels + bool; it raises `ValueError` on anything else,
+  which the handler returns as its failure) and `_bool_setting`/`_cfg_toggle`;
   enums through `next_in_cycle`. TUI buttons that flip on click dispatch the
   explicit `toggle`/`cycle` verb, never the bare command. NEVER treat an
   unrecognized argument as a flip (that hid the `/term.color 2` bug).
-- **Booleans have ONE vocabulary and three sanctioned readers.** Every
-  user-facing boolean accepts the `scripting.parse_bool` token set
-  (on/off/true/false/yes/no/1/0/y/n/t/f) and is read ONLY through:
-  `ParamSpec(type="bool")` for declared params and keywords;
-  `parse_bool_setting` (via `_bool_setting`/`_cfg_toggle`) for setting
-  commands; bare `parse_bool` inside a documented hand-rolled parser —
-  and an unrecognized token ERRORS, never silently means False. Never
-  compare a token to `"on"`/`"off"` with `==`/`in`, never declare an
-  on/off `EnumValue` pair (that is what the `bool` param type is).
-  **Enforced by `tests/test_architecture.py` (registry `bool-one-vocabulary`)** (ast: bool-token
-  comparators and on/off enums in command code) — introduced after an
-  audit found `/mem.dump`'s toggles rejecting `false`/`0` plus three
-  hand-rolled `== "on"` sites.
+- **Booleans have ONE vocabulary and ONE reader.** Wherever termapy turns
+  user text into a boolean, in any frontend or file, the text is read by
+  `scripting.parse_bool` — directly, or through `parse_bool_setting` and
+  `ParamSpec(type="bool")`. The twelve tokens
+  (on/off/true/false/yes/no/1/0/y/n/t/f) are one table; every hint is
+  built from `BOOL_TOKENS_HELP`, never typed by hand. Absence (`None` or
+  blank) yields the `default=` the reader declares, and a reader with no
+  declared default fails loud (`Missing <what>`); an optional bool
+  `ParamSpec` must declare its default at load. A present token outside
+  the vocabulary ALWAYS raises `Invalid <what>: <text> (use ...)`; it
+  never silently means False or the default — the env gates record the
+  error and `termapy` refuses to start, naming the variable. A file
+  format's own boolean (JSON cfg, TOML `.pro`) is not parsed from text:
+  it is type-checked at load, and a templated `$(env.X)` on a boolean cfg
+  key is read with the vocabulary after expansion. Exempt by the rule's
+  own wording: a device's on/off grammar (the DEMO device's `AT+LED on`),
+  device response text (`response_parsers._coerce`), a confirmation
+  prompt (`cli._confirm` tests for yes), and presence-only switches that
+  are not booleans (`TERMAPY_DEMO_FLEET`). Never compare a token to
+  `"on"`/`"off"` with `==`/`in`, never declare an on/off `EnumValue` pair
+  (that is what the `bool` param type is).
+  **Enforced by `tests/test_architecture.py` (registry `bool-one-vocabulary`)**
+  (ast over all of `src/termapy/` minus `vendor/` and a one-entry
+  allowlist that only shrinks: bool-token comparators, wrapped set
+  literals, on/off enums) plus the reader's own tests in
+  `tests/test_scripting.py` — widened 2026-10-13 after the command-only
+  scan let three more vocabularies live in core (`env_flags`, the
+  `TERMAPY_GUI` override, `port_control.parse_bool_value`).
 - **Every value category has one vocabulary and named readers** (audited
   2026-09-03; booleans above were the only drift):
   - **Numbers.** Plain counts are decimal: `ParamSpec(type="int")`, or

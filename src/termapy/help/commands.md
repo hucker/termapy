@@ -14,6 +14,22 @@ A selection of the most-used commands.  `/help` prints the full landscape
 `/proto.crc.<language>` families not listed here) and `/help <cmd>` the
 man-page detail for one.
 
+## Boolean values
+
+Every boolean termapy reads from text, whether typed at the prompt, in a
+`.run` script, as a `key=value` keyword, in a `$(env.X)`-templated config
+key or in an environment variable, uses one vocabulary, case-insensitive:
+
+| True                                | False                                |
+| ----------------------------------- | ------------------------------------ |
+| `on`, `true`, `yes`, `1`, `y`, `t`  | `off`, `false`, `no`, `0`, `n`, `f`  |
+
+A setting command (`/term.echo`, `/term.hex`, `/cli.completion`, ...) also
+takes the verb `toggle`, and a bare invocation shows the current value
+without changing it.  Leaving an optional boolean out means its documented
+default.  Any other word is an error that names the accepted tokens, never
+a silent off: `Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)`.
+
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
@@ -82,7 +98,7 @@ man-page detail for one.
 | `/port.cts`               | Show CTS state (read-only)                                                  |
 | `/port.disconnect`        | Disconnect from the serial port                                             |
 | `/port.dsr`               | Show DSR state (read-only)                                                  |
-| `/port.dtr {0\|1}`        | Show or set DTR line                                                        |
+| `/port.dtr {on\|off}`     | Show or set DTR line                                                        |
 | `/port.flow_control {m}`  | Show or set flow control: none, rtscts, xonxoff, manual                     |
 | `/port.help`              | Show `/port` help (alias for `/help port`)                                  |
 | `/port.info`              | Show port status, serial parameters, hardware lines, and xfer root          |
@@ -90,7 +106,7 @@ man-page detail for one.
 | `/port.mode {baud} {mode}` | Show or set serial mode (e.g. /port.mode 9600 N81)                        |
 | `/port.parity {value}`    | Show or set parity (hardware only)                                          |
 | `/port.ri`                | Show RI state (read-only)                                                   |
-| `/port.rts {0\|1}`        | Show or set RTS line                                                        |
+| `/port.rts {on\|off}`     | Show or set RTS line                                                        |
 | `/port.stop_bits {value}` | Show or set stop bits (hardware only)                                       |
 | `/print <text>`           | Print a message to the terminal                                             |
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |

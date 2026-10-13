@@ -526,7 +526,7 @@ class TestDumpModes:
         """An unrecognized toggle token errors and lists the accepted boolean vocabulary."""
         result = cli.repl.dispatch("mem.dump gTemp 4 addr=maybe")
         assert not result.success
-        assert "invalid addr: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)" in result.error
+        assert "invalid addr: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0/y/n/t/f)" in result.error
 
     def test_type_token_in_the_len_slot(self, cli):
         """A type token in the length slot shifts over, so the symbol's own size applies."""

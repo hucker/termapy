@@ -58,8 +58,16 @@ def on_config_result(app, result: tuple | None) -> None:
     if result is None:
         return
     new_cfg, new_path = result
-    expand_env_cfg(new_cfg)
-    config_warnings = validate_config(new_cfg)
+    expand_warnings: list[str] = []
+    try:
+        expand_env_cfg(new_cfg, expand_warnings)
+    except ValueError as e:
+        # A templated boolean that reads as garbage: the saved file
+        # stands, but the session is not switched onto a cfg that a load
+        # would refuse.
+        app.notify(f"Config not applied: {e}", severity="error", timeout=15)
+        return
+    config_warnings = expand_warnings + validate_config(new_cfg)
     if config_warnings:
         new_cfg["_config_warnings"] = config_warnings
     app._switch_config(new_cfg, new_path)

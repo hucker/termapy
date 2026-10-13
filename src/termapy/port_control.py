@@ -25,7 +25,7 @@ from termapy.defaults import (
     VALID_PARITIES,
     VALID_STOP_BITS,
 )
-from termapy.scripting import format_duration
+from termapy.scripting import format_duration, parse_bool
 from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 
 # Type alias for message lists: (text, color_or_None)
@@ -1931,15 +1931,6 @@ def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
         return _result([_msg(f"Flow control error: {e}", "red")])
 
 
-def parse_bool_value(val: str) -> bool | None:
-    """Parse a boolean-like string. Returns True, False, or None if invalid."""
-    if val in ("1", "on", "true", "high"):
-        return True
-    if val in ("0", "off", "false", "low"):
-        return False
-    return None
-
-
 def get_set_hw_line(ser: Any | None, line: str, args: str) -> Result:
     """Get or set a hardware line (DTR or RTS).
 
@@ -1960,9 +1951,10 @@ def get_set_hw_line(ser: Any | None, line: str, args: str) -> Result:
             return _result([_msg(f"{label} read error: {e}", "red")])
     if not connected:
         return _result([_msg("Not connected.", "yellow")])
-    state = parse_bool_value(val)
-    if state is None:
-        return _result([_msg(f"Invalid {label} value: {val} (use 0/1/on/off)", "red")])
+    try:
+        state = parse_bool(args, what=f"{label} value")
+    except ValueError as e:
+        return _result([_msg(str(e), "red")])
     try:
         setattr(ser, line, state)
         return _result(

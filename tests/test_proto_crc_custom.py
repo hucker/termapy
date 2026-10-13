@@ -4,7 +4,7 @@ These tests cover the wrapper layer inside
 ``termapy/builtins/commands/proto.py`` that:
 
 * parses ``width=N poly=X ...`` tokens from the CLI args string
-  (``_parse_int_value`` / ``_parse_bool_value``)
+  (``_parse_int_value``; the booleans go through ``scripting.parse_bool``)
 * resolves the function symbol from ``symbol=`` or ``file=``
   (``_symbol_from_stem``)
 * falls back from ``--slice8`` to ``--table`` for Python (with a
@@ -21,7 +21,6 @@ from __future__ import annotations
 import pytest
 
 from termapy.builtins.commands.proto import (
-    _parse_bool_value,
     _parse_int_value,
     _symbol_from_stem,
 )
@@ -54,30 +53,6 @@ class TestParseHelpers:
         # (the underlying int() call propagates "invalid literal ...")
         with pytest.raises(ValueError, match="invalid literal"):
             _parse_int_value("not_a_number", "width")
-
-    # y/t/yes/on were REJECTED before the parse_bool unification (K4): the
-    # forked token list only knew true/1/yes/on. They now match the shared set.
-    @pytest.mark.parametrize(
-        "token", ["true", "True", "TRUE", "1", "yes", "on", "y", "t"]
-    )
-    def test_parse_bool_truthy(self, token):
-        """Every shared parse_bool truthy token reads True, y and t included."""
-        # Act / Assert
-        assert _parse_bool_value(token, "refin") is True, f"{token!r} -> True"
-
-    @pytest.mark.parametrize(
-        "token", ["false", "False", "FALSE", "0", "no", "off", "n", "f"]
-    )
-    def test_parse_bool_falsy(self, token):
-        """Every shared parse_bool falsy token reads False, n and f included."""
-        # Act / Assert
-        assert _parse_bool_value(token, "refin") is False, f"{token!r} -> False"
-
-    def test_parse_bool_invalid(self):
-        """An unrecognized token raises a ValueError naming true/false, never False."""
-        # Act / Assert
-        with pytest.raises(ValueError, match="true/false"):
-            _parse_bool_value("maybe", "refin")
 
     def test_symbol_from_stem_basename(self):
         """Without symbol=, the function name is the file= stem's basename."""
@@ -235,6 +210,23 @@ class TestCustomParamsDispatch:
         assert "mycrc" in emitted, (
             f"custom name should appear in generated C; got {emitted[:200]!r}"
         )
+
+    def test_a_bad_refin_fails_by_name_and_an_absent_one_is_false(self):
+        """refin=maybe fails with the one reader's message under the Custom CRC prefix; leaving refin out means False."""
+        # Arrange
+        from termapy.builtins.commands.proto import _crc_codegen
+        ctx, _captured, _markup = self._build_stub_ctx()
+
+        # Act
+        bad = _crc_codegen(ctx, "width=16 poly=0x1021 refin=maybe name=x", "python")
+        absent = _crc_codegen(ctx, "width=16 poly=0x1021 name=x", "python")
+
+        # Assert
+        assert bad.success is False, "a token outside the vocabulary is refused"
+        assert bad.error == (
+            "Custom CRC param: Invalid refin: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)"
+        ), "the keyword is named and the vocabulary listed"
+        assert absent.success is True, absent.error
 
     def test_custom_params_builds_algorithm_info(self):
         """Custom params to Python (a string result) carry the custom name through."""

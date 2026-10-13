@@ -13,6 +13,12 @@ Both are evaluated once at import time and cached as module-level
 constants.  Tests use monkeypatch to override the cached constants
 where the *behavior* needs to differ, rather than re-running module
 imports inside the test process.
+
+Every env boolean is read through ``scripting.parse_bool``
+(bool-one-vocabulary): absence is the declared default, and a present
+token outside the vocabulary is a startup error termapy refuses to run
+with -- the readers take an explicit environment and error list so that
+contract is pinned without touching the process environment.
 """
 
 from __future__ import annotations
@@ -30,27 +36,85 @@ from termapy.migration import (
 )
 
 
-class TestTruthyParser:
-    @pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "on", "  on  "])
+class TestGateReader:
+    """Every env boolean goes through parse_bool: absence is the declared default, garbage is a startup error."""
+
+    @pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "on", "  on  ", "y", "t"])
     def test_truthy_values(self, value):
-        """Any case and surrounding spaces are fine: 1, true, yes, and on all read as enabled."""
-        # Arrange / Act
-        actual = env_flags._truthy(value)
-        # Assert
+        """Any vocabulary token, in any case and with surrounding spaces, reads as enabled and records nothing."""
+        errors: list[str] = []
+        actual = env_flags._read_gate("TERMAPY_X", environ={"TERMAPY_X": value}, errors=errors)
         assert actual is True, f"{value!r} should be truthy"
+        assert errors == [], "a valid token is not a startup error"
 
-    @pytest.mark.parametrize("value", ["0", "false", "no", "off", "", "   ", "maybe", "2"])
-    def test_falsy_values(self, value):
-        """Off words, blanks, and junk like maybe or 2 all read as false, never an error."""
-        # Arrange / Act
-        actual = env_flags._truthy(value)
+    @pytest.mark.parametrize(
+        "environ", [{}, {"TERMAPY_X": ""}, {"TERMAPY_X": "   "}, {"TERMAPY_X": "off"}, {"TERMAPY_X": "0"}],
+    )
+    def test_unset_blank_and_off_read_false(self, environ):
+        """Unset, blank and the off tokens read as disabled without an error: absence is the gate's declared default."""
+        errors: list[str] = []
+        actual = env_flags._read_gate("TERMAPY_X", environ=environ, errors=errors)
+        assert actual is False, f"{environ!r} should read off"
+        assert errors == []
+
+    @pytest.mark.parametrize("value", ["maybe", "2", "ture"])
+    def test_garbage_fails_closed_and_records_the_error(self, value):
+        """A present token outside the vocabulary reads False AND records Invalid <VAR>: <value>; it used to mean off silently."""
+        errors: list[str] = []
+        actual = env_flags._read_gate(
+            "TERMAPY_OS_CMD_ENABLED", environ={"TERMAPY_OS_CMD_ENABLED": value}, errors=errors,
+        )
+        assert actual is False, "fail closed; the process is about to refuse to start"
+        expected = f"Invalid TERMAPY_OS_CMD_ENABLED: {value} (use on/off/true/false/yes/no/1/0/y/n/t/f)"
+        assert errors == [expected], "the variable is named so the user can fix it"
+
+    def test_the_override_reads_none_when_unset_and_records_garbage(self):
+        """TERMAPY_GUI is an override: unset means no override (None); garbage is a startup error naming it."""
+        errors: list[str] = []
+        assert env_flags._read_override("TERMAPY_GUI", environ={}, errors=errors) is None, "no override"
+        assert env_flags._read_override("TERMAPY_GUI", environ={"TERMAPY_GUI": "no"}, errors=errors) is False
+        assert env_flags._read_override("TERMAPY_GUI", environ={"TERMAPY_GUI": "ture"}, errors=errors) is None
+        assert errors == ["Invalid TERMAPY_GUI: ture (use on/off/true/false/yes/no/1/0/y/n/t/f)"]
+
+
+class TestStartupRefusal:
+    """termapy refuses to start on an environment boolean it cannot read, naming the variable, with no traceback."""
+
+    def test_main_exits_one_with_the_message(self, capsys, monkeypatch):
+        """A recorded startup error makes main() print termapy: <error> to stderr and exit 1 before any flag runs."""
+        # Arrange -- a seeded error list; --ports would otherwise enumerate
+        monkeypatch.setattr(env_flags, "STARTUP_ERRORS", ["Invalid TERMAPY_OS_CMD_ENABLED: ture (use on/off)"])
+        monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
         # Assert
-        assert actual is False, f"{value!r} should be falsy"
+        assert exc.value.code == 1, "a refused start is exit 1"
+        assert capsys.readouterr().err == "termapy: Invalid TERMAPY_OS_CMD_ENABLED: ture (use on/off)\n"
 
-    def test_none_is_falsy(self):
-        """An unset variable (None from os.environ.get) reads as false."""
-        # Arrange / Act / Assert
-        assert env_flags._truthy(None) is False, "unset env var (None) reads false"
+    @pytest.mark.slow  # fresh interpreter: the environment is read at import
+    def test_a_bad_variable_stops_a_real_process(self):
+        """In a fresh interpreter TERMAPY_OS_CMD_ENABLED=ture makes termapy --ports exit 1 with the message, no traceback."""
+        # Arrange
+        import os
+        import subprocess
+        import sys
+
+        env = dict(os.environ, TERMAPY_OS_CMD_ENABLED="ture")
+
+        # Act
+        result = subprocess.run(
+            [sys.executable, "-m", "termapy", "--ports"],
+            env=env, capture_output=True, text=True, timeout=60,
+        )
+
+        # Assert
+        assert result.returncode == 1, result.stderr
+        assert "termapy: Invalid TERMAPY_OS_CMD_ENABLED: ture (use on/off/" in result.stderr
+        assert "Traceback" not in result.stderr, "a message, never a stack trace"
 
 
 class TestOsCmdGate:

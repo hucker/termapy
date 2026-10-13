@@ -114,6 +114,14 @@ Here is an example config for a device called `iot_device`:
 
 This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 
+A `$(env.NAME)` template may sit on a boolean key too, as in
+`"echo": "$(env.ECHO|false)"`: the expanded text is read with the
+boolean vocabulary (`on/off/true/false/yes/no/1/0/y/n/t/f`), a value
+outside it refuses the load naming the key, and a variable that does not
+resolve and has no fallback falls back to the default with a warning. A
+bare JSON string in a boolean key is never read as a token; it is
+reported as a type warning.
+
 ## Config field reference
 
 <!-- config-reference:start (Field + Default columns and alignment are synced from DEFAULT_CFG by scripts/update_doc_configs.py; edit only the Description column) -->

@@ -349,10 +349,10 @@ def detect_gui_apps() -> bool:
 
     Detection order:
 
-      1. ``TERMAPY_GUI`` env override (``1``/``yes``/``true``/``on`` -> True;
-         ``0``/``no``/``false``/``off`` -> False).  Escape hatch for users
-         whose environment fools the heuristic (mosh, tmux-in-SSH, WSLg,
-         X2Go, ...).
+      1. ``TERMAPY_GUI`` env override, any boolean token (read once at
+         startup by ``env_flags``; a bad value refuses to start).  Escape
+         hatch for users whose environment fools the heuristic (mosh,
+         tmux-in-SSH, WSLg, X2Go, ...).
       2. SSH session (``SSH_CONNECTION`` or ``SSH_TTY`` set): True only if
          X11 forwarding is also configured (``DISPLAY`` set).
       3. Linux / macOS: True iff ``DISPLAY`` or ``WAYLAND_DISPLAY`` is set.
@@ -365,11 +365,10 @@ def detect_gui_apps() -> bool:
     Returns:
         True if external desktop apps will likely be visible to the user.
     """
-    override = os.environ.get("TERMAPY_GUI", "").strip().lower()
-    if override in ("1", "yes", "true", "on"):
-        return True
-    if override in ("0", "no", "false", "off"):
-        return False
+    from termapy import env_flags
+
+    if env_flags.GUI_OVERRIDE is not None:
+        return env_flags.GUI_OVERRIDE
     if os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_TTY"):
         return bool(os.environ.get("DISPLAY"))
     if sys.platform.startswith("linux") or sys.platform == "darwin":

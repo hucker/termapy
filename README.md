@@ -107,6 +107,8 @@ Termapy runs with your privileges and does whatever you — or a connected MCP c
 | Network sockets (`socket://`, `rfc2217://`) | `TERMAPY_MCP_NET_EGRESS=1` |
 | Environment variables (`/env`, `$(env.X)`) | `TERMAPY_MCP_ENV_ENABLED=1` |
 
+Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
+
 <details>
 <summary><strong>The basics</strong> - keyboard shortcuts, title bar, REPL commands</summary>
 
@@ -179,8 +181,8 @@ The most common ones:
 | `/port.parity {value}`               | Show or set parity (hardware only)                                            |
 | `/port.stop_bits {value}`            | Show or set stop bits (hardware only)                                         |
 | `/port.flow_control {m}`             | Show or set flow control: none, rtscts, xonxoff, manual                       |
-| `/port.dtr {0\|1}`                   | Show or set DTR line                                                          |
-| `/port.rts {0\|1}`                   | Show or set RTS line                                                          |
+| `/port.dtr {on\|off}`                | Show or set DTR line                                                          |
+| `/port.rts {on\|off}`                | Show or set RTS line                                                          |
 | `/port.cts`                          | Show CTS state (read-only)                                                    |
 | `/port.dsr`                          | Show DSR state (read-only)                                                    |
 | `/port.ri`                           | Show RI state (read-only)                                                     |
@@ -330,7 +332,7 @@ Since COM port names differ between machines, use `$(env.NAME)` placeholders in 
 }
 ```
 
-On a machine with `COMPORT=COM7`, termapy connects to COM7. On a machine without `COMPORT` set, it falls back to COM4. The config file on disk keeps the raw `$(env.COMPORT|COM4)` template. It's expanded in memory at load time, so your checked-in config stays portable.
+On a machine with `COMPORT=COM7`, termapy connects to COM7. On a machine without `COMPORT` set, it falls back to COM4. The config file on disk keeps the raw `$(env.COMPORT|COM4)` template. It's expanded in memory at load time, so your checked-in config stays portable. A boolean key can be templated the same way (`"echo": "$(env.ECHO|false)"`); the expanded text is read with the boolean vocabulary (`on`, `off`, `true`, `false`, `yes`, `no`, `1`, `0`, ...), and a value outside it refuses the load naming the key.
 
 Environment variables work in any string config value, not just `port`:
 

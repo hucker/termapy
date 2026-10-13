@@ -15,7 +15,7 @@ from typing import Callable, Literal
 
 from termapy.protocol.crc import get_crc_registry
 from termapy.protocol.type_codes import BIT_CODES, BYTE_CODES
-from termapy.scripting import parse_duration, parse_duration_ms
+from termapy.scripting import parse_bool, parse_duration, parse_duration_ms
 
 # ---------------------------------------------------------------------------
 # Hex utilities
@@ -567,7 +567,12 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
                     raise ValueError(f"Line {lineno}: invalid directive: {line}")
                 settings["frame_gap_ms"] = parse_duration_ms(val)
             elif key == "strip_ansi":
-                settings["strip_ansi"] = True
+                # bool-one-vocabulary: a value is read with the vocabulary;
+                # bare keeps its historical meaning, on.
+                try:
+                    settings["strip_ansi"] = parse_bool(val, default=True, what="@strip_ansi")
+                except ValueError as e:
+                    raise ValueError(f"Line {lineno}: {e}") from None
             elif key == "quiet":
                 steps.append(Step(action="quiet"))
             elif key == "loud":
@@ -731,6 +736,18 @@ class ProtoScript:
     json_file: str = ""
 
 
+def _toml_bool(doc: dict, key: str) -> bool:
+    """A top-level TOML boolean: absent is False; anything else is refused by name.
+
+    The file format's own boolean is type-checked, never parsed from text
+    (bool-one-vocabulary): ``strip_ansi = "false"`` is a mistake, not off.
+    """
+    value = doc.get(key, False)
+    if not isinstance(value, bool):
+        raise ValueError(f"{key}: expected true or false, got {value!r}")
+    return value
+
+
 def parse_toml_script(text: str) -> ProtoScript:
     """Parse a TOML-format ``.pro`` script into a ``ProtoScript``.
 
@@ -764,8 +781,8 @@ def parse_toml_script(text: str) -> ProtoScript:
         name=doc.get("name", ""),
         frame_gap_ms=frame_gap_ms,
         timeout_ms=default_timeout,
-        strip_ansi=doc.get("strip_ansi", False),
-        quiet=doc.get("quiet", False),
+        strip_ansi=_toml_bool(doc, "strip_ansi"),
+        quiet=_toml_bool(doc, "quiet"),
         setup=doc.get("setup", []),
         teardown=doc.get("teardown", []),
         viz=doc.get("viz", []),

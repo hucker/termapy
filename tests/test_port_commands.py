@@ -126,7 +126,7 @@ class TestHardwareLines:
         port.rts = True
         capsys.readouterr()
         cli.repl.dispatch_full("/port.rts maybe")
-        assert "Invalid RTS value: maybe (use 0/1/on/off)" in capsys.readouterr().out
+        assert "Invalid RTS value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)" in capsys.readouterr().out
         assert port.rts is True, "a refused value leaves the line alone"
 
     def test_disconnected_reports_not_connected(self, cli, capsys):

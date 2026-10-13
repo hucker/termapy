@@ -56,7 +56,8 @@ Header (defaults for every test):
 - `timeout`: default expect timeout (default 1000ms)
 - `frame_gap`: silence gap that ends a frame (default 50ms)
 - `strip_ansi`: strip ANSI escape sequences from responses before matching
-- `quiet`: hide setup/teardown output
+  (a TOML boolean, `true`/`false`; a quoted string is refused at load)
+- `quiet`: hide setup/teardown output (a TOML boolean too)
 - `setup` / `teardown`: lists of commands run before the first test / after the last
 - `viz`: visualizer names allowed in the debug screen's dropdown (empty = all)
 - `send_fmt` / `expect_fmt`: default inline format specs for TX / RX data
@@ -80,8 +81,8 @@ Per `[[test]]`:
 ### Legacy flat format
 
 Older scripts use a colon-keyed flat format: header directives
-`@name <text>`, `@timeout <dur>`, `@frame_gap <dur>`, `@strip_ansi`,
-`@quiet`, `@loud`, then `label:`, `send:`, `expect:`, `timeout:`,
+`@name <text>`, `@timeout <dur>`, `@frame_gap <dur>`, `@strip_ansi {on|off}`
+(bare is on), `@quiet`, `@loud`, then `label:`, `send:`, `expect:`, `timeout:`,
 `delay:`, `flush:`, `cmd:` steps. It is still parsed when a file is not
 valid TOML, but JSON result output (`json_file`, `--json`, `--proto`)
 needs the TOML form.

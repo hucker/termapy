@@ -36,32 +36,79 @@ mutating ``os.environ`` at runtime cannot retroactively flip a decision
 the loader already made -- the result has been captured in a local
 Python variable.
 
-Truthy vocabulary (case-insensitive): ``1``, ``true``, ``yes``,
-``on``.  Anything else, including unset and empty string, is false.
+Every variable here is a boolean a user typed, so it is read through
+``scripting.parse_bool`` (registry ``bool-one-vocabulary``): any token of
+the one vocabulary, case-insensitive.  Unset or blank is the declared
+default -- off for a gate, "no override" for ``TERMAPY_GUI``.  A present
+value outside the vocabulary is a startup error: the reader records it
+and ``termapy`` refuses to start, naming the variable (see
+``startup_error``), because the alternative is a typo that silently
+means off.
 """
 
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
+
+from termapy.scripting import parse_bool
+
+# Errors found while reading the environment at import, one message per
+# variable.  A reader never raises here: ``plugins.capabilities`` builds
+# its tables at import, so a raise would surface as a traceback from a
+# plain ``import termapy.cli``.  Instead the entry point asks
+# ``startup_error()`` right after parsing its arguments and refuses to
+# start, naming the variable.
+STARTUP_ERRORS: list[str] = []
 
 
-def _truthy(value: str | None) -> bool:
-    """Parse an env-var value into a boolean using the standard vocabulary.
+def _read_gate(
+    name: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+    errors: list[str] | None = None,
+) -> bool:
+    """Read a policy gate: unset or blank is off; garbage fails closed and is recorded.
 
-    Standalone (not just a closure inside the constants below) so tests
-    can exercise the parser with explicit input rather than environment
-    manipulation.
+    ``environ`` and ``errors`` default to the process environment and
+    ``STARTUP_ERRORS``; tests pass their own so the reader is exercised
+    with explicit input rather than environment manipulation.
     """
-    if value is None:
+    source = os.environ if environ is None else environ
+    sink = STARTUP_ERRORS if errors is None else errors
+    try:
+        return parse_bool(source.get(name), default=False, what=name)
+    except ValueError as e:
+        sink.append(str(e))
         return False
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _read_override(
+    name: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+    errors: list[str] | None = None,
+) -> bool | None:
+    """Read an override: unset or blank is no override (None); garbage is recorded and ignored."""
+    source = os.environ if environ is None else environ
+    sink = STARTUP_ERRORS if errors is None else errors
+    try:
+        return parse_bool(source.get(name), default=None, what=name)
+    except ValueError as e:
+        sink.append(str(e))
+        return None
+
+
+def startup_error() -> str | None:
+    """The first environment error, or None.  The entry point refuses to start on one."""
+    return STARTUP_ERRORS[0] if STARTUP_ERRORS else None
 
 
 # Module-level constants, frozen at import time.  Re-evaluating these
 # would defeat the design -- they are intentionally NOT functions.
-TRUSTED_PLUGINS_ONLY: bool = _truthy(os.environ.get("TERMAPY_TRUSTED_PLUGINS_ONLY"))
-OS_CMD_ENABLED: bool = _truthy(os.environ.get("TERMAPY_OS_CMD_ENABLED"))
-MCP_ENV_ENABLED: bool = _truthy(os.environ.get("TERMAPY_MCP_ENV_ENABLED"))
+TRUSTED_PLUGINS_ONLY: bool = _read_gate("TERMAPY_TRUSTED_PLUGINS_ONLY")
+OS_CMD_ENABLED: bool = _read_gate("TERMAPY_OS_CMD_ENABLED")
+MCP_ENV_ENABLED: bool = _read_gate("TERMAPY_MCP_ENV_ENABLED")
 
 # Per-class opt-ins that lift the MCP host sandbox.  Default off: an MCP
 # client is a remote/automated peer, so host access beyond the device is
@@ -70,8 +117,15 @@ MCP_ENV_ENABLED: bool = _truthy(os.environ.get("TERMAPY_MCP_ENV_ENABLED"))
 # mcp/server.py); interactive hosts (CLI/TUI) grant both unconditionally.
 #   MCP_FS_UNCONFINED -> filesystem_unconfined (paths outside the cfg dir)
 #   MCP_NET_EGRESS    -> network_egress (serial-over-URL socket://, rfc2217://)
-MCP_FS_UNCONFINED: bool = _truthy(os.environ.get("TERMAPY_MCP_FS_UNCONFINED"))
-MCP_NET_EGRESS: bool = _truthy(os.environ.get("TERMAPY_MCP_NET_EGRESS"))
+MCP_FS_UNCONFINED: bool = _read_gate("TERMAPY_MCP_FS_UNCONFINED")
+MCP_NET_EGRESS: bool = _read_gate("TERMAPY_MCP_NET_EGRESS")
+
+# Not a policy gate: the GUI-apps detection override (see
+# ``plugins.capabilities.detect_gui_apps``).  Read here with the other
+# environment booleans so a bad value is refused at startup instead of
+# raising inside the capability tables that are built at import.  None
+# means "no override, use the heuristic".
+GUI_OVERRIDE: bool | None = _read_override("TERMAPY_GUI")
 
 
 # Runtime marker (NOT a frozen policy constant): set once by the MCP
@@ -112,7 +166,9 @@ __all__ = [
     "MCP_ENV_ENABLED",
     "MCP_FS_UNCONFINED",
     "MCP_NET_EGRESS",
+    "GUI_OVERRIDE",
+    "STARTUP_ERRORS",
+    "startup_error",
     "mark_under_mcp",
     "env_access_blocked",
-    "_truthy",
 ]

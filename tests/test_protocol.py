@@ -435,6 +435,13 @@ expect: 01 03 ** **
         assert steps[1].action == "expect", "second step should be expect"
         assert steps[1].mask[2:] == b"\x00\x00", "wildcards should produce zero mask"
 
+    def test_strip_ansi_directive_takes_a_boolean(self):
+        """@strip_ansi alone is on; @strip_ansi off is off; a word outside the vocabulary fails on its line."""
+        assert parse_proto_script("@strip_ansi\nsend: 01")[0]["strip_ansi"] is True, "bare is on"
+        assert parse_proto_script("@strip_ansi off\nsend: 01")[0]["strip_ansi"] is False, "off used to read as on"
+        with pytest.raises(ValueError, match=r"^Line 1: Invalid @strip_ansi: maybe \(use on/off/"):
+            parse_proto_script("@strip_ansi maybe\nsend: 01")
+
     def test_labels(self):
         """A label: line names the step that follows it."""
         script = """
@@ -718,6 +725,18 @@ expect = "02"
         assert script.timeout_ms == 2000
         assert script.strip_ansi is True
         assert script.quiet is True
+
+    def test_a_string_in_a_boolean_key_is_refused_at_load(self):
+        """strip_ansi = "false" is a TOML string, not a boolean: it is refused by name instead of reading as on."""
+        toml = '''\
+strip_ansi = "false"
+
+[[test]]
+send = "01"
+expect = "02"
+'''
+        with pytest.raises(ValueError, match=r"^strip_ansi: expected true or false, got 'false'$"):
+            parse_toml_script(toml)
 
     def test_setup_teardown(self):
         """Setup and teardown arrays are parsed."""

@@ -219,13 +219,10 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
 
     fmt_spec = sections["fmt"]
     cmd = sections.get("cmd", "")
-    echo_token = sections.get("echo", "off")
-    echo = parse_bool(echo_token)
-    if echo is None:
-        return CmdResult.fail(
-            msg=f"Invalid echo: {echo_token!r} "
-            f"(expected a boolean: on/off/true/false/yes/no/1/0)"
-        )
+    try:
+        echo = parse_bool(sections.get("echo"), default=False, what="echo")
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     sep_name = sections.get("sep", "comma").lower()
 
     sep_map = {"comma": ",", "tab": "\t", "space": " "}

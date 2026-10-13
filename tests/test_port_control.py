@@ -9,7 +9,6 @@ from termapy.port_control import (
     get_set_flow,
     get_set_hw_line,
     get_set_prop,
-    parse_bool_value,
     parse_mode,
     parse_open_args,
     port_info,
@@ -84,27 +83,6 @@ class TestConstants:
         assert "byte_size" in PORT_PROPS, "PORT_PROPS should contain 'byte_size'"
         assert "parity" in PORT_PROPS, "PORT_PROPS should contain 'parity'"
         assert "stop_bits" in PORT_PROPS, "PORT_PROPS should contain 'stop_bits'"
-
-
-# ── parse_bool_value ─────────────────────────────────────────────────────────
-
-
-class TestParseBoolValue:
-
-    def test_true_values(self):
-        """1, on, true and high all read as asserted for a hardware line."""
-        for val in ("1", "on", "true", "high"):
-            assert parse_bool_value(val) is True, f"'{val}' should parse as True"
-
-    def test_false_values(self):
-        """0, off, false and low all read as deasserted for a hardware line."""
-        for val in ("0", "off", "false", "low"):
-            assert parse_bool_value(val) is False, f"'{val}' should parse as False"
-
-    def test_invalid_returns_none(self):
-        """An unrecognized or empty token yields None, never a silent False."""
-        assert parse_bool_value("maybe") is None, "'maybe' should return None"
-        assert parse_bool_value("") is None, "empty string should return None"
 
 
 # ── port_info ────────────────────────────────────────────────────────────────
@@ -263,15 +241,23 @@ class TestGetSetHwLine:
         assert effects.get("sync_hw") is True, "should request hw sync after DTR change"
 
     def test_invalid_value(self):
-        """A token that is not a line level errors instead of being read as low."""
+        """A token that is not a line level errors with the shared vocabulary instead of being read as low."""
         # Arrange
-        ser = _mock_ser()
+        ser = _mock_ser(dtr=True)
 
         # Act
         msgs, _ = get_set_hw_line(ser, "dtr", "maybe")
 
         # Assert
-        assert any("red" == c for _, c in msgs), "should show red error for invalid hw line value"
+        expected = ("Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)", "red")
+        assert msgs == [expected], "one red line naming the line, the text and the vocabulary"
+        assert ser.dtr is True, "a refused token leaves the line alone"
+
+    def test_the_old_hardware_words_are_gone(self):
+        """high and low were a second vocabulary for the same question; they are refused like any other word."""
+        ser = _mock_ser(dtr=True)
+        msgs, _ = get_set_hw_line(ser, "dtr", "low")
+        assert msgs[0][1] == "red" and ser.dtr is True, "low is no longer a level"
 
     def test_disconnected(self):
         """Driving a hardware line needs an open port; disconnected it warns instead."""

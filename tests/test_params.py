@@ -60,6 +60,13 @@ class TestDeclarationValidation:
         with pytest.raises(ValueError, match="enum parameter 'm' has no values"):
             validate_param_specs([ParamSpec("m", "enum")], "cmd")
 
+    def test_optional_bool_must_declare_a_default(self):
+        """bool-one-vocabulary: an optional bool param says what absence means at declaration, or fails at load."""
+        with pytest.raises(ValueError, match=r"optional bool parameter 'x' must declare a default"):
+            validate_param_specs([ParamSpec("x", "bool")], "cmd")
+        validate_param_specs([ParamSpec("x", "bool", default=False)], "cmd")
+        validate_param_specs([ParamSpec("x", "bool", required=True)], "cmd")
+
     def test_required_with_default(self):
         """A required param may not carry a default; the two contradict each other."""
         with pytest.raises(ValueError, match="must not have a default"):
@@ -780,7 +787,7 @@ class TestBoolType:
         """An unknown token fails and the message lists the accepted vocabulary."""
         ok, reason = coerce_value(ParamSpec("flag", "bool", default=True), "maybe")
         assert ok is False, "an unknown token errors, never silently means False"
-        assert reason == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)", (
+        assert reason == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0/y/n/t/f)", (
             "the error teaches the accepted vocabulary"
         )
 

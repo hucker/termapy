@@ -1,7 +1,9 @@
 """Tests for app.py config utilities, custom buttons, and script editor."""
 
+import copy
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -498,7 +500,76 @@ class TestExpandEnvCfg:
             "ordinary cfg values still expand"
 
 
+    def test_a_templated_bool_key_reads_as_a_real_bool(self, monkeypatch):
+        """bool-one-vocabulary: a $(env.X) in a boolean key is read with the vocabulary, so the cfg holds a bool, not the text."""
+        # Arrange
+        monkeypatch.setenv("CFG_BOOL_TEST", "yes")
+        cfg = {"echo": "$(env.CFG_BOOL_TEST|false)", "serial": {"custom_baud": "$(env.CFG_BOOL_TEST)"}}
+
+        # Act
+        actual = expand_env_cfg(cfg)
+
+        # Assert
+        assert (actual["echo"], actual["serial"]["custom_baud"]) == (True, True), "top-level and nested"
+
+    def test_a_templated_bool_outside_the_vocabulary_is_refused_by_key(self, monkeypatch):
+        """Text a boolean key cannot read raises Invalid <key>: <text>, so the cfg fails to load instead of reading True."""
+        monkeypatch.setenv("CFG_BOOL_TEST", "maybe")
+        with pytest.raises(ValueError, match=r"^Invalid serial\.custom_baud: maybe \(use on/off/"):
+            expand_env_cfg({"serial": {"custom_baud": "$(env.CFG_BOOL_TEST)"}})
+
+    def test_an_unresolved_bool_template_falls_back_to_the_default_loudly(self, monkeypatch):
+        """An unset variable with no fallback in a boolean key yields DEFAULT_CFG's value and a warning naming the key."""
+        # Arrange
+        monkeypatch.delenv("CFG_BOOL_NOPE", raising=False)
+        warnings: list[str] = []
+
+        # Act
+        actual = expand_env_cfg({"echo": "$(env.CFG_BOOL_NOPE)"}, warnings)
+
+        # Assert
+        assert actual["echo"] is False, "the default, not the literal placeholder (which read as True)"
+        assert warnings == ["echo: $(env.CFG_BOOL_NOPE) did not resolve; using default false"]
+
+
+class TestBoolKeysAreTyped:
+    """A boolean cfg key holds a JSON boolean: a string or number there is type-checked at load, never parsed."""
+
+    @pytest.mark.parametrize(("path", "value", "expected"), [
+        (("echo",), "false", "echo: expected bool, got str"),
+        (("timestamps",), 1, "timestamps: expected bool, got int"),
+        (("serial", "custom_baud"), "yes", "serial.custom_baud: expected bool, got str"),
+    ])
+    def test_a_non_bool_in_a_bool_key_warns_by_path(self, path, value, expected):
+        """Every DEFAULT_CFG boolean path is checked, nested serial keys included; the warning names the path and the type."""
+        # Arrange
+        cfg = copy.deepcopy(DEFAULT_CFG)
+        node: Any = cfg
+        for part in path[:-1]:
+            node = node[part]
+        node[path[-1]] = value
+
+        # Act / Assert
+        assert expected in validate_config(cfg), "a string in a bool key is a type warning, never read as a token"
+
+
 class TestLoadConfigEnvExpansion:
+    def test_a_templated_bool_loads_as_a_bool_and_an_unresolved_one_warns(self, tmp_path, monkeypatch):
+        """Through load_config a templated boolean is a bool in memory, and an unresolved one surfaces in _config_warnings."""
+        # Arrange
+        monkeypatch.setenv("LC_BOOL_ON", "on")
+        monkeypatch.delenv("LC_BOOL_NOPE", raising=False)
+        config_path = tmp_path / "dev" / "dev.cfg"
+        config_path.parent.mkdir()
+        config_path.write_text(json.dumps({"echo": "$(env.LC_BOOL_ON)", "timestamps": "$(env.LC_BOOL_NOPE)"}))
+
+        # Act
+        actual = load_config(str(config_path))
+
+        # Assert
+        assert (actual["echo"], actual["timestamps"]) == (True, False), "read with the vocabulary; default on no resolve"
+        assert "timestamps: $(env.LC_BOOL_NOPE) did not resolve; using default false" in actual["_config_warnings"]
+
     def test_expands_env_in_loaded_config(self, tmp_path, monkeypatch):
         """A loaded config has env placeholders expanded in memory, after migration."""
         # Arrange

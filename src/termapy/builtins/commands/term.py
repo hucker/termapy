@@ -43,11 +43,10 @@ def _bool_setting(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
     anything else errors.  A setting command never mutates on a bare
     invocation -- see the rule in CLAUDE.md.
     """
-    action = parse_bool_setting(args)
-    if action is None:
-        return CmdResult.fail(
-            msg=f"Invalid value: {args.strip()} (use on/off/toggle)"
-        )
+    try:
+        action = parse_bool_setting(args)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     flags = ctx.ns("flags")
     if action is SETTING_QUERY:
         pass
@@ -161,13 +160,11 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
     if not body:
         target = "term.output"
     else:
-        val = parse_bool(body)
-        if val is True:
-            target = "term.output verbose"
-        elif val is False:
-            target = "term.output normal"
-        else:
-            return CmdResult.fail(msg=f"Invalid value: {body} (use on or off)")
+        try:
+            verbose = parse_bool(body, what="value")
+        except ValueError as e:
+            return CmdResult.fail(msg=str(e))
+        target = "term.output verbose" if verbose else "term.output normal"
     result = ctx.internal.dispatch(target)
     if not result.success:
         return CmdResult(
@@ -194,11 +191,10 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
     Persists via ``ctx.internal.apply_cfg`` (only when the value actually
     changes); the ConfigEditor dialog is the only path that writes to disk.
     """
-    action = parse_bool_setting(args)
-    if action is None:
-        return CmdResult.fail(
-            msg=f"Invalid value: {args.strip()} (use on/off/toggle)"
-        )
+    try:
+        action = parse_bool_setting(args)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     current = bool(ctx.cfg.get(key, False))
     if action is SETTING_QUERY:
         new = current
@@ -308,18 +304,23 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
     actually re-enables.
     """
     state_token = None
+    state: bool | None = None  # the level a vocabulary token named; None for toggle
     err_token = None  # None means "not specified"; "" means "user said err="
     for token in args.split():
-        if token.lower() == "toggle" or parse_bool(token) is not None:
-            # Any parse_bool token sets, toggle flips -- _cfg_toggle
-            # handles all three (the one-vocabulary rule in CLAUDE.md).
-            state_token = token
-        elif token.startswith("err="):
+        if token.startswith("err="):
             err_token = token[len("err="):]
+        elif token.lower() == SETTING_TOGGLE:
+            state_token, state = token, None
         else:
-            return CmdResult.fail(
-                msg=f"Unknown token: {token} (use on, off, toggle, or err=<regex>)"
-            )
+            # Any vocabulary token sets, toggle flips -- _cfg_toggle
+            # handles all three (the one-vocabulary rule in CLAUDE.md).
+            try:
+                state = parse_bool(token)
+            except ValueError:
+                return CmdResult.fail(
+                    msg=f"Unknown token: {token} (use on, off, toggle, or err=<regex>)"
+                )
+            state_token = token
 
     flags = ctx.ns("flags")
 
@@ -335,7 +336,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
                 "request_err_pattern cleared -- error detection disabled  (session)",
                 "yellow",
             )
-    elif state_token is not None and parse_bool(state_token) is True:
+    elif state is True:
         # /term.request on (no err=) -> drop any session override so the
         # cfg default takes effect again.  Symmetric with how /term.request
         # off doesn't preserve a "previous" request_mode state -- 'on'

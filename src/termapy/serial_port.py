@@ -65,7 +65,7 @@ class SerialPort:
         try:
             text = data.decode(self._encoding).rstrip("\r\n")
         except (UnicodeDecodeError, LookupError):
-            text = data.hex(" ")
+            text = data.hex(" ").upper()
         self._log(">", text)
         if self._port:
             self._port.write(data)

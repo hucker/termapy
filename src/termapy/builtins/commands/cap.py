@@ -662,8 +662,8 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value={
         "tx_bytes": len(tx),
         "rx_bytes": len(rx),
-        "tx_hex": bytes(tx).hex(),
-        "rx_hex": bytes(rx).hex(),
+        "tx_hex": bytes(tx).hex().upper(),
+        "rx_hex": bytes(rx).hex().upper(),
         "tx_text": tx_decoded,
         "rx_text": rx_decoded,
     })

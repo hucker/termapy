@@ -598,7 +598,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.output(f"  TX (dry-run): {' '.join(parts)}")
         else:
             _display_bytes(ctx, "TX (dry-run)", all_data, as_text=ascii_view)
-        return CmdResult.ok(value=all_data.hex())
+        return CmdResult.ok(value=all_data.hex().upper())
 
     if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
@@ -639,7 +639,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output("  RX: (no response)", "red")
     # Return the response bytes as a hex string so scripts can
     # capture and parse them (empty string when no response).
-    return CmdResult.ok(value=response.hex() if response else "")
+    return CmdResult.ok(value=response.hex().upper() if response else "")
 
 
 def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:

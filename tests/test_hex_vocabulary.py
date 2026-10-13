@@ -83,7 +83,7 @@ class TestOnePayloadGrammar:
     def test_send_reads_every_spelling_as_the_same_frame(self, cli, spelling):
         """/proto.send --dry-run returns the same frame for every spelling."""
         result = cli.repl.dispatch_full(f"/proto.send --dry-run {spelling}")
-        assert bytes.fromhex(result.value) == _FRAME, "the same six bytes"
+        assert result.value == _FRAME.hex().upper(), "the same six bytes, as uppercase hex"
 
     @pytest.mark.parametrize("spelling", list(_SPELLINGS.values()), ids=list(_SPELLINGS))
     def test_verify_reads_every_spelling(self, cli, spelling):
@@ -129,3 +129,19 @@ class TestCalcText:
         result = cli.repl.dispatch_full("/proto.crc.calc crc32")
         assert result.value == "0xCBF43926"
         assert "Check:     PASS" in capsys.readouterr().out
+
+
+# ── output case ─────────────────────────────────────────────────────────────
+
+
+class TestOutputIsUppercase:
+
+    def test_send_returns_uppercase_hex(self, cli):
+        """hex-output-uppercase: /proto.send's scriptable value is uppercase, matching what it prints."""
+        result = cli.repl.dispatch_full("/proto.send --dry-run 0a 0b")
+        assert result.value == "0A0B"
+
+    def test_a_crc_value_is_uppercase(self, cli):
+        """/proto.crc.calc returns its CRC as 0x-prefixed uppercase, whatever case the bytes were typed in."""
+        result = cli.repl.dispatch_full("/proto.crc.calc crc16-modbus 01 03 00 00 00 0a")
+        assert result.value == "0xCDC5"

@@ -1525,7 +1525,7 @@ class SerialTerminal(TerminalHost, App):
         """
         port = self._engine.serial_port
         if port is None:
-            self._log_line(">", data.hex(" "))
+            self._log_line(">", data.hex(" ").upper())
             return
         try:
             port.write(data)

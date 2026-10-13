@@ -567,7 +567,7 @@ def run_chips(args: argparse.Namespace) -> None:
             {
                 "vid": vid,
                 "pid": pid,
-                "vid_pid": f"{vid:04x}:{pid:04x}",
+                "vid_pid": f"{vid:04X}:{pid:04X}",
                 "model": info.model,
                 "speed": info.speed,
                 "max_baud": info.max_baud,

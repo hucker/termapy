@@ -2309,8 +2309,8 @@ class TestCapWire:
         envelope = result.value
         assert envelope["tx_bytes"] == 7, "TX byte count"
         assert envelope["rx_bytes"] == 11, "RX byte count"
-        assert envelope["tx_hex"] == "41542b5645520d", "TX hex"
-        assert envelope["rx_hex"] == "5645523d312e322e330d0a", "RX hex"
+        assert envelope["tx_hex"] == "41542B5645520D", "TX hex, uppercase"
+        assert envelope["rx_hex"] == "5645523D312E322E330D0A", "RX hex, uppercase"
         assert envelope["tx_text"] == "AT+VER\r", "TX decoded"
         assert envelope["rx_text"] == "VER=1.2.3\r\n", "RX decoded"
 

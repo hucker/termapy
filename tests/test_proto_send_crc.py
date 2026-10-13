@@ -422,7 +422,7 @@ class TestSendDryRun:
         )
 
     def test_dry_run_value_is_frame_hex(self, send_env):
-        """Dry-run returns the assembled frame, CRC included, as hex in result.value."""
+        """Dry-run returns the assembled frame, CRC included, as uppercase hex in result.value."""
         # Arrange -- crc16-modbus is refout=True so natural wire order is LE.
         ctx, output, tx_bytes = send_env
         ctx.active_flags = {"--dry-run"}
@@ -436,7 +436,7 @@ class TestSendDryRun:
 
         # Assert
         actual = result.value
-        expected = (data + crc_le).hex()
+        expected = (data + crc_le).hex().upper()
         assert tx_bytes == [], "no bytes written"
         assert actual == expected, "result.value carries the assembled frame as hex"
 

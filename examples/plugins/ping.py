@@ -1,7 +1,7 @@
 """Example plugin: AT-specific ping with 500ms timeout.
 
-Drop this file into termapy_cfg/plugins/ (global) or
-termapy_cfg/<config>/plugins/ (per-config) to make /at_ping available.
+Drop this file into termapy_cfg/plugin/ (global) or
+termapy_cfg/<config>/plugin/ (per-config) to make /at_ping available.
 
 Demonstrates building a device-specific command using parse_keywords.
 """
@@ -28,8 +28,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
-    "AT ping with 500ms timeout (default cmd: AT).",
     name="at_ping",
     args="{cmd=<command>}",
+    help="AT ping with 500ms timeout (default cmd: AT).",
     handler=_handler,
 )

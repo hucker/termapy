@@ -216,3 +216,31 @@ and they stay in the registry until it does. **Why:** each category has a
 different strongest guard, and a `data` row written as "who reads it" rather
 than "what set it is in" is a candidate to move from a test to a constructor.
 **Where:** the registry's intro and the `category` column.
+
+## 2026-10-13 — Hex: one reader in any case, uppercase out; text goes in quotes
+
+Every byte payload a user types is read by `protocol.parse_data`: hex in any
+spelling and either case (`01 03`, `0x01 0x03`, `0X01`, `0103`) and quoted
+text, freely mixed. `/proto.crc.calc` follows `/proto.send`, so text must be
+quoted (`/proto.crc.calc crc32 "123456789"`); unquoted text is a Parse error
+that says so. Every hex termapy prints or returns is uppercase, matching the
+datasheets and protocol specs its users read. Chuck chose both: "same reader
+as /proto.send", and uppercase after asking whether a standard exists (none
+does; software tools lean lowercase, hardware documents uppercase, and every
+reader accepts both). **Why:** four `/proto.crc.*` commands each had a
+private tokenizer with its own rules, and calc's guessed: `0x01 0x03 ...` and
+`0103...` silently got the CRC of their characters. Values disagreed on case
+(`/proto.send` lowercase, `/mem` uppercase). **Where:** registry
+`hex-one-reader` and `hex-output-uppercase`; `tests/test_hex_vocabulary.py`.
+
+## 2026-10-13 — Plugins are cookie-cutter: one handler shape, one template
+
+A command's handler is `_handler`, a subcommand's `_handler_<sub>`, typed
+`(ctx: PluginContext, args: str) -> CmdResult`, in the built-ins, the demo
+plugins and the example plugins; the example plugins are the template and
+match the built-ins (typed, `help=` keyword, a returned `CmdResult`). Chuck:
+"it should be cookie cutter to add a new function to the system." **Why:**
+five naming styles were in use, three of them in `proto.py`, and the examples
+taught an untyped handler with no return value and an old folder name.
+**Where:** registry `handler-naming`; `help/writing-plugins.md` "Plugin file
+structure" and "Bytes and hex".

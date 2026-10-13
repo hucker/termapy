@@ -98,7 +98,7 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
         def tee(direction: str):
             def cb(data: bytes) -> None:
                 ts = time.monotonic() - t0
-                f.write(f"[+{ts:6.3f}s] {direction}  {data.hex(' ')}\n")
+                f.write(f"[+{ts:6.3f}s] {direction}  {data.hex(' ').upper()}\n")
                 f.flush()
             return cb
 

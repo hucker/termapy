@@ -652,11 +652,11 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     # bytes (\\r, \\n, \\x00, \\x1b) are visible.
     ctx.io.output_markup(
         f"  [yellow]TX ({len(tx):3d}):[/] "
-        f"{bytes(tx).hex(' ')}  [dim]{tx_decoded!r}[/]",
+        f"{bytes(tx).hex(' ').upper()}  [dim]{tx_decoded!r}[/]",
     )
     ctx.io.output_markup(
         f"  [cyan]RX ({len(rx):3d}):[/] "
-        f"{bytes(rx).hex(' ')}  [dim]{rx_decoded!r}[/]",
+        f"{bytes(rx).hex(' ').upper()}  [dim]{rx_decoded!r}[/]",
     )
 
     return CmdResult.ok(value={

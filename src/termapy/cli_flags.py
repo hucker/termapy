@@ -155,21 +155,15 @@ def _parse_hex_int(s: str) -> int | None:
 
 
 def _vid_of(facts) -> int | None:
-    if facts.vid_pid and ":" in facts.vid_pid:
-        try:
-            return int(facts.vid_pid.split(":")[0], 16)
-        except ValueError:
-            return None
-    return None
+    from termapy.port_format import split_vid_pid
+
+    return split_vid_pid(facts.vid_pid)[0]
 
 
 def _pid_of(facts) -> int | None:
-    if facts.vid_pid and ":" in facts.vid_pid:
-        try:
-            return int(facts.vid_pid.split(":")[1], 16)
-        except ValueError:
-            return None
-    return None
+    from termapy.port_format import split_vid_pid
+
+    return split_vid_pid(facts.vid_pid)[1]
 
 
 def run_ports(

@@ -863,10 +863,16 @@ def load_proto_script(text: str) -> (
 ):
     """Auto-detect script format and parse accordingly.
 
-    Tries TOML first (looks for ``[[test]]`` sections). Falls back
-    to the flat ``.pro`` format.  The returned tuple is a discriminated
-    union on the first element, so callers can narrow the second element
-    by branching on ``fmt``::
+    Text that parses as non-empty TOML is a TOML script, and its own
+    parser's errors (a missing ``[[test]]``, a test without ``send``)
+    are the ones reported.  Anything else -- a TOML decode error, which
+    every flat directive line is, or a file of comments and blank lines
+    -- is parsed as the flat ``.pro`` format.  (The fallback once
+    swallowed every ``ValueError`` from the TOML parser too, so a TOML
+    script with a validation error was reported as a flat-format syntax
+    error on line 1.)  The returned tuple is a discriminated union on
+    the first element, so callers can narrow the second element by
+    branching on ``fmt``::
 
         fmt, parsed = load_proto_script(text)
         if fmt == "toml":
@@ -879,13 +885,16 @@ def load_proto_script(text: str) -> (
 
     Returns:
         ``("toml", ProtoScript)`` or ``("flat", (settings, steps))``.
+
+    Raises:
+        ValueError: From whichever parser the text belongs to.
     """
     try:
         doc = tomllib.loads(text)
-        if "test" in doc:
-            return ("toml", parse_toml_script(text))
-    except (tomllib.TOMLDecodeError, ValueError):
-        pass
+    except tomllib.TOMLDecodeError:
+        return ("flat", parse_proto_script(text))
+    if doc:
+        return ("toml", parse_toml_script(text))
     return ("flat", parse_proto_script(text))
 
 

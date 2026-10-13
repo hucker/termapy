@@ -16,10 +16,11 @@ They are opt-in; run them, or point them at a different adapter, with::
     TERMAPY_LOOPBACK_SN=<serial-number> uv run pytest --run-hardware -m hardware -n 0 --no-cov
 
 Under ``--run-hardware`` everything here skips cleanly when the rig is
-absent, so CI and other machines are unaffected.  ``--require-hardware``,
-which ``release_prep`` passes, turns an absent, busy, ambiguous or silent
-rig into a failure instead: a run that demanded the bench cannot read green
-without it.
+absent, so other machines are unaffected.  ``--require-hardware``, which
+``release_prep`` passes, turns an absent, busy, ambiguous or silent rig into
+a failure instead: a run that demanded the bench cannot read green without
+it.  On GitHub Actions both flags are refused before collection
+(``conftest.pytest_configure``), so nothing here ever runs there.
 
 SAFETY: the fixture refuses to run unless the port demonstrably echoes its
 own output.  These tests write tens of kilobytes at speed; that is harmless

@@ -97,6 +97,35 @@ def pytest_addoption(parser) -> None:
     )
 
 
+def pytest_configure(config) -> None:
+    """Refuse both hardware flags on GitHub Actions, before anything is collected.
+
+    The hardware suite must never run there, not even far enough to
+    enumerate a runner's serial ports: a refusal at configure time stops the
+    session before the loopback fixture exists, and it is loud, so a workflow
+    edit that adds a hardware flag turns CI red with this message rather than
+    quietly skipping.  GitHub sets ``GITHUB_ACTIONS`` on every hosted and
+    self-hosted runner; its presence is the signal, a switch rather than a
+    boolean read from user text (the ``bool-one-vocabulary`` exemption).
+    """
+    import os
+
+    import pytest
+
+    if "GITHUB_ACTIONS" not in os.environ:
+        return
+    demanded = [
+        flag
+        for flag, dest in (("--run-hardware", "run_hardware"), ("--require-hardware", "require_hardware"))
+        if config.getoption(dest)
+    ]
+    if demanded:
+        raise pytest.UsageError(
+            f"{' '.join(demanded)} refused: the hardware loopback suite never runs on "
+            f"GitHub Actions (registry hardware-never-on-github); run it on the bench"
+        )
+
+
 def pytest_collection_modifyitems(config, items) -> None:
     """Deselect hardware tests unless ``--run-hardware`` was passed.
 

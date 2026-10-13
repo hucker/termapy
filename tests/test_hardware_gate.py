@@ -1,13 +1,19 @@
-"""The ``--require-hardware`` gate: a run that demands the loopback rig fails without it.
+"""The hardware flags: demanded runs fail loud, and nothing runs on GitHub Actions.
 
 ``release_prep`` passes ``--require-hardware`` so a release cannot read green
 on a machine where the bench is unplugged, while plain ``--run-hardware``
 keeps skipping so a developer run on a machine that is not the rig stays
-green.  Both are driven as real child pytest runs aimed at a serial number no
-adapter carries: ``resolve_port`` only enumerates, so no port is opened and
-nothing is written to any device.  These live outside
-``test_hardware_loopback.py`` because that module is deselected unless a
-hardware flag is passed, and this guard must run in every suite.
+green.  On GitHub Actions both flags are refused before collection, so the
+suite never runs there in any form.  Each is driven as a real child pytest
+run aimed at a serial number no adapter carries: ``resolve_port`` only
+enumerates, so no port is opened and nothing is written to any device.
+
+The two bench-behavior tests are themselves skipped on GitHub Actions: their
+child runs pass a hardware flag, which is exactly what is refused there, and
+running them anyway would enumerate the runner's ports.  The refusal test
+sets ``GITHUB_ACTIONS`` in its own child, so it runs everywhere.  These live
+outside ``test_hardware_loopback.py`` because that module is deselected
+unless a hardware flag is passed.
 """
 
 from __future__ import annotations
@@ -22,10 +28,21 @@ import pytest
 TESTS = Path(__file__).parent
 _NO_SUCH_ADAPTER = "TERMAPY-NO-SUCH-ADAPTER"
 
+# Presence is GitHub's signal (see conftest.pytest_configure).
+_bench_only = pytest.mark.skipif(
+    "GITHUB_ACTIONS" in os.environ,
+    reason="passes a hardware flag, which GitHub Actions refuses by design",
+)
 
-def _run_loopback_suite(flag: str) -> subprocess.CompletedProcess[str]:
-    """Run the loopback suite in a child pytest, aimed at an adapter that does not exist."""
+
+def _run_loopback_suite(flag: str, *, on_github: bool = False) -> subprocess.CompletedProcess[str]:
+    """Run the loopback suite in a child pytest, aimed at an adapter that does not exist.
+
+    ``on_github`` sets ``GITHUB_ACTIONS`` in the child, the way a runner does.
+    """
     env = {**os.environ, "TERMAPY_LOOPBACK_SN": _NO_SUCH_ADAPTER, "COLUMNS": "200"}
+    if on_github:
+        env["GITHUB_ACTIONS"] = "true"
     return subprocess.run(
         [
             sys.executable, "-m", "pytest", str(TESTS / "test_hardware_loopback.py"),
@@ -41,6 +58,22 @@ def _run_loopback_suite(flag: str) -> subprocess.CompletedProcess[str]:
 
 
 @pytest.mark.slow
+@pytest.mark.parametrize("flag", ["--run-hardware", "--require-hardware"])
+def test_hardware_flags_are_refused_on_github_actions(flag):
+    """hardware-never-on-github: on GitHub Actions either hardware flag stops the session before any test is collected."""
+    # Act
+    result = _run_loopback_suite(flag, on_github=True)
+
+    # Assert
+    assert result.returncode == 4, (
+        f"pytest's usage-error exit, before collection:\n{result.stdout[-1500:]}\n{result.stderr[-1500:]}"
+    )
+    assert "never runs on GitHub Actions" in result.stderr, "the refusal says why"
+    assert "collected" not in result.stdout, "nothing was collected, so no fixture and no port enumeration ran"
+
+
+@_bench_only
+@pytest.mark.slow
 def test_require_hardware_fails_without_the_rig():
     """hardware-demanded-fails-loud: under --require-hardware a missing adapter fails the run and names the adapter."""
     # Act
@@ -54,6 +87,7 @@ def test_require_hardware_fails_without_the_rig():
     assert "skipped" not in result.stdout.splitlines()[-1], "no test may quietly skip under the demand"
 
 
+@_bench_only
 @pytest.mark.slow
 def test_run_hardware_still_skips_without_the_rig():
     """Plain --run-hardware on a machine that is not the rig skips, so developer runs elsewhere stay green."""

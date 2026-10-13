@@ -186,13 +186,16 @@ attached, and `release_prep` refuses a release unless it passes:
 `--require-hardware` turns an absent, busy or silent rig into a failure rather
 than a skip, and releasing without it is an explicit `--skip-hardware` on the
 release command line. A skipped run is reported as skipped, never as a pass.
-Chuck: "having real hardware break because it was never tested is
-embarrassing." **Why:** the loopback suite is the only test of the OS driver,
+It never runs on GitHub Actions in any form: both hardware flags are refused
+there before collection, so a runner's ports are never enumerated, let alone
+written. Chuck: "having real hardware break because it was never tested is
+embarrassing", and "it is critical that this doesn't ever run on github." **Why:** the loopback suite is the only test of the OS driver,
 bridge FIFO and real baud pacing, which `FakeSerial` and `loop://` cannot
 model; it had been opt-in since August and no gate passed the flag, so a
 release could ship with it never run, and the documented command had stopped
-running it at all. **Where:** registry `hardware-demanded-fails-loud`;
-`tests/test_hardware_gate.py`; `release_prep` step 5.
+running it at all. **Where:** registry `hardware-demanded-fails-loud` and
+`hardware-never-on-github`; `tests/test_hardware_gate.py`; `release_prep`
+step 5; `tests/conftest.py`.
 
 ## 2026-10-13 — The invariants registry says what each row is
 

@@ -929,7 +929,7 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset({
     "app.list", "app.state.edit", "cap.hex", "cfg.help",
     "edit.info", "edit.log", "edit.plugin.list", "edit.proto.list", "edit.run.list",
     "help.plugin", "help.target", "ping.quiet",
-    "print.r", "proto.crc.verify",
+    "print.r",
     "term.encoding", "term.log", "term.send_bare_enter",
     "xfer.root", "xfer.xmodem.recv", "xfer.xmodem.send", "xfer.ymodem.send",
 })

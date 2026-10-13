@@ -120,7 +120,7 @@ class TestCrcFindCli:
         )
 
     def test_invalid_hex_fails_gracefully(self, tmp_path):
-        """A non-hex byte in bin= is an Invalid hex error, not a traceback."""
+        """A non-hex byte in bin= is a Parse error from the shared byte reader, not a traceback."""
         # Arrange -- "ZZ" isn't a valid hex byte
         line = "/proto.crc.find bin=01 ZZ 03"
 
@@ -129,8 +129,8 @@ class TestCrcFindCli:
 
         # Assert
         assert result.returncode == 0, f"exit code: {result.returncode}"
-        assert "Invalid hex" in result.stdout, (
-            f"bad hex must produce 'Invalid hex' error. "
+        assert "Parse error" in result.stdout, (
+            f"bad hex must produce the shared reader's Parse error. "
             f"stdout: {result.stdout!r}"
         )
 

@@ -118,7 +118,7 @@ a silent off: `Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)`.
 | `/profile.unload`         | Clear the active profile                                                    |
 | `/profile.validate <path>`| Validate an MCP device profile against the schema                           |
 | `/proto`                  | TUI: open the Proto picker. CLI: show /proto long-help.                     |
-| `/proto.crc.calc <n> {d}` | Compute CRC over hex bytes, text, or file                                   |
+| `/proto.crc.calc <n> {d}` | Compute CRC over hex bytes, quoted text, or a file                          |
 | `/proto.crc.detect {<frames>...}` | Name the catalog CRC on a batch of frames' trailing bytes            |
 | `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify the CRC algorithm from a captured packet, or from a trigger's response |
 | `/proto.crc.info <name>`  | Show CRC algorithm parameters and description                               |

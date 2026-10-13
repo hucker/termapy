@@ -22,7 +22,8 @@ from termapy.scripting import parse_bool, parse_duration, parse_duration_ms
 # ---------------------------------------------------------------------------
 
 _ANSI_ESCAPE = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
-_HEX_TOKEN = re.compile(r"(?:0x)?([0-9a-fA-F]{2})")
+# Input is case-insensitive, the prefix included (registry hex-one-reader).
+_HEX_TOKEN = re.compile(r"(?:0[xX])?([0-9a-fA-F]{2})")
 _QUOTED_STR = re.compile(r'"([^"]*)"')
 
 _ESCAPE_MAP = {

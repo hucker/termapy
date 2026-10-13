@@ -26,6 +26,7 @@ from termapy.protocol import (
     get_crc_registry,
     load_proto_script,
     match_response,
+    parse_data,
     parse_data_segments,
     parse_toml_script,
     strip_ansi,
@@ -38,6 +39,7 @@ from termapy.scripting import (
     parse_bool,
     parse_bool_setting,
 )
+from termapy.symbols import parse_number
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -70,6 +72,12 @@ def _format_as_quoted_text(data: bytes) -> str:
         else:
             pieces.append(f"\\x{byte:02X}")
     return '"' + "".join(pieces) + '"'
+
+
+def _is_one_quoted_string(text: str) -> bool:
+    """True when ``text`` is a single quoted string, so it displays as text rather than hex."""
+    stripped = text.strip()
+    return len(stripped) >= 2 and stripped[0] == stripped[-1] == '"' and stripped.count('"') == 2
 
 
 def _display_bytes(
@@ -859,39 +867,19 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=name)
 
 
-def _parse_crc_data(data_str: str) -> tuple[bytes, bool]:
-    """Auto-detect hex bytes vs plain text.
-
-    If every whitespace-separated token is a valid two-character hex pair,
-    the input is treated as hex bytes. Otherwise the entire string is
-    encoded as UTF-8 text.
-
-    Args:
-        data_str: Raw data string from the user.
-
-    Returns:
-        Tuple of (data bytes, True if parsed as hex).
-    """
-    tokens = data_str.split()
-    is_hex = bool(tokens) and all(
-        len(token) == 2 and all(char in "0123456789abcdefABCDEF" for char in token)
-        for token in tokens
-    )
-    if is_hex:
-        return bytes(int(token, 16) for token in tokens), True
-    return data_str.encode("utf-8"), False
-
-
 def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     """Compute a CRC over the provided data.
 
-    Auto-detects hex bytes vs plain text: if every token is a valid
-    two-character hex pair the input is treated as hex bytes, otherwise
-    the entire string is encoded as UTF-8 text.
+    The data is read exactly as ``/proto.send`` reads it
+    (``protocol.parse_data``): bare tokens are hex bytes in any spelling,
+    text goes in quotes, and the two mix.  The calc command once guessed
+    instead -- anything that was not all two-character pairs became text,
+    so ``0x01 0x03`` and ``0103`` silently got the CRC of their
+    characters.  An existing file path reads that file's bytes.
 
     Args:
         ctx: Plugin context for output.
-        args: Algorithm name followed by data (hex bytes or text).
+        args: Algorithm name followed by data (hex bytes, quoted text, or a file).
     """
     parts = args.strip().split(None, 1)
     if not parts:
@@ -911,8 +899,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     file_path: Path | None = None
     if check_mode:
         data = b"123456789"
-        data_str = "123456789"
-        is_hex = False
+        data_str = '"123456789"'
     else:
         data_str = parts[1]
         # A file argument reads host bytes (an existence/size/CRC oracle);
@@ -925,11 +912,15 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
             file_path = candidate
             try:
                 data = file_path.read_bytes()
-                is_hex = False
             except OSError as e:
                 return CmdResult.fail(msg=f"Cannot read file: {e}")
         else:
-            data, is_hex = _parse_crc_data(data_str)
+            try:
+                data = parse_data(data_str)
+            except ValueError as e:
+                # Unquoted text is the one way to land here by habit.
+                hint = "" if '"' in data_str else f' (text goes in quotes: "{data_str}")'
+                return CmdResult.fail(msg=f"Parse error: {e}{hint}")
 
     if not data:
         return CmdResult.fail(msg="No data to compute CRC over.")
@@ -947,13 +938,10 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     if file_path is not None:
         ctx.io.output(f"  Source:    file '{file_path}'")
         ctx.io.output(f"  Size:      {len(data)} bytes")
-    elif is_hex:
-        data_hex = " ".join(f"{b:02X}" for b in data)
-        ctx.io.output(f"  Data:      {data_hex}  ({len(data)} bytes)")
+    elif _is_one_quoted_string(data_str):
+        ctx.io.output(f"  Data:      {data_str.strip()}  ({len(data)} bytes)")
     else:
-        ctx.io.output(
-            f"  Data:      {data_str!r}  ({len(data_str)} chars, " f"{len(data)} bytes)"
-        )
+        ctx.io.output(f"  Data:      {format_hex(data)}  ({len(data)} bytes)")
     ctx.io.output(f"  CRC:       {crc_hex}")
     if alg.width > 1:
         ctx.io.output(f"  Bytes LE:  {crc_le}")
@@ -1045,11 +1033,15 @@ _CRC_CODEGEN_KV_KEYS = {
 
 
 def _parse_int_value(value: str, key: str) -> int:
-    """Parse a hex (``0x...``) or decimal integer; raise ValueError on garbage."""
-    s = value.strip()
-    if s.lower().startswith("0x"):
-        return int(s, 16)
-    return int(s)
+    """Read a codegen integer with the shared number reader (``0x``, ``Nh`` or decimal).
+
+    Raises:
+        ValueError: ``Invalid <key>: <value>`` when it is not a number.
+    """
+    number = parse_number(value)
+    if number is None:
+        raise ValueError(f"Invalid {key}: {value.strip()}")
+    return number
 
 
 def _did_you_mean(name: str) -> str:
@@ -1592,11 +1584,10 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
 
     mode = kw["mode"]
     if mode == "bin":
-        tokens = kw["payload"].split()
         try:
-            packet: bytes = bytes(int(token, 16) for token in tokens)
-        except ValueError:
-            return CmdResult.fail(msg="Invalid hex bytes in bin=")
+            packet: bytes = parse_data(kw["payload"])
+        except ValueError as e:
+            return CmdResult.fail(msg=f"Parse error: {e}")
         if form is not None:
             # Form matching runs a text regex over the packet, so we
             # decode the bytes first and let detect's auto-mode pick
@@ -1747,9 +1738,9 @@ def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
             break
 
     try:
-        packet = bytes(int(token, 16) for token in rest.split())
-    except ValueError:
-        return CmdResult.fail(msg="Invalid hex bytes")
+        packet = parse_data(rest)
+    except ValueError as e:
+        return CmdResult.fail(msg=f"Parse error: {e}")
     if not packet:
         return CmdResult.fail(msg="No data")
 
@@ -1895,9 +1886,9 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
             if not ok:
                 return CmdResult.fail(msg=resolved)
             try:
-                packets.append(bytes.fromhex(resolved))
-            except ValueError:
-                return CmdResult.fail(msg="Invalid hex bytes in packet")
+                packets.append(parse_data(resolved))
+            except ValueError as e:
+                return CmdResult.fail(msg=f"Parse error: {e}")
         if len(packets) < 2:
             return CmdResult.fail(msg="Need at least 2 packets to reverse")
 
@@ -2452,13 +2443,17 @@ COMMAND = Command(
                 "detect": build_crc_verb_command("detect"),
                 "calc": Command(
                     args="<name> {data}",
-                    help="Compute CRC over hex bytes, text, or file.",
+                    help="Compute CRC over hex bytes, quoted text, or a file.",
                     long_help=(
-                        "Computes a CRC over the supplied data. Use {prefix}proto.crc.list\n"
-                        "to see every available algorithm name.\n"
+                        "Computes a CRC over the supplied data, read exactly as\n"
+                        "{prefix}proto.send reads it: hex bytes in any spelling (01 03,\n"
+                        "0x01 0x03, 0103), text in quotes, or both mixed.  A file path\n"
+                        "reads the file's bytes; no data checks the catalog string.\n"
+                        "Use {prefix}proto.crc.list to see every algorithm name.\n"
                         "\n"
-                        "Example:\n"
-                        "  {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01"
+                        "Examples:\n"
+                        "  {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01\n"
+                        '  {prefix}proto.crc.calc crc32 "123456789"'
                     ),
                     handler=_crc_calc,
                 ),

@@ -181,8 +181,8 @@ The most common ones:
 | `/port.parity {value}`               | Show or set parity (hardware only)                                            |
 | `/port.stop_bits {value}`            | Show or set stop bits (hardware only)                                         |
 | `/port.flow_control {m}`             | Show or set flow control: none, rtscts, xonxoff, manual                       |
-| `/port.dtr {0\|1}`                   | Show or set DTR line                                                          |
-| `/port.rts {0\|1}`                   | Show or set RTS line                                                          |
+| `/port.dtr {on\|off}`                | Show or set DTR line                                                          |
+| `/port.rts {on\|off}`                | Show or set RTS line                                                          |
 | `/port.cts`                          | Show CTS state (read-only)                                                    |
 | `/port.dsr`                          | Show DSR state (read-only)                                                    |
 | `/port.ri`                           | Show RI state (read-only)                                                     |

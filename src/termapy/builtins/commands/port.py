@@ -569,13 +569,13 @@ COMMAND = Command(
             handler=_handler_flow,
         ),
         "dtr": Command(
-            args="{0|1}",
+            args="{on|off}",
             help="Show or set DTR line (hardware only).",
             long_help=_port_hw_line_long_help("dtr", "out"),
             handler=_make_hw_handler("dtr"),
         ),
         "rts": Command(
-            args="{0|1}",
+            args="{on|off}",
             help="Show or set RTS line (hardware only).",
             long_help=_port_hw_line_long_help("rts", "out"),
             handler=_make_hw_handler("rts"),

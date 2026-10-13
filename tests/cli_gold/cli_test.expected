@@ -1269,7 +1269,7 @@ demo> /port.parity X
   Invalid parity: X (use E, M, N, O, S)
   [200/219] /port.parity X (125us)
 demo> /port.dtr maybe
-  Invalid DTR value: maybe (use 0/1/on/off)
+  Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)
   [201/219] /port.dtr maybe (126us)
 demo> /port.break -5
   Invalid duration (use milliseconds, e.g. 250)

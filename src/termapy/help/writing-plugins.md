@@ -337,9 +337,10 @@ argument as a flip.
 from termapy.scripting import SETTING_QUERY, SETTING_TOGGLE, parse_bool_setting
 
 def _handler(ctx, args):
-    action = parse_bool_setting(args)
-    if action is None:                       # unrecognized -> error, not a flip
-        return CmdResult.fail(msg=f"Invalid value: {args.strip()} (use on/off/toggle)")
+    try:
+        action = parse_bool_setting(args)
+    except ValueError as e:                  # unrecognized -> error, not a flip
+        return CmdResult.fail(msg=str(e))    # "Invalid value: X (use on/off/... or toggle)"
     flags = ctx.ns("flags")
     if action is SETTING_QUERY:               # bare: show, don't mutate
         pass

@@ -210,34 +210,7 @@ Every handler receives a `PluginContext`, the stable API boundary between plugin
 - **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).
 - **`ctx.internal`** — the intentional escape hatch: an internal, unstable interface (`InternalHandle`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
 
-The remaining members (`ctx.cfg`, `ctx.dispatch`, `ctx.ns`, `ctx.plugin_cfg`, `ctx.wait_for_match`) sit directly on the context. The full surface, by handle:
-
-```text
-ctx.cfg, ctx.config_path                      # plain config (read-only mapping + path)
-ctx.io.result(), ctx.io.output(), ctx.io.status()        # level-gated text channels
-ctx.io.result_markup(), ctx.io.output_markup(),          # level-gated Rich-markup variants
-    ctx.io.status_markup()
-ctx.io.notify(), ctx.io.status_bar()          # always-works fallbacks (no capability gate)
-ctx.io.log()                                  # session log
-ctx.serial.is_connected                       # serial state
-ctx.serial.connect(), ctx.serial.disconnect() # connection lifecycle (host-orchestrated)
-ctx.serial.update_port(), ctx.serial.apply_port_effects()
-ctx.serial.write(), ctx.serial.read_raw()     # serial I/O primitives
-ctx.serial.drain(), ctx.serial.wait_idle(), ctx.serial.rx_queue
-ctx.serial.io() (context manager)             # acquire serial for synchronous read
-ctx.serial.rx_observer(), ctx.serial.tx_observer()  # passive byte taps
-ctx.fs.ss_dir, ctx.fs.scripts_dir, ctx.fs.proto_dir, ctx.fs.cap_dir
-ctx.fs.open_file()                            # gated by gui_apps capability
-ctx.ui.confirm(), ctx.ui.notify()             # TUI-strict; raise MissingCapability in CLI
-ctx.ui.clear_screen(), ctx.ui.exit_app(), ctx.ui.screenshot()
-ctx.internal                                    # internal/unstable interface for built-ins
-ctx.internal.port()                           # raw pyserial.Serial | None (built-ins only)
-ctx.dispatch(cmd)                             # re-route a command through the pipeline
-ctx.wait_for_match(predicate, timeout)        # block until serial matches (gated)
-ctx.ns(name)                                  # session-scoped state dict (see below)
-ctx.plugin_cfg(name)                          # per-plugin persistent config
-ctx.prefix                                    # active REPL command prefix (derived from cfg)
-```
+The remaining members (`ctx.cfg`, `ctx.config_path`, `ctx.prefix`, `ctx.dispatch`, `ctx.ns`, `ctx.plugin_cfg`, `ctx.arg`, `ctx.flag`, `ctx.wait_for_match`) sit directly on the context. The member-by-member reference is the [PluginContext API reference](src/termapy/help/writing-plugins.md#plugincontext-api-reference) in the plugin-writing guide, which ships in the app and is the one home for it; this document stops at the shape.
 
 **A small, fixed set of visible names** on `ctx`, replacing the earlier sprawl of flat fields. The split is by responsibility, not by syntax: four handles each own one capability domain a reader can hold in their head; the fifth, `internal`, is the deliberate exception — the privileged escape hatch for built-ins that isn't a domain.
 

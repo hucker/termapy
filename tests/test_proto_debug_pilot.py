@@ -91,8 +91,10 @@ async def _disabled_after(pilot, button: Button, seconds: float) -> bool:
 
     The run worker posts the summary to the status bar BEFORE it clears the
     run state (the optional JSON write sits between the two), so reading
-    Stop the moment PASS appears races the worker; under full-suite load the
-    read lost twice on 2026-10-13.  Wait for the end state the test asserts.
+    Stop the moment the summary appears races the worker, and leaving
+    ``run_test()`` then tears the screen down under the worker's last
+    widget call.  Both lost under full-suite load on 2026-10-13.  Wait for
+    the end state: Stop dark means the worker has finished.
     """
     for _ in range(int(seconds * 10)):
         if button.disabled:
@@ -172,10 +174,15 @@ class TestStopButton:
                 await pilot.click("#btn-dbg-stop")
                 stopping = str(screen.query_one("#proto-debug-status", Static).render())
                 text = await _status_after(pilot, screen, "stopped by user", 6.0)
+                # The summary lands before the worker clears its run state;
+                # leaving run_test() in that gap tears the screen down under
+                # the worker's last widget call (WorkerFailed, 2026-10-13).
+                stop_dark = await _disabled_after(pilot, screen.query_one("#btn-dbg-stop", Button), 5.0)
 
                 # Assert
                 assert "Stopping" in stopping, "the press is acknowledged at once"
                 assert "0/1 PASS" in text and "stopped by user" in text, (
                     f"one test ran, then the stop landed; got {text!r}"
                 )
+                assert stop_dark is True, "Stop goes dark once the stopped run has finished"
         _run(scenario)

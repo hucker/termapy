@@ -66,8 +66,12 @@ def _coerce(value: str, type_name: str) -> Any:
         except ValueError:
             return value
     if type_name == "bool":
-        b = parse_bool(value)
-        return b if b is not None else value
+        # Device text, not user text: outside the bool-one-vocabulary
+        # rule, so a non-boolean stays the raw string for the LLM.
+        try:
+            return parse_bool(value)
+        except ValueError:
+            return value
     # str (default)
     return value
 

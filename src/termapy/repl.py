@@ -2142,12 +2142,10 @@ class ReplEngine:
             timeout_s = parse_duration(kw["timeout"]) if "timeout" in kw else 0.25
         except ValueError as e:
             return CmdResult.fail(msg=f"Expect: {e}")
-        quiet_token = kw.get("quiet", "off")
-        quiet = parse_bool(quiet_token)
-        if quiet is None:
-            return CmdResult.fail(
-                msg=f"Expect: invalid quiet: {quiet_token!r} (use on/off)"
-            )
+        try:
+            quiet = parse_bool(kw.get("quiet"), default=False, what="quiet")
+        except ValueError as e:
+            return CmdResult.fail(msg=f"Expect: {e}")
         timeout_str = kw.get("timeout", "250ms")
         if use_regex:
             import re as _re

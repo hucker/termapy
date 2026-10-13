@@ -131,13 +131,11 @@ def _verbose_forwarder(ctx: PluginContext, args: str) -> CmdResult:
     if not body:
         target = "term.output"
     else:
-        val = parse_bool(body)
-        if val is True:
-            target = "term.output verbose"
-        elif val is False:
-            target = "term.output normal"
-        else:
-            return CmdResult.fail(msg=f"Invalid value: {body} (use on or off)")
+        try:
+            verbose = parse_bool(body, what="value")
+        except ValueError as e:
+            return CmdResult.fail(msg=str(e))
+        target = "term.output verbose" if verbose else "term.output normal"
     result = ctx.internal.dispatch(target)
     if not result.success:
         return CmdResult(

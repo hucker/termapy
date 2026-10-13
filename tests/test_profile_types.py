@@ -464,6 +464,15 @@ class TestBuiltinValidation:
                 f"builtin bool accepts {form!r} as True"
             )
 
+    def test_bool_builtin_refuses_an_unknown_token_by_name(self):
+        """A typed bool argument outside the vocabulary fails with the shared Invalid bool: message, not a coercion shrug."""
+        reg = TypeRegistry.from_profile({})
+        result = reg.validate("bool", "maybe")
+        assert result.ok is False, "an unknown token is not a bool"
+        assert result.error == "Invalid bool: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)", (
+            "the one reader's message, naming the vocabulary"
+        )
+
     def test_str_builtin_accepts_anything(self):
         """The str builtin is identity: any text passes."""
         # Arrange / Act

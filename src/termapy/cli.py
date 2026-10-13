@@ -35,7 +35,14 @@ from termapy.config_resolve import find_config, infer_config_from_run_file, reso
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
-from termapy.scripting import parse_bool, render_progress_bar, strip_ansi
+from termapy.scripting import (
+    SETTING_QUERY,
+    SETTING_TOGGLE,
+    parse_bool,
+    parse_bool_setting,
+    render_progress_bar,
+    strip_ansi,
+)
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
 
@@ -483,7 +490,7 @@ class CLITerminal(TerminalHost):
         )
         self.repl.register_hook(
             "cli.completion",
-            "{on|off}",
+            "{on|off|toggle}",
             "Show or toggle CLI tab completion, auto-suggest, and help toolbar.",
             self._hook_cli_completion,
             source="app",
@@ -500,22 +507,28 @@ class CLITerminal(TerminalHost):
     # -- Hook handlers --------------------------------------------------------
 
     def _hook_cli_completion(self, ctx, args: str):
-        """Show or toggle CLI completion (tab completion, auto-suggest, toolbar)."""
-        from termapy.scripting import parse_bool
+        """Query, set, or toggle CLI completion (tab completion, auto-suggest, toolbar).
 
-        val = parse_bool(args)
-        if val is True:
-            self.cfg["cli_completion"] = True
+        A setting command: bare QUERIES, a vocabulary token sets, ``toggle``
+        flips, anything else fails -- see the rule in CLAUDE.md.
+        """
+        try:
+            action = parse_bool_setting(args)
+        except ValueError as e:
+            return CmdResult.fail(msg=str(e))
+        current = bool(self.cfg.get("cli_completion", True))
+        if action is SETTING_QUERY:
+            self.status(f"CLI completion: {'on' if current else 'off'}")
+            return CmdResult.ok(value="on" if current else "off")
+        enabled = (not current) if action is SETTING_TOGGLE else action
+        self.cfg["cli_completion"] = enabled
+        if enabled:
             self._session = self._build_session()
             self.status("CLI completion enabled.", "green")
-        elif val is False:
-            self.cfg["cli_completion"] = False
+        else:
             self._session = None
             self.status("CLI completion disabled.")
-        state = "on" if self.cfg.get("cli_completion", True) else "off"
-        if val is None:
-            self.status(f"CLI completion: {state}")
-        return CmdResult.ok(value=state)
+        return CmdResult.ok(value="on" if enabled else "off")
 
     def _hook_delay(self, ctx, args: str):
         """Wait with progress bar (>=1s) or silently (<1s).

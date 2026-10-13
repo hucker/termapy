@@ -220,7 +220,7 @@ class TestTermColor:
 
         # Assert -- invalid arg errors, never a silent flip
         assert result.success is False, "invalid arg fails"
-        assert result.error == "Invalid value: 2 (use on/off/toggle)", "clear msg"
+        assert result.error == "Invalid value: 2 (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)", "clear msg"
         assert cli.repl.ctx.ns("flags")["color"] is True, "state unchanged"
 
     def test_legacy_color_alias(self, cli):
@@ -875,6 +875,37 @@ class TestHookRegistration:
 
 
 # -- --version / --help CLI flags ------------------------------------------
+
+
+class TestCliCompletionHook:
+    """``/cli.completion`` is a setting command: bare queries, a vocabulary token sets, toggle flips, anything else fails."""
+
+    def test_bare_queries_without_changing_anything(self, cli):
+        """A bare /cli.completion reports the cfg state and leaves it alone."""
+        cli.cfg["cli_completion"] = True
+        result = cli.repl.dispatch("cli.completion")
+        assert (result.success, result.value) == (True, "on")
+        assert cli.cfg["cli_completion"] is True, "a query never mutates"
+
+    def test_off_disables_and_drops_the_session(self, cli):
+        """off records the cfg value and drops the prompt session so the next prompt is plain."""
+        cli.cfg["cli_completion"] = True
+        result = cli.repl.dispatch("cli.completion off")
+        assert (result.value, cli.cfg["cli_completion"], cli._session) == ("off", False, None)
+
+    def test_toggle_flips(self, cli):
+        """toggle flips the cfg value from off to on."""
+        cli.cfg["cli_completion"] = False
+        result = cli.repl.dispatch("cli.completion toggle")
+        assert (result.value, cli.cfg["cli_completion"]) == ("on", True)
+
+    def test_an_unknown_token_fails_instead_of_querying(self, cli):
+        """A typo fails with the setting message; it used to read as a bare query and return ok."""
+        cli.cfg["cli_completion"] = True
+        result = cli.repl.dispatch("cli.completion maybe")
+        assert result.success is False, "a token outside the vocabulary is refused"
+        assert result.error == "Invalid value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        assert cli.cfg["cli_completion"] is True, "state unchanged on a refused token"
 
 
 class TestVersionFlag:

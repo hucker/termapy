@@ -216,11 +216,10 @@ def _hook_line_no(app, ctx, args: str) -> CmdResult:
     sets; the explicit verb ``toggle`` flips; anything else errors.  A
     setting command never mutates on a bare invocation -- see CLAUDE.md.
     """
-    action = parse_bool_setting(args)
-    if action is None:
-        return CmdResult.fail(
-            msg=f"Invalid value: {args.strip()} (use on/off/toggle)"
-        )
+    try:
+        action = parse_bool_setting(args)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     if action is SETTING_QUERY:
         new_state = app._show_line_numbers
     elif action is SETTING_TOGGLE:

@@ -780,7 +780,7 @@ class TestBoolType:
         """An unknown token fails and the message lists the accepted vocabulary."""
         ok, reason = coerce_value(ParamSpec("flag", "bool", default=True), "maybe")
         assert ok is False, "an unknown token errors, never silently means False"
-        assert reason == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0)", (
+        assert reason == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0/y/n/t/f)", (
             "the error teaches the accepted vocabulary"
         )
 

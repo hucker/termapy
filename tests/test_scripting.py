@@ -814,10 +814,12 @@ class TestParseBoolSetting:
         assert parse_bool_setting(val) is False, f"{val!r} -> set False"
 
     @pytest.mark.parametrize("val", ["2", "banana", "-", "++", "query"])
-    def test_invalid_is_none(self, val):
-        """Unrecognized input returns None so the caller errors; the /term.color 2 bug."""
-        # None -> caller MUST error; NEVER a silent flip (the /term.color 2 bug)
-        assert parse_bool_setting(val) is None, f"{val!r} is invalid"
+    def test_invalid_raises_with_the_vocabulary_and_the_verb(self, val):
+        """Unrecognized input raises the setting message, so the caller fails; never a silent flip (the /term.color 2 bug)."""
+        expected = f"Invalid value: {val} (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        with pytest.raises(ValueError) as exc:
+            parse_bool_setting(val)
+        assert str(exc.value) == expected, "the message names the text as typed, the vocabulary and toggle"
 
 
 class TestNextInCycle:
@@ -876,16 +878,40 @@ class TestParseBool:
         actual = parse_bool(val)
 
         # Assert - value should be recognized despite surrounding whitespace
-        assert actual is not None, f"expected bool for {val!r}, got None"
+        assert isinstance(actual, bool), f"expected bool for {val!r}, got {actual!r}"
 
-    @pytest.mark.parametrize("val", ["", "maybe", "2", "high", "low", "enable", "x"])
-    def test_unrecognized_returns_none(self, val):
-        """Unknown words, including near-misses like enable, return None, not False."""
-        # Act
-        actual = parse_bool(val)
+    @pytest.mark.parametrize("val", ["maybe", "2", "high", "low", "enable", "x"])
+    def test_unrecognized_raises(self, val):
+        """Unknown words, including near-misses like enable and the old high/low, raise; never False, never a default."""
+        with pytest.raises(ValueError) as exc:
+            parse_bool(val, default=False)
+        assert str(exc.value) == f"Invalid boolean: {val} (use on/off/true/false/yes/no/1/0/y/n/t/f)", (
+            "a present token outside the vocabulary errors even when a default was declared"
+        )
 
-        # Assert
-        assert actual is None, f"expected None for {val!r}, got {actual!r}"
+    @pytest.mark.parametrize("text", ["", "   ", None])
+    def test_absence_yields_the_declared_default(self, text):
+        """None or blank text is absence: the caller's declared default comes back, True, False or None alike."""
+        assert parse_bool(text, default=True) is True, "absence reads as the declared True"
+        assert parse_bool(text, default=False) is False, "absence reads as the declared False"
+        assert parse_bool(text, default=None) is None, "None is a legal default (no override)"
+
+    def test_absence_without_a_default_raises(self):
+        """A reader that declared no default fails loud on absence instead of inventing False."""
+        with pytest.raises(ValueError, match=r"^Missing echo \(use on/off/"):
+            parse_bool("", what="echo")
+
+    def test_what_names_the_thing_and_the_text_as_typed(self):
+        """The message leads with Invalid <what>: <text stripped, case kept> and ends with the vocabulary."""
+        with pytest.raises(ValueError) as exc:
+            parse_bool("  Maybe ", what="quiet")
+        assert str(exc.value) == "Invalid quiet: Maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)"
+
+    def test_the_hint_is_derived_from_the_table(self):
+        """BOOL_TOKENS_HELP pairs the two tuples in order, so the hint and the parser cannot drift apart."""
+        from termapy.scripting import BOOL_TOKENS_HELP
+
+        assert BOOL_TOKENS_HELP == "on/off/true/false/yes/no/1/0/y/n/t/f"
 
 
 # ── select_lines (shared count scheme) ───────────────────────────

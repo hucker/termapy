@@ -10,7 +10,7 @@ import re
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TypeVar
+from typing import TypeVar, overload
 
 from frist import Age
 
@@ -42,37 +42,77 @@ def strip_leading_echo(text: str, command: str) -> str:
 
 # -- Boolean parsing ---------------------------------------------------------
 
-# Accepted truthy/falsy string tokens. Kept intentionally wide so users can
-# type the form that feels natural without memorizing the allowed set.
-# Hardware signal names like "high"/"low" are deliberately NOT here -- those
-# live with port_control.parse_bool_value which is a separate domain.
-_BOOL_TRUE = frozenset({"on", "1", "true", "yes", "y", "t"})
-_BOOL_FALSE = frozenset({"off", "0", "false", "no", "n", "f"})
+# The one vocabulary for a boolean a user types, in any frontend or file
+# (registry ``bool-one-vocabulary``).  Wide on purpose, so a user types the
+# form that feels natural.  The two tuples are paired in order so the hint
+# reads on/off, true/false, ...; every message that names the accepted
+# tokens is built from ``BOOL_TOKENS_HELP``, nothing types the list by hand.
+_BOOL_TRUE: tuple[str, ...] = ("on", "true", "yes", "1", "y", "t")
+_BOOL_FALSE: tuple[str, ...] = ("off", "false", "no", "0", "n", "f")
+BOOL_TOKENS_HELP: str = "/".join(
+    token for pair in zip(_BOOL_TRUE, _BOOL_FALSE, strict=True) for token in pair
+)
 
 
-def parse_bool(val: str) -> bool | None:
-    """Parse a boolean-like string from user input.
+class _NoDefault:
+    """The type of ``_NO_DEFAULT``: the caller declared no meaning for absence."""
 
-    Returns ``True`` for: on, 1, true, yes, y, t
-    Returns ``False`` for: off, 0, false, no, n, f
-    Returns ``None`` for anything else (unrecognized / empty).
 
-    Case-insensitive. Leading and trailing whitespace is stripped.
-    Use this anywhere a command accepts a user-facing boolean so the
-    accepted tokens stay consistent across the app.
+_NO_DEFAULT = _NoDefault()
+
+
+@overload
+def parse_bool(text: str | None, *, what: str = ...) -> bool:
+    ...
+
+
+@overload
+def parse_bool(text: str | None, *, default: bool, what: str = ...) -> bool:
+    ...
+
+
+@overload
+def parse_bool(text: str | None, *, default: None, what: str = ...) -> bool | None:
+    ...
+
+
+def parse_bool(
+    text: str | None,
+    *,
+    default: bool | None | _NoDefault = _NO_DEFAULT,
+    what: str = "boolean",
+) -> bool | None:
+    """Read a boolean from user text: the one reader for the one vocabulary.
+
+    Case-insensitive, whitespace stripped.  ``None`` or blank text is
+    *absence*: it yields ``default`` when the caller declared one and
+    raises when it did not, so every reader states what a missing value
+    means.  A present token outside the vocabulary always raises; it
+    never silently means False or the default.  ``what`` names the thing
+    in the message (``Invalid echo: maybe (use on/off/...)``).
 
     Args:
-        val: Raw string from user input or config.
+        text: The user's text, or ``None`` when the source had nothing.
+        default: What absence means.  Omit it to make absence an error.
+        what: The noun for the error message.
 
     Returns:
-        True, False, or None if the string is not a recognized boolean.
+        The boolean, or ``default`` on absence.
+
+    Raises:
+        ValueError: A token outside the vocabulary, or absence with no
+            declared default.
     """
-    s = val.strip().lower()
-    if s in _BOOL_TRUE:
+    token = (text or "").strip().lower()
+    if not token:
+        if isinstance(default, _NoDefault):
+            raise ValueError(f"Missing {what} (use {BOOL_TOKENS_HELP})")
+        return default
+    if token in _BOOL_TRUE:
         return True
-    if s in _BOOL_FALSE:
+    if token in _BOOL_FALSE:
         return False
-    return None
+    raise ValueError(f"Invalid {what}: {(text or '').strip()} (use {BOOL_TOKENS_HELP})")
 
 
 # Distinct sentinels for the setting-command grammar so a caller can never
@@ -81,22 +121,28 @@ def parse_bool(val: str) -> bool | None:
 # on a bare invocation; see the rule in CLAUDE.md / writing-plugins.md.
 SETTING_QUERY = "query"    # empty args: show the current value, no change
 SETTING_TOGGLE = "toggle"  # the literal ``toggle`` verb: flip a boolean
+SETTING_TOKENS_HELP: str = f"{BOOL_TOKENS_HELP} or toggle"
 
 
-def parse_bool_setting(args: str) -> str | bool | None:
+def parse_bool_setting(args: str) -> str | bool:
     """Classify a boolean setting-command argument.
 
     Returns:
         ``SETTING_QUERY``  -- empty args: caller shows state, mutates nothing.
         ``SETTING_TOGGLE`` -- the literal ``toggle`` verb: caller flips.
-        ``True`` / ``False`` -- an ``on``/``off`` token (see ``parse_bool``).
-        ``None``           -- anything else: caller MUST fail (never a flip).
+        ``True`` / ``False`` -- a vocabulary token (see ``parse_bool``).
+
+    Raises:
+        ValueError: anything else, as ``Invalid value: X (use ... or
+            toggle)``; the caller returns it as the command's failure,
+            never a flip.
 
     Usage::
 
-        action = parse_bool_setting(args)
-        if action is None:
-            return CmdResult.fail(msg=f"Invalid value: {args.strip()} (use on/off/toggle)")
+        try:
+            action = parse_bool_setting(args)
+        except ValueError as e:
+            return CmdResult.fail(msg=str(e))
         if action is SETTING_QUERY:   pass
         elif action is SETTING_TOGGLE: flag = not flag
         else:                          flag = action
@@ -106,7 +152,12 @@ def parse_bool_setting(args: str) -> str | bool | None:
         return SETTING_QUERY
     if arg == SETTING_TOGGLE:
         return SETTING_TOGGLE
-    return parse_bool(arg)
+    try:
+        return parse_bool(arg)
+    except ValueError:
+        raise ValueError(
+            f"Invalid value: {args.strip()} (use {SETTING_TOKENS_HELP})"
+        ) from None
 
 
 _CycleT = TypeVar("_CycleT")
@@ -143,10 +194,7 @@ def coerce_to_type(value_str: str, existing: object) -> object:
             bool field, or a non-numeric string for an int/float field).
     """
     if isinstance(existing, bool):
-        result = parse_bool(value_str)
-        if result is None:
-            raise ValueError(f"Expected bool, got '{value_str}'")
-        return result
+        return parse_bool(value_str, what="value")
     if isinstance(existing, int):
         return int(value_str)
     if isinstance(existing, float):

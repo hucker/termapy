@@ -45,6 +45,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from termapy.response_parsers import _coerce as _coerce_builtin
+from termapy.scripting import parse_bool
 
 # Names that may not be used as custom type names — they always resolve
 # to the corresponding builtin coercion.
@@ -361,7 +362,17 @@ class TypeRegistry:
     # ── builtin dispatch ────────────────────────────────────────
 
     def _validate_builtin(self, name: str, raw: Any) -> ValidationOutcome:
-        """Coerce via response_parsers._coerce; success iff type matches."""
+        """Coerce via response_parsers._coerce; success iff type matches.
+
+        A typed argument is user text, so ``bool`` goes through the one
+        reader and a bad token fails by name; the other builtins keep the
+        permissive coercer and detect its raw-string shrug.
+        """
+        if name == "bool":
+            try:
+                return ValidationOutcome(ok=True, value=parse_bool(str(raw), what="bool"))
+            except ValueError as e:
+                return ValidationOutcome(ok=False, error=str(e))
         coerced = _coerce_builtin(str(raw), name)
         # _coerce returns the raw string on coercion failure -- detect
         # that by checking whether we got a meaningful Python type.
@@ -370,8 +381,6 @@ class TypeRegistry:
         if name == "float" and isinstance(coerced, float):
             return ValidationOutcome(ok=True, value=coerced)
         if name == "hex" and isinstance(coerced, int) and not isinstance(coerced, bool):
-            return ValidationOutcome(ok=True, value=coerced)
-        if name == "bool" and isinstance(coerced, bool):
             return ValidationOutcome(ok=True, value=coerced)
         if name == "str":
             return ValidationOutcome(ok=True, value=str(raw))

@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from termapy.scripting import parse_bool, parse_duration, parse_keywords
+from termapy.scripting import BOOL_TOKENS_HELP, parse_bool, parse_duration, parse_keywords
 
 # Resolves the inner text of one $(*NAME) reference ("NAME" or "NAME:fmt") to
 # its value, or None when the name is undefined.  Injected by the dispatcher so
@@ -143,13 +143,13 @@ def coerce_value(spec: ParamSpec, text: str) -> CoerceResult:
             return False, f"invalid {spec.name}: {text!r} (expected {noun})"
         return _range_check(spec, value)
     if kind == "bool":
-        flag = parse_bool(text)
-        if flag is None:
+        try:
+            return True, parse_bool(text, what=spec.name)
+        except ValueError:
             return False, (
                 f"invalid {spec.name}: {text!r} "
-                f"(expected a boolean: on/off/true/false/yes/no/1/0)"
+                f"(expected a boolean: {BOOL_TOKENS_HELP})"
             )
-        return True, flag
     if kind == "duration":
         try:
             return True, parse_duration(text)  # bare 0 accepted; a unit is required otherwise

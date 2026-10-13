@@ -84,6 +84,17 @@ def pytest_addoption(parser) -> None:
             "they are not competing for CPU -- run with -n 0."
         ),
     )
+    parser.addoption(
+        "--require-hardware",
+        action="store_true",
+        default=False,
+        help=(
+            "Like --run-hardware, but a loopback rig that is absent, busy, "
+            "ambiguous or not echoing FAILS the run instead of skipping it.  "
+            "release_prep passes it, so a release cannot read green with the "
+            "bench unplugged."
+        ),
+    )
 
 
 def pytest_collection_modifyitems(config, items) -> None:
@@ -104,7 +115,7 @@ def pytest_collection_modifyitems(config, items) -> None:
     """
     import pytest
 
-    if config.getoption("--run-hardware"):
+    if config.getoption("--run-hardware") or config.getoption("--require-hardware"):
         return
     skip = pytest.mark.skip(
         reason="needs --run-hardware (and a loopback adapter); "

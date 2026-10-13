@@ -179,6 +179,21 @@ existed in three files and one copy was wrong; the project's own rule for
 tables ("one table, iterated by every surface") applies to prose. **Where:**
 review only.
 
+## 2026-10-13 — Real hardware is tested at every merge it can be, and at every release
+
+The loopback suite runs before a branch is handed for merge whenever the rig is
+attached, and `release_prep` refuses a release unless it passes:
+`--require-hardware` turns an absent, busy or silent rig into a failure rather
+than a skip, and releasing without it is an explicit `--skip-hardware` on the
+release command line. A skipped run is reported as skipped, never as a pass.
+Chuck: "having real hardware break because it was never tested is
+embarrassing." **Why:** the loopback suite is the only test of the OS driver,
+bridge FIFO and real baud pacing, which `FakeSerial` and `loop://` cannot
+model; it had been opt-in since August and no gate passed the flag, so a
+release could ship with it never run, and the documented command had stopped
+running it at all. **Where:** registry `hardware-demanded-fails-loud`;
+`tests/test_hardware_gate.py`; `release_prep` step 5.
+
 ## 2026-10-13 — The invariants registry says what each row is
 
 `invariants.md` is "the rules the code relies on", and only some of them are

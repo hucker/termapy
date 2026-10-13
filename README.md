@@ -107,6 +107,8 @@ Termapy runs with your privileges and does whatever you — or a connected MCP c
 | Network sockets (`socket://`, `rfc2217://`) | `TERMAPY_MCP_NET_EGRESS=1` |
 | Environment variables (`/env`, `$(env.X)`) | `TERMAPY_MCP_ENV_ENABLED=1` |
 
+Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
+
 <details>
 <summary><strong>The basics</strong> - keyboard shortcuts, title bar, REPL commands</summary>
 

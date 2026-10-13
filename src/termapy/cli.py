@@ -640,13 +640,20 @@ class CLITerminal(TerminalHost):
     # -- Confirmation ---------------------------------------------------------
 
     def _confirm(self, message: str) -> bool:
-        """Prompt for y/n confirmation on stdin."""
+        """Prompt for y/n confirmation on stdin.
+
+        A confirmation prompt tests for yes; it does not parse a boolean
+        (the exemption named in bool-one-vocabulary).  Any vocabulary
+        yes confirms; a bare Enter and any unrecognized word keep the
+        [y/N] default of No.
+        """
         try:
             answer = input(f"  {message} [y/N] ").strip()
-            # One boolean vocabulary (CLAUDE.md): y/yes/true/1/on all
-            # confirm; anything unrecognized keeps the [y/N] default of No.
-            return parse_bool(answer) is True
         except (EOFError, KeyboardInterrupt):
+            return False
+        try:
+            return parse_bool(answer, default=False)
+        except ValueError:
             return False
 
     # -- Prompt session (history + tab completion via prompt_toolkit) ----------

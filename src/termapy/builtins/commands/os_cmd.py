@@ -23,8 +23,8 @@ if TYPE_CHECKING:
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Run a shell command and display its output.
 
-    Gated by the ``TERMAPY_OS_CMD_ENABLED`` env var (truthy ``1`` /
-    ``true`` / ``yes`` / ``on``).  Runs the command via
+    Gated by the ``TERMAPY_OS_CMD_ENABLED`` env var (any boolean token,
+    read once at startup by ``env_flags``).  Runs the command via
     ``subprocess.run()`` with a 10-second timeout.  Stdout is
     displayed in white, stderr in red.
 

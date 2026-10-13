@@ -3,6 +3,9 @@
 The detector is a heuristic over env vars and ``sys.platform``.  These
 tests fully isolate it via ``monkeypatch.setenv`` / ``delenv`` and a
 patched ``sys.platform`` so the real environment can't influence them.
+The ``TERMAPY_GUI`` override is read once at startup by ``env_flags``
+(its vocabulary is pinned in ``test_env_var_gates.py``), so these tests
+set the frozen ``GUI_OVERRIDE`` by attribute.
 """
 
 from __future__ import annotations
@@ -11,11 +14,11 @@ import sys
 
 import pytest
 
+from termapy import env_flags
 from termapy.plugins import detect_gui_apps
 
-# Env vars touched by the detector.  Each test starts from a clean slate.
+# Env vars the heuristic reads at call time.  Each test starts from a clean slate.
 _ENV_VARS = (
-    "TERMAPY_GUI",
     "SSH_CONNECTION",
     "SSH_TTY",
     "DISPLAY",
@@ -25,9 +28,10 @@ _ENV_VARS = (
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    """Strip every var the detector reads so each test starts clean."""
+    """Strip every var the detector reads, and the startup override, so each test starts clean."""
     for name in _ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(env_flags, "GUI_OVERRIDE", None)
 
 
 def _set_platform(monkeypatch, platform: str) -> None:
@@ -38,60 +42,31 @@ def _set_platform(monkeypatch, platform: str) -> None:
 
 
 def test_override_true_wins_even_in_ssh(monkeypatch):
-    """TERMAPY_GUI=1 forces GUI apps on even in an SSH session with no display."""
+    """A startup TERMAPY_GUI override of on forces GUI apps on even in an SSH session with no display."""
     # Arrange — SSH session, no display: would normally be False
     monkeypatch.setenv("SSH_CONNECTION", "1.2.3.4 22 5.6.7.8 22")
-    monkeypatch.setenv("TERMAPY_GUI", "1")
+    monkeypatch.setattr(env_flags, "GUI_OVERRIDE", True)
     _set_platform(monkeypatch, "linux")
 
     # Act
     actual = detect_gui_apps()
 
     # Assert
-    assert actual is True, "TERMAPY_GUI=1 must override SSH-no-display detection"
+    assert actual is True, "the override beats SSH-no-display detection"
 
 
 def test_override_false_wins_on_native_linux(monkeypatch):
-    """TERMAPY_GUI=0 forces GUI apps off even on native Linux with a DISPLAY."""
+    """A startup TERMAPY_GUI override of off forces GUI apps off even on native Linux with a DISPLAY."""
     # Arrange — native Linux with DISPLAY: would normally be True
     monkeypatch.setenv("DISPLAY", ":0")
-    monkeypatch.setenv("TERMAPY_GUI", "0")
+    monkeypatch.setattr(env_flags, "GUI_OVERRIDE", False)
     _set_platform(monkeypatch, "linux")
 
     # Act
     actual = detect_gui_apps()
 
     # Assert
-    assert actual is False, "TERMAPY_GUI=0 must override native-with-DISPLAY"
-
-
-@pytest.mark.parametrize("value", ["yes", "true", "on"])
-def test_override_truthy_aliases(monkeypatch, value):
-    """The override accepts yes/true/on as well as 1, overriding a headless Linux box."""
-    # Arrange
-    monkeypatch.setenv("TERMAPY_GUI", value)
-    _set_platform(monkeypatch, "linux")
-
-    # Act
-    actual = detect_gui_apps()
-
-    # Assert
-    assert actual is True, f"TERMAPY_GUI={value!r} should be truthy"
-
-
-@pytest.mark.parametrize("value", ["no", "false", "off"])
-def test_override_falsy_aliases(monkeypatch, value):
-    """The override accepts no/false/off as well as 0, overriding a present DISPLAY."""
-    # Arrange
-    monkeypatch.setenv("TERMAPY_GUI", value)
-    monkeypatch.setenv("DISPLAY", ":0")
-    _set_platform(monkeypatch, "linux")
-
-    # Act
-    actual = detect_gui_apps()
-
-    # Assert
-    assert actual is False, f"TERMAPY_GUI={value!r} should be falsy"
+    assert actual is False, "the override beats native-with-DISPLAY"
 
 
 # ── SSH ──────────────────────────────────────────────────────────────────────

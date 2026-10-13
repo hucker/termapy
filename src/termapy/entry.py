@@ -311,6 +311,16 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
+    # The environment booleans are read once, at import (env_flags); a
+    # value outside the vocabulary is refused here, by name, before any
+    # flag or frontend runs -- a message, never a traceback.
+    from termapy.env_flags import startup_error
+
+    error = startup_error()
+    if error:
+        print(f"termapy: {error}", file=sys.stderr)
+        sys.exit(1)
+
     # CLI-only flags: dispatch before anything touches Textual.  Each
     # of these calls sys.exit() internally, so control never returns.
     if args.info is not None:

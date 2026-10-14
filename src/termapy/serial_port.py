@@ -476,6 +476,9 @@ class SerialReader:
             # Feed binary capture if active - consume data, skip display
             cap = self._capture
             if cap and getattr(cap, "active", False) and getattr(cap, "mode", "") == "bin":
+                # A binary capture holds the claim too: what came before it
+                # is flushed, not glued to the first line after it.
+                self._flush_pending(result)
                 target_reached = cap.feed_bytes(data)
                 if target_reached:
                     result.capture_target_reached = True
@@ -483,10 +486,14 @@ class SerialReader:
 
             # Suppress display while the port is claimed for synchronous read.
             if self._serial_claimed():
-                self._last_rx = time.monotonic()
-                self._buf = ""
-                self._decoder.reset()  # drop any half-decoded char too
+                # What arrived before the claim is the session's, not the
+                # claimant's: flush it to every consumer first.  Clearing it
+                # dropped a prompt that came in under 200 ms before a claim
+                # (registry rx-every-line-delivered).
+                self._flush_pending(result)
+                self._buf = ""  # a partial ANSI escape the flush held back
                 self._hex_buf.clear()
+                self._last_rx = time.monotonic()
                 return result
 
             self._last_rx = time.monotonic()
@@ -529,30 +536,37 @@ class SerialReader:
         else:
             # No data - flush partial line after 200ms of silence
             if (time.monotonic() - self._last_rx) >= 0.2:
-                # Drain any bytes the decoder is holding mid-character so a
-                # truncated multi-byte tail surfaces (as U+FFFD) instead of
-                # lingering until the next read.
-                tail = self._decoder.decode(b"", final=True)
-                self._decoder.reset()
-                if tail:
-                    self._buf += tail
-                if self._hex_display:
-                    result.hex_rows = (
-                        [format_hex(bytes(self._hex_buf))] if self._hex_buf else []
-                    )
-                    self._hex_buf.clear()
-                if self._buf and not PARTIAL_ANSI_RE.search(self._buf):
-                    # No more bytes coming: flush the remainder as one final
-                    # line.  A deferred trailing CR (held by split_rx_lines
-                    # in case a CRLF was mid-arrival) is now known to be a
-                    # lone CR terminator, so surface it as such.
-                    content, term = self._buf, ""
-                    if content.endswith("\r"):
-                        content, term = content[:-1], "cr"
-                    result.lines.append(self._render_line(content, term))
-                    self._buf = ""
+                self._flush_pending(result)
 
         return result
+
+    def _flush_pending(self, result: ReaderResult) -> None:
+        """Move what is held mid-line into *result*: no more bytes belong to it.
+
+        Run after 200 ms of silence and when a claim starts.  The decoder's
+        held bytes surface (a truncated multi-byte tail as U+FFFD) instead
+        of lingering until the next read, the hex view's partial row
+        becomes a row, and the partial line becomes one final line, unless
+        it ends mid-ANSI-escape, which stays held.
+        """
+        tail = self._decoder.decode(b"", final=True)
+        self._decoder.reset()
+        if tail:
+            self._buf += tail
+        if self._hex_display:
+            result.hex_rows = (
+                [format_hex(bytes(self._hex_buf))] if self._hex_buf else []
+            )
+            self._hex_buf.clear()
+        if self._buf and not PARTIAL_ANSI_RE.search(self._buf):
+            # A deferred trailing CR (held by split_rx_lines in case a CRLF
+            # was mid-arrival) is now known to be a lone CR terminator, so
+            # surface it as such.
+            content, term = self._buf, ""
+            if content.endswith("\r"):
+                content, term = content[:-1], "cr"
+            result.lines.append(self._render_line(content, term))
+            self._buf = ""
 
     def _render_line(self, content: str, term: str) -> str:
         """Clean and (optionally) annotate one extracted line for display.

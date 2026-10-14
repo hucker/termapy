@@ -851,6 +851,25 @@ class TestColorStripping:
             "recorded nothing"
         )
 
+    def test_on_hex_puts_rows_in_output_lines_and_feeds_the_lines(self, host):
+        """hex-view-wire-bytes: in the hex view the agent's output_lines carry the rows; the watcher gets the decoded line."""
+        # Arrange
+        from termapy.mcp.server import _buffer
+
+        token = _buffer.set([])
+        try:
+            # Act -- the reader's hex-view callback
+            host._on_hex(["4F 4B 0D 0A"], ["OK"])
+            buf = _buffer.get()
+        finally:
+            _buffer.reset(token)
+
+        # Assert
+        assert buf is not None, "the buffer was set above"
+        rx_text = [entry["text"] for entry in buf if entry["level"] == "rx"]
+        assert rx_text == ["4F 4B 0D 0A"], "MCP ignored /term.hex: the agent saw text"
+        assert list(host.repl._recent_lines)[-1] == "OK", "the expect watcher gets the decoded line"
+
     def test_a_lost_port_stops_a_running_capture(self, host, tmp_path):
         """port-lost-tears-down: when the reader loses the port, an MCP capture stops and frees its claim."""
         # Arrange -- a binary capture, which claims the port

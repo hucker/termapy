@@ -3,7 +3,8 @@
 ``SerialPort`` wraps a serial port with logging, frame reading, idle
 detection, and queue draining. ``SerialReader`` processes raw bytes into
 display lines, handling encoding, line splitting, EOL markers, ANSI
-partial-escape buffering, and clear-screen detection.
+partial-escape buffering, and clear-screen detection, plus the hex view's
+rows of the bytes as received.
 
 No Textual dependency - fully testable.
 """
@@ -16,6 +17,8 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
+
+from termapy.protocol.core import format_hex
 
 
 class SerialPort:
@@ -248,6 +251,10 @@ RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
 # that terminates its output never reaches it.
 RX_LINE_MAX_CHARS = 65536
 
+# Most bytes on one hex-view row.  A row also ends after each 0A, so a
+# line-oriented device reads as one row per line.
+HEX_ROW_BYTES = 16
+
 _EOL_MARKERS = {"cr": _EOL_CR, "lf": _EOL_LF, "crlf": _EOL_CR + _EOL_LF}
 
 
@@ -338,11 +345,16 @@ class ReaderResult:
         lines: Complete text lines ready for display.
         clear_screen: True if a clear-screen escape was detected.
         capture_target_reached: True if binary capture hit its target.
+        hex_rows: In the hex view, the received bytes as rows to display
+            in place of ``lines``; None in the text view.  Display only:
+            ``lines`` still carries the decoded text for the session log,
+            the expect watcher and text capture.
     """
 
     lines: list[str] = field(default_factory=list)
     clear_screen: bool = False
     capture_target_reached: bool = False
+    hex_rows: list[str] | None = None
 
 
 class SerialReader:
@@ -351,6 +363,13 @@ class SerialReader:
     Handles encoding, line splitting, EOL markers, partial ANSI escape
     buffering, and clear-screen detection. Feeds binary data to the
     CaptureEngine when active.
+
+    The hex view (``hex_display``) is built from the bytes as received,
+    never from the decoded text, so CR, LF, backspace and bytes the
+    encoding cannot decode all show as themselves.  It adds rows beside
+    the lines rather than replacing them: the decoded lines are what the
+    session log, the expect watcher and text capture consume, in either
+    view.
 
     This class holds the text buffer state between ``process()`` calls
     but has no threading or I/O - the caller drives it.
@@ -364,6 +383,7 @@ class SerialReader:
             bytes are queued for ``serial_read_raw()`` instead of feeding
             ``on_lines``.  ``PluginContext.serial_io()`` is the canonical
             way to enter this state.
+        hex_display: Start in the hex view.
     """
 
     def __init__(
@@ -373,6 +393,7 @@ class SerialReader:
         capture: Any | None = None,
         serial_claimed: Callable[[], bool] | None = None,
         rx_newline: str = "auto",
+        hex_display: bool = False,
     ) -> None:
         self._encoding = encoding
         self._show_line_endings = show_line_endings
@@ -380,6 +401,9 @@ class SerialReader:
         self._capture = capture
         self._serial_claimed = serial_claimed or (lambda: False)
         self._buf: str = ""
+        self._hex_display = hex_display
+        # Bytes of the hex row not yet ended by an 0A or HEX_ROW_BYTES.
+        self._hex_buf = bytearray()
         # Stateful decoder: holds the trailing bytes of a multi-byte
         # character that gets split across two serial reads, so the char
         # is decoded once whole instead of becoming two U+FFFD on each
@@ -418,6 +442,18 @@ class SerialReader:
         # raising on the read thread.
         self._rx_newline = value if value in RX_NEWLINE_MODES else "auto"
 
+    @property
+    def hex_display(self) -> bool:
+        return self._hex_display
+
+    @hex_display.setter
+    def hex_display(self, value: bool) -> None:
+        # Leaving the hex view drops its partial row: those bytes are still
+        # in the text buffer, so the text view shows them on their line.
+        if not value:
+            self._hex_buf.clear()
+        self._hex_display = value
+
     def process(self, data: bytes) -> ReaderResult:
         """Process a chunk of raw serial bytes.
 
@@ -446,9 +482,14 @@ class SerialReader:
                 self._last_rx = time.monotonic()
                 self._buf = ""
                 self._decoder.reset()  # drop any half-decoded char too
+                self._hex_buf.clear()
                 return result
 
             self._last_rx = time.monotonic()
+            if self._hex_display:
+                # From the raw chunk, before decoding touches it.
+                self._hex_buf += data
+                result.hex_rows = self._take_hex_rows()
             # Incremental decode: a multi-byte char split across two reads
             # is held until its continuation bytes arrive, instead of
             # decoding each chunk independently and emitting U+FFFD twice.
@@ -462,7 +503,8 @@ class SerialReader:
             m = CLEAR_SCREEN_RE.search(self._buf)
             if m:
                 self._buf = self._buf[m.end():]
-                result.clear_screen = True
+                # The hex view shows the escape's bytes instead of obeying it.
+                result.clear_screen = not self._hex_display
 
             # Collect complete lines per the receive-newline mode.  Markers
             # are applied per detected terminator (see _render_line) rather
@@ -490,6 +532,11 @@ class SerialReader:
                 self._decoder.reset()
                 if tail:
                     self._buf += tail
+                if self._hex_display:
+                    result.hex_rows = (
+                        [format_hex(bytes(self._hex_buf))] if self._hex_buf else []
+                    )
+                    self._hex_buf.clear()
                 if self._buf and not PARTIAL_ANSI_RE.search(self._buf):
                     # No more bytes coming: flush the remainder as one final
                     # line.  A deferred trailing CR (held by split_rx_lines
@@ -522,8 +569,32 @@ class SerialReader:
             content += _EOL_MARKERS[term]
         return content
 
+    def _take_hex_rows(self) -> list[str]:
+        """Cut the complete hex rows off the front of the hex buffer.
+
+        A row ends after an ``0A`` or at ``HEX_ROW_BYTES``, whichever comes
+        first.  The remainder waits for more bytes or the idle flush, so the
+        buffer never holds a full row.
+        """
+        buf = self._hex_buf
+        rows: list[str] = []
+        start = 0
+        while True:
+            newline = buf.find(b"\n", start, start + HEX_ROW_BYTES)
+            if newline != -1:
+                end = newline + 1
+            elif len(buf) - start >= HEX_ROW_BYTES:
+                end = start + HEX_ROW_BYTES
+            else:
+                break
+            rows.append(format_hex(bytes(buf[start:end])))
+            start = end
+        del buf[:start]
+        return rows
+
     def reset(self) -> None:
         """Clear the internal buffer."""
         self._buf = ""
         self._decoder.reset()
+        self._hex_buf.clear()
         self._last_rx = time.monotonic()

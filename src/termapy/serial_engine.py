@@ -482,8 +482,9 @@ class SerialEngine:
         Args:
             **callbacks: Passed straight to ``read_loop`` (``on_lines``,
                 ``on_clear``, ``on_capture_done``, ``on_error``,
-                ``on_disconnect``).  None of them may block on another
-                thread; see ``READER_JOIN_TIMEOUT_S``.
+                ``on_disconnect``, ``on_hex``, plus the ``hex_view``
+                predicate).  None of them may block on another thread;
+                see ``READER_JOIN_TIMEOUT_S``.
         """
         self.stop_reader()
         self._stop_event.clear()
@@ -553,6 +554,8 @@ class SerialEngine:
         on_capture_done: Callable[[], None] | None = None,
         on_error: Callable[[str], None] | None = None,
         on_disconnect: Callable[[], None] | None = None,
+        on_hex: Callable[[list[str], list[str]], None] | None = None,
+        hex_view: Callable[[], bool] | None = None,
     ) -> None:
         """Blocking reader loop - call from a background thread.
 
@@ -566,6 +569,12 @@ class SerialEngine:
             on_capture_done: Called when binary capture hits its target.
             on_error: Called with error detail string on serial read error.
             on_disconnect: Called when the port disconnects unexpectedly.
+            on_hex: Called in place of ``on_lines`` while the hex view is
+                on, with the hex rows to display and the decoded lines for
+                the log, expect watcher and text capture.
+            hex_view: Asked once per chunk whether the hex view is on, so a
+                toggle takes effect at a chunk boundary and every chunk is
+                delivered in exactly one view.  Ignored without ``on_hex``.
         """
         reader = self._reader
         port = self._port_obj
@@ -607,13 +616,19 @@ class SerialEngine:
                     # reconnect.  Cheap dict read; the cfg dict is the same
                     # object /cfg mutates (see how TX line_ending stays live).
                     reader.rx_newline = self._cfg.get("eol_rx", "auto")
+                    # The same live resync for /term.hex, which is a session
+                    # flag the host owns rather than a cfg key.
+                    reader.hex_display = bool(on_hex and hex_view and hex_view())
                     result = reader.process(data)
 
                     if result.capture_target_reached and on_capture_done:
                         on_capture_done()
                     if result.clear_screen and on_clear:
                         on_clear()
-                    if result.lines and on_lines:
+                    if on_hex and result.hex_rows is not None:
+                        if result.hex_rows or result.lines:
+                            on_hex(result.hex_rows, result.lines)
+                    elif result.lines and on_lines:
                         on_lines(result.lines)
 
                     if not data:

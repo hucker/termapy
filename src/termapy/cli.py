@@ -707,6 +707,11 @@ class CLITerminal(TerminalHost):
             # Expect watcher and text capture, the same as every frontend.
             self._feed_rx_consumers(lines, plain)
 
+        def on_hex(rows: list[str], lines: list[str]) -> None:
+            for row in rows:
+                self._raw(row)
+            self._feed_rx_consumers(lines, [strip_ansi(line) for line in lines])
+
         def on_disconnect() -> None:
             self._err("Serial disconnected")
             self._port_lost()
@@ -720,6 +725,8 @@ class CLITerminal(TerminalHost):
             on_capture_done=lambda: self._stop_capture(),
             on_error=lambda detail: self._err(f"Serial error: {detail}"),
             on_disconnect=on_disconnect,
+            on_hex=on_hex,
+            hex_view=self._hex_view,
         )
 
     # -- Run modes ------------------------------------------------------------

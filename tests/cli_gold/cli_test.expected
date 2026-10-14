@@ -969,7 +969,7 @@ SUBCOMMANDS
   /proto.dump       Print the newest (or named) file from proto/ to the terminal.
   /proto.explore    Open proto/ in the system file explorer.
   /proto.help       Show /proto help.
-  /proto.hex        Toggle hex display mode.
+  /proto.hex        Toggle hex display of incoming bytes (same flag as /term.hex).
   /proto.info       Print current protocol state.
   /proto.list       List files in proto/, newest first, with size and age.
   /proto.rename     Rename a file in proto/ (extension kept; never overwrites).

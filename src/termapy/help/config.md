@@ -155,7 +155,7 @@ reported as a type warning.
 | `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |
 | `eol_markers`                 | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
 | `line_no`                     | `false`                       | Show line numbers in serial output |
-| `hex`                         | `false`                       | Display serial I/O as hex bytes instead of text |
+| `hex`                         | `false`                       | Display received bytes as hex instead of text |
 | `request_mode`                | `false`                       | Turn bare device commands into synchronous request/response (see `/term.request`) |
 | `request_err_pattern`         | `(?i)^(ERROR\|ERR\|FAULT)\\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
 | `strip_device_echo`           | `false`                       | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |

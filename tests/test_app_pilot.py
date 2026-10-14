@@ -805,6 +805,63 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    def test_a_hex_batch_renders_rows_and_feeds_lines(self, app_factory):
+        """hex-view-wire-bytes: a toggle mid-drain keeps each batch in its view; hex-view lines are logged and fed, not shown."""
+        async def scenario():
+            from textual.widgets import RichLog
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- text, then a hex-view chunk, then text again,
+                # all queued before main drains any of them
+                app._rx_enqueue(("lines", ["TEXT-1"]))
+                app._rx_enqueue(("hex", ["48 31"], ["HEX-1"]))
+                app._rx_enqueue(("lines", ["TEXT-2"]))
+
+                # Act
+                await pilot.pause()
+
+                # Assert
+                shown = [strip.text.rstrip() for strip in app.query_one("#output", RichLog).lines]
+                actual_tail = shown[-3:]
+                expected_tail = ["TEXT-1", "48 31", "TEXT-2"]
+                assert actual_tail == expected_tail, "each batch renders in its own view, in order"
+                assert "HEX-1" not in shown, "a hex-view line is not also rendered as text"
+                assert list(app.repl._recent_lines)[-3:] == ["TEXT-1", "HEX-1", "TEXT-2"], (
+                    "the expect watcher gets every decoded line, whichever view showed it"
+                )
+                assert app.log_fh is not None, "a config on disk opens a log"
+                log_text = Path(app.log_fh.name).read_text(encoding="utf-8")
+                assert "< HEX-1" in log_text, "the session log keeps the decoded line"
+
+        _run(scenario)
+
+    def test_the_hex_view_shows_a_demo_reply_as_its_bytes(self, app_factory):
+        """With /term.hex on, the real reader shows the DEMO reply as its wire bytes and the decoded line still reaches expect."""
+        async def scenario():
+            from textual.widgets import RichLog
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app._connect() is True, "DEMO port should connect"
+                log = app.query_one("#output", RichLog)
+                app.repl.ctx.ns("flags")["hex"] = True
+
+                # Act -- DEMO answers AT with OK CR LF
+                app._serial_send("AT")
+                for _ in range(250):
+                    if "4F 4B 0D 0A" in app._get_screen_text():
+                        break
+                    await pilot.pause(0.02)
+
+                # Assert
+                shown = [strip.text.rstrip() for strip in log.lines]
+                assert "4F 4B 0D 0A" in shown, f"the reply renders as its bytes, got {shown[-5:]!r}"
+                assert "OK" not in shown, "the decoded line is not rendered as well"
+                assert "OK" in list(app.repl._recent_lines), "the expect watcher still gets the line"
+
+        _run(scenario)
+
     def test_a_flood_reaches_every_consumer_and_renders_only_max_lines(
         self, app_factory, tmp_path
     ):

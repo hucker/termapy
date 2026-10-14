@@ -8,6 +8,7 @@ import pytest
 
 from termapy.demo import FakeSerial
 from termapy.serial_port import (
+    HEX_ROW_BYTES,
     RX_LINE_MAX_CHARS,
     SerialPort,
     SerialReader,
@@ -500,6 +501,132 @@ class TestSerialReaderEOLMarkers:
 
         # Assert
         assert "\\r" not in result.lines[0], "no markers"
+
+
+class TestSerialReaderHexView:
+    """The hex view is cut from the raw bytes; the decoded lines ride beside it."""
+
+    def test_hex_rows_are_the_wire_bytes(self):
+        """hex-view-wire-bytes: a row shows backspace, an undecodable byte and CR LF as sent, while lines stay decoded."""
+        # Arrange
+        reader = SerialReader(hex_display=True)
+
+        # Act
+        result = reader.process(b"A\x08\xff\r\n")
+
+        # Assert
+        assert result.hex_rows == ["41 08 FF 0D 0A"], (
+            "rows were the decoded text re-encoded: EF BF BD for FF, "
+            "no CR LF, the backspace already applied"
+        )
+        assert result.lines == ["�"], "the consumers still get the decoded line"
+
+    def test_a_row_ends_after_each_0a_and_at_16_bytes(self):
+        """Two lines and a long run in one chunk give a row per line, a full row, and a held tail that flushes on idle."""
+        # Arrange
+        reader = SerialReader(hex_display=True)
+        run = bytes(range(0x30, 0x30 + HEX_ROW_BYTES + 4))
+
+        # Act
+        actual_rows = reader.process(b"OK\r\nAT\r\n" + run).hex_rows
+        reader._last_rx = time.monotonic() - 0.3  # simulate 200ms+ silence
+        actual_tail = reader.process(b"").hex_rows
+
+        # Assert
+        expected_rows = [
+            "4F 4B 0D 0A",
+            "41 54 0D 0A",
+            " ".join(f"{byte:02X}" for byte in run[:HEX_ROW_BYTES]),
+        ]
+        assert actual_rows == expected_rows, "one row per line, then one full row"
+        assert actual_tail == ["40 41 42 43"], "the short tail waits for idle, like a partial line"
+
+    def test_a_row_continues_across_reads(self):
+        """A row split over two reads is shown once, whole, when its 0A arrives."""
+        # Arrange
+        reader = SerialReader(hex_display=True)
+
+        # Act
+        first = reader.process(b"he").hex_rows
+        second = reader.process(b"llo\n").hex_rows
+
+        # Assert
+        assert first == [], "nothing until the row ends"
+        assert second == ["68 65 6C 6C 6F 0A"], "the row joins both reads"
+
+    def test_a_stream_with_no_0a_keeps_the_pending_row_bounded(self):
+        """A sustained run with no 0A never holds a full row, and every byte reaches exactly one row."""
+        # Arrange
+        reader = SerialReader(hex_display=True)
+        chunk = b"\x01\x02\x03\x04\x05\x06\x07"
+        rows: list[str] = []
+        held_max = 0
+
+        # Act
+        for _ in range(1000):
+            rows.extend(reader.process(chunk).hex_rows or [])
+            held_max = max(held_max, len(reader._hex_buf))
+
+        # Assert
+        actual_bytes = sum(len(row.split()) for row in rows) + len(reader._hex_buf)
+        assert held_max < HEX_ROW_BYTES, "the pending row is cut at 16 bytes"
+        assert actual_bytes == 7000, "no byte is lost or shown twice"
+
+    def test_the_text_view_has_no_hex_rows(self):
+        """With the hex view off, a result carries None so the frontend renders the lines."""
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"OK\r\n")
+
+        # Assert
+        assert result.hex_rows is None, "None, not [], marks the text view"
+
+    def test_leaving_the_hex_view_drops_the_partial_row(self):
+        """Bytes pending when the hex view turns off never resurface in a later hex row."""
+        # Arrange
+        reader = SerialReader(hex_display=True)
+        reader.process(b"ab")
+
+        # Act
+        reader.hex_display = False
+        text_result = reader.process(b"c\n")
+        reader.hex_display = True
+        hex_result = reader.process(b"d\n")
+
+        # Assert
+        assert text_result.lines == ["abc"], "the text view shows the line those bytes were on"
+        assert hex_result.hex_rows == ["64 0A"], "the stale 61 62 is gone"
+
+    def test_the_hex_view_shows_a_clear_screen_instead_of_obeying_it(self):
+        """In the hex view a clear-screen escape is bytes on a row, not a wipe of the pane."""
+        # Arrange
+        reader = SerialReader(hex_display=True)
+
+        # Act
+        result = reader.process(b"\x1b[2Jhi\n")
+
+        # Assert
+        assert result.clear_screen is False, "the pane is not cleared"
+        assert result.hex_rows == ["1B 5B 32 4A 68 69 0A"], "the escape shows as its bytes"
+
+    def test_a_claim_discards_the_pending_row(self):
+        """Bytes before and during a serial claim never reach a hex row after it."""
+        # Arrange
+        claimed = False
+        reader = SerialReader(hex_display=True, serial_claimed=lambda: claimed)
+        reader.process(b"ab")
+
+        # Act
+        claimed = True
+        during = reader.process(b"XYZ")
+        claimed = False
+        after = reader.process(b"\n")
+
+        # Assert
+        assert during.hex_rows is None, "a claimed chunk is not displayed in either view"
+        assert after.hex_rows == ["0A"], "the claimant owns those bytes, not the display"
 
 
 class TestRxNewline:

@@ -503,9 +503,11 @@ SerialEngine.read_loop() [background thread]
   → SerialReader.process(data) → ReaderResult
     → binary capture active? → CaptureEngine.feed_bytes() → skip display
     → serial_claimed? → suppress display (the claimant reads rx_queue)
+    → hex view on? → cut the raw chunk into hex rows (before decoding)
     → incremental decode → split per eol_rx → batch lines
   → callbacks (NONE may block on another thread):
                on_lines        → _rx_enqueue("lines")   ┐
+               on_hex          → _rx_enqueue("hex")     │ (hex view: rows + lines)
                on_clear        → _rx_enqueue("clear")   │ ordered buffer +
                on_capture_done → _rx_enqueue("capdone") │ ONE post_message
                on_error        → _rx_enqueue("error")   │
@@ -520,6 +522,13 @@ capture, in order, in every frontend (registry `rx-every-line-delivered`).
 Only the TUI's render is capped, at what the pane keeps. The CLI and MCP
 `on_lines` run on the reader thread and call the same
 `TerminalHost._feed_rx_consumers` beside their own display and log.
+
+The hex view (`/term.hex`) is display only. The reader asks the host's
+`hex_view` once per chunk and, while it is on, calls `on_hex(rows, lines)`
+instead of `on_lines`: every frontend shows the rows, built from the raw
+bytes, and hands the decoded lines to the same consumers (registry
+`hex-view-wire-bytes`). Deciding per chunk in the reader means a toggle can
+neither show a chunk twice nor skip one.
 
 ### Command dispatch (user input or script)
 

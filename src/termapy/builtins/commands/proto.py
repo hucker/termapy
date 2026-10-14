@@ -728,10 +728,11 @@ def _handler_debug(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
-    """Query, set, or toggle hex display mode for all serial I/O.
+    """Query, set, or toggle hex display of received bytes.
 
-    When enabled, received serial data is shown as hex bytes instead of
-    decoded text.  Bare invocation QUERIES (shows state, mutates nothing);
+    When enabled, received serial data is shown as hex rows built from
+    the bytes as received (see /term.hex's long help); sent text is not
+    shown in hex.  Bare invocation QUERIES (shows state, mutates nothing);
     ``on``/``off`` sets; the explicit verb ``toggle`` flips; anything else
     errors.  Same setting grammar as /term.hex (which toggles this same
     ``flags["hex"]``); the "should /proto.hex just alias /term.hex"
@@ -2373,7 +2374,7 @@ COMMAND = Command(
         ),
         "hex": Command(
             args="{on|off|toggle}",
-            help="Toggle hex display mode.",
+            help="Toggle hex display of incoming bytes (same flag as {prefix}term.hex).",
             handler=_handler_hex,
         ),
         "crc": Command(

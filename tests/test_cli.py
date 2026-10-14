@@ -933,6 +933,76 @@ class TestFileCompletion:
         assert dump.files == "prof", "/run.profile.dump completes prof/ results"
 
 
+class TestEditTwins:
+    """The noun-first edit commands are the ``/edit.<folder>`` commands under a second name."""
+
+    @pytest.mark.parametrize(
+        ("twin", "original", "file"),
+        [
+            ("run.edit", "edit.run", "run/probe.run"),
+            ("proto.edit", "edit.proto", "proto/probe.pro"),
+            ("plugin.edit", "edit.plugin", "plugin/probe.py"),
+        ],
+    )
+    def test_both_spellings_open_the_same_file(self, cli, twin, original, file):
+        """/<folder>.edit and /edit.<folder> hand the same existing file to the editor."""
+        # Arrange
+        path = Path(cli.config_path).parent / file
+        path.write_text("", encoding="utf-8")
+        _grant_gui_apps(cli)
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = lambda opened_path: opened.append(str(opened_path))
+
+        # Act
+        for command in (twin, original):
+            cli.repl.dispatch(f"{command} probe")
+
+        # Assert
+        assert opened == [str(path), str(path)], "both spellings open the existing file"
+
+    def test_a_missing_name_fails_the_same_under_both_spellings(self, cli):
+        """/run.edit opens existing scripts only: a new name is File not found, as with /edit.run."""
+        # Arrange
+        _grant_gui_apps(cli)
+
+        # Act
+        twin = cli.repl.dispatch("run.edit nope")
+        original = cli.repl.dispatch("edit.run nope")
+
+        # Assert
+        assert twin.error == "File not found: nope.run", "/run.edit no longer creates a script"
+        assert original.error == twin.error, "both spellings fail alike"
+
+    def test_bare_lists_the_folder_under_both_spellings(self, cli):
+        """With no picker in the CLI, bare /proto.edit lists proto/ exactly as /edit.proto does."""
+        # Arrange
+        (Path(cli.config_path).parent / "proto" / "a.pro").write_text("", encoding="utf-8")
+        _grant_gui_apps(cli)
+
+        # Act
+        twin = cli.repl.dispatch("proto.edit")
+        original = cli.repl.dispatch("edit.proto")
+
+        # Assert
+        assert twin.value == "a.pro", "bare /proto.edit lists the folder"
+        assert original.value == twin.value, "both spellings list alike"
+
+    def test_cfg_edit_opens_the_current_config(self, cli):
+        """/cfg.edit opens the loaded config, the file /edit.cfg opens."""
+        # Arrange
+        _grant_gui_apps(cli)
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = lambda opened_path: opened.append(str(opened_path))
+
+        # Act
+        for command in ("cfg.edit", "edit.cfg"):
+            cli.repl.dispatch(command)
+
+        # Assert
+        expected = [str(Path(cli.config_path))] * 2
+        assert opened == expected, "both spellings open the current config"
+
+
 # -- Hook registration ------------------------------------------------------
 
 

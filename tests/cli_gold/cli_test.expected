@@ -791,6 +791,7 @@ AVAILABLE
 SUBCOMMANDS
   /cfg.auto       Set immediately (no confirmation).
   /cfg.dump       Print the config (JSON) or a cfg-folder file to the terminal.
+  /cfg.edit       Open the config file in the system editor.
   /cfg.explore    Open config directory in file explorer.
   /cfg.help       Show /cfg help.
   /cfg.icon       Create a desktop / menu launcher for the current cfg.
@@ -967,6 +968,7 @@ SUBCOMMANDS
   /proto.crc        Browse and compute CRC algorithms.
   /proto.debug      Interactive protocol debug screen.
   /proto.dump       Print the newest (or named) file from proto/ to the terminal.
+  /proto.edit       Open a .pro file in the system editor.
   /proto.explore    Open proto/ in the system file explorer.
   /proto.help       Show /proto help.
   /proto.hex        Toggle hex display of incoming bytes (same flag as /term.hex).
@@ -979,13 +981,14 @@ SUBCOMMANDS
   [171/219] /help proto (5.89ms)
 demo> /help plugin
 NAME
-  /plugin - Plugin-folder tools: list, explore, show, dump.
+  /plugin - Plugin-folder tools: list, explore, show, dump, edit.
 
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
+  /plugin.edit       Open a .py file in the system editor.
   /plugin.explore    Open plugin/ in the system file explorer.
   /plugin.list       List files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
@@ -1103,6 +1106,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
+  /run.edit       Open a .run file in the system editor.
   /run.explore    Open run/ in the system file explorer.
   /run.help       Show /run help, or print a script's docstring.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
@@ -1157,7 +1161,7 @@ demo> /help.plugin
   /mem          Device memory: dump, typed reads, writes and bit ops via /sym names.
   /os           Run a shell command and show output (10s timeout). e.g. /os dir
   /ping         Send a command and measure response time.
-  /plugin       Plugin-folder tools: list, explore, show, dump.
+  /plugin       Plugin-folder tools: list, explore, show, dump, edit.
   /port         Serial port tools: connect, disconnect, list, configure.
   /print        Print a message to the terminal.
   /profile      Device profile commands (MCP profile schema, validator, loader).

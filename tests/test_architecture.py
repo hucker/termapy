@@ -927,7 +927,7 @@ def test_registry_guard_fires_on_a_probe():
 
 KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset({
     "app.list", "app.state.edit", "cap.hex", "cfg.help",
-    "edit.info", "edit.log", "edit.plugin.list", "edit.proto.list", "edit.run.list",
+    "edit.log", "edit.plugin.list", "edit.proto.list", "edit.run.list",
     "help.plugin", "help.target", "ping.quiet",
     "print.r",
     "term.encoding", "term.log", "term.send_bare_enter",

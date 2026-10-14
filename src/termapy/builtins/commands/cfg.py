@@ -14,6 +14,7 @@ from termapy.builtins.commands._cfg_icon import (
     _handler_list as _handler_icon_list,
     _handler_remove as _handler_icon_remove,
 )
+from termapy.builtins.commands.edit import edit_cfg_command
 from termapy.config import (
     cfg_data_dir,
     cfg_dir,
@@ -585,6 +586,7 @@ COMMAND = Command(
             handler=_handler_explore,
             needs=CapabilitySet.GUI_APPS,
         ),
+        "edit": edit_cfg_command(),
         "dump": Command(
             args="{name}",
             help="Print the config (JSON) or a cfg-folder file to the terminal.",

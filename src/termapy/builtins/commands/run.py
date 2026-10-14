@@ -21,9 +21,10 @@ Bare ``/run`` opens the Run picker when a host installs one
 (``ctx.internal.open_picker`` is set in TUI, unset elsewhere); CLI
 and MCP fall through to ``/help run`` with the available-files
 section appended.  Folder subcommands (.list/.dump/.show/.explore)
-come from the shared ``build_folder_subcommands`` helper.
-``/run.legacy`` rides along by re-exporting the existing
-``termapy.run_legacy`` handler.
+come from the shared ``build_folder_subcommands`` helper, and
+``/run.edit`` is ``/edit.run`` under its noun-first name
+(``edit.edit_command``).  ``/run.legacy`` rides along by re-exporting
+the existing ``termapy.run_legacy`` handler.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from termapy.builtins.commands._run_record import (
     _LONG_HELP as _RECORD_LONG_HELP,
     _handler as _handler_record,
 )
+from termapy.builtins.commands.edit import edit_command
 from termapy.builtins.commands.help import (
     _show_command_help,
     append_files_section,
@@ -220,6 +222,7 @@ COMMAND = Command(
             long_help=_RECORD_LONG_HELP,
             handler=_handler_record,
         ),
+        "edit": edit_command("run"),
         **_FOLDER_SUBS,
     },
 )

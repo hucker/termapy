@@ -1884,6 +1884,84 @@ class TestEditHooks:
 
         _run(scenario)
 
+    def test_bare_file_commands_open_their_folders_picker(self, app_factory):
+        """A bare edit or run command opens the picker its folder's button opens, under either spelling."""
+        async def scenario():
+            from termapy.dialogs import ProtoPicker, ScriptPicker
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- /proto.run and /proto.debug are gated on a port
+                assert app._connect() is True, "DEMO port should connect"
+                expected = {
+                    "run.edit": ScriptPicker,
+                    "edit.run": ScriptPicker,
+                    "proto.edit": ProtoPicker,
+                    "edit.proto": ProtoPicker,
+                    "proto.run": ProtoPicker,
+                    "proto.debug": ProtoPicker,
+                }
+                for command, picker in expected.items():
+                    # Act
+                    result = app.repl.dispatch(command)
+                    await pilot.pause()
+
+                    # Assert
+                    assert result.success, f"/{command}: {result.error}"
+                    assert isinstance(app.screen, picker), f"bare /{command} opens {picker.__name__}"
+                    app.pop_screen()
+                    await pilot.pause()
+
+        _run(scenario)
+
+    def test_noun_first_twins_open_the_textual_editors(self, app_factory):
+        """/proto.edit <name> and /cfg.edit reach the same Textual editors as /edit.proto and /edit.cfg."""
+        async def scenario():
+            from termapy.dialogs import ConfigEditor, ProtoEditor
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                # Arrange
+                app.repl.proto_dir.mkdir(parents=True, exist_ok=True)
+                (app.repl.proto_dir / "probe.pro").write_text("send: 01\n")
+
+                # Act / Assert
+                result = app.repl.dispatch("proto.edit probe")
+                await pilot.pause()
+                assert result.success, result.error
+                assert isinstance(app.screen, ProtoEditor), "/proto.edit opens the proto editor"
+                app.pop_screen()
+                await pilot.pause()
+
+                for command in ("cfg.edit", "edit.cfg"):
+                    result = app.repl.dispatch(command)
+                    await pilot.pause()
+                    assert result.success, result.error
+                    assert isinstance(app.screen, ConfigEditor), f"/{command} opens the config editor"
+                    app.pop_screen()
+                    await pilot.pause()
+
+        _run(scenario)
+
+    def test_edit_info_without_a_report_fails_once(self, app_factory):
+        """/edit.info reaches its hook (it raised AttributeError) and reports a missing report once."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 30)) as pilot:
+                await pilot.pause()
+
+                # Act
+                result = app.repl.dispatch("edit.info")
+                await pilot.pause()
+
+                # Assert
+                expected = "No info report yet. Run /cfg.info first."
+                assert result.error == expected, "the hook ran and found no report"
+                actual = app._get_screen_text().count("No info report yet")
+                assert actual == 1, "the failure is reported once, by the dispatcher"
+
+        _run(scenario)
+
     def test_edit_without_the_extension_bails_once(self, app_factory):
         """/edit welcome fails with one "File not found" line; the hook and the dispatcher both printed it."""
         async def scenario():

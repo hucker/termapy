@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 from crcglot import DetectMatch, DetectResult, detect
 
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
+from termapy.builtins.commands.edit import edit_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import default_file_name
 from termapy.help_dynamic import compose, folder_line
@@ -651,10 +652,13 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
 
     Args:
         ctx: Plugin context for serial I/O, filesystem, and output.
-        args: Filename of the ``.pro`` script to run.
+        args: Filename of the ``.pro`` script to run.  Bare opens the
+            Proto picker where the host has one (TUI), else a usage error.
     """
     filename = args.strip()
     if not filename:
+        if ctx.internal.open_picker is not None:
+            return ctx.internal.open_picker("proto")
         raise UsageError()
 
     try:
@@ -700,10 +704,13 @@ def _handler_debug(ctx: PluginContext, args: str) -> CmdResult:
 
     Args:
         ctx: Plugin context.
-        args: Filename of the ``.pro`` script.
+        args: Filename of the ``.pro`` script.  Bare opens the Proto
+            picker (this command is TUI-only, so there always is one).
     """
     filename = args.strip()
     if not filename:
+        if ctx.internal.open_picker is not None:
+            return ctx.internal.open_picker("proto")
         raise UsageError()
 
     try:
@@ -2558,6 +2565,7 @@ COMMAND = Command(
             help="Print current protocol state.",
             handler=_handler_info,
         ),
+        "edit": edit_command("proto"),
         **build_folder_subcommands("proto"),
     },
 )

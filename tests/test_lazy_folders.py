@@ -281,8 +281,8 @@ class TestCliWritersCreateTheirFolder:
         assert (parent / "run").is_dir(), "run/ appeared for the temporary script"
         assert list((parent / "prof").glob("*.csv")), "prof/ appeared with the timing CSV"
 
-    def test_run_edit_creates_run_before_opening_the_new_file(self, cli):
-        """/run.edit makes run/ before handing a new script to the editor, so it can save."""
+    def test_run_edit_of_a_missing_script_creates_no_folder(self, cli):
+        """/run.edit opens existing scripts only, so a new name is a read: it fails and makes no run/."""
         # Arrange
         opened = _grant_gui_apps(cli.ctx)
 
@@ -290,10 +290,9 @@ class TestCliWritersCreateTheirFolder:
         result = cli.repl.dispatch("run.edit fresh")
 
         # Assert
-        expected = Path(cli.config_path).parent / "run" / "fresh.run"
-        assert result.success, f"/run.edit opens a new script from a bare config: {result.error}"
-        assert expected.parent.is_dir(), "run/ appeared so the editor has somewhere to save"
-        assert opened == [str(expected)], "the new script was handed to the editor"
+        assert result.error == "File not found: fresh.run", "a missing script is refused"
+        assert not (Path(cli.config_path).parent / "run").exists(), "a read never creates a data folder"
+        assert opened == [], "nothing was handed to the editor"
 
     def test_sym_import_creates_sym(self, cli):
         """/sym.import on a bare config creates sym/ to hold the symbol table."""

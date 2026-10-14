@@ -18,6 +18,7 @@ import pytest
 from textual.widgets import Button, Static
 
 from termapy.defaults import DEFAULT_CFG
+from termapy.dialogs import ProtoPicker
 from termapy.proto_debug import ProtoDebugScreen
 
 _ONE_AT_TEST = """\
@@ -129,7 +130,7 @@ class TestRunButton:
 class TestArguments:
 
     def test_bad_arguments_are_refused_before_a_screen_opens(self, tmp_path):
-        """/proto.debug refuses a bare call, a missing file, a flat script and a TOML script without tests, each by its own message, and opens no screen."""
+        """/proto.debug refuses a missing file, a flat script and a TOML script without tests, each by its own message; bare opens the Proto picker, never the debug screen."""
         async def scenario():
             # Arrange -- the TUI rig, since the CLI refuses /proto.debug by capability
             app, script = _make_app(tmp_path, _ONE_AT_TEST)
@@ -150,7 +151,8 @@ class TestArguments:
                 await pilot.pause()
 
                 # Assert
-                assert bare.error.startswith("Usage: /proto.debug "), bare.error
+                assert bare.success, f"bare /proto.debug opens the Proto picker: {bare.error}"
+                assert isinstance(pilot.app.screen, ProtoPicker), "bare offers the picker to choose a script"
                 assert missing.error.startswith("File not found: nope"), missing.error
                 assert not_toml.error.startswith("Script error: TOML parse error"), "the debug screen is TOML-only"
                 assert no_tests.error == "Script has no tests."

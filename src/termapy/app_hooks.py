@@ -244,18 +244,18 @@ def _hook_edit_cfg(app) -> CmdResult:
 
 
 def _hook_edit_info(app) -> CmdResult:
-    """Open the info report in the system viewer."""
+    """Open the info report in the system viewer.
+
+    A failure is returned, not also written: the dispatcher prints it.
+    """
     if not app.config_path:
-        app.repl.write("No config loaded.", "red")
         return CmdResult.fail(msg="No config loaded.")
     stem = Path(app.config_path).stem
     path = Path(app.config_path).parent / f"{stem}.md"
     if path.exists():
         open_with_system(str(path))
         return CmdResult.ok(value=path)
-    else:
-        app.repl.write("No info report yet. Run /cfg.info first.", "red")
-        return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
+    return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
 
 
 def _hook_edit(app, ctx, args: str) -> CmdResult:
@@ -293,22 +293,14 @@ def _hook_edit(app, ctx, args: str) -> CmdResult:
 
 
 def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
-    """Edit a file from a specific folder using Textual modal."""
+    """Edit a file from a specific folder using Textual modal.
+
+    Bare opens the folder's picker (the Run or Proto button's), whose
+    Edit button reaches the same editor.
+    """
     name = args.strip()
     if not name:
-        dir_map = {"run": app.repl.scripts_dir, "proto": app.repl.proto_dir}
-        base = dir_map.get(folder)
-        listed: list[str] = []
-        # A missing folder is an empty one: data folders appear on first write.
-        files = sorted(base.glob(f"*{ext}")) if base else []
-        if files:
-            app.repl.write("  Available file(s):")
-            for file in files:
-                app.repl.write(f"    {file.name}")
-                listed.append(file.name)
-        else:
-            app.repl.write("  (empty)")
-        return CmdResult.ok(value="\n".join(listed))
+        return app._open_picker(folder)
     dir_map = {"run": app.repl.scripts_dir, "proto": app.repl.proto_dir}
     base = dir_map.get(folder)
     if not base:
@@ -492,14 +484,15 @@ def register_tui_hooks(app) -> None:
         source="app",
         needs=CapabilitySet.GUI_APPS,
     )
-    app.repl.register_hook(
-        "edit.cfg",
-        "",
-        "Edit the current config file.",
-        lambda ctx, args: app._hook_edit_cfg(),
-        source="app",
-        needs=CapabilitySet.GUI_APPS,
-    )
+    for name in ("edit.cfg", "cfg.edit"):
+        app.repl.register_hook(
+            name,
+            "",
+            "Edit the current config file.",
+            lambda ctx, args: _hook_edit_cfg(app),
+            source="app",
+            needs=CapabilitySet.GUI_APPS,
+        )
     app.repl.register_hook(
         "log.delete",
         "",
@@ -535,7 +528,7 @@ def register_tui_hooks(app) -> None:
         "edit.info",
         "",
         "Open the info report in the system viewer.",
-        lambda ctx, args: app._hook_edit_info(),
+        lambda ctx, args: _hook_edit_info(app),
         source="app",
         needs=CapabilitySet.GUI_APPS,
     )
@@ -553,21 +546,25 @@ def register_tui_hooks(app) -> None:
             "*.py",
         ),
     ):
-        # TUI uses Textual modals for run and proto edit
+        # TUI uses Textual modals for run and proto edit, under both
+        # spellings: /edit.run and its noun-first twin /run.edit.
         if folder in ("run", "proto"):
-            app.repl.register_hook(
-                f"edit.{folder}",
-                "{filename}",
-                f"Edit a {ext} file.",
-                (
-                    lambda f=folder, e=ext: lambda ctx,
-                    args: _hook_edit_folder(app, ctx, args, f, e)
-                )(),
-                source="app",
-                needs=CapabilitySet.GUI_APPS,
-                files=folder,
-            )
+            for name in (f"edit.{folder}", f"{folder}.edit"):
+                app.repl.register_hook(
+                    name,
+                    "{filename}",
+                    f"Edit a {ext} file (bare: the {folder} picker).",
+                    (
+                        lambda f=folder, e=ext: lambda ctx,
+                        args: _hook_edit_folder(app, ctx, args, f, e)
+                    )(),
+                    source="app",
+                    needs=CapabilitySet.GUI_APPS,
+                    files=folder,
+                )
         else:
+            # /plugin.edit is not wiped by the /edit override; the builtin
+            # twin already runs this same make_edit_handler.
             app.repl.register_hook(
                 f"edit.{folder}",
                 "{filename}",

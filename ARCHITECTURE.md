@@ -50,7 +50,6 @@ src/termapy/
 │   │   ├── proto.py    #  /proto - binary protocol send/expect/crc testing
 │   │   ├── repeat.py   #  /repeat - repeat a command N times
 │   │   ├── run.py      #  /run - execute .run scripts from any host
-│   │   ├── run_edit.py #  /run.edit - open .run scripts in the editor
 │   │   ├── search.py   #  /search - Google-style deep command search
 │   │   ├── seq.py      #  /seq - show or reset sequence counters
 │   │   ├── show.py     #  /show - show file contents

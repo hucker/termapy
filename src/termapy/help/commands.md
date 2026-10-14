@@ -49,6 +49,7 @@ because its folders hold different types of file.
 | `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |
 | `/cfg [key [value]]`      | TUI: open the Cfg picker. Bare in CLI: dump JSON. With args: get/set.       |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
+| `/cfg.edit`               | Edit the current config file (same as `/edit.cfg`)                          |
 | `/cfg.list`               | List all config files                                                       |
 | `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
 | `/cfg.info {--display}`   | Write and show the project report (tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
@@ -61,9 +62,9 @@ because its folders hold different types of file.
 | `/edit <file>`            | Edit a project file (`run/`/`proto/` path)                                  |
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.info`              | Open the info report in the system viewer                                   |
-| `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given                   |
-| `/edit.proto {file}`      | Edit a .pro file, or list available files if no name given                  |
-| `/edit.run {file}`        | Edit a .run script, or list available scripts if no name given              |
+| `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given (also `/plugin.edit`) |
+| `/edit.proto {file}`      | Edit a .pro file. Bare: TUI opens the Proto picker, CLI lists (also `/proto.edit`) |
+| `/edit.run {file}`        | Edit a .run script. Bare: TUI opens the Run picker, CLI lists (also `/run.edit`) |
 | `/env.list {pattern}`     | List environment variables (all, by name, or glob)                          |
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
@@ -133,17 +134,18 @@ because its folders hold different types of file.
 | `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
 | `/proto.crc.reverse {cmd=<trigger> count=<N>} {packet-hex}...` | Recover the Rocksoft parameters of an unknown CRC |
 | `/proto.crc.verify <name> {endian=be\|le} <hex>...` | Verify a packet's trailing CRC against a named algorithm |
-| `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
+| `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script (bare: Proto picker) |
+| `/proto.edit {file}`      | Edit a .pro file (same as `/edit.proto`)                                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
 | `/proto.hex {on\|off\|toggle}`    | Same flag as `/term.hex`                                                    |
 | `/proto.list`             | List .pro files in proto/, newest first, with size and age                  |
-| `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
+| `/proto.run <file>`       | Run a binary protocol test script (.pro); TUI bare: the Proto picker        |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.info`             | Print current protocol mode state                                           |
 | `/raw <text>`             | Send text exactly as typed: no line ending, expansion or transforms         |
 | `/repeat ...`             | Repeat a command N times: `count=<N> {delay=<dur>} {var=<name>} cmd=<cmd>`  |
 | `/run {file} {-v}`        | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
-| `/run.edit <file>`        | Open a .run script in the system editor                                     |
+| `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
 | `/run.legacy {file\|*}`   | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
 | `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
@@ -218,6 +220,7 @@ family of file subcommands:
 | `.show`               | Open the newest file in the system viewer               | all                            |
 | `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
 | `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | run, proto, plugin, ss, cap    |
+| `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin |
 | `.clear`              | Delete all files                                        | ss, cap (generated output only) |
 
 Examples:

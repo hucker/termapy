@@ -16,12 +16,16 @@ this one just lists files on disk.
 
 from __future__ import annotations
 
+from termapy.builtins.commands.edit import edit_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.plugins import Command
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="plugin",
-    help="Plugin-folder tools: list, explore, show, dump.",
-    sub_commands=build_folder_subcommands("plugin"),
+    help="Plugin-folder tools: list, explore, show, dump, edit.",
+    sub_commands={
+        "edit": edit_command("plugin"),
+        **build_folder_subcommands("plugin"),
+    },
 )

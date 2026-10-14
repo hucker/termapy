@@ -13,7 +13,15 @@ import re
 from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import compose, green
-from termapy.plugins import CmdResult, Command, Directive, DirectiveResult, Transform, UsageError
+from termapy.plugins import (
+    CmdResult,
+    Command,
+    Directive,
+    DirectiveResult,
+    Transform,
+    UsageError,
+    escape_markup,
+)
 from termapy.variables import (
     clear_vars,
     context_vars,
@@ -106,6 +114,12 @@ def check_bare_dollar(line: str) -> str | None:
 # -- Handlers ----------------------------------------------------------------
 
 
+def _var_line_markup(name: str, value: object, tag: str = "") -> str:
+    """One listing row, ``$(NAME) = value`` with an optional dim ``(tag)``, escaped."""
+    tag_markup = f"  [dim]({escape_markup(tag)})[/]" if tag else ""
+    return f"  [cyan]$({escape_markup(name)})[/] = [green]{escape_markup(value)}[/]{tag_markup}"
+
+
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List all defined variables, or show one by name.
 
@@ -131,7 +145,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
                 val = ctx_fn()
         if val is not None:
             if not ctx.wants_data:
-                ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{val}[/]")
+                ctx.io.output_markup(_var_line_markup(name, val))
             return CmdResult.ok(value=str(val))
         if not ctx.wants_data:
             ctx.io.output(f"  $({name}) - not defined", "red")
@@ -149,18 +163,18 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value="\n".join(flat), data=snap)
     lines: list[str] = []
     for k in sorted(users):
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{users[k]}[/]")
+        ctx.io.output_markup(_var_line_markup(k, users[k]))
         lines.append(f"{k}={users[k]}")
     for k in sorted(launches):
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{launches[k]}[/]  [dim](launch)[/]")
+        ctx.io.output_markup(_var_line_markup(k, launches[k], "launch"))
         lines.append(f"{k}={launches[k]}")
     for k, tag in datetime_var_names():
         rendered = resolve_datetime_var(k, None) or ""
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{rendered}[/]  [dim]({tag})[/]")
+        ctx.io.output_markup(_var_line_markup(k, rendered, tag))
         lines.append(f"{k}={rendered}")
     for k in sorted(contexts):
         rendered = contexts[k]()
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{rendered}[/]  [dim](context)[/]")
+        ctx.io.output_markup(_var_line_markup(k, rendered, "context"))
         lines.append(f"{k}={rendered}")
     return CmdResult.ok(value="\n".join(lines))
 
@@ -181,7 +195,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
     value = parts[1]
     set_user_var(name, value)
-    ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
+    ctx.io.output_markup(_var_line_markup(name, value))
     return CmdResult.ok(value=value)
 
 
@@ -240,7 +254,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg=f"No response from device: {cmd}")
         value = response.decode(encoding, errors="replace").strip()
     set_user_var(name, value)
-    ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
+    ctx.io.output_markup(_var_line_markup(name, value))
     return CmdResult.ok(value=value)
 
 

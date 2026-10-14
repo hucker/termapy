@@ -1171,6 +1171,63 @@ class TestMarshalling:
         _run(scenario)
 
 
+class TestSessionLog:
+    """The session log is the transcript: every channel a command writes lands in it once."""
+
+    def test_markup_output_is_logged_as_text_and_its_echo_is_not(self, app_factory):
+        """A command's markup output reaches the log as rendered text under #; its echo stays out (the > line has it)."""
+        from termapy.variables import unset_user_var
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                app.repl.ctx.ns("flags")["echo_repl"] = True
+                command = "/var.set MARKUP_TAG [ok] boot"
+
+                # Act -- off the main thread, as every typed command runs
+                done = threading.Event()
+                threading.Thread(
+                    target=lambda: (app._dispatch_single(command), done.set()), daemon=True,
+                ).start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while not done.is_set() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await pilot.pause()
+
+                # Assert
+                log = Path(app._log_path()).read_text(encoding="utf-8")
+                assert "#   $(MARKUP_TAG) = [ok] boot" in log, f"markup output logged as its text:\n{log}"
+                assert log.count(command) == 1, f"the command is logged once, as its > line:\n{log}"
+
+        try:
+            _run(scenario)
+        finally:
+            unset_user_var("MARKUP_TAG")  # user variables are process-global
+
+    def test_multi_line_output_logs_every_line_with_its_prefix(self, app_factory):
+        """A multi-line message, plain or markup, is one # entry per line; a blank line stays one empty entry."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- on the main thread, where both helpers log
+                app._status("plain one\nplain two")
+                app._write_output_markup("[cyan]tree[/]\n├── leaf", log=True)
+                app._write_output_markup("", log=True)
+                await pilot.pause()
+
+                # Assert
+                lines = Path(app._log_path()).read_text(encoding="utf-8").splitlines()
+                logged = [line.split("] ", 1)[1] for line in lines[-5:]]
+                assert logged == ["# plain one", "# plain two", "# tree", "# ├── leaf", "# "], (
+                    f"every line carries the prefix, markup flattened:\n{lines[-5:]}"
+                )
+
+        _run(scenario)
+
+
 class TestConfirmIsStopAware:
     """T14: ``_confirm`` parked on an unbounded ``event.wait()``.
 

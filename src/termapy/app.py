@@ -75,6 +75,7 @@ from termapy.dialogs import (
 from termapy.folders import FOLDER_PATTERNS, ensure_folder
 from termapy.help_tooltip import build_help_tooltip
 from termapy.history_nav import HistoryNavigator, merge_history, read_history
+from termapy.markup import escape_markup, markup_to_plain
 from termapy.palette_provider import PaletteProvider
 from termapy.plugins import (
     BoundaryException,
@@ -1185,7 +1186,7 @@ class SerialTerminal(TerminalHost, App):
         ctx = self._build_plugin_context(internal)
         # TUI-specific PluginContext overrides
         ctx.io._write = self._status
-        ctx.io._write_markup = self._write_output_markup
+        ctx.io._write_markup = lambda markup: self._write_output_markup(markup, log=True)
         ctx.io.log = self._log_line
         ctx.serial.wait_for_data = self._wait_for_data
         ctx.wait_for_match = self.repl.wait_for_match
@@ -1435,6 +1436,8 @@ class SerialTerminal(TerminalHost, App):
 
         Thread-safe: if called from a background thread (e.g. interactive
         command dispatch), posts the widget update to the main thread.
+        Logged one ``#`` entry per line, so a multi-line message keeps the
+        log's prefix on every line.
         """
         if self._main_thread_id != threading.get_ident():
             try:
@@ -1448,7 +1451,7 @@ class SerialTerminal(TerminalHost, App):
             )
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
-        self._log_line("#", text)
+        self._log_lines("#", text.splitlines() or [""])
 
     def _set_status_bar(self, text: str, timeout: float = 5.0) -> None:
         """Show transient text in the status bar (thread-safe).
@@ -1595,10 +1598,19 @@ class SerialTerminal(TerminalHost, App):
                 return False
         return result[0]
 
-    def _write_output_markup(self, text: str) -> None:
+    def _write_output_markup(self, text: str, log: bool = False) -> None:
+        """Write Rich markup to the output pane; with ``log``, to the session log too.
+
+        The log gets the rendered text under ``#``, one entry per line, as
+        ``_status`` lines do, so a command's markup output (a multi-line
+        tree included) is in the transcript.  Echo leaves ``log`` off: the
+        command it echoes is already logged as its ``>`` line.  Logged on
+        the main thread, after the marshal, so the log keeps the order the
+        pane shows.
+        """
         if self._main_thread_id != threading.get_ident():
             try:
-                self.call_from_thread(self._write_output_markup, text)
+                self.call_from_thread(self._write_output_markup, text, log)
             except RuntimeError:
                 pass
             return
@@ -1606,6 +1618,8 @@ class SerialTerminal(TerminalHost, App):
             self.query_one("#output", RichLog).write(text)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
+        if log:
+            self._log_lines("#", markup_to_plain(text).splitlines() or [""])
 
     def _report_exception(self, e: Exception) -> None:
         """Write exception details to the terminal output in red.
@@ -3020,7 +3034,7 @@ class SerialTerminal(TerminalHost, App):
             if self.cfg.get("eol_markers", False):
                 le = self.cfg.get("eol", "\r")
                 echo_text += eol_label(le)
-            self._write_output_markup(fmt.replace("{cmd}", echo_text))
+            self._write_output_markup(fmt.replace("{cmd}", escape_markup(echo_text)))
         if not self.is_connected:
             self._status("Not connected.", "red")
             return

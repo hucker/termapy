@@ -115,7 +115,7 @@ When the MCP server connects to its port, it auto-loads the profile from `profil
 
 ### Output hygiene: color and echo
 
-An MCP client is an automated peer, not a terminal, so the session defaults to **color off**: device ANSI escape codes (SGR color, cursor moves) are stripped from `output_lines`, `async_events`, and `request_mode` values, and command echo is off.  This keeps escape codes out of the JSON the model parses.
+An MCP client is an automated peer, not a terminal, so the session defaults to **color off**: device ANSI escape codes (SGR color, cursor moves) are stripped from `output_lines`, `async_events`, and `request_mode` values, and command echo is off.  This keeps escape codes out of the JSON the model parses.  For the same reason a `markup` entry in `output_lines` carries the text a terminal shows, with termapy's own Rich color tags removed: `$(TAG) = [ok]`, not `[cyan]$(TAG)[/] = [green]\[ok][/]`.
 
 To pass ANSI through anyway -- for a faithful capture, or a client that renders it -- send `/term.color on`.  To silence color (or a half-duplex device's echo) at the *source*, put the device's own command in `mcp_on_connect_cmd` (e.g. `color off`, `echo off`); it runs automatically on connect.  Full-screen / VT100 output (cursor-addressed dashboards and menus) can't be represented as MCP text -- view those in the TUI.
 

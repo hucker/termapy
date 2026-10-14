@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.help_dynamic import is_state_line
+from termapy.markup import markup_to_plain
 from termapy.plugins import (
     ENVIRONMENTS,
     REQUIREMENT_HINTS,
@@ -14,6 +16,7 @@ from termapy.plugins import (
     CmdResult,
     Command,
     UsageError,
+    escape_markup,
     interpolate_help,
     resolve_long_help,
 )
@@ -25,12 +28,7 @@ if TYPE_CHECKING:
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-_LABEL_RE = re.compile(r"^(\s*)(\w+)(:)(.*)")
-_TITLE_FMT = "  [bold]{text}[/]"
-_LABEL_FMT = "  {indent}[bold]{label}[/]{rest}"
-
-# Section-header format for man-page view. All-caps bold, flush-left.
-_SECTION_FMT = "[bold]{text}[/]"
+_LABEL_RE = re.compile(r"^(\s*)(\w+:)(.*)")
 
 # Colors for help output
 _CMD = "cyan"          # command names
@@ -41,7 +39,6 @@ _SRC = "dim"           # source labels
 
 _OPT_RE = re.compile(r"(\{[^}]+\})")
 _REQ_RE = re.compile(r"(<[^>]+>)")
-_MARKUP_RE = re.compile(r"\[[^\]]*\]")
 
 # Cap the command column in listings so a pathologically long plugin name
 # can't shove the help column off the right edge.
@@ -54,39 +51,56 @@ _BASELINE_CAPS = CapabilitySet()
 
 
 # ── Markup helpers ───────────────────────────────────────────────────────────
+#
+# Help text is prose, never markup: every name, one-liner, synopsis, flag
+# description and long_help line is escaped on its way into the page, so
+# "[[test]] sections" and "/xfer.root [path]" read as written (registry
+# markup-escape).  The page's own colors are the only tags, plus the one
+# markup a long_help may carry, a whole-line ``help_dynamic.green`` state
+# line.
 
 
-def _color_args(args: str) -> str:
-    """Add Rich color markup to argument placeholders."""
+def _section_markup(title: str) -> str:
+    """A man-page section header: all-caps bold, flush-left."""
+    return f"[bold]{escape_markup(title)}[/]"
+
+
+def _args_markup(args: str) -> str:
+    """A synopsis, escaped, with its ``{optional}`` and ``<required>`` groups colored."""
     if not args:
         return ""
-    result = args
+    result = escape_markup(args)
     result = _OPT_RE.sub(rf"[{_OPT}]\1[/]", result)
     result = _REQ_RE.sub(rf"[{_REQ}]\1[/]", result)
     return result
 
 
-def _visible_len(s: str) -> int:
-    """Return the visible length of a string, ignoring Rich markup tags."""
-    return len(_MARKUP_RE.sub("", s))
+def _long_help_line_markup(line: str) -> str:
+    """A ``long_help`` line: a ``green()`` state line passes through, prose is escaped."""
+    return line if is_state_line(line) else escape_markup(line)
 
 
-def _pad(s: str, width: int) -> str:
-    """Pad a string with Rich markup to a visible width."""
-    return s + " " * max(0, width - _visible_len(s))
+def _pad_markup(markup: str, width: int) -> str:
+    """Pad a markup string to a visible width."""
+    return markup + " " * max(0, width - len(markup_to_plain(markup)))
 
 
-def _underline(text: str, needles: str | list[str]) -> str:
-    """Wrap every case-insensitive occurrence of any needle in ``[u]...[/u]``."""
+def _underline_markup(text: str, needles: str | list[str]) -> str:
+    """``text`` escaped, every case-insensitive occurrence of a needle in ``[u]...[/u]``."""
     if isinstance(needles, str):
         needles = [needles]
     needles = [n for n in needles if n]
     if not needles or not text:
-        return text
-    pattern = "|".join(re.escape(n) for n in needles)
-    return re.sub(
-        pattern, lambda m: f"[u]{m.group()}[/u]", text, flags=re.IGNORECASE,
-    )
+        return escape_markup(text)
+    pattern = re.compile("|".join(re.escape(n) for n in needles), re.IGNORECASE)
+    parts: list[str] = []
+    last = 0
+    for m in pattern.finditer(text):
+        parts.append(escape_markup(text[last:m.start()]))
+        parts.append(f"[u]{escape_markup(m.group())}[/u]")
+        last = m.end()
+    parts.append(escape_markup(text[last:]))
+    return "".join(parts)
 
 
 def _write_docstring(ctx: PluginContext, docstring: str) -> None:
@@ -106,13 +120,12 @@ def _write_docstring(ctx: PluginContext, docstring: str) -> None:
     for i, line in enumerate(lines):
         text = line.rstrip()
         if i == 0 and has_summary:
-            ctx.io.output_markup(_TITLE_FMT.format(text=text))
+            ctx.io.output_markup(f"  [bold]{escape_markup(text)}[/]")
         elif (m := _LABEL_RE.match(text)):
-            ctx.io.output_markup(_LABEL_FMT.format(
-                indent=m.group(1),
-                label=m.group(2) + m.group(3),
-                rest=m.group(4).rstrip(),
-            ))
+            indent, label, rest = m.groups()
+            ctx.io.output_markup(
+                f"  {escape_markup(indent)}[bold]{escape_markup(label)}[/]{escape_markup(rest)}"
+            )
         else:
             ctx.io.output(f"  {text}")
 
@@ -222,24 +235,24 @@ def _landscape_row(prefix: str, name: str, plugin, cmd_w: int,
     """
     help_text = interpolate_help(plugin.help, prefix)
     if needles:
-        name_rendered = _underline(name, needles)
-        help_rendered = _underline(help_text, needles)
+        name_markup = _underline_markup(name, needles)
+        help_markup = _underline_markup(help_text, needles)
     else:
-        name_rendered = name
-        help_rendered = help_text
-    cmd_col = _pad(f"  [{_CMD}]{prefix}{name_rendered}[/]", cmd_w + 2)
-    return f"{cmd_col}  {help_rendered}"
+        name_markup = escape_markup(name)
+        help_markup = escape_markup(help_text)
+    cmd_markup = _pad_markup(f"  [{_CMD}]{escape_markup(prefix)}{name_markup}[/]", cmd_w + 2)
+    return f"{cmd_markup}  {help_markup}"
 
 
 def _compute_cmd_w(names: list[str], prefix: str) -> int:
-    """Derive the command column width from the longest visible name.
+    """Derive the command column width from the longest name.
 
     Capped at ``_MAX_CMD_COL`` so a single very long plugin name can't
     shove the help column off the right edge of the terminal.
     """
     if not names:
         return _MAX_CMD_COL
-    longest = max(_visible_len(f"{prefix}{n}") for n in names)
+    longest = max(len(f"{prefix}{n}") for n in names)
     return min(longest + 2, _MAX_CMD_COL)
 
 
@@ -260,24 +273,24 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     """
     prefix = ctx.prefix
     plugins = ctx.internal.plugins
+    command_markup = escape_markup(f"{prefix}{name}")
 
     # NAME ────────────────────────────────────────────────────────────────────
-    ctx.io.output_markup(_SECTION_FMT.format(text="NAME"))
+    ctx.io.output_markup(_section_markup("NAME"))
     help_line = interpolate_help(plugin.help, prefix)
-    ctx.io.output_markup(f"  [{_CMD}]{prefix}{name}[/] - {help_line}")
+    ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] - {escape_markup(help_line)}")
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     if plugin.args:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="SYNOPSIS"))
-        args_colored = _color_args(plugin.args)
-        ctx.io.output_markup(f"  [{_CMD}]{prefix}{name}[/] {args_colored}")
+        ctx.io.output_markup(_section_markup("SYNOPSIS"))
+        ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] {_args_markup(plugin.args)}")
 
     # DESCRIPTION ─────────────────────────────────────────────────────────────
     # Developer mode shows the handler's Python docstring instead.
     if dev_mode:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="DESCRIPTION (developer)"))
+        ctx.io.output_markup(_section_markup("DESCRIPTION (developer)"))
         docstring = getattr(plugin.handler, "__doc__", None)
         if docstring:
             _write_docstring(ctx, docstring)
@@ -290,29 +303,29 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
         lh = resolve_long_help(plugin, ctx)
         if lh:
             ctx.io.output_markup("")
-            ctx.io.output_markup(_SECTION_FMT.format(text="DESCRIPTION"))
-            # ctx.write auto-indents; use write_markup with explicit indent
-            # so markup in long_help passes through.
+            ctx.io.output_markup(_section_markup("DESCRIPTION"))
+            # The markup channel, not output(), so a dynamic state line
+            # keeps its color; every other line is escaped prose.
             for line in lh.strip().splitlines():
-                ctx.io.output_markup(f"  {line}")
+                ctx.io.output_markup(f"  {_long_help_line_markup(line)}")
 
     # PARAMETERS ──────────────────────────────────────────────────────────────
     # Synthesized from Command.params -- the single source of truth for a
     # declared command's arguments (synopsis above comes from the same list).
     if plugin.params:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="PARAMETERS"))
+        ctx.io.output_markup(_section_markup("PARAMETERS"))
         for line in render_parameters_block(plugin.params):
-            ctx.io.output_markup(line)
+            ctx.io.output_markup(escape_markup(line))
 
     # FLAGS ───────────────────────────────────────────────────────────────────
     rows = _canonical_flags(plugin)
     if rows:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="FLAGS"))
+        ctx.io.output_markup(_section_markup("FLAGS"))
         for canonical, aliases, desc in rows:
             names = ", ".join([canonical, *aliases])
-            ctx.io.output_markup(f"  [{_OPT}]{names}[/] - {desc}")
+            ctx.io.output_markup(f"  [{_OPT}]{escape_markup(names)}[/] - {escape_markup(desc)}")
 
     # REQUIRED CAPABILITIES ───────────────────────────────────────────────────
     # Named to round-trip with the code: the rows are CapabilitySet fields,
@@ -332,13 +345,15 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
             else ctx.capabilities
         )
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="REQUIRED CAPABILITIES"))
+        ctx.io.output_markup(_section_markup("REQUIRED CAPABILITIES"))
         for cap_name, hint in required:
+            cap_markup = escape_markup(cap_name)
+            hint_markup = escape_markup(hint)
             if getattr(effective, cap_name):
-                ctx.io.output_markup(f"  [{_OPT}]{cap_name}[/] - [{_SEP}]{hint}[/]")
+                ctx.io.output_markup(f"  [{_OPT}]{cap_markup}[/] - [{_SEP}]{hint_markup}[/]")
             else:
                 ctx.io.output_markup(
-                    f"  [{_REQ}]{cap_name}[/] - [{_SEP}]{hint}[/] [{_REQ}](missing)[/]"
+                    f"  [{_REQ}]{cap_markup}[/] - [{_SEP}]{hint_markup}[/] [{_REQ}](missing)[/]"
                 )
 
     # AVAILABLE ───────────────────────────────────────────────────────────────
@@ -352,16 +367,16 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     # matching ctx.environment is marked "(current)" so the reader knows
     # which one they are in.
     ctx.io.output_markup("")
-    ctx.io.output_markup(_SECTION_FMT.format(text="AVAILABLE"))
+    ctx.io.output_markup(_section_markup("AVAILABLE"))
     cells: list[str] = []
     missing_by_env: dict[str, list[str]] = {}
     for env_name, env_caps in ENVIRONMENTS.items():
         missing = plugin.needs.missing_from(env_caps)
         if missing:
-            cell = f"[{_REQ}]{env_name}: no[/]"
+            cell = f"[{_REQ}]{escape_markup(env_name)}: no[/]"
             missing_by_env[env_name] = missing
         else:
-            cell = f"[{_OPT}]{env_name}: yes[/]"
+            cell = f"[{_OPT}]{escape_markup(env_name)}: yes[/]"
         if env_name == ctx.environment:
             cell += f" [{_SEP}](current)[/]"
         cells.append(cell)
@@ -380,7 +395,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
             # environment doesn't supply it.  "MCP does not provide:
             # gui_apps" reads correctly either way.
             notes.append(f"{envs} does not provide: {caps}")
-        ctx.io.output_markup(f"  [{_SEP}]({'; '.join(notes)})[/]")
+        ctx.io.output_markup(f"  [{_SEP}]({escape_markup('; '.join(notes))})[/]")
 
     # SUBCOMMANDS ─────────────────────────────────────────────────────────────
     # Clean name + one-liner, no args column. This is the fix for the
@@ -393,7 +408,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
         ]
         if children:
             ctx.io.output_markup("")
-            ctx.io.output_markup(_SECTION_FMT.format(text="SUBCOMMANDS"))
+            ctx.io.output_markup(_section_markup("SUBCOMMANDS"))
             cmd_w = _compute_cmd_w([n for n, _ in children], prefix)
             for child_name, child in children:
                 ctx.io.output_markup(_landscape_row(prefix, child_name, child, cmd_w))
@@ -402,14 +417,14 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     see = _siblings_for_see_also(name, plugins)
     if see:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="SEE ALSO"))
-        refs = ", ".join(f"[{_CMD}]{prefix}{n}[/]" for n in see)
-        ctx.io.output_markup(f"  {refs}")
+        ctx.io.output_markup(_section_markup("SEE ALSO"))
+        refs_markup = ", ".join(f"[{_CMD}]{escape_markup(prefix + n)}[/]" for n in see)
+        ctx.io.output_markup(f"  {refs_markup}")
 
     # Source annotation for non-built-in plugins (preserved from old renderer).
     if plugin.source not in ("built-in", "app"):
         ctx.io.output_markup("")
-        ctx.io.output_markup(f"  [{_SRC}](source: {plugin.source})[/]")
+        ctx.io.output_markup(f"  [{_SRC}](source: {escape_markup(plugin.source)})[/]")
 
 
 def _render_target_man_page(ctx: PluginContext, tc) -> None:
@@ -423,23 +438,28 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
     There is intentionally no REQUIRED CAPABILITIES, SUBCOMMANDS, or SEE ALSO --
     device commands have no capability declarations, no subcommand
     tree, and no sibling relationships in termapy's registry.
+
+    Every field comes from the device's profile, so all of it is escaped,
+    long_help included: a profile has no state lines to pass through.
     """
+    name_markup = escape_markup(tc.name)
+
     # NAME ────────────────────────────────────────────────────────────────────
-    ctx.io.output_markup(_SECTION_FMT.format(text="NAME"))
-    ctx.io.output_markup(f"  [{_CMD}]{tc.name}[/] - {tc.help}")
+    ctx.io.output_markup(_section_markup("NAME"))
+    ctx.io.output_markup(f"  [{_CMD}]{name_markup}[/] - {escape_markup(tc.help)}")
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     if tc.args:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="SYNOPSIS"))
-        ctx.io.output_markup(f"  [{_CMD}]{tc.name}[/] {_color_args(tc.args)}")
+        ctx.io.output_markup(_section_markup("SYNOPSIS"))
+        ctx.io.output_markup(f"  [{_CMD}]{name_markup}[/] {_args_markup(tc.args)}")
 
     # DESCRIPTION ─────────────────────────────────────────────────────────────
     if tc.long_help:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="DESCRIPTION"))
+        ctx.io.output_markup(_section_markup("DESCRIPTION"))
         for line in tc.long_help.strip().splitlines():
-            ctx.io.output_markup(f"  {line}")
+            ctx.io.output_markup(f"  {escape_markup(line)}")
 
     # FLAGS ───────────────────────────────────────────────────────────────────
     # _canonical_flags is duck-typed on a `.flags` attribute, so it works
@@ -447,10 +467,10 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
     rows = _canonical_flags(tc)
     if rows:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_SECTION_FMT.format(text="FLAGS"))
+        ctx.io.output_markup(_section_markup("FLAGS"))
         for canonical, aliases, desc in rows:
             names = ", ".join([canonical, *aliases])
-            ctx.io.output_markup(f"  [{_OPT}]{names}[/] - {desc}")
+            ctx.io.output_markup(f"  [{_OPT}]{escape_markup(names)}[/] - {escape_markup(desc)}")
 
     ctx.io.output_markup("")
     ctx.io.output_markup(f"  [{_SRC}](source: target device)[/]")
@@ -470,7 +490,7 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
     plugins = ctx.internal.plugins
     words = [word for word in term.split() if word]
     ctx.io.output_markup(
-        f"Candidates matching [{_CMD}]{_underline(term, words)}[/]:"
+        f"Candidates matching [{_CMD}]{_underline_markup(term, words)}[/]:"
     )
     cmd_w = _compute_cmd_w(names, prefix)
     for name in names:
@@ -508,7 +528,7 @@ def append_files_section(
     from termapy.tree_render import FileTree
 
     ctx.io.output_markup("")
-    ctx.io.output_markup(_SECTION_FMT.format(text=title))
+    ctx.io.output_markup(_section_markup(title))
     if not files:
         ctx.io.output_markup("  (none)")
         return
@@ -666,7 +686,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             if "." not in n and not getattr(p, "hidden", False)
         )
         ctx.io.output_markup(
-            f"[{_SEP}]-- MCP-visible only ({shown} of {total} top-level) --[/]"
+            f"[{_SEP}]-- MCP-visible only ({shown:d} of {total:d} top-level) --[/]"
         )
         ctx.io.output_markup("")
 
@@ -677,7 +697,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         if not first:
             ctx.io.output_markup("")
         first = False
-        ctx.io.output_markup(f"[{_SEP}]-- {label} --[/]")
+        ctx.io.output_markup(f"[{_SEP}]-- {escape_markup(label)} --[/]")
         for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
             ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
 
@@ -685,8 +705,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output_markup("")
         ctx.io.output_markup(f"[{_SEP}]-- Directives --[/]")
         for directive in directives:
-            cmd_col = _pad(f"  [{_CMD}]{directive.name}[/]", cmd_w + 2)
-            ctx.io.output_markup(f"{cmd_col}  {directive.help}")
+            cmd_markup = _pad_markup(f"  [{_CMD}]{escape_markup(directive.name)}[/]", cmd_w + 2)
+            ctx.io.output_markup(f"{cmd_markup}  {escape_markup(directive.help)}")
 
     if script_only:
         ctx.io.output_markup("")
@@ -708,9 +728,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     # Footer: teach the two other modes. Single dim line, always emitted.
     ctx.io.output_markup("")
+    prefix_markup = escape_markup(prefix)
     ctx.io.output_markup(
-        f"[{_SEP}]Use {prefix}help <term> to find a command, "
-        f"{prefix}search <word> for a deep search.[/]"
+        f"[{_SEP}]Use {prefix_markup}help <term> to find a command, "
+        f"{prefix_markup}search <word> for a deep search.[/]"
     )
     # The landscape view's natural scriptable summary is the total
     # command count -- scripts can compare it across cfgs to detect
@@ -752,9 +773,9 @@ def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
     ctx.io.output_markup(f"[{_SEP}]-- Target Device --[/]")
     for cmd_name in sorted(names):
         tc = target_cmds[cmd_name]
-        cmd_col = _pad(f"  [{_CMD}]{tc.name}[/]", cmd_w + 2)
-        args_col = f" {_color_args(tc.args)}" if tc.args else ""
-        ctx.io.output_markup(f"{cmd_col}{args_col}  {tc.help}")
+        cmd_markup = _pad_markup(f"  [{_CMD}]{escape_markup(tc.name)}[/]", cmd_w + 2)
+        synopsis_markup = f" {_args_markup(tc.args)}" if tc.args else ""
+        ctx.io.output_markup(f"{cmd_markup}{synopsis_markup}  {escape_markup(tc.help)}")
 
 
 def _script_description(path: Path) -> str:
@@ -773,10 +794,8 @@ def _render_scripts(ctx: PluginContext, scripts: list, prefix: str,
     """Render the scripts table with matched column width."""
     ctx.io.output_markup(f"[{_SEP}]-- Scripts --[/]")
     for path in scripts:
-        name = path.stem
-        desc = _script_description(path)
-        cmd_col = _pad(f"  [{_CMD}]{prefix}run {name}[/]", cmd_w + 2)
-        ctx.io.output_markup(f"{cmd_col}  {desc}")
+        cmd_markup = _pad_markup(f"  [{_CMD}]{escape_markup(f'{prefix}run {path.stem}')}[/]", cmd_w + 2)
+        ctx.io.output_markup(f"{cmd_markup}  {escape_markup(_script_description(path))}")
 
 
 def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
@@ -841,7 +860,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
         if not first:
             ctx.io.output_markup("")
         first = False
-        ctx.io.output_markup(f"[{_SEP}]-- {label} --[/]")
+        ctx.io.output_markup(f"[{_SEP}]-- {escape_markup(label)} --[/]")
         for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
             ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
             total += 1

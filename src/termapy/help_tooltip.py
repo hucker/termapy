@@ -36,9 +36,9 @@ def build_help_tooltip(ver: str, hint: str = "") -> Group:
     if latest_seen is None:
         status_line = None
     elif outdated:
-        status_line = Text.from_markup(
-            f"[yellow]Update available: v{latest_seen}"
-            "  (uv tool upgrade termapy)[/]"
+        status_line = Text(
+            f"Update available: v{latest_seen}  (uv tool upgrade termapy)",
+            style="yellow",
         )
     else:
         status_line = Text.from_markup("[green]You have the latest version.[/]")
@@ -48,20 +48,21 @@ def build_help_tooltip(ver: str, hint: str = "") -> Group:
     # with /credits or the acknowledgments page.  A record's role_detail
     # (the reveng catalog URL) sits on a dim second line inside its
     # "role" cell so it aligns under the role; Rich renders ``\n`` in a
-    # cell as multi-line and column widths still line up.
+    # cell as multi-line and column widths still line up.  Cells are Text,
+    # not strings, so Rich never reads a credit as markup.
     grid = Table.grid(padding=(0, 2))
     grid.add_column(style="cyan")
     grid.add_column(style="white")
     grid.add_column(style="green")
     for credit in tooltip_credits():
-        role: RenderableType = credit.role
+        role = Text(credit.role)
         if credit.role_detail:
             role = Text(f"{credit.role}\n", style="white")
             role.append(credit.role_detail, style="dim")
-        grid.add_row(credit.display_name, role, credit.author)
+        grid.add_row(Text(credit.display_name), role, Text(credit.author))
 
     parts: list[RenderableType] = [
-        Text.from_markup(f"[bold]Termapy v{ver}[/]  [dim]Show help guide{hint_str}.[/]"),
+        Text.assemble((f"Termapy v{ver}", "bold"), "  ", (f"Show help guide{hint_str}.", "dim")),
     ]
     if status_line is not None:
         parts.append(status_line)

@@ -1417,3 +1417,159 @@ COMMAND = Command(name="x", handler=_handler, sub_commands={
     assert actual == ["_HandlerTypo", "_cmd_send", "_proto_root_handler"], (
         "old styles and a case typo are flagged; the shape and factories pass"
     )
+
+
+# ── Markup: text is escaped on its way in ────────────────────────────────────
+#
+# Rich reads `[word]` as a style tag whenever word starts lowercase, `#`, `/`
+# or `@`, and drops one it does not know without complaint: until 2026-10-13
+# `/var` listed `$(TAG) = [ok] boot` as `$(TAG) =  boot` and `/help proto` said
+# "[] sections".  A string is markup when its literal text carries a close tag
+# (`[/]`, `[/u]`) or it is handed straight to a markup sink.  Every value
+# interpolated into one is markup already -- `escape_markup(x)`, or a name or a
+# call ending in `_markup` -- a style in a tag slot (`[{color}]`), or a number
+# (a numeric format spec, `{n:3d}`, `{v:02X}`).  A markup template filled by
+# `.format()` or `%` hides its interpolations from this scan, so it is refused.
+# The reverse is refused too: markup handed to a plain channel (`ctx.io.output`)
+# shows its tags as text, as the demo traffic plugin's counts did.
+
+MARKUP_SINKS = frozenset({
+    "result_markup", "output_markup", "status_markup",
+    "_write_markup", "write_markup", "_write_output_markup", "from_markup",
+})
+PLAIN_CHANNELS = frozenset({"result", "output", "status"})
+_NUMERIC_SPEC = frozenset("bcdeEfFgGnoxX%")
+MARKUP_SCAN_FOLDERS = (SRC, SRC.parent.parent / "examples" / "plugins")
+
+
+def _literal(node: ast.AST | None) -> str:
+    """The text of a string constant, or "" for anything else."""
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else ""
+
+
+def _named_markup(node: ast.expr) -> bool:
+    """True for ``escape_markup(x)``, ``x_markup`` and ``f_markup(...)``: markup by name."""
+    target = node.func if isinstance(node, ast.Call) else node
+    if isinstance(target, ast.Name):
+        return target.id.endswith("_markup")
+    return isinstance(target, ast.Attribute) and target.attr.endswith("_markup")
+
+
+def _numeric(part: ast.FormattedValue) -> bool:
+    """True when the format spec only a number accepts (``3d``, ``02X``, ``.1f``)."""
+    spec = part.format_spec
+    tail = _literal(spec.values[-1]) if isinstance(spec, ast.JoinedStr) and spec.values else ""
+    return bool(tail) and tail[-1] in _NUMERIC_SPEC
+
+
+def _raw_interpolations(fstring: ast.JoinedStr) -> list[ast.FormattedValue]:
+    """The interpolations of a markup f-string that are not markup, a tag slot, or a number."""
+    parts = fstring.values
+    raw: list[ast.FormattedValue] = []
+    for i, part in enumerate(parts):
+        if not isinstance(part, ast.FormattedValue):
+            continue
+        before = _literal(parts[i - 1]) if i else ""
+        after = _literal(parts[i + 1]) if i + 1 < len(parts) else ""
+        if before.endswith("[") and after.startswith("]"):
+            continue  # a style: [{color}]
+        if part.conversion == -1 and (_named_markup(part.value) or _numeric(part)):
+            continue
+        raw.append(part)
+    return raw
+
+
+def _unescaped_markup_sites(tree: ast.Module) -> list[tuple[int, str]]:
+    """``(line, what)`` for every value that reaches markup unescaped, and every opaque template."""
+    templates = {
+        target.id
+        for node in tree.body if isinstance(node, ast.Assign) and "[/" in _literal(node.value)
+        for target in node.targets if isinstance(target, ast.Name)
+    }
+    sink_args = {
+        id(node.args[0])
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and node.args
+        and (getattr(node.func, "attr", None) or getattr(node.func, "id", None)) in MARKUP_SINKS
+    }
+    sites: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.JoinedStr):
+            # A placeholder stands where each value goes, so "[{step}/{total}]" is not "[/]".
+            shape = "".join(_literal(part) or "\0" for part in node.values)
+            if id(node) in sink_args or "[/" in shape:
+                sites.extend((part.lineno, ast.unparse(part.value)) for part in _raw_interpolations(node))
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "format":
+            receiver = node.func.value
+            if "[/" in _literal(receiver) or (isinstance(receiver, ast.Name) and receiver.id in templates):
+                sites.append((node.lineno, f"{ast.unparse(receiver)}.format(...)"))
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod) and "[/" in _literal(node.left):
+            sites.append((node.lineno, "markup % ..."))
+        if (
+            isinstance(node, ast.Call) and node.args
+            and isinstance(node.func, ast.Attribute) and node.func.attr in PLAIN_CHANNELS
+            and isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "io"
+        ):
+            arg = node.args[0]
+            parts = arg.values if isinstance(arg, ast.JoinedStr) else [arg]
+            if "[/" in "".join(_literal(part) or "\0" for part in parts):
+                sites.append((node.lineno, f"markup on the plain {node.func.attr} channel"))
+    return sorted(sites)
+
+
+def _markup_scan_modules():
+    """``(relative path, tree)`` for every module the markup rule covers."""
+    root = SRC.parent.parent
+    for folder in MARKUP_SCAN_FOLDERS:
+        for path in sorted(folder.rglob("*.py")):
+            rel = path.relative_to(root).as_posix()
+            if "/vendor/" not in rel:
+                yield rel, ast.parse(path.read_text(encoding="utf-8"))
+
+
+def test_text_reaches_markup_escaped():
+    """markup-escape: every value interpolated into Rich markup is escape_markup()'d, `_markup`-named, a style, or a number."""
+    # Arrange / Act
+    violations = [
+        f"{rel}:{line}: {what}"
+        for rel, tree in _markup_scan_modules()
+        for line, what in _unescaped_markup_sites(tree)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "wrap text in termapy.markup.escape_markup(), or name a value that is markup "
+        "already *_markup; build markup with an f-string, never .format() or %:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_markup_guard_fires_on_a_probe():
+    """The markup guard flags raw values, conversions, templates and markup on a plain channel; it passes the rest."""
+    # Arrange -- each flagged shape, then each allowed one
+    source = '''
+_TEMPLATE = "[bold]{text}[/]"
+
+def render(ctx, name, n, color, value_markup):
+    ctx.io.output_markup(f"  [cyan]{name}[/]")
+    ctx.io.output_markup(f"  {name}")
+    line = f"[green]{escape_markup(name)!r}[/]"
+    _TEMPLATE.format(text=name)
+    "[red]%s[/]" % name
+    ctx.io.output(f"  TX: [yellow]{n:d}[/]")
+    ctx.io.output_markup(f"[{color}]{escape_markup(name)}[/]")
+    ctx.io.output_markup(f"[dim]{n:3d} {value_markup} {make_markup(n)}[/]")
+    plain = f"plain {name} [1/3]"
+    progress = f"[{n}/{total}] {name}"
+    ctx.io.output(f"[{name}]")
+'''
+
+    # Act
+    actual = [line for line, _ in _unescaped_markup_sites(ast.parse(source))]
+
+    # Assert
+    assert actual == [5, 6, 7, 8, 9, 10], (
+        "a raw value in a tagged f-string, any raw value handed to a sink, a converted "
+        "escape, a .format() template, a % template and markup on a plain channel are "
+        "flagged; nothing else is"
+    )

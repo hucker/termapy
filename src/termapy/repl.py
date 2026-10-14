@@ -31,6 +31,7 @@ from termapy.folders import (
     ensure_folder,
     prune_empty_folders,
 )
+from termapy.markup import escape_markup, markup_to_plain
 from termapy.plugins import (
     LEVEL_FLAGS,
     OUTPUT_LEVELS,
@@ -173,22 +174,6 @@ def _strip_level_flags(args: str) -> tuple[str, str | None]:
         else:
             remaining.append(token)
     return " ".join(remaining), level
-
-
-def _markup_to_plain(text: str) -> str:
-    """Flatten Rich markup to plain text for JSON ``output_lines``.
-
-    Rich tags are display syntax, not data; an envelope consumer should
-    see ``PORT`` where the terminal saw ``[cyan]PORT[/]``.  Falls back
-    to the raw string if Rich is unavailable (bare-engine hosts) or the
-    markup is malformed -- a decorated line beats a dropped one.
-    """
-    try:
-        from rich.text import Text
-
-        return Text.from_markup(text).plain
-    except Exception:  # noqa: BLE001 -- display-boundary best effort
-        return text
 
 
 def _strip_json_flag(args: str) -> tuple[str, bool]:
@@ -818,7 +803,7 @@ class ReplEngine:
         # quiet suppress it), and MCP's session default of "quiet"
         # naturally keeps output_lines clean -- no FRONT_END gate
         # needed for this one.
-        self.ctx.io.output_markup(_json.dumps({"cmd": command}))
+        self.ctx.io.output_markup(escape_markup(_json.dumps({"cmd": command})))
 
         encoding = self.cfg.get("encoding", "utf-8")
         line_ending = self.cfg.get("eol", "\r")
@@ -1423,7 +1408,7 @@ class ReplEngine:
             raw_text = cmd[len(prefix) + 4 :]
             _log(">", cmd)
             if echo_repl_on:
-                _echo(f"[cyan]> {cmd}[/]")
+                _echo(f"[cyan]> {escape_markup(cmd)}[/]")
             if serial_write_raw:
                 serial_write_raw(raw_text)
             # Internal raw-passthrough: the bytes are gone on the wire
@@ -1435,19 +1420,19 @@ class ReplEngine:
         if result.action == "rewrite":
             _log(">", cmd)
             if echo_repl_on:
-                _echo(f"[cyan]> {cmd}[/]")
+                _echo(f"[cyan]> {escape_markup(cmd)}[/]")
             return self.dispatch(result.payload)
         if result.action == "warn":
             _log(">", cmd)
             if echo_repl_on:
-                _echo(f"[cyan]> {cmd}[/]")
+                _echo(f"[cyan]> {escape_markup(cmd)}[/]")
             _status(f"Warning: {result.payload}", "yellow")
             # Internal: warnings come back without a value to capture.
             return CmdResult.ok(value="")
         if result.action == "error":
             _log(">", cmd)
             if echo_repl_on:
-                _echo(f"[cyan]> {cmd}[/]")
+                _echo(f"[cyan]> {escape_markup(cmd)}[/]")
             _status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
 
@@ -1456,7 +1441,7 @@ class ReplEngine:
 
         def _echo_cmd(text: str) -> None:
             fmt = expand_vars(self.cfg.get("echo_fmt", "> {cmd}"))
-            _echo(fmt.replace("{cmd}", text))
+            _echo(fmt.replace("{cmd}", escape_markup(text)))
 
         # 3. REPL command (starts with prefix)
         if cmd.startswith(prefix):
@@ -1835,7 +1820,7 @@ class ReplEngine:
                         captured_lines.append(str(text))
 
                     def _capture_markup(text):
-                        captured_lines.append(_markup_to_plain(str(text)))
+                        captured_lines.append(markup_to_plain(str(text)))
 
                     saved_write = self.ctx.io._write
                     saved_write_markup = self.ctx.io._write_markup

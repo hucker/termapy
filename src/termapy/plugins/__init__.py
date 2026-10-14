@@ -51,6 +51,7 @@ internals are split across :mod:`.context`, :mod:`.command`,
 :mod:`.capabilities`, and :mod:`.loader` for navigability.
 """
 
+from termapy.markup import escape_markup
 from termapy.plugins.capabilities import (
     ENVIRONMENTS,
     REQUIREMENT_HINTS,
@@ -133,6 +134,7 @@ __all__ = [
     "OUTPUT_LEVELS",
     "PluginConfig",
     "PluginContext",
+    "escape_markup",
     "format_kv_lines",
     "parse_output_level",
     # Context handles (4 capability domains + the internal escape hatch)

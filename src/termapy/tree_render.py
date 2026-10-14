@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from termapy.markup import escape_markup
 from termapy.scripting import format_size
 
 # ── File metadata helpers (moved from cfg.py) ─────────────────────────────────
@@ -124,9 +125,9 @@ class FileTree:
 
     def _dir_line(self, connector: str, name: str) -> str:
         if self.color:
-            return (
-                f"{self.indent}[{self.TREE_STYLE}]{connector}[/]"
-                f"[{self.DIR_STYLE}]{name}[/]"
+            return self.indent + (
+                f"[{self.TREE_STYLE}]{escape_markup(connector)}[/]"
+                f"[{self.DIR_STYLE}]{escape_markup(name)}[/]"
             )
         return f"{self.indent}{connector}{name}"
 
@@ -140,8 +141,8 @@ class FileTree:
         # trailing whitespace on every filename.
         padded = fname.ljust(self.name_width) if self.file_dates else fname
         if self.color:
-            return (
-                f"{self.indent}[{self.TREE_STYLE}]{prefix}[/]"
-                f"[{self.FILE_STYLE}]{padded}[/]{suffix}"
+            return self.indent + (
+                f"[{self.TREE_STYLE}]{escape_markup(prefix)}[/]"
+                f"[{self.FILE_STYLE}]{escape_markup(padded)}[/]{escape_markup(suffix)}"
             )
         return f"{self.indent}{prefix}{padded}{suffix}"

@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 from rich.errors import MarkupError
+from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -25,6 +26,7 @@ from termapy.config import (
 )
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.markup import escape_markup
 from termapy.scripting import parse_bool
 
 
@@ -78,7 +80,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         from textual.widgets import Static
 
         with Vertical(id="config-dialog"):
-            yield Static(f"JSON: {self.config_path}", id="config-title")
+            yield Static(f"JSON: {self.config_path}", id="config-title", markup=False)
             yield TextArea(
                 json.dumps(self._disk_cfg, indent=4),
                 language="json",
@@ -92,8 +94,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     id="save-as-input",
                 )
             with Horizontal(id="config-bottom"):
-                yield Static("", id="config-help")
-                yield Static("", id="config-error")
+                yield Static("", id="config-help", markup=False)
+                yield Static("", id="config-error", markup=False)
                 with Horizontal(id="config-btn-col"):
                     yield Button("Save", id="cfg-save", variant="success")
                     yield Button("Save As", id="cfg-save-as", variant="primary")
@@ -169,9 +171,10 @@ class ConfigEditor(ModalScreen[tuple | None]):
         """Check a raw JSON value string.
 
         Returns:
-            (status_line, error) - status_line shows key = value in green
-            (valid), yellow (non-standard), or red (invalid).
-            error is the detail message or empty string.
+            (status, error) as Rich markup with the key and value escaped
+            -- status shows key = value in green (valid), yellow
+            (non-standard), or red (invalid); error is the detail message
+            or empty string.
         """
         # Template values - resolve, show expansion, then validate resolved value
         if "$(" in raw_val:
@@ -179,13 +182,14 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
             from termapy.config import expand_env_str
             template = raw_val.strip().strip('"')
-            # Highlight $(var) references in cyan
-            highlighted = _re.sub(
-                r"(\$\([^)]+\))", r"[cyan]\1[/]", template
+            # Highlight $(var) references in cyan, in the escaped template
+            highlighted_markup = _re.sub(
+                r"(\$\([^)]+\))", r"[cyan]\1[/]", escape_markup(template)
             )
+            key_markup = escape_markup(key)
             resolved = expand_env_str(template)
             if resolved == template:
-                return (f"[yellow]{key}[/] = {highlighted}",
+                return (f"[yellow]{key_markup}[/] = {highlighted_markup}",
                         "[yellow]variable - not resolved[/]")
             if key in self._BOOL_KEYS:
                 # A templated boolean is read with the vocabulary at load
@@ -193,14 +197,16 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 try:
                     flag = parse_bool(resolved, what=key)
                 except ValueError as e:
-                    return (f"[red]{key}[/] = {highlighted}", f"[red]{e}[/]")
-                return (f"[green]{key}[/] = {highlighted} -> {json.dumps(flag)}", "")
+                    return (f"[red]{key_markup}[/] = {highlighted_markup}", f"[red]{escape_markup(e)}[/]")
+                flag_markup = escape_markup(json.dumps(flag))
+                return (f"[green]{key_markup}[/] = {highlighted_markup} -> {flag_markup}", "")
             # Recurse: validate the resolved value
             fake_raw = f'"{resolved}"' if isinstance(resolved, str) else str(resolved)
-            status, error = self._validate_value(key, fake_raw)
-            info = f"{highlighted} -> {status}"
-            return (info, error)
+            status_markup, error_markup = self._validate_value(key, fake_raw)
+            return (f"{highlighted_markup} -> {status_markup}", error_markup)
         val = raw_val.strip().strip('"')
+        # ``key = val`` as escaped markup, the text every status below colors
+        pair_markup = escape_markup(f"{key} = {val}")
         error = ""
         if key in self._BOOL_KEYS:
             # JSON grammar, not termapy's vocabulary: the editor edits the
@@ -218,7 +224,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 parsed = val
             if parsed not in self._VALID_VALUES[key]:
                 opts = ", ".join(str(v) for v in sorted(self._VALID_VALUES[key]))
-                error = f"[red]must be one of: {opts}[/]"
+                error = f"[red]must be one of: {escape_markup(opts)}[/]"
         elif key == "port":
             # comports() can fail with OSError on permission/driver
             # issues (Linux udev, macOS IOKit, Windows WMI) and with
@@ -230,14 +236,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 from serial.tools.list_ports import comports
                 available = {port.device for port in comports()}
                 if val.upper() == "DEMO":
-                    return f"[green]{key} = {val}[/] [dim](simulated port)[/]", ""
+                    return f"[green]{pair_markup}[/] [dim](simulated port)[/]", ""
                 if val in available:
-                    return f"[green]{key} = {val}[/]", ""
+                    return f"[green]{pair_markup}[/]", ""
                 if available:
-                    return f"[yellow]{key} = {val}[/]", f"[yellow]port not found (available: {', '.join(sorted(available))})[/]"
-                return f"[dim]{key} = {val}[/]", ""
+                    ports_markup = escape_markup(", ".join(sorted(available)))
+                    return f"[yellow]{pair_markup}[/]", f"[yellow]port not found (available: {ports_markup})[/]"
+                return f"[dim]{pair_markup}[/]", ""
             except (OSError, ImportError):
-                return f"[dim]{key} = {val}[/]", ""
+                return f"[dim]{pair_markup}[/]", ""
         elif key == "baud_rate":
             try:
                 v = json.loads(raw_val.strip())
@@ -258,11 +265,11 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     except (json.JSONDecodeError, ValueError, NoMatches):
                         pass
                     if custom and v >= 300:
-                        return f"[green]{key} = {val}[/] [dim](custom)[/]", ""
+                        return f"[green]{pair_markup}[/] [dim](custom)[/]", ""
                     elif custom:
-                        return f"[red]{key} = {val}[/]", "[red]custom baud requires >= 300[/]"
+                        return f"[red]{pair_markup}[/]", "[red]custom baud requires >= 300[/]"
                     else:
-                        return f"[yellow]{key} = {val}[/]", "[yellow]non-standard rate -- set custom_baud to true[/]"
+                        return f"[yellow]{pair_markup}[/]", "[yellow]non-standard rate -- set custom_baud to true[/]"
             except (json.JSONDecodeError, ValueError):
                 error = "[red]must be a positive integer[/]"
         elif key in self._INT_KEYS:
@@ -291,12 +298,12 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     r'"\u0003" (ETX), "\u0004" (EOT))[/]'
                 )
         if error:
-            return f"[red]{key} = {val}[/]", error
+            return f"[red]{pair_markup}[/]", error
         # Reached only for known keys (CFG_HELP entry exists) with no
         # error.  Either explicitly validated above (bool/int/enum/
         # port/baud) or a free-form string with no validation rule --
         # both render green to signal "recognized field, value OK".
-        return f"[green]{key} = {val}[/]", ""
+        return f"[green]{pair_markup}[/]", ""
 
     def _update_help(self) -> None:
         """Update the help text based on the current cursor line."""
@@ -324,13 +331,10 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 d = _edit_distance(key, k)
                 if d < best_dist:
                     best, best_dist = k, d
+            unknown = Text(f'Line {row + 1}: Unknown key "{key}"', style="red")
             if best:
-                help_widget.update(
-                    f'[red]Line {row + 1}: Unknown key "{key}"[/]\n'
-                    f'Did you mean [green]"{best}"[/]?'
-                )
-            else:
-                help_widget.update(f'[red]Line {row + 1}: Unknown key "{key}"[/]')
+                unknown.append_text(Text.assemble("\nDid you mean ", (f'"{best}"', "green"), "?"))
+            help_widget.update(unknown)
             return
 
         desc = entry[0]
@@ -340,15 +344,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
         if callable(valid):
             valid = valid()
 
-        status_line, error = self._validate_value(key, raw_val)
+        status_markup, error_markup = self._validate_value(key, raw_val)
 
         # Build help text: line number, description, valid values, current value, error/preview
-        lines = [f"[dim]Line {row + 1}: {desc}[/]"]
+        heading = [f"[dim]Line {row + 1:d}: {escape_markup(desc)}[/]"]
         if valid:
-            lines.append(f"Valid: [dim italic]{valid}[/]")
-        lines.append(f"Value: {status_line}")
-        if error:
-            lines.append(error)
+            heading.append(f"Valid: [dim italic]{escape_markup(valid)}[/]")
+        lines = [*heading, f"Value: {status_markup}"]
+        if error_markup:
+            lines.append(error_markup)
         elif preview_fn:
             # preview_fn is one of our own preview callables from the
             # config-schema entries.  If it raises that's a bug in our
@@ -356,18 +360,16 @@ class ConfigEditor(ModalScreen[tuple | None]):
             preview = preview_fn(raw_val)
             if preview:
                 lines.append(preview)
-        # Rich raises MarkupError on malformed markup (mismatched tags,
-        # unknown styles).  NoMatches covers the widget being gone.
-        # Fall back to a safe rebuild that avoids whatever line was
-        # bad in the first place.
+        # Rich markup with every value escaped, so only a preview of the
+        # user's own markup (an echo_fmt) can be malformed: Rich raises
+        # MarkupError on mismatched tags.  NoMatches covers the widget
+        # being gone.  The widget gets a Text, never a string, so
+        # Textual's own markup parser never reads it.
         try:
-            help_widget.update("\n".join(lines))
+            help_widget.update(Text.from_markup("\n".join(lines)))
         except (MarkupError, NoMatches):
-            lines_safe = [f"[dim]Line {row + 1}: {desc}[/]"]
-            if valid:
-                lines_safe.append(f"Valid: [dim italic]{valid}[/]")
-            lines_safe.append("Value: [red]<invalid Rich formatting>[/]")
-            help_widget.update("\n".join(lines_safe))
+            lines_safe = [*heading, "Value: [red]<invalid Rich formatting>[/]"]
+            help_widget.update(Text.from_markup("\n".join(lines_safe)))
 
     def on_text_area_selection_changed(self, event) -> None:
         """Update help when cursor moves."""

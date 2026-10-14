@@ -265,6 +265,8 @@ def _preview_color(raw_val: str) -> str:
     if not color:
         return ""
     resolved = resolve_color(color)
+    from termapy.markup import escape_markup
+
     try:
         from rich.color import Color
 
@@ -273,10 +275,10 @@ def _preview_color(raw_val: str) -> str:
         triplet = parsed.get_truecolor()
         hex_color = f"#{triplet.red:02x}{triplet.green:02x}{triplet.blue:02x}"
         if resolved != color:
-            return f"[green]Color: {color} -> {hex_color}[/]"
-        return f"[green]Color: {hex_color}[/]"
+            return f"[green]Color: {escape_markup(color)} -> {escape_markup(hex_color)}[/]"
+        return f"[green]Color: {escape_markup(hex_color)}[/]"
     except Exception:
-        return f"[bold red]????[/] unknown color: {color}"
+        return f"[bold red]????[/] unknown color: {escape_markup(color)}"
 
 
 def _preview_markup(raw_val: str) -> str:

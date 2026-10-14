@@ -18,14 +18,15 @@ from typing import TYPE_CHECKING
 # Reuse only the thin rendering helpers from the help plugin. Everything
 # search-specific (grammar, field extraction, highlighter) lives below.
 from termapy.builtins.commands.help import (
+    _args_markup,
     _canonical_flags,
-    _color_args,
-    _underline,
+    _underline_markup,
 )
 from termapy.plugins import (
     CmdResult,
     Command,
     UsageError,
+    escape_markup,
     interpolate_help,
     resolve_long_help,
 )
@@ -191,7 +192,7 @@ def _fuzzy_matches(query: str, plugins: dict, include_dev: bool = False,
 # ── Rendering ────────────────────────────────────────────────────────────────
 
 
-def _highlight(text: str, span: tuple[int, int]) -> str:
+def _highlight_markup(text: str, span: tuple[int, int]) -> str:
     """Return a context snippet around ``span`` with the match wrapped in yellow.
 
     User-supplied text (e.g. a long_help that contains its own Rich
@@ -200,20 +201,18 @@ def _highlight(text: str, span: tuple[int, int]) -> str:
     can land between an opening tag and its closer, leaving an orphan
     ``[/]`` that breaks Rich's parser.
     """
-    from rich.markup import escape
-
     start, end = span
     left = max(0, start - _SEARCH_CONTEXT)
     right = min(len(text), end + _SEARCH_CONTEXT)
-    prefix = "..." if left > 0 else ""
-    suffix = "..." if right < len(text) else ""
+    lead = "..." if left > 0 else ""
+    tail = "..." if right < len(text) else ""
     # Collapse newlines/tabs so each hit stays on one line, then escape
     # so any literal "[...]" in the source text is treated as text, not
     # as Rich markup that would collide with our [yellow] wrapper.
-    before = escape(text[left:start].replace("\n", " ").replace("\t", " "))
-    hit = escape(text[start:end].replace("\n", " ").replace("\t", " "))
-    after = escape(text[end:right].replace("\n", " ").replace("\t", " "))
-    return f"{prefix}{before}[yellow]{hit}[/]{after}{suffix}"
+    before = text[left:start].replace("\n", " ").replace("\t", " ")
+    hit = text[start:end].replace("\n", " ").replace("\t", " ")
+    after = text[end:right].replace("\n", " ").replace("\t", " ")
+    return f"{escape_markup(lead + before)}[yellow]{escape_markup(hit)}[/]{escape_markup(after + tail)}"
 
 
 def _search_fields(name: str, plugin, include_dev: bool,
@@ -254,24 +253,25 @@ def _render_hit(ctx: PluginContext, prefix: str, name: str, plugin,
     ``is_target`` suppresses the REPL prefix and appends a dim "(target)"
     marker so device commands are visually distinguishable from plugins.
     """
-    args_colored = _color_args(plugin.args) if plugin.args else ""
     help_text = interpolate_help(plugin.help, prefix)
     if underlines:
-        header_name = _underline(name, underlines)
-        header_help = _underline(help_text, underlines)
+        name_markup = _underline_markup(name, underlines)
+        help_markup = _underline_markup(help_text, underlines)
     else:
-        header_name = name
-        header_help = help_text
-    arg_str = f" {args_colored}" if args_colored else ""
-    shown_prefix = "" if is_target else prefix
-    target_tag = f"  [{_SEP}](target)[/]" if is_target else ""
+        name_markup = escape_markup(name)
+        help_markup = escape_markup(help_text)
+    synopsis_markup = f" {_args_markup(plugin.args)}" if plugin.args else ""
+    prefix_markup = "" if is_target else escape_markup(prefix)
+    target_markup = f"  [{_SEP}](target)[/]" if is_target else ""
     ctx.io.output_markup(
-        f"[{_CMD}]{shown_prefix}{header_name}[/]{arg_str} - {header_help}{target_tag}"
+        f"[{_CMD}]{prefix_markup}{name_markup}[/]{synopsis_markup} - {help_markup}{target_markup}"
     )
     for label, text, span in hit_fields:
         if label in ("name", "help", "args"):
             continue
-        ctx.io.output_markup(f"  [{_SEP}]({label})[/] {_highlight(text, span)}")
+        ctx.io.output_markup(
+            f"  [{_SEP}]({escape_markup(label)})[/] {_highlight_markup(text, span)}"
+        )
 
 
 # ── Handler ──────────────────────────────────────────────────────────────────

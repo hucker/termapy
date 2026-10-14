@@ -132,6 +132,7 @@ src/termapy/
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
 ├── history_nav.py          #              REPL Up/Down history browsing cursor (Textual-free)
+├── markup.py               #              Rich markup in and out - escape_markup, markup_to_plain (Textual-free)
 ├── memory.py               # (0 lines)  Device memory engine - the MEM wire dialects, chunking, continuity, MEM.M, dump rows (Textual-free)
 ├── memory_views.py         # (0 lines)  Typed views - scalars, chars, register bit fields over the format-spec language (Textual-free)
 ├── migration.py            # (701 lines)  Config schema migration chain
@@ -204,7 +205,7 @@ Hooks and plugins share one registry and one dispatch path; a hook is just a lat
 
 Every handler receives a `PluginContext`, the stable API boundary between plugins and the app. The context is a thin shell over five **handles** — four capability domains, plus `internal`, the privileged escape hatch that deliberately isn't a domain:
 
-- **`ctx.io`** — text in/out: the level-gated `result` / `output` / `status` channels (and their Rich-markup variants) plus the always-works `notify` / `status_bar` / `log` fallbacks.
+- **`ctx.io`** — text in/out: the level-gated `result` / `output` / `status` channels (and their Rich-markup variants, where any text interpolated into the markup goes through `escape_markup`) plus the always-works `notify` / `status_bar` / `log` fallbacks.
 - **`ctx.serial`** — the serial connection: state (`is_connected`), lifecycle (`connect`, `disconnect`, `update_port`, `apply_port_effects`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`, `rx_queue`), and passive `rx` / `tx` byte observers.
 - **`ctx.fs`** — the filesystem layer: the config-dir folders (`ss_dir`, `scripts_dir`, `proto_dir`, `cap_dir`) and `open_file()`.
 - **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).

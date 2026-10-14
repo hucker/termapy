@@ -254,3 +254,28 @@ five naming styles were in use, three of them in `proto.py`, and the examples
 taught an untyped handler with no return value and an old folder name.
 **Where:** registry `handler-naming`; `help/writing-plugins.md` "Plugin file
 structure" and "Bytes and hex".
+
+## 2026-10-13 — Text is escaped into markup; widgets take Text; agents and logs get plain
+
+termapy writes two kinds of string, text and Rich markup, and never lets the
+first reach a markup parser as the second. A value interpolated into markup
+goes through `markup.escape_markup()`; a value that is markup already carries a
+`_markup` name. Help text is prose: the renderer escapes it, and a whole-line
+`help_dynamic.green` state line is the one markup a `long_help` carries.
+Textual's widgets parse Textual's own markup, which has no clean escape
+(`[Rec]` and `[$var]` vanish though Rich's escape leaves them alone, and a
+trailing backslash still eats the close tag), so a widget showing text takes
+`markup=False` or a `rich.text.Text`. The consumers that are not terminals,
+the `--json` envelope, an MCP agent's `output_lines` (raw markup until now)
+and the session log (which skipped the markup channel), get it flattened with
+`markup.markup_to_plain()`. `escape_markup` also corrects Rich's own escape,
+which handles a trailing backslash right only where a tag follows. Chuck:
+"that is a big problem with textual. It has hit me many times." **Why:** Rich
+drops a `[word]` tag it does not know without an error. `/var` listed
+`$(TAG) = [ok] boot` as `$(TAG) =  boot`; `/help proto` said "[] sections",
+and the CLI gold file had recorded it; `/port.connect` lost its Syntax line;
+`/proto.crc.c` displayed `crc ^ data` for `crc ^ data[i]`; markup f-strings
+interpolated values in 20 modules with no escape, and the demo traffic plugin
+sent markup down a plain channel, where its tags showed as text. **Where:**
+registry `markup-escape` (`test_text_reaches_markup_escaped`,
+`tests/test_markup_escape.py`) and `widget-text-literal`.

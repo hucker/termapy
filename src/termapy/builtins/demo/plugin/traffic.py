@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.protocol import parse_data
 from termapy.scripting import parse_duration, parse_keywords
 
@@ -62,9 +62,9 @@ def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
     with ctx.serial.rx_observer(count_rx), ctx.serial.tx_observer(count_tx):
         ctx.dispatch(args)
 
-    ctx.io.output(
-        f"  TX: [yellow]{tx_count[0]}[/]  "
-        f"RX: [cyan]{rx_count[0]}[/]  bytes",
+    ctx.io.output_markup(
+        f"  TX: [yellow]{tx_count[0]:d}[/]  "
+        f"RX: [cyan]{rx_count[0]:d}[/]  bytes",
     )
     return CmdResult.ok(value={"tx": tx_count[0], "rx": rx_count[0]})
 
@@ -136,12 +136,12 @@ def _handler_rate(ctx: PluginContext, args: str) -> CmdResult:
 
     rx_rate = rx_count[0] / duration_s
     tx_rate = tx_count[0] / duration_s
-    ctx.io.output(
-        f"  TX: [yellow]{tx_count[0]}[/] bytes "
+    ctx.io.output_markup(
+        f"  TX: [yellow]{tx_count[0]:d}[/] bytes "
         f"([yellow]{tx_rate:.1f}[/] B/s)",
     )
-    ctx.io.output(
-        f"  RX: [cyan]{rx_count[0]}[/] bytes "
+    ctx.io.output_markup(
+        f"  RX: [cyan]{rx_count[0]:d}[/] bytes "
         f"([cyan]{rx_rate:.1f}[/] B/s)",
     )
     return CmdResult.ok(value={
@@ -200,9 +200,9 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
     # Find the offset of the match within the captured buffer so the LLM
     # can see how much "noise" preceded it.
     offset = bytes(buf).find(pattern)
-    ctx.io.output(
-        f"  Matched [green]{pattern_hex}[/] at offset "
-        f"[bold]{offset}[/] (after {len(buf) - len(pattern) - offset} "
+    ctx.io.output_markup(
+        f"  Matched [green]{escape_markup(pattern_hex)}[/] at offset "
+        f"[bold]{offset:d}[/] (after {len(buf) - len(pattern) - offset:d} "
         f"trailing bytes captured)",
     )
     return CmdResult.ok(value={

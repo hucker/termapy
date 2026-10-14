@@ -13,6 +13,7 @@ import tomllib
 from dataclasses import dataclass, field
 from typing import Callable, Literal
 
+from termapy.markup import escape_markup
 from termapy.protocol.crc import get_crc_registry
 from termapy.protocol.type_codes import BIT_CODES, BYTE_CODES
 from termapy.scripting import parse_bool, parse_duration, parse_duration_ms
@@ -1027,7 +1028,7 @@ def format_diff_markup(
     for i, status in enumerate(statuses):
         style = DIFF_STYLES.get(status, "")
         token = missing_token if status == "missing" else token_fn(actual[i])
-        parts.append(f"[{style}]{token}[/]")
+        parts.append(f"[{style}]{escape_markup(token)}[/]")
     result = "".join(parts)
     # Strip trailing space inside the last markup tag
     if result.endswith(" [/]"):
@@ -1035,7 +1036,7 @@ def format_diff_markup(
     # Append overflow indicator if actual has extra bytes
     ovr = overflow_count(expected, actual)
     if ovr > 0:
-        result += f" [bold yellow]OVR+{ovr}[/]"
+        result += f" [bold yellow]OVR+{ovr:d}[/]"
     return result
 
 

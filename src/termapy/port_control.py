@@ -1562,18 +1562,17 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
     Uses ``format_kv_lines()`` for consistent label coloring and column
     alignment with the other info commands (/term.info, /term.usb_db,
     /port.info, /proto.crc.info).  Per-row coloring -- USB-speed
-    indicator, latency-timer warning, denied permissions -- is encoded
-    inline as Rich markup on the value side; the cyan label color
-    comes from the helper.
+    indicator, latency-timer warning, denied permissions -- is the
+    row's third element; the cyan label color comes from the helper.
     """
     from termapy.plugins import format_kv_lines
 
     msgs: list[Msg] = [_msg(f"{facts.device}", "green")]
 
-    # Build (label, value) rows, embedding any per-row coloring inline
-    # via Rich markup.  All rows then flow through format_kv_lines()
-    # for consistent cyan-label / colon / aligned-width formatting.
-    rows: list[tuple[str, str]] = []
+    # Build (label, value[, color]) rows; format_kv_lines() escapes them
+    # and gives every info command the same cyan-label / colon /
+    # aligned-width formatting.
+    rows: list[tuple[str, str] | tuple[str, str, str]] = []
     for field_name in CHIP_FIELDS:
         if field_name == "device":
             continue  # already shown as the header line
@@ -1583,7 +1582,7 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
         label = CHIP_FIELD_LABELS[field_name]
         sval = str(value)
         if field_name == "usb_speed" and facts._usb_speed_color:
-            sval = f"[{facts._usb_speed_color}]{sval}[/]"
+            rows.append((label, sval, facts._usb_speed_color))
         elif (
             field_name == "latency_timer"
             and isinstance(value, str)
@@ -1594,10 +1593,11 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
             # Only warn when the timer is a numeric ms value above 1.
             # Strings like "n/a" or "n/a (Windows - check Device Manager)"
             # mean we don't know -- no actionable advice to give.
-            sval = f"[yellow]{sval}  (set to 1 for low latency)[/]"
+            rows.append((label, f"{sval}  (set to 1 for low latency)", "yellow"))
         elif field_name == "permissions" and value == "denied":
-            sval = f"[red]{sval}[/]"
-        rows.append((label, sval))
+            rows.append((label, sval, "red"))
+        else:
+            rows.append((label, sval))
 
     for line in format_kv_lines(rows):
         msgs.append(_msg(line))
@@ -1779,8 +1779,6 @@ def port_info(
     # extra trailing context (state, "resolved from spec") on the
     # value side -- the helper just sees one big value string.
     if spec and spec != actual:
-        # Parens instead of square brackets -- Rich would otherwise
-        # try to interpret "[resolved from X]" as markup.
         port_value = f"{actual}  ({state})  (resolved from {spec})"
     else:
         port_value = f"{actual or '?'}  ({state})"
@@ -1814,7 +1812,7 @@ def port_info(
         facts = gather_chip_facts(port_name, connected_port, source=source)
         if facts is not None:
             msgs.append(_msg(""))
-            chip_rows: list[tuple[str, str]] = []
+            chip_rows: list[tuple[str, str] | tuple[str, str, str]] = []
             for field_name in CHIP_FIELDS:
                 if field_name == "device":
                     continue  # already shown as the Port: header
@@ -1824,12 +1822,13 @@ def port_info(
                 label = CHIP_FIELD_LABELS[field_name]
                 sval = str(value)
                 if field_name == "usb_speed" and facts._usb_speed_color:
-                    sval = f"[{facts._usb_speed_color}]{sval}[/]"
+                    chip_rows.append((label, sval, facts._usb_speed_color))
                 elif field_name == "latency_timer" and value != "1 ms":
-                    sval = f"[yellow]{sval}  (set to 1 for low latency)[/]"
+                    chip_rows.append((label, f"{sval}  (set to 1 for low latency)", "yellow"))
                 elif field_name == "permissions" and value == "denied":
-                    sval = f"[red]{sval}[/]"
-                chip_rows.append((label, sval))
+                    chip_rows.append((label, sval, "red"))
+                else:
+                    chip_rows.append((label, sval))
             for line in format_kv_lines(chip_rows):
                 msgs.append(_msg(line))
 

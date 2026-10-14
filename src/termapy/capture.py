@@ -7,6 +7,7 @@ or `feed_text()`, and the engine writes to the output file.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -318,8 +319,13 @@ class CaptureEngine:
             return False
         try:
             for text in lines:
-                fh.write(text + "\n")
-                self._bytes += len(text) + 1
+                written = text + "\n"
+                fh.write(written)
+                # The bytes on disk, not characters: UTF-8, and the text-mode
+                # file writes each "\n" as os.linesep (CRLF on Windows).
+                self._bytes += len(written.encode("utf-8")) + written.count("\n") * (
+                    len(os.linesep) - 1
+                )
             fh.flush()
         except (OSError, ValueError) as e:
             self._record_write_error(fh, e)

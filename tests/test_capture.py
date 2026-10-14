@@ -130,7 +130,7 @@ class TestLifecycle:
 
 class TestTextCapture:
     def test_feed_text_writes_lines(self, tmp_path):
-        """Each fed line lands newline-terminated and the byte count includes newlines."""
+        """Each fed line lands newline-terminated and the byte count is the file's size."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.txt"
@@ -144,7 +144,30 @@ class TestTextCapture:
         actual = path.read_text()
         assert actual == "hello\nworld\n", "lines written with newlines"
         assert isinstance(result, CaptureResult), "stop returns a result"
-        assert result.byte_count == 12, "5+1+5+1 = 12"
+        assert result.byte_count == path.stat().st_size, "the count is the bytes on disk"
+
+    def test_the_byte_count_is_bytes_on_disk_capture_after_capture(self, tmp_path):
+        """A text capture counts encoded bytes and the platform line ending, not characters, in every capture."""
+        # Arrange -- multi-byte UTF-8, two lines in one batch, an embedded LF
+        engine = CaptureEngine()
+        batches = [["temp=21°C", "Ω ok"], ["a\nb"]]
+        counts: list[tuple[int, int]] = []
+
+        # Act -- two captures in a row, the second appending to the first's file
+        path = tmp_path / "out.txt"
+        for file_mode, lines in zip(("w", "a"), batches):
+            before = path.stat().st_size if path.exists() else 0
+            engine.start(path=path, file_mode=file_mode, mode="text", duration=5.0)
+            engine.feed_text(lines)
+            result = engine.stop()
+            assert result is not None, "stop returns a result"
+            counts.append((result.byte_count, path.stat().st_size - before))
+
+        # Assert
+        for actual, expected in counts:
+            assert actual == expected, (
+                "the count was characters, or missed the CR the text-mode file adds on Windows"
+            )
 
     def test_feed_text_ignored_when_inactive(self, tmp_path):
         """Text fed with no capture running is dropped without raising."""

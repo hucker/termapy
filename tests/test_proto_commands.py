@@ -204,7 +204,7 @@ class TestSend:
         """A quoted text frame is sent as-is and the reply comes back as the hex value with an RX hex+ASCII line."""
         capsys.readouterr()
         result = cli.repl.dispatch_full('/proto.send "AT\\r"')
-        assert result.value == "4f4b0d0a", "OK CR LF, the DEMO's answer to AT"
+        assert result.value == "4F4B0D0A", "OK CR LF, the DEMO's answer to AT"
         assert "RX: 4F 4B 0D 0A  |OK..|" in capsys.readouterr().out
 
     def test_verbose_shows_the_tx_bytes_and_the_timing(self, cli, capsys):
@@ -219,7 +219,7 @@ class TestSend:
         """--ascii swaps the hex+sidebar row for one quoted escape-string."""
         capsys.readouterr()
         result = cli.repl.dispatch_full("/proto.send --ascii 41 54 0D")
-        assert result.value == "4f4b0d0a"
+        assert result.value == "4F4B0D0A"
         assert 'RX: "OK\\r\\n"' in capsys.readouterr().out
 
     def test_a_long_reply_uses_the_multi_line_hex_dump(self, cli, capsys):
@@ -261,7 +261,7 @@ class TestSend:
     def test_a_sub_millisecond_delay_spin_waits(self, cli):
         """A delay under 1 ms takes the spin-wait branch and the frame still goes out whole."""
         result = cli.repl.dispatch_full('/proto.send ~500us "AT\\r"')
-        assert result.value == "4f4b0d0a"
+        assert result.value == "4F4B0D0A"
 
     def test_dry_run_with_delays_lists_the_markers(self, cli, capsys):
         """--dry-run with delays prints each segment and marker in order and returns the data bytes only."""
@@ -273,7 +273,7 @@ class TestSend:
     def test_a_crc_with_no_data_segment_is_sent_on_its_own(self, cli):
         """An algorithm followed only by a delay appends the CRC of nothing as its own segment."""
         algo = get_crc_registry()["crc16-modbus"]
-        expected = algo.compute(b"").to_bytes(2, "little").hex()
+        expected = algo.compute(b"").to_bytes(2, "little").hex().upper()
         result = cli.repl.dispatch_full("/proto.send --dry-run crc16-modbus ~1ms")
         assert result.value == expected
 

@@ -162,6 +162,28 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     }
 
 
+def split_vid_pid(vid_pid: str | None) -> tuple[int | None, int | None]:
+    """Read a ``VID:PID`` string into its two integers, the one reader of USB ids.
+
+    ``"0403:6015"`` gives ``(0x0403, 0x6015)``; absent or malformed text gives
+    ``(None, None)``.  USB ids are hex by convention, so bare hex is right
+    here where it is never guessed elsewhere (``symbols.parse_number``).
+
+    Args:
+        vid_pid: The ``ChipFacts.vid_pid`` text, or None.
+
+    Returns:
+        ``(vid, pid)``, each None when unknown.
+    """
+    if not vid_pid or ":" not in vid_pid:
+        return None, None
+    vid_text, pid_text = vid_pid.split(":", 1)
+    try:
+        return int(vid_text, 16), int(pid_text, 16)
+    except ValueError:
+        return None, None
+
+
 def facts_to_json_record(facts: ChipFacts) -> dict:
     """Build a stable JSON record from a ChipFacts.
 
@@ -178,16 +200,7 @@ def facts_to_json_record(facts: ChipFacts) -> dict:
     """
     # vid_pid on ChipFacts is "0403:6001" (uppercase hex); split it
     # back to integers when present so consumers can do numeric ops.
-    vid: int | None = None
-    pid: int | None = None
-    vp = facts.vid_pid
-    if vp and ":" in vp:
-        try:
-            vid_s, pid_s = vp.split(":", 1)
-            vid = int(vid_s, 16)
-            pid = int(pid_s, 16)
-        except ValueError:
-            vid = pid = None
+    vid, pid = split_vid_pid(facts.vid_pid)
     # Vendor info comes from two independent sources:
     #   - manufacturer / manufacturer_raw: what the device descriptor
     #     or driver INF reports.  manufacturer is the column-friendly
@@ -211,7 +224,7 @@ def facts_to_json_record(facts: ChipFacts) -> dict:
         "speed": _normalize_speed(facts.usb_speed),
         "vid": vid,
         "pid": pid,
-        "vid_pid": vp.lower() if vp and ":" in vp else None,
+        "vid_pid": facts.vid_pid.upper() if facts.vid_pid and ":" in facts.vid_pid else None,
         "serial_number": facts.serial,
         "in_use": (facts.in_use or "").startswith("yes"),
         "driver": facts.driver,

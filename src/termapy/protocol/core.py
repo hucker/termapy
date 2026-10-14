@@ -22,7 +22,14 @@ from termapy.scripting import parse_bool, parse_duration, parse_duration_ms
 # ---------------------------------------------------------------------------
 
 _ANSI_ESCAPE = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
-_HEX_TOKEN = re.compile(r"(?:0x)?([0-9a-fA-F]{2})")
+# Hex input is case-insensitive, the prefix included, and a ``0x`` prefix
+# marks exactly one byte: ``0x01`` is a byte, ``0xDEADBEEF`` is refused,
+# because it reads as a number whose byte order nobody stated (registry
+# hex-one-reader).  Bare run-together hex (``DEADBEEF``) is bytes in the
+# order written.
+_HEX_DIGITS = "0123456789abcdefABCDEF"
+_HEX_PAIR = re.compile(r"[0-9a-fA-F]{2}")
+_HEX_PREFIXED = re.compile(r"0[xX]([0-9a-fA-F]*)")
 _QUOTED_STR = re.compile(r'"([^"]*)"')
 
 _ESCAPE_MAP = {
@@ -56,17 +63,52 @@ def _unescape(s: str) -> str:
     return s
 
 
+def _one_byte_error(token: str, *, text_allowed: bool) -> ValueError:
+    """The refusal for a ``0x`` token that is not exactly one byte, naming the fix when there is one."""
+    digits = token[2:]
+    if len(digits) > 2 and len(digits) % 2 == 0 and all(char in _HEX_DIGITS for char in digits):
+        spaced = " ".join(digits[i : i + 2].upper() for i in range(0, len(digits), 2))
+        fix = f"write {spaced}" + (f', or "{token}" for text' if text_allowed else "")
+        return ValueError(f"Invalid hex byte: {token!r} (a 0x prefix marks one byte; {fix})")
+    return ValueError(f"Invalid hex byte: {token!r}")
+
+
+def _match_hex_byte(text: str, pos: int, *, text_allowed: bool) -> tuple[int, int] | None:
+    """The hex byte at ``pos`` as ``(value, end)``, or None when none starts there.
+
+    The one place a hex byte is tokenized for :func:`parse_data`,
+    :func:`parse_data_segments` and :func:`parse_pattern`.
+
+    Raises:
+        ValueError: A ``0x`` prefix on anything but exactly two hex digits.
+    """
+    prefixed = _HEX_PREFIXED.match(text, pos)
+    if prefixed:
+        if len(prefixed.group(1)) != 2:
+            end = prefixed.end()
+            while end < len(text) and text[end] not in ' ,\t"':
+                end += 1
+            raise _one_byte_error(text[pos:end], text_allowed=text_allowed)
+        return int(prefixed.group(1), 16), prefixed.end()
+    pair = _HEX_PAIR.match(text, pos)
+    if pair:
+        return int(pair.group(0), 16), pair.end()
+    return None
+
+
 def parse_hex(text: str) -> bytes:
-    """Parse a hex string into bytes.
+    """Parse a hex-only payload into bytes, the reader for packets.
 
-    Accepts whitespace- or comma-separated hex pairs and run-together hex,
-    each token with an optional ``0x`` prefix.  Examples: ``'01 03 00 0A'``,
-    ``'0x01, 0x03, 0x00, 0x0A'``, ``'0103000A'``.
+    Accepts whitespace- or comma-separated hex pairs, run-together hex, and
+    ``0x``-prefixed single bytes, in either case.  Examples:
+    ``'01 03 00 0A'``, ``'0x01, 0x03, 0x00, 0x0A'``, ``'0103000A'``.
 
-    Every token must be an even-length run of hex digits.  Malformed input
-    (an odd number of nibbles, or non-hex characters) raises rather than
-    silently dropping the bad part -- ``parse_hex('ABC')`` is a typo, not
-    ``b'\\xab'``.  Use :func:`parse_data` for mixed hex and quoted text.
+    Every bare token must be an even-length run of hex digits, read in the
+    order written; a ``0x`` token must be exactly one byte, since
+    ``0xDEADBEEF`` reads as a number of unstated byte order.  Malformed
+    input raises rather than silently dropping the bad part --
+    ``parse_hex('ABC')`` is a typo, not ``b'\\xab'``.  Quoted text is not
+    hex; use :func:`parse_data` where a payload may hold text.
 
     Args:
         text: Hex string to parse.
@@ -76,19 +118,24 @@ def parse_hex(text: str) -> bytes:
 
     Raises:
         ValueError: If the string is empty/whitespace, or any token is not
-            a valid even-length run of hex digits.
+            valid hex.
     """
     tokens = text.replace(",", " ").split()
     if not tokens:
         raise ValueError(f"No valid hex bytes in: {text!r}")
     out = bytearray()
     for token in tokens:
-        body = token[2:] if token[:2].lower() == "0x" else token
-        if not body or len(body) % 2 != 0 or any(
-            c not in "0123456789abcdefABCDEF" for c in body
-        ):
+        if token[:2].lower() == "0x":
+            body = token[2:]
+            if len(body) != 2 or any(char not in _HEX_DIGITS for char in body):
+                raise _one_byte_error(token, text_allowed=False)
+            out.append(int(body, 16))
+            continue
+        if token.startswith('"'):
+            raise ValueError(f"Invalid hex byte: {token!r} (this payload is hex only)")
+        if len(token) % 2 != 0 or any(char not in _HEX_DIGITS for char in token):
             raise ValueError(f"Invalid hex byte: {token!r}")
-        out.extend(int(body[i : i + 2], 16) for i in range(0, len(body), 2))
+        out.extend(int(token[i : i + 2], 16) for i in range(0, len(token), 2))
     return bytes(out)
 
 
@@ -129,11 +176,11 @@ def parse_data(text: str) -> bytes:
             pos = m.end()
             continue
 
-        # Hex byte (with optional 0x prefix)
-        m = _HEX_TOKEN.match(remaining, pos)
-        if m:
-            result.append(int(m.group(1), 16))
-            pos = m.end()
+        # Hex byte (a 0x prefix marks exactly one)
+        byte = _match_hex_byte(remaining, pos, text_allowed=True)
+        if byte is not None:
+            result.append(byte[0])
+            pos = byte[1]
             continue
 
         raise ValueError(f"Unexpected character at position {pos}: {remaining[pos]!r}")
@@ -198,10 +245,10 @@ def parse_data_segments(text: str) -> list[bytes | float]:
             continue
 
         # Hex byte - capture the token for the buffer
-        m = _HEX_TOKEN.match(remaining, pos)
-        if m:
-            buf.append(remaining[pos : m.end()])
-            pos = m.end()
+        byte = _match_hex_byte(remaining, pos, text_allowed=True)
+        if byte is not None:
+            buf.append(remaining[pos : byte[1]])
+            pos = byte[1]
             continue
 
         raise ValueError(f"Unexpected character at position {pos}: {remaining[pos]!r}")
@@ -372,12 +419,12 @@ def parse_pattern(text: str) -> tuple[bytes, bytes]:
             pos = m.end()
             continue
 
-        # Hex byte - must match
-        m = _HEX_TOKEN.match(text, pos)
-        if m:
-            data.append(int(m.group(1), 16))
+        # Hex byte - must match (a 0x prefix marks exactly one)
+        byte = _match_hex_byte(text, pos, text_allowed=True)
+        if byte is not None:
+            data.append(byte[0])
             mask.append(0xFF)
-            pos = m.end()
+            pos = byte[1]
             continue
 
         raise ValueError(f"Unexpected character at position {pos}: {text[pos]!r}")

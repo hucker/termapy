@@ -3,8 +3,8 @@
 Exercises the wrapper in ``termapy/builtins/commands/proto.py:_did_you_mean``
 that calls ``crcglot.suggest_algorithms`` (0.25+) and the five sites that
 splice the resulting suffix into their ``Unknown algorithm:`` fail
-messages: ``_crc_info``, ``_crc_calc``, ``_crc_codegen`` (catalog
-single-algo + bundle paths), and ``_crc_verify``.
+messages: ``_handler_crc_info``, ``_handler_crc_calc``, ``_crc_codegen`` (catalog
+single-algo + bundle paths), and ``_handler_crc_verify``.
 
 The suggestion logic itself lives in crcglot; here we verify only that
 the wrapper forwards through and that every callsite renders the
@@ -14,11 +14,11 @@ suffix correctly.
 from __future__ import annotations
 
 from termapy.builtins.commands.proto import (
-    _crc_calc,
     _crc_codegen,
-    _crc_info,
-    _crc_verify,
     _did_you_mean,
+    _handler_crc_calc,
+    _handler_crc_info,
+    _handler_crc_verify,
 )
 from termapy.plugins import IOHandle, PluginContext
 
@@ -90,15 +90,15 @@ class TestSuggestionRendersAtHandlerSites:
         ctx, _captured, _markup = _build_stub_ctx()
 
         # Act
-        result = _crc_info(ctx, "crc16-modbsu")
+        result = _handler_crc_info(ctx, "crc16-modbsu")
 
         # Assert
         assert not result.success, "typo'd algo should fail"
         assert "did you mean: " in (result.error or ""), (
-            f"_crc_info should emit suggestion; got {result.error!r}"
+            f"_handler_crc_info should emit suggestion; got {result.error!r}"
         )
         assert "crc16-modbus" in (result.error or ""), (
-            f"_crc_info should suggest crc16-modbus; got {result.error!r}"
+            f"_handler_crc_info should suggest crc16-modbus; got {result.error!r}"
         )
 
     def test_crc_calc_suffix(self):
@@ -107,12 +107,12 @@ class TestSuggestionRendersAtHandlerSites:
         ctx, _captured, _markup = _build_stub_ctx()
 
         # Act
-        result = _crc_calc(ctx, "crc16-modbsu 01 02 03")
+        result = _handler_crc_calc(ctx, "crc16-modbsu 01 02 03")
 
         # Assert
         assert not result.success, "typo'd algo should fail"
         assert "crc16-modbus" in (result.error or ""), (
-            f"_crc_calc should suggest crc16-modbus; got {result.error!r}"
+            f"_handler_crc_calc should suggest crc16-modbus; got {result.error!r}"
         )
 
     def test_crc_verify_suffix(self):
@@ -121,12 +121,12 @@ class TestSuggestionRendersAtHandlerSites:
         ctx, _captured, _markup = _build_stub_ctx()
 
         # Act
-        result = _crc_verify(ctx, "crc16-modbsu 01 02 03 04 05")
+        result = _handler_crc_verify(ctx, "crc16-modbsu 01 02 03 04 05")
 
         # Assert
         assert not result.success, "typo'd algo should fail"
         assert "crc16-modbus" in (result.error or ""), (
-            f"_crc_verify should suggest crc16-modbus; got {result.error!r}"
+            f"_handler_crc_verify should suggest crc16-modbus; got {result.error!r}"
         )
 
     def test_crc_codegen_single_suffix(self):

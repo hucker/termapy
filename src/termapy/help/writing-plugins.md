@@ -112,6 +112,12 @@ COMMAND = Command(
 The `COMMAND` object must be defined after all the functions it references.
 `Termapy` looks for this specific name.
 
+Name the handler `_handler`, and a subcommand's handler `_handler_<sub>`
+(`_handler_list` for `/tool.list`, `_handler_crc_calc` for
+`/proto.crc.calc`). Every built-in, demo and example plugin follows that
+shape, and termapy's own test suite enforces it on them, so a new command
+is a copy of any existing one.
+
 A command is not the only thing a plugin file can export. Any of these
 makes the file a plugin, and one file may export several:
 
@@ -133,7 +139,7 @@ fields (`cfg`, `config_path`, `prefix`) and universal methods
 (`dispatch`, `ns`, `arg`, `flag`, `wait_for_match`) beside them:
 
 ```python
-def _handler(ctx, args):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.cfg.get("encoding"):           # plain config (read-only)
         ...
     ctx.io.result("Hello", "green")           # final answer (quiet+)
@@ -224,7 +230,7 @@ the prose *or* the records, not both, so a large listing isn't rendered
 twice:
 
 ```python
-def _handler(ctx, args):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     facts = gather()                        # one producer
     if ctx.wants_data:
         return CmdResult.ok(value=summary(facts), data=records(facts))
@@ -446,7 +452,7 @@ that needs no prose, you can pass the helper directly:
 Most plugins follow this pattern: send a command, read the response, do something with it.
 
 ```python
-def _handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
 
@@ -489,6 +495,28 @@ above does.
 
 The handler then doesn't need to check `is_connected` -- the dispatcher
 returns `Not connected.` automatically when the port is down.
+
+## Bytes and hex
+
+Read bytes the user typed with `termapy.protocol.parse_data` when the
+payload may hold text: hex in any spelling or case (`01 03`, `0x01 0x03`,
+`0103`) and quoted text (`"AT\r"`), freely mixed, exactly what
+`/proto.send` accepts. Use `parse_hex` when it is a packet, hex only. In
+both, a `0x` prefix marks one byte, so `0xDEADBEEF` is refused with the
+fix in the message. Print and return hex in uppercase: `format_hex(data)`
+for display (`01 0A FF`), `data.hex().upper()` for a scriptable value.
+
+```python
+from termapy.protocol import format_hex, parse_data
+
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    try:
+        data = parse_data(args)
+    except ValueError as e:
+        return CmdResult.fail(msg=f"Parse error: {e}")
+    ctx.io.output(f"  {format_hex(data)}")
+    return CmdResult.ok(value=data.hex().upper())
+```
 
 ## Useful library imports
 

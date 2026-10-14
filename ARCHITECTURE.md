@@ -183,7 +183,7 @@ COMMAND = Command(
     sub_commands={
         "auto": Command(args="<key> <value>", help="Set immediately.", handler=_handler_auto),
         "list": Command(help="List all config files.", handler=_handler_list),
-        "icon": Command(help="Create a desktop launcher.", handler=_icon_handler,
+        "icon": Command(help="Create a desktop launcher.", handler=_handler_icon,
             sub_commands={
                 "remove": Command(help="Delete the launcher.", handler=...),
                 "list": Command(help="List every launcher.", handler=...),

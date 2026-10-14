@@ -101,23 +101,34 @@ All other paths relative to `src/termapy/`.
     `Invalid <thing>: X` error — never a silent default on garbage.
     Anything address/size/mask-shaped (memory, protocol contexts) uses
     `symbols.parse_number` (decimal, `0x` hex, `Nh` — bare hex is NEVER
-    guessed). Grandfathered until next touched: `proto.py`'s
-    `_parse_int_value` (0x/decimal, unit-tested) — delegate it to
-    `parse_number` when that code is next edited.
+    guessed). USB ids are the one bare-hex number, read only by
+    `port_format.split_vid_pid`.
   - **Durations.** `ParamSpec(type="duration")` / `scripting.parse_duration`
     only. A `* 1000` after parsing is unit conversion, not parsing.
-  - **Hex payloads / packets.** `protocol.core.parse_hex` (strict pairs),
-    `parse_data` (mixed hex + quoted text), `parse_pattern` (wildcards).
-    Grandfathered until next touched: `proto.py`'s three local
-    `bytes(int(t, 16) ...)` tokenizers.
+  - **Hex payloads / packets.** Hex reads the same everywhere, every
+    spelling and case (`01 03`, `0x01 0x03`, `0X01`, `0103`); a `0x`
+    prefix marks exactly one byte (`0xDEADBEEF` is refused: a number of
+    unstated byte order), and bare run-together hex is bytes in the order
+    written. Quoted text is allowed only where a payload can hold text:
+    `protocol.core.parse_data` (hex + quoted text) for `/proto.send`,
+    `/proto.crc.calc`, `/traffic.snoop` and `.pro` files; `parse_hex`
+    (hex only) for the packet commands `/proto.crc.verify`, `.find bin=`,
+    `.reverse` and `/mem.write`; `parse_pattern` for expect wildcards. A
+    bad payload is `Parse error: {e}`. **Output is uppercase**: `format_hex`
+    for display, `.hex().upper()` for a value, `X` in format specs.
+    **Enforced by `tests/test_architecture.py` (registry `hex-one-reader`,
+    `hex-output-uppercase`)**: an `ast` walk with a function-level
+    allowlist, each entry with the reason it is not user text (decision
+    2026-10-13, which also records the calc text-guessing bug it
+    replaced).
   - **Strings.** Identity (`str`/`path`/`command` params, rest args).
     Quoted-string escapes are `protocol.core._ESCAPE_MAP`
     (`\r \n \t \\ \0`); the cfg-value `"\n"` convention in
     `on_connect_cmd` is a config-file notation, not a second prompt
     vocabulary.
-  - No ast guard for these: unlike bool tokens, an `int()` on user text
-    is indistinguishable from internal arithmetic, so enforcement is
-    this rule plus review.
+  - No ast guard for numbers, durations or strings: unlike bool tokens
+    and hex, an `int()` on user text is indistinguishable from internal
+    arithmetic, so enforcement there is this rule plus review.
 - REPL prefix: `/`
 - Modals return tuples: `("run", path)`, `("new",)`, `("edit", path)`
 - Buttons: rainbow palette, Exit always red (`error`)
@@ -125,6 +136,7 @@ All other paths relative to `src/termapy/`.
 - Plugin files end with `COMMAND` dict preceded by:
   `# ── COMMAND (must be at end of file) ──────────────────────────────────────────`
   (`COMMAND` is the last *command* export; a plugin that also exports a `TRANSFORM` or `DIRECTIVE`, as `env.py` and `var.py` do, places those after it)
+- **Handlers are named `_handler` (root) and `_handler_<sub>` (subcommand)**: `_handler_crc_calc` for `/proto.crc.calc`, typed `(ctx: PluginContext, args: str) -> CmdResult`, in the built-ins, the demo plugins and `examples/plugins/` alike, so a new command is a copy of any existing one. **Enforced by `tests/test_architecture.py` (registry `handler-naming`)**; factory-built handlers are exempt.
 - Subcommands = distinct operations (`port.list` vs `port.connect`)
 - Toggles/values = args (`echo on`, `cfg baudrate 9600`)
 - `needs=`: use the named `CapabilitySet` profiles (`.SERIAL_CONNECTED`,

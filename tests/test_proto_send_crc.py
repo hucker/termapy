@@ -2,7 +2,7 @@
 
 import pytest
 
-from termapy.builtins.commands.proto import _cmd_send, _parse_send_algo
+from termapy.builtins.commands.proto import _handler_send, _parse_send_algo
 from termapy.plugins import InternalHandle, PluginContext, UsageError
 from termapy.protocol import get_crc_registry
 
@@ -151,7 +151,7 @@ class TestSendCrcAppend:
         args = "crc16-modbus 01 03 00 00 00 01"
 
         # Act
-        _cmd_send(ctx, args)
+        _handler_send(ctx, args)
 
         # Assert
         actual = tx_bytes[0]
@@ -165,7 +165,7 @@ class TestSendCrcAppend:
         args = "crc16-modbus_be 01 03 00 00 00 01"
 
         # Act
-        _cmd_send(ctx, args)
+        _handler_send(ctx, args)
 
         # Assert
         actual = tx_bytes[0]
@@ -179,7 +179,7 @@ class TestSendCrcAppend:
         args = "crc16-modbus_ascii 01 03 00 00 00 01"
 
         # Act
-        _cmd_send(ctx, args)
+        _handler_send(ctx, args)
 
         # Assert
         actual = tx_bytes[0]
@@ -195,7 +195,7 @@ class TestSendCrcAppend:
         args = "crc16-modbus_be_ascii 01 03 00 00 00 01"
 
         # Act
-        _cmd_send(ctx, args)
+        _handler_send(ctx, args)
 
         # Assert
         actual = tx_bytes[0]
@@ -211,7 +211,7 @@ class TestSendCrcAppend:
         args = "crc16-modbus 01 03 00 00 00 01"
 
         # Act
-        _cmd_send(ctx, args)
+        _handler_send(ctx, args)
 
         # Assert
         actual = [t for t, _ in output if "CRC:" in t]
@@ -227,7 +227,7 @@ class TestSendCrcAppend:
         args = "crc16-modbus_be_ascii 01 03 00 00 00 01"
 
         # Act
-        _cmd_send(ctx, args)
+        _handler_send(ctx, args)
 
         # Assert
         actual = [t for t, _ in output if "CRC:" in t]
@@ -245,7 +245,7 @@ class TestSendCrcEdgeCases:
         args = "crc16-modbus"
 
         # Act
-        result = _cmd_send(ctx, args)
+        result = _handler_send(ctx, args)
 
         # Assert
         assert len(tx_bytes) == 0, "nothing sent"
@@ -259,7 +259,7 @@ class TestSendCrcEdgeCases:
         args = "crc16-modbus_ascii"
 
         # Act
-        result = _cmd_send(ctx, args)
+        result = _handler_send(ctx, args)
 
         # Assert
         assert len(tx_bytes) == 0, "nothing sent"
@@ -273,7 +273,7 @@ class TestSendCrcEdgeCases:
         args = "01 03 00 00 00 01"
 
         # Act
-        _cmd_send(ctx, args)
+        _handler_send(ctx, args)
 
         # Assert
         actual = tx_bytes[0]
@@ -287,7 +287,7 @@ class TestSendCrcEdgeCases:
         args = "01 03 00 00 00 01"
 
         # Act
-        _cmd_send(ctx, args)
+        _handler_send(ctx, args)
 
         # Assert
         actual = [t for t, _ in output if "CRC:" in t]
@@ -306,7 +306,7 @@ class TestSendCrcEdgeCases:
         # Act / Assert -- bad arity raises; dispatcher renders the usage
         # line from the declaration (see test_usage_error.py).
         with pytest.raises(UsageError):
-            _cmd_send(ctx, "")
+            _handler_send(ctx, "")
         assert len(tx_bytes) == 0, "nothing sent"
 
 
@@ -329,7 +329,7 @@ class TestSendCrcAlgorithms:
         expected_crc = algo.compute(data)
 
         # Act
-        _cmd_send(ctx, f"{crc8_name} 01 02 03")
+        _handler_send(ctx, f"{crc8_name} 01 02 03")
 
         # Assert
         actual = tx_bytes[0]
@@ -357,7 +357,7 @@ class TestSendCrcAlgorithms:
         expected_bytes = expected_crc.to_bytes(4, "big")[::-1]  # refout=True -> LE
 
         # Act
-        _cmd_send(ctx, f"{crc32_name} 01 02 03")
+        _handler_send(ctx, f"{crc32_name} 01 02 03")
 
         # Assert
         actual = tx_bytes[0]
@@ -374,7 +374,7 @@ class TestSendDryRun:
         ctx.active_flags = {"--dry-run"}
 
         # Act
-        _cmd_send(ctx, "01 02 03")
+        _handler_send(ctx, "01 02 03")
 
         # Assert
         assert tx_bytes == [], "no bytes written to the port"
@@ -390,7 +390,7 @@ class TestSendDryRun:
         ctx.active_flags = {"--dry-run"}
 
         # Act -- a frame entirely of non-printable bytes.
-        _cmd_send(ctx, "crc16-modbus 01 03 00 00 00 0A")
+        _handler_send(ctx, "crc16-modbus 01 03 00 00 00 0A")
 
         # Assert
         actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
@@ -411,7 +411,7 @@ class TestSendDryRun:
         ctx.active_flags = {"--dry-run", "--ascii"}
 
         # Act -- mixed printable ("AT") + control bytes (\r\n).
-        _cmd_send(ctx, '"AT" 0D 0A')
+        _handler_send(ctx, '"AT" 0D 0A')
 
         # Assert
         actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
@@ -422,7 +422,7 @@ class TestSendDryRun:
         )
 
     def test_dry_run_value_is_frame_hex(self, send_env):
-        """Dry-run returns the assembled frame, CRC included, as hex in result.value."""
+        """Dry-run returns the assembled frame, CRC included, as uppercase hex in result.value."""
         # Arrange -- crc16-modbus is refout=True so natural wire order is LE.
         ctx, output, tx_bytes = send_env
         ctx.active_flags = {"--dry-run"}
@@ -432,11 +432,11 @@ class TestSendDryRun:
         crc_le = crc_int.to_bytes(2, "big")[::-1]
 
         # Act
-        result = _cmd_send(ctx, "crc16-modbus 01 03 00 00 00 0A")
+        result = _handler_send(ctx, "crc16-modbus 01 03 00 00 00 0A")
 
         # Assert
         actual = result.value
-        expected = (data + crc_le).hex()
+        expected = (data + crc_le).hex().upper()
         assert tx_bytes == [], "no bytes written"
         assert actual == expected, "result.value carries the assembled frame as hex"
 
@@ -459,7 +459,7 @@ class TestSendDryRun:
         ctx.active_flags = {"--dry-run"}
 
         # Act
-        result = _cmd_send(ctx, "01 02 03")
+        result = _handler_send(ctx, "01 02 03")
 
         # Assert
         assert tx_bytes == [], "no bytes written when disconnected"
@@ -482,7 +482,7 @@ class TestSendDryRun:
         ctx.ns("flags")["output_level"] = "normal"
 
         # Act
-        result = _cmd_send(ctx, "01 02 03")
+        result = _handler_send(ctx, "01 02 03")
 
         # Assert
         actual = result.error

@@ -239,7 +239,7 @@ The most common ones:
 | `/proto.hex [on \| off]`             | Toggle hex display mode for serial I/O                                        |
 | `/proto.crc.list {pat}`              | List available CRC algorithms (optional glob filter)                          |
 | `/proto.crc.info <name>`             | Show CRC algorithm parameters and description                                 |
-| `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, text, or file; omit data to verify check string   |
+| `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, quoted text, or a file; omit data to verify check string |
 | `/proto.crc.find <pkt>`              | Identify CRC algorithm from a captured packet (bin= hex or asc= text)         |
 | `/proto.info`                        | Print current protocol state                                                  |
 | `/mem.dump <target> {len} {type}`    | Hexdump or typed word columns at an address or symbol                         |

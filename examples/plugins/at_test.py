@@ -1,16 +1,15 @@
 """Example plugin: send AT commands to a serial device.
 
-Drop this file into termapy_cfg/plugins/ (global) or
-termapy_cfg/<config>/plugins/ (per-config) to make /at available.
+Drop this file into termapy_cfg/plugin/ (global) or
+termapy_cfg/<config>/plugin/ (per-config) to make /at available.
 
 Demonstrates using the serial port through the plugin context.
 """
 
+from termapy.plugins import CmdResult, Command, PluginContext
 
-from termapy.plugins import CmdResult, Command
 
-
-def _handler(ctx, args):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     cmd = args.strip() or "AT"
     if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
@@ -24,8 +23,8 @@ def _handler(ctx, args):
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
-    "Send an AT command (default: AT). Waits for response.",
     name="at",
     args="{cmd}",
+    help="Send an AT command (default: AT). Waits for response.",
     handler=_handler,
 )

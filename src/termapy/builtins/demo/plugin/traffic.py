@@ -9,7 +9,7 @@ with an unfamiliar serial device:
   /traffic.hexdump <file> [dur]   - tee timestamped hex of all I/O
                                     to a file for a duration
   /traffic.rate [duration]        - bytes/sec sample over a window
-  /traffic.snoop <hex> [timeout]  - wait until a byte pattern appears
+  /traffic.snoop <bytes> {timeout} - wait until a byte pattern appears
 
 Every handler uses the context-manager form so observers are removed
 on every exit path including exceptions.  Because the bare register/
@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.protocol import parse_data
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
@@ -97,7 +98,7 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
         def tee(direction: str):
             def cb(data: bytes) -> None:
                 ts = time.monotonic() - t0
-                f.write(f"[+{ts:6.3f}s] {direction}  {data.hex(' ')}\n")
+                f.write(f"[+{ts:6.3f}s] {direction}  {data.hex(' ').upper()}\n")
                 f.flush()
             return cb
 
@@ -163,14 +164,19 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
     don't always send newlines.  Crucially, the device's normal output
     keeps flowing through the regular pipeline; this is a passive watch.
     """
-    kw = parse_keywords(args, {"timeout"}, rest_keyword="pattern")
-    pattern_hex = kw.get("pattern", "").replace(" ", "")
-    if not pattern_hex:
+    # The pattern is positional, as the synopsis says.  It used to be read as
+    # a ``pattern=`` rest keyword, so the documented ``/traffic.snoop 4F 4B
+    # timeout=2s`` always arrived empty (found by its first test, 2026-10-13).
+    kw = parse_keywords(args, {"timeout"})
+    pattern_text = kw.get("_positional", "").strip()
+    if not pattern_text:
         raise UsageError()
     try:
-        pattern = bytes.fromhex(pattern_hex)
+        # The shared byte reader: hex in any spelling or case, "quoted text".
+        pattern = parse_data(pattern_text)
     except ValueError as e:
-        return CmdResult.fail(msg=f"Invalid hex: {e}")
+        return CmdResult.fail(msg=f"Parse error: {e}")
+    pattern_hex = pattern.hex().upper()
     try:
         timeout_s = parse_duration(kw.get("timeout", "5s"))
     except ValueError as e:
@@ -259,8 +265,8 @@ COMMAND = Command(
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "snoop": Command(
-            args="<hex> {timeout=<dur>}",
-            help="Block until a hex byte pattern appears in the RX stream.",
+            args="<bytes> {timeout=<dur>}",
+            help="Block until a byte pattern (hex or \"text\") appears in the RX stream.",
             handler=_handler_snoop,
             needs=CapabilitySet(serial_connected=True, block_until=True),
         ),

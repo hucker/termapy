@@ -90,7 +90,7 @@ class TestWrite:
         assert "ATZ" in logged[0][1], "command logged"
 
     def test_write_logs_hex_for_binary(self, port_env):
-        """Non-printable writes are logged as hex bytes (01 02 ff), not raw control chars."""
+        """Non-printable writes are logged as uppercase hex bytes (01 02 FF), not raw control chars."""
         # Arrange
         sp, _, _, logged = port_env
 
@@ -99,7 +99,7 @@ class TestWrite:
 
         # Assert
         assert logged[0][0] == ">", "TX direction"
-        assert "01 02 ff" in logged[0][1], "hex representation"
+        assert "01 02 FF" in logged[0][1], "uppercase hex representation"
 
 
 # -- Drain ---------------------------------------------------------------------

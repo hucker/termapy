@@ -14,12 +14,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.builtins.commands._xmodem_handlers import (
-    _handler_recv as _xmodem_recv,
-    _handler_send as _xmodem_send,
+    _handler_recv as _handler_xmodem_recv,
+    _handler_send as _handler_xmodem_send,
 )
 from termapy.builtins.commands._ymodem_handlers import (
-    _handler_recv as _ymodem_recv,
-    _handler_send as _ymodem_send,
+    _handler_recv as _handler_ymodem_recv,
+    _handler_send as _handler_ymodem_send,
 )
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
@@ -100,13 +100,13 @@ COMMAND = Command(
                 "send": Command(
                     args="<file>",
                     help="Send a file via XMODEM to the device.",
-                    handler=_xmodem_send,
+                    handler=_handler_xmodem_send,
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
                 "recv": Command(
                     args="<file>",
                     help="Receive a file via XMODEM from the device.",
-                    handler=_xmodem_recv,
+                    handler=_handler_xmodem_recv,
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
             },
@@ -119,13 +119,13 @@ COMMAND = Command(
                 "send": Command(
                     args="<file> {file2} ...",
                     help="Send file(s) via YMODEM to the device.",
-                    handler=_ymodem_send,
+                    handler=_handler_ymodem_send,
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
                 "recv": Command(
                     args="{directory}",
                     help="Receive file(s) via YMODEM from the device.",
-                    handler=_ymodem_recv,
+                    handler=_handler_ymodem_recv,
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
             },

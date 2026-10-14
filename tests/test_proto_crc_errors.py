@@ -109,7 +109,7 @@ class TestCrcCodegenUnknownAlgorithm:
 
     def test_crc_calc_unknown_name_fails_gracefully(self, tmp_path):
         """The /proto.crc.calc error path renders the live prefix, not a raw {prefix}."""
-        # Act -- exercise the sibling _crc_calc handler's error path.
+        # Act -- exercise the sibling _handler_crc_calc handler's error path.
         result = _run_cli(tmp_path, ["/proto.crc.calc crcDOES_NOT_EXIST 01 02"])
 
         # Assert

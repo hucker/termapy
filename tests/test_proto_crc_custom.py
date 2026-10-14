@@ -48,10 +48,8 @@ class TestParseHelpers:
         )
 
     def test_parse_int_invalid(self):
-        """A non-numeric token raises the int() ValueError rather than defaulting."""
-        # Act / Assert -- invalid strings should raise ValueError
-        # (the underlying int() call propagates "invalid literal ...")
-        with pytest.raises(ValueError, match="invalid literal"):
+        """A non-numeric token raises ``Invalid <key>: <value>`` from the shared number reader, never a default."""
+        with pytest.raises(ValueError, match="Invalid width: not_a_number"):
             _parse_int_value("not_a_number", "width")
 
     def test_symbol_from_stem_basename(self):

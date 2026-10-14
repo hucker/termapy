@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING
 from termapy import run_legacy
 from termapy.builtins.commands._run_record import (
     _LONG_HELP as _RECORD_LONG_HELP,
-    _handler as _record_handler,
+    _handler as _handler_record,
 )
 from termapy.builtins.commands.help import (
     _show_command_help,
@@ -219,7 +219,7 @@ COMMAND = Command(
             args="{filename}",
             help="Record commands to a .run script (bare /run.record stops).",
             long_help=_RECORD_LONG_HELP,
-            handler=_record_handler,
+            handler=_handler_record,
         ),
         **_FOLDER_SUBS,
     },

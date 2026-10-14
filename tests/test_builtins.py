@@ -2309,8 +2309,8 @@ class TestCapWire:
         envelope = result.value
         assert envelope["tx_bytes"] == 7, "TX byte count"
         assert envelope["rx_bytes"] == 11, "RX byte count"
-        assert envelope["tx_hex"] == "41542b5645520d", "TX hex"
-        assert envelope["rx_hex"] == "5645523d312e322e330d0a", "RX hex"
+        assert envelope["tx_hex"] == "41542B5645520D", "TX hex, uppercase"
+        assert envelope["rx_hex"] == "5645523D312E322E330D0A", "RX hex, uppercase"
         assert envelope["tx_text"] == "AT+VER\r", "TX decoded"
         assert envelope["rx_text"] == "VER=1.2.3\r\n", "RX decoded"
 
@@ -2338,8 +2338,8 @@ class TestCapWire:
         # non-printing characters as escape sequences (the canonical
         # use case for /cap.wire is line-ending debugging).
         rendered = "\n".join(t for t, _ in output)
-        assert "78 0d" in rendered, "TX bytes shown as hex"
-        assert "79 0d 0a" in rendered, "RX bytes shown as hex"
+        assert "78 0D" in rendered, "TX bytes shown as uppercase hex"
+        assert "79 0D 0A" in rendered, "RX bytes shown as uppercase hex"
         assert r"'x\r'" in rendered, "TX shown via repr() so \\r is visible"
         assert r"'y\r\n'" in rendered, "RX shown via repr() so \\r\\n is visible"
 

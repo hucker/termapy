@@ -258,7 +258,7 @@ class MCPHost(TerminalHost):
         if not target.exists():
             raise FileNotFoundError(f"Capture not found: {filename!r}")
         if target.suffix.lower() in (".bin", ".dat"):
-            return target.read_bytes().hex()
+            return target.read_bytes().hex().upper()
         return target.read_text(encoding="utf-8", errors="replace")
 
     # -- TerminalHost overrides -----------------------------------------------

@@ -125,7 +125,7 @@ def escape_text(text: str) -> str:
         elif 0x20 <= ord(char) < 0x7F:
             out.append(char)
         else:
-            out.append(f"\\x{ord(char):02x}")
+            out.append(f"\\x{ord(char):02X}")
     return "".join(out)
 
 

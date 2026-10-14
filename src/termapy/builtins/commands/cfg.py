@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 from termapy.builtins.commands._cfg_icon import (
     _FLAGS as _ICON_FLAGS,
     _LONG_HELP as _ICON_LONG_HELP,
-    _handler as _icon_handler,
-    _handler_list as _icon_handler_list,
-    _handler_remove as _icon_handler_remove,
+    _handler as _handler_icon,
+    _handler_list as _handler_icon_list,
+    _handler_remove as _handler_icon_remove,
 )
 from termapy.config import (
     cfg_data_dir,
@@ -608,13 +608,13 @@ COMMAND = Command(
             args="{--force}",
             help="Create a desktop / menu launcher for the current cfg.",
             long_help=_ICON_LONG_HELP,
-            handler=_icon_handler,
+            handler=_handler_icon,
             flags=_ICON_FLAGS,
             needs=CapabilitySet.GUI_APPS,
             sub_commands={
                 "remove": Command(
                     help="Delete the launcher for the current cfg.",
-                    handler=_icon_handler_remove,
+                    handler=_handler_icon_remove,
                     needs=CapabilitySet.GUI_APPS,
                 ),
                 "list": Command(
@@ -622,7 +622,7 @@ COMMAND = Command(
                         "List every termapy launcher this platform "
                         "can see."
                     ),
-                    handler=_icon_handler_list,
+                    handler=_handler_icon_list,
                     needs=CapabilitySet.GUI_APPS,
                 ),
             },

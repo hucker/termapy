@@ -929,7 +929,7 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset({
     "app.list", "app.state.edit", "cap.hex", "cfg.help",
     "edit.info", "edit.log", "edit.plugin.list", "edit.proto.list", "edit.run.list",
     "help.plugin", "help.target", "ping.quiet",
-    "print.r", "proto.crc.verify",
+    "print.r",
     "term.encoding", "term.log", "term.send_bare_enter",
     "xfer.root", "xfer.xmodem.recv", "xfer.xmodem.send", "xfer.ymodem.send",
 })
@@ -1145,3 +1145,275 @@ class TestMarkedClass:
 
     # Assert
     assert actual == ["test_unlabeled", "<module>"], "the unlabeled test, and the helper with no module mark"
+
+
+# ── Hex: one reader for input, one case for output ───────────────────────────
+#
+# User-typed hex is read by the published readers only: protocol.parse_hex /
+# parse_data / parse_pattern for bytes, symbols.parse_number for numbers.
+# Both accept any case.  Every hex a command prints or returns is uppercase.
+# Until 2026-10-13 four /proto.crc.* commands each had a private tokenizer
+# with its own rules, one of which read 0x-spelled hex as text.  The allowlists
+# name the exact function, so a module is never excused wholesale.
+
+SRC_REL = SRC  # src/termapy
+
+# (module, function): why it may read hex itself.
+HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
+    ("protocol/core.py", "parse_hex"): "the published hex-only reader",
+    ("protocol/core.py", "_match_hex_byte"): "the one hex-byte tokenizer behind parse_data, parse_data_segments and parse_pattern",
+    ("symbols/address.py", "parse_number"): "the published number reader",
+    ("port_format.py", "split_vid_pid"): "the USB id reader; USB ids are hex by convention",
+    ("cli_flags.py", "_parse_hex_int"): "a --ports VID/PID filter, hex by USB convention",
+    ("demo.py", "FakeSerial._parse_hex_addr"): "the simulated device's own grammar",
+    ("demo.py", "FakeSerial._handle_mem_native"): "the simulated device's own grammar",
+    ("demo.py", "FakeSerial._handle_mem"): "the simulated device's own grammar",
+    ("memory.py", "parse_reply"): "a MEM reply from the device, not user text",
+    ("memory.py", "TemplateDialect.parse_read"): "a device's read reply, not user text",
+    ("response_parsers.py", "_coerce"): "device response text",
+    ("builtins/commands/proto.py", "_detect_ascii"): "a packet's ASCII-hex CRC trailer, device text",
+    ("symbols/converters/xc32.py", "convert"): "a linker map's own address format",
+    ("symbols/table.py", "parse_addr_field"): "a symbol file's 0x address field",
+}
+
+# (module, function): why it may render lowercase hex.
+HEX_LOWERCASE_ALLOWED: dict[tuple[str, str], str] = {
+    ("defaults.py", "_preview_color"): "a #rrggbb theme color, not hex data",
+}
+
+_LOWERCASE_PRINTF = re.compile(r"%[-#0 +]*\d*x")
+
+
+def _scoped_nodes(tree: ast.Module):
+    """``(qualname, node)`` for every node, qualname being its enclosing function or class path."""
+    found: list[tuple[str, ast.AST]] = []
+
+    def visit(node: ast.AST, scope: str) -> None:
+        for child in ast.iter_child_nodes(node):
+            name = scope
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                name = f"{scope}.{child.name}" if scope else child.name
+            found.append((name or "<module>", child))
+            visit(child, name)
+
+    visit(tree, "")
+    return found
+
+
+def _hex_parse_sites(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every call that reads hex: ``fromhex``, ``unhexlify``, ``int(x, 16)``."""
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr in ("fromhex", "unhexlify", "a2b_hex"):
+            sites.append((qualname, node.lineno))
+        elif isinstance(func, ast.Name) and func.id == "int":
+            base = node.args[1] if len(node.args) > 1 else next(
+                (keyword.value for keyword in node.keywords if keyword.arg == "base"), None
+            )
+            if isinstance(base, ast.Constant) and base.value == 16:
+                sites.append((qualname, node.lineno))
+    return sites
+
+
+def _lowercase_hex_sites(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every lowercase hex rendering.
+
+    A ``.hex()`` call not followed by ``.upper()``, an f-string spec ending
+    in ``x``, a ``format(..., "...x")``, a ``%x`` string, and builtin ``hex()``.
+    """
+    parents = {id(child): parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        line = getattr(node, "lineno", 0)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "hex":
+            parent = parents.get(id(node))
+            if not (isinstance(parent, ast.Attribute) and parent.attr == "upper"):
+                sites.append((qualname, line))
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "hex":
+            sites.append((qualname, line))
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "format":
+            spec = node.args[1] if len(node.args) > 1 else None
+            if isinstance(spec, ast.Constant) and isinstance(spec.value, str) and spec.value.endswith("x"):
+                sites.append((qualname, line))
+        elif isinstance(node, ast.FormattedValue) and isinstance(node.format_spec, ast.JoinedStr):
+            spec = "".join(
+                part.value for part in node.format_spec.values
+                if isinstance(part, ast.Constant) and isinstance(part.value, str)
+            )
+            if spec.endswith("x"):
+                sites.append((qualname, getattr(node.value, "lineno", line)))
+        elif (
+            isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod)
+            and isinstance(node.left, ast.Constant) and isinstance(node.left.value, str)
+            and _LOWERCASE_PRINTF.search(node.left.value)
+        ):
+            sites.append((qualname, line))
+    return sites
+
+
+def _source_modules():
+    """``(relative path, tree)`` for every non-vendored module under src/termapy."""
+    for path in sorted(SRC_REL.rglob("*.py")):
+        rel = path.relative_to(SRC_REL).as_posix()
+        if not rel.startswith("vendor/"):
+            yield rel, ast.parse(path.read_text(encoding="utf-8"))
+
+
+def _unallowed(finder, allowed: dict[tuple[str, str], str]) -> tuple[list[str], set[tuple[str, str]]]:
+    """Sites ``finder`` reports outside ``allowed``, and the allowlist entries that matched something."""
+    violations: list[str] = []
+    used: set[tuple[str, str]] = set()
+    for rel, tree in _source_modules():
+        for qualname, line in finder(tree):
+            if (rel, qualname) in allowed:
+                used.add((rel, qualname))
+            else:
+                violations.append(f"{rel}:{line} in {qualname}")
+    return violations, used
+
+
+def test_hex_is_parsed_only_by_the_published_readers():
+    """hex-one-reader: user hex is read only by parse_hex / parse_data / parse_pattern / parse_number.
+
+    Anything else that reads hex is named in HEX_PARSE_ALLOWED with the
+    reason it is not user input (device text, a file format, a USB id).
+    """
+    # Arrange / Act
+    violations, _ = _unallowed(_hex_parse_sites, HEX_PARSE_ALLOWED)
+
+    # Assert
+    assert violations == [], (
+        "read hex with protocol.parse_data / parse_hex (bytes) or symbols.parse_number "
+        "(numbers), or allowlist the site with its reason:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_hex_output_is_uppercase():
+    """hex-output-uppercase: every hex termapy prints or returns is uppercase; .hex() is always .hex().upper()."""
+    # Arrange / Act
+    violations, _ = _unallowed(_lowercase_hex_sites, HEX_LOWERCASE_ALLOWED)
+
+    # Assert
+    assert violations == [], (
+        "render hex uppercase (.hex().upper(), :02X, format_hex) or allowlist it:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_hex_guard_fires_on_a_probe():
+    """Both hex guards flag what they exist to catch and pass what they allow."""
+    # Arrange -- one of each reader shape and each lowercase shape, plus their correct forms
+    source = '''
+def reads():
+    bytes.fromhex(a)
+    int(b, 16)
+    int(c, base=16)
+    binascii.unhexlify(d)
+    int(e)
+
+def renders():
+    data.hex()
+    data.hex(" ")
+    hex(n)
+    f"{n:02x}"
+    format(n, "04x")
+    "%02x" % n
+    data.hex().upper()
+    f"{n:02X}"
+'''
+    tree = ast.parse(source)
+
+    # Act
+    parsed = _hex_parse_sites(tree)
+    lowercase = _lowercase_hex_sites(tree)
+
+    # Assert
+    assert [line for _, line in parsed] == [3, 4, 5, 6], "fromhex, int(x, 16) both ways, unhexlify; not int(x)"
+    assert [line for _, line in lowercase] == [10, 11, 12, 13, 14, 15], (
+        "bare .hex() twice, hex(), a lowercase f-spec, format(), printf; not .upper() or :02X"
+    )
+
+
+def test_hex_allowlist_has_no_stale_entries():
+    """Every allowlisted function still reads or renders hex, so both allowlists only shrink."""
+    # Arrange / Act
+    _, parse_used = _unallowed(_hex_parse_sites, HEX_PARSE_ALLOWED)
+    _, lower_used = _unallowed(_lowercase_hex_sites, HEX_LOWERCASE_ALLOWED)
+
+    # Assert
+    stale = sorted(set(HEX_PARSE_ALLOWED) - parse_used) + sorted(set(HEX_LOWERCASE_ALLOWED) - lower_used)
+    assert stale == [], f"allowlisted but no longer a hex site; drop them: {stale}"
+
+
+# ── Handler naming: cookie-cutter plugins ────────────────────────────────────
+#
+# A command's handler is `_handler` for the root and `_handler_<sub>` for a
+# subcommand (`_handler_crc_calc` for /proto.crc.calc), in the built-ins, the
+# demo plugins and the examples alike, so adding a command is copying one
+# shape.  Until 2026-10-13 five styles were in use (`_cmd_send`, `_crc_list`,
+# `_proto_root_handler`, `_icon_handler`, ...), three of them in proto.py.
+# A handler built by a factory (a call, a lambda) is not a name and not
+# checked: the folder-op and per-language families are generated.
+
+PLUGIN_FOLDERS = (
+    SRC / "builtins" / "commands",
+    SRC / "builtins" / "demo" / "plugin",
+    SRC.parent.parent / "examples" / "plugins",
+)
+_HANDLER_NAME = re.compile(r"^_handler(_[a-z0-9]+)*$")
+
+
+def _misnamed_handlers(tree: ast.Module) -> list[str]:
+    """Names passed as ``Command(handler=...)`` that break the ``_handler`` / ``_handler_<sub>`` shape."""
+    return sorted({
+        keyword.value.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "Command"
+        for keyword in node.keywords
+        if keyword.arg == "handler"
+        and isinstance(keyword.value, ast.Name)
+        and not _HANDLER_NAME.match(keyword.value.id)
+    })
+
+
+def test_handlers_follow_one_naming_shape():
+    """handler-naming: every command handler is `_handler` or `_handler_<sub>`, in built-ins, demo and example plugins."""
+    # Arrange / Act
+    violations = [
+        f"{path.relative_to(SRC.parent.parent).as_posix()}: {name}"
+        for folder in PLUGIN_FOLDERS
+        for path in sorted(folder.glob("*.py"))
+        for name in _misnamed_handlers(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+
+    # Assert
+    assert violations == [], (
+        "name a command handler _handler (root) or _handler_<sub> (subcommand):\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_handler_naming_guard_fires_on_a_probe():
+    """The guard flags the old styles and passes the shape, a nested subcommand, and a factory-built handler."""
+    # Arrange
+    source = '''
+COMMAND = Command(name="x", handler=_handler, sub_commands={
+    "a": Command(handler=_handler_a),
+    "b": Command(handler=_handler_crc_calc),
+    "c": Command(handler=_cmd_send),
+    "d": Command(handler=_proto_root_handler),
+    "e": Command(handler=_make_list_handler("x", "*")),
+    "f": Command(handler=_HandlerTypo),
+})
+'''
+
+    # Act
+    actual = _misnamed_handlers(ast.parse(source))
+
+    # Assert
+    assert actual == ["_HandlerTypo", "_cmd_send", "_proto_root_handler"], (
+        "old styles and a case typo are flagged; the shape and factories pass"
+    )

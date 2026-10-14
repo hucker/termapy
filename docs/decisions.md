@@ -216,3 +216,41 @@ and they stay in the registry until it does. **Why:** each category has a
 different strongest guard, and a `data` row written as "who reads it" rather
 than "what set it is in" is a candidate to move from a test to a constructor.
 **Where:** the registry's intro and the `category` column.
+
+## 2026-10-13 — Hex: one reading in any case, `0x` marks one byte, uppercase out; quotes only where text belongs
+
+Hex reads the same in every command, any spelling and either case (`01 03`,
+`0x01 0x03`, `0X01`, `0103`). A `0x` prefix marks exactly one byte:
+`0xDEADBEEF` is refused with the fix in the message, because it reads as a
+number whose byte order nobody stated. Bare run-together hex is bytes in the
+order written, so unquoted text that happens to be hex (`CAFE`, `DEADBEEF`)
+is bytes, not text; that is the rule, documented, and a behavior change for
+`/proto.crc.calc` worth a line in the next release notes. Quotes exist only
+where a payload can hold text: `/proto.send`, `/proto.crc.calc`,
+`/traffic.snoop` and `.pro` files read with `protocol.parse_data`; the packet
+commands (`/proto.crc.verify`, `.find bin=`, `.reverse`, `/mem.write`) are hex
+only, with `parse_hex`. The same `0x` rule applies to a device's lines in a
+hex capture, which abort on `0xDEADBEEF` as on any non-hex line. Every hex
+termapy prints or returns is uppercase. Chuck chose each: calc reads "the same
+as /proto.send"; uppercase, after asking whether a standard exists (none does;
+software tools lean lowercase, hardware documents uppercase, every reader
+accepts both); quotes "only where text belongs", after asking why quotes are
+needed at all (a hex-digit token is ambiguous between bytes and characters,
+and quotes are the marker that settles it, as `asc=` does for
+`/proto.crc.find`); and "0x marks one byte". **Why:** four `/proto.crc.*` commands each had a
+private tokenizer with its own rules, and calc's guessed: `0x01 0x03 ...` and
+`0103...` silently got the CRC of their characters. Values disagreed on case
+(`/proto.send` lowercase, `/mem` uppercase). **Where:** registry
+`hex-one-reader` and `hex-output-uppercase`; `tests/test_hex_vocabulary.py`.
+
+## 2026-10-13 — Plugins are cookie-cutter: one handler shape, one template
+
+A command's handler is `_handler`, a subcommand's `_handler_<sub>`, typed
+`(ctx: PluginContext, args: str) -> CmdResult`, in the built-ins, the demo
+plugins and the example plugins; the example plugins are the template and
+match the built-ins (typed, `help=` keyword, a returned `CmdResult`). Chuck:
+"it should be cookie cutter to add a new function to the system." **Why:**
+five naming styles were in use, three of them in `proto.py`, and the examples
+taught an untyped handler with no return value and an old folder name.
+**Where:** registry `handler-naming`; `help/writing-plugins.md` "Plugin file
+structure" and "Bytes and hex".

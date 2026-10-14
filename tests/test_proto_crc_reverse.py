@@ -256,7 +256,7 @@ class TestReverseDeref:
         )
 
         # Assert -- names the missing variable rather than failing later as
-        # "Invalid hex bytes", which is what the literal text would produce
+        # a Parse error, which is what the literal text would produce
         assert not result.success, "an undefined reference fails"
         assert "unknown variable: 'nope'" in result.error, (
             "the failure names the missing variable"
@@ -276,7 +276,7 @@ class TestReverseDeref:
         )
 
     def test_literal_hex_still_rejected_when_malformed(self):
-        """The deref pass leaves the Invalid hex bytes error intact for a malformed literal."""
+        """The deref pass leaves the shared reader's Parse error intact for a malformed literal."""
         # Act -- the deref pass must not swallow the plain-hex error path
         result = self._engine().dispatch(
             f"proto.crc.reverse crc_bytes=2 ZZZZ {self.P2}"
@@ -284,6 +284,6 @@ class TestReverseDeref:
 
         # Assert
         assert not result.success, "non-hex packet fails"
-        assert "Invalid hex bytes" in result.error, (
+        assert "Parse error" in result.error, (
             "a malformed literal still reports the hex error"
         )

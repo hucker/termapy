@@ -1,6 +1,6 @@
 # VT100 / terminal-emulation support — options & plan
 
-**Status:** planning doc (untracked). Hand-off artifact for a fresh implementation context.
+**Status:** the options record behind the shipped VT100 mode; the decisions it weighs are locked in [`vt100-build-plan.md`](vt100-build-plan.md), and ARCHITECTURE.md "VT100 mode" describes what was built.
 **Goal:** let termapy render a serial device's VT100/ANSI screen UI (cursor positioning,
 in-place redraws, progress bars, menus, ncurses-style apps), which it cannot do today.
 **Hard constraint:** must work on **Windows, macOS, and Linux**. This is the only firm
@@ -90,7 +90,7 @@ live in vendored miniterm. *Runtime requirement:* a VT-capable host terminal (un
 mac/linux; Win10+ modern console / Windows Terminal / VS Code on Windows). Risk
 concentrated on legacy Windows `conhost`.
 
-**Pros**
+**Pros:**
 
 - Cheapest by far; highest fidelity (real, battle-tested emulators).
 - Interactive input works **for free** (raw stdin→serial: arrows, function keys, Ctrl-C).
@@ -99,7 +99,7 @@ concentrated on legacy Windows `conhost`.
 - Keeps connection-level niceties: cfg-driven port/baud/mode, `$(env.NAME)` placeholders,
   optional session-log tee, auto-reconnect, miniterm's Ctrl-T menu (break, DTR/RTS, baud).
 
-**Cons**
+**Cons:**
 
 - All-or-nothing: while in `--vt100` you're a raw pipe, **not** in the TUI — no `/grep`,
   no REPL `/` commands, no custom buttons, no hex/timestamp decoration (those would corrupt
@@ -146,14 +146,14 @@ inside Textual (cross-platform) against a pure-Python emulator; it does **not** 
 the host terminal's emulation quality. Input passthrough goes through Textual key events
 (cross-platform). Lowest cross-platform risk; you control the pixels.
 
-**Pros**
+**Pros:**
 
 - Stays in the TUI; can coexist with termapy chrome/features (split view, grep-the-log).
 - Uniform rendering across OSes (you own it; host-terminal quality irrelevant).
 - The pyte core is reusable beyond the TUI: `screen.display` gives MCP a rendered-screen
   snapshot and `/cap` a "screen snapshot" capture — turning escape-soup into readable text.
 
-**Cons**
+**Cons:**
 
 - Most work. Must build the grid-render widget (style fidelity: pyte `Char` attrs +
   default-color sentinels → Rich/Textual theme; cursor cell).
@@ -236,12 +236,12 @@ result and reusable for MCP/capture.
    (cli arg defs live in `entry.py`, not `cli_flags.py`.)
 2. **Dispatch:** in the mode if-ladder (`entry.py:336-347`), add — before the CLI/TUI loop:
 
-```python
-if args.vt100:
-  from termapy.vt100 import run_vt100_mode   # new, Textual-free module
-  run_vt100_mode(args)
-  return
-```
+   ```python
+   if args.vt100:
+     from termapy.vt100 import run_vt100_mode   # new, Textual-free module
+     run_vt100_mode(args)
+     return
+   ```
 
 3. **Runner (`src/termapy/vt100.py`, new):**
    - resolve cfg (reuse the same config-resolution `entry.py` already does for `--cli`),
@@ -255,7 +255,7 @@ if args.vt100:
 4. **Optional niceties (A2):** session-log tee via a miniterm `Transform`/`filter`;
    auto-reconnect loop around `Miniterm`; a termapy-styled escape menu.
 5. **Docs:** README "modes" section, `help/` page (new `help/vt100.md` → add to `index.md`
-   + `mkdocs.yml` nav), note the VS Code integrated-terminal key-capture caveat.
+   and the `mkdocs.yml` nav), note the VS Code integrated-terminal key-capture caveat.
 6. **Tests:** the runner is mostly I/O glue; unit-test cfg→port-open argument mapping and
    line-ending→eol mapping. The pump itself is the vendored miniterm (already its own
    concern). No CLI-gold entry (non-deterministic raw passthrough).

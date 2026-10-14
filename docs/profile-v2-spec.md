@@ -1,4 +1,9 @@
-# Termapy Device Profile — v2 Spec
+# Termapy Device Profile v2 — Design Rationale
+
+The normative specification is [`profile-spec.md`](profile-spec.md), with
+[`src/termapy/profile/schema.json`](../src/termapy/profile/schema.json) as its
+machine-checkable half. This document records the mission and the design
+reasoning behind the format; where the two disagree, the specification wins.
 
 A **device profile** declaratively describes how a serial device speaks. Profiles are consumed by the termapy MCP bridge (the reference implementation) but the format is tool-agnostic — anyone can build a different consumer from the same schema.
 
@@ -248,7 +253,7 @@ Exit 0 on valid, 1 with line-numbered errors. Works without any other dependenci
 
 ### From the REPL
 
-```
+```text
 /profile.validate <path>
 ```
 

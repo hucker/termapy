@@ -1,6 +1,6 @@
 # Declarative Command Parameters — Implementation Instructions
 
-Status: draft for implementation (revised after a code-grounded review — see "Revision notes" at end)
+Status: shipped as `src/termapy/plugins/params.py`; kept as the implementation reference (revised after a code-grounded review — see "Revision notes" at end)
 Scope: termapy plugin argument declaration, parsing, validation, help generation, MCP catalog
 Prereq reading: `src/termapy/plugins/command.py`, `src/termapy/repl.py` (`_dispatch_inner`, `_parse_flags`),
 `src/termapy/scripting.py` (`parse_keywords`, `parse_duration`), `src/termapy/mcp/catalog.py`
@@ -230,7 +230,7 @@ outer's on exit. (spec: **param-ctx-nesting**)
 
 All parse/validation failures produce one uniform shape and never reach the handler:
 
-```
+```text
 Error: /cap.text: <reason>
 Usage: /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=...}
 ```

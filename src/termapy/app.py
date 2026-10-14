@@ -556,10 +556,14 @@ class SerialTerminal(TerminalHost, App):
         )
         self._cap_timer: "Timer | None" = None
         self._cap_progress_timer: "Timer | None" = None
-        self._reconnecting = False
+        # The running auto-reconnect's cancel token; a fresh one per run, so
+        # an old loop that is still winding down can never act or block the
+        # next.  SET means no reconnect is running (see ``_reconnecting``).
+        self._reconnect_stop = threading.Event()
+        self._reconnect_stop.set()
         # Set by _btn_exit / on_unmount before we start tearing the UI
         # down, so reader-thread callbacks that are still in flight
-        # (already queued via call_from_thread) no-op instead of
+        # (already queued on the event loop) no-op instead of
         # touching widgets that are being unmounted.  Defense in depth;
         # the query_one sites still have try/except guards.
         self._shutting_down = False
@@ -1279,7 +1283,7 @@ class SerialTerminal(TerminalHost, App):
         # Stop background work unconditionally: _disconnect() early-returns
         # when not connected, so relying on it left the auto-reconnect worker
         # spinning and a parked script alive after the TUI was gone (T4/T5).
-        self._engine.stop_event.set()
+        self._reconnect_stop.set()
         self.repl._script_stop.set()
         self._disconnect()
         # No settle needed: _disconnect joins the reader, so by here it has
@@ -1296,10 +1300,25 @@ class SerialTerminal(TerminalHost, App):
         # previous thread, so this is a real barrier rather than a timed wait
         # that used to expire whenever RX was in flight.
         self._engine.stop_reader()
-        return super()._connect(port)
+        connected = super()._connect(port)
+        if connected:
+            # Whoever opened the port, a reconnect still retrying is done; left
+            # running it would keep trying to open the port we now hold.
+            self._reconnect_stop.set()
+        return connected
+
+    # The three connection hooks below run wherever _connect / _disconnect
+    # run, and /port.connect and /port.disconnect run on a dispatch worker
+    # (registry commands-off-main).  Each forwards itself to main, as the
+    # output helpers do, before it touches a widget (registry
+    # output-helpers-marshal).
 
     def _on_connected(self, message: str) -> None:
-        """TUI post-connect: notify, update UI, run on_connect_cmd."""
+        """TUI post-connect: notify, update UI, run on_connect_cmd (on main)."""
+        self._on_main(self._show_connected, message)
+
+    def _show_connected(self, message: str) -> None:
+        """Main thread: the body of ``_on_connected``."""
         self.notify(message, timeout=0.75, markup=False)
         self._set_conn_status("Connected")
         self._update_title()
@@ -1319,44 +1338,63 @@ class SerialTerminal(TerminalHost, App):
             self._run_lines(connect_cmds, delay=0.2)
 
     def _on_connect_failed(self) -> None:
-        """TUI post-connect failure: update status, auto-reconnect."""
-        # No reader_stopped.set() here any more: connect() no longer clears
-        # the flag for a reader it hasn't started, so there is nothing to
-        # undo on the failure path.
+        """TUI post-connect failure: update status, auto-reconnect (on main)."""
+        self._on_main(self._show_connect_failed)
+
+    def _show_connect_failed(self) -> None:
+        """Main thread: the body of ``_on_connect_failed``."""
         self._set_conn_status("Disconnected")
         if self.cfg.get("auto_reconnect"):
             self._auto_reconnect()
 
+    @property
+    def _reconnecting(self) -> bool:
+        """True while an auto-reconnect run is live (its token is not set)."""
+        return not self._reconnect_stop.is_set()
+
     def _auto_reconnect(self) -> None:
         """Start the auto-reconnect worker unless one is already running.
 
-        Called only on the main thread -- directly from _on_connect_failed,
-        or from _on_rx_disconnect, which the reader's on_disconnect reaches
-        through _rx_enqueue -- so the guard is race-free: _reconnecting is checked and set before the
-        worker spawns.  Without it a second disconnect would launch a
-        duplicate reconnect loop contending on the shared stop_event.
+        Main thread only -- reached from ``_show_connect_failed`` and from
+        ``_on_rx_disconnect``, both on main -- so the check and the new token
+        cannot interleave with another start.  Each run gets a FRESH token:
+        cancelling sets the old one, which the old loop sees, while a new
+        run can start at once without waiting for the old worker to exit.
+        A single flag cleared in the worker's ``finally`` could not do
+        that; it stayed set while a cancelled loop wound down and swallowed
+        the restart (registry ``reconnect-survives-connect-attempts``).
         """
-        if self._reconnecting:
+        if self._reconnecting or self._shutting_down:
             return
-        self._reconnecting = True
-        self._run_reconnect()
+        self._reconnect_stop = threading.Event()
+        self._run_reconnect(self._reconnect_stop)
 
     @work(thread=True)
-    def _run_reconnect(self) -> None:
-        """Background thread: retry connecting until success or stop."""
-        self._engine.stop_event.clear()
+    def _run_reconnect(self, stop: threading.Event) -> None:
+        """Background thread: retry opening the port until it opens or *stop* is set."""
         try:
             success = self._engine.reconnect_loop(
+                stop,
                 on_status=lambda msg: self.call_from_thread(
-                    self._set_conn_status, msg, "retry"
+                    self._show_reconnect_status, stop, msg
                 ),
             )
-            if success:
+            if success and not stop.is_set():
                 self.call_from_thread(self._connect)
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
         finally:
-            self._reconnecting = False
+            stop.set()  # this run is over; only ever its OWN token
+
+    def _show_reconnect_status(self, stop: threading.Event, text: str) -> None:
+        """Main thread: show a reconnect spinner frame, unless that run has ended.
+
+        A frame queued just before the run was cancelled, or before a connect
+        landed, would otherwise paint "Connecting" over "Connected".
+        """
+        if stop.is_set() or self.is_connected:
+            return
+        self._set_conn_status(text, "retry")
 
     def _open_proto_debug(self, path, script) -> None:
         """Open the interactive protocol debug screen.
@@ -1641,7 +1679,11 @@ class SerialTerminal(TerminalHost, App):
         super()._disconnect()
 
     def _on_disconnected(self) -> None:
-        """TUI post-disconnect: notify, update status, title, placeholder, buttons."""
+        """TUI post-disconnect: notify, update status, title, placeholder, buttons (on main)."""
+        self._on_main(self._show_disconnected)
+
+    def _show_disconnected(self) -> None:
+        """Main thread: the body of ``_on_disconnected``."""
         # Event-handler safety net: a bug in any of the UI-update
         # helpers below could otherwise propagate into Textual and
         # crash the app.  _report_exception formats type, message,
@@ -1674,6 +1716,8 @@ class SerialTerminal(TerminalHost, App):
         self._clear_output()
         self._save_history()
         migrated_from = cfg.pop("_migrated_from", None)
+        # A reconnect still retrying belongs to the config being left.
+        self._reconnect_stop.set()
         was_connected = self.is_connected
         if was_connected:
             self._disconnect()
@@ -2034,7 +2078,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _btn_title_right(self) -> None:
         if self._reconnecting:
-            self._engine.stop_event.set()
+            self._reconnect_stop.set()
             self._set_conn_status("Disconnected")
         elif self.is_connected:
             self._disconnect()

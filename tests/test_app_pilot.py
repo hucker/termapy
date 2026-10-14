@@ -1279,6 +1279,116 @@ class TestMarshalling:
 
         _run(scenario)
 
+    def test_connection_hooks_from_a_worker_run_on_main(self, tmp_path):
+        """output-helpers-marshal: /port.connect and /port.disconnect run on a worker; their UI hooks run on main."""
+        async def scenario():
+            from termapy.app import SerialTerminal
+
+            ran_on: dict[str, int] = {}
+
+            class _Recording(SerialTerminal):
+                """Records the thread each connection-hook body runs on, then runs it."""
+
+                def _show_connected(self, message: str) -> None:
+                    ran_on["connected"] = threading.get_ident()
+                    super()._show_connected(message)
+
+                def _show_disconnected(self) -> None:
+                    ran_on["disconnected"] = threading.get_ident()
+                    super()._show_disconnected()
+
+            cfg, path = _write_cfg(tmp_path)
+            app = _Recording(cfg, path)
+            app.repl.global_root = tmp_path
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- connect then disconnect from a worker, as the commands do
+                worker = threading.Thread(
+                    target=lambda: (app._connect(), app._disconnect()), daemon=True
+                )
+                worker.start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while worker.is_alive() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await pilot.pause()
+
+                # Assert
+                assert worker.is_alive() is False, "the worker's hooks must not park"
+                expected = {
+                    "connected": app._main_thread_id,
+                    "disconnected": app._main_thread_id,
+                }
+                assert ran_on == expected, (
+                    "the hooks touched widgets from the worker thread instead "
+                    "of forwarding to main"
+                )
+
+        _run(scenario)
+
+
+class TestAutoReconnect:
+    """reconnect-survives-connect-attempts: each reconnect run owns its cancel token."""
+
+    def test_a_failed_connect_while_retrying_leaves_it_retrying(self, app_factory):
+        """A connect attempt that fails during auto-reconnect neither ends nor replaces the run."""
+        async def scenario():
+            app, _, _ = app_factory(auto_reconnect=True)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- auto-reconnect retrying a port that never opens
+                app.repl._cfg_data["serial"]["port"] = "DEMO_FAIL"
+                app._auto_reconnect()
+                run = app._reconnect_stop
+                assert app._reconnecting is True, "auto-reconnect is retrying"
+
+                # Act -- a connect attempt on a worker, as /port.connect makes
+                worker = threading.Thread(target=app._connect, daemon=True)
+                worker.start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while worker.is_alive() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await asyncio.sleep(0.5)  # longer than the loop's 0.25 s tick
+                await pilot.pause()
+
+                # Assert
+                try:
+                    assert app._reconnecting is True, (
+                        "the failed connect ended the retrying: the reader's stop "
+                        "event was the loop's too, and the restart was swallowed"
+                    )
+                    assert app._reconnect_stop is run, "the same run is still the live one"
+                finally:
+                    app._reconnect_stop.set()
+
+        _run(scenario)
+
+    def test_a_successful_connect_ends_the_retrying(self, app_factory):
+        """A connect that succeeds while retrying ends the run, and no spinner frame paints over Connected."""
+        async def scenario():
+            from textual.widgets import Button
+            app, _, _ = app_factory(auto_reconnect=True)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- retrying long enough for spinner frames to be in flight
+                app.repl._cfg_data["serial"]["port"] = "DEMO_FAIL"
+                app._auto_reconnect()
+                await asyncio.sleep(0.3)
+
+                # Act
+                connected = app._connect("DEMO")
+                await asyncio.sleep(0.6)
+                await pilot.pause()
+
+                # Assert
+                assert connected is True, "the DEMO port opens"
+                assert app._reconnecting is False, "a connect that succeeded ends the retrying"
+                label = str(app.query_one("#title-right", Button).label).strip()
+                assert label == "Connected", "no stale spinner frame paints over Connected"
+                app._disconnect()
+
+        _run(scenario)
+
 
 class TestSessionLog:
     """The session log is the transcript: every channel a command writes lands in it once."""

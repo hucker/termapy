@@ -682,7 +682,7 @@ class TestReconnectLoop:
 
         # Act - FakeSerial always succeeds, so first try should work
         def run():
-            return engine.reconnect_loop(on_status=statuses.append)
+            return engine.reconnect_loop(threading.Event(), on_status=statuses.append)
 
         t = threading.Thread(target=run, daemon=True)
         t.start()
@@ -693,7 +693,7 @@ class TestReconnectLoop:
         assert all("Connecting" in status for status in statuses), "status should show connecting"
 
     def test_reconnect_loop_cancelled(self):
-        """stop_event ends a reconnect loop that keeps failing, so its thread exits."""
+        """The run's own stop token ends a reconnect loop that keeps failing, so its thread exits."""
         # Arrange - use a port that always fails
         capture = CaptureEngine()
         engine = SerialEngine(
@@ -702,24 +702,60 @@ class TestReconnectLoop:
             open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
         )
         attempted = threading.Event()
+        stop = threading.Event()
 
         # Act - let the loop make at least one (failing) attempt, then cancel.
         # Gating the cancel on the status callback (not a sleep) guarantees the
         # loop was actually running when we stopped it.
         def run():
             return engine.reconnect_loop(
-                interval=0.5, on_status=lambda msg: attempted.set()
+                stop, interval=0.5, on_status=lambda msg: attempted.set()
             )
 
         t = threading.Thread(target=run, daemon=True)
         t.start()
         started = attempted.wait(timeout=2.0)
-        engine.stop_event.set()
+        stop.set()
         t.join(timeout=2.0)
 
         # Assert
         assert started is True, "reconnect loop attempted within 2s"
         assert not t.is_alive(), "thread should have exited"
+
+    def test_a_connect_attempt_does_not_end_a_reconnect_loop(self):
+        """reconnect-survives-connect-attempts: stop_reader and a failed connect leave a running reconnect loop retrying."""
+        # Arrange -- a port that never opens, and a loop retrying it
+        engine = SerialEngine(
+            cfg={"serial": {"port": "BAD"}},
+            capture=CaptureEngine(),
+            open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
+        )
+        stop = threading.Event()
+        ticked = threading.Event()
+        loop = threading.Thread(
+            target=lambda: engine.reconnect_loop(
+                stop, interval=0.25, on_status=lambda msg: ticked.set()
+            ),
+            daemon=True,
+        )
+        loop.start()
+        assert ticked.wait(timeout=2.0), "the reconnect loop started"
+
+        # Act -- what every connect attempt does: stop the old reader, then open
+        engine.stop_reader()
+        connected = engine.connect()
+        ticked.clear()
+        still_retrying = ticked.wait(timeout=1.0)
+        stop.set()
+        loop.join(timeout=2.0)
+
+        # Assert
+        assert connected is False, "the port still does not open"
+        assert still_retrying is True, (
+            "the reader's stop event ended the reconnect loop, so a failed "
+            "connect left nothing retrying"
+        )
+        assert loop.is_alive() is False, "the run's own token still ends it"
 
 
 # -- Error classification & port-holder lookup ---------------------------------

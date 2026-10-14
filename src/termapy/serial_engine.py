@@ -320,7 +320,10 @@ class SerialEngine:
 
     @property
     def stop_event(self) -> Event:
-        """Event to signal the reader loop to stop."""
+        """Event to signal the reader loop to stop.
+
+        The reader's alone: ``reconnect_loop`` takes its own token.
+        """
         return self._stop_event
 
     @property
@@ -723,6 +726,7 @@ class SerialEngine:
 
     def reconnect_loop(
         self,
+        stop: Event,
         *,
         interval: float = 2.5,
         on_status: Callable[[str], None] | None = None,
@@ -730,8 +734,18 @@ class SerialEngine:
         """Blocking reconnect loop - call from a background thread.
 
         Retries ``try_reconnect()`` every *interval* seconds until success
-        or ``stop_event`` is set.  Calls *on_status* with a spinner label
-        every 0.25 s so the frontend can animate.
+        or *stop* is set.  Calls *on_status* with a spinner label every
+        0.25 s so the frontend can animate.
+
+        *stop* belongs to this one run, never the reader's ``stop_event``.
+        Sharing that event let any connect attempt end the loop:
+        ``stop_reader()`` sets it, so a connect that then failed left
+        nothing retrying (registry ``reconnect-survives-connect-attempts``).
+
+        Args:
+            stop: This run's cancel token; set it to end the loop.
+            interval: Seconds between open attempts.
+            on_status: Called with a spinner label each tick.
 
         Returns:
             True if reconnection succeeded, False if canceled.
@@ -739,16 +753,16 @@ class SerialEngine:
         spinner = "|/-\\"
         step = 0
         ticks = int(interval / 0.25)
-        while not self._stop_event.is_set():
+        while not stop.is_set():
             for _ in range(ticks):
-                if self._stop_event.is_set():
+                if stop.is_set():
                     return False
                 if on_status:
                     ch = spinner[step % len(spinner)]
                     on_status(f"Connecting {ch}")
                 step += 1
-                time.sleep(0.25)
-            if self._stop_event.is_set():
+                stop.wait(0.25)
+            if stop.is_set():
                 return False
             if self.try_reconnect():
                 return True

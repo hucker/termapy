@@ -657,9 +657,10 @@ an `RLock`, so nested `ctx.dispatch` on the same thread is allowed.
 
 Two different hand-off mechanisms, and the difference is load-bearing. Output
 helpers called from a worker (`_status`, `_set_status_bar`,
-`_write_output_markup`, `_on_main`) compare `self._thread_id` and marshal via
-`call_from_thread`, which **blocks** the caller until the event loop services
-it. The serial reader may not use it: blocking there deadlocks teardown
+`_write_output_markup`, `_on_main`, and the connection hooks `_on_connected`,
+`_on_connect_failed`, `_on_disconnected` that `/port.connect` reaches) compare
+`self._main_thread_id` and marshal via `call_from_thread`, which **blocks** the
+caller until the event loop services it. The serial reader may not use it: blocking there deadlocks teardown
 (`disconnect()` joins the reader from the very thread it would wait for) and
 stalls the reader long enough for the driver to drop bytes
 (`config.SERIAL_RX_BUFFER_BYTES` is how little room there is). RX and script
@@ -667,6 +668,12 @@ lifecycle therefore use `post_message`, which is fire-and-forget:
 `app._rx_enqueue` appends to an ordered buffer and posts at most one wake-up.
 Disconnect joins the reader for real; `READER_JOIN_TIMEOUT_S` is a safety net,
 not a contract.
+
+Cancellation is per run, never shared. The reader stops on the engine's
+`stop_event`; each auto-reconnect run gets a fresh token from
+`_auto_reconnect`. When the two shared one event, every connect attempt
+(which stops the reader first) also ended the reconnect loop, and a connect
+that then failed left nothing retrying.
 
 ## Built-in plugins
 

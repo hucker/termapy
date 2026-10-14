@@ -196,7 +196,7 @@ class TestReadLoop:
         assert any("OK" in line for line in lines_received), "AT should produce OK"
 
     def test_read_loop_stops_on_event(self):
-        """Setting stop_event ends the loop, exits the thread, and signals reader_stopped."""
+        """Setting stop_event ends the loop, exits the thread, and disowns the port."""
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
@@ -204,18 +204,15 @@ class TestReadLoop:
         def run():
             engine.read_loop()
 
-        # Act - the reader signals reader_stopped from its finally, so wait on
-        # that instead of guessing a sleep before/after setting the stop flag.
+        # Act - join with a bound instead of guessing a sleep
         t = threading.Thread(target=run, daemon=True)
         t.start()
         engine.stop_event.set()
-        stopped = engine.reader_stopped.wait(timeout=2.0)
-        t.join(timeout=1.0)
+        t.join(timeout=2.0)
 
         # Assert
-        assert stopped is True, "reader signaled stopped within 2s"
-        assert not t.is_alive(), "thread exited"
-        assert engine.reader_stopped.is_set(), "flag set"
+        assert not t.is_alive(), "thread exited within 2s"
+        assert engine.is_connected is False, "the reader's finally disowned the port"
 
     def test_read_loop_calls_on_error(self):
         """A port read that raises is reported through on_error with its message."""
@@ -322,15 +319,17 @@ class TestReadLoop:
         assert text_view == [], "a chunk is delivered in one view only"
 
     def test_read_loop_without_connect(self):
-        """With no port the loop returns at once and still signals reader_stopped."""
+        """With no port the loop returns at once instead of spinning."""
         # Arrange
         engine, _, _ = _make_engine()
+        lines_seen: list[list[str]] = []
 
-        # Act - should return immediately
-        engine.read_loop()
+        # Act - returns immediately; a hang here fails by timeout
+        engine.read_loop(on_lines=lines_seen.append)
 
         # Assert
-        assert engine.reader_stopped.is_set(), "reader_stopped should be set without connect"
+        assert lines_seen == [], "nothing is delivered without a port"
+        assert engine.is_connected is False, "still disconnected"
 
 
 class _NumberedPort:
@@ -1137,9 +1136,8 @@ class TestReaderOwnership:
     Teardown is now a real join, so a stale reader is *prevented* rather than
     merely survived -- but the join has a timeout, and a callback that blocks
     forever can still outlive it.  These tests cover that degraded path: when
-    it happens, ownership by IDENTITY (``_reader_gen`` plus the
-    ``self._port_obj is port`` check) has to keep the stale generation away
-    from the new connection.
+    it happens, ownership by IDENTITY (the ``self._port_obj is port`` check)
+    has to keep the stale generation away from the new connection.
 
     Regression guard for the reproduced bug where a stale reader closed the
     port the user had just selected, leaving the app "connected" to a dead
@@ -1179,7 +1177,6 @@ class TestReaderOwnership:
         # Started directly rather than via start_reader: this models the
         # degraded path where the join ALREADY expired and left the thread
         # running, which is the only way a stale reader still exists.
-        engine._reader_stopped.clear()
         thread = threading.Thread(
             target=lambda: engine.read_loop(on_lines=on_lines),
             name="reader-gen1",
@@ -1196,7 +1193,7 @@ class TestReaderOwnership:
         return engine, first, second, release, thread
 
     def test_stale_reader_cannot_touch_the_next_connection(self):
-        """A stale reader neither closes the new port nor marks the new reader stopped."""
+        """A stale reader neither closes the new port nor disowns the new connection."""
         # Arrange / Act -- release the stale generation and let its finally run.
         engine, _first, second, release, thread = self._stale_reader_scenario()
         release.set()
@@ -1210,12 +1207,6 @@ class TestReaderOwnership:
         assert second.closed_by is None, "generation-2 port must not be closed at all"
         assert engine.is_connected is True, (
             "engine should still report the generation-2 connection as live"
-        )
-        # ...and it must not claim generation 2's reader has stopped, which
-        # would let the NEXT teardown skip its wait entirely.
-        assert engine.reader_stopped.is_set() is False, (
-            "a stale generation set reader_stopped, disarming the gate the "
-            "current generation relies on"
         )
         engine.disconnect()
 
@@ -1251,7 +1242,7 @@ class TestReaderOwnership:
         release.set()
 
     def test_reader_closes_its_own_port_on_the_normal_path(self):
-        """On a clean stop the owning reader thread closes its port and signals stopped."""
+        """On a clean stop the owning reader thread closes its port and disowns it."""
         # Arrange -- no interference: one generation, stopped normally.
         only = _ControlledPort("only")
         engine = self._engine_with_ports([only])
@@ -1271,6 +1262,4 @@ class TestReaderOwnership:
         assert only.closed_by == "reader-solo", (
             f"port should be closed by the reader thread, not {only.closed_by!r}"
         )
-        assert engine.reader_stopped.is_set() is True, (
-            "the owning generation must still signal reader_stopped"
-        )
+        assert engine.is_connected is False, "the owning reader disowns its port"

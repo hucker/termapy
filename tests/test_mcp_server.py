@@ -767,53 +767,71 @@ class TestColorStripping:
         # Assert
         assert actual == line, "ANSI passed through when color on"
 
-    # -- Integration: the real _on_lines sink -> output_lines / async_events --
+    # -- Integration: the real _on_lines sink -> async_events / log --
     # These drive the actual reader callback (not the _rx_text helper in
-    # isolation) with ANSI-bearing device lines and assert the strip lands in
-    # the fields the agent receives.  _buffer is the contextvar run_command
-    # sets before dispatch and drains into ``output_lines`` afterward.
+    # isolation) with ANSI-bearing device lines and assert what lands in
+    # the fields the agent receives.  The reader never writes a call's
+    # output_lines: a reply read during a call is the call's own read.
 
-    def test_on_lines_strips_ansi_into_output_buffer_when_color_off(self, host):
-        """Device lines read during a call land in output_lines with escapes stripped."""
-        # Arrange -- reproduce a run_command in flight: _buffer holds the
-        # rx entries that become output_lines.
+    def test_a_reader_in_a_calls_context_still_records_async_events(self, host):
+        """Between calls, lines become async events even if the reader inherited a call's buffer."""
+        # Arrange -- the context a free-threaded build hands a reader that
+        # /port.connect started inside a call: that call's _buffer is set.
         from termapy.mcp.server import _buffer
 
+        host._async_events = []
         token = _buffer.set([])
         try:
             # Act -- colored device lines arrive on the reader callback.
             host._on_lines(["\x1b[32mgreen\x1b[0m", "plain line"])
-            buf = _buffer.get()
+            stale = _buffer.get()
         finally:
             _buffer.reset(token)
 
-        # Assert -- the rx entries that become output_lines are escape-free.
-        assert buf is not None, "the buffer was set above"
-        rx_text = [entry["text"] for entry in buf if entry["level"] == "rx"]
-        assert rx_text == ["green", "plain line"], (
-            "device ANSI stripped from output_lines rx entries when color off"
+        # Assert
+        event_lines = [event["line"] for event in host._async_events]
+        assert event_lines == ["green", "plain line"], (
+            "between-call lines are the agent's async events, ANSI stripped"
         )
+        assert stale == [], "nothing is fed into a call's buffer that no one will read"
 
-    def test_on_lines_keeps_ansi_in_output_buffer_when_color_on(self, host):
-        """With color on, device lines read during a call keep escapes in output_lines."""
+    def test_on_lines_keeps_ansi_in_async_events_when_color_on(self, host):
+        """With color on, device lines between calls keep their escapes in async_events."""
         # Arrange -- /term.color on flips the flag to passthrough.
         host.ctx.ns("flags")["color"] = True
-        from termapy.mcp.server import _buffer
+        host._async_events = []
 
-        token = _buffer.set([])
-        try:
-            # Act
-            host._on_lines(["\x1b[32mgreen\x1b[0m", "plain line"])
-            buf = _buffer.get()
-        finally:
-            _buffer.reset(token)
+        # Act
+        host._on_lines(["\x1b[32mgreen\x1b[0m", "plain line"])
 
-        # Assert -- escapes pass through into output_lines.
-        assert buf is not None, "the buffer was set above"
-        rx_text = [entry["text"] for entry in buf if entry["level"] == "rx"]
-        assert rx_text == ["\x1b[32mgreen\x1b[0m", "plain line"], (
-            "device ANSI preserved in output_lines when color on"
+        # Assert
+        event_lines = [event["line"] for event in host._async_events]
+        assert event_lines == ["\x1b[32mgreen\x1b[0m", "plain line"], (
+            "device ANSI preserved in async_events when color on"
         )
+
+    def test_a_reply_during_a_call_is_not_recorded_twice(self, host):
+        """A line read while a call runs reaches the watcher and the log, never async_events."""
+        # Arrange -- a call in flight, whose own read consumes the reply
+        host._async_events = []
+        host._call_active.set()
+
+        # Act -- two batches, so the log keeps order across them
+        host._on_lines(["first", "second"])
+        host._on_lines(["third"])
+        host._call_active.clear()
+
+        # Assert
+        assert host._async_events == [], "the call's own read reports the reply"
+        assert list(host.repl._recent_lines)[-3:] == ["first", "second", "third"], (
+            "the expect watcher sees every line"
+        )
+        assert host._log_path is not None, "the fixture's cfg gives the host a log"
+        logged = [
+            line for line in host._log_path.read_text(encoding="utf-8").splitlines()
+            if line.startswith("< ")
+        ]
+        assert logged == ["< first", "< second", "< third"], "every line logged, in order"
 
     def test_on_lines_strips_ansi_into_async_events_when_color_off(self, host):
         """A colored line arriving between calls becomes an escape-free async event."""
@@ -851,23 +869,17 @@ class TestColorStripping:
             "recorded nothing"
         )
 
-    def test_on_hex_puts_rows_in_output_lines_and_feeds_the_lines(self, host):
-        """hex-view-wire-bytes: in the hex view the agent's output_lines carry the rows; the watcher gets the decoded line."""
+    def test_on_hex_records_rows_and_feeds_the_lines(self, host):
+        """hex-view-wire-bytes: in the hex view the agent's async events carry the rows; the watcher gets the decoded line."""
         # Arrange
-        from termapy.mcp.server import _buffer
+        host._async_events = []
 
-        token = _buffer.set([])
-        try:
-            # Act -- the reader's hex-view callback
-            host._on_hex(["4F 4B 0D 0A"], ["OK"])
-            buf = _buffer.get()
-        finally:
-            _buffer.reset(token)
+        # Act -- the reader's hex-view callback
+        host._on_hex(["4F 4B 0D 0A"], ["OK"])
 
         # Assert
-        assert buf is not None, "the buffer was set above"
-        rx_text = [entry["text"] for entry in buf if entry["level"] == "rx"]
-        assert rx_text == ["4F 4B 0D 0A"], "MCP ignored /term.hex: the agent saw text"
+        event_lines = [event["line"] for event in host._async_events]
+        assert event_lines == ["4F 4B 0D 0A"], "MCP ignored /term.hex: the agent saw text"
         assert list(host.repl._recent_lines)[-1] == "OK", "the expect watcher gets the decoded line"
 
     def test_a_lost_port_stops_a_running_capture(self, host, tmp_path):

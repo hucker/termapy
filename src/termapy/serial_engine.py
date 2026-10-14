@@ -36,9 +36,9 @@ if TYPE_CHECKING:
 # ``app._rx_enqueue``.
 #
 # Degrades safely if it ever expires: ownership is established by IDENTITY
-# (``_reader_gen`` + the ``self._port_obj is port`` check in ``read_loop``'s
-# finally), so a reader that outlives its join can only ever close the handle
-# it read from -- never a newer connection's.
+# (the ``self._port_obj is port`` check in ``read_loop``'s finally), so a
+# reader that outlives its join can only ever close the handle it read from
+# -- never a newer connection's.
 READER_JOIN_TIMEOUT_S = 2.0
 
 # Largest single ``port.read`` the reader issues, so the largest chunk it ever
@@ -255,11 +255,6 @@ class SerialEngine:
         self._reader: SerialReader | None = None
         self._rx_queue: queue.Queue[bytes] = queue.Queue(maxsize=RX_QUEUE_MAX_CHUNKS)
         self._stop_event = Event()
-        self._reader_stopped = Event()
-        self._reader_stopped.set()
-        # Bumped by every ``connect()``.  Identifies which reader generation
-        # owns the shared port handle and the ``_reader_stopped`` signal.
-        self._reader_gen: int = 0
         # The reader thread this engine owns, so teardown can join it rather
         # than wait on an Event and proceed regardless.
         self._reader_thread: "threading.Thread | None" = None
@@ -325,11 +320,6 @@ class SerialEngine:
         The reader's alone: ``reconnect_loop`` takes its own token.
         """
         return self._stop_event
-
-    @property
-    def reader_stopped(self) -> Event:
-        """Event set when the reader loop has exited."""
-        return self._reader_stopped
 
     @property
     def serial_claimed(self) -> bool:
@@ -462,13 +452,6 @@ class SerialEngine:
             rx_newline=self._cfg.get("eol_rx", "auto"),
         )
         self._stop_event.clear()
-        # New reader generation.  ``read_loop`` captures this at entry and
-        # compares it on the way out, so a reader that outlived its own
-        # teardown cannot report *this* generation as stopped.  Deliberately
-        # NOT clearing ``_reader_stopped`` here: no reader is running yet, and
-        # claiming otherwise is what used to force ``_on_connect_failed`` to
-        # set it back by hand.  ``start_reader`` clears it.
-        self._reader_gen += 1
         return True
 
     def start_reader(self, **callbacks: Any) -> None:
@@ -488,11 +471,10 @@ class SerialEngine:
         """
         self.stop_reader()
         self._stop_event.clear()
-        self._reader_stopped.clear()
         thread = threading.Thread(
             target=self.read_loop,
             kwargs=callbacks,
-            name=f"termapy-reader-{self._reader_gen}",
+            name="termapy-reader",
             daemon=True,
         )
         self._reader_thread = thread
@@ -578,9 +560,7 @@ class SerialEngine:
         """
         reader = self._reader
         port = self._port_obj
-        generation = self._reader_gen
         if not reader or not port:
-            self._reader_stopped.set()
             return
 
         import serial as _serial
@@ -668,15 +648,10 @@ class SerialEngine:
                 pass
             # Disown the shared fields only while they still point at OUR
             # port.  Once a later connect() has replaced them they belong to
-            # that generation.
+            # that connection.
             if self._port_obj is port:
                 self._port_obj = None
                 self._serial_port = None
-            # Same ownership rule for the stopped signal: a stale generation
-            # reporting "reader stopped" would disarm the gate that the
-            # CURRENT generation's disconnect/connect relies on.
-            if generation == self._reader_gen:
-                self._reader_stopped.set()
 
     # -- Hardware signal control ------------------------------------------------
 

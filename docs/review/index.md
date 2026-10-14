@@ -22,6 +22,7 @@ its scope, whatever it touched in passing.
 
 | Date | Version | Commit | Reviewer(s) | Verdict (one line) | Severe | Total | First pass |
 |---|---|---|---|---|---|---|---|
+| [2026-10-14](2026-10-14-v0.76.0-opus-5.5.md) | 0.76.0 | `3b9b082` | Claude Opus 5.5, solo | Serial data path pass, scoped by data contract rather than mechanism: the 08-19 threading fixes hold, the data semantics did not -- 3 reproduced without hardware (a second `/expect` passed on the first reply, a match dropped the lines that came with it, a passive session kept every byte it received), log/capture/expect lines dropped when the TUI fell behind, MCP `/cap.text` recorded nothing, `/term.hex` showed re-encoded text, `/raw` had two behaviors. All fixed the same day. | 2 High, 7 major | 13 | no (08-19 covered the reader as a threading mechanism) |
 | [2026-10-10](2026-10-10-v0.76.0-fable-5.1.md) | 0.76.0 | `4e7cb80` | Claude Fable 5.1 + 3 finders, every finding orchestrator-verified | Protocol + capture pass (first on its own): the format-spec / match / CRC-order / bit-model core is sound; the structured-capture path is not -- 2 killers reproduced without hardware (every `fmt=` capture past one 4 KB flush is misframed and never auto-stops; TUI `echo=on` blocks the reader on main per line), 2 majors on claim/success reporting, 4 majors in the spec consumers (byte ref 0 = last byte, CRC diff never computes, short data zero-pads, `/proto.run` uninterruptible), `json_file` documented for a command that never writes it. | 2 killer, 7 major | 23 | yes (the same code was touched in passing by 06-20 #1/#4/#5/F and 08-19 T9/T17) |
 | [2026-09-18](2026-09-18-v0.76.0-fable-5.1.md) | 0.76.0 | `8842f37` | Claude Fable 5.1, solo | Device-memory pass (`/mem.*`, symbols, device files; partial by design): gate design sound and the read side holds; 2 reproduced gaps on the write side -- `/mem.write`'s audit pre-read bypasses the write-only gate and the read log (pops a FIFO, reads a wo register), and width-differing SVD mode aliases still trip the bulk gate on a bare single-register dump (7.6% of E54 registers, 5.6% of PIC32CM). | 1 High | 12 | yes |
 | [2026-08-19](2026-08-19-v0.74.0-opus-5.md) | 0.74.0 | `1ee85bb` | Claude Opus 5 + 6 finders + 19 verifiers | Threading pass: design sound (non-blocking dispatch lock deadlock-free, RX batching well-tuned, no reader/transfer port contention); 3 mechanism gaps — unowned shared handles, teardown-by-timeout instead of join, global cancellation tokens. 1 reproduced data-integrity bug (stale reader closes the next connection's port); 2 shutdown hangs; documented threading model is inverted. | 5 High (+1 in remediation) | 22 tabled of 41 raised | no (teardown re-raised from 06-20 #7 and 07-03 R22) |
@@ -79,10 +80,9 @@ listed rather than discovering it.
   import (A8).
 - **Leads, never verified (08-19):** auto-reconnect giving up for good after a
   failed connect (`app.py`, `_reconnecting`); the reconnect worker surviving a
-  manual connect and a config switch, with `stop_event` serving two purposes;
-  `feed_lines` returning on the first match and dropping the rest of a batch
-  (`repl.py`); a stale `_expect_event.set()` satisfying the next
-  `wait_for_match`; the non-atomic snapshot-then-clear of `_recent_lines`;
+  manual connect and a config switch (its `stop_event` doubling as the
+  reader's was confirmed and fixed 2026-10-14); a stale `_expect_event.set()`
+  satisfying the next `wait_for_match`;
   config and port-effect callbacks mutating widgets on a worker thread; a
   trailing partial line dropped on disconnect (`serial_engine.py`); the help
   HTTP server never shut down. These are the brief for the first dedicated pass

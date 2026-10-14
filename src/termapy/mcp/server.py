@@ -375,6 +375,8 @@ class MCPHost(TerminalHost):
             on_capture_done=lambda: self._stop_capture(),
             on_error=lambda detail: self._log_line(f"! Serial error: {detail}"),
             on_disconnect=self._on_reader_disconnect,
+            on_hex=self._on_hex,
+            hex_view=self._hex_view,
         )
 
     def _on_reader_disconnect(self) -> None:
@@ -383,9 +385,18 @@ class MCPHost(TerminalHost):
         self._port_lost()
 
     def _on_lines(self, lines: list[str]) -> None:
+        """The reader's text-view callback: the agent sees the lines themselves."""
+        self._on_rx(lines, None)
+
+    def _on_hex(self, rows: list[str], lines: list[str]) -> None:
+        """The reader's hex-view callback: the agent sees the hex rows instead."""
+        self._on_rx(lines, rows)
+
+    def _on_rx(self, lines: list[str], rows: list[str] | None) -> None:
         # Inbound serial bytes -> feed the engine's expect-watcher
         # ring buffer (so /expect sees them and request_response can
-        # consume them), log, and route to the right sink:
+        # consume them), log, and route what the agent sees (the lines,
+        # or the hex view's ``rows``) to the right sink:
         #   1. ``_buffer`` contextvar set -- we're inside a run_command
         #      on the same thread; append to output_lines.
         #   2. ``_call_active`` event set -- worker thread is mid-call;
@@ -398,10 +409,11 @@ class MCPHost(TerminalHost):
         # this host used to feed only the watcher, so /cap.text over MCP
         # recorded nothing.
         self._feed_rx_consumers(lines, [strip_ansi(line) for line in lines])
-        buf = _buffer.get()
-        for line in lines:
-            text = self._rx_text(line)
+        texts = [self._rx_text(line) for line in lines]
+        for text in texts:
             self._log_line(f"< {text}")
+        buf = _buffer.get()
+        for text in texts if rows is None else rows:
             if buf is not None:
                 buf.append({"level": "rx", "text": text, "color": ""})
             elif self._call_active.is_set():

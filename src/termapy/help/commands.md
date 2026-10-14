@@ -127,7 +127,7 @@ a silent off: `Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)`.
 | `/proto.crc.verify <name> {endian=be\|le} <hex>...` | Verify a packet's trailing CRC against a named algorithm |
 | `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
-| `/proto.hex {on\|off\|toggle}`    | Toggle protocol-mode hex display for `/proto.send` responses               |
+| `/proto.hex {on\|off\|toggle}`    | Same flag as `/term.hex`                                                    |
 | `/proto.list`             | List .pro files in proto/, newest first, with size and age                  |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |

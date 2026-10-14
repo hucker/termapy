@@ -235,6 +235,29 @@ class TestTermColor:
         assert cli.repl.ctx.ns("flags")["color"] is False, "/color forwards to /term.color"
 
 
+class TestTermHex:
+    """/term.hex reaches the CLI's display; it used to be honored by the TUI alone."""
+
+    def test_the_cli_prints_a_reply_as_its_bytes(self, cli, capsys):
+        """hex-view-wire-bytes: with /term.hex on, the CLI prints the DEMO reply as its wire bytes while expect still sees the line."""
+        # Arrange
+        cli._connect()
+        cli.repl.dispatch("term.hex on")
+        capsys.readouterr()  # drop the connect output
+
+        # Act -- DEMO answers AT with OK CR LF; the row prints before the
+        # line reaches the watcher, so the match means the row is out
+        cli._serial_send("AT")
+        matched = cli.repl.wait_for_match(lambda line: line == "OK", timeout=2.0)
+        cli._disconnect()
+        printed = capsys.readouterr().out.splitlines()
+
+        # Assert
+        assert matched == "OK", "the decoded line reaches the expect watcher"
+        assert "4F 4B 0D 0A" in printed, f"the CLI ignored /term.hex, printed {printed!r}"
+        assert "OK" not in printed, "the decoded line is not printed as well"
+
+
 # -- Hook: raw ---------------------------------------------------------------
 
 

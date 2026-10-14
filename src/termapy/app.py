@@ -2706,9 +2706,9 @@ class SerialTerminal(TerminalHost, App):
         catch-up by rendering no more than the scrollback holds.
 
         Args:
-            event: ``("lines", [...])``, ``("clear",)``, ``("capdone",)``,
-                ``("echo", line)``, ``("error", detail)`` or
-                ``("disconnect",)``.
+            event: ``("lines", [...])``, ``("hex", rows, lines)``,
+                ``("clear",)``, ``("capdone",)``, ``("echo", line)``,
+                ``("error", detail)`` or ``("disconnect",)``.
         """
         post = False
         with self._rx_lock:
@@ -2737,7 +2737,8 @@ class SerialTerminal(TerminalHost, App):
 
         Consecutive ``lines`` events are merged into one ``_write_batch``
         call, so falling behind produces FEWER, larger renders rather than a
-        growing backlog of small ones.
+        growing backlog of small ones.  Consecutive ``hex`` events merge the
+        same way; a batch never mixes the two views.
         """
         with self._rx_lock:
             events, self._rx_events = self._rx_events, []
@@ -2745,14 +2746,24 @@ class SerialTerminal(TerminalHost, App):
         if self._shutting_down:
             return
         pending: list[str] = []
+        # The hex rows to render in place of ``pending``; None in the text view.
+        pending_rows: list[str] | None = None
         for event in events:
-            if event[0] == "lines":
-                pending.extend(event[1])
+            if event[0] in ("lines", "hex"):
+                lines, rows = (event[1], None) if event[0] == "lines" else (event[2], event[1])
+                # A /term.hex toggle between chunks starts a new batch.
+                if (rows is None) != (pending_rows is None):
+                    if pending or pending_rows:
+                        self._write_batch(pending, pending_rows)
+                    pending, pending_rows = [], (None if rows is None else [])
+                pending.extend(lines)
+                if rows is not None and pending_rows is not None:
+                    pending_rows.extend(rows)
                 continue
             # A non-line event must observe everything queued before it.
-            if pending:
-                self._write_batch(pending)
-                pending = []
+            if pending or pending_rows:
+                self._write_batch(pending, pending_rows)
+                pending, pending_rows = [], None
             if event[0] == "clear":
                 self._clear_output()
             elif event[0] == "capdone":
@@ -2763,8 +2774,8 @@ class SerialTerminal(TerminalHost, App):
                 self._on_rx_error(event[1])
             elif event[0] == "disconnect":
                 self._on_rx_disconnect()
-        if pending:
-            self._write_batch(pending)
+        if pending or pending_rows:
+            self._write_batch(pending, pending_rows)
 
     def _run_reader(self) -> None:
         """Start the engine-owned reader thread with the TUI's callbacks.
@@ -2782,6 +2793,8 @@ class SerialTerminal(TerminalHost, App):
             on_capture_done=lambda: self._rx_enqueue(("capdone",)),
             on_error=lambda detail: self._rx_enqueue(("error", detail)),
             on_disconnect=lambda: self._rx_enqueue(("disconnect",)),
+            on_hex=lambda rows, lines: self._rx_enqueue(("hex", rows, lines)),
+            hex_view=self._hex_view,
         )
 
     def _on_rx_error(self, detail: str) -> None:
@@ -2870,7 +2883,7 @@ class SerialTerminal(TerminalHost, App):
         text, color = format_capture_result(result)
         self._status(text, color)
 
-    def _write_batch(self, lines: list[str]) -> None:
+    def _write_batch(self, lines: list[str], rows: list[str] | None = None) -> None:
         """Render a batch of received lines and hand every one to its consumers.
 
         Runs on main for each drain of ``_on_serial_rx``.  Every line goes
@@ -2879,6 +2892,8 @@ class SerialTerminal(TerminalHost, App):
         output pane's ``max_lines``, because a batch longer than that would
         be evicted by RichLog the moment it was written.  That cap is what
         keeps a main thread catching up on a flood from stalling on render.
+        In the hex view the pane shows ``rows`` instead, which the reader
+        built from the received bytes (registry ``hex-view-wire-bytes``).
 
         Short-circuits during shutdown: reader callbacks can still be
         queued on the event loop when Textual starts tearing down
@@ -2888,6 +2903,8 @@ class SerialTerminal(TerminalHost, App):
 
         Args:
             lines: Decoded text lines to display and log.
+            rows: The hex view's rows to display in place of ``lines``, or
+                None in the text view.
         """
         if self._shutting_down:
             return
@@ -2916,37 +2933,34 @@ class SerialTerminal(TerminalHost, App):
             return  # widgets torn down between flag check and query
         show_ts = self.cfg.get("timestamps", False)
         show_ln = self._show_line_numbers
-        hex_mode = self.repl.ctx.ns("flags")["hex"]
         color_on = self.repl.ctx.ns("flags").get("color", True)
-        enc = self.cfg.get("encoding", "utf-8")
         # One ANSI strip per line, reused by the plain-render, log and
         # capture paths below; each used to run its own (E3).
         plain = [ANSI_RE.sub("", text) for text in lines]
+        # from_ansi renders device SGR color; when color is off, render the
+        # already-stripped copy so raw escapes don't leak through.  A hex
+        # row has no escapes to render.
+        from_ansi = rows is None and color_on
+        if rows is None:
+            shown = lines if color_on else plain
+        else:
+            shown = rows
         # Lines beyond what the pane keeps are counted (line numbers stay
         # true) but not rendered: RichLog would discard them on arrival.
-        skip = max(0, len(lines) - log.max_lines) if log.max_lines else 0
+        skip = max(0, len(shown) - log.max_lines) if log.max_lines else 0
         self._line_counter += skip
         renderables: list[Text] = []
-        for text, bare in zip(lines[skip:], plain[skip:]):
+        for text in shown[skip:]:
             self._line_counter += 1
             prefix = ""
             if show_ln:
                 prefix += f"{self._line_counter:>5} | "
             if show_ts:
                 prefix += f"[{format_timestamp()}] "
-            if hex_mode:
-                hex_str = " ".join(
-                    f"{byte:02X}" for byte in text.encode(enc, errors="replace")
-                )
-                body = f"{prefix}{hex_str}"
-                renderables.append(Text(body))
-                continue
-            # from_ansi renders device SGR color; when color is off, render
-            # the already-stripped copy so raw escapes don't leak through.
-            if color_on:
+            if from_ansi:
                 renderables.append(Text.from_ansi(f"{prefix}{text}"))
             else:
-                renderables.append(Text(f"{prefix}{bare}"))
+                renderables.append(Text(f"{prefix}{text}"))
         if renderables:
             # ONE RichLog.write for the whole batch (E1).  Measured 3.7x
             # faster for 50 lines (6.03 ms -> 1.63 ms); render time on main

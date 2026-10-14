@@ -236,7 +236,7 @@ The most common ones:
 | `/proto.run <file>`                  | Run a binary protocol test script (.pro) with pass/fail                       |
 | `/proto.list`                        | List .pro files in proto/, newest first, with size and age                    |
 | `/proto.rename <old> <new>`          | Rename a protocol script (`.pro` kept; never overwrites)                      |
-| `/proto.hex [on \| off]`             | Toggle hex display mode for serial I/O                                        |
+| `/proto.hex [on \| off]`             | Same flag as `/term.hex`                                                      |
 | `/proto.crc.list {pat}`              | List available CRC algorithms (optional glob filter)                          |
 | `/proto.crc.info <name>`             | Show CRC algorithm parameters and description                                 |
 | `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, quoted text, or a file; omit data to verify check string |

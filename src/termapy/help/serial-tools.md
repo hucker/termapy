@@ -85,7 +85,11 @@ Round-trip timing includes all inline delays.
 
 ## Hex display mode
 
-Toggle hex display for all serial I/O with `/proto.hex on` / `/proto.hex off`.
+`/term.hex on` (or `/proto.hex on`, the same flag) shows received bytes as
+hex rows, built from the bytes as they arrived: a row ends after each `0A`
+or at 16 bytes, so CR, LF, backspace and undecodable bytes show as
+themselves. It changes the display only; the session log, `/expect` and text
+captures still get the decoded lines. Sent text is not shown in hex.
 
 ## CRC algorithms
 

@@ -445,7 +445,7 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: true, false",
     ),
     "hex": (
-        "Display serial I/O as hex bytes instead of text (toggle: /term.hex).",
+        "Display received bytes as hex instead of text (toggle: /term.hex).",
         "Valid: true, false",
     ),
     "request_mode": (

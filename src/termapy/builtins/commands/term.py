@@ -697,6 +697,17 @@ COMMAND = Command(
         "hex": Command(
             args="{on|off|toggle}",
             help="Toggle hex display of incoming bytes.",
+            long_help=(
+                "Shows received bytes as hex rows: a row ends after each\n"
+                "0A, or at 16 bytes. Rows are built from the bytes as they\n"
+                "arrived, so CR, LF, backspace and bytes the encoding cannot\n"
+                "decode all show as themselves, and a clear-screen escape is\n"
+                "shown rather than obeyed.\n"
+                "\n"
+                "Display only: the session log, {prefix}expect and text\n"
+                "captures still get the decoded lines, and sent text is not\n"
+                "shown in hex. {prefix}proto.hex sets the same flag."
+            ),
             handler=_handler_hex,
         ),
         "request": Command(

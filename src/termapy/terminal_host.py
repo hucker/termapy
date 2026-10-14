@@ -514,6 +514,14 @@ class TerminalHost:
                 # instead of silently dropping the rest.
                 self._stop_capture()
 
+    def _hex_view(self) -> bool:
+        """Whether ``/term.hex`` is on; every frontend hands this to ``read_loop``.
+
+        Called on the reader thread once per chunk, so the reader, not the
+        renderer, decides which view a chunk is shown in.
+        """
+        return bool(self.ctx.ns("flags").get("hex", False))
+
     def _drain_rx_queue(self) -> int:
         """Discard all pending bytes in the RX queue (delegates to SerialPort)."""
         if self.engine.serial_port:

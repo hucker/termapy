@@ -285,6 +285,42 @@ class TestReadLoop:
         )
         assert getattr(port, "is_open", True) is False, "the reader closed its port on the way out"
 
+    def test_hex_view_calls_on_hex_not_on_lines(self):
+        """hex-view-wire-bytes: with hex_view on, the reply arrives as rows plus its decoded lines, and on_lines stays silent."""
+        # Arrange -- FakeSerial has b"OK\r\n" waiting for the reader
+        engine, _, _ = _make_engine()
+        engine.connect()
+        engine.port_obj.write(b"AT\r")
+        text_view: list[str] = []
+        rows_seen: list[str] = []
+        lines_seen: list[str] = []
+        got_ok = threading.Event()
+
+        def on_hex(rows, lines):
+            rows_seen.extend(rows)
+            lines_seen.extend(lines)
+            if "OK" in lines:
+                got_ok.set()
+
+        reader = threading.Thread(
+            target=lambda: engine.read_loop(
+                on_lines=text_view.extend, on_hex=on_hex, hex_view=lambda: True,
+            ),
+            daemon=True,
+        )
+
+        # Act
+        reader.start()
+        delivered = got_ok.wait(timeout=2.0)
+        engine.stop_event.set()
+        reader.join(timeout=1.0)
+
+        # Assert
+        assert delivered is True, "the reply reached on_hex within 2s"
+        assert rows_seen == ["4F 4B 0D 0A"], "the row is the reply's wire bytes"
+        assert lines_seen == ["OK"], "the decoded line rides beside the row for the consumers"
+        assert text_view == [], "a chunk is delivered in one view only"
+
     def test_read_loop_without_connect(self):
         """With no port the loop returns at once and still signals reader_stopped."""
         # Arrange

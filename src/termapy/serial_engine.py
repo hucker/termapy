@@ -576,58 +576,71 @@ class SerialEngine:
             while not self._stop_event.is_set():
                 if not getattr(port, "is_open", False):
                     break
-                # pyserial's read path raises SerialException on a lost
-                # device and OSError on underlying fd failure; either
-                # signals an effective disconnect.
+                failure = ""
                 try:
                     waiting = getattr(port, "in_waiting", 0) or 1
                     data = port.read(min(waiting, RX_READ_MAX_BYTES))
+
+                    if data:
+                        # One authoritative "device last spoke" clock.
+                        # Consumers cannot use the port's ``in_waiting`` for
+                        # this: THIS loop drains it to zero continuously, so a
+                        # sample taken mid-response reads 0 and looks like
+                        # silence.
+                        self._last_rx_monotonic = time.monotonic()
+                        self._queue_rx(data)
+                        for rx_observer in self._rx_observers:
+                            # RX observers are third-party callbacks;
+                            # BoundaryException signals the reviewed broad
+                            # catch so one misbehaving observer can't
+                            # break the others or stop the reader loop.
+                            try:
+                                rx_observer(data)
+                            except BoundaryException:
+                                pass
+
+                    # Resync the receive-newline mode from the (shared) cfg
+                    # each chunk so /term.eol.rx takes effect live, without a
+                    # reconnect.  Cheap dict read; the cfg dict is the same
+                    # object /cfg mutates (see how TX line_ending stays live).
+                    reader.rx_newline = self._cfg.get("eol_rx", "auto")
+                    result = reader.process(data)
+
+                    if result.capture_target_reached and on_capture_done:
+                        on_capture_done()
+                    if result.clear_screen and on_clear:
+                        on_clear()
+                    if result.lines and on_lines:
+                        on_lines(result.lines)
+
+                    if not data:
+                        time.sleep(0.01)
                 except (OSError, _serial.SerialException) as exc:
-                    detail = f"{exc.__class__.__name__}: {exc}"
+                    # pyserial raises SerialException on a lost device and
+                    # OSError on an underlying fd failure; either is an
+                    # effective disconnect.
+                    failure = f"{exc.__class__.__name__}: {exc}"
+                except BoundaryException as exc:
+                    # Last resort: a bug in SerialReader or a frontend
+                    # callback.  Ending the thread silently would leave the
+                    # frontend showing Connected over a port the ``finally``
+                    # below closes, so it is reported like a lost port
+                    # (registry ``reader-failure-reported``).
+                    failure = (
+                        f"reader stopped by an internal error -- "
+                        f"{exc.__class__.__name__}: {exc}"
+                    )
+                if failure:
                     if on_error:
-                        on_error(detail)
+                        on_error(failure)
                     if on_disconnect:
                         on_disconnect()
                     break
-
-                if data:
-                    # One authoritative "device last spoke" clock.  Consumers
-                    # cannot use the port's ``in_waiting`` for this: THIS loop
-                    # drains it to zero continuously, so a sample taken
-                    # mid-response reads 0 and looks like silence.
-                    self._last_rx_monotonic = time.monotonic()
-                    self._queue_rx(data)
-                    for rx_observer in self._rx_observers:
-                        # RX observers are third-party callbacks;
-                        # BoundaryException signals the reviewed broad
-                        # catch so one misbehaving observer can't
-                        # break the others or stop the reader loop.
-                        try:
-                            rx_observer(data)
-                        except BoundaryException:
-                            pass
-
-                # Resync the receive-newline mode from the (shared) cfg each
-                # chunk so /term.eol.rx takes effect live, without a
-                # reconnect.  Cheap dict read; the cfg dict is the same
-                # object /cfg mutates (see how TX line_ending stays live).
-                reader.rx_newline = self._cfg.get("eol_rx", "auto")
-                result = reader.process(data)
-
-                if result.capture_target_reached and on_capture_done:
-                    on_capture_done()
-                if result.clear_screen and on_clear:
-                    on_clear()
-                if result.lines and on_lines:
-                    on_lines(result.lines)
-
-                if not data:
-                    time.sleep(0.01)
         finally:
             # Close only the handle THIS loop read from -- ``port`` is the
             # local captured at entry, never the shared field.  A reader can
-            # outlive its own teardown (``disconnect`` waits on a timeout, it
-            # does not join), and by the time it lands here ``_port_obj`` may
+            # outlive its own teardown (``stop_reader``'s join has a timeout,
+            # as a safety net), and by the time it lands here ``_port_obj`` may
             # already belong to a newer connection.  Closing the shared field
             # would kill that new port; closing our own local is always right,
             # and double-close is a no-op.

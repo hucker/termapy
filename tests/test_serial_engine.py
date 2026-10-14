@@ -250,6 +250,41 @@ class TestReadLoop:
         assert len(errors) >= 1, "error callback fired"
         assert "read failed" in errors[0], "error message should contain 'read failed'"
 
+    def test_a_raising_callback_is_reported_as_a_disconnect(self):
+        """reader-failure-reported: a callback that raises ends the reader through on_error then on_disconnect, never silently."""
+        # Arrange -- FakeSerial has the AT reply waiting; on_lines blows up on it
+        engine, _, _ = _make_engine()
+        engine.connect()
+        port = engine.port_obj
+        port.write(b"AT\r")
+        events: list[str] = []
+
+        def on_lines(lines):
+            raise ValueError("bad render")
+
+        reader = threading.Thread(
+            target=lambda: engine.read_loop(
+                on_lines=on_lines,
+                on_error=lambda detail: events.append(f"error: {detail}"),
+                on_disconnect=lambda: events.append("disconnect"),
+            ),
+            daemon=True,
+        )
+
+        # Act
+        reader.start()
+        reader.join(timeout=2.0)
+
+        # Assert
+        assert reader.is_alive() is False, "the reader ended"
+        assert len(events) == 2, f"one error then one disconnect, got {events!r}"
+        assert "ValueError: bad render" in events[0], "the error names what was raised"
+        assert events[1] == "disconnect", (
+            "the frontend must hear the reader is gone, or it shows Connected "
+            "over a closed port"
+        )
+        assert getattr(port, "is_open", True) is False, "the reader closed its port on the way out"
+
     def test_read_loop_without_connect(self):
         """With no port the loop returns at once and still signals reader_stopped."""
         # Arrange

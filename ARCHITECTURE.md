@@ -686,7 +686,10 @@ Cancellation is per run, never shared. The reader stops on the engine's
 `stop_event`; each auto-reconnect run gets a fresh token from
 `_auto_reconnect`. When the two shared one event, every connect attempt
 (which stops the reader first) also ended the reconnect loop, and a connect
-that then failed left nothing retrying.
+that then failed left nothing retrying. A run opens the port once, through
+the same path as `SerialEngine.connect`, and the TUI finishes the connection
+it hands back; the throwaway probe open it replaced put an extra DTR edge on
+every reconnect.
 
 ## Built-in plugins
 

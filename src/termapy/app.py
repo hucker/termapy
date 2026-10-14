@@ -1295,11 +1295,7 @@ class SerialTerminal(TerminalHost, App):
     def _connect(self, port: str | None = None) -> bool:
         if self.is_connected:
             return False
-        # Reconnect correctness gate: a prior reader must be GONE, not
-        # probably-gone, before we open a new handle.  start_reader joins any
-        # previous thread, so this is a real barrier rather than a timed wait
-        # that used to expire whenever RX was in flight.
-        self._engine.stop_reader()
+        # The engine joins any prior reader before it opens a new handle.
         connected = super()._connect(port)
         if connected:
             # Whoever opened the port, a reconnect still retrying is done; left
@@ -1373,18 +1369,32 @@ class SerialTerminal(TerminalHost, App):
     def _run_reconnect(self, stop: threading.Event) -> None:
         """Background thread: retry opening the port until it opens or *stop* is set."""
         try:
-            success = self._engine.reconnect_loop(
+            port = self._engine.reconnect_loop(
                 stop,
                 on_status=lambda msg: self.call_from_thread(
                     self._show_reconnect_status, stop, msg
                 ),
             )
-            if success and not stop.is_set():
-                self.call_from_thread(self._connect)
+            if port is not None:
+                self.call_from_thread(self._finish_reconnect, stop, port)
         except RuntimeError:
-            pass  # call_from_thread fails during app shutdown
+            pass  # call_from_thread fails during app shutdown, which closes the port
         finally:
             stop.set()  # this run is over; only ever its OWN token
+
+    def _finish_reconnect(self, stop: threading.Event, port: object) -> None:
+        """Main thread: finish the connection a reconnect run opened, or close it.
+
+        The run opened the port itself and nothing may open it again
+        (registry ``reconnect-opens-once``).  A cancel that landed while the
+        open was in flight (the title-bar button, a config switch) leaves the
+        port unwanted; it is closed only if it is still the one this run
+        opened, since a config switch may have connected another since.
+        """
+        if not stop.is_set():
+            self._finish_connect()
+        elif self._engine.port_obj is port:
+            self._engine.disconnect()
 
     def _show_reconnect_status(self, stop: threading.Event, text: str) -> None:
         """Main thread: show a reconnect spinner frame, unless that run has ended.

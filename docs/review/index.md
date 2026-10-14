@@ -63,11 +63,8 @@ Triaged 2026-10-12 (each file's Addenda has the disposition of every open
 item); what was neither fixed nor closed lands here so a later pass finds it
 listed rather than discovering it.
 
-- **Worth a fix soon:** `_send_and_capture` (`proto.py`) strips a trailing LF
-  unconditionally and can eat a CRC byte of 0x0A (06-20 F); `config.py:412`
-  is the one `except (OSError, Exception)` without a boundary annotation
-  (06-20 E); text-capture byte count is a character count (06-20 #4, issue
-  #25).
+- **Worth a fix soon:** none. The three listed here on 2026-10-12 (06-20 F,
+  E and #4) were fixed 2026-10-14; see that file's Addenda.
 - **Debt, known and bounded:** quoted folder names joined to paths outside
   `folders.py` (06-20 C, ~26 sites); inline newline splits beside
   `scripting.split_cmd_lines` (06-20 D); `config_editor.py` importing

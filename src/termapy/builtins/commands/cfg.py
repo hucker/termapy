@@ -20,11 +20,14 @@ from termapy.config import (
     cfg_dir,
     cfg_history_path,
     cfg_log_path,
+    config_summary,
     global_plugins_dir,
     open_with_system,
 )
+from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
 from termapy.folders import FOLDERS, INFO_REPORT_SUFFIX
 from termapy.help_dynamic import cfg_status, compose
+from termapy.listing import Column, emit_listing
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import coerce_to_type
@@ -138,23 +141,37 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List all config files in the config directory.
+    """List the configs newest first: the Cfg picker's rows, ``*`` on the loaded one.
+
+    ``value`` is the config names (what ``/cfg.load`` takes); each data
+    record is the file's ``file_record`` plus ``file``, ``active`` and
+    ``config.config_summary``'s port, baud and title.
 
     Args:
         ctx: Plugin context for output.
         args: Unused.
     """
-    d = cfg_dir()
-    files = sorted(d.glob("*/*.cfg"))
-    if not files:
-        ctx.io.output("  (no config files)")
-        return CmdResult.ok(value="")
-    names: list[str] = []
-    for file in files:
-        marker = " *" if str(file) == ctx.config_path else ""
-        ctx.io.output(f"  {file.parent.name}/{file.name}{marker}")
-        names.append(f"{file.parent.name}/{file.name}")
-    return CmdResult.ok(value="\n".join(names))
+    root = cfg_dir()
+    paths = list_entries(root, "*/*.cfg")
+    records = [
+        {
+            **file_record(path),
+            "name": path.stem,
+            "file": f"{path.parent.name}/{path.name}",
+            "active": str(path) == ctx.config_path,
+            **config_summary(path),
+        }
+        for path in paths
+    ]
+    columns = (
+        Column("NAME", lambda record: record["name"] + (" *" if record["active"] else "")),
+        *FILE_COLUMNS[1:],
+        Column("PORT", lambda record: record["port"]),
+        Column("BAUD", lambda record: str(record["baud_rate"] or ""), right=True),
+        Column("TITLE", lambda record: record["title"]),
+    )
+    names = "\n".join(path.stem for path in paths)
+    return emit_listing(ctx, f"{root.name}/", "config", columns, records, value=names)
 
 
 # ── /cfg.load handler ──────────────────────────────────────────────────────

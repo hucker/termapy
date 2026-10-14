@@ -2587,6 +2587,6 @@ COMMAND = Command(
             handler=_handler_info,
         ),
         "edit": edit_command("proto"),
-        **build_folder_subcommands("proto"),
+        **build_folder_subcommands("proto", noun="script"),
     },
 )

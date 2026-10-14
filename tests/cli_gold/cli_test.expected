@@ -242,25 +242,27 @@ demo> /print === section: config folders ===
   === section: config folders ===
   [51/219] /print === section: config folders === (115us)
 demo> /run.list
-    run/
-      NAME                 SIZE    UPDATED   SUMMARY
-      crc_tour.run         2.3 KB  just now  the whole /proto.crc.* API in one screen
-      doc_screenshots.run  3.3 KB  just now  Generate documentation images
-      expect_test.run       354 B  just now  Expect command test
-      var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
-      status_check.run       72 B  just now  Quick status check
-      smoke_test.run       1.1 KB  just now  Smoke test for demo device
-      gps_demo.run          622 B  just now  GPS/NMEA Demo -- Query simulated GPS receiver
-      at_demo.run           825 B  just now  AT Command Demo -- Walks through all demo device commands
-      welcome.run           978 B  just now  Welcome script -- Runs on connect via on_connect_cmd config
-  [52/219] /run.list (18.6ms)
+  run/ - 9 scripts
+  NAME                 SIZE    UPDATED   SUMMARY
+  -------------------  ------  --------  -----------------------------------------------------------
+  crc_tour.run         2.3 KB  just now  the whole /proto.crc.* API in one screen
+  doc_screenshots.run  3.3 KB  just now  Generate documentation images
+  expect_test.run       354 B  just now  Expect command test
+  var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
+  status_check.run       72 B  just now  Quick status check
+  smoke_test.run       1.1 KB  just now  Smoke test for demo device
+  at_demo.run           825 B  just now  AT Command Demo -- Walks through all demo device commands
+  gps_demo.run          622 B  just now  GPS/NMEA Demo -- Query simulated GPS receiver
+  welcome.run           978 B  just now  Welcome script -- Runs on connect via on_connect_cmd config
+  [52/220] /run.list (20.9ms)
 demo> /proto.list
-    proto/
-      NAME                 SIZE    UPDATED
-      at_test.pro           829 B  just now
-      bitfield_inline.pro  2.7 KB  just now
-      modbus_inline.pro    2.2 KB  just now
-  [53/219] /proto.list (2.22ms)
+  proto/ - 3 scripts
+  NAME                 SIZE    UPDATED
+  -------------------  ------  --------
+  modbus_inline.pro    2.2 KB  just now
+  at_test.pro           829 B  just now
+  bitfield_inline.pro  2.7 KB  just now
+  [53/220] /proto.list (1.34ms)
 demo> /print === section: port read ===
   === section: port read ===
   [54/219] /print === section: port read === (146us)

@@ -587,7 +587,7 @@ def register_tui_hooks(app) -> None:
                 f"edit.{folder}",
                 "{filename}",
                 f"Open a {ext} file in the system editor.",
-                make_edit_handler(get_dir, ext, pat),
+                make_edit_handler(folder, get_dir, ext),
                 source="app",
                 needs=CapabilitySet.GUI_APPS,
                 files=folder,
@@ -598,7 +598,7 @@ def register_tui_hooks(app) -> None:
             f"edit.{folder}.list",
             "",
             f"List {ext} files.",
-            make_list_handler(get_dir, pat),
+            make_list_handler(folder),
             source="app",
         )
         app.repl.register_hook(

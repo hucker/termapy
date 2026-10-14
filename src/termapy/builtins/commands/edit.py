@@ -111,20 +111,20 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 # ── Folder subcommand factories ──────────────────────────────────────────────
 
 
-def make_edit_handler(get_dir, ext, pattern):
-    """Create a handler that opens a file by name, or lists files if no name given.
+def make_edit_handler(folder: str, get_dir, ext):
+    """Create a handler that opens a file by name, or lists the folder if no name given.
 
-    Returns the opened file path as ``CmdResult.value`` (or the list of
-    file names if no name was given and we delegate to the list handler).
+    Returns the opened file path as ``CmdResult.value``; bare, the
+    ``/<folder>.list`` result (a picker host never gets here bare -- the
+    dispatcher opens the picker first).
     """
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         name = args.strip()
         if not name:
-            return make_list_handler(get_dir, pattern)(ctx, args)
-        folder = get_dir(ctx)
+            return make_list_handler(folder)(ctx, args)
         if not name.endswith(ext):
             name += ext
-        path = folder / name
+        path = get_dir(ctx) / name
         if not path.exists():
             return CmdResult.fail(msg=f"File not found: {name}")
         ctx.fs.open_file(path)
@@ -132,25 +132,14 @@ def make_edit_handler(get_dir, ext, pattern):
     return handler
 
 
-def make_list_handler(get_dir, pattern):
-    """Create a handler that lists files in a folder.
+def make_list_handler(folder: str):
+    """``/edit.<folder>.list`` is ``/<folder>.list``: one listing per folder.
 
-    Returns the newline-joined list of file names as ``CmdResult.value``
-    so scripts can capture it; empty string for empty/missing folders.
+    Forwarded through the engine, so the listing (format, order, data
+    records, ``/run.list``'s SUMMARY) is the folder command's own.
     """
     def handler(ctx: PluginContext, args: str) -> CmdResult:
-        folder = get_dir(ctx)
-        # A missing folder is an empty one: data folders appear on first write.
-        files = sorted(folder.glob(pattern))
-        if not files:
-            ctx.io.output("  (empty)")
-            return CmdResult.ok(value="")
-        ctx.io.output("  Available file(s):")
-        names = []
-        for file in files:
-            ctx.io.output(f"    {file.name}")
-            names.append(file.name)
-        return CmdResult.ok(value="\n".join(names))
+        return ctx.internal.dispatch(f"{folder}.list")
     return handler
 
 
@@ -211,7 +200,7 @@ def edit_command(folder: str) -> Command:
         args="{filename}",
         help=f"Open a {spec.ext} file in the system editor.",
         long_help=_folder_long_help(folder, text),
-        handler=make_edit_handler(_folder_dir(folder), spec.ext, spec.pattern),
+        handler=make_edit_handler(folder, _folder_dir(folder), spec.ext),
         needs=CapabilitySet.GUI_APPS,
         files=folder,
         picker=picker,
@@ -242,7 +231,7 @@ def _build_folder_sub(folder: str) -> Command:
             "list": Command(
                 help=f"List {spec.ext} files.",
                 long_help=long_help,
-                handler=make_list_handler(get_dir, spec.pattern),
+                handler=make_list_handler(folder),
             ),
             "explore": Command(
                 help="Open folder in file explorer.",

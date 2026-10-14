@@ -165,6 +165,7 @@ All other paths relative to `src/termapy/`.
   combinations inline; never a module-local `_NEEDS` constant
 - Handlers that produce scriptable data must return `CmdResult.ok(value=...)` — without it, scripts in quiet mode get nothing. See `CmdResult` docstring in `plugins.py`.
 - **`CmdResult.data` is the structured twin of `value`** — real JSON shape (dict/list/number) for agent consumers (MCP, `--json`); never a prose string. `value` stays the scriptable scalar. Optional: `data=None` is a legitimate permanent state (side-effect and prose-page commands); convert commands agents actually call, not all 185. Handlers with LARGE listings branch on `ctx.wants_data` and build either the prose or the records — never both (no doubled payload). Producers for `data` live in core beside the prose producers (`port_format.facts_to_json_record`, `usb_tree.to_json_records`, `variables.snapshot`), never inline in handlers.
+- **Every list command answers through `listing.emit_listing`** (files through `folder_ops.emit_file_listing`): records of raw values plus declared `Column`s, so the table (title with count, header, dashes, rows) reads the same in every list and `--json` / `/term.request` / MCP get the records. Never hand-format a list (registry `list-one-format`).
 
 ## Declarative Command Parameters (`Command.params`) vs hand-rolled
 

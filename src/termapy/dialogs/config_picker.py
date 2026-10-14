@@ -20,8 +20,8 @@ from textual.widgets import Button, OptionList, Static
 
 from termapy.config import (
     cfg_dir,
+    config_summary,
     file_manager_name,
-    load_config,
     migrate_json_to_cfg,
     open_with_system,
 )
@@ -38,22 +38,12 @@ from termapy.folder_ops import list_entries
 def _config_info(path: Path) -> tuple[str, str, str]:
     """``("COM4", "115200", "Bench board")`` for a picker row.
 
-    All empty if the file won't load -- a broken cfg still deserves a
-    row (so it can be edited or deleted), just not a crash.
+    The facts are ``config.config_summary``'s, the ones ``/cfg.list``
+    shows; all empty if the file won't load.
     """
-    try:
-        cfg = load_config(str(path))
-    except Exception:  # noqa: BLE001 - see docstring
-        return "", "", ""
-    serial = cfg.get("serial", {})
-    port = str(serial.get("port") or "")
-    baud = str(serial.get("baud_rate") or "")
-    title = str(cfg.get("title") or "")
-    # New configs are written with the config's own name as the title;
-    # that repeats the first column, so treat it as "no title given".
-    if title.strip().lower() == path.stem.lower():
-        title = ""
-    return port, baud, title
+    summary = config_summary(path)
+    baud = summary["baud_rate"]
+    return summary["port"], "" if baud is None else str(baud), summary["title"]
 
 
 def _config_details(paths: list[Path]) -> tuple[dict[Path, str], str]:

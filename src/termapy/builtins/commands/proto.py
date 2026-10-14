@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from crcglot import DetectResult, detect
+from crcglot import DetectMatch, DetectResult, detect
 
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.folder_ops import build_folder_subcommands
@@ -1639,11 +1639,16 @@ def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
         captured = _send_and_capture(ctx, [_encode_device_cmd(ctx, send)])
         if captured is None:
             return CmdResult.fail(msg="No response within timeout")
-        result = detect(
-            captured, mode="binary", match="all", endian=endian_arg,
-        )
+        # One frame cannot tell a line ending from a CRC ending in 0x0A:
+        # detect without the ending first, then on the frame whole.
+        frame = _strip_common_terminator([captured])[0]
+        result = detect(frame, mode="binary", match="all", endian=endian_arg)
+        if frame != captured and not _width_matches(result.candidates, width_filter):
+            whole = detect(captured, mode="binary", match="all", endian=endian_arg)
+            if _width_matches(whole.candidates, width_filter):
+                frame, result = captured, whole
         return _render_detect_result(
-            ctx, result, len(captured), width_filter, is_text=False,
+            ctx, result, len(frame), width_filter, is_text=False,
         )
 
     # mode == "asc"
@@ -1686,13 +1691,9 @@ def _send_and_capture(
     /proto.crc.reverse.  ``segments`` is the parse_data_segments
     output -- a mix of ``bytes`` (data) and ``float`` (inline delay
     in seconds), same shape /proto.send consumes.  Returns the
-    captured bytes, or None when nothing arrives within ``timeout_ms``.
-
-    A single trailing CRLF (or bare LF) is stripped before returning
-    -- text-protocol responses (AT, NMEA, the demo's AT+RND) framed
-    that way come back ready for direct CRC analysis.  Binary frames
-    that happen to end with 0x0D 0x0A would lose two bytes, but the
-    1-in-65536 coincidence is rare enough to be the right default.
+    captured bytes as received, line ending included, or None when
+    nothing arrives within ``timeout_ms``; the caller decides what is
+    a terminator (``_strip_common_terminator``).
     """
     import time
     with ctx.serial.io():
@@ -1702,13 +1703,26 @@ def _send_and_capture(
             else:
                 ctx.serial.write(segment)
         captured = ctx.serial.read_raw(timeout_ms)
-    if not captured:
-        return None
-    if captured.endswith(b"\r\n"):
-        captured = captured[:-2]
-    elif captured.endswith(b"\n"):
-        captured = captured[:-1]
-    return captured if captured else None
+    return captured or None
+
+
+def _strip_common_terminator(frames: list[bytes]) -> list[bytes]:
+    """Strip the line ending every frame ends with, CRLF or LF, and only then.
+
+    A text device (AT, NMEA, the demo's AT+RND) ends each reply with a
+    line ending that is not part of the CRC'd data.  One frame cannot
+    tell that terminator from a CRC whose last byte is 0x0A, which a
+    strip of every trailing LF ate one frame in 256 -- a failed
+    ``/proto.crc.reverse`` about one run in twenty at ``count=13``.
+    Every frame of a batch ending the same way by chance is vanishingly
+    unlikely.  A frame that would be left empty keeps its bytes.
+    """
+    for ending in (b"\r\n", b"\n"):
+        if all(frame.endswith(ending) for frame in frames):
+            if any(len(frame) == len(ending) for frame in frames):
+                return frames
+            return [frame[: -len(ending)] for frame in frames]
+    return frames
 
 
 def _handler_crc_verify(ctx: PluginContext, args: str) -> CmdResult:
@@ -1876,6 +1890,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
                     msg=f"No response on capture #{len(packets) + 1} of {count}"
                 )
             packets.append(captured)
+        packets = _strip_common_terminator(packets)
     else:
         if len(rest_tokens) < 2:
             raise UsageError()
@@ -1984,6 +1999,15 @@ def _detect_ascii(
     return DetectResult(matched=bool(candidates), candidates=tuple(candidates))
 
 
+def _width_matches(
+    candidates: tuple[DetectMatch, ...], width_filter: int | None,
+) -> tuple[DetectMatch, ...]:
+    """The detect candidates of the filtered width, or all of them when no width is given."""
+    if width_filter is None:
+        return candidates
+    return tuple(candidate for candidate in candidates if candidate.info.width == width_filter)
+
+
 def _render_detect_result(
     ctx: PluginContext,
     result: DetectResult,
@@ -2000,9 +2024,7 @@ def _render_detect_result(
     "data" size is ``packet_len - 2 * width_bytes`` characters); False
     for binary input (``packet_len - width_bytes`` bytes).
     """
-    candidates = result.candidates
-    if width_filter is not None:
-        candidates = tuple(m for m in candidates if m.info.width == width_filter)
+    candidates = _width_matches(result.candidates, width_filter)
 
     # Output-level model for /proto.crc.find:
     #   result()  -- the *answer*: the match line(s), or "No matches found."

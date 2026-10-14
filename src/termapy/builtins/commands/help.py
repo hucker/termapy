@@ -260,16 +260,18 @@ def _compute_cmd_w(names: list[str], prefix: str) -> int:
 
 
 def _bare_form(plugin, name: str, prefix: str) -> str:
-    """What a bare invocation does, from ``picker=`` or ``bare_sub=``; "" when undeclared.
+    """What a bare invocation does, from ``picker=`` and ``bare_sub=``; "" when undeclared.
 
-    The one wording for every command (registry ``bare-declared``):
-    ``bare: opens the Run picker in the TUI`` / ``bare: runs /mem.info``.
+    The one wording for every command (registry ``bare-declared``), in
+    the dispatcher's order -- the picker where the host has one, then the
+    subcommand: ``bare: opens the Run picker in the TUI; elsewhere runs
+    /run.list``, ``bare: runs /mem.info``.
     """
+    sub = f"{prefix}{name}.{plugin.bare_sub}" if plugin.bare_sub else ""
     if plugin.picker:
-        return f"bare: opens the {plugin.picker.capitalize()} picker in the TUI"
-    if plugin.bare_sub:
-        return f"bare: runs {prefix}{name}.{plugin.bare_sub}"
-    return ""
+        picker = f"bare: opens the {plugin.picker.capitalize()} picker in the TUI"
+        return f"{picker}; elsewhere runs {sub}" if sub else picker
+    return f"bare: runs {sub}" if sub else ""
 
 
 def _render_man_page(ctx: PluginContext, name: str, plugin,

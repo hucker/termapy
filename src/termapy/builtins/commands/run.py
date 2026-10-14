@@ -19,8 +19,8 @@ plugin layer uses.
 
 Bare ``/run`` opens the Run picker when a host installs one
 (``picker="run"``: the dispatcher opens it where
-``ctx.internal.open_picker`` is set, the TUI); CLI and MCP fall
-through to ``/help run`` with the available-files section appended.  Folder subcommands (.list/.dump/.show/.explore)
+``ctx.internal.open_picker`` is set, the TUI); CLI and MCP run
+``/run.list`` instead (``bare_sub="list"``), the picker's contents.  Folder subcommands (.list/.dump/.show/.explore)
 come from the shared ``build_folder_subcommands`` helper, and
 ``/run.edit`` is ``/edit.run`` under its noun-first name
 (``edit.edit_command``).  ``/run.legacy`` rides along by re-exporting
@@ -51,7 +51,7 @@ from termapy.folder_ops import (
     list_entries,
 )
 from termapy.folders import default_file_name
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CmdResult, Command, UsageError
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -142,9 +142,9 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """``/run`` -- with a filename, dispatches to the host's script runner.
 
-    Bare in the TUI opens the Run picker (``picker="run"``, so the
-    dispatcher does it); a bare call reaching here is a host without
-    pickers (CLI, MCP), which gets help plus the available scripts.
+    A bare call never arrives: the dispatcher opens the Run picker in the
+    TUI (``picker="run"``) and runs ``/run.list`` elsewhere
+    (``bare_sub="list"``).
 
     The host wires ``start_script`` and ``run_script`` onto
     ``ctx.internal`` in ``TerminalHost._build_context``; this handler
@@ -152,7 +152,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip()
     if not arg:
-        return _handler_help(ctx, args)
+        raise UsageError()
 
     if ctx.internal.start_script is None or ctx.internal.run_script is None:
         # Defensive: a host that doesn't wire the script runner can't
@@ -186,6 +186,7 @@ COMMAND = Command(
     handler=_handler_root,
     files="run",
     picker="run",
+    bare_sub="list",
     sub_commands={
         "help": Command(
             args="{script}",

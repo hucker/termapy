@@ -2195,19 +2195,18 @@ def _proto_long_help(ctx: PluginContext) -> str:
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Bare /proto: TUI opens the Proto picker, CLI shows /help proto.
+    """/proto with arguments that name no subcommand.
 
-    The TUI half is ``picker="proto"`` (the dispatcher opens it), so a
-    bare call reaching here is a host without pickers.  With args,
-    /proto is a namespace -- the dispatcher routes to a subcommand.
-    This handler runs only when no subcommand matched.
+    A bare call never arrives: the dispatcher opens the Proto picker in
+    the TUI (``picker="proto"``) and runs ``/proto.list`` elsewhere
+    (``bare_sub="list"``).  With args, /proto is a namespace -- the
+    dispatcher routes to a subcommand, so this runs only when none
+    matched.
     """
-    if args.strip():
-        prefix = ctx.prefix
-        return CmdResult.fail(
-            msg=f"Usage: {prefix}proto.<sub>  (try {prefix}proto.help)"
-        )
-    return _handler_help(ctx, args)
+    prefix = ctx.prefix
+    return CmdResult.fail(
+        msg=f"Usage: {prefix}proto.<sub>  (try {prefix}proto.help)"
+    )
 
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
@@ -2379,6 +2378,7 @@ COMMAND = Command(
     long_help=_proto_long_help,
     handler=_handler,
     picker="proto",
+    bare_sub="list",
     sub_commands={
         "help": Command(
             help="Show /proto help.",

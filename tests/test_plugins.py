@@ -1141,16 +1141,37 @@ class TestRequirementHints:
 
 
 class TestBareSub:
-    """``bare_sub`` on an interior node is validated at load, not at use."""
+    """``bare_sub`` is validated at load, not at use, on any node."""
 
-    def test_typo_fails_loud_at_synthesis(self):
-        """A bare_sub naming no real child raises when the handler is built, not on use."""
-        from termapy.plugins.loader import _make_interior_handler
+    @staticmethod
+    def _node(bare_sub: str, handler=None):
+        """A ``/mem``-shaped node with two children, optionally with its own handler."""
+        from termapy.plugins import Command
+        return Command(
+            name="mem",
+            help="h",
+            handler=handler,
+            bare_sub=bare_sub,
+            sub_commands={
+                "dump": Command(help="d", handler=lambda ctx, args: None),
+                "info": Command(help="i", handler=lambda ctx, args: None),
+            },
+        )
+
+    def test_typo_fails_loud_at_load(self):
+        """A bare_sub naming no real child raises when the node is flattened, not on use."""
+        from termapy.plugins.loader import _flatten_command
         with pytest.raises(ValueError, match="bare_sub 'bogus' names no subcommand"):
-            _make_interior_handler("mem", ["mem.dump", "mem.info"], "bogus")
+            _flatten_command(self._node("bogus"), "", "built-in")
 
-    def test_valid_bare_sub_synthesizes(self):
-        """A bare_sub that names a declared child builds a callable handler."""
-        from termapy.plugins.loader import _make_interior_handler
-        handler = _make_interior_handler("mem", ["mem.dump", "mem.info"], "info")
-        assert callable(handler), "a declared child passes load-time validation"
+    def test_a_node_with_a_handler_is_validated_too(self):
+        """A handler node (/run's shape) gets the same load-time check as an interior one."""
+        from termapy.plugins.loader import _flatten_command
+        with pytest.raises(ValueError, match="bare_sub 'bogus' names no subcommand"):
+            _flatten_command(self._node("bogus", handler=lambda ctx, args: None), "", "built-in")
+
+    def test_valid_bare_sub_reaches_plugin_info(self):
+        """A bare_sub naming a declared child loads and is carried on the PluginInfo for dispatch and /help."""
+        from termapy.plugins.loader import _flatten_command
+        infos = {info.name: info for info in _flatten_command(self._node("info"), "", "built-in")}
+        assert infos["mem"].bare_sub == "info", "the declaration survives the flatten"

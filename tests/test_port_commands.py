@@ -62,12 +62,12 @@ class TestHelp:
         assert result.value == "port", "the resolved name, so a script can confirm the match"
         assert "port.connect" in capsys.readouterr().out, "the page lists the subcommands"
 
-    def test_bare_port_falls_back_to_help_without_a_picker(self, cli, capsys):
-        """A bare /port shows the help page where no picker exists (the CLI); the TUI would open its picker."""
-        capsys.readouterr()
-        result = cli.repl.dispatch_full("/port")
-        assert result.value == "port"
-        assert "port.disconnect" in capsys.readouterr().out, "the same page as /port.help"
+    def test_bare_port_lists_without_a_picker(self, cli):
+        """bare-declared: a bare /port runs /port.list where no picker exists (the CLI); the TUI opens its picker."""
+        bare = cli.repl.dispatch_full("/port")
+        listed = cli.repl.dispatch_full("/port.list")
+        assert bare.success, bare.error
+        assert bare.value == listed.value, "bare /port is /port.list"
 
 
 # ── read-only input signals ─────────────────────────────────────────────────

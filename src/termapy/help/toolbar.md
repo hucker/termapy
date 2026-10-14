@@ -20,7 +20,8 @@ The **X** sits top-left on macOS/Linux and top-right on Windows, matching
 each platform's window-control convention.  Cfg, Run, and Proto can be
 hidden per config via `cfg_enabled`, `run_enabled`, and `proto_enabled`.
 Typing the bare command (`/cfg`, `/run`, `/proto`, or `/port` for the
-port name) is equivalent to clicking the button.  The Cfg, Run, and
+port name) is equivalent to clicking the button; in the CLI, which has
+no pickers, it runs the matching `.list` instead.  The Cfg, Run, and
 Proto pickers list files newest first with size and age columns under a
 header row; Run adds the script's docstring summary, Cfg the port,
 baud, and title.

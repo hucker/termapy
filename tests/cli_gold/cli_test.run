@@ -113,7 +113,7 @@ $(BAUD) <- /port.baud_rate
 
 # ── REPL: port subcommand listing ───────────────────────────────────────────
 /print === section: port subcommands ===
-/port
+/port.help
 
 # ── REPL: show_line_endings toggle ──────────────────────────────────────────
 /print === section: line endings ===

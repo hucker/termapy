@@ -1340,25 +1340,35 @@ class ReplEngine:
                 return self._plugins.get(name[: -len(suffix)])
         return None
 
-    def _bare_picker_handler(self, plugin: PluginInfo, args: str) -> Callable | None:
-        """The handler that opens ``plugin``'s picker for a bare call, or None.
+    def _bare_handler(self, plugin: PluginInfo, args: str) -> Callable | None:
+        """The declared bare behavior that replaces the handler, or None.
 
-        A command declaring ``picker=`` opens that dialog when called bare
-        in a host that has pickers (the TUI wires ``open_picker``); the
-        command's own handler then never sees the bare TUI call, so no
-        handler opens a picker itself and ``/help`` can state the bare
-        form from the declaration (registry ``bare-declared``).  Runs
-        after flag and param parsing, so ``args`` is what the handler
-        would have received.
+        A bare call to a command declaring ``picker=`` opens that dialog
+        where the host has pickers (the TUI wires ``open_picker``);
+        otherwise a declared ``bare_sub`` runs that child (``/run`` ->
+        ``/run.list`` in the CLI and MCP, ``/mem`` -> ``/mem.info``
+        everywhere).  The handler never sees a declared bare call, so no
+        handler opens a picker itself and ``/help`` states the bare form
+        from the declaration (registry ``bare-declared``).  Runs after
+        flag and param parsing, so ``args`` is what the handler would
+        have received.
         """
-        open_picker = self.ctx.internal.open_picker
-        if not plugin.picker or args.strip() or open_picker is None:
+        if args.strip():
             return None
-        picker = plugin.picker
+        open_picker = self.ctx.internal.open_picker
+        if plugin.picker and open_picker is not None:
+            picker = plugin.picker
 
-        def _open(ctx: PluginContext, args: str) -> CmdResult:
-            return open_picker(picker)
-        return _open
+            def _open(ctx: PluginContext, args: str) -> CmdResult:
+                return open_picker(picker)
+            return _open
+        if plugin.bare_sub:
+            target = f"{plugin.name}.{plugin.bare_sub}"
+
+            def _run(ctx: PluginContext, args: str) -> CmdResult:
+                return self.dispatch(target)
+            return _run
+        return None
 
     def complete_file_arg(self, line: str) -> tuple[int, list[str]] | None:
         """File names that complete a line's first argument, newest first.
@@ -1918,7 +1928,7 @@ class ReplEngine:
             saved_wants_data = self.ctx.wants_data
             if wants_json:
                 self.ctx.wants_data = True
-            handler = self._bare_picker_handler(plugin, args) or plugin.handler
+            handler = self._bare_handler(plugin, args) or plugin.handler
             self._handler_depth += 1
             try:
                 t0 = time.perf_counter()

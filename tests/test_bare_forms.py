@@ -100,6 +100,50 @@ def test_with_pickers_the_handler_never_sees_a_bare_call(engine_with_pickers):
     assert calls == ["x"], "only the call with an argument reached the handler"
 
 
+def _probe_with_list(calls: list[str]) -> list[PluginInfo]:
+    """/probe (picker="run", bare_sub="list") and its /probe.list, which records each run."""
+    def _handler_list(ctx, args: str) -> CmdResult:
+        calls.append("list")
+        return CmdResult.ok(value="listed")
+    return [
+        PluginInfo(name="probe", args="{x}", help="h", handler=lambda ctx, args: CmdResult.ok(value=""),
+                   picker="run", bare_sub="list"),
+        PluginInfo(name="probe.list", args="", help="h", handler=_handler_list),
+    ]
+
+
+def test_bare_sub_is_the_fallback_where_there_is_no_picker():
+    """bare-declared: with no picker in the host, bare /probe runs its bare_sub, /probe.list."""
+    # Arrange
+    eng = ReplEngine({}, "", lambda text, color=None: None)
+    calls: list[str] = []
+    for info in _probe_with_list(calls):
+        eng.register_plugin(info)
+
+    # Act
+    result = eng.dispatch("probe")
+
+    # Assert
+    assert result.value == "listed", "the bare call answered with the list"
+    assert calls == ["list"], "/probe.list ran once"
+
+
+def test_the_picker_wins_over_bare_sub_where_there_is_one(engine_with_pickers):
+    """In a host with pickers the picker opens and the bare_sub fallback stays unused."""
+    # Arrange
+    eng, host = engine_with_pickers
+    calls: list[str] = []
+    for info in _probe_with_list(calls):
+        eng.register_plugin(info)
+
+    # Act
+    eng.dispatch("probe")
+
+    # Assert
+    assert host.opened == ["run"], "the picker opened"
+    assert calls == [], "the list did not run"
+
+
 def test_an_unknown_picker_fails_at_construction():
     """A typo in picker= fails loud at load, naming the picker, instead of opening nothing."""
     with pytest.raises(ValueError, match="unknown picker 'runs'"):

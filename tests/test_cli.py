@@ -311,21 +311,22 @@ class TestRaw:
 
 
 class TestHookRun:
-    def test_run_bare_shows_help(self, cli, capsys):
-        """With no picker in the CLI, bare /run falls back to its help page."""
-        # Arrange -- bare /run in CLI shows /help run for parity with
-        # /cfg, /proto, /port (TUI opens the Run picker; CLI has no
-        # picker so the builtin's open_picker fallback prints help).
+    @pytest.mark.parametrize("command", ["run", "proto", "cfg"])
+    def test_bare_picker_command_lists_without_a_picker(self, cli, command):
+        """bare-declared: with no picker in the CLI, bare /run, /proto and /cfg run their .list, the picker's contents."""
+        # Arrange
+        parent = Path(cli.config_path).parent
+        (parent / "run" / "boot.run").write_text("/print hi\n", encoding="utf-8")
+        (parent / "proto" / "probe.pro").write_text("", encoding="utf-8")
+
         # Act
-        result = cli.repl.dispatch("run")
+        bare = cli.repl.dispatch(command)
+        listed = cli.repl.dispatch(f"{command}.list")
 
         # Assert
-        assert result.success, "bare /run succeeds"
-        actual = capsys.readouterr().out
-        assert "/run" in actual, "help output mentions /run"
-        assert "SUBCOMMANDS" in actual or "Synopsis" in actual or "SYNOPSIS" in actual, (
-            "help output has the man-page shape"
-        )
+        assert bare.success, f"bare /{command}: {bare.error}"
+        assert bare.value == listed.value, f"bare /{command} is /{command}.list"
+        assert bare.value, f"/{command}.list found something to list"
 
     def test_run_list_enumerates_scripts(self, cli, capsys):
         """/run.list shows every .run file in the config's run/ folder."""
@@ -1009,10 +1010,10 @@ class TestBareForms:
     @pytest.mark.parametrize(
         ("command", "line"),
         [
-            ("run", "/run -- bare: opens the Run picker in the TUI"),
-            ("proto", "/proto -- bare: opens the Proto picker in the TUI"),
-            ("cfg", "/cfg -- bare: opens the Cfg picker in the TUI"),
-            ("port", "/port -- bare: opens the Port picker in the TUI"),
+            ("run", "/run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list"),
+            ("proto", "/proto -- bare: opens the Proto picker in the TUI; elsewhere runs /proto.list"),
+            ("cfg", "/cfg -- bare: opens the Cfg picker in the TUI; elsewhere runs /cfg.list"),
+            ("port", "/port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list"),
             ("proto.run", "/proto.run -- bare: opens the Proto picker in the TUI"),
             ("run.edit", "/run.edit -- bare: opens the Run picker in the TUI"),
             ("ss", "/ss -- bare: runs /ss.explore"),

@@ -300,11 +300,13 @@ class Command:
         handler: The command function. Required for leaf nodes.
             Signature: ``handler(ctx: PluginContext, args: str) -> None``.
         sub_commands: Dict mapping subcommand names to ``Command`` instances.
-        bare_sub: Interior nodes only (no ``handler``): the subcommand a
-            BARE invocation dispatches instead of listing the children --
-            ``/mem`` with ``bare_sub="info"`` runs ``/mem.info`` (the
-            bare-queries convention: bare shows state).  Must name a
-            declared subcommand; the loader fails loud otherwise.
+        bare_sub: The subcommand a BARE invocation runs instead of the
+            handler (or the children listing) -- ``/mem`` with
+            ``bare_sub="info"`` runs ``/mem.info`` (the bare-queries
+            convention: bare shows state).  With ``picker=`` it is the
+            fallback where the host has no picker: ``/run`` runs
+            ``/run.list`` in the CLI.  Must name a declared subcommand;
+            the loader fails loud otherwise.
         raw_args: When True, REPL transforms are skipped for this command.
             Use for commands that take variable names as arguments.
         flags: Mapping of ``--flag`` (or short ``-f``) to either a
@@ -608,8 +610,8 @@ class PluginInfo:
             from ``Command.files``; ``""`` when it names no data-folder file.
         picker: Picker a bare invocation opens in a host with pickers,
             inherited from ``Command.picker``.
-        bare_sub: Subcommand a bare invocation of an interior node runs,
-            inherited from ``Command.bare_sub`` (carried for ``/help``).
+        bare_sub: Subcommand a bare invocation runs (after ``picker``,
+            where the host has none), inherited from ``Command.bare_sub``.
     """
 
     name: str

@@ -54,11 +54,11 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # express (see CLAUDE.md "Declarative Command Parameters").  /cfg.load is
     # likewise a trivial single positional kept hand-rolled.
     parts = args.strip().split(None, 1)
-    # Bare /cfg -- TUI opens the Cfg picker dialog (picker="cfg", so the
-    # dispatcher does it before this runs); CLI shows /help cfg.  Use
-    # /cfg.dump to print the loaded config as JSON.
+    # Bare /cfg never arrives: the dispatcher opens the Cfg picker in the
+    # TUI (picker="cfg") and runs /cfg.list elsewhere (bare_sub="list").
+    # Use /cfg.dump to print the loaded config as JSON.
     if not parts:
-        return _handler_help(ctx, args)
+        raise UsageError()
     key = parts[0]
     container = _find_cfg_container(ctx.cfg, key)
     if container is None:
@@ -529,7 +529,7 @@ def on_app_stop(ctx: PluginContext) -> None:
 
 _CFG_PROSE = """\
 Three modes:
-  {prefix}cfg                  - TUI: open Cfg picker.  CLI: show this help.
+  {prefix}cfg                  - TUI: open Cfg picker.  CLI: list configs.
   {prefix}cfg baud_rate        - show current value of 'baud_rate'
   {prefix}cfg baud_rate 115200 - change with confirmation dialog
 
@@ -554,6 +554,7 @@ COMMAND = Command(
     long_help=_cfg_long_help,
     handler=_handler,
     picker="cfg",
+    bare_sub="list",
     sub_commands={
         "auto": Command(
             help="Set immediately (no confirmation).",

@@ -986,18 +986,15 @@ class TestRunCommandsAvailableInMCP:
             f"/run is callable from MCP (missing={missing})"
         )
 
-    def test_run_bare_falls_through_to_help(self, host):
-        """Bare /run with no picker succeeds by printing help rather than a usage error."""
-        # Arrange / Act -- bare /run has no picker in MCP, so the
-        # builtin's fallback path prints /help run + available files.
-        # Success rather than a usage error -- the user got something
-        # useful instead of an arity rejection.
-        result = host.repl.dispatch("run")
+    def test_run_bare_lists_the_scripts(self, host):
+        """bare-declared: bare /run with no picker in MCP runs /run.list, so an agent gets the scripts, not a usage error."""
+        # Act
+        bare = host.repl.dispatch("run")
+        listed = host.repl.dispatch("run.list")
 
         # Assert
-        assert result.success, (
-            "bare /run prints help (no picker installed in MCP host)"
-        )
+        assert bare.success, f"bare /run succeeds with no picker: {bare.error}"
+        assert bare.value == listed.value, "bare /run is /run.list"
 
     def test_run_list_dump_callable_from_mcp(self, host):
         """run.list, run.dump and run.legacy are all callable under MCP capabilities."""

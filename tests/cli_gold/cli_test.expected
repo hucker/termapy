@@ -367,13 +367,13 @@ demo> /port.break 100
 demo> /print === section: port subcommands ===
   === section: port subcommands ===
   [82/219] /print === section: port subcommands === (140us)
-demo> /port
+demo> /port.help
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
 
 SYNOPSIS
   /port {name}
-  /port -- bare: opens the Port picker in the TUI
+  /port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list
 
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
@@ -730,7 +730,7 @@ NAME
 
 SYNOPSIS
   /port {name}
-  /port -- bare: opens the Port picker in the TUI
+  /port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list
 
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
@@ -771,13 +771,13 @@ NAME
 
 SYNOPSIS
   /cfg {key {value}}
-  /cfg -- bare: opens the Cfg picker in the TUI
+  /cfg -- bare: opens the Cfg picker in the TUI; elsewhere runs /cfg.list
 
 DESCRIPTION
   Active cfg = demo (1 config available)
   
   Three modes:
-    /cfg                  - TUI: open Cfg picker.  CLI: show this help.
+    /cfg                  - TUI: open Cfg picker.  CLI: list configs.
     /cfg baud_rate        - show current value of 'baud_rate'
     /cfg baud_rate 115200 - change with confirmation dialog
   
@@ -942,7 +942,7 @@ NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
 
 SYNOPSIS
-  /proto -- bare: opens the Proto picker in the TUI
+  /proto -- bare: opens the Proto picker in the TUI; elsewhere runs /proto.list
 
 DESCRIPTION
   3 scripts in proto/
@@ -1115,7 +1115,7 @@ NAME
 
 SYNOPSIS
   /run {filename}
-  /run -- bare: opens the Run picker in the TUI
+  /run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list
 
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes

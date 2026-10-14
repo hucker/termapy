@@ -21,9 +21,11 @@ from typing import Callable
 
 from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
+from termapy.folder_ops import list_entries
 from termapy.folders import (
     CAP,
     FOLDER_NAMES,
+    FOLDER_PATTERNS,
     PLUGIN,
     PROF,
     PROTO,
@@ -72,6 +74,11 @@ from termapy.symbols import session as symbols_session
 # becomes current after the context is wired, which every frontend already
 # fires.
 _CORE_LIFECYCLE: frozenset[str] = frozenset({"on_app_start", "on_config_load"})
+
+# A prefix-stripped line whose cursor is in the FIRST argument: the command
+# token, whitespace, then the partial argument (possibly empty) running to
+# the end.  ``complete_file_arg`` matches it from just past the prefix.
+_FILE_ARG_RE = re.compile(r"(\S+)\s+(\S*)\Z")
 
 # Those plus app stop: the moments an empty data folder is dropped (the rule
 # in ``folders``), so the folder is tidy when the user looks right after
@@ -1249,6 +1256,7 @@ class ReplEngine:
         flags: dict[str, str] | None = None,
         needs: CapabilitySet | None = None,
         hidden: bool = False,
+        files: str = "",
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1270,6 +1278,9 @@ class ReplEngine:
             flags: First-class flag declarations (see ``Command.flags``).
             needs: Environment capabilities the handler requires
                 (see ``CapabilitySet``).
+            hidden: Omit from discovery surfaces (see ``Command.hidden``).
+            files: Data folder the first argument's file lives in
+                (see ``Command.files``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -1293,6 +1304,7 @@ class ReplEngine:
             flags=dict(flags) if flags else {},
             needs=needs if needs is not None else CapabilitySet(),
             hidden=hidden,
+            files=files,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -1324,6 +1336,40 @@ class ReplEngine:
             if name.endswith(suffix):
                 return self._plugins.get(name[: -len(suffix)])
         return None
+
+    def complete_file_arg(self, line: str) -> tuple[int, list[str]] | None:
+        """File names that complete a line's first argument, newest first.
+
+        The command declares its folder (``Command.files``), so every
+        frontend completes from the same fact.  The folder is listed on
+        every call, so a file saved a moment ago is offered at once.
+        Matching ignores case; the names keep their own.
+
+        Args:
+            line: The input line as typed, prefix included.
+
+        Returns:
+            ``(start, names)``, where each name replaces ``line[start:]``.
+            ``None`` when the line is not in a declared command's first
+            argument, or no config is loaded (data folders are per-config).
+        """
+        prefix = self.prefix
+        if not line.startswith(prefix) or not self.config_path:
+            return None
+        match = _FILE_ARG_RE.match(line, len(prefix))
+        if match is None:
+            return None
+        plugin = self.plugin_for(match.group(1))
+        if plugin is None or not plugin.files:
+            return None
+        partial = match.group(2).casefold()
+        folder = self._data_subdir(plugin.files)
+        names = [
+            file.name
+            for file in list_entries(folder, FOLDER_PATTERNS[plugin.files])
+            if file.name.casefold().startswith(partial)
+        ]
+        return match.start(2), names
 
     def command_has_raw_args(self, repl_cmd: str) -> bool:
         """Check if the first command token has ``raw_args`` set.

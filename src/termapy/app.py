@@ -477,7 +477,7 @@ class SerialTerminal(TerminalHost, App):
         self._history_mtime_seen: float = 0.0
         self.history: list[str] = self._load_history()
         self._history_nav = HistoryNavigator()
-        self._suggester = CommandSuggester()
+        self._suggester = CommandSuggester(complete_file=self.repl.complete_file_arg)
         self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
         self._show_line_numbers: bool = cfg.get("line_no", False)

@@ -454,6 +454,53 @@ class TestInputLine:
 
         _run(scenario)
 
+    def test_right_accepts_a_suggested_file_name(self, app_factory):
+        """file-arg-declared: a started /run argument ghost-completes to the run/ file; Right takes it."""
+        async def scenario():
+            from textual.widgets import Input
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- saved after boot, so no startup cache can know it
+                app.repl.scripts_dir.mkdir(parents=True, exist_ok=True)
+                (app.repl.scripts_dir / "Welcome.run").write_text("/print hi\n")
+                cmd_input = app.query_one("#cmd", Input)
+                cmd_input.focus()
+                cmd_input.value = "/run w"
+                cmd_input.action_end()
+                await pilot.pause()
+
+                # Act
+                await pilot.press("right")
+                await pilot.pause()
+
+                # Assert
+                assert cmd_input.value == "/run Welcome.run", (
+                    "Right accepts the matching file, spelled as on disk"
+                )
+
+        _run(scenario)
+
+    def test_tui_hooks_keep_their_file_declarations(self, app_factory):
+        """file-arg-declared: the commands the TUI re-registers still declare their folders."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                expected = {
+                    "edit.run": "run",
+                    "edit.proto": "proto",
+                    "edit.plugin": "plugin",
+                    "run.profile": "run",
+                    "run.profile.dump": "prof",
+                }
+                for name, folder in expected.items():
+                    plugin = app.repl.plugin_for(name)
+                    assert plugin is not None, f"/{name} is registered"
+                    assert plugin.files == folder, f"/{name} completes from {folder}/"
+
+        _run(scenario)
+
 
 class TestOutputBatching:
     """``_write_batch`` is the serial reader's path onto the screen."""

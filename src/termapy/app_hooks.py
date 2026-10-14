@@ -565,6 +565,7 @@ def register_tui_hooks(app) -> None:
                 )(),
                 source="app",
                 needs=CapabilitySet.GUI_APPS,
+                files=folder,
             )
         else:
             app.repl.register_hook(
@@ -574,6 +575,7 @@ def register_tui_hooks(app) -> None:
                 make_edit_handler(get_dir, ext, pat),
                 source="app",
                 needs=CapabilitySet.GUI_APPS,
+                files=folder,
             )
         # /edit.<folder>.list is the only branch where listing is useful
         # to the LLM -- it's a discovery tool, not an editor invocation.

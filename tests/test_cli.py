@@ -894,11 +894,43 @@ class TestHistory:
         from termapy.cli import _TermapyCompleter
 
         # Act
-        completer = _TermapyCompleter(cli.repl, cli.prefix, cli.config_path)
+        completer = _TermapyCompleter(cli.repl, cli.prefix)
 
         # Assert
         assert completer._prefix == "/", "prefix wired"
         assert completer._repl is cli.repl, "repl wired"
+
+
+class TestFileCompletion:
+    """The CLI's Tab completer reads ``Command.files``, not a table of its own."""
+
+    def test_proto_run_completes_from_proto(self, cli):
+        """/proto.run Tab-completes .pro names, so the completer is not wired to run/ alone."""
+        from prompt_toolkit.document import Document
+
+        from termapy.cli import _TermapyCompleter
+
+        # Arrange
+        proto_dir = Path(cli.config_path).parent / "proto"
+        (proto_dir / "alpha.pro").write_text("", encoding="utf-8")
+        (proto_dir / "beta.pro").write_text("", encoding="utf-8")
+        completer = _TermapyCompleter(cli.repl, cli.prefix)
+
+        # Act
+        completions = completer.get_completions(Document("/proto.run a"), None)
+        actual = [(completion.text, completion.start_position) for completion in completions]
+
+        # Assert
+        expected = [("alpha.pro", -1)]
+        assert actual == expected, "only the matching .pro, replacing the typed partial"
+
+    def test_profile_hooks_keep_their_declarations(self, cli):
+        """The CLI's re-registered /run.profile hooks still declare their folders."""
+        profile = cli.repl.plugin_for("run.profile")
+        dump = cli.repl.plugin_for("run.profile.dump")
+        assert profile is not None and dump is not None, "both hooks are registered"
+        assert profile.files == "run", "/run.profile completes run/ scripts"
+        assert dump.files == "prof", "/run.profile.dump completes prof/ results"
 
 
 # -- Hook registration ------------------------------------------------------

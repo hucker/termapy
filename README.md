@@ -916,7 +916,7 @@ Passing a `.run` file to `--cli` automatically infers the config from the file's
 
 - Rich colored output (toggle with `/term.color on|off` or `--no-color`)
 - Command history shared with TUI (up/down arrows, persisted across sessions)
-- Tab completion for REPL commands
+- Tab completion for REPL commands and for the file names they take (`/run`, `/proto.run`, `/cap.dump`, ...)
 - Script execution with `/run` (same scripts work in both TUI and CLI)
 - `/delay` with progress bar for waits of a second or longer (Ctrl+C to cancel)
 - All `/port`, `/cfg`, `/var`, `/env`, `/proto.crc`, `/edit` commands work

@@ -2383,6 +2383,7 @@ COMMAND = Command(
             long_help=_proto_folder_line,
             handler=_handler_run,
             needs=CapabilitySet.SERIAL_CONNECTED,
+            files="proto",
         ),
         "debug": Command(
             args="<file.pro>",
@@ -2390,6 +2391,7 @@ COMMAND = Command(
             long_help=_proto_folder_line,
             handler=_handler_debug,
             needs=CapabilitySet(tui_mode=True, serial_connected=True),
+            files="proto",
         ),
         "hex": Command(
             args="{on|off|toggle}",

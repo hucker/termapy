@@ -442,6 +442,7 @@ COMMAND = Command(
             ],
             help="Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).",
             handler=_handler_load,
+            files="sym",
         ),
         "unload": Command(
             help="Clear the loaded symbol table.",

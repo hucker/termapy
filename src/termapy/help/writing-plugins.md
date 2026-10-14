@@ -332,6 +332,23 @@ binds a repeatable positional to a list.  `ctx.arg(name)` returns the
 coerced value and `ctx.flag(name)` a declared `--flag`.  A `$(*NAME)`
 reference resolves to exactly one argument whatever it holds.
 
+## File arguments: `files=`
+
+When the first argument names a file in one of the config's data folders,
+declare the folder and the TUI and CLI complete the name as it is typed:
+
+```python
+COMMAND = Command(
+    name="replay",
+    args="<filename>",
+    help="Replay a capture.",
+    handler=_handler,
+    files="cap",    # a folders.FOLDERS name: run, proto, cap, ...
+)
+```
+
+An unknown folder name fails when the plugin loads.
+
 ## Setting commands: bare queries, never mutates
 
 A command that reads/writes an on/off flag or a multi-value option follows

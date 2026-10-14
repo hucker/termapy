@@ -39,6 +39,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Union
 
+from termapy.folders import FOLDER_NAMES
 from termapy.plugins.capabilities import CapabilitySet
 from termapy.plugins.params import (
     ParamSpec,
@@ -325,6 +326,10 @@ class Command:
             destructive command needs ``confirm=true`` exactly like a
             destructive profile entry; the TUI and CLI never gate (the
             human is at the keyboard).  Validated at construction.
+        files: The ``folders.FOLDERS`` folder (``"run"``, ``"proto"``,
+            ...) whose files the FIRST argument names, so frontends can
+            suggest them as the user types.  ``""`` (default) means the
+            first argument is not a data-folder file.  Validated at load.
     """
 
     help: str
@@ -340,6 +345,7 @@ class Command:
     hidden: bool = False
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
+    files: str = ""
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -584,6 +590,8 @@ class PluginInfo:
         needs: Environment capabilities the handler requires (inherited
             from ``Command.needs``).  See ``CapabilitySet``.
         safety: Safety tier inherited from ``Command.safety``.
+        files: Data folder the first argument's file lives in, inherited
+            from ``Command.files``; ``""`` when it names no data-folder file.
     """
 
     name: str
@@ -599,6 +607,7 @@ class PluginInfo:
     hidden: bool = False
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
+    files: str = ""
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.
@@ -616,6 +625,11 @@ class PluginInfo:
         if error:
             raise ValueError(
                 f"/{self.name}: invalid args synopsis {self.args!r}: {error}"
+            )
+        if self.files and self.files not in FOLDER_NAMES:
+            raise ValueError(
+                f"/{self.name}: unknown files folder {self.files!r} "
+                f"(use {', '.join(FOLDER_NAMES)})"
             )
 
 

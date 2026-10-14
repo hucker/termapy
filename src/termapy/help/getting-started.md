@@ -180,6 +180,7 @@ The bottom bar contains a text input for sending commands to the serial device.
 - **Up/Down** arrows cycle through previous commands (last 30 are kept per config).
 - **Escape** clears the input and exits history browsing.
 - As you type, ghost-text suggestions appear from REPL commands and device history; press **Right** to accept.
+  After a command that takes a file (`/run w`, `/proto.run m`, `/cap.dump t`), the suggestion is the newest matching file in that command's folder.
 - Prefix a command with `/` to run a local REPL command instead of sending it to the device.
 
 Type `/help` to see all available REPL commands. Several ways to find

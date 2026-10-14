@@ -1909,6 +1909,10 @@ class TestEditHooks:
                     # Assert
                     assert result.success, f"/{command}: {result.error}"
                     assert isinstance(app.screen, picker), f"bare /{command} opens {picker.__name__}"
+                    plugin = app.repl.plugin_for(command)
+                    assert plugin is not None and "picker" in plugin.help, (
+                        f"/{command}'s help says what a bare call does"
+                    )
                     app.pop_screen()
                     await pilot.pause()
 

@@ -966,16 +966,16 @@ AVAILABLE
 
 SUBCOMMANDS
   /proto.crc        Browse and compute CRC algorithms.
-  /proto.debug      Interactive protocol debug screen.
+  /proto.debug      Interactive protocol debug screen; bare opens the Proto picker.
   /proto.dump       Print the newest (or named) file from proto/ to the terminal.
-  /proto.edit       Open a .pro file in the system editor.
+  /proto.edit       Open a .pro file in the system editor; bare lists proto/.
   /proto.explore    Open proto/ in the system file explorer.
   /proto.help       Show /proto help.
   /proto.hex        Toggle hex display of incoming bytes (same flag as /term.hex).
   /proto.info       Print current protocol state.
   /proto.list       List files in proto/, newest first, with size and age.
   /proto.rename     Rename a file in proto/ (extension kept; never overwrites).
-  /proto.run        Run a protocol test script.
+  /proto.run        Run a protocol test script; in the TUI, bare opens the Proto picker.
   /proto.send       Send raw bytes (with optional CRC), show response.
   /proto.show       Open the newest file in proto/ with the system viewer.
   [171/219] /help proto (5.89ms)
@@ -988,7 +988,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
-  /plugin.edit       Open a .py file in the system editor.
+  /plugin.edit       Open a .py file in the system editor; bare lists plugin/.
   /plugin.explore    Open plugin/ in the system file explorer.
   /plugin.list       List files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
@@ -1106,7 +1106,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
-  /run.edit       Open a .run file in the system editor.
+  /run.edit       Open a .run file in the system editor; bare lists run/.
   /run.explore    Open run/ in the system file explorer.
   /run.help       Show /run help, or print a script's docstring.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).

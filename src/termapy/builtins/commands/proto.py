@@ -2169,6 +2169,26 @@ def _proto_folder_line(ctx: PluginContext) -> str:
     return folder_line(ctx, "proto", noun="script")
 
 
+def _proto_run_long_help(ctx: PluginContext) -> str:
+    """``/proto.run``: the script count, then what a name and a bare call do."""
+    return compose(
+        _proto_folder_line(ctx),
+        "Runs the named script from proto/; the .pro is optional.  Bare "
+        "opens the Proto picker in the TUI (the Proto button), whose Run "
+        "button runs the highlighted script; elsewhere bare is a usage error.",
+    )
+
+
+def _proto_debug_long_help(ctx: PluginContext) -> str:
+    """``/proto.debug``: the script count, then what a name and a bare call do."""
+    return compose(
+        _proto_folder_line(ctx),
+        "Opens the debug screen on the named TOML script from proto/; the "
+        ".pro is optional.  Bare opens the Proto picker (the Proto button), "
+        "whose Debug button opens this screen on the highlighted script.",
+    )
+
+
 def _proto_long_help(ctx: PluginContext) -> str:
     # The catalog size belongs to crcglot; the help text says "100+"
     # rather than an exact count so it never drifts from the upstream
@@ -2386,16 +2406,16 @@ COMMAND = Command(
         ),
         "run": Command(
             args="<file.pro>",
-            help="Run a protocol test script.",
-            long_help=_proto_folder_line,
+            help="Run a protocol test script; in the TUI, bare opens the Proto picker.",
+            long_help=_proto_run_long_help,
             handler=_handler_run,
             needs=CapabilitySet.SERIAL_CONNECTED,
             files="proto",
         ),
         "debug": Command(
             args="<file.pro>",
-            help="Interactive protocol debug screen.",
-            long_help=_proto_folder_line,
+            help="Interactive protocol debug screen; bare opens the Proto picker.",
+            long_help=_proto_debug_long_help,
             handler=_handler_debug,
             needs=CapabilitySet(tui_mode=True, serial_connected=True),
             files="proto",

@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Callable
 
 from termapy.config import cfg_log_path
 from termapy.folders import EXT_TO_FOLDER, FOLDERS, ensure_folder
-from termapy.help_dynamic import folder_line
+from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
@@ -176,12 +176,12 @@ def _folder_dir(folder: str) -> Callable[[PluginContext], Path]:
 _NOUNS = {"run": "script", "proto": "script"}
 
 
-def _folder_long_help(folder: str) -> Callable[[PluginContext], str]:
-    """Dynamic long_help: the live file count, so ``/help edit.run`` prints "42 scripts in run/"."""
+def _folder_long_help(folder: str, text: str = "") -> Callable[[PluginContext], str]:
+    """Dynamic long_help: the live file count ("42 scripts in run/"), then ``text``."""
     noun = _NOUNS.get(folder)
 
     def long_help(ctx: PluginContext) -> str:
-        return folder_line(ctx, folder, noun=noun)
+        return compose(folder_line(ctx, folder, noun=noun), text)
     return long_help
 
 
@@ -197,10 +197,16 @@ def edit_command(folder: str) -> Command:
         folder: A ``folders.FOLDERS`` name holding editable text files.
     """
     spec = next(spec for spec in FOLDERS if spec.name == folder)
+    text = (
+        f"With a name, opens that existing file from {folder}/ in the system "
+        f"editor (the {spec.ext} is optional); a missing name fails.  Bare "
+        f"lists {folder}/.  /{folder}.edit and /edit.{folder} are the same "
+        f"command."
+    )
     return Command(
         args="{filename}",
-        help=f"Open a {spec.ext} file in the system editor.",
-        long_help=_folder_long_help(folder),
+        help=f"Open a {spec.ext} file in the system editor; bare lists {folder}/.",
+        long_help=_folder_long_help(folder, text),
         handler=make_edit_handler(_folder_dir(folder), spec.ext, spec.pattern),
         needs=CapabilitySet.GUI_APPS,
         files=folder,
@@ -211,6 +217,10 @@ def edit_cfg_command() -> Command:
     """``/edit.cfg`` and its noun-first twin ``/cfg.edit``: open the current config."""
     return Command(
         help="Open the config file in the system editor.",
+        long_help=(
+            "Opens the loaded config's .cfg file in the system editor.  "
+            "/cfg.edit and /edit.cfg are the same command."
+        ),
         handler=_handler_cfg,
         needs=CapabilitySet.GUI_APPS,
     )
@@ -220,7 +230,7 @@ def _build_folder_sub(folder: str) -> Command:
     """``/edit.<folder>``: the shared edit leaf plus ``.list`` and ``.explore``."""
     spec = next(spec for spec in FOLDERS if spec.name == folder)
     get_dir = _folder_dir(folder)
-    long_help = _folder_long_help(folder)
+    long_help = _folder_long_help(folder)  # the subs: the count line alone
     return replace(
         edit_command(folder),
         sub_commands={

@@ -37,6 +37,7 @@ from termapy.config import open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
 from termapy.folders import default_file_name, ensure_folder
+from termapy.help_dynamic import compose, folder_line
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 from termapy.run_profile_hooks import register_run_profile_hooks
@@ -491,6 +492,10 @@ def register_tui_hooks(app) -> None:
             "Edit the current config file.",
             lambda ctx, args: _hook_edit_cfg(app),
             source="app",
+            long_help=(
+                "Opens the loaded config in termapy's config editor, as F10 "
+                "does.  /cfg.edit and /edit.cfg are the same command."
+            ),
             needs=CapabilitySet.GUI_APPS,
         )
     app.repl.register_hook(
@@ -549,16 +554,28 @@ def register_tui_hooks(app) -> None:
         # TUI uses Textual modals for run and proto edit, under both
         # spellings: /edit.run and its noun-first twin /run.edit.
         if folder in ("run", "proto"):
+            button = folder.capitalize()
+            text = (
+                f"With a name, opens that existing file from {folder}/ in "
+                f"termapy's editor (the {ext} is optional); a missing name "
+                f"fails.  Bare opens the {button} picker (the {button} "
+                f"button), whose Edit button opens the highlighted file.  "
+                f"/{folder}.edit and /edit.{folder} are the same command."
+            )
             for name in (f"edit.{folder}", f"{folder}.edit"):
                 app.repl.register_hook(
                     name,
                     "{filename}",
-                    f"Edit a {ext} file (bare: the {folder} picker).",
+                    f"Edit a {ext} file; bare opens the {button} picker.",
                     (
                         lambda f=folder, e=ext: lambda ctx,
                         args: _hook_edit_folder(app, ctx, args, f, e)
                     )(),
                     source="app",
+                    long_help=(
+                        lambda f=folder, t=text: lambda ctx:
+                        compose(folder_line(ctx, f, noun="script"), t)
+                    )(),
                     needs=CapabilitySet.GUI_APPS,
                     files=folder,
                 )

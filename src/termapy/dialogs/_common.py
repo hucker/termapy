@@ -10,6 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from rich.text import Text
+from textual import events
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
@@ -21,73 +22,128 @@ _MODAL_BTN_CSS = """
     border: none; margin: 0 0 0 1;
 """
 
-# Width of the three file pickers (script / proto / config).  Wide enough
-# for ``name  size  age`` plus a trailing detail column that, for configs,
-# holds a macOS-length port (``/dev/cu.usbserial-A50285BI @ 115200``) AND
-# the config's title; ``max-width`` in the picker CSS keeps it inside a
-# narrow terminal, where the detail column simply truncates harder.
+# Narrowest width of the three file pickers (script / proto / config).
+# Wide enough for ``name  size  age`` plus a trailing detail column that,
+# for configs, holds a macOS-length port (``/dev/cu.usbserial-A50285BI @
+# 115200``) AND the config's title.  A picker grows past it to show its
+# widest row whole (FileOptionList.dialog_width); ``max-width`` in the
+# picker CSS keeps it inside the terminal, where the rows truncate instead.
 _FILE_PICKER_WIDTH = 104
-# Columns a row may use inside that dialog: border 2 + padding 4 + list's
-# thick border 2 + a scrollbar 2.
-_FILE_PICKER_ROW_WIDTH = _FILE_PICKER_WIDTH - 10
+# Columns the dialog spends around a row: its border 2 + padding 4 + the
+# list's thick border 2 + OptionList's own ``padding: 0 1`` 2 + a scrollbar 2.
+# (Until 2026-10-13 this was 10, without the list padding, so a row built to
+# fill the dialog wrapped even in a wide terminal.)
+_FILE_PICKER_CHROME = 12
+# What a row may use before layout has measured the list.
+_FILE_PICKER_ROW_WIDTH = _FILE_PICKER_WIDTH - _FILE_PICKER_CHROME
 _ELLIPSIS = "..."
 
 
-def _populate_file_option_list(
-    ol: OptionList,
-    files: list[Path],
-    *,
-    detail: Callable[[Path], str] | None = None,
-    detail_header: str = "",
-    label: Callable[[Path, str], str] | None = None,
-    row_width: int = _FILE_PICKER_ROW_WIDTH,
-) -> int:
-    """Fill an OptionList with a header row and one ``name  size  age  detail`` row per file.
+class FileOptionList(OptionList):
+    """A file picker's list: a header and one ``name  size  age  detail`` row per file.
 
     Shared by the script, proto, and config pickers so a file looks the
     same wherever it is picked.  ``files`` should already be in display
     order (the pickers pass ``folder_ops.list_entries``, newest first).
     The name is plain; size, age, and the optional detail are ``dim`` so
-    the eye lands on the name and reads the rest on demand.  A detail
-    that would overflow ``row_width`` is truncated with an ellipsis.
+    the eye lands on the name and reads the rest on demand.
+
+    Fitting is two steps.  A picker sizes its dialog to ``dialog_width()``,
+    wide enough to show every row whole, so a long summary widens the
+    dialog rather than being cut.  The CSS caps the dialog at the terminal
+    (``max-width: 100%``), so in a narrower terminal the room a row has is
+    known only after layout: every resize rebuilds the rows to the measured
+    width, truncating the detail with an ellipsis (dropping it when not
+    even that fits), and keeps the highlighted row.
 
     OptionList has no header concept, so the header is a DISABLED first
     option (the port picker does the same): it renders, the cursor skips
     it, and it can never be selected.  Its cells use the same widths as
     the rows.  No header when there are no files.
-
-    Args:
-        ol: The list to fill.
-        files: Files in display order.
-        detail: Optional per-file trailing text (a docstring summary, a
-            config's port).  Called once per file.
-        detail_header: Header text for the detail column.
-        label: Optional ``(path, padded_name) -> str`` override for the
-            name column (the config picker shows the stem).
-
-    Returns:
-        The index of the first FILE option (past the header) -- what the
-        caller should highlight, offset for any index it computed over
-        ``files``.
     """
-    rows = file_columns(files)
-    if not rows:
-        return 0
-    header = Text(format_file_header(rows, detail_header), style="bold")
-    ol.add_option(Option(header, disabled=True))
-    for path, row in zip(files, rows, strict=True):
-        name = label(path, row.name) if label else row.name
-        text = Text(name)
-        text.append(f"  {row.size}  {row.age}", style="dim")
-        extra = detail(path) if detail else ""
-        if extra:
-            room = row_width - text.cell_len - 2
-            if room > len(_ELLIPSIS):
+
+    def __init__(
+        self,
+        files: list[Path],
+        *,
+        detail: Callable[[Path], str] | None = None,
+        detail_header: str = "",
+        label: Callable[[Path, str], str] | None = None,
+        id: str | None = None,
+    ) -> None:
+        """Build the list and fill it at the pre-layout width.
+
+        Args:
+            files: Files in display order.
+            detail: Optional per-file trailing text (a docstring summary,
+                a config's port).  Called once per file, here, not on
+                every resize.
+            detail_header: Header text for the detail column.
+            label: Optional ``(path, padded_name) -> str`` override for the
+                name column (the config picker shows the stem).
+            id: Widget id.
+        """
+        super().__init__(id=id)
+        rows = file_columns(files)
+        self._header = format_file_header(rows, detail_header) if rows else ""
+        # (path, name and size/age cells, detail), computed once: a resize
+        # only re-truncates the detail.
+        self._rows = [
+            (
+                path,
+                Text.assemble(
+                    label(path, row.name) if label else row.name,
+                    (f"  {row.size}  {row.age}", "dim"),
+                ),
+                detail(path) if detail else "",
+            )
+            for path, row in zip(files, rows, strict=True)
+        ]
+        self._row_width = _FILE_PICKER_ROW_WIDTH
+        #: Index of the first FILE option (past the header) -- what a picker
+        #: highlights, offset by any index it computed over ``files``.
+        self.first_file = 1 if files else 0
+        self._fill()
+
+    def dialog_width(self) -> int:
+        """The picker width that shows every row whole, never below ``_FILE_PICKER_WIDTH``.
+
+        The picker's CSS ``max-width`` caps it at the terminal; past that
+        point the rows truncate on resize.
+        """
+        widest = max(
+            [len(self._header)]
+            + [base.cell_len + (len(extra) + 2 if extra else 0) for _, base, extra in self._rows]
+        )
+        return max(_FILE_PICKER_WIDTH, widest + _FILE_PICKER_CHROME)
+
+    def _fill(self) -> None:
+        """Add the header and the file rows at ``self._row_width``."""
+        if not self._rows:
+            return
+        self.add_option(Option(Text(self._header, style="bold"), disabled=True))
+        for path, base, extra in self._rows:
+            text = base.copy()
+            room = self._row_width - text.cell_len - 2
+            if extra and room > len(_ELLIPSIS):
                 if len(extra) > room:
                     extra = extra[: room - len(_ELLIPSIS)] + _ELLIPSIS
                 text.append(f"  {extra}", style="dim")
-        ol.add_option(Option(text, id=str(path)))
-    return 1
+            self.add_option(Option(text, id=str(path)))
+
+    def on_resize(self, _event: events.Resize) -> None:
+        """Rebuild the rows to the width layout gave the list."""
+        # content_size includes the vertical scrollbar's gutter; reserve it
+        # whether or not the scrollbar shows, so the row count growing past
+        # the height never tips a row into wrapping.
+        width = self.content_size.width - self.styles.scrollbar_size_vertical
+        if width <= 0 or width == self._row_width:
+            return
+        self._row_width = width
+        highlighted = self.highlighted
+        self.clear_options()
+        self._fill()
+        self.highlighted = highlighted
 
 
 def _highlighted_file(ol: OptionList) -> str | None:

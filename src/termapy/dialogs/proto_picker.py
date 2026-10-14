@@ -19,8 +19,8 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    FileOptionList,
     _highlighted_file,
-    _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
 
@@ -82,12 +82,12 @@ class ProtoPicker(ModalScreen[tuple | None]):
         from textual.widgets import Static
 
         protos = list_entries(self.proto_dir, "*.pro")  # newest first
-        with Vertical(id="proto-dialog"):
+        with Vertical(id="proto-dialog") as dialog:
             yield Static("Select Protocol Script", id="proto-title")
-            ol = OptionList(id="proto-list")
-            first = _populate_file_option_list(ol, protos)
+            ol = FileOptionList(protos, id="proto-list")
             if protos:
-                ol.highlighted = first
+                ol.highlighted = ol.first_file
+            dialog.styles.width = ol.dialog_width()
             yield ol
             has_protos = bool(protos)
             with Horizontal(id="proto-buttons"):

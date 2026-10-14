@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 from termapy.builtins.commands.log import dump_text_slice
 from termapy.config import open_with_system
 from termapy.mcp.catalog import build_catalog, catalog_json
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, escape_markup
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -164,10 +164,10 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output_markup(line)
     # Discoverability hint: many users will reach for /mcp.info first when
     # learning the MCP surface; point them at the human-readable view.
-    prefix = ctx.prefix
+    prefix_markup = escape_markup(ctx.prefix)
     ctx.io.output_markup(
-        f"  [dim](Use {prefix}help --mcp for the human-readable command "
-        f"list, {prefix}mcp.catalog for raw JSON.)[/]"
+        f"  [dim](Use {prefix_markup}help --mcp for the human-readable command "
+        f"list, {prefix_markup}mcp.catalog for raw JSON.)[/]"
     )
     return CmdResult.ok(value=str(cmd_count))
 

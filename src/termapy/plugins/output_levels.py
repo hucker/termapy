@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from termapy.markup import escape_markup
+
 #: Canonical level names, ordered from quietest to loudest.
 OUTPUT_LEVELS: tuple[str, ...] = ("silent", "quiet", "normal", "verbose")
 
@@ -53,44 +55,46 @@ def parse_output_level(s: str) -> str | None:
 #   - Two-space indent.
 #   - Cyan label, padded to the widest in the set.
 #   - Colon + single space between label and value.
-#   - Optional per-row color baked into the value via Rich markup.
+#   - Optional per-row value color, named as a third row element.
 #
 # Adding a new info command?  Build ``[(label, value), ...]``, call
-# ``format_kv_lines()``, write each line via ``ctx.io._write_markup()``.  Don't
+# ``format_kv_lines()``, write each line via ``ctx.io.output_markup()``.  Don't
 # roll your own padding -- consistency across info commands matters.
 
 
 def format_kv_lines(
-    rows: Sequence[tuple[str, str]],
+    rows: Sequence[tuple[str, str] | tuple[str, str, str]],
     indent: str = "  ",
     label_color: str = "cyan",
 ) -> "list[str]":
-    """Render a list of ``(label, value)`` pairs as cyan-key markup lines.
+    """Render ``(label, value)`` rows as cyan-key markup lines.
 
     Pads labels to the widest in the set and adds a colon-space
-    separator between label and value.  Returns a list of markup
-    strings ready to pass to ``ctx.io._write_markup()``.
-
-    Per-row coloring of the *value* is the caller's responsibility:
-    embed Rich markup directly in the value string (e.g.
-    ``"[yellow]warning[/]"``) and it'll render on top of the cyan
-    label.  The label itself is always rendered in ``label_color``
-    (default cyan) for consistency.
+    separator between label and value.  Labels and values are text:
+    both are escaped, so a value holding ``[ok]`` or a path ending in a
+    backslash renders as itself (registry ``markup-escape``).  A row
+    that wants its value colored names the color as a third element,
+    ``("Permissions", "denied", "red")``; the label is always
+    ``label_color``.
 
     Args:
-        rows: Sequence of ``(label, value)`` tuples.
+        rows: ``(label, value)`` or ``(label, value, color)`` tuples.
         indent: String prefix on each line (default two spaces).
         label_color: Rich color name for the label (default
             ``"cyan"``).
 
     Returns:
-        A list of pre-formatted markup strings, one per row.  Empty
-        list if ``rows`` is empty.
+        A list of markup strings for ``ctx.io.output_markup()``, one per
+        row.  Empty list if ``rows`` is empty.
     """
     if not rows:
         return []
-    width = max(len(label) for label, _ in rows)
-    return [
-        f"{indent}[{label_color}]{label:<{width}}[/]: {value}"
-        for label, value in rows
-    ]
+    width = max(len(row[0]) for row in rows)
+    lines: list[str] = []
+    for label, value, *color in rows:
+        label_markup = escape_markup(f"{label:<{width}}")
+        value_markup = escape_markup(value)
+        if color:
+            value_markup = f"[{color[0]}]{value_markup}[/]"
+        lines.append(indent + f"[{label_color}]{label_markup}[/]: {value_markup}")
+    return lines

@@ -13,7 +13,7 @@ from crcglot import DetectResult, detect
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.protocol import (
     CRC_CATALOGUE,
     ProtoScript,
@@ -614,12 +614,15 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
                         hex_str = format_hex(s)
                         smart_str = format_smart(s)
                         if hex_str == smart_str:
-                            parts.append(f"[cyan]{hex_str}[/]")
+                            parts.append(f"[cyan]{escape_markup(hex_str)}[/]")
                         else:
-                            parts.append(f"[cyan]{hex_str}[/]  [dim]{smart_str}[/]")
+                            parts.append(
+                                f"[cyan]{escape_markup(hex_str)}[/]  [dim]{escape_markup(smart_str)}[/]"
+                            )
                     else:
-                        parts.append(f"[dim][~{format_duration(s)}][/]")
-                ctx.io.output_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
+                        parts.append(f"[dim][~{escape_markup(format_duration(s))}][/]")
+                segments_markup = " ".join(parts)
+                ctx.io.output_markup(f"  [cyan]TX:[/] {segments_markup}")
             else:
                 _display_bytes(ctx, "TX", all_data, as_text=ascii_view)
 
@@ -1486,12 +1489,12 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         banner_c = f"/* ====== {fname}.c ====== */"
         combined = "\n".join([banner_h, header, "", banner_c, source])
         for line in combined.split("\n"):
-            ctx.io.output_markup(f"  [green]{line}[/]")
+            ctx.io.output_markup(f"  [green]{escape_markup(line)}[/]")
         return CmdResult.ok(value=combined)
 
     code = result
     for line in code.split("\n"):
-        ctx.io.output_markup(f"  [green]{line}[/]")
+        ctx.io.output_markup(f"  [green]{escape_markup(line)}[/]")
     # Return the generated source so scripts can write it to disk.
     return CmdResult.ok(value=code)
 
@@ -1766,13 +1769,13 @@ def _handler_crc_verify(ctx: PluginContext, args: str) -> CmdResult:
     hex_w = width_bytes * 2
     if result.valid:
         ctx.io.result_markup(
-            f"  [green]OK[/]  {name}  endian={endianness}  "
-            f"crc=0x{result.actual:0{hex_w}X}  ({len(packet) - width_bytes} "
+            f"  [green]OK[/]  {escape_markup(f'{name}  endian={endianness}')}  "
+            f"crc=0x{result.actual:0{hex_w}X}  ({len(packet) - width_bytes:d} "
             f"data bytes)"
         )
         return CmdResult.ok(value="ok")
     ctx.io.result_markup(
-        f"  [red]MISMATCH[/]  {name}  endian={endianness}  "
+        f"  [red]MISMATCH[/]  {escape_markup(f'{name}  endian={endianness}')}  "
         f"expected=0x{result.expected:0{hex_w}X}  "
         f"actual=0x{result.actual:0{hex_w}X}"
     )
@@ -1929,11 +1932,12 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
     # identically (same poly/refin/refout); the note below explains the class.
     for cand in result.candidates:
         word = (cand.width + 3) // 4
+        reflect_markup = escape_markup(f"refin={cand.refin}  refout={cand.refout}")
         ctx.io.result_markup(
-            f"  [green]{result.status}[/]  "
-            f"width={cand.width}  poly=0x{cand.poly:0{word}X}  "
-            f"init=0x{cand.init:0{word}X}  refin={cand.refin}  refout={cand.refout}  "
-            f"xorout=0x{cand.xorout:0{word}X}{catalog_str}"
+            f"  [green]{escape_markup(result.status)}[/]  "
+            f"width={cand.width:d}  poly=0x{cand.poly:0{word}X}  "
+            f"init=0x{cand.init:0{word}X}  {reflect_markup}  "
+            f"xorout=0x{cand.xorout:0{word}X}{escape_markup(catalog_str)}"
         )
     if result.note:
         ctx.io.output(f"  {result.note}")
@@ -2027,8 +2031,8 @@ def _render_detect_result(
                 if top.truncated_to else ""
             )
             ctx.io.result_markup(
-                f"  [yellow]No CRC match. Looks like {trunc}{top.info.label}[/]"
-                f"  ({top.info.kind}, width={top.info.width})"
+                f"  [yellow]No CRC match. Looks like {escape_markup(trunc + top.info.label)}[/]"
+                f"  ({escape_markup(f'{top.info.kind}, width={top.info.width}')})"
             )
             ctx.io.output(f"  {top.info.description}")
             if len(trailer_hint.candidates) > 1:
@@ -2073,11 +2077,8 @@ def _render_detect_result(
             and hasattr(padding.info, "name")
             else ""
         )
-        ctx.io.result_markup(
-            f"  [cyan]{m.algorithm}[/]  "
-            f"width={width_bits}  field=last{width_bytes}"
-            f"{endian_str}{form_str}  data={data_len} {unit}"
-        )
+        fields = f"width={width_bits}  field=last{width_bytes}{endian_str}{form_str}  data={data_len} {unit}"
+        ctx.io.result_markup(f"  [cyan]{escape_markup(m.algorithm)}[/]  {escape_markup(fields)}")
         if form_str and padding is not None:
             ctx.io.output(
                 f"  Wrapper: {padding.info.label}; "

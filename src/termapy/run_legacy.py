@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import folder_line
 from termapy.legacy import LEGACY_COMMANDS, LEGACY_REWRITES
+from termapy.markup import escape_markup
 from termapy.plugins import CmdResult, UsageError
 
 if TYPE_CHECKING:
@@ -141,8 +142,8 @@ def _scan_one_file(
         ctx.io._write(f"  {path.name}: rewrote {len(hits)} line(s).", "green")
         for lineno, old, new, _original in hits:
             ctx.io._write_markup(
-                f"    line {lineno}: [yellow]{prefix}{old}[/] -> "
-                f"[green]{prefix}{new}[/]"
+                f"    line {lineno:d}: [yellow]{escape_markup(prefix + old)}[/] -> "
+                f"[green]{escape_markup(prefix + new)}[/]"
             )
         return len(hits)
 
@@ -153,8 +154,8 @@ def _scan_one_file(
     )
     for lineno, old, new, original in hits:
         ctx.io._write_markup(
-            f"    line {lineno}: [yellow]{prefix}{old}[/] -> "
-            f"[green]{prefix}{new}[/]"
+            f"    line {lineno:d}: [yellow]{escape_markup(prefix + old)}[/] -> "
+            f"[green]{escape_markup(prefix + new)}[/]"
         )
         ctx.io._write(f"      {original}", "dim")
     return len(hits)

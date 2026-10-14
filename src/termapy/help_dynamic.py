@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from termapy.folders import FOLDER_PATTERNS
+from termapy.markup import escape_markup
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext  # noqa: F401 -- referenced in docstrings
@@ -46,8 +47,19 @@ STATE_COLOR = "green"
 
 
 def green(text: str) -> str:
-    """Wrap ``text`` in Rich green markup."""
-    return f"[{STATE_COLOR}]{text}[/]"
+    """Wrap ``text`` in Rich green markup, escaped.
+
+    A whole line in this shape is the one markup a ``long_help`` may
+    carry: ``/help`` escapes every other line as prose and passes this
+    one through (``is_state_line``), so a port or cfg name holding
+    brackets still renders as itself.
+    """
+    return f"[{STATE_COLOR}]{escape_markup(text)}[/]"
+
+
+def is_state_line(line: str) -> bool:
+    """True for a whole line ``green`` built: ``/help`` renders it as markup."""
+    return line.startswith(f"[{STATE_COLOR}]") and line.endswith("[/]")
 
 
 def state_line(label: str, value: Any) -> str:

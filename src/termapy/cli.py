@@ -33,6 +33,7 @@ from termapy.config import (
 )
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
 from termapy.defaults import cmd_prefix
+from termapy.markup import escape_markup
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
 from termapy.scripting import (
@@ -281,17 +282,15 @@ class CLITerminal(TerminalHost):
     def write(self, text: str, color: str = "") -> None:
         """Write text to stdout via Rich console.
 
-        When ``color`` is given, ``text`` is treated as plain content
-        and any literal ``[...]`` inside it is escaped so it doesn't
-        collide with the wrapper.  Callers that want true Rich markup
+        ``text`` is plain content either way: escaped inside the color
+        wrapper, printed with ``markup=False`` without one, so a literal
+        ``[...]`` in it always shows.  Callers that want true Rich markup
         should use ``write_markup`` instead.
         """
         if color:
-            from rich.markup import escape
-
-            self.console.print(f"[{color}]{escape(text)}[/]")
+            self.console.print(f"[{color}]{escape_markup(text)}[/]")
         else:
-            self.console.print(text)
+            self.console.print(text, markup=False)
 
     def write_markup(self, text: str) -> None:
         """Write Rich markup text to stdout."""
@@ -306,18 +305,16 @@ class CLITerminal(TerminalHost):
         continuation, or a ``/cfg.dump`` block -- stays aligned instead
         of leaving continuation lines flush-left at column 0.
 
-        When ``color`` is given, ``text`` is treated as plain content
-        and escaped before the wrapper (see ``write``).  Avoids a
-        cascade failure when an error message contains literal
-        ``[/]`` (e.g. a Rich MarkupError repeated as ``err_msg``).
+        ``text`` is plain content, escaped or printed without markup as
+        in ``write``.  Avoids a cascade failure when an error message
+        contains literal ``[/]`` (e.g. a Rich MarkupError repeated as
+        ``err_msg``).
         """
         indented = textwrap.indent(text, "  ")
         if color:
-            from rich.markup import escape
-
-            self.console.print(f"[{color}]{escape(indented)}[/]")
+            self.console.print(f"[{color}]{escape_markup(indented)}[/]")
         else:
-            self.console.print(indented)
+            self.console.print(indented, markup=False)
 
     def _raw(self, text: str, end: str = "\n") -> None:
         """Write raw text to stdout, bypassing Rich markup."""

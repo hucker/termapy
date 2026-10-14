@@ -956,7 +956,7 @@ DESCRIPTION
     /proto.crc.info crc16-modbus - show parameters for Modbus CRC
     /proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
   
-  Script files (.pro) support TOML format with [] sections
+  Script files (.pro) support TOML format with [[test]] sections
   or flat format with send:/expect: directives. Scripts are found
   in the proto/ subfolder of your config directory.
 

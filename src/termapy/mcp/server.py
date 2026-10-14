@@ -39,6 +39,7 @@ from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import open_serial
 from termapy.folder_ops import file_record
 from termapy.folders import PROFILE_SUFFIX
+from termapy.markup import markup_to_plain
 from termapy.mcp.catalog import (
     catalog_json,
     device_state_json,
@@ -70,7 +71,8 @@ _INSTALL_HINT = (
 
 
 # A list-of-dicts collected during one run_command invocation.  Each
-# entry: {"level": "text"|"markup", "text": str, "color": str}.
+# entry: {"level": "text"|"markup", "text": str, "color": str}; a markup
+# entry's text is flattened to what a terminal shows (see write_markup).
 _buffer: contextvars.ContextVar[list[dict[str, Any]] | None] = (
     contextvars.ContextVar("termapy_mcp_buffer", default=None)
 )
@@ -277,11 +279,18 @@ class MCPHost(TerminalHost):
         self._log_line(f"  {text}")
 
     def write_markup(self, text: str) -> None:
-        """Capture rich-markup output as a separate entry kind."""
+        """Capture markup output as a separate entry kind, flattened to its text.
+
+        Rich tags are terminal display syntax: the agent gets the text a
+        terminal shows (``PORT = [ok]``), never ``[cyan]PORT[/]`` or the
+        escapes that keep ``[ok]`` literal -- the same flattening as the
+        ``--json`` envelope's ``output_lines``.
+        """
+        plain = markup_to_plain(text)
         buf = _buffer.get()
         if buf is not None:
-            buf.append({"level": "markup", "text": text, "color": ""})
-        self._log_line(f"  {text}")
+            buf.append({"level": "markup", "text": plain, "color": ""})
+        self._log_line(f"  {plain}")
 
     def status(self, text: str, color: str = "") -> None:
         """Status message: same buffer sink as write, indented in the log."""

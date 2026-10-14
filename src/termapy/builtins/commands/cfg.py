@@ -24,7 +24,7 @@ from termapy.config import (
 )
 from termapy.folders import FOLDERS, INFO_REPORT_SUFFIX
 from termapy.help_dynamic import cfg_status, compose
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import coerce_to_type
 
@@ -335,7 +335,7 @@ def _build_tree(
     for fname in global_names or []:
         name_width = max(name_width, len(fname))
 
-    color_lines = [f"[cyan]{abs_root}[/]"] + FileTree(
+    color_lines = [f"[cyan]{escape_markup(abs_root)}[/]"] + FileTree(
         entries, base_dir=data_dir, color=True,
     ).render()
     plain_lines = [abs_root] + FileTree(

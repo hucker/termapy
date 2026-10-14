@@ -97,7 +97,7 @@ class ScriptEditor(ModalScreen[str | None]):
             title = "New Script"
 
         with Vertical(id="sed-dialog"):
-            yield Static(title, id="sed-title")
+            yield Static(title, id="sed-title", markup=False)
             yield TextArea(
                 content,
                 language="bash",
@@ -115,7 +115,7 @@ class ScriptEditor(ModalScreen[str | None]):
                     placeholder="new filename (without .run)",
                     id="sed-save-as-input",
                 )
-            yield Static("", id="sed-error")
+            yield Static("", id="sed-error", markup=False)
             with Horizontal(id="sed-buttons"):
                 yield Button("Save", id="sed-save", variant="success")
                 yield Button("Save As", id="sed-save-as", variant="primary")

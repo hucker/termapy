@@ -425,7 +425,7 @@ from termapy.help_dynamic import (
     cfg_status,   # "Active cfg = demo (2 configs available)"
     ns_count,     # len(ctx.ns(name)), guards a missing ns
     compose,      # join non-empty parts with a blank line between
-    green,        # wrap any text in green markup
+    green,        # any text as a green state line, escaped
 )
 
 def _long_help(ctx):
@@ -573,6 +573,21 @@ plain methods for unstructured text (with optional color) and the
 | `ctx.io.status_bar(text)` | always | Status-bar update (auto-no-op in CLI/MCP). |
 | `ctx.io.clear_screen()` | always | Screen clear (auto-no-op outside TUI). |
 | `ctx.io.log(prefix, text)` | always | Session log (`">"` TX, `"<"` RX, `"#"` status). |
+
+**Text inside markup is escaped.**  Rich reads `[word]` as a style tag
+and drops one it doesn't know without an error, so a device reply like
+`[ok]` disappears from the line.  Pass every value you put into a
+`_markup` string through `escape_markup`; text with no markup of its own
+belongs on the plain channels, which never parse it:
+
+```python
+from termapy.plugins import escape_markup
+
+ctx.io.output_markup(f"  [cyan]{escape_markup(name)}[/] = {escape_markup(value)}")
+ctx.io.output(f"  {name} = {value}")  # no markup, nothing to escape
+```
+
+`format_kv_lines` escapes its rows for you.
 
 **Errors** flow through `return CmdResult.fail(msg=...)` -- the dispatcher
 paints the red error line.  Do not write red error text via the output

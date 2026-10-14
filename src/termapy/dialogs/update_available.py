@@ -63,7 +63,7 @@ class UpdateAvailableDialog(ModalScreen[str]):
         body = f"Installed:  {self.current}\nLatest:     {self.latest}"
         with Vertical(id="update-dialog"):
             yield Static("Update Available", id="update-title")
-            yield Static(body, id="update-body")
+            yield Static(body, id="update-body", markup=False)
             with Horizontal(id="update-buttons"):
                 yield Button("Info", id="update-info", variant="warning")
                 yield Button("OK", id="update-ok", variant="primary")

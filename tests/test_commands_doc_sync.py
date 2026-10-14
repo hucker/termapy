@@ -27,11 +27,6 @@ _COMMANDS_MD = Path(__file__).parent.parent / "src" / "termapy" / "help" / "comm
 # (so `/term.*` in prose yields nothing, not "term.").
 _CMD_RE = re.compile(r"`/([a-z0-9_]+(?:\.[a-z0-9_]+)*)")
 
-# Commands registered ONLY by the Textual TUI host (not by the CLI host this
-# test builds), so they can't be seen via the CLI registry but are real and
-# fine to document.  Keep this list tiny and specific.
-_TUI_ONLY = {"proto.load"}
-
 
 def _documented_commands() -> set[str]:
     """Every `/command` name in the FIRST (Command) column of the table.
@@ -70,7 +65,7 @@ def test_every_documented_command_exists():
     """No commands.md table row names a command that no host registers or aliases."""
     # Arrange -- known real commands are builtins + CLI/TUI hooks; legacy
     # aliases (/echo -> /term.echo) are valid to document too.
-    known = _registered_commands() | set(LEGACY_COMMANDS) | _TUI_ONLY
+    known = _registered_commands() | set(LEGACY_COMMANDS)
 
     # Act -- commands in the doc that no host registers and aren't aliases
     documented = _documented_commands()

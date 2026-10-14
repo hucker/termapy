@@ -154,6 +154,27 @@ class TestCustomButtons:
 
         _run(scenario)
 
+    def test_a_bracketed_name_and_tooltip_render_as_typed(self, app_factory):
+        """widget-text-literal: a button named [Rec] shows [Rec]; as markup it was an empty box (2026-05-22)."""
+        async def scenario():
+            from textual.widgets import Button
+
+            # Arrange
+            buttons = [{"enabled": True, "name": "[Rec]", "tooltip": "[ok] go", "command": "/print a"}]
+            app, _, _ = app_factory(custom_buttons=buttons)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                button = app.query_one(".custom-btn", Button)
+
+                # Act
+                label = str(button.label)
+                tooltip = str(button.tooltip)
+
+                # Assert
+                assert (label, tooltip) == ("[Rec]", "[ok] go"), "cfg text reaches the button as written"
+
+        _run(scenario)
+
 
 class TestSwitchConfig:
     """``_switch_config`` is pure orchestration -- 36 lines of self.* wiring.
@@ -654,6 +675,44 @@ class TestFindBar:
                 assert "2" in text and "3" in text, (
                     f"status shows current/total, got {text!r}"
                 )
+
+        _run(scenario)
+
+    def test_a_character_class_pattern_shows_as_typed(self, app_factory):
+        """widget-text-literal: the status shows the regex [a-z]+x; as markup the class was a tag and vanished."""
+        async def scenario():
+            from textual.widgets import Label
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- a zero-match find echoes its pattern
+                app._update_find_bar(self._state(pattern="[a-z]+x", total=0, matches=[], index=-1))
+                await pilot.pause()
+
+                # Assert
+                actual = str(app.query_one("#find-status", Label).render())
+                assert "'[a-z]+x'" in actual, f"the pattern is shown as typed, got {actual!r}"
+
+        _run(scenario)
+
+    def test_the_frozen_view_keeps_bracketed_text_on_unmatched_lines(self, app_factory):
+        """markup-escape: an unmatched scrollback line reaches the frozen view as Text, so [ok] survives."""
+        async def scenario():
+            from textual.widgets import RichLog
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- line 1 holds the brackets and is not the match
+                app._update_find_bar(self._state(
+                    scrollback_text="[ok] boot done\nbeta line", matches=[(2, "beta line")], line_no=2,
+                ))
+                await pilot.pause()
+
+                # Assert
+                shown = [strip.text.rstrip() for strip in app.query_one("#output-find", RichLog).lines]
+                assert "[ok] boot done" in shown, f"the unmatched line is shown as written, got {shown!r}"
 
         _run(scenario)
 
@@ -1166,6 +1225,63 @@ class TestMarshalling:
                 from textual.widgets import RichLog
                 assert app.query_one("#output", RichLog).display is True, (
                     "a None state hides the frozen view and restores #output"
+                )
+
+        _run(scenario)
+
+
+class TestSessionLog:
+    """The session log is the transcript: every channel a command writes lands in it once."""
+
+    def test_markup_output_is_logged_as_text_and_its_echo_is_not(self, app_factory):
+        """A command's markup output reaches the log as rendered text under #; its echo stays out (the > line has it)."""
+        from termapy.variables import unset_user_var
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                app.repl.ctx.ns("flags")["echo_repl"] = True
+                command = "/var.set MARKUP_TAG [ok] boot"
+
+                # Act -- off the main thread, as every typed command runs
+                done = threading.Event()
+                threading.Thread(
+                    target=lambda: (app._dispatch_single(command), done.set()), daemon=True,
+                ).start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while not done.is_set() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await pilot.pause()
+
+                # Assert
+                log = Path(app._log_path()).read_text(encoding="utf-8")
+                assert "#   $(MARKUP_TAG) = [ok] boot" in log, f"markup output logged as its text:\n{log}"
+                assert log.count(command) == 1, f"the command is logged once, as its > line:\n{log}"
+
+        try:
+            _run(scenario)
+        finally:
+            unset_user_var("MARKUP_TAG")  # user variables are process-global
+
+    def test_multi_line_output_logs_every_line_with_its_prefix(self, app_factory):
+        """A multi-line message, plain or markup, is one # entry per line; a blank line stays one empty entry."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- on the main thread, where both helpers log
+                app._status("plain one\nplain two")
+                app._write_output_markup("[cyan]tree[/]\n├── leaf", log=True)
+                app._write_output_markup("", log=True)
+                await pilot.pause()
+
+                # Assert
+                lines = Path(app._log_path()).read_text(encoding="utf-8").splitlines()
+                logged = [line.split("] ", 1)[1] for line in lines[-5:]]
+                assert logged == ["# plain one", "# plain two", "# tree", "# ├── leaf", "# "], (
+                    f"every line carries the prefix, markup flattened:\n{lines[-5:]}"
                 )
 
         _run(scenario)

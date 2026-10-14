@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, folder_line
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.plugins.params import EnumValue, ParamSpec
 from termapy.protocol import get_crc_registry, parse_format_spec
 from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename
@@ -652,11 +652,11 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     # bytes (\\r, \\n, \\x00, \\x1b) are visible.
     ctx.io.output_markup(
         f"  [yellow]TX ({len(tx):3d}):[/] "
-        f"{bytes(tx).hex(' ').upper()}  [dim]{tx_decoded!r}[/]",
+        f"{escape_markup(bytes(tx).hex(' ').upper())}  [dim]{escape_markup(repr(tx_decoded))}[/]",
     )
     ctx.io.output_markup(
         f"  [cyan]RX ({len(rx):3d}):[/] "
-        f"{bytes(rx).hex(' ').upper()}  [dim]{rx_decoded!r}[/]",
+        f"{escape_markup(bytes(rx).hex(' ').upper())}  [dim]{escape_markup(repr(rx_decoded))}[/]",
     )
 
     return CmdResult.ok(value={

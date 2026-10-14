@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from typing import Callable
 
+from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -294,7 +295,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
                     # configs exist one is selected: "a folder is selected"
                     # is the same condition Load uses.
                     explore_btn = Button(
-                        self._manager,
+                        Text(self._manager),
                         id="picker-explore",
                         disabled=not has_configs or not self.gui_apps,
                     )

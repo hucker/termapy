@@ -34,7 +34,6 @@ from termapy.builtins.commands.edit import (
     make_list_handler,
 )
 from termapy.config import open_with_system
-from termapy.defaults import cmd_prefix
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
 from termapy.folders import ensure_folder
 from termapy.legacy import make_forwarder
@@ -364,15 +363,6 @@ def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def _hook_proto_load(app, ctx, args: str) -> CmdResult:
-    """Run a protocol test script (delegates to /proto.run)."""
-    prefix = cmd_prefix(app.cfg)
-    app._dispatch_single(f"{prefix}proto.run {args}")
-    # Dispatch is fire-and-forget here; the args carry the script
-    # identifier so scripts can confirm what was requested.
-    return CmdResult.ok(value=args.strip())
-
-
 def register_tui_hooks(app) -> None:
     """Register TUI-specific commands as plugin hooks."""
 
@@ -617,15 +607,6 @@ def register_tui_hooks(app) -> None:
         "<name>",
         "Switch to a different config by name.",
         lambda ctx, args: _hook_cfg_load(app, ctx, args),
-        source="app",
-    )
-    # /run.load was a redundant alias for bare /run; dropped with the
-    # /run-as-builtin migration.  Bare /run takes a filename.
-    app.repl.register_hook(
-        "proto.load",
-        "<filename>",
-        "Run a protocol test script (same as /proto.run).",
-        lambda ctx, args: _hook_proto_load(app, ctx, args),
         source="app",
     )
     app.repl.register_hook(

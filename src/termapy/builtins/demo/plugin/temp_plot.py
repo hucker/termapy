@@ -24,7 +24,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -87,7 +87,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         idx = int((reading - lo) / span * (len(bars) - 1))
         spark += bars[idx]
 
-    ctx.io.output_markup(f"  [cyan]{spark}[/]")
+    ctx.io.output_markup(f"  [cyan]{escape_markup(spark)}[/]")
     summary = (
         f"{len(readings)} samples: "
         f"min={lo:.1f}°C  max={hi:.1f}°C  avg={avg:.1f}°C"

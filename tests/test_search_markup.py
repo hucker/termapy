@@ -1,6 +1,6 @@
 """Regression tests for /search and cli output rendering markup-safety.
 
-Bug: when /search's `_highlight()` cuts a snippet that includes part
+Bug: when /search's `_highlight_markup()` cuts a snippet that includes part
 of a long_help's own Rich markup (e.g. the closing ``[/]`` of a
 ``state_line()`` output), the resulting string had an orphan tag that
 broke Rich's parser.  The MarkupError then cascaded through
@@ -8,7 +8,7 @@ broke Rich's parser.  The MarkupError then cascaded through
 without escaping the literal ``[/]`` in the message -- second
 MarkupError, visible to the user as a traceback.
 
-These tests pin both fixes: ``_highlight`` escapes user text before
+These tests pin both fixes: ``_highlight_markup`` escapes user text before
 splicing, and ``cli.write``/``cli.status`` escape user text before
 wrapping in their color tag.
 """
@@ -20,11 +20,11 @@ import io
 from rich.console import Console
 from rich.errors import MarkupError
 
-from termapy.builtins.commands.search import _highlight
+from termapy.builtins.commands.search import _highlight_markup
 
 
 class TestHighlightEscapesUserMarkup:
-    """``_highlight()`` must produce parseable Rich markup even when
+    """``_highlight_markup()`` must produce parseable Rich markup even when
     the source text contains its own ``[...]`` tags."""
 
     def test_snippet_with_orphan_closing_tag_renders(self):
@@ -41,7 +41,7 @@ class TestHighlightEscapesUserMarkup:
         end = start + len("baud")
 
         # Act
-        snippet = _highlight(text, (start, end))
+        snippet = _highlight_markup(text, (start, end))
 
         # Assert -- Rich must be able to parse the result without
         # MarkupError.  The exact byte-for-byte snippet content isn't
@@ -52,7 +52,7 @@ class TestHighlightEscapesUserMarkup:
             console.print(snippet)
         except MarkupError as e:
             raise AssertionError(
-                f"_highlight produced unparseable markup: {snippet!r}\n"
+                f"_highlight_markup produced unparseable markup: {snippet!r}\n"
                 f"Rich error: {e}"
             ) from e
 
@@ -66,7 +66,7 @@ class TestHighlightEscapesUserMarkup:
         end = start + len("target")
 
         # Act
-        snippet = _highlight(text, (start, end))
+        snippet = _highlight_markup(text, (start, end))
 
         # Assert
         buf = io.StringIO()
@@ -75,7 +75,7 @@ class TestHighlightEscapesUserMarkup:
             console.print(snippet)
         except MarkupError as e:
             raise AssertionError(
-                f"_highlight produced unparseable markup: {snippet!r}\n"
+                f"_highlight_markup produced unparseable markup: {snippet!r}\n"
                 f"Rich error: {e}"
             ) from e
 
@@ -87,10 +87,10 @@ class TestHighlightEscapesUserMarkup:
         end = start + len("brown")
 
         # Act
-        snippet = _highlight(text, (start, end))
+        snippet = _highlight_markup(text, (start, end))
 
         # Assert -- the wrapper around the matched token is still there
-        # (escaping doesn't touch the wrapper tags _highlight itself adds).
+        # (escaping doesn't touch the wrapper tags _highlight_markup itself adds).
         assert "[yellow]brown[/]" in snippet, (
             f"matched token should be wrapped in yellow; got {snippet!r}"
         )
@@ -155,18 +155,14 @@ class TestCliStatusEscapesUserText:
             f"the message text reached the console; got {out!r}"
         )
 
-    def test_write_uncolored_still_renders_markup(self):
-        """Uncolored write() is not escaped, so callers can still pass Rich markup."""
-        # Arrange / Act -- uncolored path still parses markup (callers
-        # rely on this for rich content; markup-aware callers use
-        # write_markup explicitly, but plain write() with no color
-        # historically does parse).
+    def test_write_uncolored_prints_text_literally(self):
+        """markup-escape: uncolored write() is text too; CLI notify's "[notice]" prefix and a tag both print as typed."""
+        # Arrange / Act -- markup goes through write_markup; write() is text
         cli, buf = self._make_cli()
-        cli.write("[bold]hi[/]")
+        cli.write("[notice] [bold]hi[/]")
 
-        # Assert -- escaping is NOT applied on the no-color branch, so
-        # ``[bold]hi[/]`` parses and renders just the visible "hi".
+        # Assert
         out = buf.getvalue()
-        assert "hi" in out and "[bold]" not in out, (
-            f"uncolored write() still parses markup; got {out!r}"
+        assert "[notice] [bold]hi[/]" in out, (
+            f"uncolored write() prints its text literally; got {out!r}"
         )

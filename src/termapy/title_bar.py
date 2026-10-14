@@ -199,15 +199,17 @@ def update_title(app) -> None:
         ("echo_repl", bool(app.repl.echo_repl)),
         ("timestamps", bool(app.cfg.get("timestamps"))),
     ]
-    center.tooltip = format_title_tooltip(
+    # The tooltips are text (paths, ports, on_connect_cmd), so Text: Textual
+    # would read a str as markup (registry widget-text-literal).
+    center.tooltip = Text(format_title_tooltip(
         cfg_title, cfg_pairs, f"edit config ({_hotkey_label('title-center')})"
-    )
+    ))
 
     # Port button (left) tooltip + label
     try:
         port_btn = app.query_one("#title-left", Button)
-        port_btn.label = app._port_info_str()
-        port_btn.tooltip = app._port_button_tooltip()
+        port_btn.label = Text(app._port_info_str())
+        port_btn.tooltip = Text(app._port_button_tooltip())
     except SHUTDOWN_RACE:
         pass
 
@@ -236,7 +238,7 @@ def update_conn_tooltip(app, widget: Button | None = None) -> None:
             ("auto_connect", bool(app.cfg.get("auto_connect"))),
             ("auto_reconnect", bool(app.cfg.get("auto_reconnect"))),
         ]
-        widget.tooltip = format_title_tooltip(title, pairs, action)
+        widget.tooltip = Text(format_title_tooltip(title, pairs, action))
     except SHUTDOWN_RACE:
         pass  # title widgets unmounted during teardown / reload
 

@@ -19,8 +19,8 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    FileOptionList,
     _highlighted_file,
-    _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
 from termapy.folders import FOLDER_PATTERNS, RUN
@@ -100,17 +100,17 @@ class ScriptPicker(ModalScreen[tuple | None]):
         # Only .run files: the folder can hold editor backups, notes, or --
         # with no config loaded -- be the current directory.
         scripts = list_entries(self.scripts_dir, FOLDER_PATTERNS[RUN])
-        with Vertical(id="script-dialog"):
+        with Vertical(id="script-dialog") as dialog:
             yield Static("Select Run File", id="script-title")
-            ol = OptionList(id="script-list")
-            first = _populate_file_option_list(
-                ol,
+            ol = FileOptionList(
                 scripts,
                 detail=lambda script: extract_docstring(script)[0],
                 detail_header="SUMMARY",
+                id="script-list",
             )
             if scripts:
-                ol.highlighted = first
+                ol.highlighted = ol.first_file
+            dialog.styles.width = ol.dialog_width()
             yield ol
             has_scripts = bool(scripts)
             with Horizontal(id="script-buttons"):

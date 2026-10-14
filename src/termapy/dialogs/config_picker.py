@@ -29,8 +29,8 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    FileOptionList,
     _highlighted_file,
-    _populate_file_option_list,
 )
 from termapy.folder_ops import list_entries
 
@@ -136,9 +136,14 @@ class CfgDirLink(Static):
                 appearing -- the ``source=`` seam used elsewhere in the
                 codebase, not a patched global.
         """
-        super().__init__(_fit_path(folder, width), id="picker-cfgdir")
+        super().__init__(_fit_path(folder, width), id="picker-cfgdir", markup=False)
         self._folder = folder
         self._opener = opener
+
+    def on_resize(self, _event: events.Resize) -> None:
+        """Refit the path to the width layout gave the link (``width: 1fr``)."""
+        if self.content_size.width > 0:
+            self.update(_fit_path(self._folder, self.content_size.width))
 
     def on_click(self) -> None:
         """Open the config folder with the system file manager."""
@@ -253,28 +258,28 @@ class ConfigPicker(ModalScreen[tuple | None]):
         migrate_json_to_cfg(d)
         json_files = list_entries(d, "*/*.cfg")  # newest first
         details, detail_header = _config_details(json_files)
-        with Vertical(id="picker-dialog"):
+        with Vertical(id="picker-dialog") as dialog:
             with Horizontal(id="picker-header"):
                 yield Static(_TITLE, id="picker-title")
                 # Display and open the ABSOLUTE folder; the listing above
                 # keeps the path shape cfg_dir() gave it, so what gets
                 # stored as a config path is unchanged.
                 yield CfgDirLink(d.resolve(), _FILE_PICKER_WIDTH - len(_TITLE) - 6)
-            ol = OptionList(id="picker-list")
-            first = _populate_file_option_list(
-                ol,
+            ol = FileOptionList(
                 json_files,
                 detail=details.__getitem__,
                 detail_header=detail_header,
                 # Show the stem (the config's name), padded like the filename
                 # column so size/age still line up.
                 label=lambda path, padded: f"{path.stem:<{len(padded)}}",
+                id="picker-list",
             )
             current_idx = next(
                 (i for i, path in enumerate(json_files) if str(path) == self.current_path),
                 0,
             )
-            ol.highlighted = first + current_idx
+            ol.highlighted = ol.first_file + current_idx
+            dialog.styles.width = ol.dialog_width()
             yield ol
             has_configs = bool(json_files)
             with Horizontal(id="picker-buttons"):

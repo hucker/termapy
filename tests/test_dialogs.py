@@ -224,6 +224,87 @@ class TestScriptPicker:
 
         _run(scenario)
 
+    @staticmethod
+    def _long_summaries(tmp_path) -> Path:
+        """A run/ folder of three scripts whose summaries are far wider than any terminal row."""
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        for name in ("alpha.run", "beta.run", "gamma.run"):
+            (run_dir / name).write_bytes(b"# " + b"a very long summary line " * 6 + b"\n/echo x\n")
+        return run_dir
+
+    def test_rows_fit_a_narrow_terminal_without_wrapping(self, tmp_path):
+        """In an 80-column terminal every row stays one line; a long summary ends in an ellipsis."""
+        async def scenario():
+            # Arrange
+            run_dir = self._long_summaries(tmp_path)
+            app = _Host()
+            async with app.run_test(size=(80, 30)) as pilot:
+                app.push_screen(ScriptPicker(run_dir))
+                await pilot.pause()
+                ol = app.screen.query_one("#script-list", OptionList)
+
+                # Act
+                rows = [str(ol.get_option_at_index(i).prompt) for i in range(ol.option_count)]
+
+                # Assert
+                assert ol.virtual_size.height == ol.option_count, (
+                    f"one rendered line per row, none wrapped: {rows}"
+                )
+                assert all(row.endswith("...") for row in rows[1:]), "each summary is truncated to fit"
+
+        _run(scenario)
+
+    def test_a_wide_terminal_grows_the_dialog_to_show_whole_summaries(self, tmp_path):
+        """With room to spare the dialog widens past its 104 columns, so a long summary shows whole."""
+        async def scenario():
+            # Arrange -- a summary that needs more than the default width
+            run_dir = tmp_path / "run"
+            run_dir.mkdir()
+            summary = "a summary that is longer than the dialog's default width allows " * 2
+            (run_dir / "wide.run").write_bytes(f"# {summary.strip()}\n/echo x\n".encode())
+            app = _Host()
+            async with app.run_test(size=(200, 30)) as pilot:
+                app.push_screen(ScriptPicker(run_dir))
+                await pilot.pause()
+                ol = app.screen.query_one("#script-list", OptionList)
+
+                # Act
+                row = str(ol.get_option_at_index(1).prompt)
+                width = app.screen.query_one("#script-dialog").outer_size.width
+
+                # Assert
+                assert row.endswith(summary.strip()), f"the summary is shown whole: {row!r}"
+                assert width > 104, f"the dialog grew to fit it ({width} columns)"
+                assert ol.virtual_size.height == ol.option_count, "and nothing wraps"
+
+        _run(scenario)
+
+    def test_a_resize_refits_the_rows_and_keeps_the_highlight(self, tmp_path):
+        """Narrowing the terminal shortens the rows to the new width and leaves the cursor where it was."""
+        async def scenario():
+            # Arrange -- a wide terminal, the cursor on the second script
+            run_dir = self._long_summaries(tmp_path)
+            app = _Host()
+            async with app.run_test(size=(140, 30)) as pilot:
+                app.push_screen(ScriptPicker(run_dir))
+                await pilot.pause()
+                ol = app.screen.query_one("#script-list", OptionList)
+                ol.highlighted = 2
+                wide = len(str(ol.get_option_at_index(2).prompt))
+
+                # Act
+                await pilot.resize_terminal(80, 30)
+                await pilot.pause()
+
+                # Assert
+                narrow = len(str(ol.get_option_at_index(2).prompt))
+                assert narrow < wide, f"rows refit to the narrower list ({wide} -> {narrow} columns)"
+                assert ol.virtual_size.height == ol.option_count, "and still none wraps"
+                assert ol.highlighted == 2, "the highlighted script is kept"
+
+        _run(scenario)
+
     def test_rename_button_dismisses_with_the_highlighted_path(self, tmp_path):
         """Rename dismisses with a (rename, path) tuple for the highlighted script."""
         async def scenario():
@@ -280,6 +361,34 @@ class TestConfigPickerCfgDir:
 
         # Assert
         assert len(actual) == 8, "falls back to a hard trim rather than returning oversize"
+
+    def test_the_link_refits_to_the_width_layout_gives_it(self):
+        """Built for a wide header, the link front-elides its path to the narrower width it is laid out at."""
+        # Arrange -- a deep path, a link told 200 columns, a layout that gives it 30
+        folder = Path("/projects/clients/acme/firmware/bench/termapy_cfg")
+        link = CfgDirLink(folder, 200, opener=lambda path: None)
+
+        class _NarrowHost(App):
+            CSS = "CfgDirLink { width: 30; }"
+
+            def compose(self):
+                yield link
+
+        async def scenario():
+            app = _NarrowHost()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                actual = str(link.render())
+
+                # Assert
+                assert len(actual) <= 30 and actual.startswith("..."), (
+                    f"the path is front-elided to the laid-out width: {actual!r}"
+                )
+                assert actual.endswith("termapy_cfg"), "the identifying tail survives"
+
+        _run(scenario)
 
     def test_a_click_reaches_the_handler(self, tmp_path):
         """A real left-click on the link calls the opener with the full folder path."""

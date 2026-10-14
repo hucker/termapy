@@ -57,6 +57,7 @@ class CfgConfirm(ModalScreen[bool]):
             yield Static(
                 f"{self.key}: {self.old_val!r} -> {self.new_val!r}",
                 id="cfg-confirm-msg",
+                markup=False,
             )
             with Horizontal(id="cfg-confirm-buttons"):
                 yield Button("Yes", id="cfg-yes", variant="success")

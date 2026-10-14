@@ -811,14 +811,14 @@ class SerialTerminal(TerminalHost, App):
             update_btn.display = False
             yield update_btn
             yield Static("", id="title-spacer-l")
-            center = Button(title, id="title-center")
-            center.tooltip = (
+            center = Button(Text(title), id="title-center")
+            center.tooltip = Text(
                 f"Config: {self.config_path or 'none'}\n"
                 f"Click to edit config ({_hotkey_label('title-center')})"
             )
             yield center
             yield Static("", id="title-spacer-r")
-            left = Button(port_info, id="title-left")
+            left = Button(Text(port_info), id="title-left")
             left.tooltip = "Click to select serial port."
             yield left
             right = Button("Disconnected", id="title-right")
@@ -850,8 +850,8 @@ class SerialTerminal(TerminalHost, App):
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
                 prefix = cmd_prefix(self.cfg)
-                cmd_btn = Button(prefix, id="btn-cmds")
-                cmd_btn.tooltip = f"Show REPL {prefix} commands."
+                cmd_btn = Button(Text(prefix), id="btn-cmds")
+                cmd_btn.tooltip = Text(f"Show REPL {prefix} commands.")
                 yield cmd_btn
                 yield Input(
                     placeholder=f"{prefix} for REPL, {PALETTE_HOTKEY} for palette",
@@ -884,7 +884,7 @@ class SerialTerminal(TerminalHost, App):
                 find_bar = Horizontal(id="find-bar")
                 find_bar.display = False
                 with find_bar:
-                    find_status = Label("", id="find-status")
+                    find_status = Label("", id="find-status", markup=False)
                     find_status.display = False
                     yield find_status
                     prev_btn = Button(
@@ -908,7 +908,7 @@ class SerialTerminal(TerminalHost, App):
                 yield StatusBar(id="status-bar")
 
                 def _btn(label, id, tip, variant="default", display=True):
-                    b = Button(label, id=id, variant=variant)
+                    b = Button(Text(label), id=id, variant=variant)
                     b.tooltip = tip
                     b.display = display
                     return b
@@ -937,10 +937,7 @@ class SerialTerminal(TerminalHost, App):
                 for i, cb in enumerate(custom_buttons):
                     if not cb.get("enabled", False):
                         continue
-                    btn_id = f"btn-custom-{i}"
-                    b = Button(cb.get("name", f"C{i}"), id=btn_id)
-                    b.tooltip = cb.get("tooltip", cb.get("name", ""))
-                    b.add_class("custom-btn")
+                    b = self._custom_button(i, cb)
                     # First enabled custom button gets a wider left
                     # margin so the boundary into the custom-button
                     # region is unambiguously visible (intentionally
@@ -1192,7 +1189,8 @@ class SerialTerminal(TerminalHost, App):
         ctx.wait_for_match = self.repl.wait_for_match
         ctx.io.status_bar = self._set_status_bar
         ctx.dispatch = self._dispatch_single
-        ctx.io.notify = lambda text, **kw: self._on_main(self.notify, text, **kw)
+        # A plugin's notification is text unless it asks otherwise.
+        ctx.io.notify = lambda text, **kw: self._on_main(self.notify, text, **{"markup": False, **kw})
         ctx.io.clear_screen = lambda: self._on_main(self._clear_output)
         ctx.ui._save_screenshot_impl = lambda *a, **kw: self._on_main(
             self.save_screenshot, *a, **kw
@@ -1303,7 +1301,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _on_connected(self, message: str) -> None:
         """TUI post-connect: notify, update UI, run on_connect_cmd."""
-        self.notify(message, timeout=0.75)
+        self.notify(message, timeout=0.75, markup=False)
         self._set_conn_status("Connected")
         self._update_title()
         inp = self.query_one("#cmd", Input)
@@ -2357,13 +2355,15 @@ class SerialTerminal(TerminalHost, App):
             for i, line in enumerate(
                 scrollback_text.splitlines(), start=1,
             ):
+                # Text, never a str: the widget parses a str as markup,
+                # and a scrollback line is text (registry markup-escape).
                 if i in matched_set:
                     output_find.write(
                         Text(line, style="reverse"),
                         width=wrap_width,
                     )
                 else:
-                    output_find.write(line, width=wrap_width)
+                    output_find.write(Text(line), width=wrap_width)
             self._find_render_key = render_key
 
         # Swap visibility (idempotent if already in find mode)
@@ -3272,7 +3272,7 @@ class SerialTerminal(TerminalHost, App):
         svg_path = str((ensure_folder(self.repl.ss_dir) / f"screenshot_{ts}.svg").resolve())
         self.save_screenshot(svg_path)
         self.last_screenshot = svg_path
-        self.notify(f"Screenshot saved: {svg_path}", timeout=1.5)
+        self.notify(f"Screenshot saved: {svg_path}", timeout=1.5, markup=False)
         self._sync_ss_button()
 
     def action_text_screenshot(self) -> None:
@@ -3281,7 +3281,7 @@ class SerialTerminal(TerminalHost, App):
         text = self._get_screen_text()
         Path(txt_path).write_text(text, encoding="utf-8")
         self.last_screenshot = txt_path
-        self.notify(f"Text screenshot saved: {txt_path}", timeout=1.5)
+        self.notify(f"Text screenshot saved: {txt_path}", timeout=1.5, markup=False)
         self._sync_ss_button()
 
     def action_open_screenshot(self) -> None:
@@ -3314,7 +3314,7 @@ class SerialTerminal(TerminalHost, App):
         """Update the command prefix button and input placeholder."""
         prefix = cmd_prefix(self.cfg)
         try:
-            self.query_one("#btn-cmds", Button).label = prefix
+            self.query_one("#btn-cmds", Button).label = Text(prefix)
             self.query_one(
                 "#cmd", Input
             ).placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
@@ -3389,6 +3389,14 @@ class SerialTerminal(TerminalHost, App):
             else "Open captures folder (empty)."
         )
 
+    @staticmethod
+    def _custom_button(i: int, cb: dict) -> Button:
+        """A custom button from its cfg entry; the name and tooltip are cfg text, so Text."""
+        button = Button(Text(cb.get("name", f"C{i}")), id=f"btn-custom-{i}")
+        button.tooltip = Text(cb.get("tooltip", cb.get("name", "")))
+        button.add_class("custom-btn")
+        return button
+
     async def _sync_custom_buttons(self) -> None:
         """Remove old custom buttons and create new ones from config."""
         old_buttons = list(self.query(".custom-btn"))
@@ -3402,10 +3410,7 @@ class SerialTerminal(TerminalHost, App):
             if not cb.get("enabled", False):
                 continue
             has_custom = True
-            b = Button(cb.get("name", f"C{i}"), id=f"btn-custom-{i}")
-            b.tooltip = cb.get("tooltip", cb.get("name", ""))
-            b.add_class("custom-btn")
-            self.query_one("#bottom-bar").mount(b, before=log_btn)
+            self.query_one("#bottom-bar").mount(self._custom_button(i, cb), before=log_btn)
         if has_custom:
             log_btn.styles.margin = (0, 0, 0, 2)
 
@@ -3553,7 +3558,7 @@ class SerialTerminal(TerminalHost, App):
                 # from here, so enable it: its own buttons are hidden
                 # above and Stop must be clickable.
                 bar.disabled = False
-                label = Static(text, id="script-label")
+                label = Static(text, id="script-label", markup=False)
                 label.styles.width = "1fr"
                 stop_btn = Button("Stop", id="script-stop", variant="error")
                 bar.mount(label)

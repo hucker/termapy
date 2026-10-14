@@ -1573,3 +1573,112 @@ def render(ctx, name, n, color, value_markup):
         "escape, a .format() template, a % template and markup on a plain channel are "
         "flagged; nothing else is"
     )
+
+
+# ── Widgets: text never reaches Textual's markup parser ──────────────────────
+#
+# Textual's widgets parse Textual's own markup, not Rich's, and it has no
+# clean escape: `[Rec]` and `[$var]` vanish though Rich's escape leaves them
+# alone, and a trailing backslash still eats the close tag.  So a widget built
+# from anything but a string the author wrote takes `markup=False`, or a
+# `rich.text.Text`, which no parser reads.  The constructors and `notify` are
+# checked here; a later `.update()` / `.tooltip =` / `.label =` is not
+# syntactically distinguishable from data and stays review (registry
+# widget-text-literal).
+
+_MARKUP_KW_WIDGETS = frozenset({"Static", "Label"})
+
+
+def _call_name(node: ast.Call) -> str:
+    """The called name: ``Static`` for ``Static(...)``, ``notify`` for ``self.notify(...)``."""
+    func = node.func
+    return func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+
+
+def _authored(node: ast.expr, constants: set[str]) -> bool:
+    """True for a string the author wrote (a literal, or a module-level string constant) or a ``Text``."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return True
+    if isinstance(node, ast.Name) and node.id in constants:
+        return True
+    if isinstance(node, ast.Call):
+        func = node.func
+        return (isinstance(func, ast.Name) and func.id == "Text") or (
+            isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "Text"
+        )
+    return False
+
+
+def _widget_markup_sites(tree: ast.Module) -> list[tuple[int, str]]:
+    """``(line, call)`` for every widget or notification built from text that Textual would parse."""
+    constants = {
+        target.id
+        for node in tree.body if isinstance(node, ast.Assign) and _literal(node.value)
+        for target in node.targets if isinstance(target, ast.Name)
+    }
+    sites: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = _call_name(node)
+        if name not in _MARKUP_KW_WIDGETS | {"Button", "notify"}:
+            continue
+        keyword = {"Button": "label", "notify": "message"}.get(name, "content")
+        content = node.args[0] if node.args else next(
+            (kw.value for kw in node.keywords if kw.arg == keyword), None
+        )
+        markup_off = any(
+            kw.arg == "markup" and isinstance(kw.value, ast.Constant) and kw.value.value is False
+            for kw in node.keywords
+        )
+        if content is None or markup_off or _authored(content, constants):
+            continue
+        sites.append((node.lineno, f"{name}({ast.unparse(content)})"))
+    return sorted(sites)
+
+
+def test_widget_text_is_never_parsed_as_markup():
+    """widget-text-literal: a Static, Label, Button or notify built from text has markup=False or a Text."""
+    # Arrange / Act
+    violations = [
+        f"{rel.as_posix()}:{line}: {call}"
+        for path in sorted(SRC.rglob("*.py"))
+        if _is_ui_layer(rel := path.relative_to(SRC))
+        for line, call in _widget_markup_sites(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+
+    # Assert
+    assert violations == [], (
+        "pass markup=False (Static, Label, notify) or wrap the text in rich.text.Text "
+        "(Button has no markup switch):\n  " + "\n  ".join(violations)
+    )
+
+
+def test_widget_guard_fires_on_a_probe():
+    """The widget guard flags text built into each widget and notify; it passes literals, constants, Text and markup=False."""
+    # Arrange -- each flagged shape, then each allowed one
+    source = '''
+_TITLE = "[b]Pick a config[/]"
+
+def compose(self, name, path):
+    yield Static(name)
+    yield Label(f"Port: {path}")
+    yield Button(name)
+    self.notify(f"Saved {path}")
+    yield Static(content=name)
+    yield Static("[b]Literal[/]")
+    yield Static(_TITLE)
+    yield Static(name, markup=False)
+    yield Button(Text(name))
+    self.notify(f"Saved {path}", markup=False)
+    yield Label(Text.assemble(("x", "bold"), name))
+'''
+
+    # Act
+    actual = [line for line, _ in _widget_markup_sites(ast.parse(source))]
+
+    # Assert
+    assert actual == [5, 6, 7, 8, 9], (
+        "text into Static, Label, Button, notify and a content= keyword is flagged; "
+        "literals, module constants, markup=False and Text pass"
+    )

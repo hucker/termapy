@@ -50,8 +50,8 @@ class WelcomeDialog(ModalScreen[None]):
         from textual.widgets import Static
 
         with Vertical(id="welcome-dialog"):
-            yield Static(self.title_text, id="welcome-title")
-            yield Static(self.message, id="welcome-msg")
+            yield Static(self.title_text, id="welcome-title", markup=False)
+            yield Static(self.message, id="welcome-msg", markup=False)
             with Horizontal(id="welcome-buttons"):
                 yield Button("OK", id="welcome-ok", variant="success")
 

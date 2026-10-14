@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 from textual.app import App
-from textual.widgets import Button, Input, OptionList
+from textual.widgets import Button, Input, OptionList, Static
 
 from termapy.config import file_manager_name
 from termapy.defaults import DEFAULT_CFG
@@ -38,6 +38,22 @@ def _run(scenario) -> None:
 
 
 class TestConfirmDialog:
+    def test_a_bracketed_message_renders_as_typed(self):
+        """widget-text-literal: a /confirm message is text; "[ok]" and "[Rec]" survive into the dialog."""
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                app.push_screen(ConfirmDialog("Flash [ok] image to [Rec]?"))
+                await pilot.pause()
+
+                # Act
+                actual = str(app.screen.query_one("#confirm-msg", Static).render())
+
+                # Assert
+                assert actual == "Flash [ok] image to [Rec]?"
+
+        _run(scenario)
+
     def test_yes_dismisses_true(self):
         """Clicking Yes dismisses with True, the only answer that lets the action proceed."""
         async def scenario():

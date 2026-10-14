@@ -75,7 +75,7 @@ class FilenameDialog(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="filename-dialog"):
-            yield Static(self._title, id="filename-label")
+            yield Static(self._title, id="filename-label", markup=False)
             yield Input(placeholder=self._placeholder, value=self._value, id="filename-input")
             with Horizontal(id="filename-buttons"):
                 yield Button("Cancel", id="filename-cancel")

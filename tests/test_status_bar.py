@@ -43,6 +43,21 @@ def test_show_makes_it_visible_with_text():
     _run(scenario)
 
 
+def test_status_text_renders_as_typed():
+    """widget-text-literal: plugin text on the status bar is shown as written, brackets and all."""
+    async def scenario():
+        async with _Host().run_test() as pilot:
+            bar = pilot.app.query_one(StatusBar)
+
+            # Act
+            bar.show("[ok] saved to [Rec]", timeout=99)
+
+            # Assert
+            assert str(bar.render()) == "[ok] saved to [Rec]"
+
+    _run(scenario)
+
+
 def test_empty_text_clears():
     """Showing an empty string hides the bar instead of leaving an empty visible strip."""
     async def scenario():

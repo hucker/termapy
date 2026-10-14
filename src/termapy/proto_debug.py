@@ -193,7 +193,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         title = script.name or self._path.name
 
         with Vertical(id="proto-debug-dialog"):
-            yield Static(f"Protocol Debug: {title}", id="proto-debug-title")
+            yield Static(f"Protocol Debug: {title}", id="proto-debug-title", markup=False)
             with Horizontal(id="proto-debug-top"):
                 with Vertical(id="test-col"):
                     yield Static("Tests", id="test-label")
@@ -909,11 +909,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             text: Status message.
             style: Optional Rich style.
         """
-        status = self.query_one("#proto-debug-status", Static)
-        if style:
-            status.update(Text(text, style=style))
-        else:
-            status.update(text)
+        self.query_one("#proto-debug-status", Static).update(Text(text, style=style))
 
     def _send_proto_cmds(self, cmds: list[str]) -> None:
         """Send a list of protocol commands over serial.

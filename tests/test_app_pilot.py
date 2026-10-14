@@ -154,6 +154,27 @@ class TestCustomButtons:
 
         _run(scenario)
 
+    def test_a_bracketed_name_and_tooltip_render_as_typed(self, app_factory):
+        """widget-text-literal: a button named [Rec] shows [Rec]; as markup it was an empty box (2026-05-22)."""
+        async def scenario():
+            from textual.widgets import Button
+
+            # Arrange
+            buttons = [{"enabled": True, "name": "[Rec]", "tooltip": "[ok] go", "command": "/print a"}]
+            app, _, _ = app_factory(custom_buttons=buttons)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                button = app.query_one(".custom-btn", Button)
+
+                # Act
+                label = str(button.label)
+                tooltip = str(button.tooltip)
+
+                # Assert
+                assert (label, tooltip) == ("[Rec]", "[ok] go"), "cfg text reaches the button as written"
+
+        _run(scenario)
+
 
 class TestSwitchConfig:
     """``_switch_config`` is pure orchestration -- 36 lines of self.* wiring.
@@ -654,6 +675,44 @@ class TestFindBar:
                 assert "2" in text and "3" in text, (
                     f"status shows current/total, got {text!r}"
                 )
+
+        _run(scenario)
+
+    def test_a_character_class_pattern_shows_as_typed(self, app_factory):
+        """widget-text-literal: the status shows the regex [a-z]+x; as markup the class was a tag and vanished."""
+        async def scenario():
+            from textual.widgets import Label
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- a zero-match find echoes its pattern
+                app._update_find_bar(self._state(pattern="[a-z]+x", total=0, matches=[], index=-1))
+                await pilot.pause()
+
+                # Assert
+                actual = str(app.query_one("#find-status", Label).render())
+                assert "'[a-z]+x'" in actual, f"the pattern is shown as typed, got {actual!r}"
+
+        _run(scenario)
+
+    def test_the_frozen_view_keeps_bracketed_text_on_unmatched_lines(self, app_factory):
+        """markup-escape: an unmatched scrollback line reaches the frozen view as Text, so [ok] survives."""
+        async def scenario():
+            from textual.widgets import RichLog
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- line 1 holds the brackets and is not the match
+                app._update_find_bar(self._state(
+                    scrollback_text="[ok] boot done\nbeta line", matches=[(2, "beta line")], line_no=2,
+                ))
+                await pilot.pause()
+
+                # Assert
+                shown = [strip.text.rstrip() for strip in app.query_one("#output-find", RichLog).lines]
+                assert "[ok] boot done" in shown, f"the unmatched line is shown as written, got {shown!r}"
 
         _run(scenario)
 

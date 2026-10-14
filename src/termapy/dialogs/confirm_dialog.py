@@ -48,7 +48,7 @@ class ConfirmDialog(ModalScreen[bool]):
         from textual.widgets import Static
 
         with Vertical(id="confirm-dialog"):
-            yield Static(self.message, id="confirm-msg")
+            yield Static(self.message, id="confirm-msg", markup=False)
             with Horizontal(id="confirm-buttons"):
                 yield Button("Yes", id="confirm-yes", variant="success")
                 yield Button("Cancel", id="confirm-no", variant="error")

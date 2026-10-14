@@ -91,7 +91,7 @@ class ProtoEditor(ModalScreen[str | None]):
             title = "New Protocol Script"
 
         with Vertical(id="ped-dialog"):
-            yield Static(title, id="ped-title")
+            yield Static(title, id="ped-title", markup=False)
             yield TextArea(
                 content,
                 language="toml",
@@ -109,7 +109,7 @@ class ProtoEditor(ModalScreen[str | None]):
                     placeholder="new filename (without .pro)",
                     id="ped-save-as-input",
                 )
-            yield Static("", id="ped-error")
+            yield Static("", id="ped-error", markup=False)
             with Horizontal(id="ped-buttons"):
                 yield Button("Save", id="ped-save", variant="success")
                 yield Button("Save As", id="ped-save-as", variant="primary")

@@ -133,7 +133,7 @@ def _cap_show_progress(app) -> None:
         bar = app.query_one("#bottom-bar")
         for child in bar.children:
             child.display = False
-        label = Static("", id="cap-label")
+        label = Static("", id="cap-label", markup=False)
         label.styles.width = "1fr"
         stop_btn = Button("Stop", id="cap-stop", variant="error")
         bar.mount(label)

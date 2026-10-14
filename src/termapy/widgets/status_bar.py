@@ -44,7 +44,9 @@ class StatusBar(Label):
     """
 
     def __init__(self, **kwargs) -> None:
-        super().__init__("", **kwargs)
+        # The text comes from plugins (ctx.io.status_bar) and progress
+        # overlays: text, never markup (registry widget-text-literal).
+        super().__init__("", markup=False, **kwargs)
         self._timer: Timer | None = None
 
     def show(self, text: str, timeout: float = 5.0) -> None:

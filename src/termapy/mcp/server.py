@@ -304,7 +304,14 @@ class MCPHost(TerminalHost):
         self._log_line(f"{direction} {text}")
 
     def _log_line(self, line: str) -> None:
-        """Append a line to the session log.  Tee to stderr if verbose.
+        """Append one line to the session log (see ``_log_lines``)."""
+        self._log_lines([line])
+
+    def _log_lines(self, lines: list[str]) -> None:
+        """Append lines to the session log, one open per call.  Tee to stderr if verbose.
+
+        The reader logs a whole batch through one call, so a burst of
+        received lines costs one open, not one per line.
 
         NEVER writes to stdout -- stdout is the MCP wire.  Asserts at
         runtime that no log path resolves to ``sys.stdout`` so a future
@@ -315,6 +322,8 @@ class MCPHost(TerminalHost):
         applies.  Once ``/cfg.load`` runs, ``_refresh_log_paths`` wires
         the file logger to the new cfg's ``mcp/`` directory.
         """
+        if not lines:
+            return
         with self._log_lock:
             if self._log_path is not None:
                 # Defensive: ensure the log file isn't aliased to stdout.
@@ -325,11 +334,12 @@ class MCPHost(TerminalHost):
                 )
                 try:
                     with self._log_path.open("a", encoding="utf-8") as f:
-                        f.write(line.rstrip("\n") + "\n")
+                        f.writelines(line.rstrip("\n") + "\n" for line in lines)
                 except OSError:
                     pass  # logging is non-critical
             if self.verbose:
-                print(line.rstrip("\n"), file=sys.stderr, flush=True)
+                for line in lines:
+                    print(line.rstrip("\n"), file=sys.stderr, flush=True)
 
     def _record_async_event(self, line: str, *, source: str) -> None:
         """Append an async serial event with a UTC timestamp and source tag.
@@ -393,35 +403,32 @@ class MCPHost(TerminalHost):
         self._on_rx(lines, rows)
 
     def _on_rx(self, lines: list[str], rows: list[str] | None) -> None:
-        # Inbound serial bytes -> feed the engine's expect-watcher
-        # ring buffer (so /expect sees them and request_response can
-        # consume them), log, and route what the agent sees (the lines,
-        # or the hex view's ``rows``) to the right sink:
-        #   1. ``_buffer`` contextvar set -- we're inside a run_command
-        #      on the same thread; append to output_lines.
-        #   2. ``_call_active`` event set -- worker thread is mid-call;
-        #      the bytes are about to be consumed synchronously by
-        #      request_response (the profile path).  Suppress async
-        #      recording so command responses don't duplicate as
-        #      async_events.
-        #   3. Otherwise -- truly between calls; record as async event.
-        # The expect watcher and text capture first, as in every frontend;
-        # this host used to feed only the watcher, so /cap.text over MCP
-        # recorded nothing.
+        """Deliver one received batch, on the reader thread.
+
+        The expect watcher and text capture get the lines first, as in
+        every frontend (registry ``rx-every-line-delivered``), then the
+        session log.  What the agent sees -- the lines, or the hex view's
+        ``rows`` -- is recorded as async events between calls only: while
+        a call is in flight its own read (``/expect``, a profile command's
+        request/response) consumes the reply, and recording it too would
+        report it twice.
+
+        Never consults ``_buffer``: that contextvar belongs to the call's
+        executor thread, and a reader thread that inherited a call's
+        context (a free-threaded build starting it from ``/port.connect``)
+        would otherwise feed every later line into that call's stale list.
+
+        Args:
+            lines: The decoded lines.
+            rows: The hex view's rows, or ``None`` in the text view.
+        """
         self._feed_rx_consumers(lines, [strip_ansi(line) for line in lines])
         texts = [self._rx_text(line) for line in lines]
-        for text in texts:
-            self._log_line(f"< {text}")
-        buf = _buffer.get()
+        self._log_lines([f"< {text}" for text in texts])
+        if self._call_active.is_set():
+            return
         for text in texts if rows is None else rows:
-            if buf is not None:
-                buf.append({"level": "rx", "text": text, "color": ""})
-            elif self._call_active.is_set():
-                # Call in progress in another thread; the synchronous
-                # reader will consume this line.  Don't double-record.
-                pass
-            else:
-                self._record_async_event(text, source="between_calls")
+            self._record_async_event(text, source="between_calls")
 
     def _confirm(self, message: str) -> bool:
         """No interactive UI in MCP mode -- destructive commands fail-fast."""

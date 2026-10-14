@@ -210,34 +210,7 @@ Every handler receives a `PluginContext`, the stable API boundary between plugin
 - **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).
 - **`ctx.internal`** — the intentional escape hatch: an internal, unstable interface (`InternalHandle`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
 
-The remaining members (`ctx.cfg`, `ctx.dispatch`, `ctx.ns`, `ctx.plugin_cfg`, `ctx.wait_for_match`) sit directly on the context. The full surface, by handle:
-
-```text
-ctx.cfg, ctx.config_path                      # plain config (read-only mapping + path)
-ctx.io.result(), ctx.io.output(), ctx.io.status()        # level-gated text channels
-ctx.io.result_markup(), ctx.io.output_markup(),          # level-gated Rich-markup variants
-    ctx.io.status_markup()
-ctx.io.notify(), ctx.io.status_bar()          # always-works fallbacks (no capability gate)
-ctx.io.log()                                  # session log
-ctx.serial.is_connected                       # serial state
-ctx.serial.connect(), ctx.serial.disconnect() # connection lifecycle (host-orchestrated)
-ctx.serial.update_port(), ctx.serial.apply_port_effects()
-ctx.serial.write(), ctx.serial.read_raw()     # serial I/O primitives
-ctx.serial.drain(), ctx.serial.wait_idle(), ctx.serial.rx_queue
-ctx.serial.io() (context manager)             # acquire serial for synchronous read
-ctx.serial.rx_observer(), ctx.serial.tx_observer()  # passive byte taps
-ctx.fs.ss_dir, ctx.fs.scripts_dir, ctx.fs.proto_dir, ctx.fs.cap_dir
-ctx.fs.open_file()                            # gated by gui_apps capability
-ctx.ui.confirm(), ctx.ui.notify()             # TUI-strict; raise MissingCapability in CLI
-ctx.ui.clear_screen(), ctx.ui.exit_app(), ctx.ui.screenshot()
-ctx.internal                                    # internal/unstable interface for built-ins
-ctx.internal.port()                           # raw pyserial.Serial | None (built-ins only)
-ctx.dispatch(cmd)                             # re-route a command through the pipeline
-ctx.wait_for_match(predicate, timeout)        # block until serial matches (gated)
-ctx.ns(name)                                  # session-scoped state dict (see below)
-ctx.plugin_cfg(name)                          # per-plugin persistent config
-ctx.prefix                                    # active REPL command prefix (derived from cfg)
-```
+The remaining members (`ctx.cfg`, `ctx.config_path`, `ctx.prefix`, `ctx.dispatch`, `ctx.ns`, `ctx.plugin_cfg`, `ctx.arg`, `ctx.flag`, `ctx.wait_for_match`) sit directly on the context. The member-by-member reference is the [PluginContext API reference](src/termapy/help/writing-plugins.md#plugincontext-api-reference) in the plugin-writing guide, which ships in the app and is the one home for it; this document stops at the shape.
 
 **A small, fixed set of visible names** on `ctx`, replacing the earlier sprawl of flat fields. The split is by responsibility, not by syntax: four handles each own one capability domain a reader can hold in their head; the fifth, `internal`, is the deliberate exception — the privileged escape hatch for built-ins that isn't a domain.
 
@@ -601,7 +574,7 @@ termapy_cfg/
     └── lib/              # this config's part library; checked in, the folder travels
 ```
 
-That tree is the maximum, not the default. `cfg_data_dir()` creates the config folder and its `.gitignore`, renames old folder names (`captures/` → `cap/`, `scripts/` → `run/`, `plugins/` → `plugin/`) and moves stem-named sidecars into their folder (`folders.SIDECARS`) — those are the one-time migrations. The data folders themselves follow a rule: **a data folder exists while something is in it.** `folders.ensure_folder` creates one at the write (or when a `.explore` command opens it for the user to drop a file in), `folders.prune_empty_folders` removes empty ones from `ReplEngine.fire_lifecycle` at every config load and at app stop, and nothing else creates or removes one (`tests/test_architecture.py` fails a raw `mkdir` on a data folder). The global `termapy_cfg/plugin/` follows the same rule. `--demo` ships the four folders it populates (`run/ proto/ plugin/ sym/`). So a plain config is its `.cfg`, log, history, report and `.gitignore`, and `/cfg.info` lists only the folders that exist.
+That tree is the maximum, not the default. `cfg_data_dir()` creates the config folder and its `.gitignore`, renames old folder names (`captures/` → `cap/`, `scripts/` → `run/`, `plugins/` → `plugin/`) and moves stem-named sidecars into their folder (`folders.SIDECARS`) — those are the one-time migrations. The data folders themselves follow a rule: **a data folder exists while something is in it.** `folders.ensure_folder` creates one at the write (or when a `.explore` command opens it for the user to drop a file in) and never at a read -- a missing folder lists as empty -- `folders.prune_empty_folders` removes empty ones from `ReplEngine.fire_lifecycle` at every config load and at app stop, and nothing else creates or removes one (`tests/test_architecture.py` fails a raw `mkdir` on a data folder). The global `termapy_cfg/plugin/` follows the same rule. `--demo` ships the four folders it populates (`run/ proto/ plugin/ sym/`). So a plain config is its `.cfg`, log, history, report and `.gitignore`, and `/cfg.info` lists only the folders that exist.
 
 ## Config migration
 
@@ -659,22 +632,32 @@ one outermost script; the reconnect, demo-start and update-check workers run
 independently of both.
 
 That is enforced in two places, not assumed. `ReplEngine.start_script` holds
-the thread id of the run in progress, so a nested `/run` (same thread, inline)
-is allowed while a second launch from any other thread -- the picker, a button,
-another frontend -- is refused; the rule lives in the engine because the CLI and
-MCP need it as much as the TUI does. `app._acquire_dispatch_guard` serializes
-individual dispatches: non-blocking on the main thread, where waiting for a
-guard a worker holds would deadlock against that worker's own `call_from_thread`,
-and a bounded wait off it, so a colliding line is delayed rather than dropped.
+the thread id of the run in progress (`_script_owner`), so a nested `/run`
+(same thread, inline via `_script_run`) is allowed while a second launch from
+any other thread -- the picker, a button, another frontend -- is refused; the
+rule lives in the engine because the CLI and MCP need it as much as the TUI
+does, and `run_script` re-stamps the owner because the TUI launches on a
+dispatch worker and then runs on a `@work` thread. `app._acquire_dispatch_guard`
+serializes individual dispatches: non-blocking on the main thread, where
+waiting for a guard a worker holds would deadlock against that worker's own
+`call_from_thread`, and a bounded wait (`_DISPATCH_WAIT_S`) off it, so a
+colliding line is delayed rather than dropped -- on a serial tool a refused
+dispatch is a command that never reached the device, not a delayed one. After
+the wait expires it still fails with "Busy" rather than queueing. The guard is
+an `RLock`, so nested `ctx.dispatch` on the same thread is allowed.
 
 Two different hand-off mechanisms, and the difference is load-bearing. Output
 helpers called from a worker (`_status`, `_set_status_bar`,
-`_write_output_markup`, `_on_main`) marshal via `call_from_thread`, which
-**blocks** the caller until the event loop services it. The serial reader may
-not use it: blocking there deadlocks teardown (`disconnect()` joins the reader
-from the very thread it would wait for) and stalls the reader long enough for
-the driver to drop bytes. RX and script lifecycle therefore use `post_message`,
-which is fire-and-forget.
+`_write_output_markup`, `_on_main`) compare `self._thread_id` and marshal via
+`call_from_thread`, which **blocks** the caller until the event loop services
+it. The serial reader may not use it: blocking there deadlocks teardown
+(`disconnect()` joins the reader from the very thread it would wait for) and
+stalls the reader long enough for the driver to drop bytes
+(`config.SERIAL_RX_BUFFER_BYTES` is how little room there is). RX and script
+lifecycle therefore use `post_message`, which is fire-and-forget:
+`app._rx_enqueue` appends to an ordered buffer and posts at most one wake-up.
+Disconnect joins the reader for real; `READER_JOIN_TIMEOUT_S` is a safety net,
+not a contract.
 
 ## Built-in plugins
 

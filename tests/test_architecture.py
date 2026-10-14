@@ -773,17 +773,17 @@ def test_headerless_allowlist_has_no_stale_entries():
     )
 
 
-# ── The invariants registry ──────────────────────────────────────────────────
+# ── The rule registry ────────────────────────────────────────────────────────
 #
-# docs/invariants.md is the one list of the rules this file and the rest of the
+# docs/rules.md is the one list of the rules this file and the rest of the
 # suite enforce, each row a stable id, a kind (guarantee = a named test, or
 # assumption = review only) and the test.  The guard below keeps the table and
 # the guards in this file agreeing both ways, so a renamed test cannot leave a
 # row pointing at nothing and a new guard cannot ship unlisted.
 
-REGISTRY = SRC.parent.parent / "docs" / "invariants.md"
+REGISTRY = SRC.parent.parent / "docs" / "rules.md"
 
-_INVARIANT_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
+_RULE_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
 _TEST_REF = re.compile(r"\btest_\w+(?:\.py)?")
 # A guard's companions prove it fires or keep its allowlist honest; they carry
 # no id of their own, so the reverse check skips them by name.
@@ -841,7 +841,7 @@ def _registry_mismatches(
     ids: set[str] = set()
     for row in rows:
         rid = row.get("id", "")
-        if not _INVARIANT_ID.match(rid):
+        if not _RULE_ID.match(rid):
             problems.append(f"registry: bad id {rid!r}")
         elif rid in ids:
             problems.append(f"registry: duplicate id {rid}")
@@ -865,8 +865,8 @@ def _registry_mismatches(
     return problems
 
 
-def test_invariants_registry_matches_the_guards():
-    """invariants-registry: docs/invariants.md and the guards in this file agree both ways.
+def test_rules_registry_matches_the_guards():
+    """rules-registry: docs/rules.md and the guards in this file agree both ways.
 
     A row's tests exist, so a guarantee cannot name a test that was renamed
     away; every guard here carries a registered id in its header, so a new

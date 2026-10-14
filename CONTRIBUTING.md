@@ -36,7 +36,7 @@ If your plugin is generally useful, open a PR to include it in `builtins/command
 
 ### Conventions
 
-The project's engineering rulebook is `CLAUDE.md` at the repo root. The filename is the AI tooling's convention; the content is for every contributor: the architecture rules and the invariants registry they point at (`docs/invariants.md`), code style, error-message style, the testing conventions (test headers, AAA comments, assert order, the CLI gold test), the threading rules and the release process. Read it before a non-trivial change; `ARCHITECTURE.md` explains the structure those rules protect.
+The project's engineering rulebook is `CLAUDE.md` at the repo root. The filename is the AI tooling's convention; the content is for every contributor: the architecture rules and the rule registry they point at (`docs/rules.md`), code style, error-message style, the testing conventions (test headers, AAA comments, assert order, the CLI gold test), the threading rules and the release process. Read it before a non-trivial change; `ARCHITECTURE.md` explains the structure those rules protect.
 
 ## Reporting issues
 

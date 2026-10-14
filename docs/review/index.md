@@ -11,8 +11,8 @@ The question the series exists to answer is whether termapy is converging:
 whether each pass finds less that is severe, or whether a stronger reader
 keeps drawing from a deep pool. The table below tracks the one number that
 answers it. **The series is converging when severe findings on first-pass
-areas trend to zero, repeat-area passes find only minors, and no invariant in
-[`docs/invariants.md`](../invariants.md) flips from guarantee back to
+areas trend to zero, repeat-area passes find only minors, and no rule in
+[`docs/rules.md`](../rules.md) flips from guarantee back to
 assumption.** A killer in a repeat area, or a flipped guarantee, is the signal
 to stop adding tests and re-plan. Severity is in each file's own vocabulary
 (killer, High, major); "first pass" means no earlier review had that area as
@@ -92,7 +92,7 @@ listed rather than discovering it.
 
 - **Filename:** `YYYY-MM-DD-vX.Y.Z-<model>.md` — date first (sorts chronologically), then the version reviewed, then the primary reviewer model. Time-of-day may be appended (`YYYY-MM-DD-HHMM-...`) if more than one pass lands on a day.
 - **Append-only + remediation log:** a review's *body* is **frozen once merged** — it is the point-in-time assessment and must not be edited. Progress is recorded in the trailing `## Addenda` section instead: a running remediation log of dated entries (`R…`/`K…` finding id → FIXED on `main` / released, with the commit). **Fold each addendum entry into the same commit/branch as the fix**, so fixing a finding and recording it land together. Errata go here too.
-- **Invariants:** a pass lists the registry ids it read under "Invariants checked and holding" and updates the last-review-check column in [`docs/invariants.md`](../invariants.md); one found broken flips to assumption in the same Addenda entry as the fix, and back when the fix lands with a guard.
+- **Rules:** a pass lists the registry ids it read under "Rules checked and holding" and updates the last-review-check column in [`docs/rules.md`](../rules.md); one found broken flips to assumption in the same Addenda entry as the fix, and back when the fix lands with a guard.
 - **Grading:** every claim carries a grade — **Verified** (reproduced or exact-path read by the orchestrator), **Reported** (agent-cited, plausible, not independently re-verified), or **Assessment** (judgment / external comparison, basis stated). The fitness verdict keys off Verified findings.
 - **Credibility metadata:** each file's header records the date, version, commit SHA, host/hardware, the model(s) used, the method, and — for honesty — whether the pass was complete and whether the verification stage ran.
 - **Not published:** these are internal engineering records and are intentionally **not** in the mkdocs/site nav. Publishing one externally is a per-file decision.

@@ -29,6 +29,7 @@ from termapy.folders import (
     PROTO,
     RUN,
     SS,
+    default_file_name,
     ensure_folder,
     prune_empty_folders,
 )
@@ -2030,23 +2031,22 @@ class ReplEngine:
             # caller (MCP) resolves scripts ONLY inside the per-config run/
             # dir -- no cwd probe, no absolute paths, no ``..`` escape.  The
             # operator branch below keeps the historical cwd-first chain.
-            named = filename if Path(filename).suffix else filename + ".run"
+            # Adding the extension keeps the path in the folder resolve()
+            # checked, so containment holds.
             try:
-                path = self.ctx.fs.resolve(named, "scripts")
+                path = default_file_name(self.ctx.fs.resolve(filename, "scripts"), ".run")
             except MissingCapability as e:
                 return None, CmdResult.fail(msg=str(e))
-            if not path.exists():
+            if not path.is_file():
                 return None, CmdResult.fail(msg=f"File not found: {filename}")
         else:
-            path = Path(filename)
-            if not path.exists() and not path.suffix:
-                path = Path(filename + ".run")
-            if not path.exists():
-                alt = self.scripts_dir / path.name
-                if alt.exists():
-                    path = alt
-                else:
-                    return None, CmdResult.fail(msg=f"File not found: {filename}")
+            # The name as typed (cwd), then in run/; either may leave off
+            # .run (registry ``file-name-default-ext``).
+            path = default_file_name(filename, ".run")
+            if not path.is_file():
+                path = default_file_name(self.scripts_dir / Path(filename).name, ".run")
+            if not path.is_file():
+                return None, CmdResult.fail(msg=f"File not found: {filename}")
         if self._script_depth >= self._max_script_depth:
             return None, CmdResult.fail(
                 msg=f"Script nesting too deep ({self._max_script_depth} levels). Use /stop first."

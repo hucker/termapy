@@ -1748,6 +1748,78 @@ class TestDelayHook:
         _run(scenario)
 
 
+class TestEditHooks:
+    """The TUI's ``/edit`` family opens Textual editors through ``app_hooks``.
+
+    ``18fac03`` moved ``_hook_edit_folder`` into ``app_hooks`` but left the
+    registration calling it as an app method, so every TUI ``/edit.run
+    <name>`` raised AttributeError -- the ``TestDelayHook`` defect again.
+    """
+
+    def test_edit_run_opens_the_script_editor_from_a_stem(self, app_factory):
+        """file-name-default-ext: /edit.run foo opens run/foo.run in the script editor."""
+        async def scenario():
+            from termapy.dialogs import ScriptEditor
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app.repl.scripts_dir.mkdir(parents=True, exist_ok=True)
+                (app.repl.scripts_dir / "foo.run").write_text("/print hi\n")
+
+                # Act
+                result = app.repl.dispatch("edit.run foo")
+                await pilot.pause()
+
+                # Assert
+                assert result.success, result.error
+                assert Path(str(result.value)).name == "foo.run", "the stem named run/foo.run"
+                assert isinstance(app.screen, ScriptEditor), "the script editor is open"
+
+        _run(scenario)
+
+    def test_edit_without_the_extension_bails_once(self, app_factory):
+        """/edit welcome fails with one "File not found" line; the hook and the dispatcher both printed it."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 30)) as pilot:
+                await pilot.pause()
+                # Arrange -- the file exists, but /edit cannot know its folder
+                app.repl.scripts_dir.mkdir(parents=True, exist_ok=True)
+                (app.repl.scripts_dir / "welcome.run").write_text("/print hi\n")
+
+                # Act
+                result = app.repl.dispatch("edit welcome")
+                await pilot.pause()
+
+                # Assert
+                assert result.error == "File not found: welcome"
+                actual = app._get_screen_text().count("File not found: welcome")
+                assert actual == 1, "the failure is reported once, by the dispatcher"
+
+        _run(scenario)
+
+    def test_cfg_load_resolves_a_config_folder(self, app_factory, tmp_path):
+        """The TUI /cfg.load uses resolve_config: a config's folder loads <dir>/<dir>.cfg, as in the CLI and MCP."""
+        async def scenario():
+            app, _, _ = app_factory()
+            _, second_path = _write_cfg(tmp_path, name="second")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- the folder, not the .cfg inside it
+                result = app.repl.dispatch(f"cfg.load {Path(second_path).parent}")
+                await pilot.pause()
+
+                # Assert
+                assert result.success, result.error
+                assert app.config_path == second_path, (
+                    "the TUI's own chain read the folder as the cfg file and failed"
+                )
+
+        _run(scenario)
+
+
 class TestSymbolsAutoload:
     """The symbol sidecar loads on mount, before the startup auto-connect.
 

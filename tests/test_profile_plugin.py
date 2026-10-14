@@ -484,3 +484,23 @@ class TestProfileLoadCfgRelative:
         result = eng.dispatch("profile.load nosuch.profile.json")
         assert not result.success
         assert "Profile not found: nosuch.profile.json" in result.error, "falls back to the typed path in the error"
+
+    def test_load_and_validate_take_a_bare_stem(self, env):
+        """file-name-default-ext: /profile.load local and /profile.validate local both find local.profile.json beside the cfg."""
+        # Arrange
+        eng, ctx, _ = env
+        from pathlib import Path as _Path
+
+        from termapy.profile import SCHEMA_PATH
+
+        reference = _Path(SCHEMA_PATH).parent.parent / "builtins" / "demo" / "demo.profile.json"
+        _Path(ctx.config_path).with_name("local.profile.json").write_bytes(reference.read_bytes())
+
+        # Act
+        validated = eng.dispatch("profile.validate local")
+        loaded = eng.dispatch("profile.load local")
+
+        # Assert
+        assert validated.success, validated.error
+        assert loaded.success, loaded.error
+        assert ctx.ns("active_profile").get("device", {}).get("model") == "DEMO", "the stem loaded the profile"

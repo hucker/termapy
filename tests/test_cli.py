@@ -393,6 +393,29 @@ class TestEditCfgCallableInCli:
             "opens the live config file, not a stale path"
         )
 
+    def test_edit_needs_the_extension(self, cli):
+        """file-name-default-ext: /edit foo bails even when run/foo.run exists; its folders are mixed, so it needs foo.run."""
+        # Arrange
+        from termapy.plugins import CapabilitySet
+
+        cli.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True)
+        cli.ctx.fs.capabilities = cli.ctx.capabilities
+        opened = []
+        cli.ctx.fs._open_file_impl = lambda path: opened.append(path)
+        scripts_dir = cli.ctx.fs.scripts_dir
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        (scripts_dir / "foo.run").write_text("/print hi\n")
+
+        # Act
+        bare = cli.repl.dispatch("edit foo")
+        named = cli.repl.dispatch("edit foo.run")
+
+        # Assert
+        assert bare.success is False, "a bare stem names no folder, so /edit bails"
+        assert bare.error == "File not found: foo"
+        assert named.success, named.error
+        assert [Path(path).name for path in opened] == ["foo.run"], "only the named form opened a file"
+
 
 # -- Hook: run.profile.* (CLI parity with TUI) -------------------------------
 

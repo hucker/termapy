@@ -34,8 +34,9 @@ from termapy.builtins.commands.edit import (
     make_list_handler,
 )
 from termapy.config import open_with_system
+from termapy.config_resolve import resolve_config
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
-from termapy.folders import ensure_folder
+from termapy.folders import default_file_name, ensure_folder
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 from termapy.run_profile_hooks import register_run_profile_hooks
@@ -273,7 +274,6 @@ def _hook_edit(app, ctx, args: str) -> CmdResult:
     # Resolve prefixed or bare filename
     path = app._resolve_project_file(filename)
     if path is None:
-        app.repl.write(f"File not found: {filename}", "red")
         return CmdResult.fail(msg=f"File not found: {filename}")
 
     ext = path.suffix.lower()
@@ -309,15 +309,13 @@ def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
         else:
             app.repl.write("  (empty)")
         return CmdResult.ok(value="\n".join(listed))
-    if not name.endswith(ext):
-        name += ext
     dir_map = {"run": app.repl.scripts_dir, "proto": app.repl.proto_dir}
     base = dir_map.get(folder)
     if not base:
         return CmdResult.fail(msg=f"Unknown folder: {folder}")
-    path = base / name
-    if not path.exists():
-        app.repl.write(f"File not found: {name}", "red")
+    # The extension is optional (registry ``file-name-default-ext``).
+    path = default_file_name(base / name, ext)
+    if not path.is_file():
         return CmdResult.fail(msg=f"File not found: {name}")
     if ext == ".run":
         app._on_main(
@@ -339,24 +337,16 @@ def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
     name = args.strip()
     if not name:
         raise UsageError()
-    path = Path(name)
-    # Try as a bare name: termapy_cfg/<name>/<name>.cfg
-    if not path.exists():
-        from termapy.config import cfg_path_for_name
-
-        path = cfg_path_for_name(name)
-    # Try appending .cfg
-    if not path.exists() and not path.suffix:
-        path = Path(str(path) + ".cfg")
-    if not path.exists():
-        app.repl.write(f"Config not found: {name}", "red")
+    # The CLI and MCP's chain (TerminalHost._load_config), not a copy of it.
+    found = resolve_config(name)
+    if found is None:
         return CmdResult.fail(msg=f"Config not found: {name}")
+    path = Path(found)
     try:
         from termapy.config import load_config
 
         cfg = load_config(str(path))
     except CONFIG_LOAD_ERRORS as e:
-        app.repl.write(f"Failed to load config: {e}", "red")
         return CmdResult.fail(msg=f"Failed to load config: {e}")
     app._on_main(app._switch_config, cfg, str(path))
     app._on_main(app._show_config_info, str(path))
@@ -571,7 +561,7 @@ def register_tui_hooks(app) -> None:
                 f"Edit a {ext} file.",
                 (
                     lambda f=folder, e=ext: lambda ctx,
-                    args: app._hook_edit_folder(ctx, args, f, e)
+                    args: _hook_edit_folder(app, ctx, args, f, e)
                 )(),
                 source="app",
                 needs=CapabilitySet.GUI_APPS,

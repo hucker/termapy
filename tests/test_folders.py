@@ -1,5 +1,7 @@
 """Tests for termapy.folders -- folder/file constants."""
 
+import sys
+
 import pytest
 
 from termapy.folders import (
@@ -11,11 +13,13 @@ from termapy.folders import (
     FOLDER_PATTERNS,
     FOLDERS,
     HISTORY_FILE,
+    PROFILE_SUFFIX,
     PROFILE_TMP_GLOB,
     SEQ_FILE,
     SHOWABLE,
     SYMBOLS_SUFFIX,
     FolderSpec,
+    default_file_name,
 )
 
 
@@ -96,3 +100,89 @@ class TestFolders:
             "symbol sidecar is a dotted .json suffix beside the cfg"
         )
         assert PROFILE_TMP_GLOB == "_profile_tmp_*.run", "temp profiles"
+
+
+class TestDefaultFileName:
+    """A typed name may leave off its known extension; the helper probes, never guesses."""
+
+    def test_default_file_name_adds_the_extension_only_when_that_file_exists(self, tmp_path):
+        """file-name-default-ext: a bare stem finds stem.run, and a stem with no such file stays as typed."""
+        # Arrange
+        (tmp_path / "hex_view.run").write_text("")
+
+        # Act
+        actual_found = default_file_name(tmp_path / "hex_view", ".run")
+        actual_missing = default_file_name(tmp_path / "nothing", ".run")
+
+        # Assert
+        assert actual_found == tmp_path / "hex_view.run", "the extension is added when that file exists"
+        assert actual_missing == tmp_path / "nothing", "the caller's not-found names what was typed"
+
+    def test_the_name_as_typed_wins_when_both_exist(self, tmp_path):
+        """A file named exactly as typed is opened even when name + ext also exists."""
+        # Arrange
+        (tmp_path / "notes").write_text("")
+        (tmp_path / "notes.run").write_text("")
+
+        # Act
+        actual = default_file_name(tmp_path / "notes", ".run")
+
+        # Assert
+        assert actual == tmp_path / "notes", "the typed name is tried first"
+
+    def test_a_full_name_is_not_extended_again(self, tmp_path):
+        """A name that already carries its extension never becomes x.run.run."""
+        # Arrange
+        (tmp_path / "x.run").write_text("")
+
+        # Act
+        actual = default_file_name(tmp_path / "x.run", ".run")
+
+        # Assert
+        assert actual == tmp_path / "x.run"
+
+    def test_a_dotted_stem_gets_the_extension(self, tmp_path):
+        """v1.2 finds v1.2.run: the old "only with no suffix" rule never tried it."""
+        # Arrange
+        (tmp_path / "v1.2.run").write_text("")
+
+        # Act
+        actual = default_file_name(tmp_path / "v1.2", ".run")
+
+        # Assert
+        assert actual == tmp_path / "v1.2.run", "a dot in the stem is not an extension to respect"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows forbids * in file names")
+    def test_a_mixed_folder_tries_only_the_name_as_typed(self, tmp_path):
+        """With ext "*" (cap/, ss/) there is no known extension to add, even when trace* exists."""
+        # Arrange
+        (tmp_path / "trace*").write_text("")
+
+        # Act
+        actual = default_file_name(tmp_path / "trace", "*")
+
+        # Assert
+        assert actual == tmp_path / "trace", "'*' is a glob marker, never a suffix"
+
+    def test_a_folder_is_not_the_file(self, tmp_path):
+        """A folder named like the stem is passed over for the file with the extension."""
+        # Arrange
+        (tmp_path / "boot").mkdir()
+        (tmp_path / "boot.run").write_text("")
+
+        # Act
+        actual = default_file_name(tmp_path / "boot", ".run")
+
+        # Assert
+        assert actual == tmp_path / "boot.run", "exists means is_file, so a folder never counts"
+
+    def test_a_two_part_extension(self, tmp_path):
+        """A multi-part suffix such as .profile.json is appended whole."""
+        # Arrange
+        (tmp_path / "board.profile.json").write_text("{}")
+
+        # Act
+        actual = default_file_name(tmp_path / "board", PROFILE_SUFFIX)
+
+        # Assert
+        assert actual == tmp_path / "board.profile.json"

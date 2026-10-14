@@ -48,6 +48,7 @@ from termapy.folder_ops import (
     format_file_lines,
     list_entries,
 )
+from termapy.folders import default_file_name
 from termapy.plugins import CmdResult, Command
 from termapy.run_docstring import extract_docstring
 
@@ -59,15 +60,10 @@ def _resolve_script(ctx: PluginContext, name: str) -> Path | None:
     """Resolve a script name to a .run path in the config's run/ dir.
 
     Accepts the bare stem (``welcome``) or the full filename
-    (``welcome.run``).  Returns ``None`` if the file doesn't exist
-    or no config is loaded.
+    (``welcome.run``), through ``folders.default_file_name``.  Returns
+    ``None`` if the file doesn't exist or no config is loaded.
     """
-    scripts_dir = ctx.fs.scripts_dir
-    if not scripts_dir.is_dir():
-        return None
-    if not name.endswith(".run"):
-        name = name + ".run"
-    path = scripts_dir / name
+    path = default_file_name(ctx.fs.scripts_dir / name, ".run")
     return path if path.is_file() else None
 
 

@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from termapy.folders import default_file_name
+
 
 def find_config() -> tuple[str | None, bool]:
     """Find config in ``termapy_cfg/<name>/<name>.cfg``.
@@ -141,8 +143,8 @@ def resolve_proto_path(name: str, config_path: str) -> Path | None:
 
     Two locations are tried, in order: the name as given (so a path
     typed relative to the shell's cwd wins), then inside the config's
-    ``proto/`` folder.  A missing ``.pro`` extension is appended first,
-    so ``smoke`` and ``smoke.pro`` behave identically.
+    ``proto/`` folder.  Either may leave off ``.pro``, so ``smoke`` and
+    ``smoke.pro`` behave identically.
 
     Returns None rather than exiting so the caller owns the error
     message and exit code -- this stays a pure lookup.
@@ -154,11 +156,8 @@ def resolve_proto_path(name: str, config_path: str) -> Path | None:
     Returns:
         The resolved path, or None when neither location has the file.
     """
-    name = proto_script_name(name)
-    direct = Path(name)
-    if direct.exists():
-        return direct
-    in_proto_dir = proto_dir_for(config_path) / name
-    if in_proto_dir.exists():
-        return in_proto_dir
+    for path in (Path(name), proto_dir_for(config_path) / name):
+        found = default_file_name(path, ".pro")
+        if found.is_file():
+            return found
     return None

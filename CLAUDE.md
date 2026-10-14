@@ -127,6 +127,12 @@ All other paths relative to `src/termapy/`.
     (`\r \n \t \\ \0`); the cfg-value `"\n"` convention in
     `on_connect_cmd` is a config-file notation, not a second prompt
     vocabulary.
+  - **File names.** A command that reads an existing file of a known type
+    takes the name with or without its extension, through
+    `folders.default_file_name` at each location it searches (registry
+    `file-name-default-ext`); it adds the extension only when that file
+    exists. A command that creates a file appends a missing extension
+    instead. `/edit` needs the extension: its folders are mixed.
   - No ast guard for numbers, durations or strings: unlike bool tokens
     and hex, an `int()` on user text is indistinguishable from internal
     arithmetic, so enforcement there is this rule plus review.

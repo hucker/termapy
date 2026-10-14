@@ -366,7 +366,7 @@ class TestRunDocstring:
         )
 
     def test_run_rename_keeps_extension_and_never_overwrites(self, repl_env, tmp_path):
-        """A bare name gains .run; clobbering, extension changes and leaving run/ are refused."""
+        """A bare name gains .run; clobbering, leaving run/ and a missing file are refused."""
         # Arrange
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -384,14 +384,48 @@ class TestRunDocstring:
 
         # Act / Assert -- refusals leave the tree untouched
         assert not engine.dispatch("run.rename fresh.run taken").success, "no overwrite"
-        assert not engine.dispatch("run.rename fresh.run other.pro").success, (
-            "a different extension is refused"
-        )
         assert not engine.dispatch("run.rename fresh.run ../escape").success, (
             "a name that leaves run/ is refused"
         )
         assert not engine.dispatch("run.rename missing.run x").success, "missing file"
         assert (scripts_dir / "fresh.run").is_file(), "refused renames changed nothing"
+
+    def test_rename_takes_a_bare_old_name(self, repl_env, tmp_path):
+        """file-name-default-ext: /run.rename old new finds run/old.run; the old name's .run is optional too."""
+        # Arrange
+        engine, _, _, output = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "old.run").write_bytes(b"/echo hi\n")
+
+        # Act
+        result = engine.dispatch("run.rename old new")
+
+        # Assert
+        assert result.success, result.error
+        actual = sorted(path.name for path in scripts_dir.iterdir())
+        assert actual == ["new.run"], "the bare old name renamed old.run"
+        assert any("Renamed old.run -> new.run" in text for text, _ in output), (
+            "the message names the file that was renamed, not the stem typed"
+        )
+
+    def test_rename_changes_the_name_never_the_extension(self, repl_env, tmp_path):
+        """A dot in the new name is part of the name: v1.3 becomes v1.3.run, and x.pro becomes x.pro.run."""
+        # Arrange
+        engine, _, _, _ = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "v1.2.run").write_bytes(b"/echo hi\n")
+
+        # Act
+        dotted = engine.dispatch("run.rename v1.2 v1.3")
+        typed_other = engine.dispatch("run.rename v1.3 x.pro")
+
+        # Assert
+        assert dotted.success, dotted.error
+        assert typed_other.success, typed_other.error
+        actual = sorted(path.name for path in scripts_dir.iterdir())
+        assert actual == ["x.pro.run"], (
+            ".3 was read as a different extension and refused; the extension is never renamed"
+        )
 
     def test_run_rename_wrong_arity_is_a_usage_error(self, repl_env, tmp_path):
         """One arg to /run.rename yields the dispatcher's usage line from declared params."""

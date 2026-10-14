@@ -792,6 +792,8 @@ COMMAND = Command(
     help="Data capture tools.",
     long_help=_cap_folder_line,
     handler=None,
+    # Bare /cap does what the Cap button does: open cap/.
+    bare_sub="explore",
     sub_commands={
         "text": Command(
             help="Capture serial text to a file for a timed duration.",

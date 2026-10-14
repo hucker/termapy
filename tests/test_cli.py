@@ -1003,6 +1003,65 @@ class TestEditTwins:
         assert opened == expected, "both spellings open the current config"
 
 
+class TestBareForms:
+    """bare-declared: a bare command's behavior is declared, and /help states it in one wording."""
+
+    @pytest.mark.parametrize(
+        ("command", "line"),
+        [
+            ("run", "/run -- bare: opens the Run picker in the TUI"),
+            ("proto", "/proto -- bare: opens the Proto picker in the TUI"),
+            ("cfg", "/cfg -- bare: opens the Cfg picker in the TUI"),
+            ("port", "/port -- bare: opens the Port picker in the TUI"),
+            ("proto.run", "/proto.run -- bare: opens the Proto picker in the TUI"),
+            ("run.edit", "/run.edit -- bare: opens the Run picker in the TUI"),
+            ("ss", "/ss -- bare: runs /ss.explore"),
+            ("cap", "/cap -- bare: runs /cap.explore"),
+            ("log", "/log -- bare: runs /log.show"),
+            ("mem", "/mem -- bare: runs /mem.info"),
+        ],
+    )
+    def test_help_states_the_bare_form(self, cli, capsys, command, line):
+        """bare-declared: /help prints a declared bare form as a SYNOPSIS line, the same way for every command."""
+        cli.repl.dispatch(f"help {command}")
+        assert line in capsys.readouterr().out, f"/help {command} states what bare /{command} does"
+
+    def test_a_command_without_a_bare_form_prints_no_bare_line(self, cli, capsys):
+        """A command that declares no bare form gets no bare line."""
+        cli.repl.dispatch("help print")
+        assert "-- bare:" not in capsys.readouterr().out, "no declaration, no line"
+
+    @pytest.mark.parametrize("folder", ["ss", "cap"])
+    def test_bare_ss_and_cap_open_their_folders(self, cli, folder):
+        """Bare /ss and /cap do what the SS and Cap buttons do: open the folder."""
+        # Arrange
+        _grant_gui_apps(cli)
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = lambda opened_path: opened.append(str(opened_path))
+
+        # Act
+        result = cli.repl.dispatch(folder)
+
+        # Assert
+        expected = [str(Path(cli.config_path).parent / folder)]
+        assert result.success, result.error
+        assert opened == expected, f"bare /{folder} opened {folder}/"
+
+    def test_bare_log_is_log_show(self, cli, tmp_path):
+        """Bare /log does what the Log button does, /log.show: here, refusing a log that is not there."""
+        # Arrange -- an absent log, so no system viewer is launched
+        _grant_gui_apps(cli)
+        cli.ctx.cfg["log_file"] = str(tmp_path / "absent.log")
+
+        # Act
+        bare = cli.repl.dispatch("log")
+        shown = cli.repl.dispatch("log.show")
+
+        # Assert
+        assert bare.error.startswith("Log file not found"), "bare /log ran /log.show"
+        assert bare.error == shown.error, "bare /log and /log.show are one behavior"
+
+
 # -- Hook registration ------------------------------------------------------
 
 

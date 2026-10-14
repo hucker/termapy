@@ -296,12 +296,13 @@ def _hook_edit(app, ctx, args: str) -> CmdResult:
 def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
     """Edit a file from a specific folder using Textual modal.
 
-    Bare opens the folder's picker (the Run or Proto button's), whose
-    Edit button reaches the same editor.
+    A bare call never arrives: the hook declares ``picker=<folder>``, so
+    the dispatcher opens the folder's picker (whose Edit button reaches
+    the same editor) before this runs.
     """
     name = args.strip()
     if not name:
-        return app._open_picker(folder)
+        raise UsageError()
     dir_map = {"run": app.repl.scripts_dir, "proto": app.repl.proto_dir}
     base = dir_map.get(folder)
     if not base:
@@ -349,10 +350,10 @@ def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
 def register_tui_hooks(app) -> None:
     """Register TUI-specific commands as plugin hooks."""
 
-    # Make bare /cfg, /run, /proto behave like clicking the matching
-    # title-bar button.  Plugin handlers (cfg.py, proto.py) and the
-    # /run hook check this callback when invoked with no args; CLI
-    # leaves it None so they fall through to their CLI fallbacks.
+    # Make a bare /cfg, /run, /proto, /port (and every other command that
+    # declares picker=) behave like clicking the matching title-bar
+    # button: the dispatcher calls this for them.  CLI and MCP leave it
+    # None, so their handlers' own bare fallbacks run.
     app.repl.ctx.internal.open_picker = app._open_picker
     app.repl.register_hook(
         "ss.svg",
@@ -410,9 +411,9 @@ def register_tui_hooks(app) -> None:
         hidden=True,
     )
     # /run and its sub_commands (.help, .legacy, .list, .dump, .show,
-    # .explore) are owned by the run.py builtin -- TUI just needs to
-    # add the picker-on-bare-/run behavior via ctx.internal.open_picker,
-    # which is wired further down in this function.  /run.profile.*
+    # .explore) are owned by the run.py builtin -- its picker="run" opens
+    # the Run picker through ctx.internal.open_picker, wired at the top
+    # of this function.  /run.profile.*
     # stays as hooks because the runner is host-specific (threaded in
     # TUI, synchronous everywhere else).
     register_run_profile_hooks(app)
@@ -554,19 +555,18 @@ def register_tui_hooks(app) -> None:
         # TUI uses Textual modals for run and proto edit, under both
         # spellings: /edit.run and its noun-first twin /run.edit.
         if folder in ("run", "proto"):
-            button = folder.capitalize()
             text = (
                 f"With a name, opens that existing file from {folder}/ in "
                 f"termapy's editor (the {ext} is optional); a missing name "
-                f"fails.  Bare opens the {button} picker (the {button} "
-                f"button), whose Edit button opens the highlighted file.  "
-                f"/{folder}.edit and /edit.{folder} are the same command."
+                f"fails.  In the {folder.capitalize()} picker, Edit opens the "
+                f"highlighted file.  /{folder}.edit and /edit.{folder} are "
+                f"the same command."
             )
             for name in (f"edit.{folder}", f"{folder}.edit"):
                 app.repl.register_hook(
                     name,
                     "{filename}",
-                    f"Edit a {ext} file; bare opens the {button} picker.",
+                    f"Edit a {ext} file in termapy's editor.",
                     (
                         lambda f=folder, e=ext: lambda ctx,
                         args: _hook_edit_folder(app, ctx, args, f, e)
@@ -578,6 +578,7 @@ def register_tui_hooks(app) -> None:
                     )(),
                     needs=CapabilitySet.GUI_APPS,
                     files=folder,
+                    picker=folder,
                 )
         else:
             # /plugin.edit is not wiped by the /edit override; the builtin

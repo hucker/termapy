@@ -63,6 +63,13 @@ if TYPE_CHECKING:
 LongHelp = Union[str, Callable[["PluginContext"], str]]
 
 
+# The pickers a host's ``ctx.internal.open_picker`` opens -- each one the
+# dialog behind a title-bar button (Cfg, Run, Proto; the port name for
+# ``port``).  The vocabulary of ``Command.picker``; the TUI opening every
+# one of them is pinned by a Pilot test.
+PICKERS: tuple[str, ...] = ("cfg", "port", "proto", "run")
+
+
 # Alias for ``Exception``, used at call sites where we deliberately
 # invoke code we don't own -- plugin handlers, lifecycle hooks, script
 # bodies, RX/TX observers, dynamic ``long_help`` callables, and plugin
@@ -330,6 +337,12 @@ class Command:
             ...) whose files the FIRST argument names, so frontends can
             suggest them as the user types.  ``""`` (default) means the
             first argument is not a data-folder file.  Validated at load.
+        picker: The picker (one of ``PICKERS``) a BARE invocation opens
+            where the host has pickers (the TUI) -- the same dialog its
+            button opens.  The dispatcher opens it instead of calling the
+            handler, which then sees a bare call only in hosts without
+            pickers (CLI, MCP).  ``/help`` renders the bare form from this
+            and from ``bare_sub``.  Validated at load.
     """
 
     help: str
@@ -346,6 +359,7 @@ class Command:
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
     files: str = ""
+    picker: str = ""
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -592,6 +606,10 @@ class PluginInfo:
         safety: Safety tier inherited from ``Command.safety``.
         files: Data folder the first argument's file lives in, inherited
             from ``Command.files``; ``""`` when it names no data-folder file.
+        picker: Picker a bare invocation opens in a host with pickers,
+            inherited from ``Command.picker``.
+        bare_sub: Subcommand a bare invocation of an interior node runs,
+            inherited from ``Command.bare_sub`` (carried for ``/help``).
     """
 
     name: str
@@ -608,6 +626,8 @@ class PluginInfo:
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
     files: str = ""
+    picker: str = ""
+    bare_sub: str = ""
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.
@@ -630,6 +650,11 @@ class PluginInfo:
             raise ValueError(
                 f"/{self.name}: unknown files folder {self.files!r} "
                 f"(use {', '.join(FOLDER_NAMES)})"
+            )
+        if self.picker and self.picker not in PICKERS:
+            raise ValueError(
+                f"/{self.name}: unknown picker {self.picker!r} "
+                f"(use {', '.join(PICKERS)})"
             )
 
 

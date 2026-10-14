@@ -373,6 +373,7 @@ NAME
 
 SYNOPSIS
   /port {name}
+  /port -- bare: opens the Port picker in the TUI
 
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
@@ -729,6 +730,7 @@ NAME
 
 SYNOPSIS
   /port {name}
+  /port -- bare: opens the Port picker in the TUI
 
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
@@ -769,6 +771,7 @@ NAME
 
 SYNOPSIS
   /cfg {key {value}}
+  /cfg -- bare: opens the Cfg picker in the TUI
 
 DESCRIPTION
   Active cfg = demo (1 config available)
@@ -888,6 +891,9 @@ demo> /help cap
 NAME
   /cap - Data capture tools.
 
+SYNOPSIS
+  /cap -- bare: runs /cap.explore
+
 DESCRIPTION
   0 files in cap/
 
@@ -913,6 +919,9 @@ demo> /help ss
 NAME
   /ss - Screenshot tools: save SVG/text, manage folder.
 
+SYNOPSIS
+  /ss -- bare: runs /ss.explore
+
 DESCRIPTION
   0 screenshots in ss/
 
@@ -931,6 +940,9 @@ SUBCOMMANDS
 demo> /help proto
 NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
+
+SYNOPSIS
+  /proto -- bare: opens the Proto picker in the TUI
 
 DESCRIPTION
   3 scripts in proto/
@@ -966,16 +978,16 @@ AVAILABLE
 
 SUBCOMMANDS
   /proto.crc        Browse and compute CRC algorithms.
-  /proto.debug      Interactive protocol debug screen; bare opens the Proto picker.
+  /proto.debug      Interactive protocol debug screen.
   /proto.dump       Print the newest (or named) file from proto/ to the terminal.
-  /proto.edit       Open a .pro file in the system editor; bare lists proto/.
+  /proto.edit       Open a .pro file in the system editor.
   /proto.explore    Open proto/ in the system file explorer.
   /proto.help       Show /proto help.
   /proto.hex        Toggle hex display of incoming bytes (same flag as /term.hex).
   /proto.info       Print current protocol state.
   /proto.list       List files in proto/, newest first, with size and age.
   /proto.rename     Rename a file in proto/ (extension kept; never overwrites).
-  /proto.run        Run a protocol test script; in the TUI, bare opens the Proto picker.
+  /proto.run        Run a protocol test script.
   /proto.send       Send raw bytes (with optional CRC), show response.
   /proto.show       Open the newest file in proto/ with the system viewer.
   [171/219] /help proto (5.89ms)
@@ -988,7 +1000,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
-  /plugin.edit       Open a .py file in the system editor; bare lists plugin/.
+  /plugin.edit       Open a .py file in the system editor.
   /plugin.explore    Open plugin/ in the system file explorer.
   /plugin.list       List files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
@@ -1045,6 +1057,9 @@ demo> /help mem
 NAME
   /mem - Device memory: dump, typed reads, writes and bit ops via /sym names.
 
+SYNOPSIS
+  /mem -- bare: runs /mem.info
+
 DESCRIPTION
   Reads and writes device memory.  Native firmware implements the
   termapy MEM spec (see /help memory):
@@ -1100,13 +1115,14 @@ NAME
 
 SYNOPSIS
   /run {filename}
+  /run -- bare: opens the Run picker in the TUI
 
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
-  /run.edit       Open a .run file in the system editor; bare lists run/.
+  /run.edit       Open a .run file in the system editor.
   /run.explore    Open run/ in the system file explorer.
   /run.help       Show /run help, or print a script's docstring.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).

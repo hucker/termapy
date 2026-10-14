@@ -25,6 +25,7 @@ from termapy.config import cfg_log_path
 from termapy.folders import EXT_TO_FOLDER, FOLDERS, ensure_folder
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins.command import PICKERS
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -197,19 +198,23 @@ def edit_command(folder: str) -> Command:
         folder: A ``folders.FOLDERS`` name holding editable text files.
     """
     spec = next(spec for spec in FOLDERS if spec.name == folder)
+    # A folder with a picker opens it on a bare call in the TUI (SYNOPSIS
+    # says so); the listing is what a host without pickers falls back to.
+    picker = folder if folder in PICKERS else ""
+    bare = f"Without a picker (CLI, MCP), bare lists {folder}/." if picker else f"Bare lists {folder}/."
     text = (
         f"With a name, opens that existing file from {folder}/ in the system "
-        f"editor (the {spec.ext} is optional); a missing name fails.  Bare "
-        f"lists {folder}/.  /{folder}.edit and /edit.{folder} are the same "
-        f"command."
+        f"editor (the {spec.ext} is optional); a missing name fails.  {bare}  "
+        f"/{folder}.edit and /edit.{folder} are the same command."
     )
     return Command(
         args="{filename}",
-        help=f"Open a {spec.ext} file in the system editor; bare lists {folder}/.",
+        help=f"Open a {spec.ext} file in the system editor.",
         long_help=_folder_long_help(folder, text),
         handler=make_edit_handler(_folder_dir(folder), spec.ext, spec.pattern),
         needs=CapabilitySet.GUI_APPS,
         files=folder,
+        picker=picker,
     )
 
 

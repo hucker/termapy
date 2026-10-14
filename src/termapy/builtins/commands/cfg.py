@@ -54,12 +54,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # express (see CLAUDE.md "Declarative Command Parameters").  /cfg.load is
     # likewise a trivial single positional kept hand-rolled.
     parts = args.strip().split(None, 1)
-    # Bare /cfg -- TUI opens the Cfg picker dialog (matches the
-    # title-bar button); CLI shows /help cfg.  Use /cfg.dump to print
-    # the loaded config as JSON.
+    # Bare /cfg -- TUI opens the Cfg picker dialog (picker="cfg", so the
+    # dispatcher does it before this runs); CLI shows /help cfg.  Use
+    # /cfg.dump to print the loaded config as JSON.
     if not parts:
-        if ctx.internal.open_picker is not None:
-            return ctx.internal.open_picker("cfg")
         return _handler_help(ctx, args)
     key = parts[0]
     container = _find_cfg_container(ctx.cfg, key)
@@ -555,6 +553,7 @@ COMMAND = Command(
     help="Show or set config values.",
     long_help=_cfg_long_help,
     handler=_handler,
+    picker="cfg",
     sub_commands={
         "auto": Command(
             help="Set immediately (no confirmation).",

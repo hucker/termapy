@@ -254,10 +254,13 @@ def on_proto_picked(app, result: tuple | None) -> None:
 def open_picker(app, name: str) -> CmdResult:
     """Open the picker/dialog for a top-level command name.
 
-    Wired into ``InternalHandle.open_picker`` from ``_register_tui_hooks``
-    so that bare ``/cfg``, ``/run``, ``/proto`` invocations behave
-    like clicking the matching title-bar button.  CLI never installs
-    this callback; plugin handlers fall through to their CLI fallback.
+    Wired into ``InternalHandle.open_picker`` from ``_register_tui_hooks``;
+    the dispatcher calls it for a bare invocation of any command that
+    declares ``picker=`` (``/cfg``, ``/run``, ``/proto``, ``/port`` and
+    the edit/run twins), so it behaves like clicking the matching
+    title-bar button.  CLI never installs this callback; those handlers
+    then run their own bare fallback.  ``name`` is one of
+    ``plugins.command.PICKERS``.
     """
     dispatch = {
         "cfg": app._btn_cfg,

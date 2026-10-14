@@ -43,10 +43,9 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     if name:
         ctx.serial.update_port(name)
         return CmdResult.ok(value=name)
-    # Bare /port -- TUI opens the port picker (matches clicking the
-    # left title-bar button); CLI shows /help port.
-    if ctx.internal.open_picker is not None:
-        return ctx.internal.open_picker("port")
+    # Bare /port -- TUI opens the port picker (picker="port", matching
+    # the left title-bar button; the dispatcher does it); CLI shows
+    # /help port.
     return _handler_help(ctx, args)
 
 
@@ -458,6 +457,7 @@ COMMAND = Command(
     help="Serial port tools: connect, disconnect, list, configure.",
     long_help=_port_root_long_help,
     handler=_handler_root,
+    picker="port",
     sub_commands={
         "list": Command(
             help="List available serial ports.",

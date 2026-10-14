@@ -18,9 +18,9 @@ messages for the overlay -- same polymorphism the rest of the
 plugin layer uses.
 
 Bare ``/run`` opens the Run picker when a host installs one
-(``ctx.internal.open_picker`` is set in TUI, unset elsewhere); CLI
-and MCP fall through to ``/help run`` with the available-files
-section appended.  Folder subcommands (.list/.dump/.show/.explore)
+(``picker="run"``: the dispatcher opens it where
+``ctx.internal.open_picker`` is set, the TUI); CLI and MCP fall
+through to ``/help run`` with the available-files section appended.  Folder subcommands (.list/.dump/.show/.explore)
 come from the shared ``build_folder_subcommands`` helper, and
 ``/run.edit`` is ``/edit.run`` under its noun-first name
 (``edit.edit_command``).  ``/run.legacy`` rides along by re-exporting
@@ -140,8 +140,11 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
-    """``/run`` -- bare opens picker (TUI) / shows help (CLI, MCP);
-    with a filename, dispatches to the host's script runner.
+    """``/run`` -- with a filename, dispatches to the host's script runner.
+
+    Bare in the TUI opens the Run picker (``picker="run"``, so the
+    dispatcher does it); a bare call reaching here is a host without
+    pickers (CLI, MCP), which gets help plus the available scripts.
 
     The host wires ``start_script`` and ``run_script`` onto
     ``ctx.internal`` in ``TerminalHost._build_context``; this handler
@@ -149,11 +152,6 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip()
     if not arg:
-        if ctx.internal.open_picker is not None:
-            return ctx.internal.open_picker("run")
-        # No picker in this host -- show help + the list of
-        # available .run files (the closest CLI / MCP equivalent
-        # to "open the picker").
         return _handler_help(ctx, args)
 
     if ctx.internal.start_script is None or ctx.internal.run_script is None:
@@ -187,6 +185,7 @@ COMMAND = Command(
     help="Run a script file, or list available scripts.",
     handler=_handler_root,
     files="run",
+    picker="run",
     sub_commands={
         "help": Command(
             args="{script}",

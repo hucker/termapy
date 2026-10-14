@@ -1257,6 +1257,7 @@ class ReplEngine:
         needs: CapabilitySet | None = None,
         hidden: bool = False,
         files: str = "",
+        picker: str = "",
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1281,6 +1282,7 @@ class ReplEngine:
             hidden: Omit from discovery surfaces (see ``Command.hidden``).
             files: Data folder the first argument's file lives in
                 (see ``Command.files``).
+            picker: Picker a bare invocation opens (see ``Command.picker``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -1305,6 +1307,7 @@ class ReplEngine:
             needs=needs if needs is not None else CapabilitySet(),
             hidden=hidden,
             files=files,
+            picker=picker,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -1336,6 +1339,26 @@ class ReplEngine:
             if name.endswith(suffix):
                 return self._plugins.get(name[: -len(suffix)])
         return None
+
+    def _bare_picker_handler(self, plugin: PluginInfo, args: str) -> Callable | None:
+        """The handler that opens ``plugin``'s picker for a bare call, or None.
+
+        A command declaring ``picker=`` opens that dialog when called bare
+        in a host that has pickers (the TUI wires ``open_picker``); the
+        command's own handler then never sees the bare TUI call, so no
+        handler opens a picker itself and ``/help`` can state the bare
+        form from the declaration (registry ``bare-declared``).  Runs
+        after flag and param parsing, so ``args`` is what the handler
+        would have received.
+        """
+        open_picker = self.ctx.internal.open_picker
+        if not plugin.picker or args.strip() or open_picker is None:
+            return None
+        picker = plugin.picker
+
+        def _open(ctx: PluginContext, args: str) -> CmdResult:
+            return open_picker(picker)
+        return _open
 
     def complete_file_arg(self, line: str) -> tuple[int, list[str]] | None:
         """File names that complete a line's first argument, newest first.
@@ -1895,6 +1918,7 @@ class ReplEngine:
             saved_wants_data = self.ctx.wants_data
             if wants_json:
                 self.ctx.wants_data = True
+            handler = self._bare_picker_handler(plugin, args) or plugin.handler
             self._handler_depth += 1
             try:
                 t0 = time.perf_counter()
@@ -1904,7 +1928,7 @@ class ReplEngine:
                     self.ctx.io._write = lambda text, color=None: None
                     self.ctx.io._write_markup = lambda text: None
                     try:
-                        result = plugin.handler(self.ctx, args)
+                        result = handler(self.ctx, args)
                     finally:
                         self.ctx.io._write = saved_write
                         self.ctx.io._write_markup = saved_write_markup
@@ -1930,13 +1954,13 @@ class ReplEngine:
                     self.ctx.io._write = _capture_plain
                     self.ctx.io._write_markup = _capture_markup
                     try:
-                        result = plugin.handler(self.ctx, args)
+                        result = handler(self.ctx, args)
                     finally:
                         self.ctx.io._write = saved_write
                         self.ctx.io._write_markup = saved_write_markup
                     json_output_lines = captured_lines
                 else:
-                    result = plugin.handler(self.ctx, args)
+                    result = handler(self.ctx, args)
                 if result is None:
                     # SPECIAL CASE: legacy / external handler returned None.
                     # Synthesize an empty success so the dispatch loop has

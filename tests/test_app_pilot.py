@@ -1884,16 +1884,23 @@ class TestEditHooks:
 
         _run(scenario)
 
-    def test_bare_file_commands_open_their_folders_picker(self, app_factory):
-        """A bare edit or run command opens the picker its folder's button opens, under either spelling."""
+    def test_bare_picker_commands_open_their_picker(self, app_factory):
+        """bare-declared: every picker= command opens its button's picker when bare, and the TUI opens every PICKERS name."""
         async def scenario():
-            from termapy.dialogs import ProtoPicker, ScriptPicker
+            from termapy.dialogs import ConfigPicker, ProtoPicker, ScriptPicker
+            from termapy.plugins.command import PICKERS
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
                 await pilot.pause()
-                # Arrange -- /proto.run and /proto.debug are gated on a port
+                # Arrange -- /proto.run and /proto.debug are gated on a port.
+                # The port picker skips its dialog when exactly one port
+                # exists, so /port is checked by the picker it asked for.
                 assert app._connect() is True, "DEMO port should connect"
                 expected = {
+                    "run": ScriptPicker,
+                    "proto": ProtoPicker,
+                    "cfg": ConfigPicker,
+                    "port": None,
                     "run.edit": ScriptPicker,
                     "edit.run": ScriptPicker,
                     "proto.edit": ProtoPicker,
@@ -1901,6 +1908,7 @@ class TestEditHooks:
                     "proto.run": ProtoPicker,
                     "proto.debug": ProtoPicker,
                 }
+                asked: set[str] = set()
                 for command, picker in expected.items():
                     # Act
                     result = app.repl.dispatch(command)
@@ -1908,13 +1916,13 @@ class TestEditHooks:
 
                     # Assert
                     assert result.success, f"/{command}: {result.error}"
-                    assert isinstance(app.screen, picker), f"bare /{command} opens {picker.__name__}"
-                    plugin = app.repl.plugin_for(command)
-                    assert plugin is not None and "picker" in plugin.help, (
-                        f"/{command}'s help says what a bare call does"
-                    )
-                    app.pop_screen()
+                    asked.add(str(result.value))
+                    if picker is not None:
+                        assert isinstance(app.screen, picker), f"bare /{command} opens {picker.__name__}"
+                    while len(app.screen_stack) > 1:
+                        app.pop_screen()
                     await pilot.pause()
+                assert asked == set(PICKERS), "the TUI opens every picker a command may declare"
 
         _run(scenario)
 

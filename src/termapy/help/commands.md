@@ -40,6 +40,7 @@ because its folders hold different types of file.
 
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
+| `/cap`                    | Open the cap/ folder (same as the Cap button and `/cap.explore`)            |
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
 | `/cap.poll {count=N} {delay=<dur>} {file=<f>} cmd=<cmds>` | Poll commands on a schedule; print rows, optionally save CSV/JSONL |
@@ -81,6 +82,7 @@ because its folders hold different types of file.
 | `/help.plugin`            | List loaded plugins grouped by source                                       |
 | `/help.run`               | List available .run scripts with descriptions                               |
 | `/help.target`            | Show only imported target device commands                                   |
+| `/log`                    | Open the session log (same as the Log button and `/log.show`)               |
 | `/log.delete`             | Delete the session log file                                                 |
 | `/log.dump [N]`           | Print the session log (all, or an N-line slice) to the terminal             |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
@@ -98,7 +100,7 @@ because its folders hold different types of file.
 | `/mem.write <target> <hex>` | Write hex bytes, or set a register field/bit (audited)                    |
 | `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
 | `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
-| `/port {name}`            | TUI bare: open Port picker. CLI bare: list subcommands. With name: open it. |
+| `/port {name}`            | TUI bare: open Port picker. CLI bare: show `/help port`. With name: open it. |
 | `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |
 | `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |
@@ -154,6 +156,7 @@ because its folders hold different types of file.
 | `/seq.reset`              | Reset all sequence counters to zero                                         |
 | `/show <name>`            | Show a file                                                                 |
 | `/show.cfg`               | Show the current config file                                                |
+| `/ss`                     | Open the screenshot folder (same as the SS button and `/ss.explore`)        |
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
 | `/ss.txt [name] [N]`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |

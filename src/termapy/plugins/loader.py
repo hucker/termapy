@@ -305,6 +305,8 @@ def _flatten_command(
         params=node.params,
         safety=node.safety,
         files=node.files,
+        picker=node.picker,
+        bare_sub=node.bare_sub,
     )
     result.insert(0, info)
     return result

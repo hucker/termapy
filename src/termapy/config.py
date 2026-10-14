@@ -411,7 +411,7 @@ def hardware_signals(port_obj: object) -> str:
                            ("RI", "ri"), ("CD", "cd")]:
             parts.append(f"{name}={int(getattr(port_obj, attr, 0))}")
         return " ".join(parts)
-    except (OSError, Exception):
+    except (OSError, Exception):  # noqa: BLE001 -- boundary: any backend's modem-line read; the banner omits the signals
         return ""
 
 

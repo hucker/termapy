@@ -166,6 +166,24 @@ def test_an_echoed_command_keeps_its_brackets(session):
     assert any(line.endswith("/print [ok]") for line in echoed), f"echo shows the command as typed; got {echoed}"
 
 
+def test_the_echo_line_expands_vars_marks_the_eol_and_escapes_the_command(tmp_path):
+    """format_echo_markup: echo_fmt's $(CFG) expands, an EOL marker follows a device line, and [ok] survives."""
+    # Arrange
+    config_path = tmp_path / "rig" / "rig.cfg"
+    config_path.parent.mkdir()
+    cfg = {"echo_fmt": "[purple]$(CFG)> {cmd}[/]", "eol_markers": True, "eol": "\r"}
+    config_path.write_text(json.dumps(cfg), encoding="utf-8")
+    engine = ReplEngine(cfg, str(config_path), lambda *a, **k: None, global_root=tmp_path)
+
+    # Act
+    slash = Text.from_markup(engine.format_echo_markup("/print [ok]")).plain
+    device = Text.from_markup(engine.format_echo_markup("AT[ok]", lambda eol: "<CR>")).plain
+
+    # Assert
+    assert slash == "rig> /print [ok]", "a slash command echoes with no line-ending marker"
+    assert device == "rig> AT[ok]<CR>", "a device line shows the line ending it is sent with"
+
+
 def _page_text(plugin, ctx: PluginContext) -> list[str]:
     """Every line of prose a command's man page must show: one-liner, synopsis, flags, long help."""
     lines = [interpolate_help(plugin.help, ctx.prefix), plugin.args or ""]

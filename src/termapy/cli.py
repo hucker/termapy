@@ -982,7 +982,10 @@ class CLITerminal(TerminalHost):
         self.write("Available ports:", "bold")
         msgs, _ = port_control.list_ports()
         for text, color in msgs:
-            self.write(text, color or "")
+            if color == port_control.MARKUP:
+                self.write_markup(text)
+            else:
+                self.write(text, color or "")
         self.write("")
         self.write("Defaults: 115200 N81 cr noecho", "dim")
         self.write("")

@@ -75,7 +75,7 @@ from termapy.dialogs import (
 from termapy.folders import FOLDER_PATTERNS, ensure_folder
 from termapy.help_tooltip import build_help_tooltip
 from termapy.history_nav import HistoryNavigator, merge_history, read_history
-from termapy.markup import escape_markup, markup_to_plain
+from termapy.markup import markup_to_plain
 from termapy.palette_provider import PaletteProvider
 from termapy.plugins import (
     BoundaryException,
@@ -3029,12 +3029,7 @@ class SerialTerminal(TerminalHost, App):
             text: Literal text to send.
         """
         if self.repl.echo:  # live echo flag, not cfg (see _init_flags)
-            fmt = self.cfg.get("echo_fmt", "> {cmd}")
-            echo_text = text
-            if self.cfg.get("eol_markers", False):
-                le = self.cfg.get("eol", "\r")
-                echo_text += eol_label(le)
-            self._write_output_markup(fmt.replace("{cmd}", escape_markup(echo_text)))
+            self._write_output_markup(self.repl.format_echo_markup(text, eol_label))
         if not self.is_connected:
             self._status("Not connected.", "red")
             return

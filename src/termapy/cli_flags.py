@@ -60,21 +60,22 @@ def run_info(
     function uses pyserial's ``comports()`` and works without any
     config or open Serial object.
 
-    Color hints from the internal Result are dropped because stdout
-    output is intended for piping to grep/awk/jq, not for terminal
-    rendering.  Run termapy interactively and use ``/port.chip`` if
-    you want colored output.
+    Color hints from the internal Result are dropped, and markup rows
+    flattened to their text, because stdout output is intended for
+    piping to grep/awk/jq, not for terminal rendering.  Run termapy
+    interactively and use ``/port.chip`` if you want colored output.
 
     Exits with status 0 if at least one port matched and was printed,
     or 1 if the named port wasn't found, no ports are connected, or
     any other error condition was reported.
     """
     from termapy import port_control
+    from termapy.markup import markup_to_plain
 
     msgs, _ = port_control.chip_info(args.info, current_port="", source=source)
     error = False
     for text, color in msgs:
-        print(text)
+        print(markup_to_plain(text) if color == port_control.MARKUP else text)
         if color in ("red", "yellow") and (
             "No port" in text
             or "No current port" in text

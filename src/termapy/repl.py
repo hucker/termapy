@@ -1358,6 +1358,33 @@ class ReplEngine:
 
     # -- Full dispatch pipeline ------------------------------------------------
 
+    def format_echo_markup(
+        self, text: str, eol_label: Callable[[str], str] | None = None,
+    ) -> str:
+        """The echo line for a command or device line, as markup.
+
+        ``echo_fmt`` with its ``$(VAR)`` expanded and ``{cmd}`` replaced by
+        ``text``, escaped.  With ``eol_markers`` on and an ``eol_label``
+        renderer (the engine does not import the serial layer, so the
+        caller supplies it), the line ending is shown after the text.  One
+        builder for every echo -- a slash command, a bare device line, the
+        TUI's ``/raw`` -- so they all read the same.
+
+        Args:
+            text: The command or device line as typed.
+            eol_label: Renders a line ending visibly, or ``None`` for no
+                markers (slash commands send no line ending).
+
+        Returns:
+            The echo line as Rich markup.
+        """
+        from termapy.variables import expand_vars
+
+        if eol_label is not None and self.cfg.get("eol_markers", False):
+            text += eol_label(self.cfg.get("eol", "\r"))
+        fmt = expand_vars(self.cfg.get("echo_fmt", "> {cmd}"))
+        return fmt.replace("{cmd}", escape_markup(text))
+
     def dispatch_full(
         self,
         cmd: str,
@@ -1436,13 +1463,6 @@ class ReplEngine:
             _status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
 
-        # Shared echo using echo_fmt for both REPL and serial
-        from termapy.variables import expand_vars
-
-        def _echo_cmd(text: str) -> None:
-            fmt = expand_vars(self.cfg.get("echo_fmt", "> {cmd}"))
-            _echo(fmt.replace("{cmd}", escape_markup(text)))
-
         # 3. REPL command (starts with prefix)
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
@@ -1453,7 +1473,7 @@ class ReplEngine:
             # for ".silent", so just echo unconditionally.
             first_word = repl_cmd.split()[0] if repl_cmd.split() else ""
             if echo_repl_on and ".silent" not in first_word:
-                _echo_cmd(f"{prefix}{repl_cmd}")
+                _echo(self.format_echo_markup(f"{prefix}{repl_cmd}"))
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
                     try:
@@ -1497,11 +1517,7 @@ class ReplEngine:
         # governs slash commands (which read the flag above).  The cfg key
         # seeds the flag at init; the flag is the session truth.
         if self.echo and cmd and not self.cfg.get("request_mode"):
-            echo_text = cmd
-            if self.cfg.get("eol_markers", False) and eol_label:
-                le = self.cfg.get("eol", "\r")
-                echo_text += eol_label(le)
-            _echo_cmd(echo_text)
+            _echo(self.format_echo_markup(cmd, eol_label))
 
         if is_connected and not is_connected():
             _status("Not connected.", "red")

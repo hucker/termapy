@@ -12,8 +12,9 @@ dial.  Errors flow through ``CmdResult.fail(msg=...)`` and the
 dispatcher paints the red line.  The lower-level ``_write`` /
 ``_write_markup`` primitives bypass level gating and are reserved
 for engine-internal use (dispatcher red-line prints, the silent-
-mode shim).  A CI grep guard fails the build if a builtin calls
-either of the underscored primitives directly.
+mode shim).  A guard in ``tests/test_architecture.py`` (registry
+``io-semantic-channels``) fails the suite if a plugin calls either of
+the underscored primitives directly.
 
 Self-contained dataclass: every operation is a callable field that
 the host wires at construction time.  The level-routed methods
@@ -56,8 +57,8 @@ class IOHandle:
     # ── Plain-text output (engine-internal primitives) ───────────────
     # Underscore signals "private to engine/dispatcher use."  Handler
     # code should not call these directly -- use ``result``/``output``/
-    # ``status`` instead.  A CI grep guard enforces this in
-    # ``src/termapy/builtins/``.
+    # ``status`` instead.  tests/test_architecture.py enforces this for
+    # every plugin (registry io-semantic-channels).
     _write: Callable = lambda text, color="dim": None
     _write_markup: Callable = lambda text: None
     log: Callable = lambda prefix, text: None

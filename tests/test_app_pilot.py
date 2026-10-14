@@ -1287,6 +1287,29 @@ class TestSessionLog:
         _run(scenario)
 
 
+class TestRawEcho:
+    """/raw echoes through the engine's one echo builder."""
+
+    def test_raw_echo_expands_the_echo_format(self, app_factory):
+        """The /raw echo reads echo_fmt like every other echo: $(CFG) expands, [ok] stays text."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 30)) as pilot:
+                await pilot.pause()
+                app.repl.ctx.ns("flags")["echo"] = True
+
+                # Act -- not connected, so the line is echoed and refused, never sent
+                app._send_serial_raw("AT[ok]")
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                assert "proj> AT[ok]" in text, f"the echo expands $(CFG) and keeps the brackets:\n{text}"
+                assert "$(CFG)" not in text, "the variable never shows unexpanded"
+
+        _run(scenario)
+
+
 class TestConfirmIsStopAware:
     """T14: ``_confirm`` parked on an unbounded ``event.wait()``.
 

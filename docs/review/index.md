@@ -40,7 +40,7 @@ would keep drawing from; it shrinks by a pass or a test file at a time.
 | Area | Statements | Uncovered | Covered | Dedicated pass | Note |
 |---|---|---|---|---|---|
 | `cli.py`, `entry.py`, `cli_flags.py` | 854 | 423 | 50% | none | plain calls, no Pilot needed; the headless `--proto` entry got its first tests 2026-10-11 |
-| `/proto.*` command module | 988 | 453 | 54% | 10-10 for `/proto.run`; the `/proto.crc.*` half deliberately out of scope | crcglot-backed; `tests/test_proto_crc_*` cover the verbs behaviorally |
+| `/proto.*` command module | 988 | 453 | 54% | 10-10 for `/proto.run`; the `/proto.crc.*` half deliberately out of scope | crcglot-backed; `tests/test_proto_crc_*` cover the verbs behaviorally; the non-CRC half (the connected `/proto.send`, the flat runner, `.hex`, `.info`, `.help`) got its first in-process run 2026-10-12 (`tests/test_proto_commands.py`, pending branch) |
 | port control + USB enumeration | 1165 | 308 | 74% | 07-03 covered ports in part | `usb_tree.py` 62%, `port_control.py` 75% |
 | demo device and its plugins | 1218 | 322 | 74% | none | `builtins/demo/plugin/*` at 0 to 16%; demo content, lowest priority |
 | `port`, `edit`, `ping`, `log` commands | 491 | 267 | 46% | none | `/cap.poll` and `/log.fingerprint` got their first tests 2026-10-12 (pending branch); the `/port.*` handlers their first in-process run the same day (`tests/test_port_commands.py`, pending branch) |

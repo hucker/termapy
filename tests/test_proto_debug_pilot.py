@@ -86,6 +86,23 @@ async def _status_after(pilot, screen: ProtoDebugScreen, needle: str, seconds: f
     return str(status.render())
 
 
+async def _disabled_after(pilot, button: Button, seconds: float) -> bool:
+    """Poll until ``button`` is disabled or ``seconds`` pass; return its final state.
+
+    The run worker posts the summary to the status bar BEFORE it clears the
+    run state (the optional JSON write sits between the two), so reading
+    Stop the moment the summary appears races the worker, and leaving
+    ``run_test()`` then tears the screen down under the worker's last
+    widget call.  Both lost under full-suite load on 2026-10-13.  Wait for
+    the end state: Stop dark means the worker has finished.
+    """
+    for _ in range(int(seconds * 10)):
+        if button.disabled:
+            return True
+        await pilot.pause(0.1)
+    return button.disabled
+
+
 class TestRunButton:
 
     def test_run_starts_a_run_and_reports_the_summary(self, tmp_path):
@@ -101,10 +118,43 @@ class TestRunButton:
                 # Stop's live state during a run is pinned by the Stop test
                 await pilot.click("#btn-dbg-send")
                 text = await _status_after(pilot, screen, "PASS", 5.0)
+                stop_dark = await _disabled_after(pilot, stop, 5.0)
 
                 # Assert
                 assert "1/1 PASS" in text, f"the run ran, got {text!r}"
-                assert stop.disabled is True, "Stop goes dark when the run ends"
+                assert stop_dark is True, "Stop goes dark when the run ends"
+        _run(scenario)
+
+
+class TestArguments:
+
+    def test_bad_arguments_are_refused_before_a_screen_opens(self, tmp_path):
+        """/proto.debug refuses a bare call, a missing file, a flat script and a TOML script without tests, each by its own message, and opens no screen."""
+        async def scenario():
+            # Arrange -- the TUI rig, since the CLI refuses /proto.debug by capability
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            flat = script.parent / "flat.pro"
+            flat.write_text('send: "AT\\r"\nexpect: "OK\\r\\n"\n', encoding="utf-8")
+            none = script.parent / "none.pro"
+            none.write_text('name = "none"\ntest = []\n', encoding="utf-8")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert pilot.app._connect() is True, "DEMO port should connect"
+                await pilot.pause()
+
+                # Act
+                bare = pilot.app._dispatch_single("/proto.debug")
+                missing = pilot.app._dispatch_single("/proto.debug nope")
+                not_toml = pilot.app._dispatch_single(f"/proto.debug {flat}")
+                no_tests = pilot.app._dispatch_single(f"/proto.debug {none}")
+                await pilot.pause()
+
+                # Assert
+                assert bare.error.startswith("Usage: /proto.debug "), bare.error
+                assert missing.error.startswith("File not found: nope"), missing.error
+                assert not_toml.error.startswith("Script error: TOML parse error"), "the debug screen is TOML-only"
+                assert no_tests.error == "Script has no tests."
+                assert not isinstance(pilot.app.screen, ProtoDebugScreen), "no refusal opened the screen"
         _run(scenario)
 
 
@@ -124,10 +174,15 @@ class TestStopButton:
                 await pilot.click("#btn-dbg-stop")
                 stopping = str(screen.query_one("#proto-debug-status", Static).render())
                 text = await _status_after(pilot, screen, "stopped by user", 6.0)
+                # The summary lands before the worker clears its run state;
+                # leaving run_test() in that gap tears the screen down under
+                # the worker's last widget call (WorkerFailed, 2026-10-13).
+                stop_dark = await _disabled_after(pilot, screen.query_one("#btn-dbg-stop", Button), 5.0)
 
                 # Assert
                 assert "Stopping" in stopping, "the press is acknowledged at once"
                 assert "0/1 PASS" in text and "stopped by user" in text, (
                     f"one test ran, then the stop landed; got {text!r}"
                 )
+                assert stop_dark is True, "Stop goes dark once the stopped run has finished"
         _run(scenario)

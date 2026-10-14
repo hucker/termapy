@@ -6,6 +6,7 @@ and then run release_publish.py to finish.
 Usage:
     python scripts/release_prep.py 0.53.0
     python scripts/release_prep.py 0.53.0 --ignore-vuln GHSA-xxxx-xxxx-xxxx
+    python scripts/release_prep.py 0.53.0 --skip-hw-loopback
 
 What it does:
     1. Sanity-check git state (on main, clean, in sync with origin)
@@ -13,15 +14,17 @@ What it does:
     3. Bump version in pyproject.toml and mkdocs.yml, upgrade uv.lock,
        re-check ruff/ty against the upgraded environment
     4. Audit uv.lock for known vulnerabilities (scripts/audit_lock.py)
-    5. Update doc counts (test count, ty count, line counts)
-    6. Update tagged config examples in help docs
-    7. Refresh USB vendor table from upstream usb.ids
-    8. Insert CHANGELOG stub
-    9. Run pytest
-    10. Run tox (multi-version)
-    11. Build HTML help with zensical
-    12. Commit HTML rebuild
-    13. Commit release
+    5. Run the hw_loopback suite with --require-hw-loopback (refuses
+       unless it passes, or --skip-hw-loopback is on the command line)
+    6. Update doc counts (test count, ty count, line counts)
+    7. Update tagged config examples in help docs
+    8. Refresh USB vendor table from upstream usb.ids
+    9. Insert CHANGELOG stub
+    10. Run pytest
+    11. Run tox (multi-version)
+    12. Build HTML help with zensical
+    13. Commit HTML rebuild
+    14. Commit release
 
 Aborts loudly on any failure. Safe-restart: if it fails halfway, delete
 the release branch and start over (`git checkout main && git branch -D
@@ -55,7 +58,6 @@ from release_common import (  # noqa: E402
     validate_version,
     warn,
 )
-
 
 # ── version bumping ──────────────────────────────────────────────────────────
 
@@ -649,6 +651,41 @@ def run_tox() -> None:
     ok("tox passed")
 
 
+def run_hw_loopback_suite(skip: bool) -> None:
+    """Run the hw_loopback suite; the release refuses unless it passes.
+
+    The suite (``tests/test_hw_loopback.py``, against the TX-RX-jumpered
+    adapter) is the only test of the OS driver, bridge FIFO and real baud
+    pacing -- ``FakeSerial`` and pyserial's ``loop://`` cannot drop a byte --
+    and it is opt-in, so no other gate runs it.  ``--require-hw-loopback`` turns an
+    absent, busy or silent rig into a failure rather than a skip, so an
+    unplugged bench cannot read green.  It runs serially and without coverage
+    because CPU contention fakes the data-loss signature the suite exists to
+    catch.  ``skip`` puts a release without it on the command line, the way
+    ``--ignore-vuln`` does for a reviewed advisory.
+    """
+    if skip:
+        warn(
+            "hw_loopback suite SKIPPED (--skip-hw-loopback): this release was NOT "
+            "tested on the jumpered adapter"
+        )
+        return
+    info("Running the hw_loopback suite (serial, no coverage)...")
+    result = run(
+        ["uv", "run", "pytest", "--require-hw-loopback", "-m", "hw_loopback",
+         "-n", "0", "--no-cov", "-q"],
+        check=False,
+    )
+    if result.returncode != 0:
+        die(
+            "hw_loopback suite failed or the jumpered adapter is unusable (see above).  "
+            "Attach the TX-RX-jumpered adapter (TERMAPY_HW_LOOPBACK_SN, default "
+            "BG03U7VTA), close any app holding it, delete the release branch and "
+            "re-run -- or pass --skip-hw-loopback to release without it on purpose."
+        )
+    ok("hw_loopback suite passed on the jumpered adapter")
+
+
 def run_zensical_build() -> None:
     info("Building HTML help with zensical...")
     run(["uvx", "zensical", "build"])
@@ -756,6 +793,11 @@ def main() -> None:
         help="advisory id the uv.lock audit may ignore (a finding reviewed "
              "as unreachable); repeatable",
     )
+    parser.add_argument(
+        "--skip-hw-loopback", action="store_true",
+        help="release without running the hw_loopback suite; the "
+             "default refuses unless it passes on the attached jumpered adapter",
+    )
     args = parser.parse_args()
 
     version = args.version
@@ -763,7 +805,7 @@ def main() -> None:
 
     info(f"Preparing release v{version}")
 
-    total = 13
+    total = 14
 
     def step(n: int, label: str) -> None:
         info(f"[{n}/{total}] {label}")
@@ -799,7 +841,12 @@ def main() -> None:
     import audit_lock
     audit_lock.audit_uv_lock(args.ignore_vuln)
 
-    step(5, "Updating doc counts (test count, ty count, coverage, line counts)...")
+    # Early, before the long suite: an unplugged bench should cost seconds,
+    # and nothing else is loading the CPU yet.
+    step(5, "Running the hw_loopback suite...")
+    run_hw_loopback_suite(args.skip_hw_loopback)
+
+    step(6, "Updating doc counts (test count, ty count, coverage, line counts)...")
     test_count = count_tests()
     ty_count = count_ty_issues()
     cov_percent = measure_coverage_percent()
@@ -807,7 +854,7 @@ def main() -> None:
     update_readme_md(test_count, ty_count, cov_percent)
     update_suppression_count()
 
-    step(6, "Refreshing generated docs (config examples, credits sync)...")
+    step(7, "Refreshing generated docs (config examples, credits sync)...")
     from update_doc_configs import update_doc_configs
     updated = update_doc_configs()
     if updated:
@@ -827,30 +874,32 @@ def main() -> None:
         )
     ok("credits.py in sync with help/acknowledgments.md")
 
-    step(7, "Refreshing USB vendor table from upstream usb.ids...")
+    step(8, "Refreshing USB vendor table from upstream usb.ids...")
     refresh_usb_vendor_table()
 
-    step(8, "Inserting CHANGELOG stub...")
+    step(9, "Inserting CHANGELOG stub...")
     insert_changelog_stub(version)
 
-    step(9, "Running pytest...")
+    step(10, "Running pytest...")
     run_pytest()
 
-    step(10, "Running tox (multi-version)...")
+    step(11, "Running tox (multi-version)...")
     run_tox()
 
-    step(11, "Building HTML help with zensical...")
+    step(12, "Building HTML help with zensical...")
     run_zensical_build()
 
-    step(12, "Committing HTML rebuild...")
+    step(13, "Committing HTML rebuild...")
     commit_html_rebuild(version)
 
-    step(13, "Committing release...")
+    step(14, "Committing release...")
     commit_release(version)
 
     # ── Done ─────────────────────────────────────────────────────────────
     print()
     ok(f"Release v{version} prepped on branch release/v{version}")
+    if args.skip_hw_loopback:
+        warn("Reminder: --skip-hw-loopback -- this release was NOT tested on the hw_loopback adapter")
     print()
     info("Next steps:")
     print("  1. Review the diff:        git log -p main..HEAD")

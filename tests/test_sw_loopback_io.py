@@ -1,4 +1,4 @@
-"""End-to-end I/O tests using pyserial's ``loop://`` backend.
+"""sw_loopback: end-to-end I/O tests using pyserial's ``loop://`` backend.
 
 ``loop://`` is a pure-Python virtual serial port (part of pyserial):
 whatever is written to it is immediately readable.  It exercises the
@@ -27,7 +27,8 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.slow  # real-pyserial loopback + subprocess CLI tests
+# The software loopback needs no hardware: it runs anywhere, CI included.
+pytestmark = [pytest.mark.slow, pytest.mark.sw_loopback]  # real pyserial + subprocess CLI
 
 
 def _run_cli(

@@ -1014,3 +1014,134 @@ def test_known_untested_commands_has_no_stale_entries():
         "KNOWN_UNTESTED_COMMANDS lists commands a test now names; drop them:\n  "
         + "\n  ".join(stale)
     )
+
+
+# ── Loopback labels ──────────────────────────────────────────────────────────
+#
+# Two loopbacks, two markers.  sw_loopback is pyserial's virtual loop:// port:
+# no hardware, runs anywhere, CI included.  hw_loopback is the TX-RX-jumpered
+# adapter: gated in conftest (opt-in flag, refused on GitHub Actions, required
+# by release_prep) and pinned by tests/test_hw_loopback_gate.py.  This guard
+# keeps the sw label complete, so `-m sw_loopback` selects every test that
+# touches loop:// and the two are never read as one thing.
+
+_SW_LOOPBACK_URL = "loop://"
+
+
+def _mark_names(nodes: list[ast.expr]) -> set[str]:
+    """The ``pytest.mark.<name>`` names used anywhere in ``nodes``."""
+    return {
+        sub.attr
+        for node in nodes
+        for sub in ast.walk(node)
+        if isinstance(sub, ast.Attribute)
+        and isinstance(sub.value, ast.Attribute)
+        and sub.value.attr == "mark"
+    }
+
+
+def _loop_url_constants(node: ast.AST, docstrings: set[int]) -> set[int]:
+    """Ids of the string constants under ``node`` that name loop://, docstrings excluded."""
+    return {
+        id(sub)
+        for sub in ast.walk(node)
+        if isinstance(sub, ast.Constant)
+        and isinstance(sub.value, str)
+        and _SW_LOOPBACK_URL in sub.value
+        and id(sub) not in docstrings
+    }
+
+
+def _sw_loopback_unlabeled(tree: ast.Module) -> list[str]:
+    """Tests that use loop:// without the sw_loopback marker, and ``<module>`` for unlabeled helper use.
+
+    A test's marks are its own decorators, its classes' decorators and the
+    module's ``pytestmark``.  A loop:// constant outside any test (a helper,
+    a fixture, module scope) can feed any test, so it needs the module mark.
+    """
+    docstrings = {
+        id(node.body[0].value)
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+        and isinstance(node.body[0].value.value, str)
+    }
+    module_marks = _mark_names([
+        stmt.value
+        for stmt in tree.body
+        if isinstance(stmt, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "pytestmark" for target in stmt.targets)
+    ])
+
+    unlabeled: list[str] = []
+    in_tests: set[int] = set()
+
+    def visit(body: list[ast.stmt], prefix: str, inherited: set[str]) -> None:
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
+                uses = _loop_url_constants(node, docstrings)
+                in_tests.update(uses)
+                if uses and "sw_loopback" not in inherited | _mark_names(node.decorator_list):
+                    unlabeled.append(prefix + node.name)
+            elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+                visit(node.body, f"{prefix}{node.name}.", inherited | _mark_names(node.decorator_list))
+
+    visit(tree.body, "", module_marks)
+    if _loop_url_constants(tree, docstrings) - in_tests and "sw_loopback" not in module_marks:
+        unlabeled.append("<module>")
+    return unlabeled
+
+
+def test_sw_loopback_tests_are_labeled():
+    """sw-loopback-labeled: every test that uses pyserial's loop:// carries the sw_loopback marker.
+
+    This file is skipped: it names the URL to search for.
+    """
+    # Arrange / Act
+    violations = []
+    for path in sorted(TESTS.rglob("test_*.py")):
+        if path == Path(__file__):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        violations.extend(f"{path.name}::{name}" for name in _sw_loopback_unlabeled(tree))
+
+    # Assert
+    assert violations == [], (
+        "these use loop:// without @pytest.mark.sw_loopback (or a module pytestmark):\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_sw_loopback_guard_fires_on_a_probe():
+    """The guard flags an unlabeled test and unlabeled helper use, and passes labels, class marks and docstring mentions."""
+    # Arrange -- one of each case in a single module
+    source = '''
+"""A module docstring may say loop:// freely."""
+import pytest
+
+def _helper():
+    return "loop://"
+
+@pytest.mark.sw_loopback
+def test_labeled():
+    open_port("loop://")
+
+def test_unlabeled():
+    open_port("loop://")
+
+def test_docstring_only():
+    """Mentions loop:// but never opens it."""
+
+@pytest.mark.sw_loopback
+class TestMarkedClass:
+    def test_inherits(self):
+        open_port("loop://")
+'''
+
+    # Act
+    actual = _sw_loopback_unlabeled(ast.parse(source))
+
+    # Assert
+    assert actual == ["test_unlabeled", "<module>"], "the unlabeled test, and the helper with no module mark"

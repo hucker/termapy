@@ -309,3 +309,18 @@ RX queue kept every byte of a session because nothing read it between
 commands. Every test of those paths called the operation once. **Where:**
 CLAUDE.md "Testing"; review only, since no `ast` scan can tell a stateful
 feature's tests from any other.
+
+## 2026-10-14 — `/raw` sends its text and nothing after it
+
+`/raw <text>` puts the text on the wire exactly as typed, encoded with the
+cfg encoding, with no line ending, in every frontend; `/term.send` is the
+literal send that adds the line ending. Until this date `/raw` had three
+implementations with two behaviors: a typed `/raw` appended the cfg `eol`
+everywhere, while the CLI's registered command, reached by any other route,
+sent none. **Why:** the CLI's help and `/term.send`'s own help already
+promised no line ending, a line with its ending already has a literal
+command, and a partial line or a device that frames without a line ending
+had no command at all. A typed `/raw` that relied on the line ending now
+needs `/term.send`. **Where:** review only for the choice; the behavior is
+pinned by `test_raw_sends_exactly_its_text`, `test_raw_sends_data` and
+`test_raw_send_bypasses_transforms`.

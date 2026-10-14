@@ -600,13 +600,6 @@ def register_tui_hooks(app) -> None:
         source="app",
     )
     app.repl.register_hook(
-        "raw",
-        "<text>",
-        "Send text to serial with no variable expansion or transforms.",
-        lambda ctx, args: app._tui_hook_raw(args),
-        source="app",
-    )
-    app.repl.register_hook(
         "help.open",
         "{topic}",
         "Open help file in system viewer.",

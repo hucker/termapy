@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
-from termapy.plugins import CmdResult, InternalHandle, PluginContext, UsageError
+from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.serial_port import eol_label
 
 if TYPE_CHECKING:
@@ -543,10 +543,29 @@ class TerminalHost:
             self.status(f"{label} error: {e}", "red")
 
     def _serial_write(self, data: bytes) -> None:
-        """Write raw bytes to the serial port and notify TX observers."""
-        if self.engine.serial_port:
-            self.engine.serial_port.write(data)
-            self.engine.notify_tx(data)
+        """Write bytes to the port; the one TX path in every frontend.
+
+        A failed write raises to the caller, which reports it
+        (``/term.send`` answers ``Send error: ...``), so a send never fails
+        silently; with no open port that is ``SerialException("Not
+        connected.")``.  TX observers hear only bytes that went out
+        (registry ``tx-only-what-went-out``).
+
+        THREADING: the reader thread's ``finally`` disowns
+        ``engine.serial_port`` when it exits, so a check-then-use on the
+        shared field can pass the check and then write to ``None``.  Bind
+        it to a local.
+
+        Raises:
+            OSError: The write failed; pyserial's ``SerialException`` is one.
+        """
+        port = self.engine.serial_port
+        if port is None:
+            from serial import SerialException
+
+            raise SerialException("Not connected.")
+        port.write(data)
+        self.engine.notify_tx(data)
 
     def _serial_send(self, text: str) -> None:
         """Send text with configured line ending and encoding."""
@@ -564,25 +583,9 @@ class TerminalHost:
             echo_markup=self.write_markup,
             status=self.status,
             serial_write=self._serial_write,
-            serial_write_raw=lambda text: self._serial_write_raw(text),
             is_connected=lambda: self.engine.is_connected,
             eol_label=eol_label,
         )
-
-    def _serial_write_raw(self, text: str) -> None:
-        """Send raw text to serial with line ending, no transforms.
-
-        Subclasses may override to add echo handling (e.g. TUI).
-        """
-        if not self.engine.is_connected:
-            self.status("Not connected.", "red")
-            return
-        line_ending = self.cfg.get("eol", "\r")
-        encoding = self.cfg.get("encoding", "utf-8")
-        if self.engine.serial_port:
-            data = (text + line_ending).encode(encoding)
-            self.engine.serial_port.write(data)
-            self.engine.notify_tx(data)
 
     # -- Port effects ---------------------------------------------------------
 
@@ -796,19 +799,6 @@ class TerminalHost:
         return CmdResult.ok(value=url)
 
     # -- Shared hook handlers -------------------------------------------------
-
-    def _hook_raw(self, ctx, args: str) -> CmdResult:
-        """Send raw text to serial without transforms or line ending."""
-        if not self.engine.is_connected:
-            return CmdResult.fail(msg="Not connected.")
-        if not args:
-            raise UsageError()
-        if self.engine.serial_port:
-            self.engine.serial_port.write(
-                args.encode(self.cfg.get("encoding", "utf-8"))
-            )
-        # Return the sent text so scripts can confirm what was written.
-        return CmdResult.ok(value=args)
 
     def _hook_log_delete(self, ctx, args: str) -> CmdResult:
         """Delete the session log file on disk.

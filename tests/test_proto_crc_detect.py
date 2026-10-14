@@ -45,7 +45,6 @@ def _dispatch_full(eng: ReplEngine, line: str):
         echo_markup=lambda t: None,
         status=lambda t, c="": None,
         serial_write=lambda d: None,
-        serial_write_raw=lambda t: None,
         is_connected=lambda: False,
         eol_label=lambda le: "",
     )

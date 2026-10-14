@@ -647,7 +647,6 @@ class MCPHost(TerminalHost):
                         echo_markup=self.write_markup,
                         status=self.status,
                         serial_write=self._serial_write,
-                        serial_write_raw=self._serial_write_raw,
                         is_connected=lambda: self.engine.is_connected,
                     )
                 except Exception as exc:  # noqa: BLE001 -- boundary
@@ -788,7 +787,6 @@ class MCPHost(TerminalHost):
                             echo_markup=self.write_markup,
                             status=self.status,
                             serial_write=self._serial_write,
-                            serial_write_raw=self._serial_write_raw,
                             is_connected=lambda: self.engine.is_connected,
                         )
                     finally:

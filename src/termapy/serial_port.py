@@ -62,18 +62,22 @@ class SerialPort:
         return getattr(self._port, "is_open", False)
 
     def write(self, data: bytes) -> None:
-        """Write bytes to the serial port and log TX.
+        """Write bytes to the serial port, then log them as TX.
+
+        The ``>`` line is written only once the write returns, so a failed
+        write leaves no log line claiming bytes went out (registry
+        ``tx-only-what-went-out``).
 
         Args:
             data: Bytes to send.
         """
+        if self._port:
+            self._port.write(data)
         try:
             text = data.decode(self._encoding).rstrip("\r\n")
         except (UnicodeDecodeError, LookupError):
             text = data.hex(" ").upper()
         self._log(">", text)
-        if self._port:
-            self._port.write(data)
 
     def read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 50) -> bytes:
         """Collect raw bytes using timeout-based framing.

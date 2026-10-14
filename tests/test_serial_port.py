@@ -102,6 +102,25 @@ class TestWrite:
         assert logged[0][0] == ">", "TX direction"
         assert "01 02 FF" in logged[0][1], "uppercase hex representation"
 
+    def test_failed_write_logs_no_tx(self):
+        """tx-only-what-went-out: a write the port refuses raises and leaves no '>' log line."""
+        # Arrange -- a port that fails the way an unplugged adapter does
+        class _UnpluggedPort:
+            def write(self, data: bytes) -> None:
+                raise OSError("simulated unplug")
+
+        logged: list[tuple[str, str]] = []
+        sp = SerialPort(
+            port=_UnpluggedPort(),
+            rx_queue=queue.Queue(),
+            log=lambda d, t: logged.append((d, t)),
+        )
+
+        # Act / Assert
+        with pytest.raises(OSError, match="simulated unplug"):
+            sp.write(b"AT\r")
+        assert logged == [], "a log line would claim bytes went out that never did"
+
 
 # -- Drain ---------------------------------------------------------------------
 

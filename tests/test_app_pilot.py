@@ -1016,7 +1016,7 @@ class TestSerialRxHandoff:
 class _RaisingPort:
     """A SerialPort whose write() fails, e.g. the adapter is unplugged mid-send.
 
-    Shaped like ``SerialPort`` for the two members ``_serial_write`` touches.
+    Shaped like ``SerialPort`` for the one member ``_serial_write`` touches.
     """
 
     def __init__(self) -> None:
@@ -1039,50 +1039,59 @@ class TestSharedStateRaces:
     """
 
     def test_write_failure_is_reported_not_raised(self, app_factory):
-        """A SerialException on send shows Write failed instead of raising into the worker."""
+        """tx-only-what-went-out: a send the port refuses is a failed command on screen, not an exception in the worker."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
                 await pilot.pause()
-                # Arrange -- a port that fails the way an unplugged adapter does
+                # Arrange -- connected, then the adapter fails the way an
+                # unplugged one does
+                assert app._connect() is True, "DEMO port should connect"
                 port = _RaisingPort()
                 app._engine._serial_port = port
 
-                # Act -- the send path every typed line and script uses
-                app._serial_write(b"AT\r")
+                # Act -- the command every typed line is rewritten to
+                result = app._dispatch_single("/term.send AT")
                 await pilot.pause()
 
                 # Assert
                 assert port.writes == 1, "the write was attempted on the bound port"
+                assert result.success is False, "a failed write is a failed command"
                 text = app._get_screen_text()
-                assert "Write failed" in text, (
-                    "a failed send must be reported, not raised into the "
-                    f"dispatch worker. Screen was: {text!r}"
+                assert "Send error: simulated unplug" in text, (
+                    f"a failed send must be reported. Screen was: {text!r}"
                 )
                 assert app.is_running, "a failed write must not kill the app"
+                app._disconnect()
 
         _run(scenario)
 
-    def test_missing_port_logs_instead_of_writing(self, app_factory):
-        """With the port already nulled by teardown, sent bytes go to the log as hex."""
+    def test_missing_port_fails_the_send_and_logs_no_tx(self, app_factory):
+        """tx-only-what-went-out: with the port nulled by teardown a send fails visibly and logs no TX line."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
                 await pilot.pause()
-                # Arrange -- exactly what the reader's finally leaves behind
+                # Arrange -- the port object still open, the write wrapper
+                # gone: exactly what the reader's finally leaves behind
+                assert app._connect() is True, "DEMO port should connect"
                 app._engine._serial_port = None
                 app._open_log()
 
                 # Act
-                app._serial_write(b"\x01\x02")
+                result = app._dispatch_single("/term.send AT")
                 await pilot.pause()
 
                 # Assert
-                logged = Path(app._log_path()).read_text(encoding="utf-8")
-                assert "01 02" in logged, (
-                    "with no port the bytes go to the log as hex, not to a "
-                    f"None write. Log was: {logged!r}"
+                assert result.error == "Send error: Not connected.", (
+                    "a send with no port is a failed command, not a silent drop"
                 )
+                logged = Path(app._log_path()).read_text(encoding="utf-8")
+                tx_lines = [line for line in logged.splitlines() if line.endswith("> AT")]
+                assert tx_lines == [], (
+                    f"no TX line may claim bytes went out. Log was: {logged!r}"
+                )
+                app._disconnect()
 
         _run(scenario)
 
@@ -1513,15 +1522,15 @@ class TestRawEcho:
             app, _, _ = app_factory()
             async with app.run_test(size=(120, 30)) as pilot:
                 await pilot.pause()
-                app.repl.ctx.ns("flags")["echo"] = True
+                app.repl.ctx.ns("flags")["echo_repl"] = True
 
                 # Act -- not connected, so the line is echoed and refused, never sent
-                app._send_serial_raw("AT[ok]")
+                app._dispatch_single("/raw AT[ok]")
                 await pilot.pause()
 
                 # Assert
                 text = app._get_screen_text()
-                assert "proj> AT[ok]" in text, f"the echo expands $(CFG) and keeps the brackets:\n{text}"
+                assert "proj> /raw AT[ok]" in text, f"the echo expands $(CFG) and keeps the brackets:\n{text}"
                 assert "$(CFG)" not in text, "the variable never shows unexpanded"
 
         _run(scenario)

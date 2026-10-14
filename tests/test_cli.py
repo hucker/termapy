@@ -10,7 +10,7 @@ import pytest
 
 from termapy.cli import CLITerminal, PlainFileHistory
 from termapy.defaults import DEFAULT_CFG
-from termapy.plugins import CapabilitySet, UsageError
+from termapy.plugins import CapabilitySet
 
 pytestmark = pytest.mark.slow  # subprocess-spawning + CLITerminal end-to-end
 
@@ -258,43 +258,50 @@ class TestTermHex:
         assert "OK" not in printed, "the decoded line is not printed as well"
 
 
-# -- Hook: raw ---------------------------------------------------------------
+# -- /raw --------------------------------------------------------------------
 
 
-class TestHookRaw:
+class TestRaw:
     def test_raw_not_connected(self, cli):
         """/raw refuses to send when no port is open."""
         # Arrange -- fixture is disconnected by default.
         # Act
-        result = cli._hook_raw(cli.ctx, "hello")
+        result = cli._dispatch("/raw hello")
 
         # Assert
         assert not result.success, "fails when disconnected"
+        assert result.error == "Not connected.", "the standard state phrase"
 
     def test_raw_no_args(self, cli):
-        """/raw with no payload raises UsageError so dispatch renders usage."""
+        """/raw with no payload renders the usage line instead of sending."""
         # Arrange -- connect to DEMO so the "no args" branch is reached.
         cli._connect()
 
-        # Act / Assert -- bad arity raises; the dispatcher renders the
-        # usage line from the declaration (see test_usage_error.py).
-        with pytest.raises(UsageError):
-            cli._hook_raw(cli.ctx, "")
+        # Act
+        result = cli._dispatch("/raw")
 
-    def test_raw_sends_data(self, cli):
-        """/raw writes the payload byte-for-byte with no line ending appended."""
+        # Assert
+        assert not result.success, "a bare /raw is a usage error"
+        assert "Usage:" in result.error, "the dispatcher renders the declaration"
+
+    @pytest.mark.parametrize(
+        "route",
+        [
+            pytest.param(lambda cli: cli._dispatch("/raw AT"), id="typed"),
+            pytest.param(lambda cli: cli.repl.dispatch("raw AT"), id="dispatched"),
+        ],
+    )
+    def test_raw_sends_data(self, cli, route):
+        """/raw writes the payload byte-for-byte with no line ending, by either route."""
         # Arrange -- real connect to DEMO.  FakeSerial records bytes
-        # in ``_input_buf`` once ``_process_input`` consumes them, so
-        # we send something DEMO will NOT auto-consume by picking a
-        # no-line-ending AT prefix and inspecting the buffer.
+        # in ``_input_buf`` until it sees a line ending, so with none
+        # sent the bytes sit there where we can verify them.
         cli._connect()
 
         # Act
-        result = cli._hook_raw(cli.ctx, "AT")
+        result = route(cli)
 
-        # Assert -- FakeSerial processes input when a line ending is
-        # seen; /raw sends no line ending, so the bytes sit in the
-        # input buffer where we can verify them.
+        # Assert
         assert result.success, "command succeeds"
         actual = bytes(cli.engine.port_obj._input_buf)
         assert actual == b"AT", f"bytes sent verbatim, got {actual!r}"
@@ -702,15 +709,15 @@ class TestConnect:
         assert "Disconnected" in actual, "reports disconnection"
 
 
-# -- serial_write_raw --------------------------------------------------------
+# -- typed device line -------------------------------------------------------
 
 
-class TestSerialWriteRaw:
+class TestTypedLine:
     def test_not_connected(self, cli, capsys):
         """A line typed while disconnected warns instead of being dropped silently."""
         # Arrange -- fixture is disconnected by default.
         # Act
-        cli._serial_write_raw("AT")
+        cli._dispatch("AT")
 
         # Assert
         actual = capsys.readouterr().out
@@ -726,7 +733,7 @@ class TestSerialWriteRaw:
         cli.cfg["eol"] = "\r\n"
 
         # Act
-        cli._serial_write_raw("AT")
+        cli._dispatch("AT")
 
         # Assert -- reader thread drains DEMO's response into stdout.
         # Poll briefly since the background reader runs on its own

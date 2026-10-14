@@ -389,7 +389,10 @@ class MCPHost(TerminalHost):
         #      recording so command responses don't duplicate as
         #      async_events.
         #   3. Otherwise -- truly between calls; record as async event.
-        self.repl.feed_lines(lines)
+        # The expect watcher and text capture first, as in every frontend;
+        # this host used to feed only the watcher, so /cap.text over MCP
+        # recorded nothing.
+        self._feed_rx_consumers(lines, [strip_ansi(line) for line in lines])
         buf = _buffer.get()
         for line in lines:
             text = self._rx_text(line)

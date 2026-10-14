@@ -805,33 +805,52 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
-    def test_backlog_is_bounded_and_the_drop_is_reported(self, app_factory):
-        """Past _RX_EVENT_LIMIT the oldest events drop, counted and shown; newest lines survive."""
+    def test_a_flood_reaches_every_consumer_and_renders_only_max_lines(
+        self, app_factory, tmp_path
+    ):
+        """rx-every-line-delivered: a flood is logged and captured whole; the pane renders only what it keeps.
+
+        2100 events is past the 2000 the old cap held: it dropped the oldest
+        before ``_write_batch``, so they missed the session log and the
+        capture too, while the message said only the display fell behind.
+        """
         async def scenario():
-            app, _, _ = app_factory()
+            from textual.widgets import RichLog
+            app, _, _ = app_factory(max_lines=50)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                # Arrange -- a main thread far enough behind that the backlog
-                # exceeds the cap.  Unlike the driver-level loss this design
-                # replaced, the drop must be counted and surfaced.
-                limit = pilot.app._RX_EVENT_LIMIT
-                for i in range(limit + 50):
-                    pilot.app._rx_enqueue(("lines", [f"flood {i}"]))
-
-                # Assert -- bounded before any drain happens.
-                actual = len(pilot.app._rx_events)
-                assert actual == limit, f"backlog capped at {limit}, got {actual}"
-                assert pilot.app._rx_dropped == 50, "dropped lines are counted"
-
-                # Act
-                await pilot.pause()
-
-                # Assert -- the newest data survives and the loss is visible.
-                text = pilot.app._get_screen_text()
-                assert "fell behind" in text, (
-                    "dropping display data must be reported, never silent"
+                # Arrange -- a text capture running, and the whole flood
+                # queued before main drains any of it
+                cap_path = tmp_path / "flood.txt"
+                started = app._capture.start(
+                    path=cap_path, file_mode="w", mode="text", duration=60.0
                 )
-                assert f"flood {limit + 49}" in text, "newest lines are kept"
+                assert started is True, "the text capture starts"
+                total = 2100
+                for i in range(total):
+                    app._rx_enqueue(("lines", [f"flood {i}"]))
+
+                # Act -- read the pane before stopping: the capture's
+                # completion status is itself a line, and would evict one
+                await pilot.pause()
+                shown = [
+                    strip.text.rstrip()
+                    for strip in app.query_one("#output", RichLog).lines
+                    if strip.text.startswith("flood")
+                ]
+                app._capture.stop()
+
+                # Assert
+                expected = [f"flood {i}" for i in range(total)]
+                actual_captured = cap_path.read_text(encoding="utf-8").splitlines()
+                assert actual_captured == expected, "text capture gets every line, in order"
+                assert app.log_fh is not None, "a config on disk opens a log"
+                log_lines = Path(app.log_fh.name).read_text(encoding="utf-8").splitlines()
+                actual_logged = [line.split("] < ", 1)[1] for line in log_lines if "] < " in line]
+                assert actual_logged == expected, "the session log gets every line, in order"
+                assert app.repl._recent_lines[-1] == "flood 2099", "the expect watcher was fed"
+                assert app._line_counter == total, "line numbers count the lines not rendered"
+                assert shown == expected[-50:], "the pane holds the newest max_lines"
 
         _run(scenario)
 

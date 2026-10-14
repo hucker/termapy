@@ -494,7 +494,6 @@ class SerialTerminal(TerminalHost, App):
         self._rx_lock = threading.Lock()
         self._rx_events: list[tuple] = []
         self._rx_posted = False
-        self._rx_dropped = 0
         # Serializes command execution.  Every command path -- typed input,
         # UI buttons, palette, and each script line -- funnels through
         # _dispatch_single / _dispatch_quiet, which both mutate shared
@@ -2647,14 +2646,6 @@ class SerialTerminal(TerminalHost, App):
         self._disconnect()
         self.exit()
 
-    # Cap on RX events held between drains.  Reached only when the main
-    # thread is far enough behind that the display could never show the
-    # backlog anyway (RichLog's own max_lines is 10_000), so dropping the
-    # OLDEST pending events loses nothing a user could have read -- and
-    # unlike the driver-level loss this fix removes, it is counted and
-    # reported rather than silent.
-    _RX_EVENT_LIMIT = 2000
-
     def _rx_enqueue(self, event: tuple) -> None:
         """Queue an ordered RX event for the main thread.  Reader thread only.
 
@@ -2662,6 +2653,13 @@ class SerialTerminal(TerminalHost, App):
         when one is not already pending.  Ordering across event kinds is
         preserved because they share this one list -- a clear-screen must
         not overtake the lines it was meant to follow.
+
+        Nothing is dropped here.  Every line must reach the session log, the
+        expect watcher and text capture (registry ``rx-every-line-delivered``),
+        and those run in ``_write_batch`` on main; an earlier cap here threw
+        the oldest events away before they got there.  A backlog now costs
+        memory only while main is blocked, and ``_write_batch`` bounds the
+        catch-up by rendering no more than the scrollback holds.
 
         Args:
             event: ``("lines", [...])``, ``("clear",)``, ``("capdone",)``,
@@ -2671,13 +2669,6 @@ class SerialTerminal(TerminalHost, App):
         post = False
         with self._rx_lock:
             self._rx_events.append(event)
-            overflow = len(self._rx_events) - self._RX_EVENT_LIMIT
-            if overflow > 0:
-                dropped = self._rx_events[:overflow]
-                del self._rx_events[:overflow]
-                self._rx_dropped += sum(
-                    len(e[1]) if e[0] == "lines" else 1 for e in dropped
-                )
             if not self._rx_posted:
                 self._rx_posted = True
                 post = True
@@ -2707,15 +2698,8 @@ class SerialTerminal(TerminalHost, App):
         with self._rx_lock:
             events, self._rx_events = self._rx_events, []
             self._rx_posted = False
-            dropped, self._rx_dropped = self._rx_dropped, 0
         if self._shutting_down:
             return
-        if dropped:
-            self._status(
-                f"Display fell behind -- dropped {dropped} lines "
-                f"(data was received; the terminal could not keep up)",
-                "yellow",
-            )
         pending: list[str] = []
         for event in events:
             if event[0] == "lines":
@@ -2817,6 +2801,16 @@ class SerialTerminal(TerminalHost, App):
         """
         from termapy.capture_view import _cap_stop
         self._on_main(_cap_stop, self)
+
+    def _stop_capture(self) -> None:
+        """The host's capture stop, routed through ``_cap_stop``.
+
+        Shared host code (``_feed_rx_consumers`` on a failed write) calls
+        ``_stop_capture``; in the TUI a stop must also cancel the timer and
+        tear down the progress overlay, which only ``_cap_stop`` does.
+        """
+        self._cap_stop()
+
     def _on_capture_complete(self, result: CaptureResult) -> None:
         """Report capture completion -- the single owner of the status line.
 
@@ -2829,10 +2823,14 @@ class SerialTerminal(TerminalHost, App):
         self._status(text, color)
 
     def _write_batch(self, lines: list[str]) -> None:
-        """Write a batch of lines to the output log and optional log file.
+        """Render a batch of received lines and hand every one to its consumers.
 
-        Combines screen output and file logging in a single call to
-        minimize ``call_from_thread`` round-trips from the serial reader.
+        Runs on main for each drain of ``_on_serial_rx``.  Every line goes
+        to the session log, the expect watcher and text capture (registry
+        ``rx-every-line-delivered``); only the render is capped, at the
+        output pane's ``max_lines``, because a batch longer than that would
+        be evicted by RichLog the moment it was written.  That cap is what
+        keeps a main thread catching up on a flood from stalling on render.
 
         Short-circuits during shutdown: reader callbacks can still be
         queued on the event loop when Textual starts tearing down
@@ -2876,8 +2874,12 @@ class SerialTerminal(TerminalHost, App):
         # One ANSI strip per line, reused by the plain-render, log and
         # capture paths below; each used to run its own (E3).
         plain = [ANSI_RE.sub("", text) for text in lines]
+        # Lines beyond what the pane keeps are counted (line numbers stay
+        # true) but not rendered: RichLog would discard them on arrival.
+        skip = max(0, len(lines) - log.max_lines) if log.max_lines else 0
+        self._line_counter += skip
         renderables: list[Text] = []
-        for text, bare in zip(lines, plain):
+        for text, bare in zip(lines[skip:], plain[skip:]):
             self._line_counter += 1
             prefix = ""
             if show_ln:
@@ -2899,24 +2901,14 @@ class SerialTerminal(TerminalHost, App):
                 renderables.append(Text(f"{prefix}{bare}"))
         if renderables:
             # ONE RichLog.write for the whole batch (E1).  Measured 3.7x
-            # faster for 50 lines (6.03 ms -> 1.63 ms), and this runs on the
-            # main thread inside the reader's round trip -- that time IS the
-            # reader's stall, which at high baud is what overflows the
-            # driver buffer.  Consequence to know: a combined write measures
-            # one render width for the block, so wrapping for mixed-width
-            # lines can differ slightly from the per-line rendering.
+            # faster for 50 lines (6.03 ms -> 1.63 ms); render time on main
+            # is what bounds how fast a backlog drains.  Consequence to
+            # know: a combined write measures one render width for the
+            # block, so wrapping for mixed-width lines can differ slightly
+            # from the per-line rendering.
             log.write(Text("\n").join(renderables))
         self._log_lines("<", plain)
-
-        # Expect watcher tap - feed lines to script pattern matcher
-        self.repl.feed_lines(lines)
-
-        # Text capture tap - feed ANSI-stripped lines to capture engine
-        if self._capture.active and self._capture.mode == "text":
-            if self._capture.feed_text(plain):
-                # Write failed mid-capture -- stop so the user sees the abort
-                # instead of silently losing the rest of the data.
-                self._cap_stop()
+        self._feed_rx_consumers(lines, plain)
 
     @on(Input.Changed, "#cmd")
     def _on_cmd_changed(self, event: Input.Changed) -> None:

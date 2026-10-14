@@ -502,16 +502,24 @@ SerialEngine.read_loop() [background thread]
   → serial.read() → rx_queue (bounded; oldest chunk dropped when full)
   → SerialReader.process(data) → ReaderResult
     → binary capture active? → CaptureEngine.feed_bytes() → skip display
-    → proto_active? → suppress display
-    → decode(encoding) → split on \n → batch lines
+    → serial_claimed? → suppress display (the claimant reads rx_queue)
+    → incremental decode → split per eol_rx → batch lines
   → callbacks (NONE may block on another thread):
                on_lines        → _rx_enqueue("lines")   ┐
                on_clear        → _rx_enqueue("clear")   │ ordered buffer +
                on_capture_done → _rx_enqueue("capdone") │ ONE post_message
                on_error        → _rx_enqueue("error")   │
                on_disconnect   → _rx_enqueue("disconnect")┘
-                 → SerialRx → _on_serial_rx [main] → _write_batch → RichLog
+                 → SerialRx → _on_serial_rx [main] → _write_batch
+                   → RichLog (renders the newest max_lines) + session log
+                   → _feed_rx_consumers → expect watcher + text capture
 ```
+
+Every received line reaches the session log, the expect watcher and text
+capture, in order, in every frontend (registry `rx-every-line-delivered`).
+Only the TUI's render is capped, at what the pane keeps. The CLI and MCP
+`on_lines` run on the reader thread and call the same
+`TerminalHost._feed_rx_consumers` beside their own display and log.
 
 ### Command dispatch (user input or script)
 

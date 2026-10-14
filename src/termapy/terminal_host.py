@@ -475,6 +475,26 @@ class TerminalHost:
             return self.engine.serial_port.read_raw(timeout_ms, frame_gap)
         return b""
 
+    def _feed_rx_consumers(self, lines: list[str], plain: list[str]) -> None:
+        """Hand received lines to the consumers every frontend shares.
+
+        The expect watcher and text capture.  Each frontend calls this for
+        EVERY line it receives, beside its own display and session log
+        (registry ``rx-every-line-delivered``).  MCP once skipped the capture
+        half, so ``/cap.text`` over MCP recorded nothing, which is why the
+        list lives here and not in three copies.
+
+        Args:
+            lines: Received lines as the reader produced them.
+            plain: The same lines with ANSI stripped, for the capture file.
+        """
+        self.repl.feed_lines(lines)
+        if self.capture.active and self.capture.mode == "text":
+            if self.capture.feed_text(plain):
+                # Write failed mid-capture -- stop so the abort is visible
+                # instead of silently dropping the rest.
+                self._stop_capture()
+
     def _drain_rx_queue(self) -> int:
         """Discard all pending bytes in the RX queue (delegates to SerialPort)."""
         if self.engine.serial_port:

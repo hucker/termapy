@@ -701,24 +701,11 @@ class CLITerminal(TerminalHost):
 
         def on_lines(lines: list[str]) -> None:
             color_on = self.repl.ctx.ns("flags").get("color", True)
-            for line in lines:
-                if not color_on:
-                    line = strip_ansi(line)
-                self._raw(line)
-            # Expect-watcher tap (mirrors app._write_batch): without this,
-            # /expect never sees incoming serial data in CLI mode and always
-            # times out, even though the TUI and MCP frontends feed it.
-            self.repl.feed_lines(lines)
-            # Text-capture tap (mirrors app._write_batch): binary capture is
-            # fed at the byte level in serial_port.read, but *text* capture is
-            # fed from the host's line batch.  The TUI does this; CLI must too,
-            # or /cap.text silently records nothing received from the port.
-            if self.capture.active and self.capture.mode == "text":
-                stripped = [strip_ansi(t) for t in lines]
-                if self.capture.feed_text(stripped):
-                    # Write failed mid-capture -- stop so the abort is visible
-                    # instead of silently dropping the rest.
-                    self._stop_capture()
+            plain = [strip_ansi(line) for line in lines]
+            for shown in lines if color_on else plain:
+                self._raw(shown)
+            # Expect watcher and text capture, the same as every frontend.
+            self._feed_rx_consumers(lines, plain)
 
         # The engine owns the thread so disconnect() can join it; the CLI
         # used to start one here and drop the handle, leaving teardown

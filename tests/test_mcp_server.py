@@ -830,6 +830,27 @@ class TestColorStripping:
             "device ANSI stripped from async_events when color off"
         )
 
+    def test_on_lines_feeds_an_active_text_capture(self, host, tmp_path):
+        """rx-every-line-delivered: lines read while a text capture runs over MCP reach its file, plain."""
+        # Arrange
+        cap_path = tmp_path / "mcp_capture.txt"
+        started = host.capture.start(
+            path=cap_path, file_mode="w", mode="text", duration=60.0
+        )
+        assert started is True, "the text capture starts"
+
+        # Act
+        host._on_lines(["\x1b[32mgreen\x1b[0m", "plain line"])
+        host.capture.stop()
+
+        # Assert
+        actual = cap_path.read_text(encoding="utf-8").splitlines()
+        expected = ["green", "plain line"]
+        assert actual == expected, (
+            "this host fed only the expect watcher, so /cap.text over MCP "
+            "recorded nothing"
+        )
+
 
 # ── Catalog parity (resource vs /mcp.catalog REPL) ──────────────────────────
 

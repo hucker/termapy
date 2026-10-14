@@ -197,6 +197,16 @@ class TerminalHost:
                 self.status(f"Cannot open {port_name}", "red")
             self._on_connect_failed()
             return False
+        self._finish_connect()
+        return True
+
+    def _finish_connect(self) -> None:
+        """The half of a connect after the port is open: banner, lifecycle, reader, hook.
+
+        Split from ``_connect`` for the auto-reconnect run, which opens the
+        port itself (``SerialEngine.reconnect_loop``) and must not open it
+        again (registry ``reconnect-opens-once``).
+        """
         from termapy.config import connection_string, hardware_signals
 
         # If the config spec resolved to a different device (e.g. a USB
@@ -220,7 +230,6 @@ class TerminalHost:
         self.repl.fire_lifecycle("on_connect")
         self._start_reader()
         self._on_connected(full)
-        return True
 
     def _on_connected(self, message: str) -> None:
         """Called after a successful connection.  Override for UI updates."""

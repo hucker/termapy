@@ -266,6 +266,10 @@ class SerialEngine:
         self._rx_observers: list[Callable[[bytes], None]] = []
         self._tx_observers: list[Callable[[bytes], None]] = []
         self.last_error: str = ""
+        # Makes check-and-open atomic: a /port.connect worker and an
+        # auto-reconnect run can open at once, and POSIX lets both succeed,
+        # leaving one handle nobody owns.
+        self._connect_lock = threading.Lock()
 
     @property
     def is_connected(self) -> bool:
@@ -405,10 +409,23 @@ class SerialEngine:
         """Open the serial port and create SerialPort + SerialReader.
 
         Returns:
-            True if the port opened successfully.
+            True if the port is open, by this call or an earlier one.
         """
-        if self.is_connected:
-            return True
+        with self._connect_lock:
+            if self.is_connected:
+                return True
+            return self._open()
+
+    def _open(self) -> bool:
+        """The body of ``connect``, also run by ``reconnect_loop``; the caller holds ``_connect_lock``.
+
+        Every open goes through here, so every failure is classified the
+        same way and none escapes as an exception (registry
+        ``reconnect-opens-once``).
+        """
+        # A prior reader must be GONE, not probably-gone, before a new handle
+        # opens; stop_reader is a real join, not a timed wait.
+        self.stop_reader()
         import serial as _serial
 
         from termapy.port_control import AmbiguousSerialNumberError
@@ -699,33 +716,26 @@ class SerialEngine:
 
     # -- Reconnection ----------------------------------------------------------
 
-    def try_reconnect(self) -> bool:
-        """Attempt a single reconnect. Returns True on success.
-
-        Same failure modes as ``connect`` -- SerialException when the
-        port is still missing / in use, OSError for permissions,
-        ValueError for an unsupported parameter combo.
-        """
-        import serial as _serial
-        try:
-            port = self._open_fn(self._cfg)
-            port.close()
-            return True
-        except (_serial.SerialException, OSError, ValueError):
-            return False
-
     def reconnect_loop(
         self,
         stop: Event,
         *,
         interval: float = 2.5,
         on_status: Callable[[str], None] | None = None,
-    ) -> bool:
+    ) -> Any | None:
         """Blocking reconnect loop - call from a background thread.
 
-        Retries ``try_reconnect()`` every *interval* seconds until success
-        or *stop* is set.  Calls *on_status* with a spinner label every
-        0.25 s so the frontend can animate.
+        Tries to open the port every *interval* seconds until it opens or
+        *stop* is set.  Calls *on_status* with a spinner label every 0.25 s
+        so the frontend can animate.
+
+        An attempt is a real open through ``connect``'s own path, and a
+        successful one is kept: the caller finishes that connection rather
+        than opening the port a second time.  The probe-then-reopen this
+        replaced toggled DTR twice per reconnect (a double reset on an
+        auto-reset board) and, catching less than ``connect`` does, let an
+        ambiguous serial number escape the loop (registry
+        ``reconnect-opens-once``).
 
         *stop* belongs to this one run, never the reader's ``stop_event``.
         Sharing that event let any connect attempt end the loop:
@@ -738,7 +748,10 @@ class SerialEngine:
             on_status: Called with a spinner label each tick.
 
         Returns:
-            True if reconnection succeeded, False if canceled.
+            The port object this run opened, or None if the run was
+            cancelled or another connect opened the port first.  The engine
+            is connected but has no reader: finish the connection, or
+            ``disconnect`` if it is no longer wanted.
         """
         spinner = "|/-\\"
         step = 0
@@ -746,14 +759,15 @@ class SerialEngine:
         while not stop.is_set():
             for _ in range(ticks):
                 if stop.is_set():
-                    return False
+                    return None
                 if on_status:
                     ch = spinner[step % len(spinner)]
                     on_status(f"Connecting {ch}")
                 step += 1
                 stop.wait(0.25)
-            if stop.is_set():
-                return False
-            if self.try_reconnect():
-                return True
-        return False
+            with self._connect_lock:
+                if stop.is_set() or self.is_connected:
+                    return None
+                if self._open():
+                    return self._port_obj
+        return None

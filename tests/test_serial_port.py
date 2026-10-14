@@ -31,6 +31,16 @@ def port_env():
     return sp, fake, rx_queue, logged
 
 
+class _Claim:
+    """A serial_claimed predicate the test flips, as a claim starting and ending does."""
+
+    def __init__(self) -> None:
+        self.held = False
+
+    def __call__(self) -> bool:
+        return self.held
+
+
 # -- Properties ----------------------------------------------------------------
 
 
@@ -630,22 +640,28 @@ class TestSerialReaderHexView:
         assert result.clear_screen is False, "the pane is not cleared"
         assert result.hex_rows == ["1B 5B 32 4A 68 69 0A"], "the escape shows as its bytes"
 
-    def test_a_claim_discards_the_pending_row(self):
-        """Bytes before and during a serial claim never reach a hex row after it."""
+    def test_a_claim_flushes_the_pending_row_and_shows_none_of_its_own(self):
+        """hex-view-wire-bytes: the row held when a claim starts is shown beside its line; the claimed bytes never reach a row."""
         # Arrange
-        claimed = False
-        reader = SerialReader(hex_display=True, serial_claimed=lambda: claimed)
+        claim = _Claim()
+        reader = SerialReader(hex_display=True, serial_claimed=claim)
         reader.process(b"ab")
 
         # Act
-        claimed = True
+        claim.held = True
+        at_start = reader.process(b"XYZ")
         during = reader.process(b"XYZ")
-        claimed = False
+        claim.held = False
         after = reader.process(b"\n")
 
         # Assert
-        assert during.hex_rows is None, "a claimed chunk is not displayed in either view"
-        assert after.hex_rows == ["0A"], "the claimant owns those bytes, not the display"
+        actual_start = (at_start.hex_rows, at_start.lines)
+        expected_start = (["61 62"], ["ab"])
+        assert actual_start == expected_start, (
+            "the bytes before the claim are the session's: they were dropped at the claim"
+        )
+        assert during.hex_rows == [], "a claimed chunk is not displayed in either view"
+        assert after.hex_rows == ["0A"], "the claimant owns its bytes, not the display"
 
 
 class TestRxNewline:
@@ -941,6 +957,35 @@ class TestSerialReaderCapture:
         # Assert
         assert result.lines == ["hello"], "passed through to display"
 
+    def test_a_binary_capture_flushes_the_partial_line_before_it(self):
+        """rx-every-line-delivered: a partial line held when a binary capture starts is flushed, not glued to the line after the capture."""
+        # Arrange
+        class MockCapture:
+            active = False
+            mode = "bin"
+
+            def __init__(self) -> None:
+                self.fed: list[bytes] = []
+
+            def feed_bytes(self, data):
+                self.fed.append(data)
+                return False
+
+        cap = MockCapture()
+        reader = SerialReader(capture=cap)
+        reader.process(b"temp=2")
+
+        # Act -- the capture starts, takes its bytes, ends
+        cap.active = True
+        at_start = reader.process(b"\x01\x02").lines
+        cap.active = False
+        after = reader.process(b"next\r\n").lines
+
+        # Assert
+        assert at_start == ["temp=2"], "the line before the capture reached no consumer"
+        assert cap.fed == [b"\x01\x02"], "the capture still gets exactly its bytes"
+        assert after == ["next"], "the held partial was glued to the first line after the capture"
+
 
 class TestSerialReaderClaimed:
     def test_display_suppressed_when_claimed(self):
@@ -964,6 +1009,47 @@ class TestSerialReaderClaimed:
 
         # Assert
         assert result.lines == ["hello"], "display normal when not claimed"
+
+    def test_a_partial_line_held_when_a_claim_starts_is_flushed(self):
+        """rx-every-line-delivered: text that arrived just before a claim reaches the consumers, and the claimed bytes do not."""
+        # Arrange
+        claim = _Claim()
+        reader = SerialReader(serial_claimed=claim)
+        reader.process(b"temp=21")
+
+        # Act -- the claim starts well inside the 200 ms silence flush
+        claim.held = True
+        result = reader.process(b"\x01\x02reply")
+
+        # Assert
+        assert result.lines == ["temp=21"], (
+            "the line that arrived before the claim was dropped with the claimed bytes"
+        )
+
+    def test_two_claims_in_a_row_each_flush_once_and_hold_nothing(self):
+        """rx-every-line-delivered: each claim flushes its own partial once, a long claimed run accumulates nothing, and the line after is clean."""
+        # Arrange
+        claim = _Claim()
+        reader = SerialReader(serial_claimed=claim)
+
+        # Act -- two claims, the second held across a long unterminated run
+        reader.process(b"first")
+        claim.held = True
+        first_flush = reader.process(b"XX").lines
+        claim.held = False
+        reader.process(b"second")
+        claim.held = True
+        second_flush = reader.process(b"YY").lines
+        held_lines = [line for _ in range(200) for line in reader.process(b"ZZZZ").lines]
+        claim.held = False
+        after = reader.process(b"after\r\n").lines
+
+        # Assert
+        assert first_flush == ["first"], "the first claim flushes its partial"
+        assert second_flush == ["second"], "the second claim flushes its own, not the first's again"
+        assert held_lines == [], "claimed bytes reach no consumer"
+        assert after == ["after"], "claimed bytes were held and glued to the next line"
+
 
 
 class TestSerialReaderReset:

@@ -395,33 +395,75 @@ class TestRxQueueBounded:
 # -- Reconnect ----------------------------------------------------------------
 
 
+class _CountingOpen:
+    """An open_fn that counts its calls, raising the queued errors before it opens a FakeSerial."""
+
+    def __init__(self, failures: list[Exception] | None = None) -> None:
+        self.calls = 0
+        self._failures = list(failures or [])
+
+    def __call__(self, cfg: dict) -> FakeSerial:
+        self.calls += 1
+        if self._failures:
+            raise self._failures.pop(0)
+        return FakeSerial()
+
+
 class TestReconnect:
-    def test_try_reconnect_success(self):
-        """try_reconnect returns True when the port opens."""
-        # Arrange
-        engine, _, _ = _make_engine()
+    """reconnect-opens-once: a reconnect run opens the port once, through connect's own path."""
 
-        # Act
-        result = engine.try_reconnect()
+    def test_each_run_opens_the_port_once_and_hands_it_back(self):
+        """reconnect-opens-once: a run opens once and returns the port the engine holds, run after run."""
+        # Arrange
+        opener = _CountingOpen()
+        engine, _, _ = _make_engine(open_fn=opener)
+
+        # Act -- two runs in a row, the second after a disconnect
+        first = engine.reconnect_loop(threading.Event(), interval=0.25)
+        first_held = engine.port_obj
+        engine.disconnect()
+        second = engine.reconnect_loop(threading.Event(), interval=0.25)
 
         # Assert
-        assert result is True, "FakeSerial always opens"
-
-    def test_try_reconnect_failure(self):
-        """try_reconnect returns False, not an exception, when the open raises."""
-        # Arrange
-        capture = CaptureEngine()
-        engine = SerialEngine(
-            cfg={"port": "BAD"},
-            capture=capture,
-            open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
+        assert opener.calls == 2, (
+            "each run opens once; a probe open before the real one is an extra DTR edge"
         )
+        assert first is not None and first is first_held, "the first run hands back the port it opened"
+        assert second is engine.port_obj, "the second run hands back the port the engine now holds"
+        assert engine.is_connected is True, "the engine stays connected for the caller to finish"
+        engine.disconnect()
+
+    def test_an_ambiguous_serial_number_is_retried_not_raised(self):
+        """reconnect-opens-once: an open error connect() classifies, an ambiguous serial number included, is retried, never raised."""
+        # Arrange
+        from termapy.port_control import AmbiguousSerialNumberError
+        opener = _CountingOpen(failures=[AmbiguousSerialNumberError("0001", ["COM3", "COM4"])])
+        engine, _, _ = _make_engine(open_fn=opener)
 
         # Act
-        result = engine.try_reconnect()
+        port = engine.reconnect_loop(threading.Event(), interval=0.25)
 
         # Assert
-        assert result is False, "reconnect should fail with bad port"
+        assert port is not None, (
+            "the ambiguous serial number escaped the loop -- the TUI worker crashes on it"
+        )
+        assert opener.calls == 2, "the failed attempt was retried once, then the port opened"
+        engine.disconnect()
+
+    def test_a_run_that_finds_the_port_open_opens_nothing(self):
+        """reconnect-opens-once: when another connect opened the port first, the run returns None and opens nothing."""
+        # Arrange
+        opener = _CountingOpen()
+        engine, _, _ = _make_engine(open_fn=opener)
+        assert engine.connect() is True, "the other connect opens the port"
+
+        # Act
+        port = engine.reconnect_loop(threading.Event(), interval=0.25)
+
+        # Assert
+        assert port is None, "a run with nothing to finish hands back nothing"
+        assert opener.calls == 1, "only the other connect opened the port"
+        engine.disconnect()
 
 
 # -- RX observers ---------------------------------------------------------------
@@ -732,7 +774,7 @@ class TestReconnectLoop:
         # Arrange - use a port that always fails
         capture = CaptureEngine()
         engine = SerialEngine(
-            cfg={"port": "BAD"},
+            cfg={"serial": {"port": "BAD"}},
             capture=capture,
             open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
         )

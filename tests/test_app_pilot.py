@@ -1455,6 +1455,56 @@ class TestAutoReconnect:
 
         _run(scenario)
 
+    def test_a_live_run_finishes_the_connection_it_opened(self, app_factory):
+        """reconnect-opens-once: the TUI finishes the port a run opened -- reader started, Connected shown -- without reopening it."""
+        async def scenario():
+            from textual.widgets import Button
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- what reconnect_loop leaves: the port open, no reader
+                assert app._engine.connect() is True, "the DEMO port opens"
+                port = app._engine.port_obj
+
+                # Act
+                app._finish_reconnect(threading.Event(), port)
+                await pilot.pause()
+
+                # Assert
+                try:
+                    assert app._engine.port_obj is port, "the run's port is kept, not reopened"
+                    assert app._engine._reader_thread is not None, "the reader was started"
+                    label = str(app.query_one("#title-right", Button).label).strip()
+                    assert label == "Connected", "the TUI shows the reconnect"
+                finally:
+                    app._disconnect()
+
+        _run(scenario)
+
+    def test_a_cancelled_run_closes_only_the_port_it_opened(self, app_factory):
+        """reconnect-opens-once: a run cancelled while its open was in flight closes its own port and never another."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- a cancelled run (the title-bar button, a config switch)
+                cancelled = threading.Event()
+                cancelled.set()
+                assert app._engine.connect() is True, "the DEMO port opens"
+
+                # Act -- first a port some other connect opened since, then the run's own
+                app._finish_reconnect(cancelled, object())
+                kept = app.is_connected
+                app._finish_reconnect(cancelled, app._engine.port_obj)
+
+                # Assert
+                assert kept is True, "a cancelled run closed a port it did not open"
+                assert app.is_connected is False, (
+                    "a cancelled run left its port open with no reader behind a Disconnected UI"
+                )
+
+        _run(scenario)
+
 
 class TestSessionLog:
     """The session log is the transcript: every channel a command writes lands in it once."""

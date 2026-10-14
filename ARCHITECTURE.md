@@ -499,19 +499,27 @@ To show the mode doing something a terminal-aware frontend uniquely can, `--vt10
 
 ```text
 SerialEngine.read_loop() [background thread]
-  → serial.read() → rx_queue.put(data)
+  → serial.read() → rx_queue (bounded; oldest chunk dropped when full)
   → SerialReader.process(data) → ReaderResult
     → binary capture active? → CaptureEngine.feed_bytes() → skip display
-    → proto_active? → suppress display
-    → decode(encoding) → split on \n → batch lines
+    → serial_claimed? → suppress display (the claimant reads rx_queue)
+    → incremental decode → split per eol_rx → batch lines
   → callbacks (NONE may block on another thread):
                on_lines        → _rx_enqueue("lines")   ┐
                on_clear        → _rx_enqueue("clear")   │ ordered buffer +
                on_capture_done → _rx_enqueue("capdone") │ ONE post_message
                on_error        → _rx_enqueue("error")   │
                on_disconnect   → _rx_enqueue("disconnect")┘
-                 → SerialRx → _on_serial_rx [main] → _write_batch → RichLog
+                 → SerialRx → _on_serial_rx [main] → _write_batch
+                   → RichLog (renders the newest max_lines) + session log
+                   → _feed_rx_consumers → expect watcher + text capture
 ```
+
+Every received line reaches the session log, the expect watcher and text
+capture, in order, in every frontend (registry `rx-every-line-delivered`).
+Only the TUI's render is capped, at what the pane keeps. The CLI and MCP
+`on_lines` run on the reader thread and call the same
+`TerminalHost._feed_rx_consumers` beside their own display and log.
 
 ### Command dispatch (user input or script)
 
@@ -649,9 +657,10 @@ an `RLock`, so nested `ctx.dispatch` on the same thread is allowed.
 
 Two different hand-off mechanisms, and the difference is load-bearing. Output
 helpers called from a worker (`_status`, `_set_status_bar`,
-`_write_output_markup`, `_on_main`) compare `self._thread_id` and marshal via
-`call_from_thread`, which **blocks** the caller until the event loop services
-it. The serial reader may not use it: blocking there deadlocks teardown
+`_write_output_markup`, `_on_main`, and the connection hooks `_on_connected`,
+`_on_connect_failed`, `_on_disconnected` that `/port.connect` reaches) compare
+`self._main_thread_id` and marshal via `call_from_thread`, which **blocks** the
+caller until the event loop services it. The serial reader may not use it: blocking there deadlocks teardown
 (`disconnect()` joins the reader from the very thread it would wait for) and
 stalls the reader long enough for the driver to drop bytes
 (`config.SERIAL_RX_BUFFER_BYTES` is how little room there is). RX and script
@@ -659,6 +668,12 @@ lifecycle therefore use `post_message`, which is fire-and-forget:
 `app._rx_enqueue` appends to an ordered buffer and posts at most one wake-up.
 Disconnect joins the reader for real; `READER_JOIN_TIMEOUT_S` is a safety net,
 not a contract.
+
+Cancellation is per run, never shared. The reader stops on the engine's
+`stop_event`; each auto-reconnect run gets a fresh token from
+`_auto_reconnect`. When the two shared one event, every connect attempt
+(which stops the reader first) also ended the reconnect loop, and a connect
+that then failed left nothing retrying.
 
 ## Built-in plugins
 

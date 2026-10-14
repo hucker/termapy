@@ -53,7 +53,10 @@ class SerialHandle:
     drain: Callable = lambda: 0
     wait_for_data: Callable = lambda timeout_ms=250: False
     wait_idle: Callable = lambda timeout_ms=400: None
-    rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
+    # queue.Queue[bytes] - raw RX for protocol handlers.  Bounded: when full
+    # the reader drops the oldest chunk, so drain() it inside io() and then
+    # read as bytes arrive rather than letting it fill.
+    rx_queue: Any = None
 
     # ── Claim/release primitives ─────────────────────────────────────
     # Prefer the ``io()`` context manager below; these are exposed for

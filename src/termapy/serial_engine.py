@@ -41,6 +41,20 @@ if TYPE_CHECKING:
 # it read from -- never a newer connection's.
 READER_JOIN_TIMEOUT_S = 2.0
 
+# Largest single ``port.read`` the reader issues, so the largest chunk it ever
+# queues.
+RX_READ_MAX_BYTES = 4096
+
+# Bound on ``rx_queue``, in chunks: at most 4 MiB at ``RX_READ_MAX_BYTES``.
+# The reader feeds the queue on every chunk, but only request/response
+# commands read it, and each of those drains it first, inside
+# ``ctx.serial.io()``, and then reads as bytes arrive.  So the queue only has
+# to hold what one waiting reader has not consumed yet.  Unbounded, it kept
+# every byte a session received when nothing was reading, for the life of the
+# connection.  When full the reader discards the OLDEST chunk (registry
+# ``rx-queue-bounded``).
+RX_QUEUE_MAX_CHUNKS = 1024
+
 
 def _find_port_holder(port_name: str) -> str | None:
     """Return the process holding ``port_name``, or None if unavailable.
@@ -239,7 +253,7 @@ class SerialEngine:
         self._port_obj: Any | None = None
         self._serial_port: SerialPort | None = None
         self._reader: SerialReader | None = None
-        self._rx_queue: queue.Queue[bytes] = queue.Queue()
+        self._rx_queue: queue.Queue[bytes] = queue.Queue(maxsize=RX_QUEUE_MAX_CHUNKS)
         self._stop_event = Event()
         self._reader_stopped = Event()
         self._reader_stopped.set()
@@ -280,12 +294,36 @@ class SerialEngine:
 
     @property
     def rx_queue(self) -> queue.Queue[bytes]:
-        """The raw RX byte queue (fed by read_loop, consumed by SerialPort.read_raw)."""
+        """The raw RX byte queue (fed by read_loop, consumed by SerialPort.read_raw).
+
+        Bounded at ``RX_QUEUE_MAX_CHUNKS``; when full the reader discards the
+        oldest chunk.  Drain it, then read it as bytes arrive.
+        """
         return self._rx_queue
+
+    def _queue_rx(self, data: bytes) -> None:
+        """Put a chunk on ``rx_queue``, discarding the oldest when it is full.
+
+        Reader thread only, the queue's one producer, so the loop ends: once a
+        chunk is removed nothing else can refill the slot first.  A consumer
+        that empties the queue in between just makes the next put succeed.
+        """
+        while True:
+            try:
+                self._rx_queue.put_nowait(data)
+                return
+            except queue.Full:
+                try:
+                    self._rx_queue.get_nowait()
+                except queue.Empty:
+                    pass
 
     @property
     def stop_event(self) -> Event:
-        """Event to signal the reader loop to stop."""
+        """Event to signal the reader loop to stop.
+
+        The reader's alone: ``reconnect_loop`` takes its own token.
+        """
         return self._stop_event
 
     @property
@@ -541,58 +579,71 @@ class SerialEngine:
             while not self._stop_event.is_set():
                 if not getattr(port, "is_open", False):
                     break
-                # pyserial's read path raises SerialException on a lost
-                # device and OSError on underlying fd failure; either
-                # signals an effective disconnect.
+                failure = ""
                 try:
                     waiting = getattr(port, "in_waiting", 0) or 1
-                    data = port.read(min(waiting, 4096))
+                    data = port.read(min(waiting, RX_READ_MAX_BYTES))
+
+                    if data:
+                        # One authoritative "device last spoke" clock.
+                        # Consumers cannot use the port's ``in_waiting`` for
+                        # this: THIS loop drains it to zero continuously, so a
+                        # sample taken mid-response reads 0 and looks like
+                        # silence.
+                        self._last_rx_monotonic = time.monotonic()
+                        self._queue_rx(data)
+                        for rx_observer in self._rx_observers:
+                            # RX observers are third-party callbacks;
+                            # BoundaryException signals the reviewed broad
+                            # catch so one misbehaving observer can't
+                            # break the others or stop the reader loop.
+                            try:
+                                rx_observer(data)
+                            except BoundaryException:
+                                pass
+
+                    # Resync the receive-newline mode from the (shared) cfg
+                    # each chunk so /term.eol.rx takes effect live, without a
+                    # reconnect.  Cheap dict read; the cfg dict is the same
+                    # object /cfg mutates (see how TX line_ending stays live).
+                    reader.rx_newline = self._cfg.get("eol_rx", "auto")
+                    result = reader.process(data)
+
+                    if result.capture_target_reached and on_capture_done:
+                        on_capture_done()
+                    if result.clear_screen and on_clear:
+                        on_clear()
+                    if result.lines and on_lines:
+                        on_lines(result.lines)
+
+                    if not data:
+                        time.sleep(0.01)
                 except (OSError, _serial.SerialException) as exc:
-                    detail = f"{exc.__class__.__name__}: {exc}"
+                    # pyserial raises SerialException on a lost device and
+                    # OSError on an underlying fd failure; either is an
+                    # effective disconnect.
+                    failure = f"{exc.__class__.__name__}: {exc}"
+                except BoundaryException as exc:
+                    # Last resort: a bug in SerialReader or a frontend
+                    # callback.  Ending the thread silently would leave the
+                    # frontend showing Connected over a port the ``finally``
+                    # below closes, so it is reported like a lost port
+                    # (registry ``reader-failure-reported``).
+                    failure = (
+                        f"reader stopped by an internal error -- "
+                        f"{exc.__class__.__name__}: {exc}"
+                    )
+                if failure:
                     if on_error:
-                        on_error(detail)
+                        on_error(failure)
                     if on_disconnect:
                         on_disconnect()
                     break
-
-                if data:
-                    # One authoritative "device last spoke" clock.  Consumers
-                    # cannot use the port's ``in_waiting`` for this: THIS loop
-                    # drains it to zero continuously, so a sample taken
-                    # mid-response reads 0 and looks like silence.
-                    self._last_rx_monotonic = time.monotonic()
-                    self._rx_queue.put(data)
-                    for rx_observer in self._rx_observers:
-                        # RX observers are third-party callbacks;
-                        # BoundaryException signals the reviewed broad
-                        # catch so one misbehaving observer can't
-                        # break the others or stop the reader loop.
-                        try:
-                            rx_observer(data)
-                        except BoundaryException:
-                            pass
-
-                # Resync the receive-newline mode from the (shared) cfg each
-                # chunk so /term.eol.rx takes effect live, without a
-                # reconnect.  Cheap dict read; the cfg dict is the same
-                # object /cfg mutates (see how TX line_ending stays live).
-                reader.rx_newline = self._cfg.get("eol_rx", "auto")
-                result = reader.process(data)
-
-                if result.capture_target_reached and on_capture_done:
-                    on_capture_done()
-                if result.clear_screen and on_clear:
-                    on_clear()
-                if result.lines and on_lines:
-                    on_lines(result.lines)
-
-                if not data:
-                    time.sleep(0.01)
         finally:
             # Close only the handle THIS loop read from -- ``port`` is the
             # local captured at entry, never the shared field.  A reader can
-            # outlive its own teardown (``disconnect`` waits on a timeout, it
-            # does not join), and by the time it lands here ``_port_obj`` may
+            # outlive its own teardown (``stop_reader``'s join has a timeout,
+            # as a safety net), and by the time it lands here ``_port_obj`` may
             # already belong to a newer connection.  Closing the shared field
             # would kill that new port; closing our own local is always right,
             # and double-close is a no-op.
@@ -675,6 +726,7 @@ class SerialEngine:
 
     def reconnect_loop(
         self,
+        stop: Event,
         *,
         interval: float = 2.5,
         on_status: Callable[[str], None] | None = None,
@@ -682,8 +734,18 @@ class SerialEngine:
         """Blocking reconnect loop - call from a background thread.
 
         Retries ``try_reconnect()`` every *interval* seconds until success
-        or ``stop_event`` is set.  Calls *on_status* with a spinner label
-        every 0.25 s so the frontend can animate.
+        or *stop* is set.  Calls *on_status* with a spinner label every
+        0.25 s so the frontend can animate.
+
+        *stop* belongs to this one run, never the reader's ``stop_event``.
+        Sharing that event let any connect attempt end the loop:
+        ``stop_reader()`` sets it, so a connect that then failed left
+        nothing retrying (registry ``reconnect-survives-connect-attempts``).
+
+        Args:
+            stop: This run's cancel token; set it to end the loop.
+            interval: Seconds between open attempts.
+            on_status: Called with a spinner label each tick.
 
         Returns:
             True if reconnection succeeded, False if canceled.
@@ -691,16 +753,16 @@ class SerialEngine:
         spinner = "|/-\\"
         step = 0
         ticks = int(interval / 0.25)
-        while not self._stop_event.is_set():
+        while not stop.is_set():
             for _ in range(ticks):
-                if self._stop_event.is_set():
+                if stop.is_set():
                     return False
                 if on_status:
                     ch = spinner[step % len(spinner)]
                     on_status(f"Connecting {ch}")
                 step += 1
-                time.sleep(0.25)
-            if self._stop_event.is_set():
+                stop.wait(0.25)
+            if stop.is_set():
                 return False
             if self.try_reconnect():
                 return True

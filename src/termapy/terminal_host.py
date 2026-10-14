@@ -250,6 +250,25 @@ class TerminalHost:
         self.write(msg, "red")
         self._on_disconnected()
 
+    def _port_lost(self) -> None:
+        """Tear down after the port vanished mid-session (an unplug, a driver reset).
+
+        The reader has already reported the loss and closed its port; this is
+        the host's half.  An active capture stops, which releases its serial
+        claim: left running, a binary capture kept suppressing the display
+        across an auto-reconnect.  Then the frontend shows itself
+        disconnected (registry ``port-lost-tears-down``).
+
+        Deliberately NOT ``_disconnect``: the ``on_disconnect`` lifecycle
+        fires for user-initiated disconnects only (``LifecycleHook`` docs).
+        Device state is kept as well -- in MCP it holds the async events
+        that explain the loss, such as a panic line printed just before a
+        USB reset.
+        """
+        if self.capture.active:
+            self._stop_capture()
+        self._on_disconnected()
+
     def _clear_device_state(self) -> None:
         """Wipe namespaces tied to the device that just disconnected.
 
@@ -474,6 +493,26 @@ class TerminalHost:
         if self.engine.serial_port:
             return self.engine.serial_port.read_raw(timeout_ms, frame_gap)
         return b""
+
+    def _feed_rx_consumers(self, lines: list[str], plain: list[str]) -> None:
+        """Hand received lines to the consumers every frontend shares.
+
+        The expect watcher and text capture.  Each frontend calls this for
+        EVERY line it receives, beside its own display and session log
+        (registry ``rx-every-line-delivered``).  MCP once skipped the capture
+        half, so ``/cap.text`` over MCP recorded nothing, which is why the
+        list lives here and not in three copies.
+
+        Args:
+            lines: Received lines as the reader produced them.
+            plain: The same lines with ANSI stripped, for the capture file.
+        """
+        self.repl.feed_lines(lines)
+        if self.capture.active and self.capture.mode == "text":
+            if self.capture.feed_text(plain):
+                # Write failed mid-capture -- stop so the abort is visible
+                # instead of silently dropping the rest.
+                self._stop_capture()
 
     def _drain_rx_queue(self) -> int:
         """Discard all pending bytes in the RX queue (delegates to SerialPort)."""

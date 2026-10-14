@@ -830,6 +830,43 @@ class TestColorStripping:
             "device ANSI stripped from async_events when color off"
         )
 
+    def test_on_lines_feeds_an_active_text_capture(self, host, tmp_path):
+        """rx-every-line-delivered: lines read while a text capture runs over MCP reach its file, plain."""
+        # Arrange
+        cap_path = tmp_path / "mcp_capture.txt"
+        started = host.capture.start(
+            path=cap_path, file_mode="w", mode="text", duration=60.0
+        )
+        assert started is True, "the text capture starts"
+
+        # Act
+        host._on_lines(["\x1b[32mgreen\x1b[0m", "plain line"])
+        host.capture.stop()
+
+        # Assert
+        actual = cap_path.read_text(encoding="utf-8").splitlines()
+        expected = ["green", "plain line"]
+        assert actual == expected, (
+            "this host fed only the expect watcher, so /cap.text over MCP "
+            "recorded nothing"
+        )
+
+    def test_a_lost_port_stops_a_running_capture(self, host, tmp_path):
+        """port-lost-tears-down: when the reader loses the port, an MCP capture stops and frees its claim."""
+        # Arrange -- a binary capture, which claims the port
+        started = host._start_capture(
+            path=tmp_path / "lost.bin", file_mode="wb", mode="bin", target_bytes=1000
+        )
+        assert started is True, "the binary capture starts"
+        assert host.engine.serial_claimed is True, "a binary capture claims the port"
+
+        # Act -- the reader's on_disconnect
+        host._on_reader_disconnect()
+
+        # Assert
+        assert host.capture.active is False, "the capture stops with the port"
+        assert host.engine.serial_claimed is False, "its claim is released"
+
 
 # ── Catalog parity (resource vs /mcp.catalog REPL) ──────────────────────────
 

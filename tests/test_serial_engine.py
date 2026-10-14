@@ -1,12 +1,13 @@
 """Tests for SerialEngine - connection lifecycle and reader loop."""
 
 import threading
+import time
 
 import pytest
 
 from termapy.capture import CaptureEngine
 from termapy.demo import FakeSerial
-from termapy.serial_engine import SerialEngine
+from termapy.serial_engine import RX_QUEUE_MAX_CHUNKS, SerialEngine
 
 
 def _make_engine(cfg=None, open_fn=None):
@@ -249,6 +250,41 @@ class TestReadLoop:
         assert len(errors) >= 1, "error callback fired"
         assert "read failed" in errors[0], "error message should contain 'read failed'"
 
+    def test_a_raising_callback_is_reported_as_a_disconnect(self):
+        """reader-failure-reported: a callback that raises ends the reader through on_error then on_disconnect, never silently."""
+        # Arrange -- FakeSerial has the AT reply waiting; on_lines blows up on it
+        engine, _, _ = _make_engine()
+        engine.connect()
+        port = engine.port_obj
+        port.write(b"AT\r")
+        events: list[str] = []
+
+        def on_lines(lines):
+            raise ValueError("bad render")
+
+        reader = threading.Thread(
+            target=lambda: engine.read_loop(
+                on_lines=on_lines,
+                on_error=lambda detail: events.append(f"error: {detail}"),
+                on_disconnect=lambda: events.append("disconnect"),
+            ),
+            daemon=True,
+        )
+
+        # Act
+        reader.start()
+        reader.join(timeout=2.0)
+
+        # Assert
+        assert reader.is_alive() is False, "the reader ended"
+        assert len(events) == 2, f"one error then one disconnect, got {events!r}"
+        assert "ValueError: bad render" in events[0], "the error names what was raised"
+        assert events[1] == "disconnect", (
+            "the frontend must hear the reader is gone, or it shows Connected "
+            "over a closed port"
+        )
+        assert getattr(port, "is_open", True) is False, "the reader closed its port on the way out"
+
     def test_read_loop_without_connect(self):
         """With no port the loop returns at once and still signals reader_stopped."""
         # Arrange
@@ -259,6 +295,66 @@ class TestReadLoop:
 
         # Assert
         assert engine.reader_stopped.is_set(), "reader_stopped should be set without connect"
+
+
+class _NumberedPort:
+    """Port double that yields ``total`` numbered one-line chunks, then reads empty.
+
+    Injected through ``open_fn``, like ``FakeSerial``; no patching.
+    """
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+        self.sent = 0
+        self.is_open = True
+        self.exhausted = threading.Event()
+
+    @property
+    def in_waiting(self) -> int:
+        return 8 if self.sent < self.total else 0
+
+    def read(self, size: int) -> bytes:
+        if self.sent >= self.total:
+            self.exhausted.set()
+            time.sleep(0.005)  # an empty read is a read timeout
+            return b""
+        self.sent += 1
+        return f"{self.sent:07d}\n".encode()
+
+    def close(self) -> None:
+        self.is_open = False
+
+
+class TestRxQueueBounded:
+    """rx-queue-bounded: with nobody reading, the raw queue holds the newest chunks only."""
+
+    def test_a_long_run_with_no_consumer_keeps_only_the_newest_chunks(self):
+        """Past the cap the reader drops the oldest chunk; the queue never grows beyond it."""
+        # Arrange -- more chunks than the queue holds, and nothing draining it
+        total = RX_QUEUE_MAX_CHUNKS + 500
+        port = _NumberedPort(total)
+        engine, _, _ = _make_engine(open_fn=lambda c: port)
+        engine.connect()
+        reader = threading.Thread(target=engine.read_loop, daemon=True)
+
+        # Act
+        reader.start()
+        assert port.exhausted.wait(timeout=10.0), "the port never ran dry"
+        engine.stop_event.set()
+        reader.join(timeout=2.0)
+        queued = []
+        while not engine.rx_queue.empty():
+            queued.append(engine.rx_queue.get_nowait())
+
+        # Assert
+        actual_count = len(queued)
+        expected_count = RX_QUEUE_MAX_CHUNKS
+        assert actual_count == expected_count, (
+            "the queue held more than its bound -- an idle session keeps every byte"
+        )
+        actual_ends = (queued[0], queued[-1])
+        expected_ends = (f"{total - RX_QUEUE_MAX_CHUNKS + 1:07d}\n".encode(), f"{total:07d}\n".encode())
+        assert actual_ends == expected_ends, "the OLDEST chunks are the ones dropped"
 
 
 # -- Reconnect ----------------------------------------------------------------
@@ -586,7 +682,7 @@ class TestReconnectLoop:
 
         # Act - FakeSerial always succeeds, so first try should work
         def run():
-            return engine.reconnect_loop(on_status=statuses.append)
+            return engine.reconnect_loop(threading.Event(), on_status=statuses.append)
 
         t = threading.Thread(target=run, daemon=True)
         t.start()
@@ -597,7 +693,7 @@ class TestReconnectLoop:
         assert all("Connecting" in status for status in statuses), "status should show connecting"
 
     def test_reconnect_loop_cancelled(self):
-        """stop_event ends a reconnect loop that keeps failing, so its thread exits."""
+        """The run's own stop token ends a reconnect loop that keeps failing, so its thread exits."""
         # Arrange - use a port that always fails
         capture = CaptureEngine()
         engine = SerialEngine(
@@ -606,24 +702,60 @@ class TestReconnectLoop:
             open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
         )
         attempted = threading.Event()
+        stop = threading.Event()
 
         # Act - let the loop make at least one (failing) attempt, then cancel.
         # Gating the cancel on the status callback (not a sleep) guarantees the
         # loop was actually running when we stopped it.
         def run():
             return engine.reconnect_loop(
-                interval=0.5, on_status=lambda msg: attempted.set()
+                stop, interval=0.5, on_status=lambda msg: attempted.set()
             )
 
         t = threading.Thread(target=run, daemon=True)
         t.start()
         started = attempted.wait(timeout=2.0)
-        engine.stop_event.set()
+        stop.set()
         t.join(timeout=2.0)
 
         # Assert
         assert started is True, "reconnect loop attempted within 2s"
         assert not t.is_alive(), "thread should have exited"
+
+    def test_a_connect_attempt_does_not_end_a_reconnect_loop(self):
+        """reconnect-survives-connect-attempts: stop_reader and a failed connect leave a running reconnect loop retrying."""
+        # Arrange -- a port that never opens, and a loop retrying it
+        engine = SerialEngine(
+            cfg={"serial": {"port": "BAD"}},
+            capture=CaptureEngine(),
+            open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
+        )
+        stop = threading.Event()
+        ticked = threading.Event()
+        loop = threading.Thread(
+            target=lambda: engine.reconnect_loop(
+                stop, interval=0.25, on_status=lambda msg: ticked.set()
+            ),
+            daemon=True,
+        )
+        loop.start()
+        assert ticked.wait(timeout=2.0), "the reconnect loop started"
+
+        # Act -- what every connect attempt does: stop the old reader, then open
+        engine.stop_reader()
+        connected = engine.connect()
+        ticked.clear()
+        still_retrying = ticked.wait(timeout=1.0)
+        stop.set()
+        loop.join(timeout=2.0)
+
+        # Assert
+        assert connected is False, "the port still does not open"
+        assert still_retrying is True, (
+            "the reader's stop event ended the reconnect loop, so a failed "
+            "connect left nothing retrying"
+        )
+        assert loop.is_alive() is False, "the run's own token still ends it"
 
 
 # -- Error classification & port-holder lookup ---------------------------------

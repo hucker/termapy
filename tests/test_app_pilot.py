@@ -805,33 +805,83 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
-    def test_backlog_is_bounded_and_the_drop_is_reported(self, app_factory):
-        """Past _RX_EVENT_LIMIT the oldest events drop, counted and shown; newest lines survive."""
+    def test_a_flood_reaches_every_consumer_and_renders_only_max_lines(
+        self, app_factory, tmp_path
+    ):
+        """rx-every-line-delivered: a flood is logged and captured whole; the pane renders only what it keeps.
+
+        2100 events is past the 2000 the old cap held: it dropped the oldest
+        before ``_write_batch``, so they missed the session log and the
+        capture too, while the message said only the display fell behind.
+        """
+        async def scenario():
+            from textual.widgets import RichLog
+            app, _, _ = app_factory(max_lines=50)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- a text capture running, and the whole flood
+                # queued before main drains any of it
+                cap_path = tmp_path / "flood.txt"
+                started = app._capture.start(
+                    path=cap_path, file_mode="w", mode="text", duration=60.0
+                )
+                assert started is True, "the text capture starts"
+                total = 2100
+                for i in range(total):
+                    app._rx_enqueue(("lines", [f"flood {i}"]))
+
+                # Act -- read the pane before stopping: the capture's
+                # completion status is itself a line, and would evict one
+                await pilot.pause()
+                shown = [
+                    strip.text.rstrip()
+                    for strip in app.query_one("#output", RichLog).lines
+                    if strip.text.startswith("flood")
+                ]
+                app._capture.stop()
+
+                # Assert
+                expected = [f"flood {i}" for i in range(total)]
+                actual_captured = cap_path.read_text(encoding="utf-8").splitlines()
+                assert actual_captured == expected, "text capture gets every line, in order"
+                assert app.log_fh is not None, "a config on disk opens a log"
+                log_lines = Path(app.log_fh.name).read_text(encoding="utf-8").splitlines()
+                actual_logged = [line.split("] < ", 1)[1] for line in log_lines if "] < " in line]
+                assert actual_logged == expected, "the session log gets every line, in order"
+                assert app.repl._recent_lines[-1] == "flood 2099", "the expect watcher was fed"
+                assert app._line_counter == total, "line numbers count the lines not rendered"
+                assert shown == expected[-50:], "the pane holds the newest max_lines"
+
+        _run(scenario)
+
+    def test_a_lost_port_stops_the_capture_and_resets_the_ui(self, app_factory, tmp_path):
+        """port-lost-tears-down: a disconnect from the reader stops a running capture, frees its claim and resets DTR/RTS."""
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
                 await pilot.pause()
-                # Arrange -- a main thread far enough behind that the backlog
-                # exceeds the cap.  Unlike the driver-level loss this design
-                # replaced, the drop must be counted and surfaced.
-                limit = pilot.app._RX_EVENT_LIMIT
-                for i in range(limit + 50):
-                    pilot.app._rx_enqueue(("lines", [f"flood {i}"]))
+                # Arrange -- a binary capture holding the claim, DTR/RTS asserted
+                started = app._cap_start(
+                    path=tmp_path / "lost.bin", file_mode="wb", mode="bin", target_bytes=1000
+                )
+                assert started is True, "the binary capture starts"
+                assert app._engine.serial_claimed is True, "a binary capture claims the port"
+                app._btn_dtr.label = "DTR:1"
+                app._btn_rts.label = "RTS:1"
 
-                # Assert -- bounded before any drain happens.
-                actual = len(pilot.app._rx_events)
-                assert actual == limit, f"backlog capped at {limit}, got {actual}"
-                assert pilot.app._rx_dropped == 50, "dropped lines are counted"
-
-                # Act
+                # Act -- what the reader enqueues when port.read raises
+                app._rx_enqueue(("disconnect",))
                 await pilot.pause()
 
-                # Assert -- the newest data survives and the loss is visible.
-                text = pilot.app._get_screen_text()
-                assert "fell behind" in text, (
-                    "dropping display data must be reported, never silent"
+                # Assert
+                assert app._capture.active is False, "the capture stops with the port"
+                assert app._engine.serial_claimed is False, (
+                    "a claim left behind keeps the display suppressed after an "
+                    "auto-reconnect"
                 )
-                assert f"flood {limit + 49}" in text, "newest lines are kept"
+                actual_labels = (str(app._btn_dtr.label), str(app._btn_rts.label))
+                expected_labels = ("DTR:0", "RTS:0")
+                assert actual_labels == expected_labels, "the DTR/RTS labels reset"
 
         _run(scenario)
 
@@ -1226,6 +1276,116 @@ class TestMarshalling:
                 assert app.query_one("#output", RichLog).display is True, (
                     "a None state hides the frozen view and restores #output"
                 )
+
+        _run(scenario)
+
+    def test_connection_hooks_from_a_worker_run_on_main(self, tmp_path):
+        """output-helpers-marshal: /port.connect and /port.disconnect run on a worker; their UI hooks run on main."""
+        async def scenario():
+            from termapy.app import SerialTerminal
+
+            ran_on: dict[str, int] = {}
+
+            class _Recording(SerialTerminal):
+                """Records the thread each connection-hook body runs on, then runs it."""
+
+                def _show_connected(self, message: str) -> None:
+                    ran_on["connected"] = threading.get_ident()
+                    super()._show_connected(message)
+
+                def _show_disconnected(self) -> None:
+                    ran_on["disconnected"] = threading.get_ident()
+                    super()._show_disconnected()
+
+            cfg, path = _write_cfg(tmp_path)
+            app = _Recording(cfg, path)
+            app.repl.global_root = tmp_path
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- connect then disconnect from a worker, as the commands do
+                worker = threading.Thread(
+                    target=lambda: (app._connect(), app._disconnect()), daemon=True
+                )
+                worker.start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while worker.is_alive() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await pilot.pause()
+
+                # Assert
+                assert worker.is_alive() is False, "the worker's hooks must not park"
+                expected = {
+                    "connected": app._main_thread_id,
+                    "disconnected": app._main_thread_id,
+                }
+                assert ran_on == expected, (
+                    "the hooks touched widgets from the worker thread instead "
+                    "of forwarding to main"
+                )
+
+        _run(scenario)
+
+
+class TestAutoReconnect:
+    """reconnect-survives-connect-attempts: each reconnect run owns its cancel token."""
+
+    def test_a_failed_connect_while_retrying_leaves_it_retrying(self, app_factory):
+        """A connect attempt that fails during auto-reconnect neither ends nor replaces the run."""
+        async def scenario():
+            app, _, _ = app_factory(auto_reconnect=True)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- auto-reconnect retrying a port that never opens
+                app.repl._cfg_data["serial"]["port"] = "DEMO_FAIL"
+                app._auto_reconnect()
+                run = app._reconnect_stop
+                assert app._reconnecting is True, "auto-reconnect is retrying"
+
+                # Act -- a connect attempt on a worker, as /port.connect makes
+                worker = threading.Thread(target=app._connect, daemon=True)
+                worker.start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while worker.is_alive() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await asyncio.sleep(0.5)  # longer than the loop's 0.25 s tick
+                await pilot.pause()
+
+                # Assert
+                try:
+                    assert app._reconnecting is True, (
+                        "the failed connect ended the retrying: the reader's stop "
+                        "event was the loop's too, and the restart was swallowed"
+                    )
+                    assert app._reconnect_stop is run, "the same run is still the live one"
+                finally:
+                    app._reconnect_stop.set()
+
+        _run(scenario)
+
+    def test_a_successful_connect_ends_the_retrying(self, app_factory):
+        """A connect that succeeds while retrying ends the run, and no spinner frame paints over Connected."""
+        async def scenario():
+            from textual.widgets import Button
+            app, _, _ = app_factory(auto_reconnect=True)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- retrying long enough for spinner frames to be in flight
+                app.repl._cfg_data["serial"]["port"] = "DEMO_FAIL"
+                app._auto_reconnect()
+                await asyncio.sleep(0.3)
+
+                # Act
+                connected = app._connect("DEMO")
+                await asyncio.sleep(0.6)
+                await pilot.pause()
+
+                # Assert
+                assert connected is True, "the DEMO port opens"
+                assert app._reconnecting is False, "a connect that succeeded ends the retrying"
+                label = str(app.query_one("#title-right", Button).label).strip()
+                assert label == "Connected", "no stale spinner frame paints over Connected"
+                app._disconnect()
 
         _run(scenario)
 

@@ -27,7 +27,9 @@ class SerialPort:
 
     Args:
         port: A ``serial.Serial`` or duck-typed equivalent (e.g. ``FakeSerial``).
-        rx_queue: Queue fed by the background serial reader thread.
+        rx_queue: Queue fed by the background serial reader thread.  Bounded
+            (``serial_engine.RX_QUEUE_MAX_CHUNKS``, oldest dropped when full),
+            which is why every reader drains it first.
         log: Logging callback - log(direction, text). Direction is ">" for TX.
         encoding: Character encoding for decoding TX bytes for logging.
     """

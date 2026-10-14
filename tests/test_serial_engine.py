@@ -1,12 +1,13 @@
 """Tests for SerialEngine - connection lifecycle and reader loop."""
 
 import threading
+import time
 
 import pytest
 
 from termapy.capture import CaptureEngine
 from termapy.demo import FakeSerial
-from termapy.serial_engine import SerialEngine
+from termapy.serial_engine import RX_QUEUE_MAX_CHUNKS, SerialEngine
 
 
 def _make_engine(cfg=None, open_fn=None):
@@ -259,6 +260,66 @@ class TestReadLoop:
 
         # Assert
         assert engine.reader_stopped.is_set(), "reader_stopped should be set without connect"
+
+
+class _NumberedPort:
+    """Port double that yields ``total`` numbered one-line chunks, then reads empty.
+
+    Injected through ``open_fn``, like ``FakeSerial``; no patching.
+    """
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+        self.sent = 0
+        self.is_open = True
+        self.exhausted = threading.Event()
+
+    @property
+    def in_waiting(self) -> int:
+        return 8 if self.sent < self.total else 0
+
+    def read(self, size: int) -> bytes:
+        if self.sent >= self.total:
+            self.exhausted.set()
+            time.sleep(0.005)  # an empty read is a read timeout
+            return b""
+        self.sent += 1
+        return f"{self.sent:07d}\n".encode()
+
+    def close(self) -> None:
+        self.is_open = False
+
+
+class TestRxQueueBounded:
+    """rx-queue-bounded: with nobody reading, the raw queue holds the newest chunks only."""
+
+    def test_a_long_run_with_no_consumer_keeps_only_the_newest_chunks(self):
+        """Past the cap the reader drops the oldest chunk; the queue never grows beyond it."""
+        # Arrange -- more chunks than the queue holds, and nothing draining it
+        total = RX_QUEUE_MAX_CHUNKS + 500
+        port = _NumberedPort(total)
+        engine, _, _ = _make_engine(open_fn=lambda c: port)
+        engine.connect()
+        reader = threading.Thread(target=engine.read_loop, daemon=True)
+
+        # Act
+        reader.start()
+        assert port.exhausted.wait(timeout=10.0), "the port never ran dry"
+        engine.stop_event.set()
+        reader.join(timeout=2.0)
+        queued = []
+        while not engine.rx_queue.empty():
+            queued.append(engine.rx_queue.get_nowait())
+
+        # Assert
+        actual_count = len(queued)
+        expected_count = RX_QUEUE_MAX_CHUNKS
+        assert actual_count == expected_count, (
+            "the queue held more than its bound -- an idle session keeps every byte"
+        )
+        actual_ends = (queued[0], queued[-1])
+        expected_ends = (f"{total - RX_QUEUE_MAX_CHUNKS + 1:07d}\n".encode(), f"{total:07d}\n".encode())
+        assert actual_ends == expected_ends, "the OLDEST chunks are the ones dropped"
 
 
 # -- Reconnect ----------------------------------------------------------------

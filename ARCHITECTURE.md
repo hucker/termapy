@@ -499,7 +499,7 @@ To show the mode doing something a terminal-aware frontend uniquely can, `--vt10
 
 ```text
 SerialEngine.read_loop() [background thread]
-  → serial.read() → rx_queue.put(data)
+  → serial.read() → rx_queue (bounded; oldest chunk dropped when full)
   → SerialReader.process(data) → ReaderResult
     → binary capture active? → CaptureEngine.feed_bytes() → skip display
     → proto_active? → suppress display

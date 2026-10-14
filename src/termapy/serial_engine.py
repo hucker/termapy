@@ -41,6 +41,20 @@ if TYPE_CHECKING:
 # it read from -- never a newer connection's.
 READER_JOIN_TIMEOUT_S = 2.0
 
+# Largest single ``port.read`` the reader issues, so the largest chunk it ever
+# queues.
+RX_READ_MAX_BYTES = 4096
+
+# Bound on ``rx_queue``, in chunks: at most 4 MiB at ``RX_READ_MAX_BYTES``.
+# The reader feeds the queue on every chunk, but only request/response
+# commands read it, and each of those drains it first, inside
+# ``ctx.serial.io()``, and then reads as bytes arrive.  So the queue only has
+# to hold what one waiting reader has not consumed yet.  Unbounded, it kept
+# every byte a session received when nothing was reading, for the life of the
+# connection.  When full the reader discards the OLDEST chunk (registry
+# ``rx-queue-bounded``).
+RX_QUEUE_MAX_CHUNKS = 1024
+
 
 def _find_port_holder(port_name: str) -> str | None:
     """Return the process holding ``port_name``, or None if unavailable.
@@ -239,7 +253,7 @@ class SerialEngine:
         self._port_obj: Any | None = None
         self._serial_port: SerialPort | None = None
         self._reader: SerialReader | None = None
-        self._rx_queue: queue.Queue[bytes] = queue.Queue()
+        self._rx_queue: queue.Queue[bytes] = queue.Queue(maxsize=RX_QUEUE_MAX_CHUNKS)
         self._stop_event = Event()
         self._reader_stopped = Event()
         self._reader_stopped.set()
@@ -280,8 +294,29 @@ class SerialEngine:
 
     @property
     def rx_queue(self) -> queue.Queue[bytes]:
-        """The raw RX byte queue (fed by read_loop, consumed by SerialPort.read_raw)."""
+        """The raw RX byte queue (fed by read_loop, consumed by SerialPort.read_raw).
+
+        Bounded at ``RX_QUEUE_MAX_CHUNKS``; when full the reader discards the
+        oldest chunk.  Drain it, then read it as bytes arrive.
+        """
         return self._rx_queue
+
+    def _queue_rx(self, data: bytes) -> None:
+        """Put a chunk on ``rx_queue``, discarding the oldest when it is full.
+
+        Reader thread only, the queue's one producer, so the loop ends: once a
+        chunk is removed nothing else can refill the slot first.  A consumer
+        that empties the queue in between just makes the next put succeed.
+        """
+        while True:
+            try:
+                self._rx_queue.put_nowait(data)
+                return
+            except queue.Full:
+                try:
+                    self._rx_queue.get_nowait()
+                except queue.Empty:
+                    pass
 
     @property
     def stop_event(self) -> Event:
@@ -546,7 +581,7 @@ class SerialEngine:
                 # signals an effective disconnect.
                 try:
                     waiting = getattr(port, "in_waiting", 0) or 1
-                    data = port.read(min(waiting, 4096))
+                    data = port.read(min(waiting, RX_READ_MAX_BYTES))
                 except (OSError, _serial.SerialException) as exc:
                     detail = f"{exc.__class__.__name__}: {exc}"
                     if on_error:
@@ -561,7 +596,7 @@ class SerialEngine:
                     # drains it to zero continuously, so a sample taken
                     # mid-response reads 0 and looks like silence.
                     self._last_rx_monotonic = time.monotonic()
-                    self._rx_queue.put(data)
+                    self._queue_rx(data)
                     for rx_observer in self._rx_observers:
                         # RX observers are third-party callbacks;
                         # BoundaryException signals the reviewed broad

@@ -8,6 +8,7 @@ frontend sees the same set. The engine owns state (seq counters, echo,
 etc.) and exposes it through PluginContext lambdas.
 """
 
+import re
 import threading
 import time
 from contextlib import contextmanager
@@ -348,15 +349,19 @@ class ReplEngine:
         self._expect_predicate: Callable[[str], bool] | None = None
         self._expect_event = Event()
         self._expect_matched_line: str = ""
-        # Ring buffer of recent serial lines (ANSI-stripped).
-        # Solves the race where a device responds before /expect sets the
-        # predicate: wait_for_match() sets the predicate FIRST, then scans
-        # this buffer for retroactive matches. feed_lines() always appends
-        # here regardless of whether a predicate is active.
-        # deque with maxlen is thread-safe for append/iterate in CPython.
+        # Ring buffer of recent serial lines (ANSI-stripped), so a reply that
+        # lands before /expect starts is still found.  feed_lines() appends
+        # every line; a match CONSUMES the buffer through the matched line
+        # (pexpect semantics), so the next expect waits for new output
+        # instead of re-matching the old reply.
         from collections import deque
 
         self._recent_lines: deque[str] = deque(maxlen=100)
+        # One lock over the buffer and the predicate.  feed_lines() runs on
+        # the reader thread (CLI, MCP) or main (TUI) while the waiters run on
+        # a worker; every scan-then-consume and read-then-clear is one step
+        # under it, or a line arriving in between is lost or matched twice.
+        self._expect_lock = threading.Lock()
 
         # Plugin context - set by app.py after mount via set_context()
         # Bootstrap with a minimal IOHandle wired to the constructor's
@@ -512,6 +517,11 @@ class ReplEngine:
                     "Returns the matched line as the result value; fails on\n"
                     "timeout (default 5s).\n"
                     "\n"
+                    "Lines that arrived before {prefix}expect ran are searched\n"
+                    "too.  A match consumes the output up to and including the\n"
+                    "matched line, so the next {prefix}expect waits for new\n"
+                    "output instead of finding the same reply again.\n"
+                    "\n"
                     "Available wherever ``block_until`` is provided: inside\n"
                     "a .run script (always), and from the MCP server (the\n"
                     "MCPHost opts in).  The interactive REPL prompt does\n"
@@ -538,8 +548,9 @@ class ReplEngine:
                 long_help=(
                     "Block until the device outputs a line matching <pattern>.\n"
                     "<pattern> is a Python regex.  See {prefix}expect for the\n"
-                    "non-regex variant and the capability gate that decides\n"
-                    "where this command runs.\n"
+                    "non-regex variant, how a match consumes earlier output,\n"
+                    "and the capability gate that decides where this command\n"
+                    "runs.\n"
                     "\n"
                     "**match= must be the LAST keyword.**\n"
                     "\n"
@@ -566,10 +577,13 @@ class ReplEngine:
         to display normally - feed_lines() checks the predicate as lines
         arrive.
 
-        Race-condition safety: the predicate is installed BEFORE scanning
-        the recent-lines buffer. This eliminates the gap where a line
-        could arrive after the buffer check but before the predicate is
-        active - feed_lines() would catch it in that window.
+        Lines that arrived before the call are scanned first, so a reply
+        that beat ``/expect`` to the buffer still matches.  A match
+        consumes the buffer through the matched line: a second expect for
+        the same text waits for a NEW line rather than returning this one
+        again, and lines that arrived after the match stay for it.  The
+        scan and the predicate install happen under ``_expect_lock``, so
+        a line cannot slip between them.
 
         Args:
             predicate: Callable that takes a stripped line and returns True
@@ -579,24 +593,46 @@ class ReplEngine:
         Returns:
             The matched line, or None on timeout.
         """
-        seconds = timeout
-        self._expect_event.clear()
-        self._expect_matched_line = ""
-        # Install predicate FIRST so feed_lines() catches new arrivals
-        self._expect_predicate = predicate
-        # Now scan the buffer for lines that already arrived
-        for line in list(self._recent_lines):
-            if predicate(line):
-                self._expect_matched_line = line
-                self._expect_predicate = None
-                return line
+        with self._expect_lock:
+            self._expect_event.clear()
+            self._expect_matched_line = ""
+            for index, line in enumerate(self._recent_lines):
+                if predicate(line):
+                    for _ in range(index + 1):
+                        self._recent_lines.popleft()
+                    return line
+            self._expect_predicate = predicate
         try:
-            self._expect_event.wait(timeout=seconds)
+            self._expect_event.wait(timeout=timeout)
         finally:
-            self._expect_predicate = None
+            with self._expect_lock:
+                self._expect_predicate = None
+        # Read after the predicate is gone: a match that landed between the
+        # wait's timeout and the clear above still counts.
         if self._expect_event.is_set():
             return self._expect_matched_line
         return None
+
+    def _take_recent_lines(self, stop: re.Pattern[str] | None = None) -> tuple[list[str], bool]:
+        """Remove and return buffered lines, up to a line matching ``stop``.
+
+        One step under ``_expect_lock``: a line the reader appends meanwhile
+        is either taken or left in place, never lost between a snapshot and
+        a clear.  The ``stop`` line itself is consumed but not returned, and
+        the lines after it stay buffered for the next reader.
+
+        Returns:
+            ``(lines, stopped)`` -- ``stopped`` is True when a ``stop`` line
+            was found.
+        """
+        taken: list[str] = []
+        with self._expect_lock:
+            while self._recent_lines:
+                line = self._recent_lines.popleft()
+                if stop is not None and stop.search(line):
+                    return taken, True
+                taken.append(line)
+        return taken, False
 
     def drain_recent_lines(self) -> list[str]:
         """Snapshot and clear the recent-lines ring buffer.
@@ -608,9 +644,8 @@ class ReplEngine:
         archived as async events instead of leaking into the next
         response parse.
         """
-        snapshot = list(self._recent_lines)
-        self._recent_lines.clear()
-        return snapshot
+        lines, _ = self._take_recent_lines()
+        return lines
 
     def wait_for_lines(
         self,
@@ -626,7 +661,9 @@ class ReplEngine:
         ``terminator`` is a non-empty regex, collection stops on the
         first matching line (the terminator line is NOT included).
         Otherwise collection stops when no new line arrives for
-        ``idle_gap`` seconds, or when ``timeout`` elapses overall.
+        ``idle_gap`` seconds, or when ``timeout`` elapses overall.  Lines
+        that arrived after the terminator stay buffered, so the caller's
+        next drain archives them instead of losing them.
 
         Drains and returns whatever was already in the recent-lines
         buffer first -- callers that want a clean slate should call
@@ -646,35 +683,27 @@ class ReplEngine:
         Returns:
             List of lines collected (excluding the terminator line, if any).
         """
-        import re as _re
-
         term_re = None
         if terminator:
             try:
-                term_re = _re.compile(terminator)
-            except _re.error:
+                term_re = re.compile(terminator)
+            except re.error:
                 term_re = None
 
-        collected: list[str] = []
         # Pull anything already buffered; this is the "drain" half.
-        for line in list(self._recent_lines):
-            if term_re is not None and term_re.search(line):
-                self._recent_lines.clear()
-                return collected
-            collected.append(line)
-        self._recent_lines.clear()
+        collected, stopped = self._take_recent_lines(term_re)
+        if stopped:
+            return collected
 
         deadline = time.monotonic() + timeout
         last_arrival = time.monotonic()
         while time.monotonic() < deadline:
-            new_lines = list(self._recent_lines)
+            new_lines, stopped = self._take_recent_lines(term_re)
+            collected.extend(new_lines)
+            if stopped:
+                return collected
             if new_lines:
-                self._recent_lines.clear()
                 last_arrival = time.monotonic()
-                for line in new_lines:
-                    if term_re is not None and term_re.search(line):
-                        return collected
-                    collected.append(line)
             elif collected and (time.monotonic() - last_arrival) >= idle_gap:
                 # Idle: nothing new for idle_gap seconds AND we have content.
                 # No-content idle still waits the full timeout so slow
@@ -901,22 +930,24 @@ class ReplEngine:
     def feed_lines(self, lines: list[str]) -> None:
         """Feed serial output lines to the expect watcher.
 
-        Called from the serial display path (app._write_batch).
-        Always appends to the recent-lines ring buffer so that
-        wait_for_match() can retroactively scan lines that arrived
-        before the predicate was set. If a predicate is active,
-        each line is also tested for an immediate match.
+        Called from every frontend's RX path (the TUI on main, the CLI and
+        MCP on the reader thread).  Every line is appended to the
+        recent-lines ring buffer so wait_for_match() can scan lines that
+        arrived before it started.  A line that satisfies the active
+        predicate consumes the buffer through itself and wakes the waiter;
+        the lines after it in the same batch are still appended, so a
+        following expect can match them.
         """
-        for line in lines:
-            clean = strip_ansi(line)
-            # Always buffer - wait_for_match() scans this retroactively
-            self._recent_lines.append(clean)
-            # Live match if a predicate is active
-            predicate = self._expect_predicate
-            if predicate is not None and predicate(clean):
-                self._expect_matched_line = clean
-                self._expect_event.set()
-                return
+        with self._expect_lock:
+            for line in lines:
+                clean = strip_ansi(line)
+                self._recent_lines.append(clean)
+                predicate = self._expect_predicate
+                if predicate is not None and predicate(clean):
+                    self._recent_lines.clear()
+                    self._expect_predicate = None
+                    self._expect_matched_line = clean
+                    self._expect_event.set()
 
     # -- Plugin management ----------------------------------------------------
 

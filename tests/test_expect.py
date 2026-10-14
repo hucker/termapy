@@ -128,6 +128,132 @@ class TestExpectMatch:
         assert "LATE" in result.value, "matched line returned"
 
 
+# ── A match consumes: the sequence and lifetime cases ───────────────────────
+
+
+def _wait_for_predicate(eng, timeout: float = 2.0) -> None:
+    """Block until /expect running on another thread has installed its predicate."""
+    deadline = time.monotonic() + timeout
+    while eng._expect_predicate is None:
+        assert time.monotonic() < deadline, "expect never started waiting"
+        time.sleep(0.005)
+
+
+class TestExpectConsumes:
+    """expect-consumes-to-match: after a match the buffer holds only later lines."""
+
+    def test_second_expect_waits_for_a_new_reply(self, env):
+        """Two AT / expect OK pairs each need their own OK; the first reply is not matched twice."""
+        # Arrange -- the device answered the first AT
+        eng, _ctx, _output = env
+        eng.feed_lines(["OK"])
+        first = eng.dispatch("expect timeout=1s match=OK")
+
+        # Act -- the second AT has not been answered yet
+        second = eng.dispatch("expect timeout=150ms match=OK")
+        eng.feed_lines(["OK"])
+        third = eng.dispatch("expect timeout=1s match=OK")
+
+        # Assert
+        assert first.success is True, "the first reply matches"
+        assert second.success is False, (
+            "a consumed reply must not satisfy the next expect -- the script "
+            "would run ahead of the device"
+        )
+        assert third.success is True, "a new reply matches"
+
+    def test_a_line_after_a_live_match_in_the_same_batch_stays(self, env):
+        """A line read in the same chunk as a live match can still be matched by the next expect."""
+        # Arrange -- expect A is waiting when "A" and "B" arrive in one read
+        eng, _ctx, _output = env
+        results: dict = {}
+        waiter = threading.Thread(
+            target=lambda: results.setdefault("a", eng.dispatch("expect timeout=2s match=A"))
+        )
+        waiter.start()
+        _wait_for_predicate(eng)
+
+        # Act
+        eng.feed_lines(["A", "B"])
+        waiter.join(timeout=2.0)
+        second = eng.dispatch("expect timeout=150ms match=B")
+
+        # Assert
+        assert results["a"].success is True, "the live match wakes the waiter"
+        assert second.success is True, (
+            "B arrived after the match and must still be buffered; it was "
+            "dropped when feed_lines returned on the match"
+        )
+
+    def test_a_scanned_match_consumes_only_through_itself(self, env):
+        """A match found among buffered lines consumes it and what came before, not what came after."""
+        # Arrange
+        eng, _ctx, _output = env
+        eng.feed_lines(["boot", "READY", "after"])
+
+        # Act
+        result = eng.dispatch("expect timeout=1s match=READY")
+
+        # Assert
+        actual = list(eng._recent_lines)
+        expected = ["after"]
+        assert result.success is True, "the buffered line matches"
+        assert actual == expected, "lines through the match are consumed, later ones kept"
+
+
+class TestRecentLinesBuffer:
+    """The buffer the waiters read is taken atomically and stays bounded."""
+
+    def test_lines_after_a_terminator_stay_buffered(self, env):
+        """wait_for_lines stops at its terminator and leaves the later lines for the next drain."""
+        # Arrange
+        eng, _ctx, _output = env
+        eng.feed_lines(["a", "b", "END", "c"])
+
+        # Act
+        actual_collected = eng.wait_for_lines(0.2, terminator="^END$")
+        actual_left = eng.drain_recent_lines()
+
+        # Assert
+        assert actual_collected == ["a", "b"], "lines before the terminator are the reply"
+        assert actual_left == ["c"], "the line after the terminator is not thrown away"
+
+    def test_every_line_fed_while_wait_for_lines_polls_is_collected(self, env):
+        """Lines the reader appends between polls are all collected, in order, none lost."""
+        # Arrange -- a feeder thread racing the poll loop, in small batches.
+        # Fewer lines than the 100-line ring holds, so any loss is the race,
+        # not the ring evicting its oldest line by design.
+        eng, _ctx, _output = env
+        expected = [f"line {i}" for i in range(90)]
+
+        def feed():
+            for i in range(0, len(expected), 3):
+                eng.feed_lines(expected[i:i + 3])
+                time.sleep(0)  # yield, so the poller interleaves with the feed
+            eng.feed_lines(["DONE"])
+
+        feeder = threading.Thread(target=feed)
+
+        # Act
+        feeder.start()
+        actual = eng.wait_for_lines(5.0, terminator="^DONE$", idle_gap=2.0)
+        feeder.join(timeout=2.0)
+
+        # Assert
+        assert actual == expected, "a snapshot-then-clear would drop lines appended in between"
+
+    def test_buffer_stays_bounded_with_no_waiter(self, env):
+        """With nobody expecting, a long run keeps only the newest 100 lines."""
+        # Arrange / Act
+        eng, _ctx, _output = env
+        eng.feed_lines([f"line {i}" for i in range(1000)])
+
+        # Assert
+        actual = list(eng._recent_lines)
+        expected = [f"line {i}" for i in range(900, 1000)]
+        assert actual == expected, "the ring keeps the newest lines and nothing more"
+
+
 # ── Timeout / error paths ───────────────────────────────────────────────────
 
 

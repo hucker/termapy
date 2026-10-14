@@ -64,6 +64,10 @@ in `/run.list` and `/run.help`.
 Keywords use `key=value` syntax (spaces around `=` are OK). `match=` must be
 last -- everything after it is the pattern.
 
+`/expect` also searches lines that arrived before it ran, so a fast reply is
+not missed. A match consumes the output up to and including the matched line:
+two `AT` / `/expect match=OK` pairs in a row each wait for their own `OK`.
+
 ## Profiling
 
 Run a script with per-line timing to find slow spots:

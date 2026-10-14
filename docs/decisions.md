@@ -1,7 +1,7 @@
 # Decisions
 
 The design decisions the code relies on, one dated entry each, in one place. A
-rule the code must keep is a row in [`invariants.md`](invariants.md); this file
+rule the code must keep is a row in [`rules.md`](rules.md); this file
 holds the choices behind those rules and the choices that are not rules at all
 (what is vendored, how the lock moves, what a feature may never require), so
 that they are neither re-litigated nor re-derived. Until 2026-10-13 they lived
@@ -279,3 +279,33 @@ interpolated values in 20 modules with no escape, and the demo traffic plugin
 sent markup down a plain channel, where its tags showed as text. **Where:**
 registry `markup-escape` (`test_text_reaches_markup_escaped`,
 `tests/test_markup_escape.py`) and `widget-text-literal`.
+
+## 2026-10-14 — The registry is `rules.md`: it lists rules, not only invariants
+
+`docs/invariants.md` became `docs/rules.md`, titled "Rule registry", and its
+self-check id `invariants-registry` became `rules-registry`. The 2026-10-13
+entry gave every row a category, and only the `data` rows are invariants in
+the strict sense; the file is the list of every rule the code relies on,
+which is how CLAUDE.md already described it. The `contract` category widened
+in the same change, from a handler's pre- or postcondition to a pipeline
+stage's too, so that what the serial reader promises its consumers has an
+honest home. Chuck, on a delivery rule filed as a `requirement`: at that
+level "I would need to say you need a tui, you need a help menu" -- product
+features are not registry rows. Earlier entries and dated reviews keep the
+old name; they record what was true when written. **Why:** a file named for
+one category of its contents invites rows to be argued into the wrong
+category. **Where:** registry `rules-registry`
+(`test_rules_registry_matches_the_guards`).
+
+## 2026-10-14 — Anything stateful is tested twice and long, not once
+
+A buffer, queue, watcher or claim is tested beyond the happy path three
+ways: the operation twice in a row, two items arriving in one batch, and a
+sustained run with no consumer. **Why:** the serial-path review that day
+found three bugs present since March in lines the suite already executed,
+each one invisible to a single call: a second `/expect` re-matched the first reply,
+a line arriving in the same read as a match was never buffered, and the raw
+RX queue kept every byte of a session because nothing read it between
+commands. Every test of those paths called the operation once. **Where:**
+CLAUDE.md "Testing"; review only, since no `ast` scan can tell a stateful
+feature's tests from any other.

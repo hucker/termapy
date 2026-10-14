@@ -1,10 +1,12 @@
-# Invariants
+# Rule registry
 
 The rules the code relies on, one row each, in one place. Until 2026-10-12 they
 lived in four: the guards in `tests/test_architecture.py`, the prose bullets in
 `CLAUDE.md`, each review's "invariants checked and holding" list, and the
 maintainer's head. This table is the registry; those are the pointers. The
-decisions behind the rules are in [`decisions.md`](decisions.md).
+decisions behind the rules are in [`decisions.md`](decisions.md). The rows are
+rules of every kind: only the `data` rows are invariants in the strict sense,
+which is why the file was renamed from `invariants.md` on 2026-10-14.
 
 **Reading a row.** `id` is stable and kebab-case, the hook a test header leads
 with (`"""ui-layer-textual: ..."""`) and a review cites. `kind` is the column
@@ -17,7 +19,8 @@ invariant in the strict sense; its strongest guard is a constructor or parser
 that refuses the bad state), **concurrency** is which thread may do what and
 who owns a resource, **structure** is the import graph or the shape of the code
 (an `ast` scan), **repository** is two artifacts agreeing at every commit (a
-diff test), **contract** is a pre- or postcondition on a handler, and
+diff test), **contract** is a pre- or postcondition on a handler or a
+pipeline stage (what the serial reader promises its consumers, say), and
 **requirement** is behavior a user sees (a scenario test). `enforced by` names
 the test function or test file for a guarantee, `review` for an assumption,
 with instance tests (evidence for some commands, not the rule) noted after a
@@ -25,14 +28,14 @@ semicolon. `source` is where the rule is stated. `last review check` is the
 most recent adversarial pass that read it at the path; guarantees are checked
 on every run, so the date there is the last human confirmation only.
 
-**Keeping it honest.** `tests/test_architecture.py::test_invariants_registry_matches_the_guards`
+**Keeping it honest.** `tests/test_architecture.py::test_rules_registry_matches_the_guards`
 reads this table and fails when a row names a test that does not exist, a
 guarantee names no test, or a guard in that file lacks a registered id in its
 header. A new guard therefore cannot ship unlisted, and a renamed test cannot
-leave a row pointing at nothing. A change that relies on an invariant names its
-id; a new invariant gets a row the same day, an assumption until its guard
-exists; a review that finds one broken flips it to assumption until the fix
-lands and says so in its Addenda.
+leave a row pointing at nothing. A change that relies on a rule names its id;
+a new rule gets a row the same day, an assumption until its guard exists; a
+review that finds one broken flips it to assumption until the fix lands and
+says so in its Addenda.
 
 | id | statement | kind | category | enforced by | source | last review check |
 |---|---|---|---|---|---|---|
@@ -45,7 +48,7 @@ lands and says so in its Addenda.
 | `folders-ensure-only` | A data folder is created only by `ensure_folder` at a write and removed by `prune_empty_folders` at `on_app_start`, `on_config_load` and `on_app_stop`; a raw `mkdir` on one is a bug. | guarantee | data | `test_data_folders_are_created_only_by_ensure_folder`, `test_removes_only_empty_folders_named_in_folders` | CLAUDE.md Architecture | never |
 | `symbols-one-owner` | Only `symbols/session.py` writes `ctx.ns("symbols")`; readers go through `get_table`, `get_devices` and `get_build_table`. | guarantee | structure | `test_symbols_namespace_is_touched_only_by_its_session_module` | CLAUDE.md Config | 2026-09-18 |
 | `test-headers` | Every collected test opens with a one-line docstring header saying what it pins. | guarantee | repository | `test_every_test_has_a_header` | CLAUDE.md Testing | never |
-| `invariants-registry` | This table and the guards in `tests/test_architecture.py` agree both ways: a row's tests exist, a guarantee names one, and every guard carries a registered id. | guarantee | repository | `test_invariants_registry_matches_the_guards` | this file | never |
+| `rules-registry` | This table and the guards in `tests/test_architecture.py` agree both ways: a row's tests exist, a guarantee names one, and every guard carries a registered id. | guarantee | repository | `test_rules_registry_matches_the_guards` | this file | never |
 | `command-has-test` | Every registered command is named by at least one test file, a family generated from one handler counting once; the known-untested set is an allowlist that only shrinks, so a new command ships with its test. | guarantee | repository | `test_every_command_is_mentioned_by_a_test` | CLAUDE.md Testing | never |
 | `script-single-owner` | One outermost script at a time, enforced in `ReplEngine.start_script` for every frontend: a nested `/run` on the owning thread is allowed, a launch from any other thread is refused. | guarantee | concurrency | `test_a_second_launch_from_another_thread_is_refused`, `test_ownership_is_released_when_the_run_ends` | CLAUDE.md Threading | 2026-08-19 |
 | `dispatch-guard-main-never-parks` | `_dispatch_guard` is non-blocking on the main thread and a bounded wait off it; main never parks on a lock a worker holds. | guarantee | concurrency | `test_the_main_thread_is_refused_immediately`, `test_a_worker_waits_for_the_guard_instead_of_dropping_the_line` | CLAUDE.md Threading | 2026-08-19 |

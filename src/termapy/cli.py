@@ -430,13 +430,6 @@ class CLITerminal(TerminalHost):
             needs=CapabilitySet.INTERACTIVE,
         )
         self.repl.register_hook(
-            "raw",
-            "<text>",
-            "Send raw text to serial (no transforms or line ending).",
-            self._hook_raw,
-            source="app",
-        )
-        self.repl.register_hook(
             "help.open",
             "{topic}",
             "Open help in browser.",

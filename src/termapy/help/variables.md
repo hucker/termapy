@@ -245,10 +245,12 @@ Use `\$` to prevent expansion:
 /print \$(ADDR) = $(ADDR)     # prints: $(ADDR) = 01
 ```
 
-Use `/raw` to send a line with no expansion at all:
+Use `/term.send` to send a line with no expansion at all, or `/raw` to
+send the text with no line ending either:
 
 ```text
-/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0
+/term.send $(GPS),NMEA,0      # sends literal $(GPS),NMEA,0 and the line ending
+/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0 and nothing after it
 ```
 
 ## Scope

@@ -1552,31 +1552,11 @@ class SerialTerminal(TerminalHost, App):
         except (OSError, ValueError):
             pass  # closed under us by /log.delete, or a disk error
 
-    def _serial_write(self, data: bytes) -> None:
-        """Write bytes to serial port and log TX (delegates to SerialPort).
-
-        THREADING: the reader thread's ``finally`` disowns
-        ``_engine.serial_port`` when it exits, so a check-then-use on the
-        shared field can pass the check and then write to ``None``.  Bind
-        it to a local, and treat a port that closes between the bind and
-        the write as a failed send rather than an unhandled exception.
-        """
-        port = self._engine.serial_port
-        if port is None:
-            self._log_line(">", data.hex(" ").upper())
-            return
-        try:
-            port.write(data)
-        except (OSError, serial.SerialException) as e:
-            self._status(f"Write failed: {e}", "red")
-            return
-        self._engine.notify_tx(data)
-
     def _wait_for_data(self, timeout_ms: int = 250) -> bool:
         """Block until RX arrives or *timeout_ms* elapses (``ctx.serial``).
 
-        Same bind-to-local reason as ``_serial_write``: the port can be
-        disowned between the check and the call.
+        Same bind-to-local reason as ``TerminalHost._serial_write``: the
+        port can be disowned between the check and the call.
         """
         port = self._engine.serial_port
         return port.wait_for_data(timeout_ms) if port is not None else False
@@ -3073,34 +3053,6 @@ class SerialTerminal(TerminalHost, App):
                 break
             time.sleep(0.05)
 
-    def _send_serial_raw(self, text: str) -> None:
-        """Send text to serial with no transforms or variable expansion.
-
-        Reuses the standard echo / connection-check / line-ending / write
-        path but bypasses all transforms.
-
-        Args:
-            text: Literal text to send.
-        """
-        if self.repl.echo:  # live echo flag, not cfg (see _init_flags)
-            self._write_output_markup(self.repl.format_echo_markup(text, eol_label))
-        if not self.is_connected:
-            self._status("Not connected.", "red")
-            return
-        line_ending = self.cfg.get("eol", "\r")
-        self._serial_op(
-            "Send",
-            lambda: self._serial_write(
-                (text + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-            ),
-        )
-
-    def _tui_hook_raw(self, text: str) -> CmdResult:
-        """Hook wrapper for /raw - sends text with no transforms."""
-        self._send_serial_raw(text)
-        # Return the sent text so scripts can confirm what was written.
-        return CmdResult.ok(value=text)
-
     _BUSY_MSG = "Busy - a command is still running."
     # How long an off-main dispatch waits for the guard before giving up.
     _DISPATCH_WAIT_S = 2.0
@@ -3144,7 +3096,6 @@ class SerialTerminal(TerminalHost, App):
                 echo_markup=self._write_output_markup,
                 status=self._status,
                 serial_write=self._serial_write,
-                serial_write_raw=self._send_serial_raw,
                 is_connected=lambda: self.is_connected,
                 eol_label=eol_label,
             )
@@ -3172,7 +3123,6 @@ class SerialTerminal(TerminalHost, App):
                 echo_markup=lambda _markup: None,
                 status=self._status,
                 serial_write=self._serial_write,
-                serial_write_raw=self._send_serial_raw,
                 is_connected=lambda: self.is_connected,
                 eol_label=eol_label,
             )

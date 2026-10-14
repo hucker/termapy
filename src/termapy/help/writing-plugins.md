@@ -613,7 +613,7 @@ either directly.
 | `ctx.serial.is_connected()` | Returns `True` if the serial port is open |
 | `ctx.serial.io()` | Context manager for exclusive serial access |
 | `ctx.serial.drain()` | Discard stale bytes in the receive buffer |
-| `ctx.serial.write(data)` | Send raw bytes (no line ending added) |
+| `ctx.serial.write(data)` | Send raw bytes (no line ending added); a failed write raises `OSError` (`SerialException` is one), with `Not connected.` when no port is open |
 | `ctx.serial.read_raw(timeout_ms)` | Read response bytes with timeout framing |
 | `ctx.serial.wait_idle(timeout_ms)` | Wait for serial output to settle |
 | `ctx.serial.wait_for_data(timeout_ms)` | Block until at least one byte arrives |

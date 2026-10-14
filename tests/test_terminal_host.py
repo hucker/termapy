@@ -7,9 +7,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from serial import SerialException
 
 from termapy.capture import CaptureEngine
-from termapy.plugins import CmdResult, InternalHandle, PluginContext, UsageError
+from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
@@ -353,15 +354,24 @@ class TestInitFlags:
 
 class TestSerialIO:
     def test_serial_write_no_port(self, host):
-        """With no open port, _serial_write is a silent no-op that notifies no TX observer."""
+        """tx-only-what-went-out: a write with no open port raises Not connected and notifies no TX observer."""
         # Arrange
         host.engine.serial_port = None
 
-        # Act - should not raise
-        host._serial_write(b"hello")
+        # Act / Assert
+        with pytest.raises(SerialException, match="Not connected"):
+            host._serial_write(b"hello")
+        host.engine.notify_tx.assert_not_called()
 
-        # Assert
-        # no notify when no port
+    def test_failed_write_notifies_no_tx_observer(self, host):
+        """tx-only-what-went-out: a write the port refuses raises to the caller and reaches no TX observer."""
+        # Arrange
+        host.engine.serial_port = MagicMock()
+        host.engine.serial_port.write.side_effect = SerialException("simulated unplug")
+
+        # Act / Assert
+        with pytest.raises(SerialException, match="simulated unplug"):
+            host._serial_write(b"AT\r")
         host.engine.notify_tx.assert_not_called()
 
     def test_serial_write_with_port(self, host):
@@ -406,37 +416,6 @@ class TestSerialIO:
         # custom encoding and line ending used
         host.engine.serial_port.write.assert_called_once_with(expected)
 
-
-# -- _serial_write_raw -------------------------------------------------------
-
-
-class TestSerialWriteRaw:
-    def test_not_connected(self, host):
-        """A raw-line send while disconnected tells the user via status, not silently."""
-        # Arrange
-        host.engine.is_connected = False
-
-        # Act
-        host._serial_write_raw("AT")
-
-        # Assert
-        assert "Not connected." in host._status_msgs, "shows not connected message"
-
-    def test_sends_with_line_ending(self, host):
-        """A raw-line send skips transforms but still appends eol and notifies TX observers."""
-        # Arrange
-        host.engine.is_connected = True
-        host.engine.serial_port = MagicMock()
-
-        # Act
-        host._serial_write_raw("AT")
-
-        # Assert
-        expected = b"AT\r"
-        # raw text + line ending written
-        host.engine.serial_port.write.assert_called_once_with(expected)
-        # TX observers notified
-        host.engine.notify_tx.assert_called_once_with(expected)
 
 
 # -- _dispatch ---------------------------------------------------------------
@@ -604,46 +583,6 @@ class TestEnsureHelpServer:
 
         # Assert
         assert first_port == second_port, "returns same port on second call"
-
-
-# -- _hook_raw ---------------------------------------------------------------
-
-
-class TestHookRaw:
-    def test_not_connected(self, host):
-        """/raw while disconnected returns a failure, not a silent drop."""
-        # Arrange
-        host.engine.is_connected = False
-
-        # Act
-        result = host._hook_raw(None, "hello")
-
-        # Assert
-        assert result.success is False, "fails when not connected"
-
-    def test_empty_args(self, host):
-        """/raw with no text raises UsageError so the dispatcher renders the usage line."""
-        # Arrange
-        host.engine.is_connected = True
-
-        # Act / Assert -- bad arity raises; dispatcher renders the usage
-        # line from the declaration (see test_usage_error.py).
-        with pytest.raises(UsageError):
-            host._hook_raw(None, "")
-
-    def test_sends_bytes(self, host):
-        """/raw writes the text verbatim with no eol appended, unlike a raw-line send."""
-        # Arrange
-        host.engine.is_connected = True
-        host.engine.serial_port = MagicMock()
-
-        # Act
-        result = host._hook_raw(None, "AT")
-
-        # Assert
-        assert result.success is True, "succeeds"
-        # raw bytes sent to port
-        host.engine.serial_port.write.assert_called_once_with(b"AT")
 
 
 # -- _hook_log_delete ---------------------------------------------------------

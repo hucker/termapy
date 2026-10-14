@@ -395,7 +395,6 @@ class TestDispatchDirectives:
             echo_markup=lambda t: None,
             status=lambda t, c="": None,
             serial_write=lambda d: None,
-            serial_write_raw=lambda t: None,
             is_connected=lambda: False,
             eol_label=lambda le: "",
         )
@@ -423,7 +422,6 @@ class TestDispatchDirectives:
             echo_markup=lambda t: None,
             status=lambda t, c="": status_msgs.append(t),
             serial_write=lambda d: None,
-            serial_write_raw=lambda t: None,
             is_connected=lambda: False,
             eol_label=lambda le: "",
         )
@@ -450,7 +448,6 @@ class TestDispatchDirectives:
             echo_markup=lambda t: None,
             status=lambda t, c="": None,
             serial_write=lambda d: None,
-            serial_write_raw=lambda t: None,
             is_connected=lambda: False,
             eol_label=lambda le: "",
         )
@@ -482,7 +479,6 @@ class TestDispatchBarePrefix:
             echo_markup=lambda t: None,
             status=lambda t, c="": None,
             serial_write=lambda d: None,
-            serial_write_raw=lambda t: None,
             is_connected=lambda: False,
             eol_label=lambda le: "",
         )

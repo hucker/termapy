@@ -631,7 +631,6 @@ class TestDispatchFull:
         echoed = []
         statuses = []
         serial_writes = []
-        raw_writes = []
 
         from termapy.plugins import IOHandle, SerialHandle
 
@@ -659,7 +658,6 @@ class TestDispatchFull:
                 echo_markup=echoed.append,
                 status=lambda t, c: statuses.append((t, c)),
                 serial_write=serial_writes.append,
-                serial_write_raw=raw_writes.append,
                 is_connected=lambda: connected,
             )
 
@@ -670,14 +668,13 @@ class TestDispatchFull:
             echoed,
             statuses,
             serial_writes,
-            raw_writes,
             do_dispatch,
         )
 
     def test_serial_command_sent(self, dispatch_env):
         """A bare line is sent with the eol and is not logged as a REPL command."""
         # Arrange
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act
         do("ATZ")
@@ -691,7 +688,7 @@ class TestDispatchFull:
         # Arrange -- send_bare_enter forwards an empty line; it should send
         # just the configured line ending (not error on /term.send's empty
         # guard, which was the pre-fix behavior in non-request mode).
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act
         do("")
@@ -702,7 +699,7 @@ class TestDispatchFull:
     def test_repl_command_dispatched(self, dispatch_env):
         """A slash command is logged and echoed but never sent to the device."""
         # Arrange
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act
         do("/help")
@@ -712,23 +709,55 @@ class TestDispatchFull:
         assert any(">" in d for d, _ in logged), "logged as REPL command"
         assert any("/help" in t for t in echoed), "echoed"
 
-    def test_raw_bypass(self, dispatch_env):
-        """/raw sends its text through the raw writer, skipping transforms and eol."""
+    def test_raw_sends_exactly_its_text(self, dispatch_env):
+        """A typed /raw writes its text as typed, with no line ending."""
         # Arrange
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
-        # Act
-        do("/raw hello world")
+        # Act -- a leading space, a variable, a template and a flag
+        do("/raw  $(X) {seq1} --json")
 
         # Assert
-        assert raw == ["hello world"], "sent raw, no transforms"
-        assert len(writes) == 0, "not through normal serial_write"
+        expected = [b" $(X) {seq1} --json"]
+        assert writes == expected, (
+            "the payload must reach the wire untouched: no eol, no expansion, "
+            "no flag stripping, leading space kept"
+        )
+
+    def test_bare_raw_renders_usage_and_sends_nothing(self, dispatch_env):
+        """A /raw with no text is a usage error, never an empty send."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        # Act
+        do("/raw ")
+
+        # Assert
+        assert writes == [], "nothing is sent"
+        assert any("Usage:" in str(text) for text, _ in output), (
+            f"the dispatcher renders the usage line, got {output!r}"
+        )
+
+    def test_failed_empty_line_send_returns_a_failure(self, dispatch_env):
+        """tx-only-what-went-out: a failed empty-line send comes back as a result, not an exception."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        def _unplugged(data: bytes) -> None:
+            raise OSError("simulated unplug")
+
+        # Act -- called directly: do() would bridge the recording writer in
+        result = eng.dispatch_full("", serial_write=_unplugged)
+
+        # Assert
+        assert result.success is False, "the failed write is a failed command"
+        assert "simulated unplug" in result.error, "the cause is named"
 
     def test_echo_off_suppresses_output(self, dispatch_env):
         """With echo_repl off a slash command is not echoed."""
         # Arrange -- /help is a REPL command, so its echo is gated by
         # echo_repl (device-command echo lives on the separate `echo` flag).
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
         eng.ctx.ns("flags")["echo_repl"] = False
 
         # Act
@@ -740,7 +769,7 @@ class TestDispatchFull:
     def test_not_connected_blocks_send(self, dispatch_env):
         """A bare line while disconnected sends nothing and shows Not connected."""
         # Arrange
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act
         eng.dispatch_full(
@@ -762,7 +791,7 @@ class TestDispatchFull:
         # serial_write here exercises the handler's error path.  The error
         # comes back via CmdResult.fail and dispatch displays it through
         # the engine's write callback (output), not the _status callback.
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         def bad_write(data):
             raise OSError("port closed")
@@ -783,7 +812,7 @@ class TestDispatchFull:
     def test_echo_input_config(self, dispatch_env):
         """Device commands echo through the configured echo_fmt template."""
         # Arrange
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
         eng._cfg_data["echo"] = True
         eng._cfg_data["echo_fmt"] = "> {cmd}"
 
@@ -796,7 +825,7 @@ class TestDispatchFull:
     def test_custom_line_ending(self, dispatch_env):
         """The configured eol, not a hardcoded CR, terminates each sent line."""
         # Arrange
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
         eng._cfg_data["eol"] = "\r\n"
 
         # Act
@@ -808,7 +837,7 @@ class TestDispatchFull:
     def test_repl_command_echo_silent_suppressed(self, dispatch_env):
         """A .silent command is not echoed even with echo_repl on."""
         # Arrange
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act
         do("/echo.silent off")
@@ -820,7 +849,7 @@ class TestDispatchFull:
         """Device echo stays on with echo on even when echo_repl is off."""
         # Arrange - device-command echo is gated by `echo`; turning REPL
         # echo off must not silence it (the two echoes are independent).
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
         flags = eng.ctx.ns("flags")
         flags["echo"] = True
         flags["echo_repl"] = False
@@ -834,7 +863,7 @@ class TestDispatchFull:
     def test_device_echo_off_when_echo_flag_off(self, dispatch_env):
         """echo off silences device echo even when echo_repl is on."""
         # Arrange - echo off suppresses device echo even with echo_repl on.
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
         flags = eng.ctx.ns("flags")
         flags["echo"] = False
         flags["echo_repl"] = True
@@ -849,7 +878,7 @@ class TestDispatchFull:
         """Slash-command echo stays on with echo_repl on even when echo is off."""
         # Arrange - REPL/slash echo is gated by echo_repl; device echo off
         # must not silence it (the two echoes are independent).
-        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
         flags = eng.ctx.ns("flags")
         flags["echo"] = False
         flags["echo_repl"] = True

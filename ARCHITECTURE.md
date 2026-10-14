@@ -533,15 +533,19 @@ neither show a chunk twice nor skip one.
 ### Command dispatch (user input or script)
 
 ```text
-Input.on_submit → _execute_command()
-  → split on \n (multi-command)
+on_input_submitted() → _dispatch_on_thread_interactive()   (worker thread)
   → _dispatch_single() → repl.dispatch_full()
-    → /raw? → serial_write_raw (bypass everything)
+    → /raw <text>? → the /raw handler, text exactly as typed (no line ending)
     → run_directives() → rewrite/warn/error
     → starts with prefix? → apply transforms → repl.dispatch()
       → lookup dotted name → call handler(ctx, args)
-    → else → apply serial transforms → serial_write(encoded bytes)
+    → else → apply serial transforms → repl.dispatch("term.send <text>")
 ```
+
+Every byte a command sends leaves through `TerminalHost._serial_write`, the
+one TX path in every frontend: a failed write raises to the command, which
+reports it, and the TX observers and the session log hear only bytes that
+went out (registry `tx-only-what-went-out`).
 
 ### Binary capture flow
 

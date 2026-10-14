@@ -269,7 +269,7 @@ The most common ones:
 | `/cap.struct <f> ...`                | Capture binary data, decode with format spec to CSV                           |
 | `/cap.hex <f> ...`                   | Capture hex text lines, decode with format spec to CSV                        |
 | `/cap.stop`                          | Stop an active capture                                                        |
-| `/raw <text>`                        | Send text to serial with no variable expansion or transforms                  |
+| `/raw <text>`                        | Send text exactly as typed: no line ending, expansion or transforms           |
 | `/exit`                              | Exit termapy                                                                  |
 
 </details>
@@ -419,7 +419,7 @@ Any datetime variable takes an optional `strftime` format after a colon — `$(D
 
 **vs. environment variables:** `$(env.NAME)` pulls from the OS environment and works in config files. `$(NAME)` is for user-defined session variables in commands and scripts. Both use the `$(...)` syntax. The `env.` prefix is required to access environment variables explicitly.
 
-**Escaping:** Use `\$` to prevent expansion of a single reference, or `/raw` to skip expansion for an entire line.
+**Escaping:** Use `\$` to prevent expansion of a single reference, or `/term.send` to send an entire line without expansion (`/raw` does the same with no line ending).
 
 Add a `.gitignore` for session files you don't need to track:
 

@@ -214,12 +214,12 @@ class TestMcpHostAgainstDemoJson:
                 h._disconnect()
 
     def test_run_command_can_use_expect_to_get_response(self, host):
-        """/expect.regex after a /raw request returns the reply line carrying its id."""
-        # Arrange — send raw, then /expect to wait for response line
+        """/expect.regex after a /term.send request returns the reply line carrying its id."""
+        # Arrange — send the line literally, then /expect to wait for the reply
         # Act
         asyncio.run(
             host.run_command_async(
-                '/raw {"cmd":"get_temp","id":42}', "normal", 5.0
+                '/term.send {"cmd":"get_temp","id":42}', "normal", 5.0
             )
         )
         result = asyncio.run(

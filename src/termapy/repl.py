@@ -1399,8 +1399,8 @@ class ReplEngine:
         ``text``, escaped.  With ``eol_markers`` on and an ``eol_label``
         renderer (the engine does not import the serial layer, so the
         caller supplies it), the line ending is shown after the text.  One
-        builder for every echo -- a slash command, a bare device line, the
-        TUI's ``/raw`` -- so they all read the same.
+        builder for every echo -- a slash command (``/raw`` included) and a
+        bare device line -- so they all read the same.
 
         Args:
             text: The command or device line as typed.
@@ -1425,13 +1425,12 @@ class ReplEngine:
         echo_markup: Callable[[str], None] | None = None,
         status: Callable[[str, str], None] | None = None,
         serial_write: Callable[[bytes], None] | None = None,
-        serial_write_raw: Callable[[str], None] | None = None,
         is_connected: Callable[[], bool] | None = None,
         eol_label: Callable[[str], str] | None = None,
     ) -> CmdResult:
         """Route a raw command through the full pipeline.
 
-        Decides: /raw bypass -> directives -> REPL command -> serial command.
+        Decides: /raw -> directives -> REPL command -> serial command.
         Applies transforms and sends via callbacks. This is the testable
         core that app.py's ``_dispatch_single`` delegates to.
 
@@ -1441,7 +1440,6 @@ class ReplEngine:
             echo_markup: Display markup text on screen.
             status: Show status message - status(text, color).
             serial_write: Send encoded bytes to serial port.
-            serial_write_raw: Send raw text to serial (no transforms).
             is_connected: Returns True if serial port is open.
             eol_label: Format a line ending string for display.
 
@@ -1462,17 +1460,21 @@ class ReplEngine:
         # default but a script can re-enable echo explicitly.
         echo_repl_on = self.ctx.ns("flags").get("echo_repl", False)
 
-        # 1. /raw bypass - no transforms, no directives
-        if cmd.startswith(prefix + "raw "):
-            raw_text = cmd[len(prefix) + 4 :]
+        # 1. /raw: the text exactly as typed goes to the /raw handler, the
+        #    one /raw in every frontend.  Not through dispatch(), which
+        #    would strip leading spaces and --flags and expand {seq}
+        #    templates in it.  A bare "/raw " falls through, so dispatch
+        #    renders the usage line.
+        raw_text = cmd[len(prefix) + 4 :] if cmd.startswith(prefix + "raw ") else ""
+        raw_plugin = self._plugins.get("raw")
+        if raw_text and raw_plugin is not None:
             _log(">", cmd)
             if echo_repl_on:
-                _echo(f"[cyan]> {escape_markup(cmd)}[/]")
-            if serial_write_raw:
-                serial_write_raw(raw_text)
-            # Internal raw-passthrough: the bytes are gone on the wire
-            # before this returns; no scriptable value.
-            return CmdResult.ok(value="")
+                _echo(self.format_echo_markup(cmd))
+            result = raw_plugin.handler(self.ctx, raw_text)
+            if not result.success:
+                self.write(result.err_msg, "red")
+            return result
 
         # 2. Pre-dispatch directives (e.g. $(VAR) = value -> /var.set)
         result = self.run_directives(cmd)
@@ -1600,7 +1602,14 @@ class ReplEngine:
                 ending = self.cfg.get("eol", "\r")
                 encoding = self.cfg.get("encoding", "utf-8")
                 if self.ctx.serial.write is not None:
-                    self.ctx.serial.write(ending.encode(encoding))
+                    # No handler's guard out here: a failed write must
+                    # come back as a result, not raise into the caller's
+                    # worker thread.
+                    try:
+                        self.ctx.serial.write(ending.encode(encoding))
+                    except (OSError, UnicodeError, LookupError) as e:
+                        _status(f"Send error: {e}", "red")
+                        return CmdResult.fail(msg=f"Send error: {e}")
                 return CmdResult.ok(value="")
             return self.dispatch(f"term.send {cmd}")
         finally:

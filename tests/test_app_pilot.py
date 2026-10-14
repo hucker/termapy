@@ -854,6 +854,37 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    def test_a_lost_port_stops_the_capture_and_resets_the_ui(self, app_factory, tmp_path):
+        """port-lost-tears-down: a disconnect from the reader stops a running capture, frees its claim and resets DTR/RTS."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- a binary capture holding the claim, DTR/RTS asserted
+                started = app._cap_start(
+                    path=tmp_path / "lost.bin", file_mode="wb", mode="bin", target_bytes=1000
+                )
+                assert started is True, "the binary capture starts"
+                assert app._engine.serial_claimed is True, "a binary capture claims the port"
+                app._btn_dtr.label = "DTR:1"
+                app._btn_rts.label = "RTS:1"
+
+                # Act -- what the reader enqueues when port.read raises
+                app._rx_enqueue(("disconnect",))
+                await pilot.pause()
+
+                # Assert
+                assert app._capture.active is False, "the capture stops with the port"
+                assert app._engine.serial_claimed is False, (
+                    "a claim left behind keeps the display suppressed after an "
+                    "auto-reconnect"
+                )
+                actual_labels = (str(app._btn_dtr.label), str(app._btn_rts.label))
+                expected_labels = ("DTR:0", "RTS:0")
+                assert actual_labels == expected_labels, "the DTR/RTS labels reset"
+
+        _run(scenario)
+
     def test_device_output_reaches_the_screen_through_the_real_reader(
         self, app_factory
     ):

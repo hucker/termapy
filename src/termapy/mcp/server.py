@@ -374,8 +374,13 @@ class MCPHost(TerminalHost):
             on_clear=lambda: None,
             on_capture_done=lambda: self._stop_capture(),
             on_error=lambda detail: self._log_line(f"! Serial error: {detail}"),
-            on_disconnect=lambda: self._log_line("! Serial disconnected"),
+            on_disconnect=self._on_reader_disconnect,
         )
+
+    def _on_reader_disconnect(self) -> None:
+        """The reader lost the port: log it, then the shared port-lost teardown."""
+        self._log_line("! Serial disconnected")
+        self._port_lost()
 
     def _on_lines(self, lines: list[str]) -> None:
         # Inbound serial bytes -> feed the engine's expect-watcher

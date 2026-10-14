@@ -707,6 +707,10 @@ class CLITerminal(TerminalHost):
             # Expect watcher and text capture, the same as every frontend.
             self._feed_rx_consumers(lines, plain)
 
+        def on_disconnect() -> None:
+            self._err("Serial disconnected")
+            self._port_lost()
+
         # The engine owns the thread so disconnect() can join it; the CLI
         # used to start one here and drop the handle, leaving teardown
         # nothing to wait on.
@@ -715,7 +719,7 @@ class CLITerminal(TerminalHost):
             on_clear=lambda: self._raw("\x1b[2J\x1b[H", end=""),
             on_capture_done=lambda: self._stop_capture(),
             on_error=lambda detail: self._err(f"Serial error: {detail}"),
-            on_disconnect=lambda: self._err("Serial disconnected"),
+            on_disconnect=on_disconnect,
         )
 
     # -- Run modes ------------------------------------------------------------

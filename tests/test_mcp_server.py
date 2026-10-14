@@ -851,6 +851,22 @@ class TestColorStripping:
             "recorded nothing"
         )
 
+    def test_a_lost_port_stops_a_running_capture(self, host, tmp_path):
+        """port-lost-tears-down: when the reader loses the port, an MCP capture stops and frees its claim."""
+        # Arrange -- a binary capture, which claims the port
+        started = host._start_capture(
+            path=tmp_path / "lost.bin", file_mode="wb", mode="bin", target_bytes=1000
+        )
+        assert started is True, "the binary capture starts"
+        assert host.engine.serial_claimed is True, "a binary capture claims the port"
+
+        # Act -- the reader's on_disconnect
+        host._on_reader_disconnect()
+
+        # Assert
+        assert host.capture.active is False, "the capture stops with the port"
+        assert host.engine.serial_claimed is False, "its claim is released"
+
 
 # ── Catalog parity (resource vs /mcp.catalog REPL) ──────────────────────────
 

@@ -1331,8 +1331,8 @@ class SerialTerminal(TerminalHost, App):
         """Start the auto-reconnect worker unless one is already running.
 
         Called only on the main thread -- directly from _on_connect_failed,
-        or via call_from_thread from the reader's on_disconnect -- so the
-        guard is race-free: _reconnecting is checked and set before the
+        or from _on_rx_disconnect, which the reader's on_disconnect reaches
+        through _rx_enqueue -- so the guard is race-free: _reconnecting is checked and set before the
         worker spawns.  Without it a second disconnect would launch a
         duplicate reconnect loop contending on the shared stop_event.
         """
@@ -2745,12 +2745,16 @@ class SerialTerminal(TerminalHost, App):
         self._status(f"Serial read error: {detail}", "red")
 
     def _on_rx_disconnect(self) -> None:
-        """Main thread: surface an unexpected disconnect and maybe reconnect."""
-        try:
-            self.notify("Serial disconnected", severity="warning", timeout=1.5)
-        except SHUTDOWN_RACE:
+        """Main thread: the reader lost the port -- tear down, then maybe reconnect.
+
+        ``_port_lost`` stops an active capture (and its claim) and runs
+        ``_on_disconnected`` for the toast, status, title, prompt and DTR/RTS
+        labels; this used to set only the status, leaving the rest stale and
+        a binary capture suppressing the display after an auto-reconnect.
+        """
+        if self._shutting_down:
             return
-        self._set_conn_status("Disconnected")
+        self._port_lost()
         if self.cfg.get("auto_reconnect"):
             self._auto_reconnect()
 

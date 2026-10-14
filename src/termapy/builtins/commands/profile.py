@@ -157,7 +157,11 @@ def _default_save_path(ctx: PluginContext) -> Path | None:
 
 def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:
     """Validate a profile file against the schema and report errors."""
-    path = Path(ctx.arg("path"))
+    from termapy.config import cfg_relative_path
+
+    # The file /profile.load would load: beside the cfg first, then the
+    # CWD form, the .profile.json optional at both.
+    path = cfg_relative_path(ctx.config_path, str(ctx.arg("path")), PROFILE_SUFFIX)
     if not path.exists():
         return CmdResult.fail(msg=f"Profile not found: {path}")
     try:
@@ -241,10 +245,11 @@ def _load_from_file(ctx: PluginContext, path_str: str) -> CmdResult:
     # contain to the sandbox unless the operator opted out.
     ctx.fs.guard_external_path(path_str, "Profile path")
     # Beside the cfg first (a bare name loads the profile that lives with
-    # this config), the CWD form otherwise -- same rule as /sym.load.
+    # this config), the CWD form otherwise -- same rule as /sym.load.  The
+    # .profile.json is optional at both (registry ``file-name-default-ext``).
     from termapy.config import cfg_relative_path
 
-    path = cfg_relative_path(ctx.config_path, path_str)
+    path = cfg_relative_path(ctx.config_path, path_str, PROFILE_SUFFIX)
     if not path.exists():
         return CmdResult.fail(msg=f"Profile not found: {path}")
     try:

@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Final
 
 from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import SYMBOLS
-from termapy.folders import SYM
+from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import (
     BoundaryException,
@@ -128,14 +128,15 @@ def _recorded_import(ctx: PluginContext) -> tuple[str, str] | None:
     return source, converter if isinstance(converter, str) else ""
 
 
-def _anchor(ctx: PluginContext, raw: str) -> Path:
+def _anchor(ctx: PluginContext, raw: str, ext: str = "") -> Path:
     """A user path, relative ones resolved against the cfg folder.
 
     ``guard_external_path`` admits any in-sandbox relative path; this is
     what makes it mean "relative to the config", not to the process CWD
     (which under the MCP server is wherever the client started it).
+    ``ext`` is an extension the typed name may leave off.
     """
-    return cfg_relative_path(ctx.config_path, raw)
+    return cfg_relative_path(ctx.config_path, raw, ext)
 
 
 # ── handlers ───────────────────────────────────────────────────────────────
@@ -272,12 +273,13 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     raw = ctx.arg("path") or ""
     if raw:
         ctx.fs.guard_external_path(raw, "Symbols path")
-        path = _anchor(ctx, raw)
+        path = _anchor(ctx, raw, SYMBOLS_SUFFIX)
         # A bare filename means "the one in sym/", where /sym.import writes
         # and a hand-written table belongs; anything with a separator is
-        # taken as given (config-relative).
+        # taken as given (config-relative).  The .symbols.json is optional
+        # either way (registry ``file-name-default-ext``).
         if ctx.config_path and Path(raw).name == raw and not path.is_file():
-            in_sym = Path(ctx.config_path).parent / SYM / raw
+            in_sym = default_file_name(Path(ctx.config_path).parent / SYM / raw, SYMBOLS_SUFFIX)
             if in_sym.is_file():
                 path = in_sym
     else:

@@ -30,6 +30,14 @@ without changing it.  Leaving an optional boolean out means its documented
 default.  Any other word is an error that names the accepted tokens, never
 a silent off: `Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)`.
 
+A command that opens a file of a known type takes the name with or without
+its extension: `/run hex_view` runs `run/hex_view.run`. The same holds for
+`/proto.run`, `/profile.load`, `/sym.load` and a folder's `.dump` and
+`.rename`. The extension is added only when that file exists, so `v1.2`
+finds `v1.2.run`. `.rename` changes the name and never the extension:
+`/run.rename v1.2 v1.3` gives `v1.3.run`. `/edit` needs the extension,
+because its folders hold different types of file.
+
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |

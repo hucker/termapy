@@ -35,6 +35,7 @@ from termapy.folders import (
     SIDECARS,
     SYM,
     SYMBOLS_SUFFIX,
+    default_file_name,
     ensure_folder,
 )
 from termapy.migration import (
@@ -1048,7 +1049,7 @@ def open_serial(cfg: dict) -> Any:
     return port
 
 
-def cfg_relative_path(config_path: str, raw: str) -> Path:
+def cfg_relative_path(config_path: str, raw: str, ext: str = "") -> Path:
     """A user-typed file path, resolved the way the config folder implies.
 
     Absolute paths are taken as given.  A relative path is anchored to the
@@ -1061,15 +1062,16 @@ def cfg_relative_path(config_path: str, raw: str) -> Path:
     Args:
         config_path: The active config file (``""`` = no config).
         raw: The path as typed.
+        ext: The extension the typed name may leave off, tried at each
+            location (``default_file_name``); ``""`` tries none.
 
     Returns:
         The resolved path.
     """
-    path = Path(raw)
-    if path.is_absolute() or not config_path:
-        return path
-    anchored = Path(config_path).parent / path
-    return anchored if anchored.exists() else path
+    if Path(raw).is_absolute() or not config_path:
+        return default_file_name(raw, ext)
+    anchored = default_file_name(Path(config_path).parent / raw, ext)
+    return anchored if anchored.exists() else default_file_name(raw, ext)
 
 
 def not_found_message(subject: str, raw: str, config_path: str) -> str:

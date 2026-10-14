@@ -25,6 +25,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folders import default_file_name
 from termapy.help_dynamic import folder_line
 from termapy.legacy import LEGACY_COMMANDS, LEGACY_REWRITES
 from termapy.markup import escape_markup
@@ -78,20 +79,16 @@ def _scan_line(line: str, prefix: str) -> tuple[str, list[tuple[str, str]]]:
 def _resolve_script(ctx: PluginContext, name: str) -> Path | None:
     """Resolve a script filename the same way /run does.
 
-    Checks ``<scripts_dir>/<name>`` first; falls back to cwd.  Appends
-    ``.run`` if the user omitted it.
+    Checks ``<scripts_dir>/<name>`` first; falls back to cwd.  Either may
+    leave off ``.run``.
     """
     raw = name.strip()
     if not raw:
         return None
-    if not raw.endswith(".run") and not Path(raw).suffix:
-        raw += ".run"
-    candidate = Path(ctx.fs.scripts_dir) / raw
-    if candidate.is_file():
-        return candidate
-    cwd_candidate = Path.cwd() / raw
-    if cwd_candidate.is_file():
-        return cwd_candidate
+    for folder in (Path(ctx.fs.scripts_dir), Path.cwd()):
+        candidate = default_file_name(folder / raw, ".run")
+        if candidate.is_file():
+            return candidate
     return None
 
 

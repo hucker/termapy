@@ -12,6 +12,7 @@ from crcglot import DetectResult, detect
 
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.folder_ops import build_folder_subcommands
+from termapy.folders import default_file_name
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.protocol import (
@@ -125,8 +126,8 @@ def _display_bytes(
 def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path:
     """Resolve a proto script filename to a full path.
 
-    Tries the name as given, then with ``.pro`` appended, then that
-    name inside the config's proto folder.
+    Tries the name as given, then that name inside the config's proto
+    folder; either may leave off ``.pro``.
 
     Args:
         ctx: Plugin context with proto_dir.
@@ -140,14 +141,10 @@ def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path:
             file, and the proto folder that was also searched when it
             is not the working directory.
     """
-    path = Path(filename)
-    if not path.exists() and not path.suffix:
-        path = Path(filename + ".pro")
-    if path.exists():
-        return path
-    alt = ctx.fs.proto_dir / path.name
-    if alt.exists():
-        return alt
+    for path in (Path(filename), ctx.fs.proto_dir / Path(filename).name):
+        found = default_file_name(path, ".pro")
+        if found.is_file():
+            return found
     message = f"File not found: {filename}"
     if ctx.fs.proto_dir != Path("."):
         message += f" (also checked {ctx.fs.proto_dir})"

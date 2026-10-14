@@ -100,6 +100,21 @@ class TestStartScript:
         assert result.success, "success result"
         assert eng._script_depth == 1, "marks script as running"
 
+    def test_a_dotted_stem_finds_its_run_file(self, engine):
+        """file-name-default-ext: /run v1.2 finds run/v1.2.run, which the old "no suffix" rule never tried."""
+        # Arrange
+        eng, output = engine
+        eng.scripts_dir.mkdir(exist_ok=True)
+        script = eng.scripts_dir / "v1.2.run"
+        script.write_text("rev\n")
+
+        # Act
+        path, result = eng.start_script("v1.2")
+
+        # Assert
+        assert result.success, result.error
+        assert path == script, ".2 is part of the stem, so .run is still tried"
+
     def test_max_depth_exceeded(self, engine, tmp_path):
         """At the nesting limit a further /run is refused as too deep, not started."""
         # Arrange

@@ -1174,6 +1174,19 @@ class TestSymLoadUnload:
         assert result.success, result.error
         assert result.value == str(DEMO_COUNT), "a bare name resolves into sym/, not against the CWD"
 
+    def test_load_takes_a_bare_stem_in_sym(self, sym_env):
+        """file-name-default-ext: /sym.load rig finds sym/rig.symbols.json; the suffix is optional."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_sidecar(config_path)
+
+        # Act
+        result = engine.dispatch("sym.load rig")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == str(DEMO_COUNT), "the stem named sym/rig.symbols.json"
+
     def test_bad_json(self, sym_env, tmp_path):
         # Arrange
         engine, _, _ = sym_env

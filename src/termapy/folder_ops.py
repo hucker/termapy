@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from termapy.config import open_with_system, validate_file_stem
-from termapy.folders import FOLDERS, FolderSpec, ensure_folder
+from termapy.folders import FOLDERS, FolderSpec, default_file_name, ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import format_age, format_size
@@ -237,8 +237,12 @@ def _make_show_handler(folder: str, pattern: str):
     return handler
 
 
-def _make_dump_handler(folder: str, pattern: str):
-    """Handler: print the newest (or named) file to the terminal."""
+def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
+    """Handler: print the newest (or named) file to the terminal.
+
+    A named file may leave off the folder's ``ext`` (registry
+    ``file-name-default-ext``).
+    """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
@@ -261,7 +265,10 @@ def _make_dump_handler(folder: str, pattern: str):
                 inside = False
             if not inside:
                 return CmdResult.fail(msg=f"Path escapes {folder}/: {name}")
-            if not path.exists():
+            # After the containment check: the added suffix keeps the path
+            # in the same folder.
+            path = default_file_name(path, ext)
+            if not path.is_file():
                 return CmdResult.fail(msg=f"File not found: {name}")
         else:
             if not data_dir.exists():
@@ -319,9 +326,11 @@ def rename_file(data_dir: Path, old_name: str, new_name: str, ext: str) -> Path:
     command a CLI or MCP caller types):
 
     - both names stay inside the folder (no separators, no ``..``);
-    - the extension is kept: a bare new name gets ``ext`` appended, a
-      different extension is refused (``ext="*"`` folders keep the old
-      file's own suffix);
+    - the old name may leave off ``ext`` (registry ``file-name-default-ext``);
+    - rename changes the name, never the extension: the file keeps ``ext``
+      (``ext="*"`` folders keep the old file's own suffix), a typed copy
+      of it is dropped, and any other dot is part of the name, so ``v1.3``
+      becomes ``v1.3.run``;
     - nothing is overwritten.
 
     Raises:
@@ -331,14 +340,12 @@ def rename_file(data_dir: Path, old_name: str, new_name: str, ext: str) -> Path:
     for name in (old_name, new_name):
         if any(char in name for char in "/\\") or name in (".", ".."):
             raise ValueError(f"Name may not contain path separators: {name}")
-    old = data_dir / old_name
+    old = default_file_name(data_dir / old_name, ext)
     if not old.is_file():
         raise ValueError(f"File not found: {old_name}")
     keep_ext = old.suffix if ext == "*" else ext
-    if Path(new_name).suffix == keep_ext:
-        new_name = Path(new_name).stem
-    elif Path(new_name).suffix:
-        raise ValueError(f"Extension must stay {keep_ext}: {new_name}")
+    if keep_ext and new_name.endswith(keep_ext):
+        new_name = new_name[: -len(keep_ext)]
     reason = validate_file_stem(new_name)
     if reason:
         raise ValueError(reason)
@@ -356,13 +363,16 @@ def _make_rename_handler(folder: str, ext: str):
         data_dir = _folder_path(ctx, folder)
         if data_dir is None:
             return CmdResult.fail(msg="No config loaded.")
+        old_name = str(ctx.arg("old"))
+        # The file a bare old name means, for the message: it is gone after.
+        shown = default_file_name(data_dir / old_name, ext).name
         try:
-            new = rename_file(data_dir, ctx.arg("old"), ctx.arg("new"), ext)
+            new = rename_file(data_dir, old_name, ctx.arg("new"), ext)
         except ValueError as e:
             return CmdResult.fail(msg=str(e))
         except OSError as e:
             return CmdResult.fail(msg=f"Rename error: {e}")
-        ctx.io.output(f"  Renamed {ctx.arg('old')} -> {new.name}")
+        ctx.io.output(f"  Renamed {shown} -> {new.name}")
         return CmdResult.ok(value=new)
 
     return handler
@@ -411,9 +421,9 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
             handler=_make_rename_handler(folder, spec.ext),
             params=[
                 ParamSpec("old", "str", positional=True, required=True,
-                          help="current filename"),
+                          help="current filename (extension optional)"),
                 ParamSpec("new", "str", positional=True, required=True,
-                          help="new name (extension optional)"),
+                          help="new name (the extension is kept)"),
             ],
         ),
     }
@@ -427,7 +437,7 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
         subs["dump"] = Command(
             args="{filename}",
             help=f"Print the newest (or named) file from {folder}/ to the terminal.",
-            handler=_make_dump_handler(folder, pattern),
+            handler=_make_dump_handler(folder, pattern, spec.ext),
         )
     if spec.clearable:
         subs["clear"] = Command(

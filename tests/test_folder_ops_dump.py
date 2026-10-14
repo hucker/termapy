@@ -103,3 +103,25 @@ class TestDumpContainment:
         # Assert
         assert not result.success, "missing contained file fails"
         assert "not found" in result.error.lower(), "distinct not-found message"
+
+
+class TestDumpName:
+    def test_dump_takes_a_bare_stem(self, tmp_path):
+        """file-name-default-ext: /run.dump welcome prints run/welcome.run; the folder's .run is optional."""
+        # Arrange -- the real /run.dump, so the folder's extension is wired in
+        from termapy.folder_ops import build_folder_subcommands
+
+        cfg_file, _cap, _secret = _setup(tmp_path)
+        run_dir = cfg_file.parent / "run"
+        run_dir.mkdir()
+        (run_dir / "welcome.run").write_text("/print hi\n", encoding="utf-8")
+        ctx, _ = _ctx(cfg_file)
+        dump = build_folder_subcommands("run")["dump"].handler
+        assert dump is not None, "run/ is dumpable"
+
+        # Act
+        result = dump(ctx, "welcome")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "/print hi\n", "the stem named run/welcome.run"

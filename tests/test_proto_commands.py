@@ -319,6 +319,13 @@ class TestRun:
         assert result.success is True, result.error
         assert Path(result.value) == script.resolve()
 
+    def test_a_dotted_stem_resolves_to_its_pro_file(self, cli):
+        """file-name-default-ext: /proto.run smoke.v2 finds proto/smoke.v2.pro; a dot in the stem no longer blocks .pro."""
+        script = _pro(_proto_folder(cli), "smoke.v2.pro", 'send: "AT\\r"\nexpect: "OK\\r\\n"\n')
+        result = cli.repl.dispatch_full("/proto.run smoke.v2")
+        assert result.success is True, result.error
+        assert Path(result.value) == script.resolve()
+
     def test_a_flat_script_runs_every_directive(self, cli, tmp_path, capsys):
         """A flat script runs its sends, expects, quiet/loud device commands, flush and delay, and tallies PASS and FAIL."""
         # Arrange

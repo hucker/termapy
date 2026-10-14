@@ -1,7 +1,8 @@
 """Folder and file constants -- single source of truth.
 
 Pure constants with no Textual or serial dependencies, plus the two
-operations that create and remove a per-config data folder.  Import
+operations that create and remove a per-config data folder and the one
+lookup that lets a typed file name leave off its extension.  Import
 freely from any module.
 
 A data folder exists while something is in it, and not otherwise.
@@ -21,11 +22,11 @@ next month as much as for one an older termapy created eagerly.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -203,3 +204,36 @@ def prune_empty_folders(root: Path, names: Iterable[str]) -> list[str]:
         except OSError:
             continue
     return removed
+
+
+# -- Lookup: the file a typed name means --------------------------------------
+
+
+def default_file_name(name: str | Path, ext: str) -> Path:
+    """The file a user means by ``name``, which may leave off its known ``ext``.
+
+    ``name`` as given when it is a file, else ``name`` + ``ext`` when that is
+    a file, else ``name`` as given, so the caller's "not found" names what
+    was typed.  ``ext="*"`` (a mixed folder) tries only the name as given.
+    It probes and never guesses: the extension is added only when that file
+    exists, so ``v1.2`` finds ``v1.2.run`` and ``x.run`` never becomes
+    ``x.run.run``.
+
+    For reads only (registry ``file-name-default-ext``).  A command that
+    creates a file appends a missing extension instead.  The caller joins
+    its own folder and keeps its own search order, applying this once per
+    location.
+
+    Args:
+        name: The typed name, joined to the folder being searched.
+        ext: The extension the folder's files carry (``FolderSpec.ext``,
+            ``PROFILE_SUFFIX``, ...), or ``"*"``.
+
+    Returns:
+        The path to open.
+    """
+    path = Path(name)
+    if ext == "*" or path.is_file():
+        return path
+    with_ext = Path(f"{path}{ext}")
+    return with_ext if with_ext.is_file() else path

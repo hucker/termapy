@@ -595,7 +595,7 @@ channels.
 
 **Forbidden in handler code**: `ctx.io._write` and `ctx.io._write_markup`
 (the underscore-prefixed primitives that bypass level gating) are
-engine-internal.  A CI grep guard fails the build if a builtin calls
+engine-internal.  A test guard fails the suite if a built-in calls
 either directly.
 
 ### Config

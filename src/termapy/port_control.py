@@ -32,6 +32,11 @@ from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 Msg = tuple[str, str | None]
 Result = tuple[list[Msg], dict[str, Any]]
 
+#: The color slot of a Msg whose text is Rich markup (a ``format_kv_lines``
+#: row), not text in a color.  Consumers render it as markup or flatten it
+#: with ``markup.markup_to_plain``; nothing guesses from the text.
+MARKUP = "markup"
+
 SERIAL_KEYS = {
     "port",
     "baud_rate",
@@ -290,6 +295,11 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
 
 def _msg(text: str, color: str | None = None) -> Msg:
     return (text, color)
+
+
+def _markup_msg(markup: str) -> Msg:
+    """A message whose text is Rich markup (see ``MARKUP``)."""
+    return (markup, MARKUP)
 
 
 def _result(msgs: list[Msg], **side_effects: Any) -> Result:
@@ -1556,6 +1566,38 @@ def resolve_port_trace(
     return trace
 
 
+def _chip_rows(facts: ChipFacts) -> list[tuple[str, str] | tuple[str, str, str]]:
+    """The chip fields as ``format_kv_lines`` rows, each color-coded where it carries advice.
+
+    Shared by ``/port.chip`` and ``/port.info``.  The device name is left
+    out: both show it already, as a header line and as the Port row.
+    """
+    rows: list[tuple[str, str] | tuple[str, str, str]] = []
+    for field_name in CHIP_FIELDS:
+        value = getattr(facts, field_name)
+        if field_name == "device" or value is None:
+            continue
+        label = CHIP_FIELD_LABELS[field_name]
+        sval = str(value)
+        if field_name == "usb_speed" and facts._usb_speed_color:
+            rows.append((label, sval, facts._usb_speed_color))
+        elif (
+            field_name == "latency_timer"
+            and isinstance(value, str)
+            and value[:1].isdigit()
+            and value != "1 ms"
+        ):
+            # Only warn when the timer is a numeric ms value above 1.
+            # Strings like "n/a" or "n/a (Windows - check Device Manager)"
+            # mean we don't know -- no actionable advice to give.
+            rows.append((label, f"{sval}  (set to 1 for low latency)", "yellow"))
+        elif field_name == "permissions" and value == "denied":
+            rows.append((label, sval, "red"))
+        else:
+            rows.append((label, sval))
+    return rows
+
+
 def _format_facts_full(facts: ChipFacts) -> list[Msg]:
     """Format a single ChipFacts as a multi-line dump.
 
@@ -1568,39 +1610,7 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
     from termapy.plugins import format_kv_lines
 
     msgs: list[Msg] = [_msg(f"{facts.device}", "green")]
-
-    # Build (label, value[, color]) rows; format_kv_lines() escapes them
-    # and gives every info command the same cyan-label / colon /
-    # aligned-width formatting.
-    rows: list[tuple[str, str] | tuple[str, str, str]] = []
-    for field_name in CHIP_FIELDS:
-        if field_name == "device":
-            continue  # already shown as the header line
-        value = getattr(facts, field_name)
-        if value is None:
-            continue
-        label = CHIP_FIELD_LABELS[field_name]
-        sval = str(value)
-        if field_name == "usb_speed" and facts._usb_speed_color:
-            rows.append((label, sval, facts._usb_speed_color))
-        elif (
-            field_name == "latency_timer"
-            and isinstance(value, str)
-            and value
-            and value[0].isdigit()
-            and value != "1 ms"
-        ):
-            # Only warn when the timer is a numeric ms value above 1.
-            # Strings like "n/a" or "n/a (Windows - check Device Manager)"
-            # mean we don't know -- no actionable advice to give.
-            rows.append((label, f"{sval}  (set to 1 for low latency)", "yellow"))
-        elif field_name == "permissions" and value == "denied":
-            rows.append((label, sval, "red"))
-        else:
-            rows.append((label, sval))
-
-    for line in format_kv_lines(rows):
-        msgs.append(_msg(line))
+    msgs += [_markup_msg(line) for line in format_kv_lines(_chip_rows(facts))]
 
     # Nudge: when we see a real USB device whose VID:PID isn't in the
     # chip table, invite the user to report it so the table can grow.
@@ -1794,7 +1804,7 @@ def port_info(
     if xfer_root:
         top_rows.append(("Xfer root", str(xfer_root)))
 
-    msgs: list[Msg] = [_msg(line) for line in format_kv_lines(top_rows)]
+    msgs: list[Msg] = [_markup_msg(line) for line in format_kv_lines(top_rows)]
 
     # USB chip section -- looked up from the OS, not from the open Serial
     # object, so it works whether or not the port is currently connected.
@@ -1812,25 +1822,7 @@ def port_info(
         facts = gather_chip_facts(port_name, connected_port, source=source)
         if facts is not None:
             msgs.append(_msg(""))
-            chip_rows: list[tuple[str, str] | tuple[str, str, str]] = []
-            for field_name in CHIP_FIELDS:
-                if field_name == "device":
-                    continue  # already shown as the Port: header
-                value = getattr(facts, field_name)
-                if value is None:
-                    continue
-                label = CHIP_FIELD_LABELS[field_name]
-                sval = str(value)
-                if field_name == "usb_speed" and facts._usb_speed_color:
-                    chip_rows.append((label, sval, facts._usb_speed_color))
-                elif field_name == "latency_timer" and value != "1 ms":
-                    chip_rows.append((label, f"{sval}  (set to 1 for low latency)", "yellow"))
-                elif field_name == "permissions" and value == "denied":
-                    chip_rows.append((label, sval, "red"))
-                else:
-                    chip_rows.append((label, sval))
-            for line in format_kv_lines(chip_rows):
-                msgs.append(_msg(line))
+            msgs += [_markup_msg(line) for line in format_kv_lines(_chip_rows(facts))]
 
     if connected:
         msgs.append(_msg(""))
@@ -1839,8 +1831,7 @@ def port_info(
                 (name.upper(), str(int(getattr(ser, name))))
                 for name in ("dtr", "rts", "cts", "dsr", "ri", "cd")
             ]
-            for line in format_kv_lines(hw_rows):
-                msgs.append(_msg(line))
+            msgs += [_markup_msg(line) for line in format_kv_lines(hw_rows)]
         except OSError:
             pass
     return _result(msgs)

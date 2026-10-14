@@ -337,6 +337,15 @@ class TestInfo:
             assert line in out, f"the live {line} row"
         assert "Baud rate" in result.value, "the report is the scriptable value"
 
+    def test_the_scriptable_value_is_plain_text(self, cli):
+        """The /port.info value is the text the screen shows: its rows flattened, no Rich tags or escapes."""
+        # Act
+        result = cli.repl.dispatch_full("/port.info")
+
+        # Assert
+        assert "Baud rate" in result.value, "the report rows are in the value"
+        assert "[/]" not in result.value and "[cyan]" not in result.value, f"no markup: {result.value!r}"
+
     def test_an_argument_is_redirected_to_port_chip(self, cli):
         """/port.info takes no port name: it fails and points at /port.chip for another port."""
         result = cli.repl.dispatch_full("/port.info COM3")

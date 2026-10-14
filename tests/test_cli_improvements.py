@@ -20,7 +20,7 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from termapy import cli_flags
+from termapy import cli_flags, port_control
 from termapy.port_control import ChipFacts
 
 pytestmark = pytest.mark.slow  # subprocess-spawning CLI flag tests
@@ -124,6 +124,39 @@ def _make_facts(**kw) -> ChipFacts:
     )
     base.update(kw)
     return ChipFacts(**base)
+
+
+class TestChipRows:
+    """The chip rows /port.chip and /port.info share, and how --info prints them."""
+
+    @pytest.mark.parametrize(("latency", "advised"), [
+        ("16 ms", True),
+        ("1 ms", False),
+        ("n/a", False),
+        ("n/a (Windows - check Device Manager)", False),
+    ])
+    def test_latency_advice_only_for_a_numeric_timer_above_one_ms(self, latency, advised):
+        """Both reports advise on the latency timer only when it is a number above 1 ms; "n/a" is unknown, not slow."""
+        # Act
+        rows = {row[0]: row for row in port_control._chip_rows(_make_facts(latency_timer=latency))}
+
+        # Assert
+        actual = "set to 1 for low latency" in rows["Latency timer"][1]
+        assert actual is advised, f"advice for {latency!r}: {rows['Latency timer']}"
+
+    def test_info_prints_the_rows_as_plain_text(self):
+        """--info is for grep and awk: the chip rows reach stdout as text, with no Rich tags."""
+        # Arrange
+        buf = io.StringIO()
+
+        # Act
+        with pytest.raises(SystemExit), redirect_stdout(buf):
+            cli_flags.run_info(argparse.Namespace(info="COM4"), source=lambda: [_make_facts()])
+
+        # Assert
+        out = buf.getvalue()
+        assert "USB Serial Converter" in out, "the chip rows are printed"
+        assert "[cyan]" not in out and "[/]" not in out, f"no markup on stdout:\n{out}"
 
 
 class TestPortsJsonShape:

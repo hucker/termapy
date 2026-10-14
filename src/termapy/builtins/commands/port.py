@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from termapy import port_control
 from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.legacy import make_forwarder
+from termapy.markup import markup_to_plain
 from termapy.plugins import CmdResult, Command
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo
 
@@ -17,16 +18,14 @@ if TYPE_CHECKING:
 def _apply(ctx: PluginContext, result: port_control.Result) -> None:
     """Output messages and apply side effects from a port_control function.
 
-    Lines that carry Rich markup (detected by the close tag ``[/]``)
-    route through ``ctx.io.output_markup`` so embedded colors render.
-    Other lines keep the ``(text, color)`` ``ctx.io.output`` path.  This
-    lets info-style commands use the shared ``format_kv_lines()``
-    helper alongside older message-bearing functions in the same
-    Result without breaking either.
+    A message marked ``port_control.MARKUP`` (a ``format_kv_lines()``
+    row) routes through ``ctx.io.output_markup`` so its colors render;
+    every other line is text on the ``(text, color)`` ``ctx.io.output``
+    path, whatever brackets it holds.
     """
     msgs, effects = result
     for text, color in msgs:
-        if "[/]" in text:
+        if color == port_control.MARKUP:
             ctx.io.output_markup(text)
         elif color:
             ctx.io.output(text, color)
@@ -305,10 +304,14 @@ def _joined_value(result: port_control.Result) -> str:
     ``_read_value`` only handles the single-line case; this helper
     covers multi-row outputs like ``/port.list`` or ``/port.info``
     where the scripting value is the same text the user sees, minus
-    error/warning lines.
+    error/warning lines -- markup rows flattened to that text.
     """
     msgs, _ = result
-    lines = [text for text, color in msgs if color not in ("red", "yellow")]
+    lines = [
+        markup_to_plain(text) if color == port_control.MARKUP else text
+        for text, color in msgs
+        if color not in ("red", "yellow")
+    ]
     return "\n".join(lines)
 
 

@@ -1,5 +1,150 @@
 # Changelog
 
+## 0.77.0 (2026-10-15)
+
+The largest release since the MCP server: termapy can now read and write a
+device's memory by symbol name, load a chip's registers from the vendor's
+SVD file, and answer every status page and list as real JSON records. The
+serial path was reviewed end to end, hex and booleans each have one reader,
+and every rule the code relies on is now in a registry with a test behind
+the ones that can be enforced.
+
+### Device memory: `/mem.*`
+
+A device that speaks the small MEM wire spec (or whose own peek/poke
+commands are described in its profile) can be inspected and changed from
+termapy:
+
+```text
+/mem.dump gTemp 16          hexdump at a symbol, or typed word columns
+/mem.read U1MODE.ON         one typed value: scalar, char, register field, bit or slice
+/mem.write gFlags 07000000  write bytes, or set a register field or bit
+/mem.or gFlags 0x10         boolean ops (.and .clear .xor .not), atomic where the device can
+/mem.str sBanner            a NUL-terminated string
+/mem                        is memory access available, and how (dialect, block size, endianness)
+```
+
+Writes are audited and are destructive over MCP (`confirm=true`). Reads of
+peripheral registers are a different bargain from reads of your variables,
+so a dump that would cover two or more registers is refused, a string scan
+that could reach one is refused, a write-only register refuses every read,
+and an allowed register read is logged like a write. The DEMO device has
+RAM to try it on, and `termapy_mem.c` is a reference firmware
+implementation. `/mem` is optional: nothing in termapy assumes a device has
+it.
+
+### Symbols and device files
+
+`/sym.import` converts a linker map (Microchip XC32 built in; a plugin file
+can add a converter for another toolchain) into `sym/<cfg>.symbols.json`
+and loads it, so `/mem.*` and `/sym` take names: `/sym main` gives an
+address, `/sym 0x2010` gives `name+offset`, `/sym.search g*` finds names.
+termapy tells you when
+the table no longer matches the build, and a bare `/sym.import` re-runs
+the same import.
+
+A chip's registers come from the vendor: `/dev.import` converts a
+CMSIS-SVD file into a device file in the config's own `lib/` and references
+it from `dev/`, so the part loads into every session of that config and a
+checked-in config folder carries its parts. `/dev.list` shows what is
+loaded, `/dev.lib` what the libraries hold, and `/dev.use <part>
+at=NAME@ADDR` places a relocatable part.
+
+### Answers an agent can read
+
+Every status page and every list now answers `--json`, `/term.request` and
+MCP with structured data and nothing printed beside it:
+
+- **Status pages** (`/mcp.info`, `/port.info`, `/term.info`, `/mem.info`,
+  `/sym.info`, `/profile.info`, `/proto.crc.info`, `/seq`, ...) return one
+  record of real values -- numbers, booleans, nulls -- where they used to
+  return display strings in `output_lines`.
+- **Lists** (`/port.chip.list`, `/proto.crc.list`, `/cfg.icon.list`, the
+  folder listings, ...) return records. A list whose items are one value
+  under a unique name returns a mapping instead, so you look the name up:
+  `/env.list` is `{NAME: value}`, `/port.chip.model *` is `{device: model}`.
+- `/mcp.info` reports the server's `pid`. Every termapy MCP server has the
+  same command line, so this is how an agent matches the server it is
+  talking to against `tasklist` / `ps`.
+- `/term.json {compact|indent|color}` pretty-prints JSON answers.
+
+On screen nothing is lost: every list prints in one format (title with
+count, header, dashes, rows), and every status page as aligned label/value
+rows. `/profile.info` no longer shows literal `[cyan]` tags in the CLI.
+**Behavior change:** the scriptable value of `/port.info` and `/port.chip`
+is now the port name rather than the whole page.
+
+### Commands and files
+
+- A file name can leave off its extension: `/run hex_view` runs
+  `run/hex_view.run`. While you type a command that takes a file, the ghost
+  suggestion is the newest matching file in that command's folder.
+- A bare command does what its button does: bare `/cfg`, `/run`, `/proto`
+  and `/port` open their pickers in the TUI and list their files in the CLI
+  and over MCP; bare `/ss`, `/cap` and `/log` open what their buttons open.
+- `/proto.edit`, `/plugin.edit` and `/cfg.edit` join `/run.edit`.
+  **Behavior change:** `/run.edit` opens existing scripts only; a new script
+  comes from the picker's New button or `/run.record`.
+- In a TUI over SSH, the commands that open termapy's own editors
+  (`/edit`, `/run.edit`, `/proto.edit`, `/cfg.edit`) work; they used to
+  refuse for want of a desktop they never needed.
+- `/proto.run` can be stopped, and honors `json_file` and `--json`.
+
+### Config and folders
+
+- Data folders (`ss/`, `cap/`, `prof/`, `sym/`, ...) appear when something
+  is first written to them and are removed when empty, so a plain terminal
+  session never sees a folder it has no use for.
+- A read never writes: listing configs no longer rewrites them, and no
+  lookup creates a folder.
+- **Behavior change:** an on-connect field (`on_connect_cmd` and its
+  `tui_`/`cli_`/`mcp_` variants) and `-e` each run exactly one command;
+  several commands are a `.run` file. Config v30 moves any existing
+  multi-command field into `run/<field>.run` and points the field at it, so
+  an old config keeps doing what it did.
+- The project report (`/cfg.info`) is rewritten at exit with the log and
+  history tails, and says when and by what it was written. The config
+  picker shows the config folder's path and opens it with Explore.
+
+### Serial path
+
+A review of the whole path from the wire to the screen:
+
+- **Behavior change:** `/raw` sends its text and nothing after it -- no
+  line ending.
+- Every received line reaches the log, `/expect` and captures; only the
+  on-screen render is capped. The receive queue is bounded.
+- `/expect` consumes the buffer through its match, so a second `/expect`
+  cannot re-match the first reply.
+- A port lost mid-session stops any capture and resets the UI; a reader
+  that dies of a bug says so; reconnect opens the port once.
+- `/term.hex` shows the received bytes in every frontend.
+
+### One reader per value
+
+- **Hex** reads the same everywhere, in any spelling and case (`01 03`,
+  `0x01 0x03`, `0103`); a `0x` prefix marks exactly one byte, so
+  `0xDEADBEEF` is refused rather than guessed. Quoted text is accepted only
+  where a payload can hold text (`/proto.send`, `/proto.crc.calc`, `.pro`
+  files). Hex output is uppercase everywhere.
+- **Booleans** have one vocabulary of twelve tokens (`on`/`off`,
+  `true`/`false`, `yes`/`no`, `1`/`0`, `y`/`n`, `t`/`f`). A value outside it
+  is an error, never a silent false; a bad `TERMAPY_*` gate refuses to
+  start, naming the variable.
+- Text never reaches a markup parser unescaped: a device reply like `[ok]`
+  no longer vanishes from the screen.
+
+### Platform and quality
+
+- Python 3.15 is supported and part of the release gate.
+- Every rule the code relies on is a row in `docs/rules.md`, with the test
+  that enforces it; the decisions behind them are in `docs/decisions.md`.
+- The type checker now covers the tests, and a pre-commit hook runs ruff
+  and ty on every commit. The TUI and every dialog are driven in tests.
+- A release requires the hardware loopback suite on a jumpered adapter and
+  a clean vulnerability audit of `uv.lock`.
+- The docs were checked against the code for this release.
+
 ## 0.76.0 (2026-08-28)
 
 A picker release: the Run, Proto, and Config dialogs get a header row,

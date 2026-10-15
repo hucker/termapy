@@ -64,7 +64,7 @@ src/termapy/
 │   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
 │   ├── demo/               #              Demo config, scripts, proto files, plugins
 │   └── viz/                #              Built-in packet visualizers (hex, text)
-├── dialogs/                # (2670 lines) Modal screens - one file per dialog
+├── dialogs/                # (2879 lines) Modal screens - one file per dialog
 │   ├── _common.py          #   Shared CSS, dismiss bindings, port-row helper
 │   ├── cfg_confirm.py      #   CfgConfirm
 │   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (the big one)
@@ -83,11 +83,11 @@ src/termapy/
 │   └── welcome_dialog.py   #   WelcomeDialog
 ├── help/                   #              Markdown help pages (source for HTML build)
 ├── html/                   #              Generated HTML help
-├── mcp/                    # (2078 lines) MCP stdio server
+├── mcp/                    # (2178 lines) MCP stdio server
 │   ├── catalog.py          #   JSON catalog + device-state resources
 │   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
 │   └── server.py           #   MCPHost - run_command, async events, lifecycle
-├── plugins/                # (3068 lines) Plugin system - capability-handle architecture
+├── plugins/                # (3647 lines) Plugin system - capability-handle architecture
 │   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, InternalHandle
 │   ├── capabilities.py     #   CapabilitySet, MissingCapability
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
@@ -95,12 +95,12 @@ src/termapy/
 │   ├── loader.py           #   Plugin discovery, COMMAND validation
 │   ├── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
 │   └── views.py            #   Column, TableView, RecordView - a typed answer's prose form, rendered by dispatch
-├── profile/                # (1282 lines) v2 device-profile schema, loader, type registry
+├── profile/                # (1300 lines) v2 device-profile schema, loader, type registry
 │   ├── loader.py           #   load/save/validate + Profile dataclass + transport apply
 │   ├── matcher.py          #   match_profile_command, template_to_regex
 │   ├── schema.json         #   Canonical JSON Schema (Draft 2020-12)
 │   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
-├── protocol/               # (2322 lines) Binary-protocol toolkit (library-shaped, no Textual)
+├── protocol/               # (2762 lines) Binary-protocol toolkit (library-shaped, no Textual)
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
 │   ├── crc.py              #   crcglot catalog shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
@@ -110,7 +110,7 @@ src/termapy/
 ├── devices/                # Device files: a part's registers as data (format, loader, instances, layered dev/ folders); merged over the build's symbols at load
 │   └── converters/         #   Registry + one module per vendor format; a plugin adds one with KIND = "device"
 │       └── svd.py          #     CMSIS-SVD: derivedFrom, dim arrays, clusters, access/readAction/modifiedWriteValues, fields
-├── symbols/                # (0 lines) Symbol tables (library-shaped, no Textual/pyserial): the JSON format, the address grammar, converter registry
+├── symbols/                # (1850 lines) Symbol tables (library-shaped, no Textual/pyserial): the JSON format, the address grammar, converter registry
 │   ├── table.py            #   Symbol, SymbolTable (lookup/search, load/save/validate), sidecar_path
 │   ├── address.py          #   The address grammar: 0x.., ..h, decimal, name, name+off, name@file; .suffix reserved
 │   ├── format.py           #   Prose renderers and their data= record twins
@@ -123,28 +123,28 @@ src/termapy/
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (3931 lines) Textual TUI - UI, modals, app hooks
-├── capture.py              # (422 lines)  Capture state machine - text, binary, format spec
-├── cli.py                  # (1105 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
-├── config.py               # (952 lines)  Config dirs, loading, validation, migration trigger
+├── app.py                  # (3940 lines) Textual TUI - UI, modals, app hooks
+├── capture.py              # (476 lines)  Capture state machine - text, binary, format spec
+├── cli.py                  # (1109 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
+├── config.py               # (1270 lines)  Config dirs, loading, validation, migration trigger
 ├── credits_data.py         # (181 lines)  Dependency/attribution registry: one table behind the Help tooltip, /credits, acknowledgments.md
-├── defaults.py             # (583 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
-├── demo.py                 # (1873 lines) Simulated device for --demo mode (FakeSerial)
+├── defaults.py             # (593 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
+├── demo.py                 # (2089 lines) Simulated device for --demo mode (FakeSerial)
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
 ├── demo_vt100.py           # (406 lines)  Interactive ANSI widget-tour sim (DEMO_VT100 port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
 ├── history_nav.py          #              REPL Up/Down history browsing cursor (Textual-free)
 ├── markup.py               #              Rich markup in and out - escape_markup, markup_to_plain (Textual-free)
-├── memory.py               # (0 lines)  Device memory engine - the MEM wire dialects, chunking, continuity, MEM.M, dump rows (Textual-free)
-├── memory_views.py         # (0 lines)  Typed views - scalars, chars, register bit fields over the format-spec language (Textual-free)
-├── migration.py            # (701 lines)  Config schema migration chain
-├── port_control.py         # (2019 lines) Pure serial port control functions - no Textual
-├── proto_debug.py          # (1185 lines) Interactive protocol debug screen (Textual)
-├── repl.py                 # (2137 lines) REPL engine - dispatch, scripting, transforms
-├── scripting.py            # (627 lines)  Pure functions - templates, duration parsing, ANSI, size/age/duration display (frist)
-├── serial_engine.py        # (707 lines)  Serial connection lifecycle, reader loop orchestrator
-├── serial_port.py          # (527 lines)  Serial I/O wrapper + SerialReader data processor
+├── memory.py               # (862 lines)  Device memory engine - the MEM wire dialects, chunking, continuity, MEM.M, dump rows (Textual-free)
+├── memory_views.py         # (298 lines)  Typed views - scalars, chars, register bit fields over the format-spec language (Textual-free)
+├── migration.py            # (750 lines)  Config schema migration chain
+├── port_control.py         # (2041 lines) Pure serial port control functions - no Textual
+├── proto_debug.py          # (1193 lines) Interactive protocol debug screen (Textual)
+├── repl.py                 # (2652 lines) REPL engine - dispatch, scripting, transforms
+├── scripting.py            # (693 lines)  Pure functions - templates, duration parsing, ANSI, size/age/duration display (frist)
+├── serial_engine.py        # (773 lines)  Serial connection lifecycle, reader loop orchestrator
+├── serial_port.py          # (618 lines)  Serial I/O wrapper + SerialReader data processor
 ├── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
 ├── usb_tree.py             # (553 lines)  Whole USB topology - hubs, devices, interfaces (Textual-free)
 ├── variables.py            #              $(NAME) namespace - storage, resolution, expansion (Textual-free)

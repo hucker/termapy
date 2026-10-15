@@ -4,7 +4,7 @@
 
 **Powered by:** [![Textual](https://img.shields.io/badge/Textual-TUI-blue?logo=python)](https://textual.textualize.io/) [![pySerial](https://img.shields.io/badge/pySerial-serial%20I%2FO-orange?logo=python)](https://pyserial.readthedocs.io/) [![zensical](https://img.shields.io/badge/zensical-docs-green)](https://github.com/hucker/zensical)
 
-**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.15-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-72%25-yellow)](https://coverage.readthedocs.io/)
+**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.15-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-84%25-brightgreen)](https://coverage.readthedocs.io/)
 
 Pronounced "ter-map-ee"
 
@@ -1156,7 +1156,7 @@ Every command runs on a worker thread, the serial reader is the only long-lived 
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 3394 tests, 72% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 4913 tests, 84% core-module coverage</summary>
 
 Run the full suite with `uv run pytest`. (The count above is the one place it
 is tracked; `release_prep` refreshes it each release.)

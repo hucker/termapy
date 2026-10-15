@@ -333,7 +333,13 @@ def _cli_engine(tmp_path):
     assert isinstance(serial, dict), "serial is a section"
     cfg = {**DEFAULT_CFG, "serial": {**serial, "port": "", "baud_rate": 115200}}
     config_path.write_text(_json.dumps(cfg))
-    return CLITerminal(cfg, str(config_path), no_color=True, term_width=80).repl
+    eng = CLITerminal(cfg, str(config_path), no_color=True, term_width=80).repl
+    # Declare a desktop so a GUI-gated list (/cfg.icon.list) runs on a
+    # headless CI runner too: the guard is about shape, not the host.
+    from dataclasses import replace
+
+    eng.ctx.capabilities = replace(eng.ctx.capabilities, gui_apps=True)
+    return eng
 
 
 # List commands whose items are each one value under a unique name answer

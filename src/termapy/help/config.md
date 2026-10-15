@@ -88,6 +88,7 @@ Here is an example config for a device called `iot_device`:
     "hex": false,
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+    "json_style": "compact",
     "strip_device_echo": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",
@@ -139,7 +140,7 @@ reported as a type warning.
 | `protocol`                    | `text`                        | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line) |
 | `ndjson_field_routing`        | `{...}`                       | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field) |
 | `default_response_timeout_ms` | `1000`                        | Fallback wait (ms) for a profile command lacking its own `response.timeout_ms` |
-| `eol`                         | `\r`                          | Appended to each sent command: `\r`, `\r\n`, or `\n` |
+| `eol`                         | `"\r"`                        | Appended to each sent command: `\r`, `\r\n`, or `\n` |
 | `eol_rx`                      | `auto`                        | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx) |
 | `send_bare_enter`             | `false`                       | Send line ending on empty Enter (for "press enter to continue" prompts) |
 | `auto_connect`                | `false`                       | Connect automatically when the app starts |
@@ -170,7 +171,7 @@ reported as a type warning.
 | `default_ui`                  | `tui`                         | Default UI mode: `tui`, `cli`, or `vt100` |
 | `vt100_hint`                  | `true`                        | Show a VS Code key-capture tip in `--vt100` mode (set `false` to hide) |
 | `cmd_prefix`                  | `/`                           | Prefix for local REPL commands |
-| `cli_prompt`                  | `$(CFG)> `                    | Prompt string in CLI mode (supports variables) |
+| `cli_prompt`                  | `"$(CFG)> "`                  | Prompt string in CLI mode (supports variables) |
 | `cli_completion`              | `true`                        | Enable CLI tab completion, auto-suggest, and help toolbar |
 | `config_read_only`            | `false`                       | Disable Edit button in pickers (`/cfg` still changes in-memory values) |
 | `cfg_enabled`                 | `true`                        | Show the Cfg button in the title bar |
@@ -179,6 +180,7 @@ reported as a type warning.
 | `record_enabled`              | `true`                        | Show the Record button next to the REPL prompt (toggles `/run.record`) |
 | `show_traceback`              | `false`                       | Show full stack trace on serial errors |
 | `custom_buttons`              | `[4 entries]`                 | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
+| `json_style`                  | `compact`                     | How JSON answers print (`request_mode`, `--json`): `compact` one line per answer, `indent`, or `color` (indented and highlighted). Set: `/term.json` |
 <!-- config-reference:end -->
 
 ## Connection behavior

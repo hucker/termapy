@@ -206,3 +206,24 @@ def test_config_summary_of_a_broken_file_is_empty(tmp_path):
     path.write_text("{not json", encoding="utf-8")
     actual = config_summary(path)
     assert actual == {"port": "", "baud_rate": None, "title": ""}, "empty facts for a broken cfg"
+
+
+def test_config_summary_never_writes_the_file(tmp_path):
+    """Listing a config is a read: a cfg missing newer default keys is left byte-for-byte as it was."""
+    # Arrange -- an old, sparse cfg that load_config would backfill and rewrite
+    path = _cfg(tmp_path, "old", {"serial": {"port": "COM5"}})
+    before = path.read_bytes()
+
+    # Act
+    summary = config_summary(path)
+
+    # Assert
+    assert summary["port"] == "COM5", "the facts were read"
+    assert path.read_bytes() == before, "the file was not rewritten"
+
+
+def test_config_summary_reads_a_pre_migration_layout(tmp_path):
+    """An old flat cfg (port at the top level) is migrated in memory, so its port still shows."""
+    path = _cfg(tmp_path, "flat", {"port": "COM6", "baud_rate": 57600})
+    actual = config_summary(path)
+    assert (actual["port"], actual["baud_rate"]) == ("COM6", 57600), "migrated before reading, not after"

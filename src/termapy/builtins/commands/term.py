@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.defaults import JSON_STYLES
 from termapy.plugins import (
     OUTPUT_LEVELS,
     CapabilitySet,
@@ -277,6 +278,29 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
             msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)}/cycle)"
         )
     ctx.internal.apply_cfg("eol_rx", arg)
+    ctx.io.result(arg)
+    return CmdResult.ok(value=arg)
+
+
+def _handler_json(ctx: PluginContext, args: str) -> CmdResult:
+    """Show or set how JSON prints: ``compact``, ``indent`` or ``color``.
+
+    An enum setting: bare reports the style, a style sets it for the
+    session through ``apply_cfg``, ``cycle`` advances, anything else is
+    refused.  Applies to every JSON termapy prints (``/term.request``
+    envelopes, ``--json``, the request echo); MCP returns the envelope as
+    data and is unaffected.
+    """
+    arg = args.strip().lower()
+    if not arg:
+        current = ctx.cfg.get("json_style", "compact")
+        ctx.io.result(current)
+        return CmdResult.ok(value=current)
+    if arg == "cycle":
+        arg = next_in_cycle(ctx.cfg.get("json_style", "compact"), JSON_STYLES)
+    if arg not in JSON_STYLES:
+        return CmdResult.fail(msg=f"Unknown JSON style: {arg} (use {'/'.join(JSON_STYLES)}/cycle)")
+    ctx.internal.apply_cfg("json_style", arg)
     ctx.io.result(arg)
     return CmdResult.ok(value=arg)
 
@@ -740,7 +764,8 @@ COMMAND = Command(
                 "``output_lines`` when they don't ({prefix}help).\n"
                 "\n"
                 "In a normal-mode session the per-call form of the same\n"
-                "thing is ``<cmd> --json``.\n"
+                "thing is ``<cmd> --json``.  Envelopes print one per line;\n"
+                "{prefix}term.json indent (or color) pretty-prints them.\n"
                 "\n"
                 "Input is symmetric: a JSON object with a string ``cmd``\n"
                 "field is unwrapped, so callers can send either plain\n"
@@ -754,6 +779,26 @@ COMMAND = Command(
                 "authoring a profile."
             ),
             handler=_handler_request,
+        ),
+        "json": Command(
+            args="{compact|indent|color|cycle}",
+            help="Show or set how JSON prints: one line, indented, or indented and colored.",
+            long_help=(
+                "How every JSON answer termapy prints looks -- the\n"
+                "{prefix}term.request envelopes, ``<cmd> --json``, and the\n"
+                "request echo:\n"
+                "\n"
+                "  compact  one line per answer (default; for consumers\n"
+                "           that read stdout line by line)\n"
+                "  indent   indented, two spaces per level\n"
+                "  color    indented and highlighted\n"
+                "\n"
+                "The request echo ({\"cmd\": ...}) stays on one line in\n"
+                "every style.  MCP gets the envelope as data, so the style\n"
+                "does not touch it.  A session setting; persist it with\n"
+                "{prefix}cfg json_style indent."
+            ),
+            handler=_handler_json,
         ),
         "send_bare_enter": Command(
             args="{on|off|toggle}",

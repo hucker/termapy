@@ -193,6 +193,7 @@ demo> /cfg.dump
       "hex": false,
       "request_mode": false,
       "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+      "json_style": "compact",
       "strip_device_echo": false,
       "validate_typed_args": false,
       "file_xfer_root": "",

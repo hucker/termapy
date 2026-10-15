@@ -31,6 +31,9 @@ VALID_BYTE_SIZES = {5, 6, 7, 8}
 VALID_PARITIES = {"N", "E", "O", "M", "S"}
 VALID_STOP_BITS = {1, 1.5, 2}
 VALID_FLOW_CONTROLS = {"none", "rtscts", "xonxoff", "manual"}
+# How termapy prints JSON (request mode, --json): one line, indented, or
+# indented and highlighted.  The order is /term.json's cycle order.
+JSON_STYLES = ("compact", "indent", "color")
 
 # Single source of truth for the REPL command prefix default.  Used
 # in DEFAULT_CFG, the ``cmd_prefix(cfg)`` helper, and as the default
@@ -111,6 +114,7 @@ DEFAULT_CFG = {
     "hex": False,
     "request_mode": False,
     "request_err_pattern": r"(?i)^(ERROR|ERR|FAULT)\b",
+    "json_style": "compact",
     # Half-duplex devices echo the command back before answering.  When on,
     # a request_mode response drops a leading line that matches the sent
     # command.  Off by default -- opt in per device, since a device that
@@ -455,6 +459,10 @@ CFG_HELP: dict[str, tuple] = {
     "request_err_pattern": (
         "Regex on request_mode responses that flags a device-side error.",
         r"Match => success=false. Empty disables. Override: /term.request on err=<re>.",
+    ),
+    "json_style": (
+        "How JSON prints (request_mode, --json): compact, indent, or color.",
+        "compact = one line per answer; indent; color = indented + highlighted. /term.json",
     ),
     "strip_device_echo": (
         "Drop a half-duplex device's echoed command from request_mode replies.",

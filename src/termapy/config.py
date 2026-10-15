@@ -17,6 +17,7 @@ import serial
 
 from termapy.defaults import (
     DEFAULT_CFG,
+    JSON_STYLES,
     STANDARD_BAUD_RATES,
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -715,6 +716,7 @@ def validate_config(cfg: dict) -> list[str]:
     _check_set(serial, "parity", str, VALID_PARITIES, warnings, key_prefix="serial.")
     _check_set(serial, "stop_bits", (int, float), VALID_STOP_BITS, warnings, key_prefix="serial.")
     _check_set(serial, "flow_control", str, VALID_FLOW_CONTROLS, warnings, key_prefix="serial.")
+    _check_set(cfg, "json_style", str, set(JSON_STYLES), warnings)
 
     # Boolean keys hold a JSON boolean: a string or number here is
     # type-checked, never parsed (bool-one-vocabulary; a templated value
@@ -905,9 +907,16 @@ def config_summary(path: Path) -> dict[str, Any]:
     All empty (``baud_rate`` None) when the file won't load -- a broken cfg
     still deserves a row, so it can be edited or deleted.  A title that only
     repeats the config's name (how new configs are written) reads as none.
+
+    Read-only: the file is parsed and migrated in memory, never written.
+    ``load_config`` is for loading a config, not listing one -- it writes
+    newly added default keys back into the file and cleans that config's
+    profile temps, so listing through it rewrote every config whenever
+    ``DEFAULT_CFG`` grew.
     """
     try:
-        cfg = load_config(str(path))
+        with open(path) as f:
+            cfg = migrate_config(json.load(f))
     except Exception:  # noqa: BLE001 - see docstring
         return {"port": "", "baud_rate": None, "title": ""}
     serial_cfg = cfg.get("serial", {})

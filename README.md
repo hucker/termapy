@@ -572,6 +572,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "hex": false,
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+    "json_style": "compact",
     "strip_device_echo": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",

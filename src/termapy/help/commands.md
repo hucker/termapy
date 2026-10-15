@@ -175,6 +175,7 @@ because its folders hold different types of file.
 | `/term.eol.rx {auto\|cr\|lf\|crlf\|cycle}` | Show or set how received output is split into lines (receive newline) |
 | `/term.hex {on\|off\|toggle}`     | Toggle hex display of incoming bytes                                        |
 | `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
+| `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers in serial output                       |
 | `/term.line_no {on\|off\|toggle}` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |

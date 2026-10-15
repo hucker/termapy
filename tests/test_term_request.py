@@ -1118,3 +1118,85 @@ class TestBareLineJsonFlag:
         assert fake.writes == [b"MEM.R 0x1000 2\r"], "sent verbatim"
         assert fake.read_calls == [], "a plain send never waits for a reply"
         assert result.value in ("", None), "no reply is captured"
+
+
+# ── /term.json: how the envelopes print ─────────────────────────────────────
+
+
+class TestJsonStyle:
+    """``json_style`` shapes every printed envelope; the answer itself never changes."""
+
+    def _exchange(self, repl_env, style: str):
+        """One request-mode exchange printed in ``style``: (result, plain lines, markup lines)."""
+        engine, ctx, _, output, markup_output = repl_env
+        engine._apply_cfg("json_style", style)
+        _wire_fake_serial(ctx, _FakeSerial(response=b"5.5\r\n"))
+        result = engine._exec_request_mode("get_voltage")
+        return result, output, markup_output
+
+    def test_compact_is_one_line(self, repl_env):
+        """The default prints each envelope on one line, for consumers that read stdout line by line."""
+        _, output, _ = self._exchange(repl_env, "compact")
+        text, _ = output[-1]
+        assert "\n" not in text, "one JSON value per line"
+        assert json.loads(text)["value"] == "5.5", "and it is the envelope"
+
+    def test_indent_prints_the_same_envelope_indented(self, repl_env):
+        """indent spreads the envelope over lines, two spaces per level, and it parses to the same answer."""
+        # Act
+        _, output, _ = self._exchange(repl_env, "indent")
+
+        # Assert
+        text, _ = output[-1]
+        assert text.startswith('{\n  "cmd": "get_voltage"'), "indented two spaces per level"
+        assert json.loads(text)["value"] == "5.5", "the indented text is still the envelope"
+
+    def test_color_highlights_and_flattens_to_the_indented_json(self, repl_env):
+        """color emits highlighted markup that flattens back to exactly the indented envelope."""
+        from termapy.markup import markup_to_plain
+
+        # Act
+        _, _, markup_output = self._exchange(repl_env, "color")
+
+        # Assert
+        markup = markup_output[-1]
+        assert "[json." in markup, "Rich's JSON highlighting is applied"
+        plain = markup_to_plain(markup)
+        assert plain.startswith('{\n  "cmd"'), "highlighted and indented"
+        assert json.loads(plain)["value"] == "5.5", "the colored text is still the envelope"
+
+    def test_the_request_echo_stays_on_one_line(self, repl_env):
+        """The {"cmd": ...} echo of what was sent is one line in every style; only answers indent."""
+        _, _, markup_output = self._exchange(repl_env, "indent")
+        echo = markup_output[0]
+        assert echo == '{"cmd": "get_voltage"}', "the one-key echo is not spread over three lines"
+
+    def test_term_json_sets_queries_and_cycles(self, repl_env):
+        """/term.json: a style sets it, bare reports it, cycle advances and wraps, twice in a row."""
+        # Arrange
+        engine, _, cfg, _, _ = repl_env
+
+        # Act
+        set_result = engine.dispatch("term.json color")
+        bare = engine.dispatch("term.json")
+        first = engine.dispatch("term.json cycle")
+        second = engine.dispatch("term.json cycle")
+
+        # Assert
+        assert set_result.value == "color", "a style sets it"
+        assert bare.value == "color", "bare reports it, changing nothing"
+        assert (first.value, second.value) == ("compact", "indent"), "cycle wraps color -> compact -> indent"
+        assert cfg["json_style"] == "indent", "the session cfg follows"
+
+    def test_term_json_refuses_an_unknown_style(self, repl_env):
+        """Anything but a style or cycle is an error naming the choices, never a silent change."""
+        engine, _, cfg, _, _ = repl_env
+        result = engine.dispatch("term.json pretty")
+        assert result.error == "Unknown JSON style: pretty (use compact/indent/color/cycle)"
+        assert cfg.get("json_style", "compact") == "compact", "nothing changed"
+
+    def test_a_bad_style_in_a_cfg_warns_at_load(self):
+        """A hand-edited json_style outside the choices is flagged by validate_config."""
+        from termapy.config import validate_config
+        warnings = validate_config({"json_style": "pretty"})
+        assert any(warning.startswith("json_style: invalid value 'pretty'") for warning in warnings), warnings

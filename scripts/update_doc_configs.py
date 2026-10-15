@@ -175,7 +175,13 @@ def _fmt_default(v) -> str:
     if isinstance(v, list):
         return "[]" if not v else f"[{len(v)} entries]"
     if isinstance(v, str):
-        return '""' if v == "" else v.encode("unicode_escape").decode("ascii")
+        if v == "":
+            return '""'
+        escaped = v.encode("unicode_escape").decode("ascii")
+        # A default with edge whitespace (cli_prompt's "$(CFG)> ") is quoted:
+        # the space is part of the value, and a code span would hide it
+        # (and trip markdownlint MD038).
+        return f'"{escaped}"' if v != v.strip() else escaped
     return str(v)
 
 

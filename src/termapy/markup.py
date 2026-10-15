@@ -55,6 +55,26 @@ def escape_markup(value: object) -> str:
     return escaped
 
 
+def json_markup(data: object, indent: int | None = 2) -> str:
+    """``data`` as highlighted JSON in Rich markup (``/term.json color``).
+
+    Rich's JSON highlighter escapes what it emits, so a ``[`` inside a
+    string value stays literal and ``markup_to_plain`` of the result is
+    exactly the JSON text.  ``ensure_ascii`` matches ``json.dumps``'
+    default, so the colored form reads the same characters as the plain one.
+
+    Args:
+        data: A JSON-shaped value; anything else is ``str()``-ed.
+        indent: Spaces per level; ``None`` for one line.
+
+    Returns:
+        The markup.
+    """
+    from rich.json import JSON
+
+    return JSON.from_data(data, indent=indent, ensure_ascii=True, default=str).text.markup
+
+
 def markup_to_plain(markup: str) -> str:
     """Flatten Rich markup to the text it renders.
 

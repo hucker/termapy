@@ -17,6 +17,7 @@ import serial
 
 from termapy.defaults import (
     DEFAULT_CFG,
+    JSON_STYLES,
     STANDARD_BAUD_RATES,
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -715,6 +716,7 @@ def validate_config(cfg: dict) -> list[str]:
     _check_set(serial, "parity", str, VALID_PARITIES, warnings, key_prefix="serial.")
     _check_set(serial, "stop_bits", (int, float), VALID_STOP_BITS, warnings, key_prefix="serial.")
     _check_set(serial, "flow_control", str, VALID_FLOW_CONTROLS, warnings, key_prefix="serial.")
+    _check_set(cfg, "json_style", str, set(JSON_STYLES), warnings)
 
     # Boolean keys hold a JSON boolean: a string or number here is
     # type-checked, never parsed (bool-one-vocabulary; a templated value

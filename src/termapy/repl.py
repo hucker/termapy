@@ -35,7 +35,7 @@ from termapy.folders import (
     ensure_folder,
     prune_empty_folders,
 )
-from termapy.markup import escape_markup, markup_to_plain
+from termapy.markup import escape_markup, json_markup, markup_to_plain
 from termapy.plugins import (
     LEVEL_FLAGS,
     OUTPUT_LEVELS,
@@ -784,8 +784,6 @@ class ReplEngine:
             call_level: Optional per-call output level to re-apply
                 around the emission.
         """
-        import json as _json
-
         envelope = {
             "cmd": cmd_text,
             "success": result.success,
@@ -799,9 +797,42 @@ class ReplEngine:
         if call_level is not None:
             self.ctx._call_level = call_level
         try:
-            self.ctx.io.result(_json.dumps(envelope, default=str))
+            self._write_json(envelope, result=True)
         finally:
             self.ctx._call_level = saved_emit_level
+
+    def _write_json(self, data: object, *, result: bool, indent: bool = True) -> None:
+        """Print ``data`` as JSON in the session's ``json_style`` (``/term.json``).
+
+        ``compact`` is one line -- one JSON value per line, for consumers
+        that read stdout line by line; ``indent`` indents it; ``color``
+        indents and highlights it through Rich markup.  ``indent=False``
+        keeps a one-key echo on one line in every style.  An unknown style
+        (a hand-edited cfg; ``validate_config`` warns at load) prints
+        compact.
+
+        Args:
+            data: The JSON-shaped value.
+            result: The result channel (quiet+, the answer envelope);
+                otherwise the output channel (normal+, the request echo).
+            indent: Whether the style's indent applies.
+        """
+        import json as _json
+
+        style = self.cfg.get("json_style", "compact")
+        spaces = 2 if indent and style in ("indent", "color") else None
+        if style == "color":
+            markup = json_markup(data, indent=spaces)
+            if result:
+                self.ctx.io.result_markup(markup)
+            else:
+                self.ctx.io.output_markup(markup)
+            return
+        text = _json.dumps(data, default=str, indent=spaces)
+        if result:
+            self.ctx.io.result(text)
+        else:
+            self.ctx.io.output_markup(escape_markup(text))
 
     def _exec_request_mode(self, command: str) -> CmdResult:
         """Send a bare device command and return its response.
@@ -873,7 +904,7 @@ class ReplEngine:
         # quiet suppress it), and MCP's session default of "quiet"
         # naturally keeps output_lines clean -- no FRONT_END gate
         # needed for this one.
-        self.ctx.io.output_markup(escape_markup(_json.dumps({"cmd": command})))
+        self._write_json({"cmd": command}, result=False, indent=False)
 
         encoding = self.cfg.get("encoding", "utf-8")
         line_ending = self.cfg.get("eol", "\r")

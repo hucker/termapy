@@ -1884,6 +1884,30 @@ class TestEditHooks:
 
         _run(scenario)
 
+    def test_the_textual_editors_need_no_desktop(self, app_factory):
+        """With no desktop, as over SSH, /edit.run still opens termapy's own editor: it needs the TUI, not GUI apps."""
+        async def scenario():
+            from dataclasses import replace
+
+            from termapy.dialogs import ScriptEditor
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- a session with no desktop to hand a file to
+                app.repl.ctx.capabilities = replace(app.repl.ctx.capabilities, gui_apps=False)
+                app.repl.scripts_dir.mkdir(parents=True, exist_ok=True)
+                (app.repl.scripts_dir / "foo.run").write_text("/print hi\n")
+
+                # Act
+                result = app.repl.dispatch("edit.run foo")
+                await pilot.pause()
+
+                # Assert
+                assert result.success, result.error
+                assert isinstance(app.screen, ScriptEditor), "termapy's editor opened without a desktop"
+
+        _run(scenario)
+
     def test_bare_picker_commands_open_their_picker(self, app_factory):
         """bare-declared: every picker= command opens its button's picker when bare, and the TUI opens every PICKERS name."""
         async def scenario():
@@ -1958,9 +1982,14 @@ class TestEditHooks:
     def test_edit_info_without_a_report_fails_once(self, app_factory):
         """/edit.info reaches its hook (it raised AttributeError) and reports a missing report once."""
         async def scenario():
+            from dataclasses import replace
             app, _, _ = app_factory()
             async with app.run_test(size=(120, 30)) as pilot:
                 await pilot.pause()
+                # Arrange -- /edit.info hands the report to the system viewer,
+                # so it needs a desktop; declare one rather than depend on the
+                # host (a headless CI runner has none).
+                app.repl.ctx.capabilities = replace(app.repl.ctx.capabilities, gui_apps=True)
 
                 # Act
                 result = app.repl.dispatch("edit.info")

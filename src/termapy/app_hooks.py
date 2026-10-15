@@ -477,14 +477,17 @@ def register_tui_hooks(app) -> None:
     )
     # /edit - TUI overrides root (Textual modals for .run/.pro)
     # This wipes all edit.* children from the plugin, so we must
-    # re-register every subcommand the TUI wants to expose.
+    # re-register every subcommand the TUI wants to expose.  The hooks
+    # that open termapy's own editors need the TUI, not a desktop: they
+    # work over SSH, where GUI_APPS is false.  Only the ones that hand a
+    # file to the system viewer or file manager need GUI_APPS.
     app.repl.register_hook(
         "edit",
         "<filename>",
         "Edit a project file (scripts/proto path).",
         lambda ctx, args: _hook_edit(app, ctx, args),
         source="app",
-        needs=CapabilitySet.GUI_APPS,
+        needs=CapabilitySet.TUI_MODE,
     )
     for name in ("edit.cfg", "cfg.edit"):
         app.repl.register_hook(
@@ -497,7 +500,7 @@ def register_tui_hooks(app) -> None:
                 "Opens the loaded config in termapy's config editor, as F10 "
                 "does.  /cfg.edit and /edit.cfg are the same command."
             ),
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.TUI_MODE,
         )
     app.repl.register_hook(
         "log.delete",
@@ -576,7 +579,7 @@ def register_tui_hooks(app) -> None:
                         lambda f=folder, t=text: lambda ctx:
                         compose(folder_line(ctx, f, noun="script"), t)
                     )(),
-                    needs=CapabilitySet.GUI_APPS,
+                    needs=CapabilitySet.TUI_MODE,
                     files=folder,
                     picker=folder,
                 )

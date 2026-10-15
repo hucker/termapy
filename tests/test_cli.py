@@ -312,12 +312,17 @@ class TestRaw:
 
 class TestHookRun:
     @pytest.mark.parametrize("command", ["run", "proto", "cfg"])
-    def test_bare_picker_command_lists_without_a_picker(self, cli, command):
+    def test_bare_picker_command_lists_without_a_picker(self, cli, command, tmp_path, monkeypatch):
         """bare-declared: with no picker in the CLI, bare /run, /proto and /cfg run their .list, the picker's contents."""
-        # Arrange
+        # Arrange -- a script, a protocol file, and a config root of our own:
+        # /cfg.list reads the config root, which must not be the checkout's.
         parent = Path(cli.config_path).parent
         (parent / "run" / "boot.run").write_text("/print hi\n", encoding="utf-8")
         (parent / "proto" / "probe.pro").write_text("", encoding="utf-8")
+        cfg_root = tmp_path / "cfg_root"
+        (cfg_root / "bench").mkdir(parents=True)
+        (cfg_root / "bench" / "bench.cfg").write_text("{}", encoding="utf-8")
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(cfg_root))
 
         # Act
         bare = cli.repl.dispatch(command)

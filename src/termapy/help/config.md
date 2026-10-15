@@ -191,6 +191,20 @@ switch). `auto_reconnect` retries the connection when the port drops or
 a manual connect attempt fails -- it does not control startup behavior.
 While reconnecting, the title bar turns amber and shows a spinner.
 
+## On-connect commands
+
+`on_connect_cmd` runs after every connect, then the frontend's own
+`tui_`, `cli_` or `mcp_on_connect_cmd`. Each field holds one command, run
+as if typed. For several, put them in a `.run` file and set the field to
+`/run <name>`, as the demo does with `/run welcome`.
+
+Before config version 30 a field could hold several commands separated by
+`\n`. Loading such a config moves them into a script named for the field,
+`run/mcp_on_connect.run` for `mcp_on_connect_cmd`, sets the field to
+`/run mcp_on_connect`, and says so in a config warning. A script of that
+name with other content is never overwritten; the new one gets `_2`, `_3`,
+and so on.
+
 ## Config management
 
 Click the **Cfg** button in the title bar, click the config name, or use the

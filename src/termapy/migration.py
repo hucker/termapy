@@ -669,7 +669,7 @@ _V29_V30_ON_CONNECT_KEYS = (
 
 
 def _migrate_v29_to_v30(cfg: dict) -> dict:
-    """Move each multi-command on-connect chain into a run file.
+    """Move each multi-command on-connect chain into a script named for its field, e.g. run/mcp_on_connect.run.
 
     Until v30 an on-connect field held several commands, split on a
     newline or a typed ``\\n``.  From v30 a field is one command, never

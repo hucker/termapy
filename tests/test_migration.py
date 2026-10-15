@@ -2,6 +2,7 @@
 
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
+    MIGRATIONS,
     migrate_config,
 )
 
@@ -466,8 +467,8 @@ def test_v19_to_v20_rewrites_color_in_multi_line_chain():
         "config_version": 19,
         "tui_on_connect_cmd": "echo on\n/color off\n/help",
     }
-    # Act
-    result = migrate_config(cfg)
+    # Act -- this step alone: from v30 a chain is a run file
+    result = MIGRATIONS[19](cfg)
     # Assert
     actual = result["tui_on_connect_cmd"]
     expected = "echo on\n/term.color off\n/help"
@@ -554,8 +555,8 @@ def test_v22_to_v23_rewrites_ver_subcommands_and_chains():
         "config_version": 22,
         "tui_on_connect_cmd": "/ver.info\n/cls",
     }
-    # Act
-    result = migrate_config(cfg)
+    # Act -- this step alone: from v30 a chain is a run file
+    result = MIGRATIONS[22](cfg)
     # Assert
     actual = result["tui_on_connect_cmd"]
     expected = "/app.ver.info\n/cls"
@@ -767,6 +768,70 @@ def test_v28_to_v29_renames_line_endings_to_eol_markers():
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
 
+def test_v29_to_v30_moves_a_chain_into_a_run_file():
+    """A multi-command on-connect field becomes /run <field>, its lines the pending script."""
+    # Arrange -- the chain m3_bin carried: a device command, then a REPL one
+    cfg = {"config_version": 29, "mcp_on_connect_cmd": "echo off\n/term.request on"}
+    expected_files = {"mcp_on_connect_cmd": ("mcp_on_connect", "echo off\n/term.request on\n")}
+
+    # Act
+    result = MIGRATIONS[29](cfg)
+
+    # Assert
+    assert result["mcp_on_connect_cmd"] == "/run mcp_on_connect", "the field runs the script"
+    assert result["_migration_run_files"] == expected_files, (
+        "the script text waits for load_config, which writes it: the step itself writes nothing"
+    )
+
+
+def test_v29_to_v30_splits_exactly_as_the_retired_rule_did():
+    """A typed backslash-n separated commands too, so the script runs what the chain ran."""
+    # Arrange -- set at the prompt, where \n arrives as two characters
+    cfg = {"config_version": 29, "cli_on_connect_cmd": "/print a\\n /print b"}
+
+    # Act
+    result = MIGRATIONS[29](cfg)
+
+    # Assert
+    actual = result["_migration_run_files"]["cli_on_connect_cmd"]
+    assert actual == ("cli_on_connect", "/print a\n/print b\n"), "two commands, each stripped"
+
+
+def test_v29_to_v30_leaves_one_command_in_place():
+    """A one-command field keeps its command, minus separators, and needs no file."""
+    # Arrange -- every field, one command each (one with a stray separator)
+    cfg = {
+        "config_version": 29,
+        "on_connect_cmd": "",
+        "tui_on_connect_cmd": "/run welcome\n",
+        "cli_on_connect_cmd": "/run welcome",
+        "mcp_on_connect_cmd": '/proto.send "AT"',
+    }
+    expected = ["", "/run welcome", "/run welcome", '/proto.send "AT"']
+
+    # Act
+    result = MIGRATIONS[29](cfg)
+
+    # Assert
+    actual = [result[key] for key in (
+        "on_connect_cmd", "tui_on_connect_cmd", "cli_on_connect_cmd", "mcp_on_connect_cmd",
+    )]
+    assert actual == expected, "one command stays one command"
+    assert "_migration_run_files" not in result, "nothing to write"
+
+
+def test_v29_to_v30_uses_the_configs_prefix():
+    """The field calls /run with the config's own command prefix."""
+    # Arrange
+    cfg = {"config_version": 29, "cmd_prefix": "!", "on_connect_cmd": "!print a\n!print b"}
+
+    # Act
+    result = MIGRATIONS[29](cfg)
+
+    # Assert
+    assert result["on_connect_cmd"] == "!run on_connect", "the run command in this config's prefix"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 needs six steps to reach v23.
@@ -778,9 +843,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labeled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 12, (
-        f"v17 -> v29 covers twelve migrators "
-        f"(17->18 ... 27->28, 28->29); "
+    assert len(steps) == 13, (
+        f"v17 -> v30 covers thirteen migrators "
+        f"(17->18 ... 28->29, 29->30); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -796,6 +861,7 @@ def test_migration_steps_recorded_per_version():
         "v26 -> v27",
         "v27 -> v28",
         "v28 -> v29",
+        "v29 -> v30",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), (
@@ -815,8 +881,8 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 9, (
-        f"nine steps (v20->v21 ... v27->v28, v28->v29); got {steps!r}"
+    assert len(steps) == 10, (
+        f"ten steps (v20->v21 ... v28->v29, v29->v30); got {steps!r}"
     )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
@@ -834,6 +900,37 @@ def test_no_steps_recorded_when_already_current():
     assert "_migration_steps" not in result or result["_migration_steps"] == [], (
         "no steps when nothing to migrate"
     )
+
+
+def test_a_saved_step_list_is_not_shown_again():
+    """Steps an older run saved into the file are dropped: only this run's steps show, twice over."""
+    # Arrange -- what load_config used to save: a past run's list, v27 -> v28 twice
+    stale = ["v27 -> v28: Rename display/session cfg keys", "v27 -> v28: Rename display/session cfg keys"]
+    cfg = {"config_version": 28, "_migration_steps": list(stale)}
+
+    # Act
+    first = migrate_config(cfg)
+    first_steps = list(first.get("_migration_steps", []))
+    second = migrate_config({**first, "_migration_steps": list(stale)})
+
+    # Assert
+    actual = [step.split(":")[0] for step in first_steps]
+    assert actual == ["v28 -> v29", "v29 -> v30"], "this run's two steps, none of the saved ones"
+    assert "_migration_steps" not in second, "a current config shows no steps, saved list or not"
+
+
+def test_step_labels_show_no_docstring_markup():
+    """A step label is plain text: the docstring's ``literal`` backticks are dropped."""
+    # Arrange -- v17 runs every step whose docstring quotes a key in backticks
+    cfg = {"config_version": 17}
+
+    # Act
+    steps = migrate_config(cfg)["_migration_steps"]
+
+    # Assert
+    actual = [step for step in steps if "``" in step]
+    assert actual == [], "no raw RST markup in a status line"
+    assert any("line_endings -> eol_markers" in step for step in steps), "the quoted names stay"
 
 
 def test_v21_to_v22_nests_pyserial_keys():

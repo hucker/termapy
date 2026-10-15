@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import threading
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ from termapy.defaults import (
     VALID_FLOW_CONTROLS,
     VALID_PARITIES,
     VALID_STOP_BITS,
+    cmd_prefix,
 )
 from termapy.folders import (
     DEV,
@@ -33,6 +35,7 @@ from termapy.folders import (
     LOG_SUFFIX,
     PLUGIN,
     PROFILE_TMP_GLOB,
+    RUN,
     SIDECARS,
     SYM,
     SYMBOLS_SUFFIX,
@@ -507,22 +510,23 @@ def expand_env_str(text: str) -> str:
     return _ENV_RE.sub(_replace, text)
 
 
-# Config keys whose value is a command string dispatched on connect
-# (TUI/CLI/MCP all run these through the normal REPL pipeline).  They are
-# deliberately NOT env-expanded at load time: doing so bypasses the
-# per-command env gate and puts $(env.X) values on the wire for bare
-# device commands -- the $(env.PATH) incident class.  Dispatched normally,
-# the env_var transform expands $(env.X) for repl commands but not for
-# device text (env.py's TRANSFORM has no ``serial`` variant), so these keys
-# follow the same env-to-wire rule as typed input.
-_ENV_EXPAND_EXCLUDED_KEYS = frozenset(
-    {
-        "on_connect_cmd",
-        "tui_on_connect_cmd",
-        "cli_on_connect_cmd",
-        "mcp_on_connect_cmd",
-    }
+# Config keys whose value is ONE command dispatched on connect (TUI/CLI/MCP
+# all run it through the normal REPL pipeline; several commands are a .run
+# file the field runs -- see ``on_connect_commands``).
+ON_CONNECT_KEYS: tuple[str, ...] = (
+    "on_connect_cmd",
+    "tui_on_connect_cmd",
+    "cli_on_connect_cmd",
+    "mcp_on_connect_cmd",
 )
+
+# The on-connect commands are deliberately NOT env-expanded at load time:
+# doing so bypasses the per-command env gate and puts $(env.X) values on the
+# wire for bare device commands -- the $(env.PATH) incident class.
+# Dispatched normally, the env_var transform expands $(env.X) for repl
+# commands but not for device text (env.py's TRANSFORM has no ``serial``
+# variant), so these keys follow the same env-to-wire rule as typed input.
+_ENV_EXPAND_EXCLUDED_KEYS = frozenset(ON_CONNECT_KEYS)
 
 
 def _collect_bool_paths() -> frozenset[tuple[str, ...]]:
@@ -692,6 +696,19 @@ def validate_config(cfg: dict) -> list[str]:
                 "(use a device name, USB serial number, or 'DEMO')"
             )
 
+    # An on-connect field is one command (v30).  A line break means a
+    # chain, which is skipped rather than sent to a device as one line.
+    # An older cfg (``--check`` reads it as it is on disk) has its chains moved
+    # into run files by the v29 -> v30 step at load instead.
+    chains_migrate = ver is not None and ver < 30
+    for key in ON_CONNECT_KEYS:
+        value = cfg.get(key)
+        if not chains_migrate and isinstance(value, str) and len(value.strip().splitlines()) > 1:
+            warnings.append(
+                f"{key}: one command per field, so it is skipped; put several "
+                f"in a .run file and set {key} to {cmd_prefix(cfg)}run <name>"
+            )
+
     # Type + value checks for serial settings
     _check_set(serial, "byte_size", int, VALID_BYTE_SIZES, warnings, key_prefix="serial.")
     _check_set(serial, "parity", str, VALID_PARITIES, warnings, key_prefix="serial.")
@@ -809,6 +826,52 @@ def _type_name(t: type | tuple[type, ...]) -> str:
 CONFIG_LOAD_ERRORS: tuple[type[BaseException], ...] = (OSError, ValueError)
 
 
+def on_connect_commands(cfg: Mapping[str, Any], mode_key: str) -> list[tuple[str, str]]:
+    """The ``(key, command)`` pairs to run on connect, in order.
+
+    ``on_connect_cmd`` (every frontend), then ``mode_key`` (the frontend's
+    own, e.g. ``cli_on_connect_cmd``).  A field is one command, dispatched
+    as written and never split; several commands belong in a .run file the
+    field runs.  A field holding a line break is skipped, never sent:
+    ``validate_config`` names it, and a line break must not reach a device
+    inside what is sent as one line.
+    """
+    commands: list[tuple[str, str]] = []
+    for key in ("on_connect_cmd", mode_key):
+        command = str(cfg.get(key) or "").strip()
+        if command and len(command.splitlines()) == 1:
+            commands.append((key, command))
+    return commands
+
+
+def _write_migration_run_files(cfg: dict, path: str) -> list[str]:
+    """Write the run files ``_migrate_v29_to_v30`` asked for; one warning each.
+
+    Never overwrites a different file: a taken name gets ``_2``, ``_3`` ...
+    and the field is pointed at the file actually written.  Runs before the
+    cfg is saved, so the saved field never names a missing script.
+    """
+    pending: dict[str, tuple[str, str]] = cfg.pop("_migration_run_files", {})
+    if not pending:
+        return []
+    run_folder = ensure_folder(cfg_data_dir(path) / RUN)
+    warnings: list[str] = []
+    for key, (name, text) in pending.items():
+        stem, number = name, 1
+        while (run_folder / f"{stem}.run").exists() and (
+            (run_folder / f"{stem}.run").read_text(encoding="utf-8") != text
+        ):
+            number += 1
+            stem = f"{name}_{number}"
+        (run_folder / f"{stem}.run").write_text(text, encoding="utf-8")
+        cfg[key] = f"{cmd_prefix(cfg)}run {stem}"
+        warnings.append(
+            f"{key} held {len(text.splitlines())} commands; they are now "
+            f"{RUN}/{stem}.run and {key} is {cfg[key]}"
+        )
+    return warnings
+
+
 def load_config(path: str) -> dict:
     """Load and validate JSON config, applying defaults for missing fields.
 
@@ -860,24 +923,28 @@ def load_config(path: str) -> dict:
                     cfg[key][sub_key] = copy.deepcopy(sub_val)
                     changed = True
     cfg.pop("_migrated_from", None)  # clean up stale marker from older saves
-    if changed:
-        with open(path, "w") as f:
-            json.dump(cfg, f, indent=4)
-    if migrated:
-        cfg["_migrated_from"] = old_version
-    expand_warnings: list[str] = []
-    cfg = expand_env_cfg(cfg, expand_warnings)
+    # Before anything is written: refuses the bundled template, sets up
+    # the folder the migration's run files go in.
+    prepare_cfg_folder(path)
     # Migration functions may stash one-shot warnings in
     # ``_migration_warnings`` (e.g. "your retired key was true; set
     # the env var").  Merge them with the expansion and structural
     # validation warnings so the user sees all through the single
     # existing display path.
-    mig_warnings = cfg.pop("_migration_warnings", [])
+    mig_warnings = cfg.pop("_migration_warnings", []) + _write_migration_run_files(cfg, path)
+    if changed:
+        # ``_``-keys are session state (migration steps, warnings), never saved.
+        saved = {key: value for key, value in cfg.items() if not key.startswith("_")}
+        with open(path, "w") as f:
+            json.dump(saved, f, indent=4)
+    if migrated:
+        cfg["_migrated_from"] = old_version
+    expand_warnings: list[str] = []
+    cfg = expand_env_cfg(cfg, expand_warnings)
     config_warnings = validate_config(cfg)
     all_warnings = list(mig_warnings) + expand_warnings + config_warnings
     if all_warnings:
         cfg["_config_warnings"] = all_warnings
-    prepare_cfg_folder(path)
     cleanup_profile_temps(path)
     return cfg
 

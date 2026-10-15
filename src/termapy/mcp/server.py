@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from termapy.capture import CaptureEngine, format_capture_result
-from termapy.config import open_serial
+from termapy.config import on_connect_commands, open_serial
 from termapy.folder_ops import file_record
 from termapy.folders import PROFILE_SUFFIX
 from termapy.markup import markup_to_plain
@@ -635,32 +635,22 @@ class MCPHost(TerminalHost):
         Errors are non-fatal: a misbehaving device-setup command logs
         a warning but doesn't block the connect.
         """
-        sources: list[tuple[str, str]] = [
-            (ctx.cfg.get("on_connect_cmd", ""), "on_connect_cmd"),
-            (ctx.cfg.get("mcp_on_connect_cmd", ""), "mcp_on_connect_cmd"),
-        ]
-        for source, label in sources:
-            if not source:
+        for label, cmd in on_connect_commands(ctx.cfg, "mcp_on_connect_cmd"):
+            self._log_line(f"$ {cmd}  ({label})")
+            try:
+                result = self.repl.dispatch_full(
+                    cmd,
+                    log=self._log,
+                    echo_markup=self.write_markup,
+                    status=self.status,
+                    serial_write=self._serial_write,
+                    is_connected=lambda: self.engine.is_connected,
+                )
+            except Exception as exc:  # noqa: BLE001 -- boundary
+                self._log_line(f"! {label} ({cmd!r}) failed: {exc}")
                 continue
-            for cmd in source.replace("\\n", "\n").split("\n"):
-                cmd = cmd.strip()
-                if not cmd:
-                    continue
-                self._log_line(f"$ {cmd}  ({label})")
-                try:
-                    result = self.repl.dispatch_full(
-                        cmd,
-                        log=self._log,
-                        echo_markup=self.write_markup,
-                        status=self.status,
-                        serial_write=self._serial_write,
-                        is_connected=lambda: self.engine.is_connected,
-                    )
-                except Exception as exc:  # noqa: BLE001 -- boundary
-                    self._log_line(f"! {label} ({cmd!r}) failed: {exc}")
-                    continue
-                if not result.success:
-                    self._log_line(f"! {label} ({cmd!r}): {result.error}")
+            if not result.success:
+                self._log_line(f"! {label} ({cmd!r}): {result.error}")
 
     def _on_connect_banner_watch(self, ctx: PluginContext) -> None:
         """Spawn a 2-second watcher for the active profile's startup banner.

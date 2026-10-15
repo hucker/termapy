@@ -476,7 +476,7 @@ When you create a new config, termapy writes a complete `.cfg` file with all def
     "auto_reconnect": true,
     "title": "Sensor A",
     "border_color": "blue",
-    "on_connect_cmd": "rev \n help dev"
+    "on_connect_cmd": "/run startup"
 }
 ```
 
@@ -521,7 +521,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 29,
+    "config_version": 30,
     "title": "",
     "border_color": "",
     "max_lines": 10000,

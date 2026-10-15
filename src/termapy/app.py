@@ -42,6 +42,7 @@ from termapy.config import (
     cfg_history_path,
     cfg_log_path,
     load_config,
+    on_connect_commands,
     open_serial,
     open_with_system,
     rename_config,
@@ -1325,13 +1326,7 @@ class SerialTerminal(TerminalHost, App):
         inp.placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
         inp.focus()
         self._sync_hw_buttons()
-        connect_cmds: list[str] = []
-        auto_cmd = self.cfg.get("on_connect_cmd", "")
-        if auto_cmd:
-            connect_cmds.extend(auto_cmd.replace("\\n", "\n").split("\n"))
-        tui_cmd = self.cfg.get("tui_on_connect_cmd", "")
-        if tui_cmd:
-            connect_cmds.extend(tui_cmd.replace("\\n", "\n").split("\n"))
+        connect_cmds = [command for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd")]
         if connect_cmds:
             self._run_lines(connect_cmds, delay=0.2)
 
@@ -1713,24 +1708,20 @@ class SerialTerminal(TerminalHost, App):
         was_connected = self.is_connected
         if was_connected:
             self._disconnect()
+        # Per-step breakdown: one line per step of THIS load that ran an
+        # actual migrator (no-op versions are skipped).  Popped whether or
+        # not a migration ran.  The editor opens through load_config, so its
+        # text is already current; only a file changed on disk while the
+        # editor was open can hand an old saved list over, and that list
+        # describes past migrations, so dropping it loses nothing.
+        steps = cfg.pop("_migration_steps", [])
         if migrated_from is not None:
             self._status(
                 f"Config migrated: v{migrated_from} -> v{CURRENT_CONFIG_VERSION}",
                 "yellow",
             )
-            # Per-step breakdown: cfg["_migration_steps"] holds one
-            # line per step that ran an actual migrator (no-op
-            # versions are skipped).  Multi-version jumps happen
-            # rarely (once per cfg, on a major upgrade), so a few
-            # extra status lines is more reassuring than a single
-            # summary header.
-            for step in cfg.pop("_migration_steps", []):
+            for step in steps:
                 self._status(f"  {step}", "yellow")
-        else:
-            # No migration ran, but a stale _migration_steps key
-            # could still be present if the cfg was hand-edited;
-            # drop it silently.
-            cfg.pop("_migration_steps", None)
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
         self.repl.ctx.ns("flags")["hex"] = cfg.get("hex", False)

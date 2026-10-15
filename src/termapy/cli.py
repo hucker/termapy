@@ -29,6 +29,7 @@ from termapy.config import (
     cfg_dir,
     cfg_history_path,
     load_config,
+    on_connect_commands,
     open_serial,
 )
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
@@ -934,20 +935,11 @@ class CLITerminal(TerminalHost):
         # Run on_connect_cmd (same as TUI does after connecting), then
         # the CLI-only cli_on_connect_cmd for any extras specific to
         # the plain-text frontend.
-        connect_cmd_sources = [
-            self.cfg.get("on_connect_cmd", ""),
-            self.cfg.get("cli_on_connect_cmd", ""),
-        ]
         if not self.is_oneshot:
-            for source in connect_cmd_sources:
-                if not source:
-                    continue
-                for cmd in source.replace("\\n", "\n").split("\n"):
-                    cmd = cmd.strip()
-                    if cmd:
-                        self._dispatch(cmd)
-                        if self.engine.is_connected and self.engine.serial_port:
-                            self.engine.serial_port.wait_for_idle()
+            for _, cmd in on_connect_commands(self.cfg, "cli_on_connect_cmd"):
+                self._dispatch(cmd)
+                if self.engine.is_connected and self.engine.serial_port:
+                    self.engine.serial_port.wait_for_idle()
 
         if self.run_script:
             self._run_script_mode(self.run_script)

@@ -324,3 +324,21 @@ had no command at all. A typed `/raw` that relied on the line ending now
 needs `/term.send`. **Where:** review only for the choice; the behavior is
 pinned by `test_raw_sends_exactly_its_text`, `test_raw_sends_data` and
 `test_raw_send_bypasses_transforms`.
+
+## 2026-10-14 — A command string is one command; several are a `.run` file
+
+An on-connect field (`on_connect_cmd` and its `tui_`/`cli_`/`mcp_`
+variants) holds one command, dispatched as written, and `-e` takes one
+command per invocation. Neither is ever split. Several commands are a
+`.run` file the field or `--run` names. Until this date the on-connect
+fields were split on a newline or a typed `\n`, in four inline copies, and
+a repeated `-e` silently ran only the last. **Why:** the `\n` separator
+predates string parsing. Splitting after JSON had already decoded the
+escapes cut a payload's own `\n` (`/proto.send "AT\r\n"` became two broken
+commands), and a separator inside one string is a second command grammar
+beside `.run`, which already has comments, delays and `/expect`. The
+v29 -> v30 migration moves each existing chain into `run/<field>.run`
+(never overwriting) and points the field at it, so an old config keeps
+doing what it did. **Where:** `config.on_connect_commands` (a field holding
+a line break is skipped, and `validate_config` names it), `entry._OneCommand`
+for `-e`, `migration._migrate_v29_to_v30`.

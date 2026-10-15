@@ -171,7 +171,7 @@ bare device commands** -- typing `AT+X=$(env.SECRET)` sends the literal
 text, never the value, so environment secrets stay off the serial wire.
 
 The `on_connect_cmd` family (`on_connect_cmd`, `tui_`/`cli_`/`mcp_on_connect_cmd`)
-follows exactly this rule: each line is dispatched as if you had typed it,
+follows exactly this rule: the command is dispatched as if you had typed it,
 so `/`-commands in it expand `$(env.X)` while device commands do not. They
 are deliberately **not** pre-expanded at config-load time -- if you need an
 env value in a connect-time device command, put it in a user variable via a

@@ -14,10 +14,12 @@ from termapy.config import (
     cfg_log_path,
     cfg_path_for_name,
     cfg_plugins_dir,
+    config_summary,
     expand_env_cfg,
     expand_env_str,
     file_manager_name,
     load_config,
+    on_connect_commands,
     open_serial,
     prepare_cfg_folder,
     validate_config,
@@ -1331,3 +1333,150 @@ class TestFileManagerName:
         # Act / Assert -- Linux users know their file manager as a menu entry,
         # not a project name, so no desktop detection: one generic label
         assert file_manager_name(platform) == "Files"
+
+
+# -- On-connect: one command per field, chains migrated to run files ----------
+
+
+def _v29_cfg(folder: Path, **fields) -> Path:
+    """A v29 config file in ``folder/<name>/`` with the given on-connect fields."""
+    config_path = folder / "bench" / "bench.cfg"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(json.dumps(_cfg_with(config_version=29, **fields)), encoding="utf-8")
+    return config_path
+
+
+class TestOnConnectChainMigration:
+    def test_load_writes_the_run_file_and_saves_the_field(self, tmp_path):
+        """Loading a v29 chain writes run/<field>.run, saves /run <field> and says so."""
+        # Arrange
+        config_path = _v29_cfg(tmp_path, mcp_on_connect_cmd="echo off\n/term.request on")
+        script = config_path.parent / "run" / "mcp_on_connect.run"
+
+        # Act
+        cfg = load_config(str(config_path))
+
+        # Assert
+        assert script.read_text(encoding="utf-8") == "echo off\n/term.request on\n", (
+            "the script holds the chain's commands, one per line"
+        )
+        saved = json.loads(config_path.read_text(encoding="utf-8"))
+        assert saved["mcp_on_connect_cmd"] == "/run mcp_on_connect", "the saved field runs it"
+        assert any("run/mcp_on_connect.run" in warning for warning in cfg["_config_warnings"]), (
+            "the user is told where the commands went"
+        )
+
+    def test_load_never_overwrites_a_different_script(self, tmp_path):
+        """A run file of the same name and other content is kept; the chain gets the next free name."""
+        # Arrange -- the user already has an unrelated mcp_on_connect.run
+        config_path = _v29_cfg(tmp_path, mcp_on_connect_cmd="echo off\n/term.request on")
+        run_folder = config_path.parent / "run"
+        run_folder.mkdir()
+        (run_folder / "mcp_on_connect.run").write_text("/print mine\n", encoding="utf-8")
+
+        # Act
+        cfg = load_config(str(config_path))
+
+        # Assert
+        assert (run_folder / "mcp_on_connect.run").read_text(encoding="utf-8") == "/print mine\n", (
+            "the user's script is untouched"
+        )
+        assert (run_folder / "mcp_on_connect_2.run").is_file(), "the chain went to the next free name"
+        assert cfg["mcp_on_connect_cmd"] == "/run mcp_on_connect_2", "and the field runs that one"
+
+    def test_load_twice_writes_one_script(self, tmp_path):
+        """The second load finds a current config and writes no second script."""
+        # Arrange
+        config_path = _v29_cfg(tmp_path, on_connect_cmd="/print a\n/print b")
+
+        # Act
+        load_config(str(config_path))
+        cfg = load_config(str(config_path))
+
+        # Assert
+        actual = sorted(path.name for path in (config_path.parent / "run").iterdir())
+        assert actual == ["on_connect.run"], "one script, however often the config loads"
+        assert cfg["on_connect_cmd"] == "/run on_connect", "the field still runs it"
+
+    def test_listing_a_v29_chain_writes_nothing(self, tmp_path):
+        """reads-never-write: /cfg.list migrates in memory, so no run file and no rewrite."""
+        # Arrange
+        config_path = _v29_cfg(tmp_path, on_connect_cmd="/print a\n/print b")
+        before = config_path.read_text(encoding="utf-8")
+
+        # Act
+        config_summary(config_path)
+
+        # Assert
+        assert not (config_path.parent / "run").exists(), "no run file from a listing"
+        assert config_path.read_text(encoding="utf-8") == before, "the config file is unchanged"
+
+    def test_saved_config_holds_no_session_keys(self, tmp_path):
+        """A migration's step list and warnings are shown, never written into the file."""
+        # Arrange -- a migrating load always records its steps
+        config_path = _v29_cfg(tmp_path, on_connect_cmd="/print a\n/print b")
+
+        # Act
+        cfg = load_config(str(config_path))
+
+        # Assert
+        saved = json.loads(config_path.read_text(encoding="utf-8"))
+        actual = [key for key in saved if key.startswith("_")]
+        assert actual == [], "no _-key reaches the file"
+        assert cfg["_migration_steps"], "while the session still has the steps to show"
+
+
+class TestOnConnectCommands:
+    def test_universal_then_mode_field(self):
+        """on_connect_cmd runs first, then the frontend's own field; empty fields are skipped."""
+        # Arrange
+        cfg = {"on_connect_cmd": " /run setup ", "tui_on_connect_cmd": "/print tui", "cli_on_connect_cmd": ""}
+
+        # Act
+        actual = on_connect_commands(cfg, "tui_on_connect_cmd")
+
+        # Assert
+        expected = [("on_connect_cmd", "/run setup"), ("tui_on_connect_cmd", "/print tui")]
+        assert actual == expected, "both commands, in order, stripped"
+        assert on_connect_commands(cfg, "cli_on_connect_cmd") == [("on_connect_cmd", "/run setup")], (
+            "an empty mode field adds nothing"
+        )
+
+    def test_a_field_is_never_split(self):
+        """An escaped \\r\\n in a payload stays one command: nothing splits on \\n any more."""
+        # Arrange -- what the retired splitter cut into two broken commands
+        cfg = {"on_connect_cmd": '/proto.send "AT\\r\\n"'}
+
+        # Act
+        actual = on_connect_commands(cfg, "cli_on_connect_cmd")
+
+        # Assert
+        assert actual == [("on_connect_cmd", '/proto.send "AT\\r\\n"')], "one command, as written"
+
+    def test_a_line_break_is_skipped_and_named(self):
+        """A field holding a line break is never sent; validate_config says why."""
+        # Arrange -- a chain hand-edited into a current config
+        cfg = _cfg_with(mcp_on_connect_cmd="echo off\n/term.request on")
+
+        # Act
+        actual = on_connect_commands(cfg, "mcp_on_connect_cmd")
+        warnings = validate_config(cfg)
+
+        # Assert
+        assert actual == [], "a line break never reaches the device inside one line"
+        assert any(warning.startswith("mcp_on_connect_cmd: one command per field") for warning in warnings), (
+            "the load names the field and the fix"
+        )
+
+    def test_an_old_config_is_not_warned(self):
+        """--check reads an older config as it is on disk; its chain is the migration's job, not a warning."""
+        # Arrange
+        cfg = _cfg_with(config_version=29, mcp_on_connect_cmd="echo off\n/term.request on")
+
+        # Act
+        warnings = validate_config(cfg)
+
+        # Assert
+        assert not any("one command per field" in warning for warning in warnings), (
+            "the v29 -> v30 step will move it into a run file"
+        )

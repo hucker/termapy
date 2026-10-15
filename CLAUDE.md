@@ -133,9 +133,9 @@ All other paths relative to `src/termapy/`.
     replaced).
   - **Strings.** Identity (`str`/`path`/`command` params, rest args).
     Quoted-string escapes are `protocol.core._ESCAPE_MAP`
-    (`\r \n \t \\ \0`); the cfg-value `"\n"` convention in
-    `on_connect_cmd` is a config-file notation, not a second prompt
-    vocabulary.
+    (`\r \n \t \\ \0`).  A command string is ONE command, never split
+    on `\n` -- an on-connect field and `-e` alike; several commands are
+    a `.run` file (decision 2026-10-14, `config.on_connect_commands`).
   - **File names.** A command that reads an existing file of a known type
     takes the name with or without its extension, through
     `folders.default_file_name` at each location it searches (registry

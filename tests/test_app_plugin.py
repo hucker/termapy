@@ -119,7 +119,7 @@ class TestAppExplore:
 
 class TestAppList:
     def test_list_creates_no_folder(self, pin_app_dirs, ctx):
-        """reads-never-write: /app.list on a fresh machine says so and creates no app folder."""
+        """reads-never-write: /app.list on a fresh machine lists nothing and creates no app folder."""
         # Arrange
         state_dir, config_dir = pin_app_dirs
 
@@ -128,25 +128,52 @@ class TestAppList:
 
         # Assert
         assert result.success, "an empty listing is not an error"
-        assert "  (no app folder yet)" in ctx.lines, "says there is nothing yet"
+        assert result.data == [], "no files yet"
         assert not state_dir.exists(), "the state folder is not created by listing it"
         assert not config_dir.exists(), "nor the config folder"
 
-    def test_list_shows_saved_state(self, pin_app_dirs, ctx):
-        """Once state is saved, /app.list names the file and returns its path."""
-        # Arrange
+    def test_list_is_the_file_table_with_a_folder_column(self, pin_app_dirs, ctx):
+        """Split state and config folders (Linux) list as one file table whose FOLDER column says where."""
+        # Arrange -- one file in each folder
         from termapy.app_dirs import save_app_state
 
-        state_dir, _ = pin_app_dirs
+        state_dir, config_dir = pin_app_dirs
         save_app_state({"checked": 1})
-        expected = str(state_dir / "state.json")
+        config_dir.mkdir()
+        (config_dir / "config.json").write_text("{}\n", encoding="utf-8")
+        expected = {"state.json": str(state_dir), "config.json": str(config_dir)}
 
         # Act
         result = app_plugin._handler_list(ctx, "")
 
         # Assert
-        assert result.value == expected, "the value is the one file's full path"
-        assert "    state.json" in ctx.lines, "the listing names the file"
+        actual = {record["name"]: record["folder"] for record in result.data}
+        assert actual == expected, "each file names the folder it is in"
+        assert all("bytes" in record and "mtime" in record for record in result.data), (
+            "the records are file_record's, so SIZE and UPDATED read as in every list"
+        )
+        assert [column.title for column in result.view.columns] == [
+            "NAME", "SIZE", "UPDATED", "FOLDER",
+        ], "the shared file columns, then FOLDER"
+
+    def test_list_one_folder_is_the_title(self, monkeypatch, tmp_path, ctx):
+        """Where state and config share a folder (Windows, macOS), that folder is the title and no FOLDER column."""
+        # Arrange
+        same = tmp_path / "termapy"
+        monkeypatch.setenv("TERMAPY_STATE_DIR", str(same))
+        monkeypatch.setenv("TERMAPY_CONFIG_DIR", str(same))
+        same.mkdir()
+        (same / "state.json").write_text("{}\n", encoding="utf-8")
+
+        # Act
+        result = app_plugin._handler_list(ctx, "")
+
+        # Assert
+        assert result.view.title == str(same), "the one folder titles the table"
+        assert [column.title for column in result.view.columns] == ["NAME", "SIZE", "UPDATED"], (
+            "no FOLDER column when there is one folder"
+        )
+        assert result.value == "state.json", "the value is the names, as in every list"
 
 
 # -- /app.state --------------------------------------------------------------

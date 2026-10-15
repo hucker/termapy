@@ -6,10 +6,10 @@ state and config** that isn't tied to any single project.
 
 Two concepts:
 
-- **state** -- transient or machine-written data the user doesn't
-  edit by hand (PyPI update-check timestamps, crash dumps, log
-  files, caches).  Safe to delete; the app will regenerate.  Lives
-  in ``app_state_dir() / state.json``.
+- **state** -- machine-written data the user doesn't edit by hand;
+  today only the PyPI update-check timestamps.  Safe to delete; the
+  app will regenerate.  Lives in ``app_state_dir() / state.json``.
+  There is no app-wide log: logs are per config (``<cfg>.log``).
 - **config** -- persistent, user-editable global preferences that
   apply across all termapy projects.  Lives in
   ``app_config_dir() / config.json``.  Currently reserved (no

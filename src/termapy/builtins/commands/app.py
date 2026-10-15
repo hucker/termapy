@@ -41,7 +41,7 @@ from termapy.app_dirs import (
     load_app_config,
     load_app_state,
 )
-from termapy.folder_ops import file_table, list_entries
+from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command
 
 if TYPE_CHECKING:
@@ -73,21 +73,21 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List the files in the app folder, newest first: NAME, SIZE, UPDATED.
 
-    Windows and macOS keep state and config in one folder, which is the
-    table's title.  Linux splits them (XDG_STATE_HOME vs XDG_CONFIG_HOME),
-    and then a FOLDER column says where each file is.  A folder that does
+    Every record is ``file_record`` plus ``folder``, the file's folder as a
+    full path, so a structured consumer learns where the files are on every
+    platform.  Windows and macOS keep state and config in one folder, which
+    is the table's title; Linux splits them (XDG_STATE_HOME vs
+    XDG_CONFIG_HOME), and then a FOLDER column shows it.  A folder that does
     not exist yet lists as empty: listing creates nothing.
     """
     folders = sorted({app_state_dir(), app_config_dir()})
     files = [file for folder in folders for file in list_entries(folder, "*")]
+    records = [{**file_record(file), "folder": str(file.parent)} for file in files]
+    names = "\n".join(file.name for file in files)
     if len(folders) == 1:
-        return file_table(str(folders[0]), "file", files)
-    folder_column = (
-        Column("FOLDER", lambda record: record["folder"]),
-        lambda path: str(path.parent),
-        "folder",
-    )
-    return file_table("app folders", "file", files, extra=(folder_column,))
+        return CmdResult.table(str(folders[0]), "file", FILE_COLUMNS, records, value=names)
+    columns = (*FILE_COLUMNS, Column("FOLDER", lambda record: record["folder"]))
+    return CmdResult.table("app folders", "file", columns, records, value=names)
 
 
 # ── /app.state ────────────────────────────────────────────────────────────────

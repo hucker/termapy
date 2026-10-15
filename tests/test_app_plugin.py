@@ -157,7 +157,7 @@ class TestAppList:
         ], "the shared file columns, then FOLDER"
 
     def test_list_one_folder_is_the_title(self, monkeypatch, tmp_path, ctx):
-        """Where state and config share a folder (Windows, macOS), that folder is the title and no FOLDER column."""
+        """Where state and config share a folder (Windows, macOS), it titles the table and every record still carries it."""
         # Arrange
         same = tmp_path / "termapy"
         monkeypatch.setenv("TERMAPY_STATE_DIR", str(same))
@@ -174,6 +174,10 @@ class TestAppList:
             "no FOLDER column when there is one folder"
         )
         assert result.value == "state.json", "the value is the names, as in every list"
+        actual_folders = [record["folder"] for record in result.data]
+        assert actual_folders == [str(same)], (
+            "the JSON says where the file is on every platform, not only where the column shows"
+        )
 
 
 # -- /app.state --------------------------------------------------------------

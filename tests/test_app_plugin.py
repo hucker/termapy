@@ -114,6 +114,41 @@ class TestAppExplore:
             "deduped when state and config resolve to one path"
 
 
+# -- /app.list ---------------------------------------------------------------
+
+
+class TestAppList:
+    def test_list_creates_no_folder(self, pin_app_dirs, ctx):
+        """reads-never-write: /app.list on a fresh machine says so and creates no app folder."""
+        # Arrange
+        state_dir, config_dir = pin_app_dirs
+
+        # Act
+        result = app_plugin._handler_list(ctx, "")
+
+        # Assert
+        assert result.success, "an empty listing is not an error"
+        assert "  (no app folder yet)" in ctx.lines, "says there is nothing yet"
+        assert not state_dir.exists(), "the state folder is not created by listing it"
+        assert not config_dir.exists(), "nor the config folder"
+
+    def test_list_shows_saved_state(self, pin_app_dirs, ctx):
+        """Once state is saved, /app.list names the file and returns its path."""
+        # Arrange
+        from termapy.app_dirs import save_app_state
+
+        state_dir, _ = pin_app_dirs
+        save_app_state({"checked": 1})
+        expected = str(state_dir / "state.json")
+
+        # Act
+        result = app_plugin._handler_list(ctx, "")
+
+        # Assert
+        assert result.value == expected, "the value is the one file's full path"
+        assert "    state.json" in ctx.lines, "the listing names the file"
+
+
 # -- /app.state --------------------------------------------------------------
 
 

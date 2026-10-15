@@ -33,6 +33,7 @@ from termapy.config import (
 )
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
 from termapy.defaults import cmd_prefix
+from termapy.folders import ensure_folder
 from termapy.markup import escape_markup
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
@@ -81,6 +82,9 @@ class PlainFileHistory(History):
         """Append one command as one plain line (newlines flattened)."""
         line = " ".join(string.splitlines())
         try:
+            # With no config loaded the file sits in the cfg root, which
+            # the first write creates.
+            ensure_folder(Path(self.filename).parent)
             with open(self.filename, "a", encoding="utf-8") as f:
                 f.write(line + "\n")
         except OSError:

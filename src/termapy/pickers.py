@@ -24,9 +24,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import (
-    cfg_data_dir,
     cfg_path_for_name,
     expand_env_cfg,
+    prepare_cfg_folder,
     validate_config,
     validate_file_stem,
 )
@@ -117,15 +117,15 @@ def on_quick_setup(app, result: tuple | None) -> None:
     if action == "advanced":
         # Open the full config editor with pre-filled values.
         # Advanced users skip the checkbox -- they can /cfg.icon
-        # manually after editing.
-        cfg_data_dir(config_path)
+        # manually after editing.  The editor's Save creates the folder;
+        # Cancel leaves nothing behind.
         app.push_screen(
             ConfigEditor(cfg, config_path),
             callback=app._on_config_result,
         )
         return
-    # Create config dir structure (.gitignore, subdirs) and write config
-    cfg_data_dir(config_path)
+    # Create the config folder (.gitignore) and write the config
+    prepare_cfg_folder(config_path)
     with open(config_path, "w") as f:
         json.dump(cfg, f, indent=4)
     app._on_config_result((cfg, config_path))

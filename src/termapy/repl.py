@@ -1237,9 +1237,9 @@ class ReplEngine:
 
         The removal half of the rule in ``folders``: a data folder exists
         while something is in it.  Runs from :meth:`fire_lifecycle`, never
-        from ``cfg_data_dir`` -- that one runs mid-session (``/cfg.info``,
-        viz discovery) and would delete the folder ``.explore`` just opened
-        for the user.
+        from a path lookup such as ``cfg_data_dir`` -- those run mid-session
+        (``/cfg.info``, viz discovery), and a lookup writes nothing; a prune
+        there would delete the folder ``.explore`` just opened for the user.
         """
         from termapy.config import cfg_dir
 

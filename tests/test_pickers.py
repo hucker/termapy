@@ -48,7 +48,6 @@ def _quick_setup_env(tmp_path, monkeypatch):
         return d / f"{name}.cfg"
 
     monkeypatch.setattr(pickers, "cfg_path_for_name", _fake_cfg_path_for_name)
-    monkeypatch.setattr(pickers, "cfg_data_dir", lambda p: Path(p).parent)
     return tmp_path
 
 

@@ -23,6 +23,7 @@ from textual.widgets import Button, Input, TextArea
 from termapy.config import (
     BOOL_CFG_PATHS,
     cfg_path_for_name,
+    prepare_cfg_folder,
 )
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
@@ -425,7 +426,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             err.update("\n".join(warnings))
             err.add_class("visible")
             return
-        Path(self.config_path).parent.mkdir(parents=True, exist_ok=True)
+        prepare_cfg_folder(self.config_path)
         with open(self.config_path, "w") as f:
             json.dump(new_cfg, f, indent=4)
         self.dismiss((new_cfg, self.config_path))
@@ -477,7 +478,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         if not p.parent or p.parent == Path("."):
             name = p.stem
             p = cfg_path_for_name(name)
-        p.parent.mkdir(parents=True, exist_ok=True)
+        prepare_cfg_folder(str(p))
         filename = str(p)
         # Update title to reflect new filename
         base = p.stem

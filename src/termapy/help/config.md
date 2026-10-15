@@ -11,7 +11,7 @@ Termapy looks for configs in the first directory that matches:
 | 1 | `--cfg-dir <path>` | CLI flag -- must exist |
 | 2 | `TERMAPY_CFG_DIR` env var | Must exist |
 | 3 | `./termapy_cfg` in current directory | Used if present, never auto-created |
-| 4 | OS default | Auto-created on first run |
+| 4 | OS default | Created when the first config is saved there |
 
 The OS default location is `%APPDATA%\termapy` on Windows,
 `~/Library/Application Support/termapy` on macOS, and

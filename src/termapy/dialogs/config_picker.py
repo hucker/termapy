@@ -22,7 +22,6 @@ from termapy.config import (
     cfg_dir,
     config_summary,
     file_manager_name,
-    migrate_json_to_cfg,
     open_with_system,
 )
 from termapy.dialogs._common import (
@@ -245,7 +244,6 @@ class ConfigPicker(ModalScreen[tuple | None]):
 
     def compose(self) -> ComposeResult:
         d = cfg_dir()
-        migrate_json_to_cfg(d)
         json_files = list_entries(d, "*/*.cfg")  # newest first
         details, detail_header = _config_details(json_files)
         with Vertical(id="picker-dialog") as dialog:

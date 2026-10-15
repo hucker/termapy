@@ -537,8 +537,8 @@ def sidecar_path(config_path: str) -> Path | None:
     """``<cfg_dir>/sym/<cfg_stem><SYMBOLS_SUFFIX>``, or None.
 
     The table lives in the config's ``sym/`` folder (``folders.SYM``).  It
-    lived beside the cfg until 2026-09; ``config.cfg_data_dir`` moves an
-    old one on first load, so callers never look in two places.
+    lived beside the cfg until 2026-09; ``config.prepare_cfg_folder`` moves
+    an old one at load, so callers never look in two places.
 
     Args:
         config_path: The active config file; ``""`` in the zero-config CLI.

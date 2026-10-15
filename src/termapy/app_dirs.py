@@ -44,33 +44,31 @@ _CONFIG_FILE_NAME = "config.json"
 
 
 def app_state_dir() -> Path:
-    """Return the directory for app-wide state; create it if missing.
+    """Return the directory for app-wide state, which may not exist yet.
 
     Honors ``TERMAPY_STATE_DIR`` for a full override.  Intended for
     machine-written state files the user doesn't edit: caches,
-    timestamps, PyPI check markers, etc.
+    timestamps, PyPI check markers, etc.  A read: the folder is created
+    by the first write into it (``save_app_state``).
     """
     override = os.environ.get("TERMAPY_STATE_DIR")
-    path = Path(override) if override else Path(
+    return Path(override) if override else Path(
         user_state_dir(_APP_NAME, appauthor=False)
     )
-    path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 def app_config_dir() -> Path:
-    """Return the directory for app-wide user config; create it if missing.
+    """Return the directory for app-wide user config, which may not exist yet.
 
     Honors ``TERMAPY_CONFIG_DIR`` for a full override.  Intended for
     persistent, user-editable global preferences that apply across
-    all termapy projects.  Currently reserved for future use.
+    all termapy projects.  Currently reserved for future use.  A read,
+    like ``app_state_dir``.
     """
     override = os.environ.get("TERMAPY_CONFIG_DIR")
-    path = Path(override) if override else Path(
+    return Path(override) if override else Path(
         user_config_dir(_APP_NAME, appauthor=False)
     )
-    path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 def app_state_file() -> Path:
@@ -114,7 +112,9 @@ def save_app_state(state: dict) -> None:
     the user about.
     """
     try:
-        with app_state_file().open("w", encoding="utf-8") as f:
+        path = app_state_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
     except OSError:
         pass

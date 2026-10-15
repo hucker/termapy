@@ -25,16 +25,18 @@ A single-line-per-port table, same schema as the in-app port picker.
 
 ```text
 $ termapy --ports
-PORT  MFG   DESCRIPTION        CHIP                            SPEED       VID:PID    SN
-----  ----  -----------------  ------------------------------  ----------  ---------  ------------------
-COM3  MSFT  USB Serial Device  -                               -           04D8:9036  020026702RYN040952
-COM4  FTDI  USB Serial Port    FTDI FT230X / FT231X / FT234XD  Full-Speed  0403:6015  D20JSV68A
-COM7  FTDI  USB Serial Port    FTDI FT232R / FT245R            Full-Speed  0403:6001  BG03U7VTA
+PORT  MFG   VENDOR     DESCRIPTION        CHIP                            SPEED       VID:PID    SN                  DRIVER   LOCATION  IF
+----  ----  ---------  -----------------  ------------------------------  ----------  ---------  ------------------  -------  --------  --
+COM3  MSFT  Microchip  USB Serial Device  Microchip USB-CDC device        Full-Speed  04D8:9036  020026702RYN040952  usbser   1-8.4     1
+COM4  FTDI  FTDI       USB Serial Port    FTDI FT230X / FT231X / FT234XD  Full-Speed  0403:6015  D20JSV68A           FTSER2K  1-8.2
+COM7  FTDI  FTDI       USB Serial Port    FTDI FT232R / FT245R            Full-Speed  0403:6001  BG03U7VTA           FTSER2K  1-8.3
 ```
 
 Columns you don't need are dropped automatically: on a machine where no
 port has a serial number, the `SN` column disappears.  On narrow
-terminals, speed / chip / vid_pid drop in that order until the row fits.
+terminals, columns drop in this order until the row fits: speed, chip,
+VID:PID, driver, vendor, SN, IF, location.  PORT, MFG and DESCRIPTION
+always stay.
 
 Filter to a single port by name:
 
@@ -342,8 +344,8 @@ the help banner), the "`Connected: ...`" banner, and the
 input-echo prefix (`> AT+VER`)
 are all suppressed in `--exec` -- captured stdout contains only the
 command's output.  `--exec` also implies `--no-color` so ANSI
-escapes never reach captured stdout.  If your one-shot needs init
-steps, chain them in the command or write a `.run` file and use
+escapes never reach captured stdout.  `-e` runs exactly one command;
+if your one-shot needs init steps, write a `.run` file and use
 `--run`.
 
 **Pair with `request_mode=true`** in cfg to emit a JSON envelope

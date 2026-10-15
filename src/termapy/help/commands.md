@@ -48,7 +48,7 @@ because its folders hold different types of file.
 | `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
 | `/cap.text <f> ...`       | Capture serial text to file for a timed duration                            |
 | `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |
-| `/cfg [key [value]]`      | TUI bare: open the Cfg picker. CLI bare: list configs. With args: get/set.  |
+| `/cfg {key {value}}`      | TUI bare: open the Cfg picker. CLI bare: list configs. With args: get/set.  |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
 | `/cfg.edit`               | Edit the current config file (same as `/edit.cfg`)                          |
 | `/cfg.list`               | List all config files                                                       |
@@ -70,9 +70,9 @@ because its folders hold different types of file.
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
 | `/exit`                   | Exit termapy                                                                |
-| `/expect {timeout} match=<text>`       | Wait for serial-output line containing text (blocks; needs block_until) |
-| `/expect.regex {timeout} match=<pat>`  | Wait for serial-output line matching regex                              |
-| `/find <pattern>`         | Navigate scrollback matches with an interactive find bar (not over MCP; use `/grep` there) |
+| `/expect {timeout=<dur>} match=<text>` | Wait for serial-output line containing text (blocks; needs block_until) |
+| `/expect.regex {timeout=<dur>} match=<pat>` | Wait for serial-output line matching regex                         |
+| `/find {pattern}`         | Navigate scrollback matches with an interactive find bar (not over MCP; use `/grep` there) |
 | `/find.next` / `/find.prev` | Step to next / previous find match                                        |
 | `/find.clear`             | Close the find bar (or run `/find` with no args)                            |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, prints the list)     |
@@ -84,7 +84,7 @@ because its folders hold different types of file.
 | `/help.target`            | Show only imported target device commands                                   |
 | `/log`                    | Open the session log (same as the Log button and `/log.show`)               |
 | `/log.delete`             | Delete the session log file                                                 |
-| `/log.dump [N]`           | Print the session log (all, or an N-line slice) to the terminal             |
+| `/log.dump {N}`           | Print the session log (all, or an N-line slice) to the terminal             |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
 | `/log.show`               | Open the session log in the system viewer                                   |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
@@ -146,10 +146,10 @@ because its folders hold different types of file.
 | `/proto.info`             | Print current protocol mode state                                           |
 | `/raw <text>`             | Send text exactly as typed: no line ending, expansion or transforms         |
 | `/repeat ...`             | Repeat a command N times: `count=<N> {delay=<dur>} {var=<name>} cmd=<cmd>`  |
-| `/run {file} {-v}`        | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
+| `/run {file}`             | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
-| `/run.legacy {file\|*}`   | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
+| `/run.legacy <file\|*>`   | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
 | `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |
@@ -157,16 +157,19 @@ because its folders hold different types of file.
 | `/show <name>`            | Show a file                                                                 |
 | `/show.cfg`               | Show the current config file                                                |
 | `/ss`                     | Open the screenshot folder (same as the SS button and `/ss.explore`)        |
-| `/ss.svg [name]`          | Save an SVG screenshot                                                      |
-| `/ss.txt [name] [N]`      | Save a text screenshot (all, or an N-line slice)                            |
+| `/ss.svg {name}`          | Save an SVG screenshot                                                      |
+| `/ss.txt {name} {N}`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
 | `/sym <addr\|name>`       | Symbol table: name to address, or address to `name+offset`                  |
-| `/sym.import <file> {format=<value>}` | Convert a linker map to `<cfg>.symbols.json` and load it        |
+| `/sym.import {file} {format=<value>}` | Convert a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same map) |
 | `/sym.info`               | Show the loaded symbol table: file, source, counts by section, range        |
 | `/sym.load {path}`        | Load a symbol table (default: the cfg sidecar `/sym.import` writes)         |
 | `/sym.search <pattern>`   | Search symbols by name: exact, glob, regex, or substring                     |
 | `/sym.unload`             | Clear the loaded symbol table                                               |
-| `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) to `dev/<device>.device.json` and load it |
+| `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
+| `/dev.lib {pattern}`      | List the parts the libraries hold (available, not loaded), with their layer |
+| `/dev.list`               | List the devices this config has loaded, with layer and placement           |
+| `/dev.use <part> {at=<value>}` | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.color {on\|off\|toggle}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |
 | `/term.echo {on\|off\|toggle}`    | Toggle local echo of device commands (see also `/term.echo_repl`)           |

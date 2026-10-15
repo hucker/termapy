@@ -174,10 +174,12 @@ The `on_connect_cmd` family (`on_connect_cmd`, `tui_`/`cli_`/`mcp_on_connect_cmd
 follows exactly this rule: the command is dispatched as if you had typed it,
 so `/`-commands in it expand `$(env.X)` while device commands do not. They
 are deliberately **not** pre-expanded at config-load time -- if you need an
-env value in a connect-time device command, put it in a user variable via a
-`/`-command first (`$(NAME)` user variables *do* expand on the wire).
+env value in a connect-time device command, copy it into a user variable in
+a `.run` file (`/var.set TOKEN $(env.TOKEN)`, then `AT+KEY=$(TOKEN)`) and
+point the field at `/run <name>`; `$(NAME)` user variables *do* expand on
+the wire, and a field holds only one command.
 
-See [ports.md](ports.md#stable-port-specs) for the full port-spec
+See [ports.md](ports.md#when-your-com-number-keeps-changing) for the full port-spec
 grammar, and [Using with Git](using-git.md) for team workflow
 details.
 

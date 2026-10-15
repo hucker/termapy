@@ -39,6 +39,9 @@ termapy_cfg/
 │   ├── run/
 │   ├── proto/
 │   ├── viz/
+│   ├── sym/                    # symbol table (/sym.import)
+│   ├── dev/                    # the board's parts (/dev.import, /dev.use)
+│   ├── lib/                    # this config's part library
 │   └── plugin/
 └── aux_board/
     ├── .gitignore              # auto-generated
@@ -56,7 +59,9 @@ termapy_cfg/
 
 Data folders appear on first use, so a fresh config has none of them
 yet; the `.gitignore` names `ss/`, `cap/` and `prof/` up front so they
-stay local from the moment they appear.
+stay local from the moment they appear.  `lib/` is committed on
+purpose: a config folder that carries its own parts resolves its `dev/`
+references on any machine (see [Devices](devices.md)).
 
 ## Environment variables
 

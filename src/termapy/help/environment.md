@@ -16,10 +16,11 @@ Serial ports appear as `COM3`, `COM10`, etc.  Detected ports are
 listed with `termapy --ports`.
 
 Known quirks:
+
 - Some USB-serial drivers (especially generic CH340 clones) don't
   emit a stable USB serial number, so the device's COM number can
-  change after replug.  Mitigate by putting the SN in your config:
-  `"port": "<SN>|COM3"` — see [Serial ports](ports.md) for the full
+  change after replug.  Mitigate by putting the SN in your config's
+  `serial.port`: `"<SN>|COM3"` — see [Serial ports](ports.md) for the full
   grammar.
 - `termapy --web` opens a browser-based TUI; in some configurations
   the Windows firewall prompts for permission the first time.
@@ -30,6 +31,7 @@ Fully supported.  Standard install via `uv tool install termapy`.
 Serial ports appear as `/dev/cu.usbserial-*` or similar.
 
 Known quirks:
+
 - The OS exposes both `/dev/tty.*` and `/dev/cu.*` per device; termapy
   defaults to `cu.*` (non-blocking open), which is what you want for
   interactive use.
@@ -42,6 +44,7 @@ Fully supported.  Serial ports appear as `/dev/ttyUSB*`, `/dev/ttyACM*`,
 or `/dev/ttyS*`.
 
 Known quirks:
+
 - Access to `/dev/tty*` typically requires membership in the `dialout`
   group (or `uucp` on some distros).  `sudo usermod -aG dialout $USER`
   then log out and back in.  This is a general serial-on-Linux gotcha,
@@ -220,6 +223,13 @@ set (`TERM=xterm-256color` is a good default).  All mouse / color
 features work as long as the local terminal supports them and SSH is
 forwarding escape codes verbatim.
 
+Over SSH without X11 forwarding there is no desktop to open a file or
+folder on, so the commands that would (`/edit`, `/help.open`, the
+picker's folder button) are disabled.  termapy guesses this from
+`SSH_CONNECTION` / `SSH_TTY` and `DISPLAY` / `WAYLAND_DISPLAY`; when the
+guess is wrong (mosh, tmux inside SSH, WSLg), set `TERMAPY_GUI` to any
+boolean token (`1`, `0`, `on`, `off`, ...) to override it.
+
 ### WSL (Windows Subsystem for Linux)
 
 Full support.  Serial ports aren't exposed from Windows to WSL 2 by
@@ -227,6 +237,7 @@ default -- use `usbipd` or run termapy from native Windows for serial
 access.
 
 ### Containers
+
 Termapy runs in a container.  Mount the serial device via
 `--device /dev/ttyUSB0`.  The Docker volume mount handles the /dev
 node; group membership isn't needed if the container runs as root

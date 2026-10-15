@@ -150,15 +150,15 @@ The most common ones:
 
 | Command                              | Description                                         |
 | ------------------------------------ | --------------------------------------------------- |
-| `/help [cmd]`                        | List commands or show help for one                  |
+| `/help {cmd}`                        | List commands or show help for one                  |
 | `/port.list`                         | List available serial ports                         |
 | `/port.connect {name} {baud} {mode}` | Connect with optional baud rate and mode (e.g. N81) |
 | `/port.info`                         | Show port status and parameters                     |
-| `/cfg [key [value]]`                 | Open Cfg picker (bare TUI), or get/set values       |
-| `/ss.svg [name]`                     | Save SVG screenshot                                 |
+| `/cfg {key {value}}`                 | Open Cfg picker (bare TUI), or get/set values       |
+| `/ss.svg {name}`                     | Save SVG screenshot                                 |
 | `/cls`                               | Clear the terminal                                  |
 | `/run {filename}`                    | Open Run picker (bare TUI), or run a named script   |
-| `/term.echo [on \| off]`             | Local echo of device commands sent to the wire      |
+| `/term.echo {on\|off\|toggle}`        | Local echo of device commands sent to the wire      |
 | `/grep <pattern>`                    | Search scrollback                                   |
 | `/exit`                              | Exit termapy                                        |
 
@@ -167,9 +167,9 @@ The most common ones:
 
 | Command                              | Description                                                                   |
 | ------------------------------------ | ----------------------------------------------------------------------------- |
-| `/help [cmd]`                        | List commands or show extended help for one                                   |
+| `/help {cmd}`                        | List commands or show extended help for one                                   |
 | `/help.dev <cmd>`                    | Show a command handler's Python docstring                                     |
-| `/port {name}`                       | Open Port picker (bare TUI), list subcommands (bare CLI), or open by name     |
+| `/port {name}`                       | Open Port picker (bare TUI), list ports (bare CLI), or open by name           |
 | `/port.help`                         | Same as `/help port`                                                          |
 | `/port.list`                         | List available serial ports                                                   |
 | `/port.connect {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81)        |
@@ -188,14 +188,14 @@ The most common ones:
 | `/port.ri`                           | Show RI state (read-only)                                                     |
 | `/port.cd`                           | Show CD state (read-only)                                                     |
 | `/port.break {ms}`                   | Send break signal (default 250ms)                                             |
-| `/cfg [key [value]]`                 | Open Cfg picker (bare TUI), dump JSON (bare CLI), or get/set with args        |
+| `/cfg {key {value}}`                 | Open Cfg picker (bare TUI), list configs (bare CLI), or get/set with args     |
 | `/cfg.auto <key> <value>`            | Set an in-memory config key immediately (no confirmation)                     |
 | `/cfg.list`                          | List all config files                                                         |
 | `/cfg.load <name>`                   | Switch to a different config by name                                          |
 | `/cfg.show`                          | Open the current config file in the system viewer                             |
 | `/cfg.help`                          | Same as `/help cfg`                                                           |
-| `/ss.svg [name]`                     | Save SVG screenshot                                                           |
-| `/ss.txt [name]`                     | Save text screenshot                                                          |
+| `/ss.svg {name}`                     | Save SVG screenshot                                                           |
+| `/ss.txt {name} {N}`                 | Save text screenshot (all, or an N-line slice)                                |
 | `/ss.list`                           | List screenshots, newest first, with size and age                             |
 | `/ss.explore`                        | Open the screenshot folder in the system file explorer                        |
 | `/cls`                               | Clear the terminal screen                                                     |
@@ -214,15 +214,16 @@ The most common ones:
 | `/show.cfg`                          | Show the current config file                                                  |
 | `/term`                              | Terminal display / session toggles (echo, line_no, timestamps, ...)           |
 | `/term.info`                         | Snapshot the state of every `/term.*` toggle                                  |
-| `/term.echo [on \| off]`             | Local echo of device commands sent to the wire (persisted via cfg `echo`)     |
-| `/term.echo_repl [on \| off]`        | Local echo of REPL (slash) commands, session only; off inside scripts         |
-| `/term.line_no [on \| off]`          | Toggle line numbers in serial output (TUI only)                               |
-| `/term.eol.markers [on \| off]`      | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |
-| `/term.output {level}`               | Show or set output level (silent/quiet/normal/verbose)                        |
-| `/term.timestamps [on \| off]`       | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                      |
-| `/term.hex [on \| off]`              | Toggle hex display of incoming bytes                                          |
+| `/term.echo {on\|off\|toggle}`        | Local echo of device commands sent to the wire (persisted via cfg `echo`)     |
+| `/term.echo_repl {on\|off\|toggle}`   | Local echo of REPL (slash) commands, session only; off inside scripts         |
+| `/term.line_no {on\|off\|toggle}`     | Toggle line numbers in serial output (TUI only)                               |
+| `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |
+| `/term.output {level\|cycle}`        | Show or set output level (silent/quiet/normal/verbose)                        |
+| `/term.timestamps {on\|off\|toggle}`  | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                      |
+| `/term.hex {on\|off\|toggle}`         | Toggle hex display of incoming bytes                                          |
 | `/term.encoding {name}`              | Show or set byte-decoding encoding (utf-8, latin-1, ...)                      |
-| `/term.send_bare_enter [on \| off]`  | Send line ending on empty Enter                                               |
+| `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
+| `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                          |
 | `/edit <file>`                       | Edit a project file (`run/`/`proto/` path)                                    |
 | `/edit.cfg`                          | Edit the current config file                                                  |
 | `/edit.log`                          | Open the session log in the system viewer                                     |
@@ -230,17 +231,17 @@ The most common ones:
 | `/os <cmd>`                          | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env) |
 | `/grep <pattern>`                    | Search scrollback for regex matches (case-insensitive, skips own output)      |
 | `/cfg.info {--display}`              | Write and show the project report (folder tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
-| `/proto`                             | Open Proto picker (bare TUI) or show long-help (bare CLI)                     |
+| `/proto`                             | Open Proto picker (bare TUI) or list proto/ (bare CLI)                        |
 | `/proto.help`                        | Same as `/help proto`                                                         |
 | `/proto.send <hex>`                  | Send raw hex bytes and/or quoted text, display response as hex (see below)    |
 | `/proto.run <file>`                  | Run a binary protocol test script (.pro) with pass/fail                       |
 | `/proto.list`                        | List .pro files in proto/, newest first, with size and age                    |
 | `/proto.rename <old> <new>`          | Rename a protocol script (`.pro` kept; never overwrites)                      |
-| `/proto.hex [on \| off]`             | Same flag as `/term.hex`                                                      |
+| `/proto.hex {on\|off\|toggle}`        | Same flag as `/term.hex`                                                      |
 | `/proto.crc.list {pat}`              | List available CRC algorithms (optional glob filter)                          |
 | `/proto.crc.info <name>`             | Show CRC algorithm parameters and description                                 |
 | `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, quoted text, or a file; omit data to verify check string |
-| `/proto.crc.find <pkt>`              | Identify CRC algorithm from a captured packet (bin= hex or asc= text)         |
+| `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify CRC algorithm from a captured packet, text, or a command's reply |
 | `/proto.info`                        | Print current protocol state                                                  |
 | `/mem.dump <target> {len} {type}`    | Hexdump or typed word columns at an address or symbol                         |
 | `/mem.read <target> {type}`          | One typed value: scalar, char, register field, bit or slice                   |
@@ -249,12 +250,12 @@ The most common ones:
 | `/mem.str <target> {max}`            | Read a NUL-terminated string as a first-class value                           |
 | `/mem.info`                          | Memory access config: dialect, block limit, width, endian, atomic modify      |
 | `/sym <addr\|name>`                  | Symbol table: name to address, or address to `name+offset`                   |
-| `/sym.import {file} {format=<value>}` | Convert a linker map to `<cfg>.symbols.json` and load it (bare: re-import the same map) |
+| `/sym.import {file} {format=<value>}` | Convert a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same map) |
 | `/sym.info`                          | Show the loaded symbol table: file, source, counts by section, range          |
 | `/sym.load {path}`                   | Load a symbol table (default: the cfg sidecar `/sym.import` writes)           |
 | `/sym.search <pattern>`              | Search symbols by name: exact, glob, regex, or substring                      |
 | `/sym.unload`                        | Clear the loaded symbol table                                                 |
-| `/dev.import <file> {format=<value>} {category=<value>} {to=<value>} {use=<value>}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
+| `/dev.import <file> {format=<value>} {category=<value>} {to=<value>} {use=on\|off}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
 | `/dev.lib {pattern}`                 | List the parts the libraries hold (available, not loaded), with their layer  |
 | `/dev.list`                          | List the devices this config has loaded, with layer and placement            |
 | `/dev.use <part> {at=<value>}`       | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
@@ -287,12 +288,13 @@ Everything termapy creates (configs, scripts, test files, plugins, logs) lives i
 
 ```text
 termapy_cfg/
-├── plugin/                             # global plugins (all configs)
+├── plugin/                             # global plugins (all configs), once you add one
 └── demo/
     ├── demo.cfg                        # config file
     ├── demo_legacy.profile.json        # /mem.* through the device's own `mem` grammar
     ├── demo.log                        # session log
     ├── demo.history                    # command history
+    ├── demo.md                         # project report (/cfg.info), rewritten at exit
     ├── run/                            # script files for /run
     │   ├── at_demo.run
     │   ├── smoke_test.run
@@ -326,19 +328,18 @@ Since COM port names differ between machines, use `$(env.NAME)` placeholders in 
 
 ```json
 {
-    "port": "$(env.COMPORT|COM4)",
-    "baud_rate": 115200,
+    "serial": {"port": "$(env.COMPORT|COM4)", "baud_rate": 115200},
     "auto_connect": true
 }
 ```
 
 On a machine with `COMPORT=COM7`, termapy connects to COM7. On a machine without `COMPORT` set, it falls back to COM4. The config file on disk keeps the raw `$(env.COMPORT|COM4)` template. It's expanded in memory at load time, so your checked-in config stays portable. A boolean key can be templated the same way (`"echo": "$(env.ECHO|false)"`); the expanded text is read with the boolean vocabulary (`on`, `off`, `true`, `false`, `yes`, `no`, `1`, `0`, ...), and a value outside it refuses the load naming the key.
 
-Environment variables work in any string config value, not just `port`:
+Environment variables work in any string config value, not just `serial.port`:
 
 ```json
 {
-    "port": "$(env.COMPORT|COM4)",
+    "serial": {"port": "$(env.COMPORT|COM4)"},
     "title": "$(env.DEVICE_NAME|Dev Board)",
     "log_file": "$(env.LOG_DIR|logs)/session.log"
 }
@@ -470,8 +471,7 @@ When you create a new config, termapy writes a complete `.cfg` file with all def
 
 ```json
 {
-    "port": "COM4",
-    "baud_rate": 115200,
+    "serial": {"port": "COM4", "baud_rate": 115200},
     "auto_connect": true,
     "auto_reconnect": true,
     "title": "Sensor A",
@@ -504,13 +504,11 @@ Add toolbar buttons that send commands, run scripts, or chain multiple actions. 
 
 ### Hardware line control
 
-Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolbar. This is useful for devices that use these lines for reset or bootloader entry:
+Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolbar. This is useful for devices that use these lines for reset or bootloader entry:
 
 ```json
 {
-    "port": "COM4",
-    "baud_rate": 115200,
-    "flow_control": "manual",
+    "serial": {"port": "COM4", "baud_rate": 115200, "flow_control": "manual"},
     "title": "Hardware Debug"
 }
 ```

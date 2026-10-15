@@ -905,9 +905,16 @@ def config_summary(path: Path) -> dict[str, Any]:
     All empty (``baud_rate`` None) when the file won't load -- a broken cfg
     still deserves a row, so it can be edited or deleted.  A title that only
     repeats the config's name (how new configs are written) reads as none.
+
+    Read-only: the file is parsed and migrated in memory, never written.
+    ``load_config`` is for loading a config, not listing one -- it writes
+    newly added default keys back into the file and cleans that config's
+    profile temps, so listing through it rewrote every config whenever
+    ``DEFAULT_CFG`` grew.
     """
     try:
-        cfg = load_config(str(path))
+        with open(path) as f:
+            cfg = migrate_config(json.load(f))
     except Exception:  # noqa: BLE001 - see docstring
         return {"port": "", "baud_rate": None, "title": ""}
     serial_cfg = cfg.get("serial", {})

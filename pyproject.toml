@@ -292,5 +292,5 @@ dev = [
     # branch, with the new findings reviewed -- never as a side effect.
     "ruff==0.16.8",
     # ty is 0.0.x and ships near-daily; an unpinned check is a moving target.
-    "ty==0.0.82",
+    "ty==0.0.86",
 ]

@@ -132,7 +132,11 @@ All other paths relative to `src/termapy/`.
     `folders.default_file_name` at each location it searches (registry
     `file-name-default-ext`); it adds the extension only when that file
     exists. A command that creates a file appends a missing extension
-    instead. `/edit` needs the extension: its folders are mixed.
+    instead. `/edit` needs the extension: its folders are mixed. A command
+    whose first argument names a data-folder file declares the folder,
+    `Command(files="run")`, and every frontend's completion reads that
+    declaration; no frontend keeps a command-to-folder table (registry
+    `file-arg-declared`).
   - No ast guard for numbers, durations or strings: unlike bool tokens
     and hex, an `int()` on user text is indistinguishable from internal
     arithmetic, so enforcement there is this rule plus review.

@@ -304,6 +304,7 @@ def _flatten_command(
         hidden=node.hidden,
         params=node.params,
         safety=node.safety,
+        files=node.files,
     )
     result.insert(0, info)
     return result

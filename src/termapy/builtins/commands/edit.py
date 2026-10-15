@@ -176,6 +176,7 @@ def _build_folder_sub(get_dir, ext, pattern, kind=None, noun=None):
         long_help=long_help,
         handler=make_edit_handler(get_dir, ext, pattern),
         needs=CapabilitySet.GUI_APPS,
+        files=kind or "",
         sub_commands={
             "list": Command(
                 help=f"List {ext} files.",

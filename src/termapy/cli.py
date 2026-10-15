@@ -115,27 +115,24 @@ def _menu_rows_for_terminal() -> int:
 
 
 class _TermapyCompleter(Completer):
-    """Tab completer for REPL commands, device commands, and script files."""
+    """Tab completer for REPL commands, device commands, and data-folder files."""
 
-    def __init__(self, repl: ReplEngine, prefix: str, config_path: str) -> None:
+    def __init__(self, repl: ReplEngine, prefix: str) -> None:
         self._repl = repl
         self._prefix = prefix
-        self._scripts_dir = Path(config_path).parent / "run"
-        self._file_cmds = (f"{prefix}run ", f"{prefix}run.edit ")
 
     def get_completions(self, document, complete_event):  # noqa: ARG002 -- prompt_toolkit interface
         """Yield completions for the current input."""
         line = document.text
 
-        # File completion for /run and /run.edit args
-        for file_cmd in self._file_cmds:
-            if line.startswith(file_cmd):
-                partial = line[len(file_cmd):]
-                if self._scripts_dir.is_dir():
-                    for f in sorted(self._scripts_dir.glob("*.run")):
-                        if f.name.startswith(partial):
-                            yield Completion(f.name, start_position=-len(partial))
-                return
+        # The first argument of a command that declares its folder
+        # (Command.files): the folder's files, newest first.
+        file_arg = self._repl.complete_file_arg(line)
+        if file_arg is not None:
+            start, names = file_arg
+            for name in names:
+                yield Completion(name, start_position=start - len(line))
+            return
 
         # REPL command completion
         if line.startswith(self._prefix):
@@ -674,7 +671,7 @@ class CLITerminal(TerminalHost):
 
         return PromptSession(
             history=PlainFileHistory(self._history_path()),
-            completer=_TermapyCompleter(self.repl, self.prefix, self.config_path),
+            completer=_TermapyCompleter(self.repl, self.prefix),
             auto_suggest=AutoSuggestFromHistory(),
             # Prompt-toolkit reserves space below the prompt for the
             # completion dropdown, which renders as a visible empty

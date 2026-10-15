@@ -167,6 +167,7 @@ def register_run_profile_hooks(app) -> None:
         "Run a script with per-line timing.",
         lambda ctx, args: _hook_run_profile(app, ctx, args),
         source="app",
+        files="run",
     )
     app.repl.register_hook(
         "run.profile.show",
@@ -197,6 +198,7 @@ def register_run_profile_hooks(app) -> None:
         "Print newest (or named) profile to the terminal.",
         lambda ctx, args: _hook_run_profile_dump(app, ctx, args),
         source="app",
+        files="prof",
     )
     app.repl.register_hook(
         "run.profile.list",

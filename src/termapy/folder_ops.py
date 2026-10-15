@@ -419,6 +419,7 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
         "rename": Command(
             help=f"Rename a file in {folder}/ (extension kept; never overwrites).",
             handler=_make_rename_handler(folder, spec.ext),
+            files=folder,
             params=[
                 ParamSpec("old", "str", positional=True, required=True,
                           help="current filename (extension optional)"),
@@ -438,6 +439,7 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
             args="{filename}",
             help=f"Print the newest (or named) file from {folder}/ to the terminal.",
             handler=_make_dump_handler(folder, pattern, spec.ext),
+            files=folder,
         )
     if spec.clearable:
         subs["clear"] = Command(

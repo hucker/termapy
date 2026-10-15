@@ -184,6 +184,7 @@ COMMAND = Command(
     args="{filename}",
     help="Run a script file, or list available scripts.",
     handler=_handler_root,
+    files="run",
     sub_commands={
         "help": Command(
             args="{script}",
@@ -203,6 +204,7 @@ COMMAND = Command(
                 "knows whether to look inside the file."
             ),
             handler=_handler_help,
+            files="run",
         ),
         "legacy": Command(
             args=run_legacy.ARGS,
@@ -210,6 +212,7 @@ COMMAND = Command(
             long_help=run_legacy.LONG_HELP,
             handler=run_legacy.HANDLER,
             flags=run_legacy.FLAGS,
+            files="run",
         ),
         "record": Command(
             args="{filename}",

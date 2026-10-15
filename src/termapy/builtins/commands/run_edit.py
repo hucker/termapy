@@ -37,4 +37,5 @@ COMMAND = Command(
     long_help=_run_long_help,
     handler=_handler,
     needs=CapabilitySet.GUI_APPS,
+    files="run",
 )

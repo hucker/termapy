@@ -26,6 +26,28 @@ from importlib.metadata import version as _get_version
 from pathlib import Path
 
 
+class _OneCommand(argparse.Action):
+    """``-e``: one command per invocation, never split.
+
+    argparse's default keeps the last of a repeated option silently, so
+    ``-e A -e B`` ran only B; a line break inside the value ran as one
+    mangled command.  Both are refused: several commands go in a .run
+    file, the one multi-command format.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if getattr(namespace, self.dest) is not None:
+            parser.error(
+                f"{option_string} takes one command; put several in a .run file and use --run"
+            )
+        if len(str(values).splitlines()) > 1:
+            parser.error(
+                f"{option_string} takes one command, without line breaks; "
+                f"put several in a .run file and use --run"
+            )
+        setattr(namespace, self.dest, values)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser.  No side effects; pure construction."""
     from importlib.metadata import PackageNotFoundError
@@ -109,12 +131,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "-e", "--exec",
+        action=_OneCommand,
         default=None,
         metavar="COMMAND",
         dest="exec_cmd",
         help=(
             "Run a single command and exit (CLI mode, implies --cli "
-            "and --no-color)"
+            "and --no-color).  One per invocation: several go in a "
+            ".run file (--run)"
         ),
     )
     parser.add_argument(

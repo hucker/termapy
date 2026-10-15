@@ -376,20 +376,20 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: true, false",
     ),
     "on_connect_cmd": (
-        "Commands to run after connecting (all frontends).",
-        r"Separate multiple with \n. Example: /run welcome",
+        "Command to run after connecting (all frontends).",
+        "One command; for several, a .run file. Example: /run welcome",
     ),
     "tui_on_connect_cmd": (
-        "Extra commands to run after connecting in TUI mode (after on_connect_cmd).",
-        r"Separate multiple with \n. Useful for interactive-only setup.",
+        "Extra command to run after connecting in TUI mode (after on_connect_cmd).",
+        "One command; for several, a .run file. Useful for interactive-only setup.",
     ),
     "cli_on_connect_cmd": (
-        "Extra commands to run after connecting in CLI mode (after on_connect_cmd).",
-        r"Separate multiple with \n. Useful for interactive-only setup.",
+        "Extra command to run after connecting in CLI mode (after on_connect_cmd).",
+        "One command; for several, a .run file. Useful for interactive-only setup.",
     ),
     "mcp_on_connect_cmd": (
-        "Extra commands to run after connecting in MCP mode (after on_connect_cmd).",
-        r"Separate multiple with \n. Common: 'echo off' to silence device echo.",
+        "Extra command to run after connecting in MCP mode (after on_connect_cmd).",
+        "One command; for several, a .run file. Common: 'echo off' to silence device echo.",
     ),
     # Input
     "send_bare_enter": (

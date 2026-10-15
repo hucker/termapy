@@ -446,6 +446,26 @@ class TestOnConnectCmd:
         assert "$ /ver  (mcp_on_connect_cmd)" in log, \
             f"mcp_on_connect_cmd fires in MCP, log was:\n{log}"
 
+    def test_mcp_on_connect_cmd_runs_a_script(self, tmp_path):
+        """A migrated chain works in MCP: /run <field> runs every line of its script."""
+        # Arrange -- what the v29 -> v30 step makes of m3_bin's chain
+        h = self._make_host(tmp_path, mcp_on_connect_cmd="/run mcp_on_connect")
+        script = Path(h.config_path).parent / "run" / "mcp_on_connect.run"
+        script.write_text("/print setup\n/term.request on\n", encoding="utf-8")
+
+        # Act
+        try:
+            h._connect()
+            time.sleep(0.2)
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+        # Assert
+        assert h.repl.cfg.get("request_mode") is True, (
+            "the script's last line ran, so the session is in request mode"
+        )
+
     def test_universal_runs_before_mcp_only(self, tmp_path):
         """Ordering: on_connect_cmd first, then mcp_on_connect_cmd."""
         # Arrange

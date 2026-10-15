@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 29
+CURRENT_CONFIG_VERSION = 30
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -656,6 +656,50 @@ def _migrate_v28_to_v29(cfg: dict) -> dict:
 
 
 MIGRATIONS[28] = _migrate_v28_to_v29
+
+
+# v29 -> v30: the four on-connect fields held newline-separated chains;
+# from v30 each holds one command and a chain is a .run file.
+_V29_V30_ON_CONNECT_KEYS = (
+    "on_connect_cmd",
+    "tui_on_connect_cmd",
+    "cli_on_connect_cmd",
+    "mcp_on_connect_cmd",
+)
+
+
+def _migrate_v29_to_v30(cfg: dict) -> dict:
+    """Move each multi-command on-connect chain into a run file.
+
+    Until v30 an on-connect field held several commands, split on a
+    newline or a typed ``\\n``.  From v30 a field is one command, never
+    split.  A chain becomes ``run/<field>.run`` (``mcp_on_connect.run``
+    for ``mcp_on_connect_cmd``) and the field becomes ``/run <field>``;
+    the lines are split by the retired rule exactly, so the script runs
+    what the chain ran.  A one-command field just loses its separators.
+
+    Pure, like every step: the script text lands in the transient
+    ``_migration_run_files`` (``{key: (name, text)}``) and ``load_config``
+    writes it, so a listing that migrates in memory writes nothing.
+    """
+    prefix = cfg.get("cmd_prefix", "/")
+    for key in _V29_V30_ON_CONNECT_KEYS:
+        value = cfg.get(key)
+        if not isinstance(value, str):
+            continue
+        commands = [
+            line.strip() for line in value.replace("\\n", "\n").split("\n") if line.strip()
+        ]
+        if len(commands) < 2:
+            cfg[key] = commands[0] if commands else ""
+            continue
+        name = key.removesuffix("_cmd")
+        cfg.setdefault("_migration_run_files", {})[key] = (name, "\n".join(commands) + "\n")
+        cfg[key] = f"{prefix}run {name}"
+    return cfg
+
+
+MIGRATIONS[29] = _migrate_v29_to_v30
 
 
 def migrate_config(cfg: dict) -> dict:

@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 29,
+    "config_version": 30,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -69,7 +69,7 @@ Here is an example config for a device called `iot_device`:
     "default_response_timeout_ms": 1000,
     "auto_connect": true,
     "auto_reconnect": true,
-    "on_connect_cmd": "status\nhelp",
+    "on_connect_cmd": "/run startup",
     "tui_on_connect_cmd": "",
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
@@ -145,10 +145,10 @@ reported as a type warning.
 | `send_bare_enter`             | `false`                       | Send line ending on empty Enter (for "press enter to continue" prompts) |
 | `auto_connect`                | `false`                       | Connect automatically when the app starts |
 | `auto_reconnect`              | `false`                       | Retry connection every 2.5s if the port drops or fails to open |
-| `on_connect_cmd`              | `""`                          | Commands to send after connecting (all frontends), separated by `\n` |
-| `tui_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in TUI mode (after `on_connect_cmd`) |
-| `cli_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in CLI mode (after `on_connect_cmd`) |
-| `mcp_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in MCP mode. Common: `echo off` / `color off` to silence device at the source (MCP already strips ANSI; `/term.color on` re-enables) |
+| `on_connect_cmd`              | `""`                          | One command to run after connecting (all frontends); for several, `/run <name>` and a `.run` file |
+| `tui_on_connect_cmd`          | `""`                          | Extra command to run after connecting in TUI mode (after `on_connect_cmd`) |
+| `cli_on_connect_cmd`          | `""`                          | Extra command to run after connecting in CLI mode (after `on_connect_cmd`) |
+| `mcp_on_connect_cmd`          | `""`                          | Extra command to run after connecting in MCP mode. Common: `echo off` / `color off` to silence device at the source (MCP already strips ANSI; `/term.color on` re-enables) |
 | `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
 | `echo`                        | `false`                       | Echo device commands sent to the wire (bare + `/term.send`). Runtime: `/term.echo {on\|off\|toggle}` |
 | `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |

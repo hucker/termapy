@@ -146,7 +146,7 @@ demo> /print === section: config dump ===
   [49/219] /print === section: config dump === (102us)
 demo> /cfg.dump
   {
-      "config_version": 29,
+      "config_version": 30,
       "default_ui": "tui",
       "vt100_hint": true,
       "title": "Demo Device",

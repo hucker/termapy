@@ -88,3 +88,23 @@ class TestCliExec:
             f"error message should call out mutual exclusion, got "
             f"stdout={result.stdout!r} stderr={result.stderr!r}"
         )
+
+    def test_a_second_exec_is_refused(self, tmp_path):
+        """-e twice is refused, where argparse used to run only the last one silently."""
+        # Act
+        result = _run("-e", "/print a", "-e", "/print b", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 2, f"a usage error; stderr={result.stderr!r}"
+        assert "takes one command" in result.stderr, "names the rule"
+        assert "--run" in result.stderr, "and the way to run several"
+        assert result.stdout.strip() == "", "neither command ran"
+
+    def test_a_line_break_in_exec_is_refused(self, tmp_path):
+        """A line break inside -e is refused rather than run as one mangled command."""
+        # Act
+        result = _run("-e", "/print a\n/print b", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 2, f"a usage error; stderr={result.stderr!r}"
+        assert "without line breaks" in result.stderr, "names what is wrong"

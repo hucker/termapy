@@ -42,6 +42,7 @@ from termapy.config import (
     cfg_history_path,
     cfg_log_path,
     load_config,
+    on_connect_commands,
     open_serial,
     open_with_system,
     rename_config,
@@ -1325,13 +1326,7 @@ class SerialTerminal(TerminalHost, App):
         inp.placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
         inp.focus()
         self._sync_hw_buttons()
-        connect_cmds: list[str] = []
-        auto_cmd = self.cfg.get("on_connect_cmd", "")
-        if auto_cmd:
-            connect_cmds.extend(auto_cmd.replace("\\n", "\n").split("\n"))
-        tui_cmd = self.cfg.get("tui_on_connect_cmd", "")
-        if tui_cmd:
-            connect_cmds.extend(tui_cmd.replace("\\n", "\n").split("\n"))
+        connect_cmds = [command for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd")]
         if connect_cmds:
             self._run_lines(connect_cmds, delay=0.2)
 

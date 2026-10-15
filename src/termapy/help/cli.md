@@ -277,6 +277,9 @@ termapy --cli my_device -e "/help port"       # run a slash command
 termapy --cli my_device --exec "/proto.crc.calc crc16-modbus 01 03 00 00 00 02"
 ```
 
+One command per invocation: a second `-e`, or a line break inside one,
+is refused.  Several commands go in a `.run` file, run with `--run`.
+
 ### Worked example
 
 The general shape is `termapy <cfg> --cli -e "<command>"`.  For a

@@ -222,6 +222,7 @@ Edit-restart-test cycle: edit termapy source, restart the MCP client, the new co
 | `run_command` responses have `data: null`, raw text in `value` only | No profile loaded; legacy fallthrough is sending bytes but not shaping the response.  Check `/mcp.info` for the profile revision; if blank, the profile didn't auto-load |
 | Profile doesn't auto-load on connect           | Check the convention path (`<cfg_dir>/<cfg_name>.profile.json`) or set `profile_path` explicitly.  The session log will tell you                                         |
 | Need to see what the server is doing           | Add `--mcp-verbose` to args; tees the session log to stderr                                                                                                              |
+| Several servers running, or `uv sync` can't replace `termapy.exe` | Every server has the same command line (`termapy.exe --mcp`).  Ask each one `/mcp.info` for its `pid`, find it in `tasklist` / `ps`, and end a stale one by that PID (`taskkill /F /PID <pid>`, `kill <pid>`); its launchers exit with it and release `termapy.exe` |
 
 The session log lives at `<cfg_dir>/mcp/session.log`.  Every dispatch, every TX/RX, every error is recorded there.  Open it with `/mcp.log` (system viewer), `/mcp.log.dump` (inline), or `/mcp.log.path` (just the path).
 

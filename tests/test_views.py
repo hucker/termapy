@@ -12,7 +12,7 @@ import json
 
 from termapy.config import config_summary
 from termapy.folder_ops import FILE_COLUMNS
-from termapy.plugins import CmdResult, Column, PluginInfo, TableView
+from termapy.plugins import CmdResult, Column, PluginInfo, RecordView, TableView
 from termapy.plugins.views import counted
 from termapy.repl import ReplEngine
 
@@ -175,6 +175,94 @@ def test_a_forwarded_table_prints_once():
     assert output.count(_TITLE) == 1, "the inner dispatch printed it; the outer one did not again"
 
 
+# -- record pages: one record, its rows rendered by dispatch ------------------
+
+_STATUS = {"port": "COM4", "open": True, "note": None}
+_STATUS_ROWS = (("port", "COM4"), ("open", "yes", "green"), None, ("note", "[none]"))
+
+
+def test_a_record_page_aligns_each_block_and_escapes_every_value():
+    """record-one-format: title, cyan rows aligned per block, a blank line between blocks, notes; text is escaped."""
+    # Arrange
+    result = CmdResult.record(
+        _STATUS, _STATUS_ROWS, value="COM4",
+        title=(("Status", "bold"),), notes=(("hint [x]", "dim"),),
+    )
+
+    # Act
+    actual = result.view.lines()
+
+    # Assert
+    expected = [
+        "  [bold]Status[/]",
+        "  [cyan]port[/]: COM4",
+        "  [cyan]open[/]: [green]yes[/]",
+        "",
+        "  [cyan]note[/]: \\[none]",
+        "  [dim]hint \\[x][/]",
+    ]
+    assert actual == expected, "one page shape; a value that looks like a tag stays text"
+
+
+def test_cmdresult_record_carries_the_facts_as_data():
+    """CmdResult.record keeps the facts' real types in data and renders nothing itself."""
+    result = CmdResult.record(_STATUS, _STATUS_ROWS, value="COM4")
+    assert (result.data, result.value) == (_STATUS, "COM4"), "bools and None stay themselves"
+    assert isinstance(result.view, RecordView), "the rows ride in the view"
+
+
+def _record_engine() -> tuple[ReplEngine, list[str]]:
+    """A bare engine with a /status record command and its output, markup included, captured."""
+    output: list[str] = []
+    eng = ReplEngine({}, "", lambda text, color=None: output.append(text))
+    # A bare engine drops markup; the rows are markup, so route them to the capture.
+    eng.ctx.io._write_markup = output.append
+
+    def _handler(ctx, args: str) -> CmdResult:
+        return CmdResult.record(_STATUS, _STATUS_ROWS, value="COM4")
+
+    eng.register_plugin(PluginInfo(name="status", args="", help="h", handler=_handler))
+    return eng, output
+
+
+def test_dispatch_prints_the_record_page_once_per_call():
+    """In prose mode each dispatch prints its rows once and strips the view; a second call prints them again."""
+    # Arrange
+    eng, output = _record_engine()
+
+    # Act
+    first = eng.dispatch("status")
+    eng.dispatch("status")
+
+    # Assert
+    rows = [line for line in output if "port" in line]
+    assert len(rows) == 2, "one port row per dispatch, nothing cached or doubled"
+    assert first.view is None, "the view was consumed at dispatch's exit"
+
+
+def test_json_gets_the_record_and_no_rows():
+    """--json answers with the record in the envelope and no rows of display text beside it."""
+    # Arrange
+    eng, output = _record_engine()
+
+    # Act
+    eng.dispatch("status --json")
+
+    # Assert
+    envelope = json.loads(output[-1])
+    assert envelope["data"] == _STATUS, "the facts with their real types"
+    assert envelope["output_lines"] == [], "the facts ride once"
+    assert len(output) == 1, "nothing printed above the envelope"
+
+
+def test_a_record_session_that_wants_data_prints_nothing():
+    """An MCP-style session gets the record with no rows to pay for."""
+    eng, output = _record_engine()
+    eng.ctx.wants_data = True
+    result = eng.dispatch("status")
+    assert (output, result.data) == ([], _STATUS), "nothing printed, the record returned"
+
+
 # -- config_summary: the Cfg picker's and /cfg.list's facts -------------------
 
 
@@ -227,3 +315,82 @@ def test_config_summary_reads_a_pre_migration_layout(tmp_path):
     path = _cfg(tmp_path, "flat", {"port": "COM6", "baud_rate": 57600})
     actual = config_summary(path)
     assert (actual["port"], actual["baud_rate"]) == ("COM6", 57600), "migrated before reading, not after"
+
+
+# -- every list command answers with records ----------------------------------
+
+
+def _cli_engine(tmp_path):
+    """A real CLI host over a throwaway config, so every built-in list command is registered."""
+    import json as _json
+
+    from termapy.cli import CLITerminal
+    from termapy.defaults import DEFAULT_CFG
+
+    config_path = tmp_path / "c" / "c.cfg"
+    config_path.parent.mkdir()
+    serial = DEFAULT_CFG["serial"]
+    assert isinstance(serial, dict), "serial is a section"
+    cfg = {**DEFAULT_CFG, "serial": {**serial, "port": "", "baud_rate": 115200}}
+    config_path.write_text(_json.dumps(cfg))
+    return CLITerminal(cfg, str(config_path), no_color=True, term_width=80).repl
+
+
+# List commands whose items are each one value under a unique name answer
+# with a mapping, so a consumer looks a name up instead of searching.
+_MAPPINGS: dict[str, str] = {
+    "env.list": "variable name -> value",
+    "var.list": "one dict per variable namespace (user, launch, ...)",
+}
+
+
+def _lists_without_records(eng: ReplEngine) -> list[str]:
+    """Every .list / .lib command whose answer to a data caller has the wrong shape.
+
+    A mapping command must answer with a dict; every other one with a list of dicts.
+    """
+    eng.ctx.wants_data = True
+    offenders = []
+    for name in sorted(name for name in eng._plugins if name.endswith((".list", ".lib"))):
+        result = eng.dispatch(name)
+        if name in _MAPPINGS:
+            right_shape = isinstance(result.data, dict)
+        else:
+            records = result.data if isinstance(result.data, list) else None
+            right_shape = records is not None and all(isinstance(record, dict) for record in records)
+        if not result.success or not right_shape:
+            offenders.append(f"{name}: success={result.success} data={type(result.data).__name__}")
+    return offenders
+
+
+def test_every_list_command_answers_with_records(tmp_path):
+    """list-one-format: every .list and .lib command answers a data caller with a list of dicts, never lines of text."""
+    # Arrange
+    eng = _cli_engine(tmp_path)
+
+    # Act
+    offenders = _lists_without_records(eng)
+
+    # Assert
+    assert offenders == [], (
+        "a list command returns CmdResult.table(title, noun, columns, records, value=...):\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_list_guard_fires_on_a_probe(tmp_path):
+    """The list guard flags a .list command that prints its rows and answers with no records."""
+    # Arrange
+    eng = _cli_engine(tmp_path)
+
+    def _handler(ctx, args: str) -> CmdResult:
+        ctx.io.output("  bench  115200")
+        return CmdResult.ok(value="bench")
+
+    eng.register_plugin(PluginInfo(name="probe.list", args="", help="h", handler=_handler))
+
+    # Act
+    offenders = _lists_without_records(eng)
+
+    # Assert
+    assert offenders == ["probe.list: success=True data=NoneType"], "the printing list is the one flagged"

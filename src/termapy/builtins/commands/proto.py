@@ -15,7 +15,7 @@ from termapy.builtins.commands.edit import edit_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import default_file_name
 from termapy.help_dynamic import compose, folder_line
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
+from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.protocol import (
     CRC_CATALOGUE,
     ProtoScript,
@@ -764,19 +764,21 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show current protocol mode state.
 
-    Displays hex display mode and connection status.
+    Displays hex display mode and connection status, a record answer
+    (registry ``record-one-format``) with both as booleans in ``data``.
 
     Args:
         ctx: Plugin context for state and output.
         args: Ignored.
     """
-    hex_mode = ctx.ns("flags")["hex"]
+    hex_mode = bool(ctx.ns("flags")["hex"])
     connected = ctx.serial.is_connected()
-    ctx.io.output(f"Hex mode: {'on' if hex_mode else 'off'}")
-    ctx.io.output(f"Connected: {'yes' if connected else 'no'}")
-    return CmdResult.ok(
-        value=f"hex={'on' if hex_mode else 'off'}, "
-              f"connected={'yes' if connected else 'no'}"
+    hex_text = "on" if hex_mode else "off"
+    connected_text = "yes" if connected else "no"
+    return CmdResult.record(
+        {"hex": hex_mode, "connected": connected},
+        [("Hex mode", hex_text), ("Connected", connected_text)],
+        value=f"hex={hex_text}, connected={connected_text}",
     )
 
 
@@ -802,35 +804,40 @@ def _handler_crc_list(ctx: PluginContext, args: str) -> CmdResult:
     if not names:
         return CmdResult.fail(msg=f"No algorithms matching '{pattern}'")
 
-    # Group by width
-    groups: dict[int, list[str]] = {}
+    # A list answer (registry list-one-format), narrowest CRCs first.
+    records = []
     for name in names:
         entry = CRC_CATALOGUE.get(name)
-        width = entry["width"] if entry else registry[name].width * 8
-        groups.setdefault(width, []).append(name)
+        records.append({
+            "name": name,
+            "width": entry["width"] if entry else registry[name].width * 8,
+            "description": entry.get("desc", "") if entry else "(plugin)",
+        })
+    records.sort(key=lambda record: (record["width"], record["name"]))
+    # The value is the matched names, alphabetical, so scripts can iterate or count.
+    return CmdResult.table(
+        "CRC algorithms", "algorithm", _CRC_COLUMNS, records, value="\n".join(names),
+    )
 
-    for width in sorted(groups):
-        ctx.io.output(f"  CRC-{width} ({len(groups[width])} algorithms):", "bold")
-        for name in groups[width]:
-            entry = CRC_CATALOGUE.get(name)
-            desc = entry.get("desc", "") if entry else "(plugin)"
-            ctx.io.output(f"    {name:<30s} {desc}")
 
-    total = sum(len(value) for value in groups.values())
-    ctx.io.output(f"  {total} algorithms available")
-    # Return the matched algorithm names so scripts can iterate or count.
-    return CmdResult.ok(value="\n".join(names))
+_CRC_COLUMNS = (
+    Column("NAME", lambda record: record["name"]),
+    Column("WIDTH", lambda record: str(record["width"]), right=True),
+    Column("DESCRIPTION", lambda record: record["description"]),
+)
 
 
 def _handler_crc_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show detailed parameters for a named CRC algorithm.
 
+    A record answer (registry ``record-one-format``): the parameters are
+    ``data`` as integers and booleans, and read as uppercase hex in the
+    prose.
+
     Args:
         ctx: Plugin context for output.
         args: Algorithm name (e.g. ``"crc16-modbus"``).
     """
-    from termapy.plugins import format_kv_lines
-
     p = ctx.prefix
     name = args.strip().lower()
     if not name:
@@ -850,14 +857,20 @@ def _handler_crc_info(ctx: PluginContext, args: str) -> CmdResult:
 
     w = entry["width"]
     hex_w = w // 4
-    ctx.io.output(f"  {name}", "bold")
     desc = entry.get("desc", "")
-    if desc:
-        ctx.io.output(f"  {desc}")
-    spec = (
-        f"CRC:{name}" if w == 8
-        else f"CRC:{name}_le  or  CRC:{name}_be"
-    )
+    specs = [f"CRC:{name}"] if w == 8 else [f"CRC:{name}_le", f"CRC:{name}_be"]
+    data = {
+        "name": name,
+        "description": desc,
+        "width": w,
+        "poly": entry["poly"],
+        "init": entry["init"],
+        "refin": entry["refin"],
+        "refout": entry["refout"],
+        "xorout": entry["xorout"],
+        "check": entry["check"],
+        "spec": specs,
+    }
     rows = [
         ("Width",  f"{w} bits ({w // 8} bytes)"),
         ("Poly",   f"0x{entry['poly']:0{hex_w}X}"),
@@ -866,12 +879,11 @@ def _handler_crc_info(ctx: PluginContext, args: str) -> CmdResult:
         ("RefOut", str(entry['refout'])),
         ("XorOut", f"0x{entry['xorout']:0{hex_w}X}"),
         ("Check",  f"0x{entry['check']:0{hex_w}X}  (CRC of '123456789')"),
-        ("Spec",   spec),
+        ("Spec",   "  or  ".join(specs)),
     ]
-    for line in format_kv_lines(rows):
-        ctx.io.output_markup(line)
-    # Return the algorithm name so scripts can confirm the lookup.
-    return CmdResult.ok(value=name)
+    title = ((name, "bold"), (desc, "")) if desc else ((name, "bold"),)
+    # The value is the algorithm name so scripts can confirm the lookup.
+    return CmdResult.record(data, rows, value=name, title=title)
 
 
 def _handler_crc_calc(ctx: PluginContext, args: str) -> CmdResult:

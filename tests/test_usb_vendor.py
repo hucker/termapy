@@ -316,27 +316,20 @@ class TestTermUsbDbHandler:
     """The /term.usb_db command reports local metadata only -- no network."""
 
     def test_handler_writes_expected_fields(self):
-        """Output lists every metadata field and an upgrade hint, never the dev-only script."""
+        """The page lists every metadata field and an upgrade hint, never the dev-only script."""
         # Arrange
         from termapy.builtins.commands.term import _handler_usb_db
-        from termapy.plugins import IOHandle, PluginContext
+        from termapy.plugins import PluginContext
 
-        out: list[str] = []
-        ctx = PluginContext(
-            io=IOHandle(
-                _write=lambda t, c=None: out.append(t),
-                _write_markup=lambda t: out.append(t),
-            ),
-        )
-
-        # Act
-        result = _handler_usb_db(ctx, "")
+        # Act -- the handler renders nothing; its view is what dispatch prints
+        result = _handler_usb_db(PluginContext(), "")
 
         # Assert
         assert result.success, "/term.usb_db should succeed"
-        joined = "\n".join(out)
+        joined = "\n".join(result.view.lines())
         for label in ("curated", "full_table", "generated", "source", "path"):
             assert label in joined, f"output missing {label}: {joined!r}"
+            assert label in result.data, f"data missing {label}"
         # The trailing update hint must be present and point at the
         # package-upgrade path (not the dev script, which PyPI users
         # don't have access to).

@@ -127,11 +127,20 @@ For a single call in a prose-mode session, every command also accepts
  "data": [{"device": "COM3", ...}], "output_lines": [], "elapsed_s": 0.02}
 ```
 
-`data` carries the structured form for commands that have one (`/port.list`,
-`/port.usb`, `/var`, the folder listings `/run.list` / `/cap.list` / `/ss.list`
-/ `/proto.list` / `/plugin.list` as `{name, bytes, mtime, age_s}` records
-(`mtime` is ISO-8601, `age_s` seconds),
-profile-mapped device commands).  For everything else it
+`data` carries the structured form, with no rows of text beside it:
+
+- **Every list** (`/port.list`, `/port.chip.list`, `/proto.crc.list`, the
+  folder listings `/run.list` / `/cap.list` / `/ss.list` / `/proto.list` /
+  `/plugin.list` as `{name, bytes, mtime, age_s}` records, `mtime` ISO-8601
+  and `age_s` seconds, ...) is a list of records -- except where each item
+  is one value under a unique name: `/env.list` is `{NAME: value}` and
+  `/port.chip.<field> *` is `{device: value}`, so you look a name up.
+- **Every status page** (`/mcp.info` with the server's `pid`, `/term.info`,
+  `/port.info`, `/mem.info`, `/sym.info`, `/profile.info`, `/seq`, ...) is
+  one record of real values; `/port.chip *` is a list of them.
+- `/var`, `/port.usb` and profile-mapped device commands have their own shapes.
+
+For everything else it
 is `null` and the command's rendered answer arrives in `output_lines` (markup
 flattened to plain text) -- `/help --json` is one envelope containing the
 help text, nothing printed outside it.  Errors arrive in the `error` field

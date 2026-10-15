@@ -48,18 +48,19 @@ def parse_output_level(s: str) -> str | None:
 # Shared key/value rendering for info-style commands
 # ─────────────────────────────────────────────────────────────────────────────
 #
-# Every command that emits a "label: value" table -- /term.info, /term.usb_db,
-# /port.info, /proto.crc.info, etc. -- routes through ``format_kv_lines()``
-# below so they render with one consistent style:
+# Every status page -- /term.info, /mcp.info, /mem.info, /proto.crc.info,
+# etc. -- renders through ``format_kv_lines()`` below so they read with one
+# consistent style:
 #
 #   - Two-space indent.
 #   - Cyan label, padded to the widest in the set.
 #   - Colon + single space between label and value.
 #   - Optional per-row value color, named as a third row element.
 #
-# Adding a new info command?  Build ``[(label, value), ...]``, call
-# ``format_kv_lines()``, write each line via ``ctx.io.output_markup()``.  Don't
-# roll your own padding -- consistency across info commands matters.
+# Adding a new status page?  Don't call this: return
+# ``CmdResult.record(data, rows, value=...)`` and dispatch renders the rows
+# through ``views.RecordView``, the only caller (registry
+# ``record-one-format``), or hands ``data`` alone to a caller that wants it.
 
 
 def format_kv_lines(

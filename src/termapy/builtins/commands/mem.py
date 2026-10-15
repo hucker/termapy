@@ -60,7 +60,7 @@ from termapy.memory_views import (
     scalar_size,
     symbol_columns,
 )
-from termapy.plugins import CapabilitySet, CmdResult, Command, format_kv_lines
+from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
 from termapy.protocol.core import apply_format, extract_column_value, parse_hex
 from termapy.scripting import strip_ansi
@@ -71,7 +71,7 @@ from termapy.variables import launch_var
 
 if TYPE_CHECKING:
     from termapy.devices import Register
-    from termapy.plugins import PluginContext
+    from termapy.plugins import KvRow, PluginContext
     from termapy.symbols import SymbolTable
 
 MEMORY_NS: Final[str] = "memory"
@@ -956,7 +956,12 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Show the resolved facts and where each came from."""
+    """Show the resolved facts and where each came from.
+
+    A record answer (registry ``record-one-format``): the facts are
+    ``data``, including the device's error and a dialect problem, which
+    otherwise only the prose would carry.
+    """
     info = _memory_info(ctx, refresh=True)
     block = _profile_block(ctx)
     cache = ctx.ns(MEMORY_NS)
@@ -970,7 +975,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         if unavailable
         else "ok"
     )
-    rows = [
+    rows: list[KvRow | None] = [
         ("status", status),
         ("dialect", f"{info.dialect}  ({info.sources['dialect']})"),
         ("max_block", f"{info.max_block}  ({info.sources['max_block']})"),
@@ -979,10 +984,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("atomic modify", f"{'yes' if info.atomic_modify else 'no'}  ({info.sources['modify']})"),
     ]
     template: dict[str, Any] | None = None
+    problem: str | None = None
     try:
         dialect = make_dialect(info, block)
     except ValueError as e:
-        rows.append(("problem", str(e)))
+        problem = str(e)
+        rows.append(("problem", problem))
     else:
         if isinstance(dialect, TemplateDialect):
             spec = dialect.spec
@@ -1004,9 +1011,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             rows.append(("device", "answered MEM.INFO"))
         else:
             rows.append(("device", f"no MEM.INFO ({cache.get('device_error', 'not asked')})"))
-    for line in format_kv_lines(rows):
-        ctx.io.output_markup(line)
-    return CmdResult.ok(value=info.dialect, data={
+    data = {
         "available": not unavailable,
         "dialect": info.dialect,
         "max_block": info.max_block,
@@ -1015,8 +1020,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         "atomic_modify": info.atomic_modify,
         "sources": dict(info.sources),
         "device_info": device_info if info.dialect == "termapy" else None,
+        "device_error": cache.get("device_error"),
+        "problem": problem,
         "template": template,
-    })
+    }
+    return CmdResult.record(data, rows, value=info.dialect)
 
 
 _LONG_HELP: Final[str] = (

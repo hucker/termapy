@@ -50,6 +50,7 @@ from termapy.plugins import (
     MissingCapability,
     PluginContext,
     PluginInfo,
+    RecordView,
     TransformInfo,
     UsageError,
     builtins_dir,
@@ -724,9 +725,11 @@ class ReplEngine:
     def _render_view(self, result: CmdResult, call_level: str | None) -> CmdResult:
         """Print a result's view unless the caller wants data; strip it either way.
 
-        The prose form of a typed answer (``CmdResult.view``, a
-        ``views.TableView``) is printed here, once, on the output channel
-        -- never by the handler (registry ``list-one-format``).  A caller
+        The prose form of a typed answer (``CmdResult.view``: a
+        ``views.TableView`` for a list, a ``views.RecordView`` for a
+        status page) is printed here, once, on the output channel -- never
+        by the handler (registries ``list-one-format``,
+        ``record-one-format``).  A caller
         that wants data (an MCP session, or a dispatch nested inside a
         ``--json`` call, which sets ``ctx.wants_data``) gets the records
         alone.  Because the view is stripped, a forwarded command's table
@@ -748,8 +751,13 @@ class ReplEngine:
             if call_level is not None:
                 self.ctx._call_level = call_level
             try:
-                for text, color in view.lines():
-                    self.ctx.io.output(text, color)
+                if isinstance(view, RecordView):
+                    # Cyan labels: markup, every value already escaped.
+                    for line in view.lines():
+                        self.ctx.io.output_markup(line)
+                else:
+                    for text, color in view.lines():
+                        self.ctx.io.output(text, color)
             finally:
                 self.ctx._call_level = saved_level
         return replace(result, view=None)

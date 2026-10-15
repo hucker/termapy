@@ -34,7 +34,6 @@ from termapy.plugins import (
     CmdResult,
     Command,
     UsageError,
-    format_kv_lines,
 )
 from termapy.plugins.params import ParamSpec
 from termapy.symbols import (
@@ -349,7 +348,11 @@ def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Show the loaded table's provenance and shape."""
+    """Show the loaded table's provenance and shape.
+
+    A record answer (registry ``record-one-format``): ``table_record`` is
+    the ``data``, ``info_rows`` its prose twin.
+    """
     table = get_table(ctx)
     if table is None:
         ctx.io.result(
@@ -358,9 +361,9 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         )
         return CmdResult.ok(value="")
     file = _display_path(ctx, table.path)
-    for line in format_kv_lines(info_rows(table, file=file)):
-        ctx.io.output_markup(line)
-    return CmdResult.ok(value=str(len(table)), data=table_record(table, file=file))
+    return CmdResult.record(
+        table_record(table, file=file), info_rows(table, file=file), value=str(len(table)),
+    )
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

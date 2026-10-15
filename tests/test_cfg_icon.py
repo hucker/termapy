@@ -678,7 +678,7 @@ class TestList:
         )
 
     def test_empty_when_none_found(self, cfg_env, monkeypatch):
-        """No launchers is a success with an empty value and a visible none-found note."""
+        """No launchers is a success: an empty value, no records, and a visible empty table naming where it looked."""
         # Arrange -- linux but no .desktop files created.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
         eng, _, _, output = cfg_env
@@ -688,10 +688,10 @@ class TestList:
 
         # Assert
         assert result.success, "list returns ok even when empty"
-        assert result.value == "", "empty value when no launchers"
+        assert (result.value, result.data) == ("", []), "empty value and no records"
         joined = "".join(str(t) for t in output)
-        assert "no termapy launchers" in joined.lower(), (
-            "user-visible 'none found' message printed"
+        assert "termapy launchers in ~/.local/share/applications/ - empty" in joined, (
+            "user-visible empty table says where it looked"
         )
 
     def test_list_works_without_loaded_cfg(self, cfg_env, monkeypatch):

@@ -201,9 +201,9 @@ class TestEnvCommands:
         assert result.value == "abc", "value returned for scripting"
 
     def test_list_glob_pattern(self):
-        """A glob lists only matching names and returns them as NAME=value lines."""
+        """A glob answers with a name-to-value mapping of only the matches, and NAME=value lines as the value."""
         # Arrange
-        ctx, output = self._ctx()
+        ctx, _output = self._ctx()
         _ENV["USER_ALPHA"] = "a"
         _ENV["USER_BETA"] = "b"
         _ENV.pop("UNRELATED_XYZ", None)
@@ -212,12 +212,10 @@ class TestEnvCommands:
         result = _handler_list(ctx, "USER_*")
 
         # Assert
-        texts = [text for text, _ in output]
-        assert any("USER_ALPHA=a" in text for text in texts), "first match shown"
-        assert any("USER_BETA=b" in text for text in texts), "second match shown"
-        assert not any("UNRELATED" in text for text in texts), "non-match excluded"
-        # Glob path returns newline-joined NAME=VALUE so scripting gets
-        # the same content the user sees, minus the indentation.
+        assert result.data["USER_ALPHA"] == "a", "a name is looked up, not searched for"
+        assert result.data["USER_BETA"] == "b", "both matches present"
+        assert not any("UNRELATED" in name for name in result.data), "non-match excluded"
+        # Glob path returns newline-joined NAME=VALUE for scripting.
         lines = result.value.split("\n")
         assert "USER_ALPHA=a" in lines, "glob value includes first match"
         assert "USER_BETA=b" in lines, "glob value includes second match"

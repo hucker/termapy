@@ -175,12 +175,13 @@ class TestHex:
 class TestInfo:
 
     def test_info_reports_hex_mode_and_the_connection(self, cli, capsys):
-        """/proto.info prints the hex flag and the connection and returns both as one key=value string."""
+        """/proto.info prints the hex flag and the connection, returns both as booleans in data and as one key=value string."""
         capsys.readouterr()
         result = cli.repl.dispatch_full("/proto.info")
         out = capsys.readouterr().out
         assert result.value == "hex=off, connected=yes"
-        assert "Hex mode: off" in out and "Connected: yes" in out
+        assert result.data == {"hex": False, "connected": True}, "the record a script or agent reads"
+        assert "Hex mode : off" in out and "Connected: yes" in out, "the aligned rows a person reads"
 
     def test_info_tracks_the_flag_and_a_disconnect(self, cli):
         """The value follows /proto.hex and the port: on after hex on, no after a disconnect."""

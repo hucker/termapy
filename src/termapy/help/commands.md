@@ -88,7 +88,7 @@ because its folders hold different types of file.
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
 | `/log.show`               | Open the session log in the system viewer                                   |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
-| `/mcp.info`               | Show MCP-mode status (catalog size, port, profile, captures)                |
+| `/mcp.info`               | Show MCP-mode status (pid, catalog size, port, profile, captures)           |
 | `/mem.and <target> <mask>` | AND a mask into one word (atomic via MEM.M when available)                 |
 | `/mem.dump <target> {len} {type}` | Hexdump or typed word columns; `addr=`/`ascii=` toggle columns      |
 | `/mem.clear <target> <mask>` | Clear mask bits in one word: `word &= ~mask` (atomic via MEM.M)          |

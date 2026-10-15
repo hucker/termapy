@@ -12,6 +12,7 @@ MCP-resource <-> /mcp.catalog parity test pulls catalog_json directly.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ import pytest
 pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] extra")
 
 from termapy.defaults import DEFAULT_CFG  # noqa: E402
+from termapy.markup import markup_to_plain  # noqa: E402
 from termapy.mcp.catalog import catalog_json  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
 
@@ -38,6 +40,10 @@ def env(tmp_path):
     host = MCPHost(cfg, str(config_path), verbose=False)
     # Verbose so ctx.output() in handler isn't gated by quiet default.
     host.ctx.ns("flags")["output_level"] = "verbose"
+    # These tests read the prose a TUI/CLI user sees.  An MCP host wants
+    # data, so dispatch would send /mcp.info's record and print no rows;
+    # that path is pinned in test_mcp_server.py.
+    host.ctx.wants_data = False
     output: list = []
     # Capture both write and write_markup so info-style handlers that
     # use format_kv_lines (which routes through write_markup) are
@@ -142,6 +148,21 @@ class TestMcpInfo:
         assert "commands" in full.lower(), "lists commands count"
         assert "port" in full.lower(), "lists port"
         assert "captures" in full.lower(), "lists captures"
+
+    def test_info_shows_this_process_pid(self, env):
+        """The status page names this process's PID, the one fact that tells identical termapy --mcp servers apart in tasklist / ps."""
+        # Arrange
+        eng, _ctx, output = env
+
+        # Act
+        eng.dispatch("mcp.info")
+        lines = [markup_to_plain(text) for text, _ in output]
+        rows = dict(line.split(":", 1) for line in lines if ":" in line)
+        actual = {label.strip(): value.strip() for label, value in rows.items()}.get("pid")
+
+        # Assert
+        expected = str(os.getpid())
+        assert actual == expected, "the pid row is this process, so it matches the OS listing"
 
     def test_value_is_command_count(self, env):
         """The scriptable value is the positive command count."""

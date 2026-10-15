@@ -335,16 +335,20 @@ class TestInfo:
         assert "Termapy simulated device" in out, "the chip section came from the reserved-port record"
         for line in ("DTR", "RTS", "CTS", "DSR", "RI", "CD"):
             assert line in out, f"the live {line} row"
-        assert "Baud rate" in result.value, "the report is the scriptable value"
+        assert result.value == "DEMO", "the scriptable value is the port name"
 
-    def test_the_scriptable_value_is_plain_text(self, cli):
-        """The /port.info value is the text the screen shows: its rows flattened, no Rich tags or escapes."""
+    def test_the_record_holds_settings_chip_and_signals_as_values(self, cli):
+        """The /port.info data is real values: the baud an int, the chip its fields, the six lines booleans."""
         # Act
-        result = cli.repl.dispatch_full("/port.info")
+        data = cli.repl.dispatch_full("/port.info").data
 
         # Assert
-        assert "Baud rate" in result.value, "the report rows are in the value"
-        assert "[/]" not in result.value and "[cyan]" not in result.value, f"no markup: {result.value!r}"
+        assert (data["port"], data["connected"], data["baud_rate"]) == ("DEMO", True, 115200), "settings as values"
+        assert data["chip"]["model"] == "DEMO", "the chip record, keyed like /port.chip.<field>"
+        actual = sorted(data["signals"])
+        expected = ["cd", "cts", "dsr", "dtr", "ri", "rts"]
+        assert actual == expected, "the six hardware lines"
+        assert all(isinstance(state, bool) for state in data["signals"].values()), "each line is a boolean"
 
     def test_an_argument_is_redirected_to_port_chip(self, cli):
         """/port.info takes no port name: it fails and points at /port.chip for another port."""
@@ -406,6 +410,14 @@ class TestChip:
         out = capsys.readouterr().out
         assert all(device in out for device in ("COM3", "COM4", "COM7")), "every roster port"
 
+    def test_a_star_returns_one_chip_record_per_port(self, cli, monkeypatch):
+        """/port.chip * returns a list of chip records, and their device names as the value."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        result = cli.repl.dispatch_full("/port.chip *")
+        actual = [record["device"] for record in result.data]
+        assert actual == result.value.split("\n"), "the value lists the devices the records describe"
+        assert {"COM3", "COM4", "COM7"} <= set(actual), "one record per roster port"
+
     def test_the_fleet_is_authoritative_for_the_reserved_name(self, cli, capsys, monkeypatch):
         """With a fleet active, bare /port.chip on the DEMO cfg finds no match: a substitute roster never synthesizes."""
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
@@ -421,11 +433,12 @@ class TestChip:
         assert result.value == "0001"
 
     def test_a_field_for_every_port_is_device_prefixed(self, cli, monkeypatch):
-        """/port.chip.model * lists '<device>: <value>' per port, with '-' kept as the roster has it."""
+        """/port.chip.model * values '<device>: <value>' per port, and answers with a device-to-value mapping."""
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         result = cli.repl.dispatch_full("/port.chip.model *")
         expected = "COM3: FTDI FT232R / FT245R\nCOM4: Silicon Labs CP2102\nCOM7: -"
-        assert result.value == expected
+        assert result.value == expected, "'-' kept as the roster has it"
+        assert result.data["COM4"] == "Silicon Labs CP2102", "a port is looked up, not searched for"
 
     def test_an_unknown_field_value_reads_n_a(self, cli, monkeypatch):
         """A field the roster leaves empty renders n/a rather than None."""

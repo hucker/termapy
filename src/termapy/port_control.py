@@ -25,17 +25,13 @@ from termapy.defaults import (
     VALID_PARITIES,
     VALID_STOP_BITS,
 )
+from termapy.plugins.views import Item, TextLine
 from termapy.scripting import format_duration, parse_bool
 from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 
 # Type alias for message lists: (text, color_or_None)
 Msg = tuple[str, str | None]
 Result = tuple[list[Msg], dict[str, Any]]
-
-#: The color slot of a Msg whose text is Rich markup (a ``format_kv_lines``
-#: row), not text in a color.  Consumers render it as markup or flatten it
-#: with ``markup.markup_to_plain``; nothing guesses from the text.
-MARKUP = "markup"
 
 SERIAL_KEYS = {
     "port",
@@ -295,11 +291,6 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
 
 def _msg(text: str, color: str | None = None) -> Msg:
     return (text, color)
-
-
-def _markup_msg(markup: str) -> Msg:
-    """A message whose text is Rich markup (see ``MARKUP``)."""
-    return (markup, MARKUP)
 
 
 def _result(msgs: list[Msg], **side_effects: Any) -> Result:
@@ -1567,7 +1558,7 @@ def resolve_port_trace(
 
 
 def _chip_rows(facts: ChipFacts) -> list[tuple[str, str] | tuple[str, str, str]]:
-    """The chip fields as ``format_kv_lines`` rows, each color-coded where it carries advice.
+    """The chip fields as record-page rows, each color-coded where it carries advice.
 
     Shared by ``/port.chip`` and ``/port.info``.  The device name is left
     out: both show it already, as a header line and as the Port row.
@@ -1598,20 +1589,18 @@ def _chip_rows(facts: ChipFacts) -> list[tuple[str, str] | tuple[str, str, str]]
     return rows
 
 
-def _format_facts_full(facts: ChipFacts) -> list[Msg]:
-    """Format a single ChipFacts as a multi-line dump.
+def chip_record(facts: ChipFacts) -> dict[str, str | None]:
+    """The chip facts as data, keyed by their ``/port.chip.<field>`` names."""
+    return {field_name: getattr(facts, field_name) for field_name in CHIP_FIELDS}
 
-    Uses ``format_kv_lines()`` for consistent label coloring and column
-    alignment with the other info commands (/term.info, /term.usb_db,
-    /port.info, /proto.crc.info).  Per-row coloring -- USB-speed
-    indicator, latency-timer warning, denied permissions -- is the
-    row's third element; the cyan label color comes from the helper.
+
+def _chip_page(facts: ChipFacts) -> list[Item]:
+    """One port's ``/port.chip`` page: its device as a heading, then the chip rows.
+
+    Per-row coloring -- USB-speed indicator, latency-timer warning, denied
+    permissions -- is the row's third element (``_chip_rows``).
     """
-    from termapy.plugins import format_kv_lines
-
-    msgs: list[Msg] = [_msg(f"{facts.device}", "green")]
-    msgs += [_markup_msg(line) for line in format_kv_lines(_chip_rows(facts))]
-
+    items: list[Item] = [TextLine(facts.device or "?", "green"), *_chip_rows(facts)]
     # Nudge: when we see a real USB device whose VID:PID isn't in the
     # chip table, invite the user to report it so the table can grow.
     if (
@@ -1619,13 +1608,37 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
         and facts.vid_pid
         and facts.vid_pid != "not a USB device"
     ):
-        msgs.append(_msg(
-            f"  (chip {facts.vid_pid} not in termapy's lookup table -- "
+        items.append(TextLine(
+            f"(chip {facts.vid_pid} not in termapy's lookup table -- "
             f"please report at https://github.com/hucker/termapy/issues "
             f"so we can add it)",
             "dim",
         ))
-    return msgs
+    return items
+
+
+@dataclass(frozen=True)
+class Report:
+    """A port page: its facts as data and its prose as view items, or why there is none.
+
+    ``/port.info`` and ``/port.chip`` return it through
+    ``CmdResult.record`` (registry ``record-one-format``); the ``--info``
+    flag renders the same items for stdout.
+
+    Attributes:
+        data: The record, or a list of records for every port; None with
+            a problem.
+        items: The page for ``views.RecordView``: rows, headings, blank lines.
+        value: The scriptable scalar: the port name, or the device names
+            newline-joined for every port.
+        problem: The message shown instead of a page (``No port matching
+            ...``), or None.
+    """
+
+    data: Any = None
+    items: tuple[Item, ...] = ()
+    value: str = ""
+    problem: Msg | None = None
 
 
 def chip_info(
@@ -1634,7 +1647,7 @@ def chip_info(
     connected_port: str = "",
     *,
     source: PortSource | None = None,
-) -> Result:
+) -> Report:
     """Show full chip info for one port, all ports, or the current port.
 
     Args:
@@ -1647,7 +1660,8 @@ def chip_info(
             See ``resolve_port_source``.
 
     Returns:
-        Messages with per-port chip information.
+        One port's chip record and page, every port's (a list of records,
+        pages a blank line apart) for ``*``, or the problem that stopped it.
     """
     arg = arg.strip()
 
@@ -1655,18 +1669,19 @@ def chip_info(
     if arg == "*":
         all_facts = _gather_all_chip_facts(connected_port, source=source)
         if not all_facts:
-            return _result([_msg("No serial ports found", "yellow")])
-        msgs: list[Msg] = []
-        for i, facts in enumerate(all_facts):
-            if i > 0:
-                msgs.append(_msg(""))
-            msgs.extend(_format_facts_full(facts))
-        return _result(msgs)
+            return Report(problem=_msg("No serial ports found", "yellow"))
+        items: list[Item] = []
+        for index, facts in enumerate(all_facts):
+            if index:
+                items.append(None)
+            items.extend(_chip_page(facts))
+        devices = "\n".join(facts.device or "?" for facts in all_facts)
+        return Report([chip_record(facts) for facts in all_facts], tuple(items), devices)
 
     # Specific port name (or current port if arg is empty)
     target = arg or current_port
     if not target:
-        return _result([_msg("No current port set.", "red")])
+        return Report(problem=_msg("No current port set.", "red"))
     # Resolve an SN / fallback-chain spec (e.g. "A1B2C3D4" or "SN|COM3") to
     # a real device first -- gather_chip_facts matches literal device names
     # only, so without this /port.chip fails under an SN-based config even
@@ -1678,8 +1693,8 @@ def chip_info(
         source=source,
     )
     if facts is None:
-        return _result([_msg(f"No port matching {target!r}", "yellow")])
-    return _result(_format_facts_full(facts))
+        return Report(problem=_msg(f"No port matching {target!r}", "yellow"))
+    return Report(chip_record(facts), tuple(_chip_page(facts)), facts.device or "")
 
 
 def chip_field(
@@ -1690,12 +1705,13 @@ def chip_field(
     *,
     source: PortSource | None = None,
 ) -> Result:
-    """Show a single field's value for one or more ports.
+    """Show a single field's value for one port.
+
+    Every port at once (``*``) is a table instead: ``chip_field_records``.
 
     Args:
         field: Name of the ChipFacts field to query (e.g. ``"driver"``).
-        arg: Empty string (use current_port), exact device name, or
-            ``"*"`` for all connected ports.
+        arg: Empty string (use current_port) or exact device name.
         current_port: The port name from ``cfg["serial"]["port"]``, used when arg
             is empty.
         connected_port: The port termapy currently has open, if any.
@@ -1703,26 +1719,12 @@ def chip_field(
             See ``resolve_port_source``.
 
     Returns:
-        Messages with one line per port (just the value if a single
-        port was requested, or ``"<device>: <value>"`` for ``*``).
+        One message: the value, or why there is none.
     """
     if field not in CHIP_FIELDS:
         return _result([_msg(f"Unknown chip field: {field!r}", "red")])
 
-    arg = arg.strip()
-
-    if arg == "*":
-        all_facts = _gather_all_chip_facts(connected_port, source=source)
-        if not all_facts:
-            return _result([_msg("No serial ports found", "yellow")])
-        msgs: list[Msg] = []
-        for facts in all_facts:
-            value = getattr(facts, field)
-            display = "n/a" if value is None else str(value)
-            msgs.append(_msg(f"{facts.device}: {display}"))
-        return _result(msgs)
-
-    target = arg or current_port
+    target = arg.strip() or current_port
     if not target:
         return _result([_msg("No current port set.", "red")])
     # Resolve SN / fallback specs before the literal-name lookup (see
@@ -1739,15 +1741,40 @@ def chip_field(
     return _result([_msg(display)])
 
 
+def chip_field_records(
+    field: str,
+    connected_port: str = "",
+    *,
+    source: PortSource | None = None,
+) -> list[dict[str, str | None]]:
+    """One record per port for ``/port.chip.<field> *``: ``{"device", <field>}``.
+
+    Args:
+        field: A ``CHIP_FIELDS`` name (e.g. ``"driver"``).
+        connected_port: The port termapy currently has open, if any.
+        source: Substitute port list to query instead of enumerating.
+            See ``resolve_port_source``.
+
+    Returns:
+        The records in port order; empty when no port is present.
+    """
+    return [
+        {"device": facts.device, field: getattr(facts, field)}
+        for facts in _gather_all_chip_facts(connected_port, source=source)
+    ]
+
+
 def port_info(
     cfg: Mapping[str, Any],
     ser: Any | None,
     *,
     source: PortSource | None = None,
-) -> Result:
-    """Format comprehensive port status, frame, USB chip info, and live signals.
+) -> Report:
+    """Report comprehensive port status, frame, USB chip info, and live signals.
 
-    Output is organized into three sections:
+    The record holds the settings, ``chip`` (the chip record, or None) and
+    ``signals`` (the six lines as booleans, or None when disconnected).
+    The page is organized into three sections:
 
     1. Configured serial parameters (port name, state, baud, frame, flow,
        encoding, file-transfer root if set)
@@ -1783,8 +1810,6 @@ def port_info(
         except AmbiguousSerialNumberError:
             actual = spec  # stay honest; chip section will skip
 
-    from termapy.plugins import format_kv_lines
-
     # Top section: configured serial parameters.  Port row carries
     # extra trailing context (state, "resolved from spec") on the
     # value side -- the helper just sees one big value string.
@@ -1804,7 +1829,21 @@ def port_info(
     if xfer_root:
         top_rows.append(("Xfer root", str(xfer_root)))
 
-    msgs: list[Msg] = [_markup_msg(line) for line in format_kv_lines(top_rows)]
+    data: dict[str, Any] = {
+        "port": actual or None,
+        "connected": connected,
+        "spec": spec or None,
+        "baud_rate": serial["baud_rate"],
+        "byte_size": serial["byte_size"],
+        "parity": serial["parity"],
+        "stop_bits": sb,
+        "flow_control": serial["flow_control"],
+        "encoding": cfg.get("encoding", "utf-8"),
+        "xfer_root": xfer_root or None,
+        "chip": None,
+        "signals": None,
+    }
+    items: list[Item] = list(top_rows)
 
     # USB chip section -- looked up from the OS, not from the open Serial
     # object, so it works whether or not the port is currently connected.
@@ -1821,20 +1860,21 @@ def port_info(
     if port_name:
         facts = gather_chip_facts(port_name, connected_port, source=source)
         if facts is not None:
-            msgs.append(_msg(""))
-            msgs += [_markup_msg(line) for line in format_kv_lines(_chip_rows(facts))]
+            data["chip"] = chip_record(facts)
+            items += [None, *_chip_rows(facts)]
 
     if connected:
-        msgs.append(_msg(""))
         try:
-            hw_rows = [
-                (name.upper(), str(int(getattr(ser, name))))
+            signals = {
+                name: bool(getattr(ser, name))
                 for name in ("dtr", "rts", "cts", "dsr", "ri", "cd")
-            ]
-            msgs += [_markup_msg(line) for line in format_kv_lines(hw_rows)]
+            }
         except OSError:
-            pass
-    return _result(msgs)
+            signals = None
+        if signals is not None:
+            data["signals"] = signals
+            items += [None, *((name.upper(), str(int(state))) for name, state in signals.items())]
+    return Report(data, tuple(items), actual or "")
 
 
 def get_set_prop(

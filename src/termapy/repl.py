@@ -12,7 +12,7 @@ import re
 import threading
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from io import TextIOWrapper
 from pathlib import Path
 from threading import Event
@@ -720,6 +720,39 @@ class ReplEngine:
             else:
                 time.sleep(0.01)
         return collected
+
+    def _render_view(self, result: CmdResult, call_level: str | None) -> CmdResult:
+        """Print a result's view unless the caller wants data; strip it either way.
+
+        The prose form of a typed answer (``CmdResult.view``, a
+        ``views.TableView``) is printed here, once, on the output channel
+        -- never by the handler (registry ``list-one-format``).  A caller
+        that wants data (an MCP session, or a dispatch nested inside a
+        ``--json`` call, which sets ``ctx.wants_data``) gets the records
+        alone.  Because the view is stripped, a forwarded command's table
+        is printed by the inner dispatch and not again by the outer one.
+
+        Args:
+            result: The finished result.
+            call_level: A per-call ``.silent`` / ``.quiet`` to re-apply;
+                dispatch's finally has already restored the session level.
+
+        Returns:
+            ``result`` without its view.
+        """
+        view = result.view
+        if view is None:
+            return result
+        if not self.ctx.wants_data:
+            saved_level = self.ctx._call_level
+            if call_level is not None:
+                self.ctx._call_level = call_level
+            try:
+                for text, color in view.lines():
+                    self.ctx.io.output(text, color)
+            finally:
+                self.ctx._call_level = saved_level
+        return replace(result, view=None)
 
     def _emit_json_envelope(
         self,
@@ -1837,6 +1870,10 @@ class ReplEngine:
             by dispatch's finally, so it is re-applied around the emission.
             Reads ``wants_json`` / ``call_level`` / ``args`` /
             ``json_output_lines`` at call time.
+
+            Outside JSON mode a result's view (``CmdResult.table``'s
+            table) is printed here too -- see ``_render_view``.  Either
+            way the view is stripped: it never leaves dispatch.
             """
             if wants_json:
                 self._emit_json_envelope(
@@ -1845,10 +1882,10 @@ class ReplEngine:
                     json_output_lines,
                     call_level=call_level,
                 )
-                return result
+                return replace(result, view=None) if result.view is not None else result
             if not result.success and result.error:
                 self.write(result.err_msg, "red")
-            return result
+            return self._render_view(result, call_level)
 
         if plugin:
             # Capability gate: every command declares the environment

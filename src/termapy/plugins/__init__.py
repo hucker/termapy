@@ -101,6 +101,7 @@ from termapy.plugins.output_levels import (
     format_kv_lines,
     parse_output_level,
 )
+from termapy.plugins.views import Column, TableView
 
 __all__ = [
     # Capabilities
@@ -112,7 +113,9 @@ __all__ = [
     # Command + return types + helpers
     "BoundaryException",
     "CmdResult",
+    "Column",
     "Command",
+    "TableView",
     "Directive",
     "DirectiveInfo",
     "DirectiveResult",

@@ -2919,7 +2919,7 @@ class TestCfgHandlerValues:
     def test_cfg_list_populated_returns_joined_names(
         self, tmp_path, monkeypatch,
     ):
-        """Each config appears as <name>/<name>.cfg, one per line, in the value."""
+        """Each config appears by name, the word /cfg.load takes, one per line in the value."""
         # Arrange
         from termapy.builtins.commands import cfg as cfg_mod
 
@@ -2943,8 +2943,7 @@ class TestCfgHandlerValues:
 
         # Assert
         lines = result.value.split("\n")
-        assert "alpha/alpha.cfg" in lines, "first config in scripting value"
-        assert "beta/beta.cfg" in lines, "second config in scripting value"
+        assert sorted(lines) == ["alpha", "beta"], "both configs, by name, in the scripting value"
 
 
 # -- /repeat ----------------------------------------------------------------

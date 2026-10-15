@@ -27,12 +27,13 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from termapy.config import open_with_system, validate_file_stem
 from termapy.folders import FOLDERS, FolderSpec, default_file_name, ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
+from termapy.plugins.views import Column
 from termapy.scripting import format_age, format_size
 
 if TYPE_CHECKING:
@@ -86,6 +87,27 @@ def file_record(path: Path, *, now: float | None = None) -> dict[str, Any]:
         "mtime": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
         "age_s": round(reference - st.st_mtime, 3),
     }
+
+
+def _size_cell(record: dict[str, Any]) -> str:
+    """``2.3 KB``, or ``?`` for a file that vanished between glob and stat."""
+    return "?" if record["age_s"] is None else format_size(record["bytes"])
+
+
+def _age_cell(record: dict[str, Any]) -> str:
+    """``3 min ago`` from the record's ``age_s``, or ``?`` for a vanished file."""
+    if record["age_s"] is None:
+        return "?"
+    return format_age(time.time() - record["age_s"])
+
+
+# The listing columns over ``file_record``: every file list starts with
+# these three and may append its own (``/run.list`` adds SUMMARY).
+FILE_COLUMNS: tuple[Column, ...] = (
+    Column("NAME", lambda record: record["name"]),
+    Column("SIZE", _size_cell, right=True),
+    Column("UPDATED", _age_cell),
+)
 
 
 @dataclass(frozen=True)
@@ -167,30 +189,45 @@ def _folder_path(ctx: PluginContext, folder: str) -> Path | None:
     return Path(ctx.config_path).parent / folder
 
 
-def _make_list_handler(folder: str, pattern: str):
-    """Handler: list files in the folder, newest first, with size and age.
+def file_table(
+    title: str,
+    noun: str,
+    files: list[Path],
+    extra: tuple[tuple[Column, Callable[[Path], Any], str], ...] = (),
+) -> CmdResult:
+    """A file list answer (``CmdResult.table``): NAME, SIZE, UPDATED, then ``extra``.
 
-    ``value`` is the newline-joined names (the scriptable scalar);
-    ``data`` is one ``file_record`` per file for structured consumers,
-    who skip the prose entirely.
+    ``value`` is the newline-joined names (the scriptable scalar); ``data``
+    is one ``file_record`` per file, and dispatch prints the table from
+    them unless the caller wants the data.
+
+    Args:
+        title: The folder (``run/``).
+        noun: Singular noun the count is in (``script``).
+        files: The files, newest first.
+        extra: ``(column, value_of, key)`` for each column after UPDATED:
+            ``value_of(path)`` is stored under ``key`` in that file's
+            record, and the column shows it (``/run.list``'s SUMMARY).
     """
+    records = []
+    for file in files:
+        record = file_record(file)
+        for _, value_of, key in extra:
+            record[key] = value_of(file)
+        records.append(record)
+    columns = (*FILE_COLUMNS, *(column for column, _, _ in extra))
+    names = "\n".join(file.name for file in files)
+    return CmdResult.table(title, noun, columns, records, value=names)
+
+
+def _make_list_handler(folder: str, pattern: str, noun: str = "file"):
+    """Handler: list files in the folder, newest first, with size and age."""
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
         if data_dir is None:
             return CmdResult.fail(msg="No config loaded.")
-        files = list_entries(data_dir, pattern)
-        names = "\n".join(file.name for file in files)
-        if ctx.wants_data:
-            return CmdResult.ok(value=names, data=[file_record(file) for file in files])
-        if not files:
-            ctx.io.output(f"  {folder}/ (empty)")
-            return CmdResult.ok(value="")
-        ctx.io._write(f"  {folder}/")
-        ctx.io._write(f"    {format_file_header(file_columns(files))}", "dim")
-        for line in format_file_lines(files):
-            ctx.io._write(f"    {line.rstrip()}")
-        return CmdResult.ok(value=names)
+        return file_table(f"{folder}/", noun, list_entries(data_dir, pattern))
 
     return handler
 
@@ -386,19 +423,20 @@ def _spec_for(folder: str) -> FolderSpec | None:
     return None
 
 
-def build_folder_subcommands(folder: str) -> dict[str, Command]:
+def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Command]:
     """Build the standard ``list/explore/show/dump/clear`` subcommand family.
 
     Driven by the ``FolderSpec`` for the given folder name.  Always
     includes ``list`` and ``explore``; adds ``show`` / ``dump`` /
-    ``clear`` according to the spec's capability flags.
+    ``clear`` according to the spec's capability flags.  ``noun`` is
+    what ``.list``'s title counts in (``proto/ - 6 scripts``).
 
     Caller merges the result into its plugin's ``sub_commands=`` dict:
 
         sub_commands={
             "send": ...,           # plugin-specific subcommands
             "run": ...,
-            **build_folder_subcommands("proto"),   # folder ops
+            **build_folder_subcommands("proto", noun="script"),
         }
     """
     spec = _spec_for(folder)
@@ -409,7 +447,7 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
     subs: dict[str, Command] = {
         "list": Command(
             help=f"List files in {folder}/, newest first, with size and age.",
-            handler=_make_list_handler(folder, pattern),
+            handler=_make_list_handler(folder, pattern, noun),
         ),
         "explore": Command(
             help=f"Open {folder}/ in the system file explorer.",

@@ -90,7 +90,8 @@ src/termapy/
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
 │   ├── context.py          #   PluginContext dataclass + ns/plugin_cfg/dispatch
 │   ├── loader.py           #   Plugin discovery, COMMAND validation
-│   └── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
+│   ├── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
+│   └── views.py            #   Column, TableView - a typed answer's prose form, rendered by dispatch
 ├── profile/                # (1282 lines) v2 device-profile schema, loader, type registry
 │   ├── loader.py           #   load/save/validate + Profile dataclass + transport apply
 │   ├── matcher.py          #   match_profile_command, template_to_regex
@@ -447,6 +448,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 │      capability-domain handles attached to ctx   │
 │  • loader.py: load_plugins_from_dir, validation  │
 │  • output_levels.py: silent/quiet/normal/verbose │
+│  • views.py: Column, TableView (CmdResult.table) │
 ├──────────────────────────────────────────────────┤
 │  protocol/ - Protocol Engine (package)           │
 │  • core.py: format-spec language (H, U, I, S,    │

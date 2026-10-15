@@ -225,17 +225,25 @@ gap can't ship silently.
 **`data=` is the optional structured twin of `value`.** Agent consumers
 (the MCP server, `--json`) read it as real JSON -- a dict, list, or
 number, never a prose string.  Most commands don't need it; listings and
-info commands benefit most.  Check `ctx.wants_data` and build *either*
-the prose *or* the records, not both, so a large listing isn't rendered
-twice:
+info commands benefit most.
+
+**A list returns `CmdResult.table`.**  Build records of raw values and
+declare the columns; the records become `data`, and termapy prints the
+table (title with count, header, dash row, rows) unless the caller wants
+data (`--json`, `/term.request`, MCP).  The handler renders nothing:
 
 ```python
+from termapy.plugins import CmdResult, Column
+
+_COLUMNS = (
+    Column("NAME", lambda record: record["name"]),
+    Column("TEMP", lambda record: f"{record['temp_c']:.1f}", right=True),
+)
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    facts = gather()                        # one producer
-    if ctx.wants_data:
-        return CmdResult.ok(value=summary(facts), data=records(facts))
-    ctx.io.output(render_table(facts))      # human view
-    return CmdResult.ok(value=summary(facts))
+    records = [{"name": name, "temp_c": read_temp(name)} for name in sensors()]
+    names = "\n".join(record["name"] for record in records)
+    return CmdResult.table("Sensors", "sensor", _COLUMNS, records, value=names)
 ```
 
 Handlers that ignore `wants_data` keep working: their prose reaches
@@ -258,7 +266,7 @@ Examples that should set `value=`:
 Examples that should not:
 
 - Pure side-effect commands (`/cls`, `/edit`, `/cap.stop`)
-- Commands that print multiple lines (`/cfg.list`, `/help`)
+- Commands that print a page of prose (`/help`)
 
 ## Usage errors: raise UsageError, never hand-write "Usage:" strings
 

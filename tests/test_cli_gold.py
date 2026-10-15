@@ -72,7 +72,8 @@ def _normalize(text: str) -> list[str]:
     - 'Running script:' lines (path varies by platform/location)
     - Verbose timing lines like '[1/3] AT (0.015s)' (nondeterministic)
     - ``"elapsed_s": <n>`` inside JSON envelopes -> ``"elapsed_s": 0``
-    - File sizes in listings (``1.2 KB``) -> ``<SIZE>`` (CRLF/LF checkouts differ)
+    - File sizes in listings (``1.2 KB``) -> ``<SIZE>`` (CRLF/LF checkouts differ),
+      and a listing's header padding and dash row, whose widths follow them
     - Absolute paths replaced with <CFG_DIR>/demo/
     - Trailing whitespace
     """
@@ -89,6 +90,7 @@ def _normalize(text: str) -> list[str]:
         line = _ELAPSED_RE.sub('"elapsed_s": 0', line)
         line = _SIZE_RE.sub("  <SIZE>", line)
         line = _collapse_listing_header(line)
+        line = _collapse_listing_separator(line)
         lines.append(line.rstrip())
     lines = _sort_listing_runs(lines)
     # Remove trailing empty lines
@@ -110,6 +112,22 @@ def _collapse_listing_header(line: str) -> str:
         indent = line[: len(line) - len(stripped)]
         return indent + " ".join(stripped.split())
     return line
+
+
+_SEPARATOR_RE = re.compile(r"^(\s*)(-+(?:\s+-+)*)$")
+
+
+def _collapse_listing_separator(line: str) -> str:
+    """Collapse a listing's dash row to one ``--`` per column.
+
+    Each dash run is as wide as its column, and the SIZE column's width
+    follows the masked sizes (see ``_SIZE_RE``), so the row is reduced to
+    its column count -- the shape the gold can hold.  The indent is kept.
+    """
+    match = _SEPARATOR_RE.match(line.rstrip())
+    if match is None:
+        return line
+    return match.group(1) + " ".join("--" for _ in match.group(2).split())
 
 
 def _sort_listing_runs(lines: list[str]) -> list[str]:

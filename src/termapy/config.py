@@ -898,6 +898,29 @@ def load_config(path: str) -> dict:
     return cfg
 
 
+def config_summary(path: Path) -> dict[str, Any]:
+    """What a config listing shows for one cfg: ``port``, ``baud_rate``, ``title``.
+
+    Shared by ``/cfg.list`` and the Cfg picker, so both show the same facts.
+    All empty (``baud_rate`` None) when the file won't load -- a broken cfg
+    still deserves a row, so it can be edited or deleted.  A title that only
+    repeats the config's name (how new configs are written) reads as none.
+    """
+    try:
+        cfg = load_config(str(path))
+    except Exception:  # noqa: BLE001 - see docstring
+        return {"port": "", "baud_rate": None, "title": ""}
+    serial_cfg = cfg.get("serial", {})
+    title = str(cfg.get("title") or "")
+    if title.strip().lower() == path.stem.lower():
+        title = ""
+    return {
+        "port": str(serial_cfg.get("port") or ""),
+        "baud_rate": serial_cfg.get("baud_rate") or None,
+        "title": title,
+    }
+
+
 def file_manager_name(platform: str = sys.platform) -> str:
     """The name of this platform's file manager, for a label ("Finder").
 

@@ -443,7 +443,7 @@ class TestHookRunProfile:
         # Assert
         actual = capsys.readouterr().out
         assert result.success, "empty prof/ is a success, not an error"
-        assert "no profile files" in actual, "reports empty state"
+        assert "prof/ - empty" in actual, "reports the empty state in the one listing format"
 
     def test_list_enumerates_csvs(self, cli, capsys):
         """Every profile CSV in prof/ appears in the listing."""

@@ -59,6 +59,6 @@ COMMAND = Command(
             handler=_handler_placeholder,
             needs=CapabilitySet.SCREEN_CAPTURE,
         ),
-        **build_folder_subcommands("ss"),
+        **build_folder_subcommands("ss", noun="screenshot"),
     },
 )

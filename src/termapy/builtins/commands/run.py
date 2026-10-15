@@ -44,14 +44,11 @@ from termapy.builtins.commands.help import (
 )
 from termapy.folder_ops import (
     build_folder_subcommands,
-    file_columns,
-    file_record,
-    format_file_header,
-    format_file_lines,
+    file_table,
     list_entries,
 )
 from termapy.folders import default_file_name
-from termapy.plugins import CmdResult, Command, UsageError
+from termapy.plugins import CmdResult, Column, Command, UsageError
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -106,37 +103,18 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """``/run.list`` -- list .run scripts with their docstring summaries.
 
-    Overrides the generic folder-list handler so the user sees
-    "filename  --  one-line summary" instead of just the filenames.
-    Scripts without a docstring still appear (with no summary), so
-    the listing is never silently filtered.
+    The generic folder listing plus a SUMMARY column (and a ``summary``
+    key in each data record).  Scripts without a docstring still appear
+    with an empty summary, so the listing is never silently filtered.
     """
-    scripts_dir = ctx.fs.scripts_dir
-    if not scripts_dir.is_dir():
+    if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
-    files = list_entries(scripts_dir, "*.run")
-    summaries = [extract_docstring(file)[0] for file in files]
-    value = "\n".join(
-        f"{file.name}\t{summary}" if summary else file.name
-        for file, summary in zip(files, summaries, strict=True)
+    files = list_entries(ctx.fs.scripts_dir, "*.run")
+    summary = Column("SUMMARY", lambda record: record["summary"])
+    return file_table(
+        "run/", "script", files,
+        extra=((summary, lambda file: extract_docstring(file)[0], "summary"),),
     )
-    if ctx.wants_data:
-        return CmdResult.ok(
-            value=value,
-            data=[
-                {**file_record(file), "summary": summary}
-                for file, summary in zip(files, summaries, strict=True)
-            ],
-        )
-    if not files:
-        ctx.io.output("  run/ (empty)")
-        return CmdResult.ok(value="")
-
-    ctx.io.output("  run/")
-    ctx.io.output(f"    {format_file_header(file_columns(files), 'SUMMARY')}", "dim")
-    for line, summary in zip(format_file_lines(files), summaries, strict=True):
-        ctx.io.output(f"    {line}  {summary}".rstrip())
-    return CmdResult.ok(value=value)
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:

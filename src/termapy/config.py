@@ -81,7 +81,10 @@ SERIAL_RX_BUFFER_BYTES = 262144
 
 
 def _os_default_cfg_dir() -> Path:
-    """OS-standard config directory (auto-created if missing).
+    """OS-standard config directory, which may not exist yet.
+
+    A path, not a promise: the first write into it (a new config, the
+    demo, the no-config history file) creates it.
 
     Windows: %APPDATA%/termapy
     macOS:   ~/Library/Application Support/termapy
@@ -95,9 +98,7 @@ def _os_default_cfg_dir() -> Path:
         base = Path.home() / "Library" / "Application Support"
     else:
         base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    d = base / "termapy"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return base / "termapy"
 
 
 def cfg_dir() -> Path:
@@ -106,7 +107,7 @@ def cfg_dir() -> Path:
     1. --cfg-dir flag (CFG_DIR set explicitly) -- must exist
     2. TERMAPY_CFG_DIR env var -- must exist
     3. ./termapy_cfg if it exists in cwd -- never auto-created
-    4. OS default (~/.config/termapy etc.) -- auto-created
+    4. OS default (~/.config/termapy etc.) -- created by the first write into it
     """
     # 1. Explicit --cfg-dir
     if CFG_DIR is not None:
@@ -137,48 +138,8 @@ def cfg_dir() -> Path:
     if local.is_dir():
         return local
 
-    # 4. OS default (auto-created)
+    # 4. OS default (may not exist until something is written into it)
     return _os_default_cfg_dir()
-
-
-def migrate_json_to_cfg(directory: Path) -> None:
-    """One-time migration: rename ``<name>/<name>.json`` to ``<name>/<name>.cfg``.
-
-    Termapy's config-file naming invariant is strict: a config lives at
-    ``<folder>/<folder>.cfg`` and *only* that filename is a config.  This
-    migration recognizes exactly ONE old filename pattern -- the same
-    shape with ``.json`` -- and renames it to the new extension.
-
-    Any other ``.json`` file inside a config folder is by definition NOT
-    a config and is left strictly alone.  In particular:
-
-      - ``<folder>/<folder>.profile.json``  (v2 device profile)
-      - ``<folder>/sym/<folder>.symbols.json``  (symbol table for /sym.*)
-      - ``<folder>/<folder>.schema.json``   (future schema-side data)
-      - any ad-hoc ``.json`` a user dropped in the folder
-
-    must survive this migration unchanged.  The earlier implementation
-    used a permissive ``*/*.json`` glob and chewed on any ``.json`` it
-    found, which silently corrupted profiles every time the host
-    started.  This version uses an exact-name lookup: no globs, no
-    pattern matching, no inference.
-
-    Safe to call repeatedly: if the ``.cfg`` already exists, no rename
-    happens.
-
-    Args:
-        directory: The config root directory to scan (e.g. ``termapy_cfg/``).
-    """
-    for subdir in directory.iterdir():
-        if not subdir.is_dir():
-            continue
-        # The ONE filename this migration recognizes.  Exact match, not
-        # a glob.  Any other .json file in subdir is unknown to this
-        # migration and must be left alone.
-        candidate = subdir / f"{subdir.name}.json"
-        target = subdir / f"{subdir.name}.cfg"
-        if candidate.exists() and not target.exists():
-            candidate.rename(target)
 
 
 def _is_bundled_path(p: Path) -> bool:
@@ -206,11 +167,9 @@ def cfg_data_dir(config_path: str) -> Path:
     """Return the per-config data directory (for logs, screenshots, etc.).
 
     Config files live at termapy_cfg/<name>/<name>.cfg, so the data dir
-    is just the parent directory of the config file.  Creates that folder
-    and its ``.gitignore``, runs the one-time layout migrations (folder
-    renames, sidecar moves), and creates NO data folder: those appear on
-    first write (``folders.ensure_folder``) and empty ones are pruned at
-    load and stop (``folders.prune_empty_folders``).
+    is just the parent directory of the config file.  A read: it writes
+    nothing, so a listing, a log viewer or an MCP query can call it on
+    any config.  The folder's setup is ``prepare_cfg_folder``, run at load.
 
     Refuses to operate on cfg paths inside the installed termapy
     package tree -- those are read-only templates (e.g. the bundled
@@ -227,6 +186,28 @@ def cfg_data_dir(config_path: str) -> Path:
             f"Use `termapy --demo` to copy it to your cfg-dir, or pass\n"
             f"`--cfg-dir <writable-path>` pointing at a writable location."
         )
+    return d
+
+
+def prepare_cfg_folder(config_path: str) -> Path:
+    """Set up a config's folder; the write half of ``cfg_data_dir``.
+
+    Creates the folder and its ``.gitignore`` and runs the layout
+    migrations (folder renames, sidecar moves).  Creates NO data folder:
+    those appear on first write (``folders.ensure_folder``) and empty ones
+    are pruned at load and stop (``folders.prune_empty_folders``).
+
+    Called where a config is loaded (``load_config``) or created, never
+    on a read path.  Idempotent: once a folder is set up, it changes
+    nothing.
+
+    Returns:
+        The config folder.
+
+    Raises:
+        RuntimeError: ``config_path`` is the bundled read-only template.
+    """
+    d = cfg_data_dir(config_path)
     d.mkdir(parents=True, exist_ok=True)
     # One-time folder renames (migration)
     for old_name, new_name in FOLDER_MIGRATIONS:
@@ -896,6 +877,7 @@ def load_config(path: str) -> dict:
     all_warnings = list(mig_warnings) + expand_warnings + config_warnings
     if all_warnings:
         cfg["_config_warnings"] = all_warnings
+    prepare_cfg_folder(path)
     cleanup_profile_temps(path)
     return cfg
 

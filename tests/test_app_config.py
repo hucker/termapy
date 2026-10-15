@@ -9,6 +9,7 @@ import pytest
 
 from termapy.config import (
     cfg_data_dir,
+    cfg_dir,
     cfg_history_path,
     cfg_log_path,
     cfg_path_for_name,
@@ -17,8 +18,8 @@ from termapy.config import (
     expand_env_str,
     file_manager_name,
     load_config,
-    migrate_json_to_cfg,
     open_serial,
+    prepare_cfg_folder,
     validate_config,
 )
 from termapy.defaults import DEFAULT_CFG, SCRIPT_TEMPLATE
@@ -60,48 +61,99 @@ def _cfg_with(**overrides) -> dict:
     }
 
 
-# -- cfg_data_dir: the config folder and its .gitignore, no data folders ----
+# -- cfg_data_dir (a read) and prepare_cfg_folder (its write half) ----------
 
 
 class TestCfgDataDir:
-    def test_creates_no_data_folders(self, tmp_path):
-        """Data folders appear on first write (folders.ensure_folder), never on load."""
+    def test_cfg_data_dir_writes_nothing(self, tmp_path):
+        """reads-never-write: the lookup returns the folder and leaves it exactly as found.
+
+        An old-layout sidecar stays put and no ``.gitignore`` appears, so a
+        listing or an MCP query can ask about any config without changing it.
+        """
+        # Arrange -- a config folder still in the pre-2026-09 layout
+        config_path = tmp_path / "dev" / "dev.cfg"
+        config_path.parent.mkdir()
+        (config_path.parent / "dev.symbols.json").write_text("{}", encoding="utf-8")
+        expected = ["dev.symbols.json"]
+
+        # Act
+        folder = cfg_data_dir(str(config_path))
+
+        # Assert
+        assert folder == config_path.parent, "returns the config's folder"
+        actual = sorted(path.name for path in folder.iterdir())
+        assert actual == expected, "no .gitignore written, no sidecar moved"
+
+    def test_cfg_data_dir_creates_no_missing_folder(self, tmp_path):
+        """Asking for the folder of a config that does not exist creates nothing."""
+        # Arrange
+        config_path = tmp_path / "new" / "new.cfg"
+
+        # Act
+        cfg_data_dir(str(config_path))
+
+        # Assert
+        assert not config_path.parent.exists(), "a lookup leaves no orphan folder"
+
+    def test_prepare_creates_no_data_folders(self, tmp_path):
+        """Data folders appear on first write (folders.ensure_folder), never at setup."""
         # Arrange
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
 
         # Act
-        actual = cfg_data_dir(str(config_path))
+        actual = prepare_cfg_folder(str(config_path))
 
         # Assert
         assert actual == config_path.parent, "returns parent directory"
         actual_entries = sorted(path.name for path in actual.iterdir())
         assert actual_entries == [".gitignore"], "only the .gitignore is written; no data folder"
 
-    def test_idempotent(self, tmp_path):
-        """A second call on an already-set-up config folder is a harmless no-op."""
-        # Arrange
+    def test_prepare_twice_is_a_no_op(self, tmp_path):
+        """A second setup of an already-set-up folder changes nothing, the user's edits included."""
+        # Arrange -- set up once, then the user edits the .gitignore
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
+        prepare_cfg_folder(str(config_path))
+        gitignore = config_path.parent / ".gitignore"
+        gitignore.write_text("mine\n", encoding="utf-8")
 
         # Act
-        cfg_data_dir(str(config_path))
-        cfg_data_dir(str(config_path))  # second call should not error
+        prepare_cfg_folder(str(config_path))
 
         # Assert
-        assert (config_path.parent / ".gitignore").is_file(), "the .gitignore is still there"
+        actual = gitignore.read_text(encoding="utf-8")
+        assert actual == "mine\n", "an existing .gitignore is never rewritten"
 
-    def test_creates_parent_if_needed(self, tmp_path):
+    def test_prepare_creates_the_folder_if_needed(self, tmp_path):
         """A config folder that does not exist yet is created, with its .gitignore."""
         # Arrange
         config_path = tmp_path / "new" / "new.cfg"
 
         # Act
-        actual = cfg_data_dir(str(config_path))
+        actual = prepare_cfg_folder(str(config_path))
 
         # Assert
         assert actual.is_dir(), "parent dir created"
         assert (actual / ".gitignore").is_file(), "with its .gitignore"
+
+    def test_load_config_prepares_the_folder(self, tmp_path):
+        """Loading a config is where its folder is set up: .gitignore written, old sidecar moved."""
+        # Arrange -- a cfg in the pre-2026-09 layout, never set up
+        config_path = tmp_path / "dev" / "dev.cfg"
+        config_path.parent.mkdir()
+        config_path.write_text(json.dumps(_cfg_with()), encoding="utf-8")
+        (config_path.parent / "dev.symbols.json").write_text("{}", encoding="utf-8")
+
+        # Act
+        load_config(str(config_path))
+
+        # Assert
+        assert (config_path.parent / ".gitignore").is_file(), "the load writes the .gitignore"
+        assert (config_path.parent / "sym" / "dev.symbols.json").is_file(), (
+            "the load runs the sidecar migration"
+        )
 
     def test_refuses_bundled_path(self):
         """``cfg_data_dir`` must refuse paths inside the installed
@@ -184,6 +236,22 @@ class TestCfgHelpers:
         # Assert
         assert actual.endswith(".cmd_history.txt"), "fallback filename"
 
+    def test_os_default_cfg_root_is_not_created(self, tmp_path, monkeypatch):
+        """Resolving the OS-default cfg root creates nothing; the first config saved there does."""
+        # Arrange -- no ./termapy_cfg, no override, every OS's default under tmp
+        home = tmp_path / "home"
+        for var in ("APPDATA", "XDG_CONFIG_HOME", "HOME", "USERPROFILE"):
+            monkeypatch.setenv(var, str(home))
+        monkeypatch.delenv("TERMAPY_CFG_DIR", raising=False)
+        monkeypatch.chdir(tmp_path)
+
+        # Act
+        root = cfg_dir()
+
+        # Assert
+        assert root.is_relative_to(home), "the OS default, redirected under tmp"
+        assert not root.exists(), "a lookup does not create the root"
+
     def test_cfg_plugins_dir(self, tmp_path):
         """The per-config plugin/ path is computed without creating the folder."""
         config_path = tmp_path / "dev" / "dev.cfg"
@@ -192,7 +260,7 @@ class TestCfgHelpers:
         assert actual == config_path.parent / "plugin", "the per-config plugin/ path"
         assert not actual.exists(), "a read: the folder is not created"
 
-    def test_cfg_data_dir_migrates_the_symbol_table_into_sym(self, tmp_path):
+    def test_prepare_migrates_the_symbol_table_into_sym(self, tmp_path):
         """A symbol table left beside the cfg (pre 2026-09 layout) moves into sym/."""
         # Arrange -- a table where it lived before 2026-09: beside the cfg
         config_path = tmp_path / "dev" / "dev.cfg"
@@ -201,7 +269,7 @@ class TestCfgHelpers:
         old.write_text("{}", encoding="utf-8")
 
         # Act
-        cfg_data_dir(str(config_path))
+        prepare_cfg_folder(str(config_path))
 
         # Assert
         assert not old.exists(), "moved out of the root"
@@ -218,7 +286,7 @@ class TestCfgHelpers:
         old.write_text("old", encoding="utf-8")
 
         # Act
-        cfg_data_dir(str(config_path))
+        prepare_cfg_folder(str(config_path))
 
         # Assert
         actual = (config_path.parent / "sym" / "dev.symbols.json").read_text(encoding="utf-8")
@@ -606,102 +674,6 @@ class TestLoadConfigEnvExpansion:
         actual_disk = json.loads(config_path.read_text())
         assert actual_disk["serial"]["port"] == template, (
             "disk keeps raw template at migrated location"
-        )
-
-
-# -- migrate_json_to_cfg -----------------------------------------------------
-
-
-class TestMigrateJsonToCfg:
-    def test_renames_json_to_cfg(self, tmp_path):
-        """A legacy <name>/<name>.json config is renamed to .cfg."""
-        # Arrange
-        sub = tmp_path / "foo"
-        sub.mkdir()
-        json_file = sub / "foo.json"
-        json_file.write_text('{"port": "COM1"}')
-
-        # Act
-        migrate_json_to_cfg(tmp_path)
-
-        # Assert
-        assert (sub / "foo.cfg").exists(), ".cfg file created"
-        assert not json_file.exists(), ".json file removed"
-
-    def test_skips_when_cfg_exists(self, tmp_path):
-        """When both .json and .cfg exist, the .cfg wins and nothing is overwritten."""
-        # Arrange
-        sub = tmp_path / "bar"
-        sub.mkdir()
-        json_file = sub / "bar.json"
-        json_file.write_text('{"port": "COM1"}')
-        cfg_file = sub / "bar.cfg"
-        cfg_file.write_text('{"port": "COM2"}')
-
-        # Act
-        migrate_json_to_cfg(tmp_path)
-
-        # Assert
-        assert json_file.exists(), ".json not removed (conflict)"
-        actual = json.loads(cfg_file.read_text())
-        assert actual["port"] == "COM2", ".cfg not overwritten"
-
-    def test_idempotent(self, tmp_path):
-        """Running the migration again after it has run changes nothing."""
-        # Arrange
-        sub = tmp_path / "baz"
-        sub.mkdir()
-        json_file = sub / "baz.json"
-        json_file.write_text('{"port": "COM1"}')
-
-        # Act
-        migrate_json_to_cfg(tmp_path)
-        migrate_json_to_cfg(tmp_path)  # second call is no-op
-
-        # Assert
-        assert (sub / "baz.cfg").exists(), ".cfg still exists"
-
-    def test_only_exact_name_json_is_recognized(self, tmp_path):
-        """Regression: the migration must ONLY recognize <name>/<name>.json.
-
-        Termapy's naming invariant is that a config file is exactly
-        ``<folder>/<folder>.cfg`` -- nothing else.  Earlier the migration
-        globbed ``*/*.json`` and renamed any ``.json`` it found, which
-        silently corrupted profile files (``<name>.profile.json`` ->
-        ``<name>.profile.cfg``) every time the host started.  This test
-        drops several plausible filenames in a fixture folder and
-        asserts only the exact-match cfg file is touched.
-        """
-        # Arrange -- folder with one real cfg file and several others
-        # that share the .json extension but are NOT config files.
-        sub = tmp_path / "device_x"
-        sub.mkdir()
-        (sub / "device_x.json").write_text('{"port": "COM1"}')   # the cfg
-        (sub / "device_x.profile.json").write_text('{"v": 2}')    # profile
-        (sub / "device_x.schema.json").write_text('{"$ref": ""}')  # future schema
-        (sub / "ad_hoc.json").write_text('{"misc": true}')        # user's drop
-
-        # Act
-        migrate_json_to_cfg(tmp_path)
-
-        # Assert -- only the exact-match cfg file got renamed.
-        actual_cfg = (sub / "device_x.cfg").exists()
-        actual_json_gone = not (sub / "device_x.json").exists()
-        actual_profile = (sub / "device_x.profile.json").exists()
-        actual_schema = (sub / "device_x.schema.json").exists()
-        actual_adhoc = (sub / "ad_hoc.json").exists()
-        no_bogus_cfg = not (sub / "device_x.profile.cfg").exists()
-        assert actual_cfg, "device_x.json -> device_x.cfg (the cfg file)"
-        assert actual_json_gone, "original device_x.json removed"
-        assert actual_profile, (
-            "device_x.profile.json must NOT be migrated -- it's a profile, "
-            "not a cfg file (this is the bug the test guards against)"
-        )
-        assert actual_schema, "device_x.schema.json must NOT be migrated"
-        assert actual_adhoc, "ad_hoc.json must NOT be migrated"
-        assert no_bogus_cfg, (
-            "no bogus <name>.profile.cfg file -- migration must not "
-            "produce filenames that violate the strict naming convention"
         )
 
 

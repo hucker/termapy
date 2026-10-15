@@ -1743,6 +1743,20 @@ class TestPlainFileHistory:
         expected = "/port.list\n/term.send hello\n"
         assert actual == expected, "plain lines only"
 
+    def test_store_creates_a_missing_cfg_root(self, tmp_path):
+        """With no config loaded the file sits in the cfg root, which the first write creates."""
+        # Arrange -- the no-config history file in a root nothing has created
+        path = tmp_path / "termapy" / ".cmd_history.txt"
+        hist = PlainFileHistory(str(path))
+
+        # Act
+        hist.store_string("/ver")
+        hist.store_string("/help")
+
+        # Assert
+        actual = path.read_text(encoding="utf-8")
+        assert actual == "/ver\n/help\n", "both lines kept: the root was created, not lost"
+
     def test_load_yields_newest_first(self, tmp_path):
         """Loading reverses the file to newest first, as prompt_toolkit expects."""
         # Arrange -- a TUI-written file (plain lines, oldest first)

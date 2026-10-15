@@ -35,14 +35,11 @@ def find_config() -> tuple[str | None, bool]:
     - 0 cfg files: ``(None, False)`` -- show name picker for new config
     - 2+ cfg files: ``(None, True)`` -- show file picker
 
-    Also performs the legacy ``.json`` -> ``.cfg`` migration on first
-    scan so old installs see their configs after upgrade.
+    A read: it writes nothing (``--check`` relies on that).
     """
-    from termapy.config import cfg_dir, migrate_json_to_cfg
+    from termapy.config import cfg_dir
 
-    d = cfg_dir()
-    migrate_json_to_cfg(d)
-    cfg_files = sorted(d.glob("*/*.cfg"))
+    cfg_files = sorted(cfg_dir().glob("*/*.cfg"))
     if len(cfg_files) == 1:
         return str(cfg_files[0]), False
     if len(cfg_files) > 1:

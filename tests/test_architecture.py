@@ -460,7 +460,6 @@ ALLOWED_RAW_MKDIR: frozenset[str] = frozenset({
     "termapy/builtins/commands/app.py",
     "termapy/config.py",
     "termapy/devices/__init__.py",
-    "termapy/dialogs/config_editor.py",
     "termapy/folders.py",
     "termapy/mcp/server.py",
 })
@@ -926,7 +925,7 @@ def test_registry_guard_fires_on_a_probe():
 # when the guard was written; it only shrinks.
 
 KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset({
-    "app.list", "app.state.edit", "cap.hex", "cfg.help",
+    "app.state.edit", "cap.hex", "cfg.help",
     "edit.log", "edit.plugin.list", "edit.proto.list", "edit.run.list",
     "help.plugin", "help.target", "ping.quiet",
     "print.r",

@@ -144,7 +144,7 @@ INFO_REPORT_SUFFIX = ".md"
 # The v2 device profile the MCP host auto-loads by convention.
 PROFILE_SUFFIX = ".profile.json"
 # The symbol table, in the sym/ folder (it lived beside the cfg until
-# 2026-09; cfg_data_dir migrates it on first load).
+# 2026-09; prepare_cfg_folder migrates it at load).
 SYMBOLS_SUFFIX = ".symbols.json"
 SEQ_FILE = ".cap_seq"
 PROFILE_TMP_GLOB = "_profile_tmp_*.run"
@@ -153,8 +153,8 @@ PROFILE_TMP_GLOB = "_profile_tmp_*.run"
 
 # Every file named after the config's stem, with the folder it lives in
 # (None = beside the .cfg).  ONE table: rename_config carries each of these
-# to the new name, and cfg_data_dir moves any that has a folder out of the
-# root on first load.  A sidecar missing from here is a sidecar the rename
+# to the new name, and prepare_cfg_folder moves any that has a folder out of
+# the root at load.  A sidecar missing from here is a sidecar the rename
 # will miss -- which is how <stem>.log got left behind.
 SIDECARS: tuple[tuple[str, str | None], ...] = (
     (HISTORY_SUFFIX, None),

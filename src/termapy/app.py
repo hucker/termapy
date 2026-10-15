@@ -667,10 +667,12 @@ class SerialTerminal(TerminalHost, App):
             self.history,
             self._HISTORY_LIMIT,
         )
+        path = Path(self._history_path())
         try:
-            Path(self._history_path()).write_text(
-                "\n".join(merged) + "\n" if merged else "", encoding="utf-8",
-            )
+            # With no config loaded the file sits in the cfg root, which
+            # the first write creates.
+            ensure_folder(path.parent)
+            path.write_text("\n".join(merged) + "\n" if merged else "", encoding="utf-8")
         except OSError:
             pass
 

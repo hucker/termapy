@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from termapy.app_dirs import app_config_dir, app_state_dir
+from termapy.app_dirs import app_config_dir, app_state_dir, load_app_state, save_app_state
 
 
 class TestAppStateDir:
@@ -21,19 +21,33 @@ class TestAppStateDir:
         assert actual == expected, "env override wins"
         assert isinstance(actual, Path), "returns a Path"
 
-    def test_creates_dir_if_missing(self, monkeypatch, tmp_path):
-        """Asking for the state dir creates it, so callers can write without a mkdir."""
+    def test_state_dir_is_not_created_by_asking(self, monkeypatch, tmp_path):
+        """reads-never-write: asking for the state dir, or reading state from it, creates nothing."""
         # Arrange
-        target = tmp_path / "newly_created"
+        target = tmp_path / "state"
         monkeypatch.setenv("TERMAPY_STATE_DIR", str(target))
-        assert not target.exists(), "precondition: dir does not yet exist"
 
         # Act
         app_state_dir()
+        state = load_app_state()
 
         # Assert
-        actual = target.exists()
-        assert actual is True, "dir was created"
+        assert state == {}, "no state yet reads as empty"
+        assert not target.exists(), "the folder waits for the first write"
+
+    def test_save_creates_the_folder(self, monkeypatch, tmp_path):
+        """The first save creates the state folder, and a second save writes over the first."""
+        # Arrange
+        target = tmp_path / "state"
+        monkeypatch.setenv("TERMAPY_STATE_DIR", str(target))
+
+        # Act
+        save_app_state({"checked": 1})
+        save_app_state({"checked": 2})
+
+        # Assert
+        actual = load_app_state()
+        assert actual == {"checked": 2}, "the write created the folder and the second save won"
 
     def test_idempotent_when_already_exists(self, monkeypatch, tmp_path):
         """Repeated calls on an existing state dir do not raise."""
@@ -77,8 +91,8 @@ class TestAppConfigDir:
         assert actual == expected, "env override wins"
         assert isinstance(actual, Path), "returns a Path"
 
-    def test_creates_dir_if_missing(self, monkeypatch, tmp_path):
-        """Asking for the config dir creates it, mirroring the state dir."""
+    def test_config_dir_is_not_created_by_asking(self, monkeypatch, tmp_path):
+        """Asking for the config dir creates nothing, mirroring the state dir."""
         # Arrange
         target = tmp_path / "cfg_new"
         monkeypatch.setenv("TERMAPY_CONFIG_DIR", str(target))
@@ -87,8 +101,7 @@ class TestAppConfigDir:
         app_config_dir()
 
         # Assert
-        actual = target.exists()
-        assert actual is True, "dir was created"
+        assert not target.exists(), "the folder waits for the first write"
 
     def test_state_and_config_are_independent(self, monkeypatch, tmp_path):
         """Each dir reads only its own env var; state and config never share a path."""

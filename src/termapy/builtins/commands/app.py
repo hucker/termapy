@@ -7,7 +7,7 @@ Termapy has two scopes of configuration: per-project (lives in
 
 Command surface:
 
-- ``/app.list``         list files in the app folder(s)
+- ``/app.list``         list the files in the app folder(s), newest first
 - ``/app.explore``      open the app folder in the OS file manager
 - ``/app.state``        print ``state.json``'s path
 - ``/app.state.dump``   print ``state.json`` contents to the terminal
@@ -41,7 +41,8 @@ from termapy.app_dirs import (
     load_app_config,
     load_app_state,
 )
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
+from termapy.plugins import CapabilitySet, CmdResult, Column, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -70,35 +71,23 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List files in the app folder(s).
+    """List the files in the app folder, newest first: NAME, SIZE, UPDATED.
 
-    On Windows and macOS, state and config share one folder; on
-    Linux they split into XDG_STATE_HOME and XDG_CONFIG_HOME.  Walk
-    each distinct folder and list every file in it, so the user gets
-    a complete picture of what termapy has written to their user-level
-    data directories.
+    Every record is ``file_record`` plus ``folder``, the file's folder as a
+    full path, so a structured consumer learns where the files are on every
+    platform.  Windows and macOS keep state and config in one folder, which
+    is the table's title; Linux splits them (XDG_STATE_HOME vs
+    XDG_CONFIG_HOME), and then a FOLDER column shows it.  A folder that does
+    not exist yet lists as empty: listing creates nothing.
     """
-    paths = sorted({app_state_dir(), app_config_dir()})
-    any_shown = False
-    file_names: list[str] = []
-    for path in paths:
-        if not path.is_dir():
-            continue
-        files = sorted(f for f in path.iterdir() if f.is_file())
-        if not files:
-            ctx.io.output(f"  {path}/ (empty)")
-            any_shown = True
-            continue
-        ctx.io.output(f"  {path}/")
-        for f in files:
-            ctx.io.output(f"    {f.name}")
-            file_names.append(str(f))
-        any_shown = True
-    if not any_shown:
-        ctx.io.output("  (no app folder yet)")
-    # Newline-joined list of every file (full path) so scripts can
-    # capture or iterate.  Empty when no folders existed.
-    return CmdResult.ok(value="\n".join(file_names))
+    folders = sorted({app_state_dir(), app_config_dir()})
+    files = [file for folder in folders for file in list_entries(folder, "*")]
+    records = [{**file_record(file), "folder": str(file.parent)} for file in files]
+    names = "\n".join(file.name for file in files)
+    if len(folders) == 1:
+        return CmdResult.table(str(folders[0]), "file", FILE_COLUMNS, records, value=names)
+    columns = (*FILE_COLUMNS, Column("FOLDER", lambda record: record["folder"]))
+    return CmdResult.table("app folders", "file", columns, records, value=names)
 
 
 # ── /app.state ────────────────────────────────────────────────────────────────
@@ -279,7 +268,7 @@ COMMAND = Command(
     handler=None,
     sub_commands={
         "list": Command(
-            help="List files in the app folder(s).",
+            help="List the files in the app folder, newest first.",
             handler=_handler_list,
         ),
         "explore": Command(

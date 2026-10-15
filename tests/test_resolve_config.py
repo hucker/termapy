@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from termapy.config_resolve import (
+    find_config,
     proto_dir_for,
     proto_script_name,
     resolve_config as _resolve_config,
@@ -21,6 +22,30 @@ def _make_cfg(base: Path, name: str) -> Path:
     cfg = folder / f"{name}.cfg"
     cfg.write_text("{}")
     return cfg
+
+
+def _tree(root: Path) -> list[str]:
+    """Every path under ``root``, relative and sorted: a snapshot to diff."""
+    return sorted(path.relative_to(root).as_posix() for path in root.rglob("*"))
+
+
+class TestFindConfig:
+    def test_find_config_writes_nothing(self, tmp_path, monkeypatch):
+        """reads-never-write: the startup scan finds the config and changes no file (``--check`` relies on it)."""
+        # Arrange -- one config, plus a pre-.cfg folder the scan once renamed
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+        cfg = _make_cfg(tmp_path, "bench")
+        legacy = tmp_path / "old" / "old.json"
+        legacy.parent.mkdir()
+        legacy.write_text("{}")
+        expected = _tree(tmp_path)
+
+        # Act
+        found, _ = find_config()
+
+        # Assert
+        assert found == str(cfg), "the one config is auto-loaded"
+        assert _tree(tmp_path) == expected, "nothing renamed or created by a scan"
 
 
 class TestResolveConfigExactFile:

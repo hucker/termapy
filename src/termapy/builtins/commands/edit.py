@@ -4,20 +4,28 @@ Provides a uniform /edit tree for all file types: run, proto,
 plugin, config, log, and info report. Each folder type gets the
 same subcommands: edit by name, list files, open folder.
 
+``edit_command`` / ``edit_cfg_command`` also build the noun-first twins
+(``/run.edit``, ``/proto.edit``, ``/plugin.edit``, ``/cfg.edit``) that
+the run, proto, plugin and cfg plugins mount, so both spellings are one
+declaration.
+
 In the TUI, hooks override /edit, /edit.cfg, /edit.run, and
-/edit.proto to use Textual modal editors. Everything else (list,
-explore, log, info) works the same in both frontends via ctx.fs.open_file().
+/edit.proto (and their twins) to use Textual modal editors. Everything
+else (list, explore, log, info) works the same in both frontends via
+ctx.fs.open_file().
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from termapy.config import cfg_log_path
-from termapy.folders import EXT_TO_FOLDER, ensure_folder
-from termapy.help_dynamic import folder_line
+from termapy.folders import EXT_TO_FOLDER, FOLDERS, ensure_folder
+from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins.command import PICKERS
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -158,30 +166,83 @@ def make_explore_handler(get_dir):
     return handler
 
 
-def _build_folder_sub(get_dir, ext, pattern, kind=None, noun=None):
-    """Build a folder subcommand with edit, list, and explore.
+def _folder_dir(folder: str) -> Callable[[PluginContext], Path]:
+    """Getter for a per-config data folder; the cwd when no config is loaded."""
+    def get_dir(ctx: PluginContext) -> Path:
+        return Path(ctx.config_path).parent / folder if ctx.config_path else Path(".")
+    return get_dir
 
-    ``kind`` is the ``folders.py`` folder name (``run``, ``proto``, etc.).
-    When supplied, every subcommand gets a dynamic ``long_help`` showing
-    the current file count in that folder, so ``/help edit.run`` prints
-    "42 scripts in run/" in green.
+
+# The word ``folder_line`` counts files in, where "file" would read wrong.
+_NOUNS = {"run": "script", "proto": "script"}
+
+
+def _folder_long_help(folder: str, text: str = "") -> Callable[[PluginContext], str]:
+    """Dynamic long_help: the live file count ("42 scripts in run/"), then ``text``."""
+    noun = _NOUNS.get(folder)
+
+    def long_help(ctx: PluginContext) -> str:
+        return compose(folder_line(ctx, folder, noun=noun), text)
+    return long_help
+
+
+def edit_command(folder: str) -> Command:
+    """``/edit.<folder>`` and its noun-first twin ``/<folder>.edit``.
+
+    One builder for both spellings, so they cannot drift: open an existing
+    file from ``folder`` by name, or list the folder when bare.  The TUI
+    replaces both with a hook that opens Textual's editor and, bare, the
+    folder's picker.
+
+    Args:
+        folder: A ``folders.FOLDERS`` name holding editable text files.
     """
-    long_help: str | Callable = ""
-    if kind is not None:
-        def long_help(ctx):
-            return folder_line(ctx, kind, noun=noun)
+    spec = next(spec for spec in FOLDERS if spec.name == folder)
+    # A folder with a picker opens it on a bare call in the TUI (SYNOPSIS
+    # says so); the listing is what a host without pickers falls back to.
+    picker = folder if folder in PICKERS else ""
+    bare = f"Without a picker (CLI, MCP), bare lists {folder}/." if picker else f"Bare lists {folder}/."
+    text = (
+        f"With a name, opens that existing file from {folder}/ in the system "
+        f"editor (the {spec.ext} is optional); a missing name fails.  {bare}  "
+        f"/{folder}.edit and /edit.{folder} are the same command."
+    )
     return Command(
         args="{filename}",
-        help=f"Open a {ext} file in the system editor.",
-        long_help=long_help,
-        handler=make_edit_handler(get_dir, ext, pattern),
+        help=f"Open a {spec.ext} file in the system editor.",
+        long_help=_folder_long_help(folder, text),
+        handler=make_edit_handler(_folder_dir(folder), spec.ext, spec.pattern),
         needs=CapabilitySet.GUI_APPS,
-        files=kind or "",
+        files=folder,
+        picker=picker,
+    )
+
+
+def edit_cfg_command() -> Command:
+    """``/edit.cfg`` and its noun-first twin ``/cfg.edit``: open the current config."""
+    return Command(
+        help="Open the config file in the system editor.",
+        long_help=(
+            "Opens the loaded config's .cfg file in the system editor.  "
+            "/cfg.edit and /edit.cfg are the same command."
+        ),
+        handler=_handler_cfg,
+        needs=CapabilitySet.GUI_APPS,
+    )
+
+
+def _build_folder_sub(folder: str) -> Command:
+    """``/edit.<folder>``: the shared edit leaf plus ``.list`` and ``.explore``."""
+    spec = next(spec for spec in FOLDERS if spec.name == folder)
+    get_dir = _folder_dir(folder)
+    long_help = _folder_long_help(folder)  # the subs: the count line alone
+    return replace(
+        edit_command(folder),
         sub_commands={
             "list": Command(
-                help=f"List {ext} files.",
+                help=f"List {spec.ext} files.",
                 long_help=long_help,
-                handler=make_list_handler(get_dir, pattern),
+                handler=make_list_handler(get_dir, spec.pattern),
             ),
             "explore": Command(
                 help="Open folder in file explorer.",
@@ -202,24 +263,10 @@ COMMAND = Command(
     handler=_handler_root,
     needs=CapabilitySet.GUI_APPS,
     sub_commands={
-        "run": _build_folder_sub(
-            lambda ctx: ctx.fs.scripts_dir, ".run", "*.run",
-            kind="run", noun="script",
-        ),
-        "proto": _build_folder_sub(
-            lambda ctx: ctx.fs.proto_dir, ".pro", "*.pro",
-            kind="proto", noun="script",
-        ),
-        "plugin": _build_folder_sub(
-            lambda ctx: Path(ctx.config_path).parent / "plugin" if ctx.config_path else Path("."),
-            ".py", "*.py",
-            kind="plugin",
-        ),
-        "cfg": Command(
-            help="Open the config file in the system editor.",
-            handler=_handler_cfg,
-            needs=CapabilitySet.GUI_APPS,
-        ),
+        "run": _build_folder_sub("run"),
+        "proto": _build_folder_sub("proto"),
+        "plugin": _build_folder_sub("plugin"),
+        "cfg": edit_cfg_command(),
         "log": Command(
             help="Open the session log in the system viewer.",
             handler=_handler_log,

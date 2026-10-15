@@ -18,12 +18,13 @@ messages for the overlay -- same polymorphism the rest of the
 plugin layer uses.
 
 Bare ``/run`` opens the Run picker when a host installs one
-(``ctx.internal.open_picker`` is set in TUI, unset elsewhere); CLI
-and MCP fall through to ``/help run`` with the available-files
-section appended.  Folder subcommands (.list/.dump/.show/.explore)
-come from the shared ``build_folder_subcommands`` helper.
-``/run.legacy`` rides along by re-exporting the existing
-``termapy.run_legacy`` handler.
+(``picker="run"``: the dispatcher opens it where
+``ctx.internal.open_picker`` is set, the TUI); CLI and MCP run
+``/run.list`` instead (``bare_sub="list"``), the picker's contents.  Folder subcommands (.list/.dump/.show/.explore)
+come from the shared ``build_folder_subcommands`` helper, and
+``/run.edit`` is ``/edit.run`` under its noun-first name
+(``edit.edit_command``).  ``/run.legacy`` rides along by re-exporting
+the existing ``termapy.run_legacy`` handler.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from termapy.builtins.commands._run_record import (
     _LONG_HELP as _RECORD_LONG_HELP,
     _handler as _handler_record,
 )
+from termapy.builtins.commands.edit import edit_command
 from termapy.builtins.commands.help import (
     _show_command_help,
     append_files_section,
@@ -49,7 +51,7 @@ from termapy.folder_ops import (
     list_entries,
 )
 from termapy.folders import default_file_name
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CmdResult, Command, UsageError
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -138,8 +140,11 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
-    """``/run`` -- bare opens picker (TUI) / shows help (CLI, MCP);
-    with a filename, dispatches to the host's script runner.
+    """``/run`` -- with a filename, dispatches to the host's script runner.
+
+    A bare call never arrives: the dispatcher opens the Run picker in the
+    TUI (``picker="run"``) and runs ``/run.list`` elsewhere
+    (``bare_sub="list"``).
 
     The host wires ``start_script`` and ``run_script`` onto
     ``ctx.internal`` in ``TerminalHost._build_context``; this handler
@@ -147,12 +152,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip()
     if not arg:
-        if ctx.internal.open_picker is not None:
-            return ctx.internal.open_picker("run")
-        # No picker in this host -- show help + the list of
-        # available .run files (the closest CLI / MCP equivalent
-        # to "open the picker").
-        return _handler_help(ctx, args)
+        raise UsageError()
 
     if ctx.internal.start_script is None or ctx.internal.run_script is None:
         # Defensive: a host that doesn't wire the script runner can't
@@ -185,6 +185,8 @@ COMMAND = Command(
     help="Run a script file, or list available scripts.",
     handler=_handler_root,
     files="run",
+    picker="run",
+    bare_sub="list",
     sub_commands={
         "help": Command(
             args="{script}",
@@ -220,6 +222,7 @@ COMMAND = Command(
             long_help=_RECORD_LONG_HELP,
             handler=_handler_record,
         ),
+        "edit": edit_command("run"),
         **_FOLDER_SUBS,
     },
 )

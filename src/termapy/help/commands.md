@@ -40,6 +40,7 @@ because its folders hold different types of file.
 
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
+| `/cap`                    | Open the cap/ folder (same as the Cap button and `/cap.explore`)            |
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
 | `/cap.poll {count=N} {delay=<dur>} {file=<f>} cmd=<cmds>` | Poll commands on a schedule; print rows, optionally save CSV/JSONL |
@@ -47,8 +48,9 @@ because its folders hold different types of file.
 | `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
 | `/cap.text <f> ...`       | Capture serial text to file for a timed duration                            |
 | `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |
-| `/cfg [key [value]]`      | TUI: open the Cfg picker. Bare in CLI: dump JSON. With args: get/set.       |
+| `/cfg [key [value]]`      | TUI bare: open the Cfg picker. CLI bare: list configs. With args: get/set.  |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
+| `/cfg.edit`               | Edit the current config file (same as `/edit.cfg`)                          |
 | `/cfg.list`               | List all config files                                                       |
 | `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
 | `/cfg.info {--display}`   | Write and show the project report (tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
@@ -61,9 +63,9 @@ because its folders hold different types of file.
 | `/edit <file>`            | Edit a project file (`run/`/`proto/` path)                                  |
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.info`              | Open the info report in the system viewer                                   |
-| `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given                   |
-| `/edit.proto {file}`      | Edit a .pro file, or list available files if no name given                  |
-| `/edit.run {file}`        | Edit a .run script, or list available scripts if no name given              |
+| `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given (also `/plugin.edit`) |
+| `/edit.proto {file}`      | Edit a .pro file. Bare: TUI opens the Proto picker, CLI lists (also `/proto.edit`) |
+| `/edit.run {file}`        | Edit a .run script. Bare: TUI opens the Run picker, CLI lists (also `/run.edit`) |
 | `/env.list {pattern}`     | List environment variables (all, by name, or glob)                          |
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
@@ -80,6 +82,7 @@ because its folders hold different types of file.
 | `/help.plugin`            | List loaded plugins grouped by source                                       |
 | `/help.run`               | List available .run scripts with descriptions                               |
 | `/help.target`            | Show only imported target device commands                                   |
+| `/log`                    | Open the session log (same as the Log button and `/log.show`)               |
 | `/log.delete`             | Delete the session log file                                                 |
 | `/log.dump [N]`           | Print the session log (all, or an N-line slice) to the terminal             |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
@@ -97,7 +100,7 @@ because its folders hold different types of file.
 | `/mem.write <target> <hex>` | Write hex bytes, or set a register field/bit (audited)                    |
 | `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
 | `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
-| `/port {name}`            | TUI bare: open Port picker. CLI bare: list subcommands. With name: open it. |
+| `/port {name}`            | TUI bare: open Port picker. CLI bare: list ports. With name: open it.       |
 | `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |
 | `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |
@@ -125,7 +128,7 @@ because its folders hold different types of file.
 | `/profile.save {<path>}`  | Write the active profile to disk (default: `<cfg_dir>/<cfg_name>.profile.json`) |
 | `/profile.unload`         | Clear the active profile                                                    |
 | `/profile.validate <path>`| Validate an MCP device profile against the schema                           |
-| `/proto`                  | TUI: open the Proto picker. CLI: show /proto long-help.                     |
+| `/proto`                  | TUI bare: open the Proto picker. CLI bare: list proto/.                     |
 | `/proto.crc.calc <n> {d}` | Compute CRC over hex bytes, quoted text, or a file                          |
 | `/proto.crc.detect {<frames>...}` | Name the catalog CRC on a batch of frames' trailing bytes            |
 | `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify the CRC algorithm from a captured packet, or from a trigger's response |
@@ -133,17 +136,18 @@ because its folders hold different types of file.
 | `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
 | `/proto.crc.reverse {cmd=<trigger> count=<N>} {packet-hex}...` | Recover the Rocksoft parameters of an unknown CRC |
 | `/proto.crc.verify <name> {endian=be\|le} <hex>...` | Verify a packet's trailing CRC against a named algorithm |
-| `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
+| `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script (bare: Proto picker) |
+| `/proto.edit {file}`      | Edit a .pro file (same as `/edit.proto`)                                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
 | `/proto.hex {on\|off\|toggle}`    | Same flag as `/term.hex`                                                    |
 | `/proto.list`             | List .pro files in proto/, newest first, with size and age                  |
-| `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
+| `/proto.run <file>`       | Run a binary protocol test script (.pro); TUI bare: the Proto picker        |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.info`             | Print current protocol mode state                                           |
 | `/raw <text>`             | Send text exactly as typed: no line ending, expansion or transforms         |
 | `/repeat ...`             | Repeat a command N times: `count=<N> {delay=<dur>} {var=<name>} cmd=<cmd>`  |
 | `/run {file} {-v}`        | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
-| `/run.edit <file>`        | Open a .run script in the system editor                                     |
+| `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
 | `/run.legacy {file\|*}`   | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
 | `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
@@ -152,6 +156,7 @@ because its folders hold different types of file.
 | `/seq.reset`              | Reset all sequence counters to zero                                         |
 | `/show <name>`            | Show a file                                                                 |
 | `/show.cfg`               | Show the current config file                                                |
+| `/ss`                     | Open the screenshot folder (same as the SS button and `/ss.explore`)        |
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
 | `/ss.txt [name] [N]`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
@@ -218,6 +223,7 @@ family of file subcommands:
 | `.show`               | Open the newest file in the system viewer               | all                            |
 | `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
 | `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | run, proto, plugin, ss, cap    |
+| `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin |
 | `.clear`              | Delete all files                                        | ss, cap (generated output only) |
 
 Examples:

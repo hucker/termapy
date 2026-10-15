@@ -127,12 +127,12 @@ class TestHelpAndRoot:
         assert "/proto.send" in out, "the page lists the subcommands"
         assert "AVAILABLE PROTO FILES" in out and "probe.pro" in out, "the folder's scripts are appended"
 
-    def test_bare_proto_falls_back_to_help_without_a_picker(self, cli, capsys):
-        """A bare /proto shows the help page where no picker exists (the CLI); the TUI would open its picker."""
-        capsys.readouterr()
-        result = cli.repl.dispatch_full("/proto")
-        assert result.value == "proto"
-        assert "/proto.run" in capsys.readouterr().out, "the same page as /proto.help"
+    def test_bare_proto_lists_without_a_picker(self, cli):
+        """bare-declared: a bare /proto runs /proto.list where no picker exists (the CLI); the TUI opens its picker."""
+        bare = cli.repl.dispatch_full("/proto")
+        listed = cli.repl.dispatch_full("/proto.list")
+        assert bare.success, bare.error
+        assert bare.value == listed.value, "bare /proto is /proto.list"
 
     def test_a_stray_argument_on_the_root_is_refused(self, cli):
         """/proto with an argument but no subcommand fails with the one sanctioned bare-parent redirect."""

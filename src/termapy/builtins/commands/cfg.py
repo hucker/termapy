@@ -14,6 +14,7 @@ from termapy.builtins.commands._cfg_icon import (
     _handler_list as _handler_icon_list,
     _handler_remove as _handler_icon_remove,
 )
+from termapy.builtins.commands.edit import edit_cfg_command
 from termapy.config import (
     cfg_data_dir,
     cfg_dir,
@@ -53,13 +54,11 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # express (see CLAUDE.md "Declarative Command Parameters").  /cfg.load is
     # likewise a trivial single positional kept hand-rolled.
     parts = args.strip().split(None, 1)
-    # Bare /cfg -- TUI opens the Cfg picker dialog (matches the
-    # title-bar button); CLI shows /help cfg.  Use /cfg.dump to print
-    # the loaded config as JSON.
+    # Bare /cfg never arrives: the dispatcher opens the Cfg picker in the
+    # TUI (picker="cfg") and runs /cfg.list elsewhere (bare_sub="list").
+    # Use /cfg.dump to print the loaded config as JSON.
     if not parts:
-        if ctx.internal.open_picker is not None:
-            return ctx.internal.open_picker("cfg")
-        return _handler_help(ctx, args)
+        raise UsageError()
     key = parts[0]
     container = _find_cfg_container(ctx.cfg, key)
     if container is None:
@@ -530,7 +529,7 @@ def on_app_stop(ctx: PluginContext) -> None:
 
 _CFG_PROSE = """\
 Three modes:
-  {prefix}cfg                  - TUI: open Cfg picker.  CLI: show this help.
+  {prefix}cfg                  - TUI: open Cfg picker.  CLI: list configs.
   {prefix}cfg baud_rate        - show current value of 'baud_rate'
   {prefix}cfg baud_rate 115200 - change with confirmation dialog
 
@@ -554,6 +553,8 @@ COMMAND = Command(
     help="Show or set config values.",
     long_help=_cfg_long_help,
     handler=_handler,
+    picker="cfg",
+    bare_sub="list",
     sub_commands={
         "auto": Command(
             help="Set immediately (no confirmation).",
@@ -585,6 +586,7 @@ COMMAND = Command(
             handler=_handler_explore,
             needs=CapabilitySet.GUI_APPS,
         ),
+        "edit": edit_cfg_command(),
         "dump": Command(
             args="{name}",
             help="Print the config (JSON) or a cfg-folder file to the terminal.",

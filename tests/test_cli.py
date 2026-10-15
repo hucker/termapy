@@ -311,21 +311,22 @@ class TestRaw:
 
 
 class TestHookRun:
-    def test_run_bare_shows_help(self, cli, capsys):
-        """With no picker in the CLI, bare /run falls back to its help page."""
-        # Arrange -- bare /run in CLI shows /help run for parity with
-        # /cfg, /proto, /port (TUI opens the Run picker; CLI has no
-        # picker so the builtin's open_picker fallback prints help).
+    @pytest.mark.parametrize("command", ["run", "proto", "cfg"])
+    def test_bare_picker_command_lists_without_a_picker(self, cli, command):
+        """bare-declared: with no picker in the CLI, bare /run, /proto and /cfg run their .list, the picker's contents."""
+        # Arrange
+        parent = Path(cli.config_path).parent
+        (parent / "run" / "boot.run").write_text("/print hi\n", encoding="utf-8")
+        (parent / "proto" / "probe.pro").write_text("", encoding="utf-8")
+
         # Act
-        result = cli.repl.dispatch("run")
+        bare = cli.repl.dispatch(command)
+        listed = cli.repl.dispatch(f"{command}.list")
 
         # Assert
-        assert result.success, "bare /run succeeds"
-        actual = capsys.readouterr().out
-        assert "/run" in actual, "help output mentions /run"
-        assert "SUBCOMMANDS" in actual or "Synopsis" in actual or "SYNOPSIS" in actual, (
-            "help output has the man-page shape"
-        )
+        assert bare.success, f"bare /{command}: {bare.error}"
+        assert bare.value == listed.value, f"bare /{command} is /{command}.list"
+        assert bare.value, f"/{command}.list found something to list"
 
     def test_run_list_enumerates_scripts(self, cli, capsys):
         """/run.list shows every .run file in the config's run/ folder."""
@@ -931,6 +932,135 @@ class TestFileCompletion:
         assert profile is not None and dump is not None, "both hooks are registered"
         assert profile.files == "run", "/run.profile completes run/ scripts"
         assert dump.files == "prof", "/run.profile.dump completes prof/ results"
+
+
+class TestEditTwins:
+    """The noun-first edit commands are the ``/edit.<folder>`` commands under a second name."""
+
+    @pytest.mark.parametrize(
+        ("twin", "original", "file"),
+        [
+            ("run.edit", "edit.run", "run/probe.run"),
+            ("proto.edit", "edit.proto", "proto/probe.pro"),
+            ("plugin.edit", "edit.plugin", "plugin/probe.py"),
+        ],
+    )
+    def test_both_spellings_open_the_same_file(self, cli, twin, original, file):
+        """/<folder>.edit and /edit.<folder> hand the same existing file to the editor."""
+        # Arrange
+        path = Path(cli.config_path).parent / file
+        path.write_text("", encoding="utf-8")
+        _grant_gui_apps(cli)
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = lambda opened_path: opened.append(str(opened_path))
+
+        # Act
+        for command in (twin, original):
+            cli.repl.dispatch(f"{command} probe")
+
+        # Assert
+        assert opened == [str(path), str(path)], "both spellings open the existing file"
+
+    def test_a_missing_name_fails_the_same_under_both_spellings(self, cli):
+        """/run.edit opens existing scripts only: a new name is File not found, as with /edit.run."""
+        # Arrange
+        _grant_gui_apps(cli)
+
+        # Act
+        twin = cli.repl.dispatch("run.edit nope")
+        original = cli.repl.dispatch("edit.run nope")
+
+        # Assert
+        assert twin.error == "File not found: nope.run", "/run.edit no longer creates a script"
+        assert original.error == twin.error, "both spellings fail alike"
+
+    def test_bare_lists_the_folder_under_both_spellings(self, cli):
+        """With no picker in the CLI, bare /proto.edit lists proto/ exactly as /edit.proto does."""
+        # Arrange
+        (Path(cli.config_path).parent / "proto" / "a.pro").write_text("", encoding="utf-8")
+        _grant_gui_apps(cli)
+
+        # Act
+        twin = cli.repl.dispatch("proto.edit")
+        original = cli.repl.dispatch("edit.proto")
+
+        # Assert
+        assert twin.value == "a.pro", "bare /proto.edit lists the folder"
+        assert original.value == twin.value, "both spellings list alike"
+
+    def test_cfg_edit_opens_the_current_config(self, cli):
+        """/cfg.edit opens the loaded config, the file /edit.cfg opens."""
+        # Arrange
+        _grant_gui_apps(cli)
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = lambda opened_path: opened.append(str(opened_path))
+
+        # Act
+        for command in ("cfg.edit", "edit.cfg"):
+            cli.repl.dispatch(command)
+
+        # Assert
+        expected = [str(Path(cli.config_path))] * 2
+        assert opened == expected, "both spellings open the current config"
+
+
+class TestBareForms:
+    """bare-declared: a bare command's behavior is declared, and /help states it in one wording."""
+
+    @pytest.mark.parametrize(
+        ("command", "line"),
+        [
+            ("run", "/run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list"),
+            ("proto", "/proto -- bare: opens the Proto picker in the TUI; elsewhere runs /proto.list"),
+            ("cfg", "/cfg -- bare: opens the Cfg picker in the TUI; elsewhere runs /cfg.list"),
+            ("port", "/port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list"),
+            ("proto.run", "/proto.run -- bare: opens the Proto picker in the TUI"),
+            ("run.edit", "/run.edit -- bare: opens the Run picker in the TUI"),
+            ("ss", "/ss -- bare: runs /ss.explore"),
+            ("cap", "/cap -- bare: runs /cap.explore"),
+            ("log", "/log -- bare: runs /log.show"),
+            ("mem", "/mem -- bare: runs /mem.info"),
+        ],
+    )
+    def test_help_states_the_bare_form(self, cli, capsys, command, line):
+        """bare-declared: /help prints a declared bare form as a SYNOPSIS line, the same way for every command."""
+        cli.repl.dispatch(f"help {command}")
+        assert line in capsys.readouterr().out, f"/help {command} states what bare /{command} does"
+
+    def test_a_command_without_a_bare_form_prints_no_bare_line(self, cli, capsys):
+        """A command that declares no bare form gets no bare line."""
+        cli.repl.dispatch("help print")
+        assert "-- bare:" not in capsys.readouterr().out, "no declaration, no line"
+
+    @pytest.mark.parametrize("folder", ["ss", "cap"])
+    def test_bare_ss_and_cap_open_their_folders(self, cli, folder):
+        """Bare /ss and /cap do what the SS and Cap buttons do: open the folder."""
+        # Arrange
+        _grant_gui_apps(cli)
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = lambda opened_path: opened.append(str(opened_path))
+
+        # Act
+        result = cli.repl.dispatch(folder)
+
+        # Assert
+        expected = [str(Path(cli.config_path).parent / folder)]
+        assert result.success, result.error
+        assert opened == expected, f"bare /{folder} opened {folder}/"
+
+    def test_bare_log_is_log_show(self, cli, tmp_path):
+        """Bare /log does what the Log button does, /log.show: here, refusing a log that is not there."""
+        # Arrange -- an absent log, so no system viewer is launched
+        _grant_gui_apps(cli)
+        cli.ctx.cfg["log_file"] = str(tmp_path / "absent.log")
+
+        # Act
+        bare = cli.repl.dispatch("log")
+        shown = cli.repl.dispatch("log.show")
+
+        # Assert
+        assert bare.error.startswith("Log file not found"), "bare /log ran /log.show"
+        assert bare.error == shown.error, "bare /log and /log.show are one behavior"
 
 
 # -- Hook registration ------------------------------------------------------

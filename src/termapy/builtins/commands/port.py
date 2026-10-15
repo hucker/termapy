@@ -8,7 +8,7 @@ from termapy import port_control
 from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.legacy import make_forwarder
 from termapy.markup import markup_to_plain
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CmdResult, Command, UsageError
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo
 
 if TYPE_CHECKING:
@@ -43,11 +43,10 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     if name:
         ctx.serial.update_port(name)
         return CmdResult.ok(value=name)
-    # Bare /port -- TUI opens the port picker (matches clicking the
-    # left title-bar button); CLI shows /help port.
-    if ctx.internal.open_picker is not None:
-        return ctx.internal.open_picker("port")
-    return _handler_help(ctx, args)
+    # Bare /port never arrives: the dispatcher opens the port picker in
+    # the TUI (picker="port", matching the left title-bar button) and
+    # runs /port.list elsewhere (bare_sub="list").
+    raise UsageError()
 
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
@@ -458,6 +457,8 @@ COMMAND = Command(
     help="Serial port tools: connect, disconnect, list, configure.",
     long_help=_port_root_long_help,
     handler=_handler_root,
+    picker="port",
+    bare_sub="list",
     sub_commands={
         "list": Command(
             help="List available serial ports.",

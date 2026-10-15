@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 from crcglot import DetectMatch, DetectResult, detect
 
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
+from termapy.builtins.commands.edit import edit_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import default_file_name
 from termapy.help_dynamic import compose, folder_line
@@ -651,7 +652,9 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
 
     Args:
         ctx: Plugin context for serial I/O, filesystem, and output.
-        args: Filename of the ``.pro`` script to run.
+        args: Filename of the ``.pro`` script to run.  Bare in the TUI
+            opens the Proto picker (``picker="proto"``, before this runs);
+            bare here is a host without pickers, so a usage error.
     """
     filename = args.strip()
     if not filename:
@@ -700,7 +703,9 @@ def _handler_debug(ctx: PluginContext, args: str) -> CmdResult:
 
     Args:
         ctx: Plugin context.
-        args: Filename of the ``.pro`` script.
+        args: Filename of the ``.pro`` script.  Bare opens the Proto
+            picker (``picker="proto"``, before this runs); a bare call
+            here means a host without pickers, so a usage error.
     """
     filename = args.strip()
     if not filename:
@@ -2162,6 +2167,26 @@ def _proto_folder_line(ctx: PluginContext) -> str:
     return folder_line(ctx, "proto", noun="script")
 
 
+def _proto_run_long_help(ctx: PluginContext) -> str:
+    """``/proto.run``: the script count, then what a name does (SYNOPSIS states the bare form)."""
+    return compose(
+        _proto_folder_line(ctx),
+        "Runs the named script from proto/; the .pro is optional.  In the "
+        "Proto picker, Run runs the highlighted script.  Without a picker "
+        "(CLI, MCP), a bare call is a usage error.",
+    )
+
+
+def _proto_debug_long_help(ctx: PluginContext) -> str:
+    """``/proto.debug``: the script count, then what a name does (SYNOPSIS states the bare form)."""
+    return compose(
+        _proto_folder_line(ctx),
+        "Opens the debug screen on the named TOML script from proto/; the "
+        ".pro is optional.  In the Proto picker, Debug opens this screen on "
+        "the highlighted script.",
+    )
+
+
 def _proto_long_help(ctx: PluginContext) -> str:
     # The catalog size belongs to crcglot; the help text says "100+"
     # rather than an exact count so it never drifts from the upstream
@@ -2170,19 +2195,18 @@ def _proto_long_help(ctx: PluginContext) -> str:
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Bare /proto: TUI opens the Proto picker, CLI shows /help proto.
+    """/proto with arguments that name no subcommand.
 
-    With args, /proto is a namespace -- the dispatcher routes to a
-    subcommand.  This handler runs only when no subcommand matched.
+    A bare call never arrives: the dispatcher opens the Proto picker in
+    the TUI (``picker="proto"``) and runs ``/proto.list`` elsewhere
+    (``bare_sub="list"``).  With args, /proto is a namespace -- the
+    dispatcher routes to a subcommand, so this runs only when none
+    matched.
     """
-    if args.strip():
-        prefix = ctx.prefix
-        return CmdResult.fail(
-            msg=f"Usage: {prefix}proto.<sub>  (try {prefix}proto.help)"
-        )
-    if ctx.internal.open_picker is not None:
-        return ctx.internal.open_picker("proto")
-    return _handler_help(ctx, args)
+    prefix = ctx.prefix
+    return CmdResult.fail(
+        msg=f"Usage: {prefix}proto.<sub>  (try {prefix}proto.help)"
+    )
 
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
@@ -2353,6 +2377,8 @@ COMMAND = Command(
     help="Binary protocol tools: send, run, debug, hex, crc, info.",
     long_help=_proto_long_help,
     handler=_handler,
+    picker="proto",
+    bare_sub="list",
     sub_commands={
         "help": Command(
             help="Show /proto help.",
@@ -2380,18 +2406,20 @@ COMMAND = Command(
         "run": Command(
             args="<file.pro>",
             help="Run a protocol test script.",
-            long_help=_proto_folder_line,
+            long_help=_proto_run_long_help,
             handler=_handler_run,
             needs=CapabilitySet.SERIAL_CONNECTED,
             files="proto",
+            picker="proto",
         ),
         "debug": Command(
             args="<file.pro>",
             help="Interactive protocol debug screen.",
-            long_help=_proto_folder_line,
+            long_help=_proto_debug_long_help,
             handler=_handler_debug,
             needs=CapabilitySet(tui_mode=True, serial_connected=True),
             files="proto",
+            picker="proto",
         ),
         "hex": Command(
             args="{on|off|toggle}",
@@ -2558,6 +2586,7 @@ COMMAND = Command(
             help="Print current protocol state.",
             handler=_handler_info,
         ),
+        "edit": edit_command("proto"),
         **build_folder_subcommands("proto"),
     },
 )

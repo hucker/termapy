@@ -67,6 +67,14 @@ All other paths relative to `src/termapy/`.
   enums through `next_in_cycle`. TUI buttons that flip on click dispatch the
   explicit `toggle`/`cycle` verb, never the bare command. NEVER treat an
   unrecognized argument as a flip (that hid the `/term.color 2` bug).
+- **A bare command does what its button does, and says so by declaration.**
+  Bare `/cfg` `/run` `/proto` `/port` (and the edit/run twins) open their
+  picker: `Command(picker="run")`, which the dispatcher honors in the TUI;
+  where there is no picker (CLI, MCP) their `bare_sub="list"` runs, the
+  picker's contents. Bare `/ss` `/cap` `/log` open what their buttons
+  open: `bare_sub="explore"` / `"show"`. Never code a bare branch in a
+  handler that the declarations can express; `/help` renders them as
+  the command's bare form (registry `bare-declared`).
 - **Booleans have ONE vocabulary and ONE reader.** Wherever termapy turns
   user text into a boolean, in any frontend or file, the text is read by
   `scripting.parse_bool` — directly, or through `parse_bool_setting` and

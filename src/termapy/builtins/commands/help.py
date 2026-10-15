@@ -259,6 +259,21 @@ def _compute_cmd_w(names: list[str], prefix: str) -> int:
 # ── Man-page detail view ─────────────────────────────────────────────────────
 
 
+def _bare_form(plugin, name: str, prefix: str) -> str:
+    """What a bare invocation does, from ``picker=`` and ``bare_sub=``; "" when undeclared.
+
+    The one wording for every command (registry ``bare-declared``), in
+    the dispatcher's order -- the picker where the host has one, then the
+    subcommand: ``bare: opens the Run picker in the TUI; elsewhere runs
+    /run.list``, ``bare: runs /mem.info``.
+    """
+    sub = f"{prefix}{name}.{plugin.bare_sub}" if plugin.bare_sub else ""
+    if plugin.picker:
+        picker = f"bare: opens the {plugin.picker.capitalize()} picker in the TUI"
+        return f"{picker}; elsewhere runs {sub}" if sub else picker
+    return f"bare: runs {sub}" if sub else ""
+
+
 def _render_man_page(ctx: PluginContext, name: str, plugin,
                      dev_mode: bool = False) -> None:
     """Render a command's full detail view in man-page format.
@@ -281,10 +296,16 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] - {escape_markup(help_line)}")
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
-    if plugin.args:
+    # A declared bare form gets its own line, built from the declaration,
+    # so every command's bare behavior reads the same way.
+    bare = _bare_form(plugin, name, prefix)
+    if plugin.args or bare:
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("SYNOPSIS"))
-        ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] {_args_markup(plugin.args)}")
+        if plugin.args:
+            ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] {_args_markup(plugin.args)}")
+        if bare:
+            ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] -- {escape_markup(bare)}")
 
     # DESCRIPTION ─────────────────────────────────────────────────────────────
     # Developer mode shows the handler's Python docstring instead.

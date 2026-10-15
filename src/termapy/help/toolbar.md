@@ -19,10 +19,12 @@ The top bar has the title-bar buttons plus a centered config name:
 The **X** sits top-left on macOS/Linux and top-right on Windows, matching
 each platform's window-control convention.  Cfg, Run, and Proto can be
 hidden per config via `cfg_enabled`, `run_enabled`, and `proto_enabled`.
-Typing the bare command (e.g. `/cfg`) is equivalent to clicking the
-button.  The Cfg, Run, and Proto pickers list files newest first with
-size and age columns under a header row; Run adds the script's
-docstring summary, Cfg the port, baud, and title.
+Typing the bare command (`/cfg`, `/run`, `/proto`, or `/port` for the
+port name) is equivalent to clicking the button; in the CLI, which has
+no pickers, it runs the matching `.list` instead.  The Cfg, Run, and
+Proto pickers list files newest first with size and age columns under a
+header row; Run adds the script's docstring summary, Cfg the port,
+baud, and title.
 
 Hover over any of the config, port, or status buttons to see a detailed
 tooltip with current settings and chip information.
@@ -58,6 +60,9 @@ The bottom bar has buttons. Some appear based on context:
 | **SS**      | Always                       | Open the screenshot folder                      |
 | **Cap**     | Always                       | Open the cap/ folder                            |
 | **^ v x**   | While `/find` is active      | Previous / next match, close the find bar       |
+
+Bare `/log`, `/ss` and `/cap` do what the Log, SS and Cap buttons do.
+`/help <cmd>` states a command's bare form in its SYNOPSIS.
 
 Scripts are picked and run from the **Run** button in the title bar
 (or `/run`); quitting is the red **X** in the title bar (or Ctrl+Q).

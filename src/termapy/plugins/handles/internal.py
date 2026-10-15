@@ -141,7 +141,8 @@ class InternalHandle:
 
     xfer_cancel: Any = None  # threading.Event - Escape cancels a transfer
 
-    # open_picker(name "cfg"/"run"/"proto") -> CmdResult; opens the dialog.
+    # open_picker(name, one of command.PICKERS) -> CmdResult; opens the
+    # dialog.  Called by the dispatcher for a bare Command(picker=...).
     open_picker: Callable | None = None
     # update_find_bar(state dict | None) -> None; /find re-renders the FindBar.
     update_find_bar: Callable | None = None

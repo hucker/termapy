@@ -357,6 +357,8 @@ _SHOW_LONG_HELP = (
 COMMAND = Command(
     name="log",
     help="Session log: print, fingerprint, or open it.",
+    # Bare /log does what the Log button does: open the session log.
+    bare_sub="show",
     long_help=(
         "Read-side session-log commands.  /log.clear and /log.delete "
         "(write-side) are provided by the active frontend."

@@ -694,7 +694,10 @@ An interior node with no `handler` lists its children when invoked bare,
 and `/tool run x` redirects to `/tool.run x` (the space form).  Declare
 `bare_sub="status"` to make the bare form dispatch that child instead --
 termapy's own `/mem` runs `/mem.info` this way (bare shows state).  A
-`bare_sub` naming no subcommand fails at load.
+`bare_sub` naming no subcommand fails at load.  `picker="run"` (or
+`cfg`, `port`, `proto`) opens that built-in picker on a bare call in the
+TUI; other hosts run your `bare_sub` if you declare one, else your
+handler.  `/help` prints the declarations as the command's bare form.
 
 ## Example plugins
 

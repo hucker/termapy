@@ -42,6 +42,8 @@ COMMAND = Command(
     name="ss",
     help="Screenshot tools: save SVG/text, manage folder.",
     long_help=_ss_long_help,
+    # Bare /ss does what the SS button does: open ss/.
+    bare_sub="explore",
     sub_commands={
         "svg": Command(
             args="{name}",

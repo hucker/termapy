@@ -1710,8 +1710,10 @@ class SerialTerminal(TerminalHost, App):
             self._disconnect()
         # Per-step breakdown: one line per step of THIS load that ran an
         # actual migrator (no-op versions are skipped).  Popped whether or
-        # not a migration ran: a config the editor hands over unmigrated
-        # can still carry an old saved list.
+        # not a migration ran.  The editor opens through load_config, so its
+        # text is already current; only a file changed on disk while the
+        # editor was open can hand an old saved list over, and that list
+        # describes past migrations, so dropping it loses nothing.
         steps = cfg.pop("_migration_steps", [])
         if migrated_from is not None:
             self._status(

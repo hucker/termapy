@@ -23,7 +23,7 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cmd_prefix
-from termapy.folder_ops import emit_file_listing, list_entries
+from termapy.folder_ops import file_table, list_entries
 from termapy.folders import ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 
@@ -132,7 +132,7 @@ def _hook_run_profile_list(app, ctx, args: str) -> CmdResult:
     prof_dir = app._prof_dir()
     if not prof_dir:
         return CmdResult.fail(msg="No config loaded.")
-    return emit_file_listing(ctx, "prof/", "profile", list_entries(prof_dir, "*.csv"))
+    return file_table("prof/", "profile", list_entries(prof_dir, "*.csv"))
 
 
 def register_run_profile_hooks(app) -> None:

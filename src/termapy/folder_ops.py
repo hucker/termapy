@@ -31,9 +31,9 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from termapy.config import open_with_system, validate_file_stem
 from termapy.folders import FOLDERS, FolderSpec, default_file_name, ensure_folder
-from termapy.listing import Column, emit_listing
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
+from termapy.plugins.views import Column
 from termapy.scripting import format_age, format_size
 
 if TYPE_CHECKING:
@@ -189,20 +189,19 @@ def _folder_path(ctx: PluginContext, folder: str) -> Path | None:
     return Path(ctx.config_path).parent / folder
 
 
-def emit_file_listing(
-    ctx: PluginContext,
+def file_table(
     title: str,
     noun: str,
     files: list[Path],
     extra: tuple[tuple[Column, Callable[[Path], Any], str], ...] = (),
 ) -> CmdResult:
-    """List ``files`` in the one listing format: NAME, SIZE, UPDATED, then ``extra``.
+    """A file list answer (``CmdResult.table``): NAME, SIZE, UPDATED, then ``extra``.
 
-    ``value`` is the newline-joined names (the scriptable scalar); a caller
-    that wants data gets one ``file_record`` per file instead of prose.
+    ``value`` is the newline-joined names (the scriptable scalar); ``data``
+    is one ``file_record`` per file, and dispatch prints the table from
+    them unless the caller wants the data.
 
     Args:
-        ctx: The plugin context.
         title: The folder (``run/``).
         noun: Singular noun the count is in (``script``).
         files: The files, newest first.
@@ -218,7 +217,7 @@ def emit_file_listing(
         records.append(record)
     columns = (*FILE_COLUMNS, *(column for column, _, _ in extra))
     names = "\n".join(file.name for file in files)
-    return emit_listing(ctx, title, noun, columns, records, value=names)
+    return CmdResult.table(title, noun, columns, records, value=names)
 
 
 def _make_list_handler(folder: str, pattern: str, noun: str = "file"):
@@ -228,7 +227,7 @@ def _make_list_handler(folder: str, pattern: str, noun: str = "file"):
         data_dir = _folder_path(ctx, folder)
         if data_dir is None:
             return CmdResult.fail(msg="No config loaded.")
-        return emit_file_listing(ctx, f"{folder}/", noun, list_entries(data_dir, pattern))
+        return file_table(f"{folder}/", noun, list_entries(data_dir, pattern))
 
     return handler
 

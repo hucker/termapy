@@ -37,7 +37,7 @@ plus a couple of helpers.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Sequence, Union
 
 from termapy.folders import FOLDER_NAMES
 from termapy.plugins.capabilities import CapabilitySet
@@ -46,6 +46,7 @@ from termapy.plugins.params import (
     synthesize_synopsis,
     validate_param_specs,
 )
+from termapy.plugins.views import Column, TableView
 
 if TYPE_CHECKING:
     from termapy.plugins.context import PluginContext
@@ -222,10 +223,46 @@ class CmdResult:
     # means "this command has no structured form" -- a legitimate permanent
     # state for side-effect and prose-page commands.  Never put a prose
     # string here; that is what ``value``/``output_lines`` are for.
-    # Handlers producing large listings should build EITHER the prose OR
-    # ``data``, branching on ``ctx.wants_data``, so neither audience pays
-    # for the other's rendering.
+    # A handler that hand-renders a large listing should build EITHER the
+    # prose OR ``data``, branching on ``ctx.wants_data``, so neither
+    # audience pays for the other's rendering -- or, better, return
+    # ``CmdResult.table(...)`` and let dispatch choose.
     data: Any = None
+    # ``view`` is how ``data`` reads as prose (a ``views.TableView``):
+    # dispatch's exit renders it on the output channel when the caller
+    # did not ask for data, and strips it either way -- a view never
+    # leaves dispatch, and no envelope or MCP response carries one.
+    view: Any = None
+
+    @classmethod
+    def table(
+        cls,
+        title: str,
+        noun: str,
+        columns: Sequence[Column],
+        records: Sequence[dict[str, Any]],
+        *,
+        value: Any,
+    ) -> "CmdResult":
+        """A list answer: ``records`` as ``data``, their table as the view.
+
+        The handler renders nothing; dispatch prints the table, or hands
+        the records to a caller that wants data (``--json``,
+        ``/term.request``, MCP).  Registry ``list-one-format``.
+
+        Args:
+            title: What is listed (``run/``).
+            noun: Singular noun the count is in (``script``).
+            columns: The columns the prose shows, left to right.
+            records: One raw-valued dict per row, in display order.
+            value: The scriptable scalar (usually the newline-joined names).
+        """
+        rows = tuple(records)
+        return cls(
+            value=value,
+            data=list(rows),
+            view=TableView(title, noun, tuple(columns), rows),
+        )
 
     @classmethod
     def ok(cls, *, value: Any, data: Any = None) -> "CmdResult":

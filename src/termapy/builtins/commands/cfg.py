@@ -27,8 +27,7 @@ from termapy.config import (
 from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
 from termapy.folders import FOLDERS, INFO_REPORT_SUFFIX
 from termapy.help_dynamic import cfg_status, compose
-from termapy.listing import Column, emit_listing
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
+from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import coerce_to_type
 
@@ -171,7 +170,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         Column("TITLE", lambda record: record["title"]),
     )
     names = "\n".join(path.stem for path in paths)
-    return emit_listing(ctx, f"{root.name}/", "config", columns, records, value=names)
+    return CmdResult.table(f"{root.name}/", "config", columns, records, value=names)
 
 
 # ── /cfg.load handler ──────────────────────────────────────────────────────

@@ -44,12 +44,11 @@ from termapy.builtins.commands.help import (
 )
 from termapy.folder_ops import (
     build_folder_subcommands,
-    emit_file_listing,
+    file_table,
     list_entries,
 )
 from termapy.folders import default_file_name
-from termapy.listing import Column
-from termapy.plugins import CmdResult, Command, UsageError
+from termapy.plugins import CmdResult, Column, Command, UsageError
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -112,8 +111,8 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
     files = list_entries(ctx.fs.scripts_dir, "*.run")
     summary = Column("SUMMARY", lambda record: record["summary"])
-    return emit_file_listing(
-        ctx, "run/", "script", files,
+    return file_table(
+        "run/", "script", files,
         extra=((summary, lambda file: extract_docstring(file)[0], "summary"),),
     )
 

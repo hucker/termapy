@@ -90,7 +90,8 @@ src/termapy/
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
 │   ├── context.py          #   PluginContext dataclass + ns/plugin_cfg/dispatch
 │   ├── loader.py           #   Plugin discovery, COMMAND validation
-│   └── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
+│   ├── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
+│   └── views.py            #   Column, TableView - a typed answer's prose form, rendered by dispatch
 ├── profile/                # (1282 lines) v2 device-profile schema, loader, type registry
 │   ├── loader.py           #   load/save/validate + Profile dataclass + transport apply
 │   ├── matcher.py          #   match_profile_command, template_to_regex
@@ -131,7 +132,6 @@ src/termapy/
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
 ├── history_nav.py          #              REPL Up/Down history browsing cursor (Textual-free)
-├── listing.py              #              The one list format - title, header, dashes, rows - and its data records (Textual-free)
 ├── markup.py               #              Rich markup in and out - escape_markup, markup_to_plain (Textual-free)
 ├── memory.py               # (0 lines)  Device memory engine - the MEM wire dialects, chunking, continuity, MEM.M, dump rows (Textual-free)
 ├── memory_views.py         # (0 lines)  Typed views - scalars, chars, register bit fields over the format-spec language (Textual-free)
@@ -448,6 +448,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 │      capability-domain handles attached to ctx   │
 │  • loader.py: load_plugins_from_dir, validation  │
 │  • output_levels.py: silent/quiet/normal/verbose │
+│  • views.py: Column, TableView (CmdResult.table) │
 ├──────────────────────────────────────────────────┤
 │  protocol/ - Protocol Engine (package)           │
 │  • core.py: format-spec language (H, U, I, S,    │

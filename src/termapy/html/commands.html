@@ -9,6 +9,7 @@
       
       
       
+      
         <link rel="prev" href="./toolbar.html">
       
       
@@ -19,23 +20,23 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.57">
+      <meta name="generator" content="zensical-0.0.70">
     
     
       
-        <title>REPL commands - Termapy Help v0.76.0</title>
+        <title>REPL Commands - Termapy Help v0.77.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.5da3a30f.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e442bf79.min.css">
       
         
           
         
-        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.812a03bb.min.css">
+        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
       
       
 
@@ -69,14 +70,11 @@
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
     <div data-md-component="skip">
-      
-        
-        <a href="#repl-commands" class="md-skip">
-          Skip to content
-        </a>
-      
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
     </div>
     <div data-md-component="announce">
       
@@ -89,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.76.0" class="md-header__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.77.0" class="md-header__button md-logo" aria-label="Termapy Help v0.77.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -103,13 +101,13 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.76.0
+            Termapy Help v0.77.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              REPL commands
+              REPL Commands
             
           </span>
         </div>
@@ -174,13 +172,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.76.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.76.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.77.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.77.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.76.0
+    Termapy Help v0.77.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -537,6 +535,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#boolean-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Boolean values
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#script-profiling" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -685,6 +694,84 @@
     
   
   Data Capture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./symbols.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Symbols
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./devices.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Devices
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
 
     
   </span>
@@ -945,6 +1032,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#boolean-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Boolean values
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#script-profiling" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -978,8 +1076,10 @@
             <div class="md-content" data-md-component="content">
               
               <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
                 
                   
+
 
 <h1 id="repl-commands">REPL commands<a class="headerlink" href="#repl-commands" title="Permanent link">&para;</a></h1>
 <p>Commands prefixed with <code>/</code> (configurable via <code>cmd_prefix</code>) run locally instead of being sent to the serial device.</p>
@@ -993,6 +1093,36 @@ synopsis, filtering as you type:</p>
 (every command, including the <code>/app.*</code>, <code>/mcp.*</code>, <code>/port.chip.*</code> and
 <code>/proto.crc.&lt;language&gt;</code> families not listed here) and <code>/help &lt;cmd&gt;</code> the
 man-page detail for one.</p>
+<h2 id="boolean-values">Boolean values<a class="headerlink" href="#boolean-values" title="Permanent link">&para;</a></h2>
+<p>Every boolean termapy reads from text, whether typed at the prompt, in a
+<code>.run</code> script, as a <code>key=value</code> keyword, in a <code>$(env.X)</code>-templated config
+key or in an environment variable, uses one vocabulary, case-insensitive:</p>
+<table>
+<thead>
+<tr>
+<th>True</th>
+<th>False</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>on</code>, <code>true</code>, <code>yes</code>, <code>1</code>, <code>y</code>, <code>t</code></td>
+<td><code>off</code>, <code>false</code>, <code>no</code>, <code>0</code>, <code>n</code>, <code>f</code></td>
+</tr>
+</tbody>
+</table>
+<p>A setting command (<code>/term.echo</code>, <code>/term.hex</code>, <code>/cli.completion</code>, ...) also
+takes the verb <code>toggle</code>, and a bare invocation shows the current value
+without changing it.  Leaving an optional boolean out means its documented
+default.  Any other word is an error that names the accepted tokens, never
+a silent off: <code>Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)</code>.</p>
+<p>A command that opens a file of a known type takes the name with or without
+its extension: <code>/run hex_view</code> runs <code>run/hex_view.run</code>. The same holds for
+<code>/proto.run</code>, <code>/profile.load</code>, <code>/sym.load</code> and a folder's <code>.dump</code> and
+<code>.rename</code>. The extension is added only when that file exists, so <code>v1.2</code>
+finds <code>v1.2.run</code>. <code>.rename</code> changes the name and never the extension:
+<code>/run.rename v1.2 v1.3</code> gives <code>v1.3.run</code>. <code>/edit</code> needs the extension,
+because its folders hold different types of file.</p>
 <table>
 <thead>
 <tr>
@@ -1002,12 +1132,20 @@ man-page detail for one.</p>
 </thead>
 <tbody>
 <tr>
+<td><code>/cap</code></td>
+<td>Open the cap/ folder (same as the Cap button and <code>/cap.explore</code>)</td>
+</tr>
+<tr>
 <td><code>/cap.bin &lt;f&gt; ...</code></td>
 <td>Capture raw binary bytes to a file</td>
 </tr>
 <tr>
 <td><code>/cap.hex &lt;f&gt; ...</code></td>
 <td>Capture hex text lines, decode with format spec to CSV</td>
+</tr>
+<tr>
+<td><code>/cap.poll {count=N} {delay=&lt;dur&gt;} {file=&lt;f&gt;} cmd=&lt;cmds&gt;</code></td>
+<td>Poll commands on a schedule; print rows, optionally save CSV/JSONL</td>
 </tr>
 <tr>
 <td><code>/cap.stop</code></td>
@@ -1026,12 +1164,16 @@ man-page detail for one.</p>
 <td>Run a command and show TX/RX bytes inline as hex + repr (debug line endings)</td>
 </tr>
 <tr>
-<td><code>/cfg [key [value]]</code></td>
-<td>TUI: open the Cfg picker. Bare in CLI: dump JSON. With args: get/set.</td>
+<td><code>/cfg {key {value}}</code></td>
+<td>TUI bare: open the Cfg picker. CLI bare: list configs. With args: get/set.</td>
 </tr>
 <tr>
 <td><code>/cfg.auto &lt;key&gt; &lt;val&gt;</code></td>
 <td>Set a config key without confirmation</td>
+</tr>
+<tr>
+<td><code>/cfg.edit</code></td>
+<td>Edit the current config file (same as <code>/edit.cfg</code>)</td>
 </tr>
 <tr>
 <td><code>/cfg.list</code></td>
@@ -1043,7 +1185,7 @@ man-page detail for one.</p>
 </tr>
 <tr>
 <td><code>/cfg.info {--display}</code></td>
-<td>Show project summary; <code>--display</code> opens full report</td>
+<td>Write and show the project report (tree, config, buttons, log and history tails); also written at exit; <code>--display</code> opens it</td>
 </tr>
 <tr>
 <td><code>/cfg.load &lt;name&gt;</code></td>
@@ -1083,15 +1225,15 @@ man-page detail for one.</p>
 </tr>
 <tr>
 <td><code>/edit.plugin {file}</code></td>
-<td>Edit a plugin, or list available plugins if no name given</td>
+<td>Edit a plugin, or list available plugins if no name given (also <code>/plugin.edit</code>)</td>
 </tr>
 <tr>
 <td><code>/edit.proto {file}</code></td>
-<td>Edit a .pro file, or list available files if no name given</td>
+<td>Edit a .pro file. Bare: TUI opens the Proto picker, CLI lists (also <code>/proto.edit</code>)</td>
 </tr>
 <tr>
 <td><code>/edit.run {file}</code></td>
-<td>Edit a .run script, or list available scripts if no name given</td>
+<td>Edit a .run script. Bare: TUI opens the Run picker, CLI lists (also <code>/run.edit</code>)</td>
 </tr>
 <tr>
 <td><code>/env.list {pattern}</code></td>
@@ -1110,15 +1252,15 @@ man-page detail for one.</p>
 <td>Exit termapy</td>
 </tr>
 <tr>
-<td><code>/expect {timeout} match=&lt;text&gt;</code></td>
+<td><code>/expect {timeout=&lt;dur&gt;} match=&lt;text&gt;</code></td>
 <td>Wait for serial-output line containing text (blocks; needs block_until)</td>
 </tr>
 <tr>
-<td><code>/expect.regex {timeout} match=&lt;pat&gt;</code></td>
+<td><code>/expect.regex {timeout=&lt;dur&gt;} match=&lt;pat&gt;</code></td>
 <td>Wait for serial-output line matching regex</td>
 </tr>
 <tr>
-<td><code>/find &lt;pattern&gt;</code></td>
+<td><code>/find {pattern}</code></td>
 <td>Navigate scrollback matches with an interactive find bar (not over MCP; use <code>/grep</code> there)</td>
 </tr>
 <tr>
@@ -1158,11 +1300,15 @@ man-page detail for one.</p>
 <td>Show only imported target device commands</td>
 </tr>
 <tr>
+<td><code>/log</code></td>
+<td>Open the session log (same as the Log button and <code>/log.show</code>)</td>
+</tr>
+<tr>
 <td><code>/log.delete</code></td>
 <td>Delete the session log file</td>
 </tr>
 <tr>
-<td><code>/log.dump [N]</code></td>
+<td><code>/log.dump {N}</code></td>
 <td>Print the session log (all, or an N-line slice) to the terminal</td>
 </tr>
 <tr>
@@ -1179,7 +1325,47 @@ man-page detail for one.</p>
 </tr>
 <tr>
 <td><code>/mcp.info</code></td>
-<td>Show MCP-mode status (catalog size, port, profile, captures)</td>
+<td>Show MCP-mode status (pid, catalog size, port, profile, captures)</td>
+</tr>
+<tr>
+<td><code>/mem.and &lt;target&gt; &lt;mask&gt;</code></td>
+<td>AND a mask into one word (atomic via MEM.M when available)</td>
+</tr>
+<tr>
+<td><code>/mem.dump &lt;target&gt; {len} {type}</code></td>
+<td>Hexdump or typed word columns; <code>addr=</code>/<code>ascii=</code> toggle columns</td>
+</tr>
+<tr>
+<td><code>/mem.clear &lt;target&gt; &lt;mask&gt;</code></td>
+<td>Clear mask bits in one word: <code>word &amp;= ~mask</code> (atomic via MEM.M)</td>
+</tr>
+<tr>
+<td><code>/mem.info</code></td>
+<td>Memory access config: dialect, block limit, width, endian, atomic modify</td>
+</tr>
+<tr>
+<td><code>/mem.not &lt;target&gt;</code></td>
+<td>Invert one word (always read + write-back)</td>
+</tr>
+<tr>
+<td><code>/mem.or &lt;target&gt; &lt;mask&gt;</code></td>
+<td>OR a mask into one word (atomic via MEM.M when available)</td>
+</tr>
+<tr>
+<td><code>/mem.read &lt;target&gt; {type}</code></td>
+<td>One typed value: scalar, char, register field, bit or slice</td>
+</tr>
+<tr>
+<td><code>/mem.str &lt;target&gt; {max}</code></td>
+<td>Read a NUL-terminated string</td>
+</tr>
+<tr>
+<td><code>/mem.write &lt;target&gt; &lt;hex&gt;</code></td>
+<td>Write hex bytes, or set a register field/bit (audited)</td>
+</tr>
+<tr>
+<td><code>/mem.xor &lt;target&gt; &lt;mask&gt;</code></td>
+<td>XOR a mask into one word (always read + write-back)</td>
 </tr>
 <tr>
 <td><code>/os &lt;cmd&gt;</code></td>
@@ -1187,7 +1373,7 @@ man-page detail for one.</p>
 </tr>
 <tr>
 <td><code>/port {name}</code></td>
-<td>TUI bare: open Port picker. CLI bare: list subcommands. With name: open it.</td>
+<td>TUI bare: open Port picker. CLI bare: list ports. With name: open it.</td>
 </tr>
 <tr>
 <td><code>/port.baud_rate {value}</code></td>
@@ -1222,7 +1408,7 @@ man-page detail for one.</p>
 <td>Show DSR state (read-only)</td>
 </tr>
 <tr>
-<td><code>/port.dtr {0\|1}</code></td>
+<td><code>/port.dtr {on\|off}</code></td>
 <td>Show or set DTR line</td>
 </tr>
 <tr>
@@ -1254,7 +1440,7 @@ man-page detail for one.</p>
 <td>Show RI state (read-only)</td>
 </tr>
 <tr>
-<td><code>/port.rts {0\|1}</code></td>
+<td><code>/port.rts {on\|off}</code></td>
 <td>Show or set RTS line</td>
 </tr>
 <tr>
@@ -1299,15 +1485,19 @@ man-page detail for one.</p>
 </tr>
 <tr>
 <td><code>/proto</code></td>
-<td>TUI: open the Proto picker. CLI: show /proto long-help.</td>
+<td>TUI bare: open the Proto picker. CLI bare: list proto/.</td>
 </tr>
 <tr>
 <td><code>/proto.crc.calc &lt;n&gt; {d}</code></td>
-<td>Compute CRC over hex bytes, text, or file</td>
+<td>Compute CRC over hex bytes, quoted text, or a file</td>
 </tr>
 <tr>
-<td><code>/proto.crc.find &lt;pkt&gt;</code></td>
-<td>Identify the CRC algorithm from a captured packet (bin= or asc=)</td>
+<td><code>/proto.crc.detect {&lt;frames&gt;...}</code></td>
+<td>Name the catalog CRC on a batch of frames' trailing bytes</td>
+</tr>
+<tr>
+<td><code>/proto.crc.find bin=&lt;hex&gt;\|asc=&lt;text&gt;\|cmd=&lt;trigger&gt;</code></td>
+<td>Identify the CRC algorithm from a captured packet, or from a trigger's response</td>
 </tr>
 <tr>
 <td><code>/proto.crc.info &lt;name&gt;</code></td>
@@ -1318,8 +1508,20 @@ man-page detail for one.</p>
 <td>List CRC algorithms (optional glob filter)</td>
 </tr>
 <tr>
+<td><code>/proto.crc.reverse {cmd=&lt;trigger&gt; count=&lt;N&gt;} {packet-hex}...</code></td>
+<td>Recover the Rocksoft parameters of an unknown CRC</td>
+</tr>
+<tr>
+<td><code>/proto.crc.verify &lt;name&gt; {endian=be\|le} &lt;hex&gt;...</code></td>
+<td>Verify a packet's trailing CRC against a named algorithm</td>
+</tr>
+<tr>
 <td><code>/proto.debug &lt;file&gt;</code></td>
-<td>Open interactive protocol debug screen for a .pro script</td>
+<td>Open interactive protocol debug screen for a .pro script (bare: Proto picker)</td>
+</tr>
+<tr>
+<td><code>/proto.edit {file}</code></td>
+<td>Edit a .pro file (same as <code>/edit.proto</code>)</td>
 </tr>
 <tr>
 <td><code>/proto.help</code></td>
@@ -1327,7 +1529,7 @@ man-page detail for one.</p>
 </tr>
 <tr>
 <td><code>/proto.hex {on\|off\|toggle}</code></td>
-<td>Toggle protocol-mode hex display for <code>/proto.send</code> responses</td>
+<td>Same flag as <code>/term.hex</code></td>
 </tr>
 <tr>
 <td><code>/proto.list</code></td>
@@ -1335,7 +1537,7 @@ man-page detail for one.</p>
 </tr>
 <tr>
 <td><code>/proto.run &lt;file&gt;</code></td>
-<td>Run a binary protocol test script (.pro)</td>
+<td>Run a binary protocol test script (.pro); TUI bare: the Proto picker</td>
 </tr>
 <tr>
 <td><code>/proto.send &lt;hex&gt;</code></td>
@@ -1347,26 +1549,26 @@ man-page detail for one.</p>
 </tr>
 <tr>
 <td><code>/raw &lt;text&gt;</code></td>
-<td>Send text to serial with no variable expansion or transforms</td>
+<td>Send text exactly as typed: no line ending, expansion or transforms</td>
 </tr>
 <tr>
 <td><code>/repeat ...</code></td>
 <td>Repeat a command N times: <code>count=&lt;N&gt; {delay=&lt;dur&gt;} {var=&lt;name&gt;} cmd=&lt;cmd&gt;</code></td>
 </tr>
 <tr>
-<td><code>/run {file} {-v}</code></td>
+<td><code>/run {file}</code></td>
 <td>TUI bare: open Run picker. CLI bare: list scripts. With file: run it.</td>
 </tr>
 <tr>
-<td><code>/run.edit &lt;file&gt;</code></td>
-<td>Open a .run script in the system editor</td>
+<td><code>/run.edit {file}</code></td>
+<td>Edit a .run script (same as <code>/edit.run</code>)</td>
 </tr>
 <tr>
 <td><code>/run.help</code></td>
 <td>Show <code>/run</code> help (alias for <code>/help run</code>)</td>
 </tr>
 <tr>
-<td><code>/run.legacy {file\|*}</code></td>
+<td><code>/run.legacy &lt;file\|*&gt;</code></td>
 <td>Find renamed (legacy) command names in scripts; <code>--fix</code> rewrites in place</td>
 </tr>
 <tr>
@@ -1394,16 +1596,60 @@ man-page detail for one.</p>
 <td>Show the current config file</td>
 </tr>
 <tr>
-<td><code>/ss.svg [name]</code></td>
+<td><code>/ss</code></td>
+<td>Open the screenshot folder (same as the SS button and <code>/ss.explore</code>)</td>
+</tr>
+<tr>
+<td><code>/ss.svg {name}</code></td>
 <td>Save an SVG screenshot</td>
 </tr>
 <tr>
-<td><code>/ss.txt [name] [N]</code></td>
+<td><code>/ss.txt {name} {N}</code></td>
 <td>Save a text screenshot (all, or an N-line slice)</td>
 </tr>
 <tr>
 <td><code>/stop</code></td>
 <td>Abort a running script</td>
+</tr>
+<tr>
+<td><code>/sym &lt;addr\|name&gt;</code></td>
+<td>Symbol table: name to address, or address to <code>name+offset</code></td>
+</tr>
+<tr>
+<td><code>/sym.import {file} {format=&lt;value&gt;}</code></td>
+<td>Convert a linker map to <code>sym/&lt;cfg&gt;.symbols.json</code> and load it (bare: re-import the same map)</td>
+</tr>
+<tr>
+<td><code>/sym.info</code></td>
+<td>Show the loaded symbol table: file, source, counts by section, range</td>
+</tr>
+<tr>
+<td><code>/sym.load {path}</code></td>
+<td>Load a symbol table (default: the cfg sidecar <code>/sym.import</code> writes)</td>
+</tr>
+<tr>
+<td><code>/sym.search &lt;pattern&gt;</code></td>
+<td>Search symbols by name: exact, glob, regex, or substring</td>
+</tr>
+<tr>
+<td><code>/sym.unload</code></td>
+<td>Clear the loaded symbol table</td>
+</tr>
+<tr>
+<td><code>/dev.import &lt;file&gt; {format=&lt;value&gt;}</code></td>
+<td>Convert a vendor register description (CMSIS-SVD) into this config's <code>lib/</code> and reference it from <code>dev/</code> (<code>to=global</code> shares it)</td>
+</tr>
+<tr>
+<td><code>/dev.lib {pattern}</code></td>
+<td>List the parts the libraries hold (available, not loaded), with their layer</td>
+</tr>
+<tr>
+<td><code>/dev.list</code></td>
+<td>List the devices this config has loaded, with layer and placement</td>
+</tr>
+<tr>
+<td><code>/dev.use &lt;part&gt; {at=&lt;value&gt;}</code></td>
+<td>Add a library part to this config; <code>at=NAME@ADDR ...</code> places a relocatable one</td>
 </tr>
 <tr>
 <td><code>/term</code></td>
@@ -1436,6 +1682,10 @@ man-page detail for one.</p>
 <tr>
 <td><code>/term.info</code></td>
 <td>Snapshot the state of every <code>/term.*</code> toggle</td>
+</tr>
+<tr>
+<td><code>/term.json {compact\|indent\|color\|cycle}</code></td>
+<td>How JSON answers print: one line, indented, or indented and colored</td>
 </tr>
 <tr>
 <td><code>/term.eol.markers {on\|off\|toggle}</code></td>
@@ -1589,6 +1839,11 @@ family of file subcommands:</p>
 <td>run, proto, plugin, ss, cap</td>
 </tr>
 <tr>
+<td><code>.edit {name}</code></td>
+<td>Edit a file (TUI bare: the folder's picker); also <code>/edit.&lt;folder&gt;</code></td>
+<td>run, proto, plugin</td>
+</tr>
+<tr>
 <td><code>.clear</code></td>
 <td>Delete all files</td>
 <td>ss, cap (generated output only)</td>
@@ -1687,7 +1942,7 @@ family of file subcommands:</p>
 </footer>
       
     </div>
-    <div class="md-dialog" data-md-component="dialog">
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
@@ -1695,10 +1950,14 @@ family of file subcommands:</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.49251538.min.js"></script>
+      <script src="./assets/javascripts/bundle.a2388154.min.js"></script>
       
     
   </body>

@@ -246,6 +246,30 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.table("Sensors", "sensor", _COLUMNS, records, value=names)
 ```
 
+When each row is one value under a unique name, pass `data=` the mapping
+(`data={record["name"]: record["temp_c"] for record in records}`): a
+consumer then looks a name up instead of searching, and the table still
+shows the rows.
+
+**A status page returns `CmdResult.record`.**  The same idea for one
+record: the facts with real JSON types become `data`, and the
+`(label, text)` rows are what a person reads, aligned with cyan labels.
+termapy prints the rows unless the caller wants data, so a JSON answer
+carries each fact once.  A row's optional third element colors its text;
+leave a row out to omit it, put `None` between rows for a blank line, and
+a `TextLine("heading", "green")` among them for a plain line:
+
+```python
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    temp_c = read_temp()
+    data = {"temp_c": temp_c, "alarm": temp_c > 80}
+    rows = [
+        ("temp", f"{temp_c:.1f} C"),
+        ("alarm", "yes" if data["alarm"] else "no", "red" if data["alarm"] else ""),
+    ]
+    return CmdResult.record(data, rows, value=f"{temp_c:.1f}")
+```
+
 Handlers that ignore `wants_data` keep working: their prose reaches
 structured consumers via the response's `output_lines`.
 
@@ -612,7 +636,7 @@ ctx.io.output_markup(f"  [cyan]{escape_markup(name)}[/] = {escape_markup(value)}
 ctx.io.output(f"  {name} = {value}")  # no markup, nothing to escape
 ```
 
-`format_kv_lines` escapes its rows for you.
+`CmdResult.record` and `CmdResult.table` escape their rows for you.
 
 **Errors** flow through `return CmdResult.fail(msg=...)` -- the dispatcher
 paints the red error line.  Do not write red error text via the output

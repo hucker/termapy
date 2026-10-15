@@ -6,8 +6,8 @@ Phase 4 of the MCP-server work.  Subcommands:
   ``termapy://commands.json`` MCP resource serves.  The two outputs
   are byte-identical (enforced by tests).  Useful in TUI/CLI for
   inspecting what an LLM client would see.
-- ``/mcp.info`` -- show MCP-mode status: catalog size, port,
-  active profile metadata, capture artifact count.
+- ``/mcp.info`` -- show MCP-mode status: this process's PID, catalog
+  size, port, active profile metadata, capture artifact count.
 
 For a human-readable view of the MCP-visible command list, use
 ``/help --mcp`` -- same filter as ``/mcp.catalog``, rendered like
@@ -20,16 +20,17 @@ require ``--mcp`` to be running.  ``/mcp.catalog`` is a generic
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.builtins.commands.log import dump_text_slice
 from termapy.config import open_with_system
 from termapy.mcp.catalog import build_catalog, catalog_json
-from termapy.plugins import CapabilitySet, CmdResult, Command, escape_markup
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
-    from termapy.plugins import PluginContext
+    from termapy.plugins import KvRow, PluginContext
 
 
 # ── /mcp.catalog ────────────────────────────────────────────────────────────
@@ -79,7 +80,12 @@ def _format_destructive(names: list[str]) -> str:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Print MCP-mode status: catalog, port, profile, captures.
+    """Print MCP-mode status: PID, catalog, port, profile, captures.
+
+    A record answer (registry ``record-one-format``): an MCP client gets
+    the facts as ``data`` at any output level.  The PID leads because
+    every termapy MCP server has the same command line, and the PID is
+    how an agent finds the one it is talking to in ``tasklist`` / ``ps``.
 
     Always reports counts from the **MCP perspective**, regardless of
     which host /mcp.info runs in.  In a TUI session running this
@@ -88,16 +94,16 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     look like?"  That second question is uninteresting; the first is
     why someone runs /mcp.info.
     """
-    from termapy.plugins import ENVIRONMENTS, format_kv_lines
+    from termapy.plugins import ENVIRONMENTS
 
     # Catalog metadata is host-independent (profile + device come from
     # the active profile namespace, not capabilities).  Wire-level
     # values (protocol, baud) live in the cfg now.
     cat = build_catalog(ctx)
     device_count = len(cat.get("device_commands", []))
-    profile_rev = cat.get("profile_revision") or "(none)"
-    profile_date = cat.get("profile_date") or "(none)"
-    device_name = (cat.get("device") or {}).get("name", "(none)")
+    profile_rev = cat.get("profile_revision") or None
+    profile_date = cat.get("profile_date") or None
+    device_name = (cat.get("device") or {}).get("name")
     protocol = ctx.cfg.get("protocol", "text")
     baud = ctx.cfg["serial"]["baud_rate"]
 
@@ -112,7 +118,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     # Port state.
     is_connected = ctx.serial.is_connected()
     port_state = "connected" if is_connected else "disconnected"
-    port_name = ctx.cfg["serial"]["port"] or "(none)"
+    port_name = ctx.cfg["serial"]["port"] or None
 
     # Capture artifacts.
     cap_dir = Path(ctx.fs.cap_dir)
@@ -141,13 +147,30 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     profile_total = len(profile_cmds)
     profile_disabled = profile_total - profile_enabled
 
-    rows = [
-        ("port", f"{port_name} ({port_state})"),
+    data = {
+        "pid": os.getpid(),
+        "port": port_name,
+        "connected": is_connected,
+        "commands": cmd_count,
+        "device_commands": device_count,
+        "profile_revision": profile_rev,
+        "profile_date": profile_date,
+        "device": device_name,
+        "protocol": protocol,
+        "baud_rate": baud,
+        "captures": cap_count,
+        "destructive": destructive_names,
+        "profile_commands": profile_total,
+        "profile_enabled": profile_enabled,
+    }
+    rows: list[KvRow | None] = [
+        ("pid", str(data["pid"])),
+        ("port", f"{port_name or '(none)'} ({port_state})"),
         ("commands", str(cmd_count)),
         ("device_commands", str(device_count)),
-        ("profile_revision", profile_rev),
-        ("profile_date", profile_date),
-        ("device", device_name),
+        ("profile_revision", profile_rev or "(none)"),
+        ("profile_date", profile_date or "(none)"),
+        ("device", device_name or "(none)"),
         ("protocol", protocol),
         ("baud_rate", str(baud)),
         ("captures", str(cap_count)),
@@ -160,16 +183,13 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             + (f" ({profile_disabled} drafts pending review)"
                if profile_disabled else " (all enabled)"),
         ))
-    for line in format_kv_lines(rows):
-        ctx.io.output_markup(line)
     # Discoverability hint: many users will reach for /mcp.info first when
     # learning the MCP surface; point them at the human-readable view.
-    prefix_markup = escape_markup(ctx.prefix)
-    ctx.io.output_markup(
-        f"  [dim](Use {prefix_markup}help --mcp for the human-readable command "
-        f"list, {prefix_markup}mcp.catalog for raw JSON.)[/]"
+    hint = (
+        f"(Use {ctx.prefix}help --mcp for the human-readable command list, "
+        f"{ctx.prefix}mcp.catalog for raw JSON.)"
     )
-    return CmdResult.ok(value=str(cmd_count))
+    return CmdResult.record(data, rows, value=str(cmd_count), notes=((hint, "dim"),))
 
 
 # ── /mcp.log ────────────────────────────────────────────────────────────────
@@ -258,10 +278,17 @@ COMMAND = Command(
     long_help=(
         "MCP-mode tools.  /mcp.catalog dumps the JSON command catalog\n"
         "(same content as the termapy://commands.json MCP resource).\n"
-        "/mcp.info shows MCP-mode state: catalog size, port, active\n"
-        "profile metadata, capture artifact count.  /mcp.log opens the\n"
-        "MCP session log written by termapy --mcp; /mcp.log.dump prints\n"
-        "it inline; /mcp.log.path reports its location.\n"
+        "/mcp.info shows MCP-mode state: this process's pid, catalog\n"
+        "size, port, active profile metadata, capture artifact count.\n"
+        "/mcp.log opens the MCP session log written by termapy --mcp;\n"
+        "/mcp.log.dump prints it inline; /mcp.log.path reports its\n"
+        "location.\n"
+        "\n"
+        "Every termapy MCP server has the same command line, so the pid\n"
+        "is how to find a particular one in tasklist or ps.  On Windows\n"
+        "under uv it is the interpreter, whose parent is a launcher;\n"
+        "ending it (taskkill /F /PID <pid>, or kill <pid>) ends the\n"
+        "launchers too and frees termapy.exe.\n"
         "\n"
         "Both commands work in any frontend (TUI/CLI/MCP); they don't\n"
         "require --mcp to be running.  See also: /profile, /port.info,\n"
@@ -274,7 +301,7 @@ COMMAND = Command(
             handler=_handler_catalog,
         ),
         "info": Command(
-            help="Print MCP-mode status (catalog/profile/port/captures).",
+            help="Print MCP-mode status (pid/catalog/profile/port/captures).",
             handler=_handler_info,
         ),
         "log": Command(

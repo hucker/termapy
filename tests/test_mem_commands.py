@@ -690,7 +690,7 @@ class TestRequestModeEnvelope:
         ]
 
     def test_bare_mem_emits_one_envelope(self, cli, capsys):
-        """The bare_sub redirect yields one envelope, with the inner prose as plain lines."""
+        """The bare_sub redirect yields one envelope, the inner record as data and no prose beside it."""
         # Arrange
         assert cli.repl.dispatch("term.request on").success
         capsys.readouterr()
@@ -705,12 +705,8 @@ class TestRequestModeEnvelope:
         envelope = envelopes[0]
         assert envelope["cmd"] == "/mem", "the command as the user issued it"
         assert envelope["value"] == "termapy", "the inner result propagates"
-        assert any("status" in line for line in envelope["output_lines"]), (
-            "the inner command's prose is captured as plain lines"
-        )
-        assert all('"output_lines"' not in line for line in envelope["output_lines"]), (
-            "never an escaped envelope inside output_lines"
-        )
+        assert envelope["data"]["dialect"] == "termapy", "the inner record propagates as data"
+        assert envelope["output_lines"] == [], "the facts ride once, as data, never as rows beside it"
 
     def test_space_form_emits_one_envelope(self, cli, capsys):
         """The space-form redirect adds no second envelope, and the inner value propagates."""

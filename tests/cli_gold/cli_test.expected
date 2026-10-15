@@ -436,7 +436,8 @@ demo> /print seq1={seq1+} seq2={seq2}
   seq1=2 seq2=0
   [90/219] /print seq1={seq1+} seq2={seq2} (101us)
 demo> /seq
-  Counters: seq1=2, seq2=0
+  seq1: 2
+  seq2: 0
   [91/219] /seq (120us)
 demo> /seq.reset
   Sequence counters reset.
@@ -448,8 +449,8 @@ demo> /print === section: proto crc ===
   === section: proto crc ===
   [94/219] /print === section: proto crc === (101us)
 demo> /proto.crc.info crc16-modbus
-    crc16-modbus
-    Modbus RTU serial protocol
+  crc16-modbus
+  Modbus RTU serial protocol
   Width : 16 bits (2 bytes)
   Poly  : 0x8005
   Init  : 0xFFFF
@@ -1339,7 +1340,7 @@ demo> /nope_bogus_cmd
   {"cmd": "/nope_bogus_cmd", "success": false, "error": "Unknown command: nope_bogus_cmd", "value": "", "data": null, "output_lines": [], "elapsed_s": 0.0}
   [215/219] /nope_bogus_cmd (19.4ms)
 demo> /mem
-  {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true}, "template": null}, "output_lines": ["  status       : ok", "  dialect      : termapy  (default)", "  max_block    : 64  (device)", "  address_bits : 32  (device)", "  endian       : le  (device)", "  atomic modify: yes  (device)", "  device       : answered MEM.INFO"], "elapsed_s": 0.0599}
+  {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true}, "device_error": null, "problem": null, "template": null}, "output_lines": [], "elapsed_s": 0.0706}
   [216/219] /mem (59.9ms)
 demo> /term.request off
   request_mode = False  (session)

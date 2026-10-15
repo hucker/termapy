@@ -46,7 +46,7 @@ from termapy.plugins.params import (
     synthesize_synopsis,
     validate_param_specs,
 )
-from termapy.plugins.views import Column, TableView
+from termapy.plugins.views import Column, Item, Line, RecordView, TableView, TextLine
 
 if TYPE_CHECKING:
     from termapy.plugins.context import PluginContext
@@ -228,7 +228,8 @@ class CmdResult:
     # audience pays for the other's rendering -- or, better, return
     # ``CmdResult.table(...)`` and let dispatch choose.
     data: Any = None
-    # ``view`` is how ``data`` reads as prose (a ``views.TableView``):
+    # ``view`` is how ``data`` reads as prose (a ``views.TableView`` or
+    # ``views.RecordView``):
     # dispatch's exit renders it on the output channel when the caller
     # did not ask for data, and strips it either way -- a view never
     # leaves dispatch, and no envelope or MCP response carries one.
@@ -243,6 +244,7 @@ class CmdResult:
         records: Sequence[dict[str, Any]],
         *,
         value: Any,
+        data: dict[str, Any] | None = None,
     ) -> "CmdResult":
         """A list answer: ``records`` as ``data``, their table as the view.
 
@@ -256,13 +258,53 @@ class CmdResult:
             columns: The columns the prose shows, left to right.
             records: One raw-valued dict per row, in display order.
             value: The scriptable scalar (usually the newline-joined names).
+            data: A name-to-value mapping to answer with instead of the
+                records, when each row is one value under a unique name
+                (``/env.list``): a consumer looks a name up rather than
+                searching.  The table still shows the records.
         """
         rows = tuple(records)
         return cls(
             value=value,
-            data=list(rows),
+            data=list(rows) if data is None else data,
             view=TableView(title, noun, tuple(columns), rows),
         )
+
+    @classmethod
+    def record(
+        cls,
+        data: Any,
+        rows: Sequence[Item],
+        *,
+        value: Any,
+        title: Sequence[Line] = (),
+        notes: Sequence[Line] = (),
+    ) -> "CmdResult":
+        """A status answer: ``data`` with real JSON types, ``rows`` as its view.
+
+        The handler renders nothing; dispatch prints the aligned rows, or
+        hands ``data`` alone to a caller that wants data (``--json``,
+        ``/term.request``, MCP), so the facts never ride twice.  Registry
+        ``record-one-format``, the single-record twin of ``table``.
+
+        Args:
+            data: The facts, JSON-shaped (ints, bools, None, lists), with
+                the same keys a script or agent will read -- one dict, or
+                a list of them for a page per item (``/port.chip *``).
+            rows: The prose twin: ``(label, text)`` or ``(label, text,
+                color)`` rows, ``views.TextLine`` plain lines, and ``None``
+                for a blank line; each run of rows aligns on its own.
+                Leave a row out to omit it.
+            value: The scriptable scalar.
+            title: ``(text, color)`` lines before the rows.
+            notes: ``(text, color)`` lines after the rows.
+        """
+        items = (
+            *(TextLine(text, color) for text, color in title),
+            *rows,
+            *(TextLine(text, color) for text, color in notes),
+        )
+        return cls(value=value, data=data, view=RecordView(items))
 
     @classmethod
     def ok(cls, *, value: Any, data: Any = None) -> "CmdResult":

@@ -1562,8 +1562,8 @@ class TestJsonFlag:
 
     def test_unconverted_command_answer_is_captured(self, engine):
         """A command without data has its prose captured into output_lines, flattened."""
-        # Arrange -- /term.info has no data producer; in JSON mode its
-        # whole answer must arrive in the envelope, not print above it.
+        # Arrange -- /print.r has no data, and prints markup; in JSON mode
+        # its whole answer must arrive in the envelope, not print above it.
         # (/help would be the natural pick but its landscape reads
         # ctx.internal.plugins, which only a HOST wires -- empty in this
         # bare engine.)
@@ -1571,21 +1571,17 @@ class TestJsonFlag:
         output.clear()
 
         # Act
-        eng.dispatch("term.info --json")
+        eng.dispatch("print.r [bold]echo[/] on --json")
 
         # Assert
         assert len(output) == 1, (
             "one line total: the envelope IS the answer, no prose printed"
         )
         envelope = self._last_envelope(output)
-        assert envelope["data"] is None, "no structured form for /term.info"
-        assert len(envelope["output_lines"]) > 5, (
-            "the kv listing captured into the envelope"
-        )
-        assert any(
-            "echo" in line and "[" not in line
-            for line in envelope["output_lines"]
-        ), "captured lines are the real content with markup flattened"
+        assert envelope["data"] is None, "no structured form for /print.r"
+        actual = [line.strip() for line in envelope["output_lines"]]
+        expected = ["echo on"]
+        assert actual == expected, "the printed line is captured with its markup flattened"
 
     def test_unknown_command_is_enveloped(self, engine):
         """An unknown command fails inside the envelope, with no extra red error line."""

@@ -91,28 +91,29 @@ class TestConstants:
 class TestPortInfo:
 
     def test_disconnected(self):
-        """With no open port, the info page falls back to the config values and says so."""
+        """With no open port, the info page falls back to the config values, says so, and has no signals."""
         # Act
-        msgs, effects = port_info(_cfg(), None)
+        report = port_info(_cfg(), None)
 
-        # Assert - shows config values with disconnected state
-        texts = [text for text, _ in msgs]
-        assert any("disconnected" in text for text in texts), "should show disconnected state"
-        assert any("115200" in text for text in texts), "should show baud rate config value"
+        # Assert - config values with disconnected state, no live lines
+        rows = {item[0]: item[1] for item in report.items if isinstance(item, tuple)}
+        assert "disconnected" in rows["Port"], "the port row says disconnected"
+        assert (report.data["connected"], report.data["baud_rate"]) == (False, 115200), "config values as data"
+        assert report.data["signals"] is None, "no live lines without an open port"
 
     def test_connected_shows_hw_lines(self):
-        """An open port adds its live DTR and RTS line states to the info page."""
+        """An open port adds its live hardware lines to the page and, as booleans, to the record."""
         # Arrange
         ser = _mock_ser()
 
         # Act
-        msgs, effects = port_info(_cfg(), ser)
+        report = port_info(_cfg(), ser)
 
-        # Assert - shows hardware line values
-        texts = [text for text, _ in msgs]
-        assert any("connected" in text for text in texts), "should show connected state"
-        assert any("DTR" in text for text in texts), "should show DTR line"
-        assert any("RTS" in text for text in texts), "should show RTS line"
+        # Assert - hardware line rows and their values
+        labels = [item[0] for item in report.items if isinstance(item, tuple)]
+        assert {"DTR", "RTS"} <= set(labels), "the DTR and RTS rows"
+        assert report.data["connected"] is True, "connected as a boolean"
+        assert set(report.data["signals"]) == {"dtr", "rts", "cts", "dsr", "ri", "cd"}, "all six lines"
 
 
 # ── get_set_prop ─────────────────────────────────────────────────────────────
@@ -998,15 +999,12 @@ class TestChipInfoResolvesSnSpec:
         """The chip page resolves an SN-based port spec before its device lookup."""
         # Arrange -- SN-based config: current_port is the SN, nothing typed.
         # Act
-        msgs, _ = chip_info("", "A1B2C3D4", connected_port="COM3", source=_build_demo_fleet)
+        report = chip_info("", "A1B2C3D4", connected_port="COM3", source=_build_demo_fleet)
 
         # Assert
-        texts = [text for text, _ in msgs]
-        assert not any("No port matching" in text for text in texts), (
-            "chip_info must resolve the SN, not report no match"
-        )
-        assert any("COM3" in text for text in texts), (
-            "resolves the SN to its device (COM3) and dumps its facts"
+        assert report.problem is None, "chip_info must resolve the SN, not report no match"
+        assert (report.data["device"], report.value) == ("COM3", "COM3"), (
+            "resolves the SN to its device (COM3) and reports its facts"
         )
 
     def test_chip_field_resolves_serial_number(self):

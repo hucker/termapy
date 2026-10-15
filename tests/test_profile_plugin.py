@@ -167,20 +167,32 @@ class TestProfileInfo:
         assert "no profile" in full.lower(), "informs user no profile loaded"
 
     def test_info_after_load_shows_metadata(self, env):
-        """/profile.info shows the revision and device block; baud stays in /cfg.dump."""
+        """/profile.info's record carries the revision and device block; baud stays in /cfg.dump."""
         # Arrange
-        eng, _ctx, output = env
+        eng, _ctx, _output = env
         eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
-        output.clear()
+        # Act
+        data = eng.dispatch("profile.info").data
+        # Assert -- profile-only metadata; wire-level settings like baud
+        # live in cfg and are inspected via /cfg.dump, not /profile.info.
+        assert data["profile_revision"] == "1.0.0", "shows revision"
+        assert data["device"]["name"] == "Generic AT Modem", "device block surfaced"
+        assert "baud_rate" not in data, "baud is the cfg's, not the profile's"
+
+    def test_info_rows_render_as_markup_for_a_person(self, env):
+        """Where prose is wanted the rows go out as markup, cyan labels and not literal [cyan] tags."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
+        ctx.wants_data = False
+        markup: list[str] = []
+        ctx.io._write_markup = markup.append
         # Act
         eng.dispatch("profile.info")
-        full = " ".join(t for t, _ in output)
-        # Assert -- /profile.info shows profile-only metadata; wire-
-        # level settings like baud live in cfg and are inspected via
-        # /cfg.dump, not /profile.info.
-        assert "1.0.0" in full, "shows revision"
-        assert "Generic AT Modem" in full, "shows device name"
-        assert "AT Modem" in full, "device-block surfaced"
+        # Assert
+        actual = [line for line in markup if "profile_revision" in line]
+        expected = ["  [cyan]profile_revision     [/]: 1.0.0"]
+        assert actual == expected, "the row is rendered through the markup channel"
 
     def test_info_value_is_command_count(self, env):
         """The scriptable value of /profile.info is the loaded profile's command count."""

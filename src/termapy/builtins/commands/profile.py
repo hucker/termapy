@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.folders import PROFILE_SUFFIX
-from termapy.plugins import CmdResult, Command, UsageError, format_kv_lines
+from termapy.plugins import CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.profile import (
     load_profile,
@@ -43,7 +43,7 @@ from termapy.profile import (
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
-    from termapy.plugins import PluginContext
+    from termapy.plugins import KvRow, PluginContext
 
 
 _ACTIVE_PROFILE_NS = "active_profile"
@@ -355,7 +355,11 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Show metadata of the active profile."""
+    """Show metadata of the active profile.
+
+    A record answer (registry ``record-one-format``): the metadata is
+    ``data``, with ``device`` a dict or None and ``commands`` the count.
+    """
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
     if not ns:
         ctx.io.result(
@@ -374,26 +378,30 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     else:
         source_display = "(in-memory)"
 
-    rows = [
+    device = ns.get("device") or {}
+    cmd_count = len(ns.get("commands") or {})
+    data = {
+        "source": source_display,
+        "profile_version": ns.get("profile_version"),
+        "profile_revision": ns.get("profile_revision"),
+        "profile_date": ns.get("profile_date"),
+        "device": device if isinstance(device, dict) and device else None,
+        "commands": cmd_count,
+    }
+    rows: list[KvRow | None] = [
         ("source", source_display),
         ("profile_version", str(ns.get("profile_version", "(none)"))),
-        ("profile_revision", ns.get("profile_revision", "(none)")),
-        ("profile_date", ns.get("profile_date", "(none)")),
+        ("profile_revision", str(ns.get("profile_revision", "(none)"))),
+        ("profile_date", str(ns.get("profile_date", "(none)"))),
     ]
-    device = ns.get("device") or {}
-    if isinstance(device, dict) and device:
-        rows.append(("device.name", device.get("name", "")))
+    if data["device"]:
+        rows.append(("device.name", str(device.get("name", ""))))
         if device.get("vendor"):
-            rows.append(("device.vendor", device["vendor"]))
+            rows.append(("device.vendor", str(device["vendor"])))
         if device.get("startup_banner"):
-            rows.append(("device.startup_banner", device["startup_banner"]))
-    cmd_count = len(ns.get("commands") or {})
+            rows.append(("device.startup_banner", str(device["startup_banner"])))
     rows.append(("commands", str(cmd_count)))
-
-    for line in format_kv_lines(rows):
-        ctx.io.output(line)
-
-    return CmdResult.ok(value=str(cmd_count))
+    return CmdResult.record(data, rows, value=str(cmd_count))
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

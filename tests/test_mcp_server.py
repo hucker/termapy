@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 
@@ -547,6 +548,21 @@ class TestUnifiedEnvelope:
         assert data["launch"]["FRONT_END"] == "mcp", (
             "launch namespace resolved into data"
         )
+
+    def test_mcp_info_returns_its_record_as_data_at_normal_level(self, host):
+        """/mcp.info reaches an MCP client as one record of real values, pid first, and no rows of display text beside it."""
+        # Act
+        result = asyncio.run(host.run_command_async("/mcp.info", "normal", 5.0))
+
+        # Assert
+        data = result["data"]
+        actual_pid = data["pid"]
+        expected_pid = os.getpid()
+        assert actual_pid == expected_pid, "the pid is this server's own process, to find in tasklist / ps"
+        assert next(iter(data)) == "pid", "pid leads the record"
+        assert (data["connected"], data["commands"] > 0) == (False, True), "real types, not display strings"
+        assert result["value"] == str(data["commands"]), "value stays the command count"
+        assert result["output_lines"] == [], "the facts ride once, as data"
 
     def test_var_data_mode_emits_no_prose_even_at_verbose(self, host):
         """Even at verbose, /var sends data alone so the listing is never doubled."""

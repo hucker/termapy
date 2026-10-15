@@ -18,7 +18,7 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import compose, green
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, TextLine
 from termapy.scripting import filename_timestamp
 
 if TYPE_CHECKING:
@@ -67,14 +67,15 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Unused.
     """
     # Integer keys only -- _start_time is plugin-internal, not a counter.
-    counters = {k: v for k, v in ctx.ns("seq").items() if isinstance(k, int)}
-    if counters:
-        parts = [f"seq{k}={v}" for k, v in sorted(counters.items())]
-        line = ", ".join(parts)
-        ctx.io.output(f"Counters: {line}")
-        return CmdResult.ok(value=line)
-    ctx.io.output("No counters set.")
-    return CmdResult.ok(value="")
+    # A record answer (registry record-one-format): {"seq1": 3, ...}.
+    numbered = sorted((key, value) for key, value in ctx.ns("seq").items() if isinstance(key, int))
+    counters = {f"seq{key}": value for key, value in numbered}
+    if not counters:
+        return CmdResult.record({}, [TextLine("No counters set.")], value="")
+    rows = [(name, str(count)) for name, count in counters.items()]
+    return CmdResult.record(
+        counters, rows, value=", ".join(f"{name}={count}" for name, count in counters.items()),
+    )
 
 
 def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:

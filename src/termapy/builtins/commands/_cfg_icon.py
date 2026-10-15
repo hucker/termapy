@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 import termapy
-from termapy.plugins import CmdResult
+from termapy.plugins import CmdResult, Column
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -448,13 +448,18 @@ def _list(ctx: PluginContext) -> CmdResult:
     ) or (None, None)
     if scan is None:
         return CmdResult.fail(msg=f"Unsupported platform: {_PLATFORM}")
-    found = scan()
-    if not found:
-        ctx.io.result(f"No termapy launchers found in {where}.")
-        return CmdResult.ok(value="")
-    for path in found:
-        ctx.io.output(f"  {path}")
-    return CmdResult.ok(value="\n".join(str(p) for p in found))
+    # A list answer (registry list-one-format): one record per launcher.
+    records = [{"name": path.name, "path": str(path)} for path in scan()]
+    return CmdResult.table(
+        f"termapy launchers in {where}", "launcher", _LAUNCHER_COLUMNS, records,
+        value="\n".join(record["path"] for record in records),
+    )
+
+
+_LAUNCHER_COLUMNS = (
+    Column("NAME", lambda record: record["name"]),
+    Column("PATH", lambda record: record["path"]),
+)
 
 
 # ── Handler entry points ─────────────────────────────────────────────────────

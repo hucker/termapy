@@ -928,7 +928,6 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset({
     "app.state.edit", "cap.hex", "cfg.help",
     "edit.log", "edit.plugin.list", "edit.proto.list", "edit.run.list",
     "help.plugin", "help.target", "ping.quiet",
-    "print.r",
     "term.encoding", "term.log", "term.send_bare_enter",
     "xfer.root", "xfer.xmodem.recv", "xfer.xmodem.send", "xfer.ymodem.send",
 })
@@ -1681,3 +1680,88 @@ def compose(self, name, path):
         "text into Static, Label, Button, notify and a content= keyword is flagged; "
         "literals, module constants, markup=False and Text pass"
     )
+
+
+# ── Status pages render through one view ─────────────────────────────────────
+#
+# A status page returns ``CmdResult.record(data, rows, ...)``: the facts are
+# ``data`` and the label/value rows a person reads are a ``RecordView``,
+# printed by dispatch unless the caller wants data.  ``format_kv_lines`` is
+# that view's renderer, so a call anywhere else is a handler printing its own
+# rows, which then ride into every JSON answer beside ``data`` (the
+# /mcp.info envelope that carried its facts as display strings).
+KV_RENDERER = "termapy/plugins/views.py"
+# Files that still render rows themselves; the list only shrinks.
+KNOWN_KV_CALLERS: frozenset[str] = frozenset()
+
+
+def _kv_calls(tree: ast.AST, rel: str) -> list[str]:
+    """Every call to ``format_kv_lines`` in ``rel``, bare or as an attribute."""
+    return [
+        f"{rel}:{node.lineno}  {ast.unparse(node)}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and (
+            (isinstance(node.func, ast.Name) and node.func.id == "format_kv_lines")
+            or (isinstance(node.func, ast.Attribute) and node.func.attr == "format_kv_lines")
+        )
+    ]
+
+
+def _kv_caller_files() -> dict[str, list[str]]:
+    """``{rel: [call lines]}`` for every package file that calls ``format_kv_lines``."""
+    found: dict[str, list[str]] = {}
+    for path in _package_python_files():
+        rel = path.relative_to(SRC.parent).as_posix()
+        calls = _kv_calls(ast.parse(path.read_text(encoding="utf-8")), rel)
+        if calls:
+            found[rel] = calls
+    return found
+
+
+def test_status_rows_render_only_in_the_record_view():
+    """record-one-format: Only the record view calls ``format_kv_lines``; a status page returns ``CmdResult.record``."""
+    # Arrange / Act
+    violations = [
+        line
+        for rel, calls in _kv_caller_files().items()
+        if rel != KV_RENDERER and rel not in KNOWN_KV_CALLERS
+        for line in calls
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a status page returns CmdResult.record(data, rows, value=...) and lets "
+        "dispatch render the rows; it never calls format_kv_lines itself:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_kv_guard_fires_on_a_probe():
+    """The guard flags a bare and a qualified format_kv_lines call, and not a record answer."""
+    # Arrange
+    probe = (
+        "lines = format_kv_lines(rows)\n"
+        "lines = output_levels.format_kv_lines(rows)\n"
+        "return CmdResult.record(data, rows, value='1')\n"
+    )
+
+    # Act
+    found = _kv_calls(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 2, "both renderer calls flagged; the record answer is not"
+
+
+def test_kv_callers_has_no_stale_entries():
+    """Every file in KNOWN_KV_CALLERS still calls format_kv_lines, and the view still does."""
+    # Arrange / Act
+    actual = set(_kv_caller_files())
+
+    # Assert
+    stale = sorted(KNOWN_KV_CALLERS - actual)
+    assert stale == [], (
+        "KNOWN_KV_CALLERS lists files that no longer render rows; drop them:\n  "
+        + "\n  ".join(stale)
+    )
+    assert KV_RENDERER in actual, "the record view is where format_kv_lines is called"

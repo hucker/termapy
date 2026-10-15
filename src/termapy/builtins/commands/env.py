@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from termapy.env_flags import env_access_blocked
 from termapy.help_dynamic import compose, green
-from termapy.plugins import CmdResult, Command, Transform, UsageError
+from termapy.plugins import CmdResult, Column, Command, Transform, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -79,26 +79,29 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     if env_access_blocked():
         return CmdResult.fail(msg=_MCP_BLOCKED_MSG)
     pattern = args.strip()
-    if pattern:
-        if any(c in pattern for c in "*?[]"):
-            matches = {k: v for k, v in _ENV.items()
-                       if fnmatch.fnmatch(k, pattern)}
-            if not matches:
-                return CmdResult.fail(msg=f"No variables matching: {pattern}")
-            lines = [f"{k}={matches[k]}" for k in sorted(matches)]
-            for line in lines:
-                ctx.io.output(f"  {line}")
-            return CmdResult.ok(value="\n".join(lines))
+    if pattern and not any(c in pattern for c in "*?[]"):
         val = _ENV.get(pattern)
         if val is not None:
             ctx.io.output(f"  {pattern}={val}")
             return CmdResult.ok(value=val)
         return CmdResult.fail(msg=f"Environment variable not set: {pattern}")
-    ctx.io.output(f"Environment snapshot ({len(_ENV)} vars):")
-    lines = [f"{k}={_ENV[k]}" for k in sorted(_ENV)]
-    for line in lines:
-        ctx.io.output(f"  {line}")
-    return CmdResult.ok(value="\n".join(lines))
+    # A list answer (registry list-one-format): every variable, or the glob's.
+    # The data is the name -> value mapping, so a consumer looks a name up.
+    names = sorted(name for name in _ENV if not pattern or fnmatch.fnmatch(name, pattern))
+    if pattern and not names:
+        return CmdResult.fail(msg=f"No variables matching: {pattern}")
+    records = [{"name": name, "value": _ENV[name]} for name in names]
+    return CmdResult.table(
+        "Environment snapshot", "variable", _ENV_COLUMNS, records,
+        value="\n".join(f"{name}={_ENV[name]}" for name in names),
+        data={name: _ENV[name] for name in names},
+    )
+
+
+_ENV_COLUMNS = (
+    Column("NAME", lambda record: record["name"]),
+    Column("VALUE", lambda record: record["value"]),
+)
 
 
 def _handler_set(ctx: PluginContext, args: str) -> CmdResult:

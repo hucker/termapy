@@ -7,8 +7,7 @@ from typing import TYPE_CHECKING
 from termapy import port_control
 from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.legacy import make_forwarder
-from termapy.markup import markup_to_plain
-from termapy.plugins import CmdResult, Command, UsageError
+from termapy.plugins import CmdResult, Column, Command, UsageError
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo
 
 if TYPE_CHECKING:
@@ -18,21 +17,32 @@ if TYPE_CHECKING:
 def _apply(ctx: PluginContext, result: port_control.Result) -> None:
     """Output messages and apply side effects from a port_control function.
 
-    A message marked ``port_control.MARKUP`` (a ``format_kv_lines()``
-    row) routes through ``ctx.io.output_markup`` so its colors render;
-    every other line is text on the ``(text, color)`` ``ctx.io.output``
-    path, whatever brackets it holds.
+    Every line is text on the ``(text, color)`` ``ctx.io.output`` path,
+    whatever brackets it holds; the label/value pages are record answers
+    instead (``_page``).
     """
     msgs, effects = result
     for text, color in msgs:
-        if color == port_control.MARKUP:
-            ctx.io.output_markup(text)
-        elif color:
+        if color:
             ctx.io.output(text, color)
         else:
             ctx.io.output(text)
     if effects:
         ctx.serial.apply_port_effects(effects)
+
+
+def _page(ctx: PluginContext, report: port_control.Report) -> CmdResult:
+    """A port page as a record answer, or its problem line and an empty value.
+
+    ``data`` is the record and ``value`` the port name (registry
+    ``record-one-format``): the page itself rides once, as data or as the
+    rows dispatch prints.
+    """
+    if report.problem is not None:
+        text, color = report.problem
+        ctx.io.output(text, color or "")
+        return CmdResult.ok(value="")
+    return CmdResult.record(report.data, report.items, value=report.value)
 
 
 # ── Handlers ────────────────────────────────────────────────────────────────
@@ -181,9 +191,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
                 f"For chip info on {arg!r}, use /port.chip {arg}"
             )
         )
-    result = port_control.port_info(ctx.cfg, ctx.internal.port())
-    _apply(ctx, result)
-    return CmdResult.ok(value=_joined_value(result))
+    return _page(ctx, port_control.port_info(ctx.cfg, ctx.internal.port()))
 
 
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
@@ -210,9 +218,7 @@ def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
     current = ctx.cfg["serial"]["port"] or ""
     connected = current if ctx.serial.is_connected() else ""
-    result = port_control.chip_info(args, current, connected)
-    _apply(ctx, result)
-    return CmdResult.ok(value=_joined_value(result))
+    return _page(ctx, port_control.chip_info(args, current, connected))
 
 
 def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
@@ -240,36 +246,49 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(f"No chips match '{args.strip()}'.", "yellow")
         return CmdResult.ok(value="Count=0")
 
-    # Compute column widths from actual data so nothing truncates.
-    model_w = max(len(info.model) for _, _, info in rows)
-    baud_w = max(len(f"{info.max_baud:,}") for _, _, info in rows)
-
-    header = (
-        f"{'VID:PID':9}  {'CHIP MODEL':{model_w}}  "
-        f"{'SPEED':5}  {'MAX BAUD':>{baud_w}}"
+    records = [
+        {"vid_pid": f"{vid:04X}:{pid:04X}", "model": info.model,
+         "speed": info.speed, "max_baud": info.max_baud}
+        for vid, pid, info in rows
+    ]
+    return CmdResult.table(
+        "USB-serial chips", "chip", _CHIP_COLUMNS, records, value=f"Count={len(records)}",
     )
-    ctx.io.output(header)
-    ctx.io.output("-" * len(header))
-    for vid, pid, info in rows:
-        ctx.io.output(
-            f"{vid:04X}:{pid:04X}  {info.model:{model_w}}  "
-            f"{info.speed:5}  {info.max_baud:>{baud_w},}"
-        )
-    count_line = f"Count={len(rows)}"
-    ctx.io.output(count_line, "dim")
-    return CmdResult.ok(value=count_line)
+
+
+# /port.chip.list columns: the records keep max_baud an int for a data consumer.
+_CHIP_COLUMNS = (
+    Column("VID:PID", lambda record: record["vid_pid"]),
+    Column("CHIP MODEL", lambda record: record["model"]),
+    Column("SPEED", lambda record: record["speed"]),
+    Column("MAX BAUD", lambda record: f"{record['max_baud']:,}", right=True),
+)
 
 
 def _make_chip_field_handler(field: str):
     """Build a handler for /port.chip.<field>.
 
-    The handler takes an optional port name (or ``*`` for all ports).
-    With no argument it queries the current port from cfg["serial"]["port"].
+    The handler takes an optional port name, or ``*`` for every port as
+    a table (registry ``list-one-format``).  With no argument it queries
+    the current port from cfg["serial"]["port"].
     """
+    columns = (
+        Column("DEVICE", lambda record: record["device"] or "?"),
+        Column(field.upper(), lambda record: "n/a" if record[field] is None else str(record[field])),
+    )
 
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         current = ctx.cfg["serial"]["port"] or ""
         connected = current if ctx.serial.is_connected() else ""
+        if args.strip() == "*":
+            records = port_control.chip_field_records(field, connected)
+            if not records:
+                ctx.io.output("No serial ports found", "yellow")
+                return CmdResult.ok(value="")
+            lines = "\n".join(f"{record['device']}: {columns[1].cell(record)}" for record in records)
+            # The data maps each device to its value, so a consumer looks a port up.
+            by_device = {str(record["device"]): record[field] for record in records}
+            return CmdResult.table(f"Chip {field}", "port", columns, records, value=lines, data=by_device)
         result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)
         # Single-port single-field call: return value via CmdResult.value
@@ -301,17 +320,11 @@ def _joined_value(result: port_control.Result) -> str:
     """Join non-error messages with newlines for multi-line scripting values.
 
     ``_read_value`` only handles the single-line case; this helper
-    covers multi-row outputs like ``/port.list`` or ``/port.info``
-    where the scripting value is the same text the user sees, minus
-    error/warning lines -- markup rows flattened to that text.
+    covers multi-row outputs where the scripting value is the same text
+    the user sees, minus error/warning lines.
     """
     msgs, _ = result
-    lines = [
-        markup_to_plain(text) if color == port_control.MARKUP else text
-        for text, color in msgs
-        if color not in ("red", "yellow")
-    ]
-    return "\n".join(lines)
+    return "\n".join(text for text, color in msgs if color not in ("red", "yellow"))
 
 
 def _make_prop_handler(key: str):

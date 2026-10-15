@@ -745,22 +745,20 @@ class TestSeq:
         )
 
     def test_seq_show_with_counters(self, repl_env):
-        """The value is the same seqN=V line the user sees, minus the 'Counters:' prefix."""
+        """The counters are a record of numbers, and the value one seqN=V line for scripts."""
         # Arrange
-        engine, _, _, output = repl_env
+        engine, _, _, _output = repl_env
         seq = engine.ctx.ns("seq")
-        seq[1] = 3
         seq[2] = 7
+        seq[1] = 3
 
         # Act
         result = engine.dispatch("seq")
 
         # Assert
-        assert any("seq1=3" in t for t, _ in output), "counter 1 shown"
-        assert any("seq2=7" in t for t, _ in output), "counter 2 shown"
+        assert result.data == {"seq1": 3, "seq2": 7}, "the counters as numbers, in counter order"
         assert result.value == "seq1=3, seq2=7", (
-            "scripting captures the same formatted line the user sees, "
-            "minus the 'Counters: ' prefix"
+            "scripting captures one seqN=V line"
         )
 
     def test_seq_reset(self, repl_env):
@@ -3445,6 +3443,25 @@ class TestTermEol:
 
 
 # -- /term.eol.rx ---------------------------------------------------------
+
+
+class TestTermInfo:
+    """/term.info is a record answer: every toggle as data, on/off rows for a person."""
+
+    def test_info_returns_each_toggle_as_a_boolean_that_follows_a_change(self, repl_env):
+        """/term.info data reads a toggle as a boolean and the line ending as its token, and a second call sees a change."""
+        # Arrange
+        engine, _cfg, _path, _output = repl_env
+        engine.dispatch("term.eol crlf")
+
+        # Act
+        before = engine.dispatch("term.info").data
+        engine.dispatch("term.hex on")
+        after = engine.dispatch("term.info").data
+
+        # Assert
+        assert (before["hex"], after["hex"]) == (False, True), "hex is a boolean that follows /term.hex"
+        assert before["eol"] == "crlf", "the line ending is its token, not the raw characters"
 
 
 class TestTermEolRx:

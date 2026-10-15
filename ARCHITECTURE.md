@@ -94,7 +94,7 @@ src/termapy/
 │   ├── context.py          #   PluginContext dataclass + ns/plugin_cfg/dispatch
 │   ├── loader.py           #   Plugin discovery, COMMAND validation
 │   ├── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
-│   └── views.py            #   Column, TableView - a typed answer's prose form, rendered by dispatch
+│   └── views.py            #   Column, TableView, RecordView - a typed answer's prose form, rendered by dispatch
 ├── profile/                # (1282 lines) v2 device-profile schema, loader, type registry
 │   ├── loader.py           #   load/save/validate + Profile dataclass + transport apply
 │   ├── matcher.py          #   match_profile_command, template_to_regex
@@ -357,7 +357,7 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 
 ```python
 from datetime import datetime
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CmdResult, Command, TextLine
 
 def _now() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -375,10 +375,13 @@ def on_script_start(ctx):              # fires at each OUTERMOST /run (not neste
 # --- command: read the shared state ---
 
 def _handler(ctx, args) -> CmdResult:
-    counters = {k: v for k, v in ctx.ns("seq").items() if isinstance(k, int)}
-    line = ", ".join(f"seq{k}={v}" for k, v in sorted(counters.items()))
-    ctx.io.output(f"Counters: {line}" if line else "No counters set.")
-    return CmdResult.ok(value=line)
+    numbered = sorted((key, value) for key, value in ctx.ns("seq").items() if isinstance(key, int))
+    counters = {f"seq{key}": value for key, value in numbered}
+    if not counters:
+        return CmdResult.record({}, [TextLine("No counters set.")], value="")
+    rows = [(name, str(count)) for name, count in counters.items()]
+    line = ", ".join(f"{name}={count}" for name, count in counters.items())
+    return CmdResult.record(counters, rows, value=line)
 
 COMMAND = Command(name="seq", help="Print sequence counters.", handler=_handler)
 ```
@@ -387,6 +390,8 @@ What it demonstrates:
 
 - **Global/session state** lives in `ctx.ns("seq")` — a plain dict shared across every call for the life of the `PluginContext`. The `{seqN+}` transform writes counters here; `_handler` and the template engine read them. No module-level globals, no monkeypatching `ctx`.
 - **Lifecycle** keeps that state honest: `on_app_start` seeds it once; `on_script_start` clears it at the top of each outermost script so runs don't bleed into each other — and since nested `/run` doesn't re-fire, inner scripts inherit the outer run's counters. The engine knows nothing about sequence counters; the plugin owns the policy.
+
+- **A record answer**: the handler prints nothing.  `CmdResult.record` carries the counters as `data` (`{"seq1": 3}`) and the rows a person reads; dispatch prints the rows, or hands the record alone to `--json` or MCP (registry `record-one-format`).
 
 Copy this shape for any plugin that needs per-session state with setup/reset semantics. (The full file adds a `_start_time` for the `{starttime}` placeholder, a `seq.reset` subcommand, and a dynamic `long_help` that reads the live state.)
 
@@ -452,6 +457,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 │  • loader.py: load_plugins_from_dir, validation  │
 │  • output_levels.py: silent/quiet/normal/verbose │
 │  • views.py: Column, TableView (CmdResult.table) │
+│    RecordView (CmdResult.record)                 │
 ├──────────────────────────────────────────────────┤
 │  protocol/ - Protocol Engine (package)           │
 │  • core.py: format-spec language (H, U, I, S,    │

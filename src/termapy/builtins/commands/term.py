@@ -30,7 +30,7 @@ from termapy.scripting import (
 )
 
 if TYPE_CHECKING:
-    from termapy.plugins import PluginContext
+    from termapy.plugins import KvRow, PluginContext
 
 
 # ── Runtime-flag toggles (session-scoped via ctx.ns("flags")) ───────────────
@@ -427,50 +427,54 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
       path            location of the generated file on disk
 
     Followed by a one-line update hint pointing at the package upgrade
-    path.  ``CmdResult.value`` is the full-table count so scripts can
-    read it via .quiet/.silent.
+    path.  A record answer (registry ``record-one-format``): the facts
+    are ``data``, with ``None`` for what a missing generated module
+    cannot say.  ``CmdResult.value`` is the full-table count so scripts
+    can read it via .quiet/.silent.
     """
-    from termapy.plugins import format_kv_lines
     from termapy.usb import USB_VENDORS
 
-    rows: list[tuple[str, str]] = [
-        ("curated", str(len(USB_VENDORS))),
-    ]
-    full_count = 0
+    data: dict[str, int | str | None] = {
+        "curated": len(USB_VENDORS),
+        "full_table": None,
+        "generated": None,
+        "source": None,
+        "path": None,
+    }
+    rows: list[KvRow | None] = [("curated", str(len(USB_VENDORS)))]
     try:
         from termapy.usb import _vendors_full as _full
 
-        full_count = len(_full.USB_VENDORS_FULL)
-        rows.append(("full_table", str(full_count)))
-        rows.append(("generated", str(getattr(_full, "GENERATED_DATE", "?"))))
-        rows.append(("source", str(getattr(_full, "SOURCE_URL", "?"))))
+        data["full_table"] = len(_full.USB_VENDORS_FULL)
+        data["generated"] = getattr(_full, "GENERATED_DATE", None)
+        data["source"] = getattr(_full, "SOURCE_URL", None)
         # Path on disk -- helpful when the user wants to inspect the
         # bundled module or sanity-check which copy is loaded.
         from pathlib import Path
         full_path = Path(_full.__file__).resolve()
         try:
-            display_path = str(full_path.relative_to(Path.cwd()))
+            data["path"] = str(full_path.relative_to(Path.cwd()))
         except ValueError:
             # Generated file is outside cwd (typical for installed pkg
             # users); show absolute path.
-            display_path = str(full_path)
-        rows.append(("path", display_path))
+            data["path"] = str(full_path)
+        rows.append(("full_table", str(data["full_table"])))
+        rows.append(("generated", str(data["generated"] or "?")))
+        rows.append(("source", str(data["source"] or "?")))
+        rows.append(("path", str(data["path"])))
     except ImportError:
         rows.append(("full_table", "(missing -- reinstall termapy)"))
 
-    for line in format_kv_lines(rows):
-        ctx.io.output_markup(line)
     # Update hint targets end users (PyPI installs) -- the bundled
     # data refreshes on each termapy release, so upgrading is the
     # right path for newer entries.  Maintainers update via
     # scripts/refresh_usb_ids.py during release prep, but that's a
     # repo-level workflow, not exposed to package users.
-    ctx.io.output_markup("")
-    ctx.io.output_markup(
-        "  [dim]To update:[/]   upgrade termapy (e.g. "
-        "[cyan]uv tool upgrade termapy[/] or [cyan]pip install -U termapy[/])"
+    notes = (
+        ("", ""),
+        ("To update: upgrade termapy (e.g. uv tool upgrade termapy or pip install -U termapy)", "dim"),
     )
-    return CmdResult.ok(value=str(full_count))
+    return CmdResult.record(data, rows, value=str(data["full_table"] or 0), notes=notes)
 
 
 # ── /term.log: write to the session log without echoing to screen ──────────
@@ -498,29 +502,35 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Snapshot the current state of every /term.* toggle."""
-    from termapy.plugins import format_kv_lines
+    """Snapshot the current state of every /term.* toggle.
 
+    A record answer (registry ``record-one-format``): the toggles are
+    ``data`` as booleans, and read on/off in the prose.
+    """
     flags = ctx.ns("flags")
+    eol = ctx.cfg.get("eol", "\r")
+    data = {
+        "echo": bool(flags.get("echo")),
+        "echo_repl": bool(flags.get("echo_repl")),
+        "color": bool(flags.get("color", True)),
+        "output": str(flags.get("output_level", "normal")),
+        "hex": bool(flags.get("hex")),
+        "line_no": bool(flags.get("line_no")),
+        "eol": _EOL_LABELS.get(eol, repr(eol)),
+        "eol_rx": str(ctx.cfg.get("eol_rx", "auto")),
+        "eol_markers": bool(ctx.cfg.get("eol_markers")),
+        "timestamps": bool(ctx.cfg.get("timestamps")),
+        "send_bare_enter": bool(ctx.cfg.get("send_bare_enter")),
+        "encoding": str(ctx.cfg.get("encoding", "utf-8")),
+    }
     rows = [
-        ("echo", "on" if flags.get("echo") else "off"),
-        ("echo_repl", "on" if flags.get("echo_repl") else "off"),
-        ("color", "on" if flags.get("color", True) else "off"),
-        ("output", str(flags.get("output_level", "normal"))),
-        ("hex", "on" if flags.get("hex") else "off"),
-        ("line_no", "on" if flags.get("line_no") else "off"),
-        ("eol", _EOL_LABELS.get(ctx.cfg.get("eol", "\r"), repr(ctx.cfg.get("eol", "\r")))),
-        ("eol_rx", str(ctx.cfg.get("eol_rx", "auto"))),
-        ("eol_markers", "on" if ctx.cfg.get("eol_markers") else "off"),
-        ("timestamps", "on" if ctx.cfg.get("timestamps") else "off"),
-        ("send_bare_enter", "on" if ctx.cfg.get("send_bare_enter") else "off"),
-        ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
+        (key, ("on" if value else "off") if isinstance(value, bool) else value)
+        for key, value in data.items()
     ]
-    for line in format_kv_lines(rows):
-        ctx.io.output_markup(line)
-    # Return the snapshot as a newline-joined "key=value" payload so
-    # scripts can grep / parse it.
-    return CmdResult.ok(value="\n".join(f"{k}={v}" for k, v in rows))
+    # The value is the snapshot as newline-joined "key=value" so scripts
+    # can grep / parse it.
+    snapshot = "\n".join(f"{key}={text}" for key, text in rows)
+    return CmdResult.record(data, rows, value=snapshot)
 
 
 # ── /term root handler: list subcommands when called bare ───────────────────

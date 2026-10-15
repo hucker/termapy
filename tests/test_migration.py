@@ -902,6 +902,37 @@ def test_no_steps_recorded_when_already_current():
     )
 
 
+def test_a_saved_step_list_is_not_shown_again():
+    """Steps an older run saved into the file are dropped: only this run's steps show, twice over."""
+    # Arrange -- what load_config used to save: a past run's list, v27 -> v28 twice
+    stale = ["v27 -> v28: Rename display/session cfg keys", "v27 -> v28: Rename display/session cfg keys"]
+    cfg = {"config_version": 28, "_migration_steps": list(stale)}
+
+    # Act
+    first = migrate_config(cfg)
+    first_steps = list(first.get("_migration_steps", []))
+    second = migrate_config({**first, "_migration_steps": list(stale)})
+
+    # Assert
+    actual = [step.split(":")[0] for step in first_steps]
+    assert actual == ["v28 -> v29", "v29 -> v30"], "this run's two steps, none of the saved ones"
+    assert "_migration_steps" not in second, "a current config shows no steps, saved list or not"
+
+
+def test_step_labels_show_no_docstring_markup():
+    """A step label is plain text: the docstring's ``literal`` backticks are dropped."""
+    # Arrange -- v17 runs every step whose docstring quotes a key in backticks
+    cfg = {"config_version": 17}
+
+    # Act
+    steps = migrate_config(cfg)["_migration_steps"]
+
+    # Assert
+    actual = [step for step in steps if "``" in step]
+    assert actual == [], "no raw RST markup in a status line"
+    assert any("line_endings -> eol_markers" in step for step in steps), "the quoted names stay"
+
+
 def test_v21_to_v22_nests_pyserial_keys():
     """Pyserial constructor args move from top level into cfg['serial']."""
     # Arrange -- v21 cfg with all 7 pyserial keys flat plus some

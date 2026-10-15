@@ -714,7 +714,10 @@ def migrate_config(cfg: dict) -> dict:
     to ``cfg["_migration_steps"]`` so callers can display a per-step
     breakdown -- a multi-version jump only happens once per cfg, so
     a few extra status lines is more reassuring than a single
-    summary like "v17 -> v21".
+    summary like "v17 -> v21".  The list describes THIS run only: one
+    read from the file is an older run's (``load_config`` saved it
+    until 2026-10-14) and is dropped, or it would be shown again with
+    every later migration.
 
     Args:
         cfg: Config dict to migrate (modified in place).
@@ -722,6 +725,7 @@ def migrate_config(cfg: dict) -> dict:
     Returns:
         The migrated config dict with config_version set to current.
     """
+    cfg.pop("_migration_steps", None)
     v = cfg.get("config_version", 0)
     steps: list[str] = []
     while v < CURRENT_CONFIG_VERSION:
@@ -730,9 +734,10 @@ def migrate_config(cfg: dict) -> dict:
             cfg = fn(cfg)
             # First sentence of the function's docstring as the
             # one-line description.  Trailing period stripped so
-            # we can compose ``v{a} -> v{b}: {desc}`` cleanly.
+            # we can compose ``v{a} -> v{b}: {desc}`` cleanly, and the
+            # docstring's ``literal`` markup, which a status line shows raw.
             doc = (fn.__doc__ or "").strip()
-            summary = doc.splitlines()[0].strip().rstrip(".") if doc else ""
+            summary = doc.splitlines()[0].strip().rstrip(".").replace("``", "") if doc else ""
             label = (
                 f"v{v} -> v{v + 1}: {summary}" if summary
                 else f"v{v} -> v{v + 1}"
@@ -741,5 +746,5 @@ def migrate_config(cfg: dict) -> dict:
         v += 1
     cfg["config_version"] = CURRENT_CONFIG_VERSION
     if steps:
-        cfg.setdefault("_migration_steps", []).extend(steps)
+        cfg["_migration_steps"] = steps
     return cfg

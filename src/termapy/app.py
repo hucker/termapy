@@ -1708,24 +1708,18 @@ class SerialTerminal(TerminalHost, App):
         was_connected = self.is_connected
         if was_connected:
             self._disconnect()
+        # Per-step breakdown: one line per step of THIS load that ran an
+        # actual migrator (no-op versions are skipped).  Popped whether or
+        # not a migration ran: a config the editor hands over unmigrated
+        # can still carry an old saved list.
+        steps = cfg.pop("_migration_steps", [])
         if migrated_from is not None:
             self._status(
                 f"Config migrated: v{migrated_from} -> v{CURRENT_CONFIG_VERSION}",
                 "yellow",
             )
-            # Per-step breakdown: cfg["_migration_steps"] holds one
-            # line per step that ran an actual migrator (no-op
-            # versions are skipped).  Multi-version jumps happen
-            # rarely (once per cfg, on a major upgrade), so a few
-            # extra status lines is more reassuring than a single
-            # summary header.
-            for step in cfg.pop("_migration_steps", []):
+            for step in steps:
                 self._status(f"  {step}", "yellow")
-        else:
-            # No migration ran, but a stale _migration_steps key
-            # could still be present if the cfg was hand-edited;
-            # drop it silently.
-            cfg.pop("_migration_steps", None)
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
         self.repl.ctx.ns("flags")["hex"] = cfg.get("hex", False)

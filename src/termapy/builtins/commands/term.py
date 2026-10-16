@@ -81,6 +81,13 @@ def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
     return _bool_setting(ctx, args, "color")
 
 
+def _handler_line_no(ctx: PluginContext, args: str) -> CmdResult:
+    # Line numbers in the serial pane.  Backed by cfg["line_no"]; the flag
+    # is the session state seeded from it, and what the TUI renders from
+    # and /term.info reports (review 2026-10-15, D4: three stores before).
+    return _bool_setting(ctx, args, "line_no")
+
+
 def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """Send literal text to the serial port (with line ending + encoding).
 
@@ -386,18 +393,6 @@ def _handler_encoding(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=name)
 
 
-# ── TUI-only placeholder (app.py overrides via register_hook) ───────────────
-
-
-def _handler_line_no_placeholder(ctx: PluginContext, args: str) -> CmdResult:
-    """Never invoked: the TUI replaces this handler via register_hook.
-
-    In non-TUI environments dispatch's capability gate fails before
-    reaching the handler because ``tui_mode`` is not provided.
-    """
-    return CmdResult.fail(msg="term.line_no handler not installed")
-
-
 # ── /term.usb_db: report bundled USB-vendor database freshness ────────────
 
 
@@ -628,7 +623,7 @@ COMMAND = Command(
         "line_no": Command(
             args="{on|off|toggle}",
             help="Toggle line numbers in serial output (TUI only).",
-            handler=_handler_line_no_placeholder,
+            handler=_handler_line_no,
             needs=CapabilitySet.TUI_MODE,
         ),
         "line_endings": Command(

@@ -32,9 +32,12 @@ src/termapy/
 │   │   ├── cls.py      #  /cls - clear the terminal screen
 │   │   ├── confirm.py  #  /confirm - Yes/Cancel dialog (scripts)
 │   │   ├── credits.py  #  /credits - print the acknowledgments page
+│   │   ├── delay.py    #  /delay - wait a duration; Escape or Ctrl+C cancels
+│   │   ├── demo.py     #  /demo - switch to the built-in demo device
 │   │   ├── edit.py     #  /edit - open project files in the system editor
 │   │   ├── env.py      #  /env - $(env.NAME) expansion (command + transform)
 │   │   ├── exit.py     #  /exit - quit the application
+│   │   ├── expect.py   #  /expect - wait for a device line to match
 │   │   ├── find.py     #  /find - navigate scrollback matches (interactive)
 │   │   ├── grep.py     #  /grep - search scrollback for matching lines
 │   │   ├── help.py     #  /help - forgiving help with man-page detail view
@@ -50,7 +53,7 @@ src/termapy/
 │   │   ├── proto.py    #  /proto - binary protocol send/expect/crc testing
 │   │   ├── raw.py      #  /raw - send text exactly as given: no line ending, expansion or transforms
 │   │   ├── repeat.py   #  /repeat - repeat a command N times
-│   │   ├── run.py      #  /run - execute .run scripts from any host
+│   │   ├── run.py      #  /run - execute .run scripts from any host (and /run.profile)
 │   │   ├── search.py   #  /search - Google-style deep command search
 │   │   ├── seq.py      #  /seq - show or reset sequence counters
 │   │   ├── show.py     #  /show - show file contents
@@ -200,7 +203,7 @@ The subcommand tree is flattened at registration into dotted names (`cfg.auto`, 
 
 ### Hooks
 
-A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss.svg`, `run.profile.*`, `help.open`. A frontend never registers a second handler for a command another frontend has: it changes how a command works through a host method or a handle field (`_switch_to_cfg_path`, `ctx.internal.edit_file`), so `/cfg.load` and the `/edit` family are one builtin each (registry `one-handler-per-command`).
+A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss.svg`, `vt100`, `help.open`. A frontend never registers a second handler for a command another frontend has: it changes how a command works through a host method or a handle field (`_switch_to_cfg_path`, `ctx.internal.edit_file`), so `/cfg.load` and the `/edit` family are one builtin each (registry `one-handler-per-command`).
 
 Hooks and plugins share one registry and one dispatch path; a hook is just a late, host-supplied entry that can override a plugin of the same name (see [Loading order](#loading-order-later-overrides-earlier)). The rule of thumb: if a command can be expressed through `PluginContext`, it's a plugin (large, portable set); if it genuinely needs Textual/host state, it's a hook (small, frontend-bound set).
 
@@ -273,7 +276,7 @@ Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` 
 1. builtins/commands/        - built-in command plugins (one module per command family)
 2. termapy_cfg/plugin/       - user plugins (all configs on this machine)
 3. termapy_cfg/<name>/plugin/ - per-config plugins (one config only)
-4. App hooks (app.py/cli.py) - commands needing frontend access (ss.svg, run.profile.*, etc.)
+4. App hooks (app.py/cli.py) - commands needing frontend access (ss.svg, vt100, etc.)
 ```
 
 A user plugin with the same name as a built-in replaces it. App hooks override everything; they need direct access to frontend-specific features (Textual widgets in TUI, readline in CLI).
@@ -649,7 +652,6 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 ├─────────────────────┤
 │ _run_reconnect()    │  Short-lived, retries the connection
 │ _run_lines()        │  Short-lived, multi-line send with delays
-│ _start_demo_async() │  Short-lived, demo start-up
 │ _check_for_updates  │  Short-lived, version check
 │ proto_debug:        │
 │  _run_tests()       │  Short-lived, the debug screen's Run
@@ -659,8 +661,8 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 
 Only the reader is long-lived. Dispatch and scripts are each serialized: one
 `dispatch_full` at a time (nested dispatch on the same thread is allowed) and
-one outermost script; the reconnect, demo-start and update-check workers run
-independently of both.
+one outermost script; the reconnect and update-check workers run independently
+of both.
 
 That is enforced in two places, not assumed. `ReplEngine.start_script` holds
 the thread id of the run in progress (`_script_owner`), so a nested `/run`

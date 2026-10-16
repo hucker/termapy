@@ -126,9 +126,9 @@ class InternalHandle:
     # no-op everywhere else; ctx.ui is the clean general TUI API and
     # shouldn't collect one-off methods.
 
-    # confirm_save_cfg(key, val): ask the frontend to confirm (TUI modal),
-    # then apply on Yes.  None in CLI/MCP -> caller applies directly via
-    # apply_cfg (above).  The pure JSON write lives in config.py.
+    # confirm_save_cfg(key, val) -> bool: ask the frontend to confirm (TUI
+    # modal), wait for the answer, and apply on Yes; True when applied.
+    # None in CLI/MCP -> caller applies directly via apply_cfg (above).
     confirm_save_cfg: Callable | None = None
 
     # load_config(name): resolve name, disconnect + reconnect; -> CmdResult.

@@ -27,12 +27,8 @@ from typing import TYPE_CHECKING
 from termapy.folders import ensure_folder
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
-from termapy.run_profile_hooks import register_run_profile_hooks
 from termapy.scripting import (
-    SETTING_QUERY,
-    SETTING_TOGGLE,
     filename_timestamp,
-    parse_bool_setting,
     parse_count_arg,
     select_lines,
 )
@@ -127,30 +123,6 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def _hook_line_no(app, ctx, args: str) -> CmdResult:
-    """Query, set, or toggle line numbers.
-
-    Bare invocation QUERIES (reports state, mutates nothing); ``on``/``off``
-    sets; the explicit verb ``toggle`` flips; anything else errors.  A
-    setting command never mutates on a bare invocation -- see CLAUDE.md.
-    """
-    try:
-        action = parse_bool_setting(args)
-    except ValueError as e:
-        return CmdResult.fail(msg=str(e))
-    if action is SETTING_QUERY:
-        new_state = app._show_line_numbers
-    elif action is SETTING_TOGGLE:
-        new_state = not app._show_line_numbers
-    else:
-        new_state = action
-
-    app._show_line_numbers = new_state
-    label = "on" if new_state else "off"
-    app._status(f"Line numbers {label.upper()}")
-    return CmdResult.ok(value=label)
-
-
 def register_tui_hooks(app) -> None:
     """Register TUI-specific commands as plugin hooks."""
 
@@ -193,28 +165,9 @@ def register_tui_hooks(app) -> None:
         needs=CapabilitySet.SCREEN_CAPTURE,
     )
     # /run and its sub_commands (.help, .legacy, .list, .dump, .show,
-    # .explore) are owned by the run.py builtin -- its picker="run" opens
-    # the Run picker through ctx.internal.open_picker, wired at the top
-    # of this function.  /run.profile.*
-    # stays as hooks because the runner is host-specific (threaded in
-    # TUI, synchronous everywhere else).
-    register_run_profile_hooks(app)
-    app.repl.register_hook(
-        "demo",
-        "",
-        "Switch to the built-in demo device.",
-        lambda ctx, args: app._start_demo(args),
-        source="app",
-        needs=CapabilitySet.INTERACTIVE,
-    )
-    app.repl.register_hook(
-        "demo.force",
-        "",
-        "Switch to demo device, overwriting existing config.",
-        lambda ctx, args: app._start_demo("--force"),
-        source="app",
-        needs=CapabilitySet.INTERACTIVE,
-    )
+    # .explore, .profile) are owned by the run.py builtin -- its
+    # picker="run" opens the Run picker through ctx.internal.open_picker,
+    # wired at the top of this function.
     app.repl.register_hook(
         "cli",
         "",
@@ -229,7 +182,8 @@ def register_tui_hooks(app) -> None:
         "Switch to VT100 passthrough on the current device (Ctrl-] returns).",
         lambda ctx, args: app._switch_to_vt100(),
         source="app",
-        needs=CapabilitySet.INTERACTIVE,
+        # Only the TUI offers it: the round trip returns here on Ctrl-].
+        needs=CapabilitySet.TUI_MODE,
     )
     app.repl.register_hook(
         "demo.vt100",
@@ -237,7 +191,7 @@ def register_tui_hooks(app) -> None:
         "Switch to the VT100 widget-tour demo device (Ctrl-] returns).",
         lambda ctx, args: app._switch_to_vt100(demo=True),
         source="app",
-        needs=CapabilitySet.INTERACTIVE,
+        needs=CapabilitySet.TUI_MODE,
     )
     app.repl.register_hook(
         "tui",
@@ -248,14 +202,6 @@ def register_tui_hooks(app) -> None:
         lambda ctx, args: CmdResult.ok(value=""),
         source="app",
         needs=CapabilitySet.INTERACTIVE,
-    )
-    app.repl.register_hook(
-        "term.line_no",
-        "{on|off}",
-        "Toggle line numbers in serial output (TUI only).",
-        lambda ctx, args: _hook_line_no(app, ctx, args),
-        source="app",
-        needs=CapabilitySet.TUI_MODE,
     )
     app.repl.register_hook(
         "help.open",

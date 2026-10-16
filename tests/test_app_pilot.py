@@ -203,7 +203,7 @@ class TestSwitchConfig:
                     app.repl.config_path,
                     app.repl.ctx.config_path,
                     app.repl.ctx.ns("flags")["hex"],
-                    app._show_line_numbers,
+                    app.repl.ctx.ns("flags")["line_no"],
                 )
                 expected = (second_path, second_path, second_path, True, True)
                 assert actual == expected, (
@@ -1873,6 +1873,186 @@ class TestFailureReportedOnce:
         _run(scenario)
 
 
+def _start_on_worker(app, line: str) -> tuple[threading.Thread, dict]:
+    """Start dispatching ``line`` on a worker, as typed input runs; ``outcome`` fills when it ends."""
+    outcome: dict = {}
+
+    def run() -> None:
+        t0 = time.monotonic()
+        outcome["result"] = app._dispatch_single(line)
+        outcome["seconds"] = time.monotonic() - t0
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    return worker, outcome
+
+
+async def _await_until(condition, what: str) -> None:
+    """Keep the event loop serving ``_on_main`` until ``condition()`` holds; fail after 5 s."""
+    deadline = time.monotonic() + 5.0
+    while not condition() and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+    assert condition(), f"{what} within the deadline"
+
+
+async def _dispatch_on_worker(pilot, app, line: str) -> tuple[CmdResult, float]:
+    """Dispatch ``line`` on a worker, as typed input runs; return its result and seconds taken."""
+    worker, outcome = _start_on_worker(app, line)
+    await _await_until(lambda: not worker.is_alive(), f"{line} finished")
+    return outcome["result"], outcome["seconds"]
+
+
+class TestLineNumbers:
+    """``/term.line_no`` sets the one flag the pane renders from and ``/term.info`` reports.
+
+    Until 2026-10-16 the setting lived in three places: the cfg key, an app
+    attribute the TUI's own hook changed, and ``flags["line_no"]``, which
+    ``/term.info`` read and nothing wrote, so it always said off (review
+    2026-10-15, D4).
+    """
+
+    def test_on_numbers_the_pane_and_term_info_reports_it(self, app_factory):
+        """/term.line_no on numbers the next received line, and /term.info's data says on."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                result, _ = await _dispatch_on_worker(pilot, app, "/term.line_no on")
+                info, _ = await _dispatch_on_worker(pilot, app, "/term.info")
+                app._write_batch(["numbered line"])
+                await pilot.pause()
+
+                # Assert
+                assert result.value == "on", result.error
+                assert info.data["line_no"] is True, "/term.info reads the flag the setter wrote"
+                assert "| numbered line" in app._get_screen_text(), "the pane numbers the line"
+
+        _run(scenario)
+
+
+class TestDemoCommand:
+    """``/demo`` is one builtin: it returns after the TUI has switched, not before.
+
+    Until 2026-10-16 the TUI's own ``/demo`` started a worker and answered
+    at once, so a script line after it ran against the old config (review
+    2026-10-15, D6).
+    """
+
+    def test_demo_returns_after_the_switch(self, app_factory, tmp_path, monkeypatch):
+        """The command's value is the demo config, and the app is already on it when the command returns."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- the demo is written under a config root of our own
+                cfg_root = tmp_path / "cfg_root"
+                cfg_root.mkdir()
+                monkeypatch.setenv("TERMAPY_CFG_DIR", str(cfg_root))
+
+                # Act
+                result, _ = await _dispatch_on_worker(pilot, app, "/demo")
+                switched_to = app.config_path
+                app._disconnect()
+
+                # Assert
+                assert result.success, result.error
+                assert Path(switched_to).name == "demo.cfg", "the app is on the demo when /demo returns"
+                assert result.value == switched_to, "the value is the config switched to"
+
+        _run(scenario)
+
+    def test_an_argument_is_refused_not_ignored(self, app_factory):
+        """/demo --force fails with usage instead of switching without the reset it used to mean."""
+        async def scenario():
+            app, _, path = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                result, _ = await _dispatch_on_worker(pilot, app, "/demo --force")
+
+                # Assert
+                assert result.error.startswith("Usage:"), result.error
+                assert app.config_path == path, "no switch happened"
+
+        _run(scenario)
+
+
+class TestCfgWaitsForConfirm:
+    """``/cfg <key> <value>`` in the TUI answers after its confirm dialog does.
+
+    Until 2026-10-16 it returned the new value with the dialog still open,
+    so a script holding that value went on although Cancel never applied it
+    (review 2026-10-15, D7; decision 7: wait, Yes returns the value, Cancel
+    fails).
+    """
+
+    @staticmethod
+    async def _answer(pilot, app, line: str, key: str) -> CmdResult:
+        """Run ``line`` on a worker, answer its dialog with ``key``, and return the result."""
+        from termapy.dialogs import CfgConfirm
+
+        worker, outcome = _start_on_worker(app, line)
+        await _await_until(lambda: isinstance(app.screen, CfgConfirm), "the dialog opened")
+        assert worker.is_alive(), "the command waits while the dialog is up"
+        await pilot.press(key)
+        await _await_until(lambda: not worker.is_alive(), f"{line} finished")
+        return outcome["result"]
+
+    def test_yes_applies_before_the_command_returns(self, app_factory):
+        """Yes applies the change, and the command's value is the new setting."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                result = await self._answer(pilot, app, "/cfg eol_rx lf", "enter")
+
+                # Assert
+                assert (result.success, result.value) == (True, "lf"), result.error
+                assert app.cfg["eol_rx"] == "lf", "applied when the command returned"
+
+        _run(scenario)
+
+    def test_an_escape_pressed_at_idle_does_not_cancel_a_later_dialog(self, app_factory):
+        """A stop set outside a script stays set until a script starts; /cfg still waits for its own answer."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- Escape at idle sets the script stop event
+                app.action_stop_script()
+
+                # Act
+                result = await self._answer(pilot, app, "/cfg eol_rx lf", "enter")
+
+                # Assert
+                assert (result.success, result.value) == (True, "lf"), result.error
+
+        _run(scenario)
+
+    def test_a_second_change_canceled_fails_and_keeps_the_first(self, app_factory):
+        """Twice in a row: the second /cfg waits for its own dialog, and Escape fails it as Canceled."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                first = await self._answer(pilot, app, "/cfg eol_rx lf", "enter")
+                second = await self._answer(pilot, app, "/cfg eol_rx cr", "escape")
+
+                # Assert
+                assert first.success, first.error
+                assert (second.success, second.error) == (False, "Canceled."), "Cancel fails the command"
+                assert app.cfg["eol_rx"] == "lf", "the canceled change was not applied"
+
+        _run(scenario)
+
+
 class TestDelayHook:
     """``/delay`` in the TUI is the builtin, drawn on the bottom bar.
 
@@ -1883,24 +2063,6 @@ class TestDelayHook:
     wait (review 2026-10-15, D2).  Both now run the one builtin.
     """
 
-    @staticmethod
-    async def _dispatch_on_worker(pilot, app, line: str) -> tuple[CmdResult, float]:
-        """Dispatch ``line`` on a worker, as typed input runs; return its result and seconds taken."""
-        outcome: dict = {}
-
-        def run() -> None:
-            t0 = time.monotonic()
-            outcome["result"] = app._dispatch_single(line)
-            outcome["seconds"] = time.monotonic() - t0
-
-        worker = threading.Thread(target=run, daemon=True)
-        worker.start()
-        deadline = time.monotonic() + 5.0
-        while worker.is_alive() and time.monotonic() < deadline:
-            await asyncio.sleep(0.05)  # keep the loop serving _on_main
-        assert not worker.is_alive(), f"{line} finished within the deadline"
-        return outcome["result"], outcome["seconds"]
-
     @pytest.mark.slow  # real 1 s wait: the progress path is the point
     def test_one_second_delay_runs_the_progress_bar_to_done(self, app_factory):
         """A typed /delay 1s draws its bar, finishes, says so, and reports 1.0 as its value."""
@@ -1910,7 +2072,7 @@ class TestDelayHook:
                 await pilot.pause()
 
                 # Act
-                result, _ = await self._dispatch_on_worker(pilot, app, "/delay 1s")
+                result, _ = await _dispatch_on_worker(pilot, app, "/delay 1s")
                 await pilot.pause()
 
                 # Assert
@@ -1928,7 +2090,7 @@ class TestDelayHook:
                 await pilot.pause()
 
                 # Act
-                result, seconds = await self._dispatch_on_worker(pilot, app, "/delay.silent 300ms")
+                result, seconds = await _dispatch_on_worker(pilot, app, "/delay.silent 300ms")
                 await pilot.pause()
 
                 # Assert

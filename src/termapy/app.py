@@ -25,6 +25,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.message import Message
+from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
 
@@ -46,7 +47,6 @@ from termapy.config import (
     open_with_system,
     rename_config,
     session_log_file,
-    setup_demo_config,
 )
 
 # Config-path resolution lives in termapy.config_resolve (Textual-free).
@@ -484,7 +484,6 @@ class SerialTerminal(TerminalHost, App):
         self._suggester = CommandSuggester(complete_file=self.repl.complete_file_arg)
         self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
-        self._show_line_numbers: bool = cfg.get("line_no", False)
         self._line_counter: int = 0
         self._xfer_cancel = threading.Event()
         # RX handoff, reader thread -> main thread.  The reader appends
@@ -1196,7 +1195,12 @@ class SerialTerminal(TerminalHost, App):
         ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
 
         self.repl.set_context(ctx)
-        self.repl._after_cfg = self._refresh_after_cfg
+        # The refresh redraws the title, border and hardware buttons, and
+        # /cfg, /cfg.auto and the /term.* setters apply from a dispatch
+        # worker (registry commands-off-main), so it runs on main.
+        self.repl._after_cfg = lambda key, new_val: self._on_main(
+            self._refresh_after_cfg, key, new_val
+        )
         self.ctx = ctx
         # TUI: REPL echo on (input clears on Enter, so echo keeps a
         # scrollback record).  Device echo follows cfg echo.
@@ -1541,57 +1545,70 @@ class SerialTerminal(TerminalHost, App):
         port = self._engine.serial_port
         return port.wait_for_data(timeout_ms) if port is not None else False
 
-    def _confirm(self, message: str) -> bool:
-        """Show a Yes/Cancel dialog and block until the user responds.
+    def _ask(self, screen: ModalScreen[bool]) -> bool | None:
+        """Push a yes/no modal from a worker and block until it is answered.
 
-        THREADING: Must be called from a background thread - NOT the main
-        thread. Uses call_from_thread to post the dialog to the main thread,
-        then event.wait() blocks the calling thread. If called from the main
-        thread, call_from_thread raises RuntimeError. In scripts, this is
-        handled as a special case in repl.py run_script() to ensure it runs
-        on the background thread.
+        The one wait behind ``/confirm`` and ``/cfg <key> <value>``: both
+        answer only after the dialog does (review 2026-10-15, D7, where
+        ``/cfg`` returned the new value with the dialog still open).
 
-        Args:
-            message: Text to display in the confirmation dialog.
+        THREADING: must be called from a background thread -- every command
+        is (registry ``commands-off-main``).  ``call_from_thread`` posts the
+        dialog to main and the calling thread waits on an event.
 
         Returns:
-            True if the user clicked Yes; False otherwise.  The
-            main-thread misuse path (see THREADING) also returns False
-            -- it fails closed, so a /confirm gate never proceeds
-            unconfirmed.
+            The answer; False when the app shuts down, or a running script
+            is stopped, while the dialog is up; None when called on the main
+            thread, where ``call_from_thread`` refuses.
         """
         result: list[bool] = [False]
         event = Event()
 
         def _show() -> None:
-            def _on_result(confirmed: bool) -> None:
-                result[0] = confirmed
+            def _on_result(confirmed: bool | None) -> None:
+                result[0] = bool(confirmed)
                 event.set()
 
-            self.push_screen(
-                ConfirmDialog(message), callback=_on_result
-            )  # ty: ignore[no-matching-overload] -- no (screen, callback=) overload
+            self.push_screen(screen, callback=_on_result)
 
         try:
             self.call_from_thread(_show)
         except RuntimeError:
-            # Misuse: /confirm invoked from the main thread. Fail closed --
-            # return False (not confirmed) so a gated command aborts instead
-            # of running unconfirmed. Mirrors MCP mode's fail-fast _confirm.
-            self._status("/confirm can only be used in scripts.", "yellow")
-            return False
-        # Bounded, stop-aware wait.  ConfirmDialog binds escape/ctrl+q to a
+            return None
+        # Bounded, stop-aware wait.  Both dialogs bind escape/ctrl+q to a
         # dismissing action, so the normal path always sets the event -- but
         # a /stop or an app shutdown while the modal is up would otherwise
         # park this worker forever, and teardown joins the threads a worker
-        # like this one runs on.  Fails closed, same as the misuse path.
-        # The dialog is deliberately left on screen: dismissing a modal from
+        # like this one runs on.  A stop already set outside a script is
+        # stale and ignored: the event is cleared only when a script starts,
+        # so it can still hold an Escape pressed long ago, which would
+        # cancel an interactive /cfg before the user saw the dialog.  The
+        # dialog is deliberately left on screen: dismissing a modal from
         # here would race the user's own click, and answering it after the
         # abort simply sets an event nobody is waiting on any more.
+        stop = self.repl._script_stop
+        stale_stop = not self.repl.in_script and stop.is_set()
         while not event.wait(timeout=0.25):
-            if self._shutting_down or self.repl._script_stop.is_set():
+            if self._shutting_down or (stop.is_set() and not stale_stop):
                 return False
         return result[0]
+
+    def _confirm(self, message: str) -> bool:
+        """Show a Yes/Cancel dialog and block until the user responds (``ctx.ui.confirm``).
+
+        Args:
+            message: Text to display in the confirmation dialog.
+
+        Returns:
+            True if the user clicked Yes; False otherwise.  Called on the
+            main thread it fails closed, returning False, so a /confirm gate
+            never proceeds unconfirmed.
+        """
+        answer = self._ask(ConfirmDialog(message))
+        if answer is None:
+            self._status("/confirm can only be used in scripts.", "yellow")
+            return False
+        return answer
 
     def _write_output_markup(self, text: str, log: bool = False) -> None:
         """Write Rich markup to the output pane; with ``log``, to the session log too.
@@ -1714,7 +1731,7 @@ class SerialTerminal(TerminalHost, App):
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
         self.repl.ctx.ns("flags")["hex"] = cfg.get("hex", False)
-        self._show_line_numbers = cfg.get("line_no", False)
+        self.repl.ctx.ns("flags")["line_no"] = cfg.get("line_no", False)
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
         self.history = self._load_history()
@@ -1769,50 +1786,6 @@ class SerialTerminal(TerminalHost, App):
         self._switch_config_path = self.config_path
         self.exit()
         return CmdResult.ok(value="vt100")
-
-    def _start_demo(self, args: str = "") -> CmdResult:
-        """Set up and switch to the built-in demo device config.
-
-        Args:
-            args: Optional ``--force`` to overwrite existing demo config.
-        """
-        force = "--force" in args.lower()
-        self._start_demo_async(force)
-        # Demo setup runs in a background worker; this returns
-        # immediately, so the value reports what was requested.
-        return CmdResult.ok(value="demo")
-
-    @work(thread=True)
-    def _start_demo_async(self, force: bool) -> None:
-        """Background thread for demo setup so status messages render."""
-        try:
-            verbose_on = self.repl.ctx.output_level == "verbose"
-            if verbose_on:
-                self.call_from_thread(self._status, "Setting up demo files...", "dim")
-            config_path = setup_demo_config(cfg_dir(), force=force)
-
-            if verbose_on:
-                self.call_from_thread(self._status, "Loading demo config...", "dim")
-            cfg = load_config(str(config_path))
-
-            if verbose_on:
-                self.call_from_thread(
-                    self._status, "Switching to demo device...", "dim"
-                )
-            self.call_from_thread(self._switch_config, cfg, str(config_path))
-
-            msg = "Switched to demo device"
-            if force:
-                msg += " (config reset)"
-            self.call_from_thread(self._status, msg, "green")
-        except RuntimeError:
-            pass  # call_from_thread fails during app shutdown
-        except CONFIG_LOAD_ERRORS as e:
-            self.call_from_thread(
-                self._status,
-                f"Failed to load demo config: {e}",
-                "red",
-            )
 
     def _confirm_delete(self, path: str, label: str, on_deleted=None) -> None:
         """Show a confirmation dialog and delete a file if confirmed."""
@@ -2924,8 +2897,9 @@ class SerialTerminal(TerminalHost, App):
         except SHUTDOWN_RACE:
             return  # widgets torn down between flag check and query
         show_ts = self.cfg.get("timestamps", False)
-        show_ln = self._show_line_numbers
-        color_on = self.repl.ctx.ns("flags").get("color", True)
+        flags = self.repl.ctx.ns("flags")
+        show_ln = flags.get("line_no", False)
+        color_on = flags.get("color", True)
         # One ANSI strip per line, reused by the plain-render, log and
         # capture paths below; each used to run its own (E3).
         plain = [ANSI_RE.sub("", text) for text in lines]
@@ -3482,26 +3456,22 @@ class SerialTerminal(TerminalHost, App):
         if key in port_control.SERIAL_KEYS and was_connected:
             self._connect()
 
-    def _hook_cfg_confirm(self, key: str, new_val) -> None:
+    def _hook_cfg_confirm(self, key: str, new_val) -> bool:
+        """``/cfg <key> <value>`` in the TUI: ask, wait for the answer, and apply on Yes.
+
+        Returns:
+            True when the change was applied; False on Cancel, and on a
+            call from the main thread, which cannot wait.
+        """
         # baud_rate / port / etc. live under cfg["serial"] post-v22, so read
         # the current value from wherever the key sits (mirrors the routing
         # in repl._apply_cfg).  A naive self.cfg[key] KeyErrors on serial keys.
         serial = self.cfg.get("serial", {})
         old_val = serial[key] if isinstance(serial, dict) and key in serial else self.cfg[key]
-
-        def on_result(confirmed: bool) -> None:
-            if confirmed:
-                self.repl._apply_cfg(key, new_val)
-
-        # Wrap in a no-arg lambda: _on_main forwards to call_from_thread,
-        # whose own first param is named `callback`, so passing push_screen
-        # positionally + callback=on_result collides.  The lambda hands
-        # call_from_thread a single callable instead.
-        self._on_main(
-            lambda: self.push_screen(  # ty: ignore[no-matching-overload] -- see note above
-                CfgConfirm(key, old_val, new_val), callback=on_result
-            )
-        )
+        if not self._ask(CfgConfirm(key, old_val, new_val)):
+            return False
+        self.repl._apply_cfg(key, new_val)
+        return True
 
     def _on_script_picked(self, *args, **kwargs):
         """Delegate to ``pickers.on_script_picked``."""
@@ -3531,7 +3501,6 @@ class SerialTerminal(TerminalHost, App):
         """Delegate to ``pickers.open_picker``."""
         from termapy.pickers import open_picker
         return open_picker(self, *args, **kwargs)
-    _PROFILE_TMP_PREFIX = "_profile_tmp_"
 
     _script_last_label: str = ""
 

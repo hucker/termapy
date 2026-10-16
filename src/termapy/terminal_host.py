@@ -524,6 +524,9 @@ class TerminalHost:
         flags.setdefault("echo_repl", echo_repl)
         flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
         flags.setdefault("hex", self.cfg.get("hex", False))
+        # Line numbers: the same pattern.  Only the TUI renders them, but
+        # the flag is what /term.line_no sets and /term.info reports.
+        flags.setdefault("line_no", self.cfg.get("line_no", False))
         # Render device ANSI color (SGR).  Session flag toggled by
         # /term.color; the single source of truth for device color across
         # the TUI (strip before render when off) and CLI (strip in on_lines).

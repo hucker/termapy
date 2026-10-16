@@ -13,6 +13,7 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -2111,9 +2112,6 @@ def derive(ctx, cfg):
 KNOWN_DIVERGENT_COMMANDS: dict[str, str] = {
     "cli": "switches to the CLI: a different act in each frontend",
     "tui": "switches to the TUI: a different act in each frontend",
-    "demo": "D6: the TUI switches on a worker, the CLI inline (stage B4)",
-    "demo.force": "D6, as /demo (stage B4)",
-    "term.line_no": "D4: the TUI's line-number setting (stage B4)",
     "ss.svg": "a stub builtin the TUI replaces (Chuck 2026-10-16: convert later)",
     "ss.txt": "a stub builtin the TUI replaces (convert later)",
 }
@@ -2125,8 +2123,8 @@ def _handler_identity(handler) -> object:
     return getattr(function, "__code__", None) or id(function)
 
 
-def _frontend_tables(tmp_path: Path) -> dict[str, dict[str, object]]:
-    """``{frontend: {command name: handler identity}}`` for the TUI, CLI and MCP."""
+def _frontend_plugins(tmp_path: Path) -> dict[str, dict[str, Any]]:
+    """``{frontend: {command name: PluginInfo}}`` for the TUI, CLI and MCP, each booted for real."""
     import asyncio
     import json
 
@@ -2142,18 +2140,15 @@ def _frontend_tables(tmp_path: Path) -> dict[str, dict[str, object]]:
         path.write_text(json.dumps(cfg))
         return cfg, str(path)
 
-    def table(plugins) -> dict[str, object]:
-        return {name: _handler_identity(info.handler) for name, info in plugins.items()}
-
-    tables: dict[str, dict[str, object]] = {}
+    tables: dict[str, dict[str, Any]] = {}
     cfg, path = make_cfg("cli")
     cli = CLITerminal(cfg, path, no_color=True)
     cli.repl.global_root = tmp_path
-    tables["CLI"] = table(cli.repl._plugins)
+    tables["CLI"] = dict(cli.repl._plugins)
 
     mcp = pytest.importorskip("termapy.mcp.server", reason="mcp SDK not installed")
     cfg, path = make_cfg("mcp")
-    tables["MCP"] = table(mcp.MCPHost(cfg, path, verbose=False).repl._plugins)
+    tables["MCP"] = dict(mcp.MCPHost(cfg, path, verbose=False).repl._plugins)
 
     from termapy.app import SerialTerminal
 
@@ -2164,7 +2159,7 @@ def _frontend_tables(tmp_path: Path) -> dict[str, dict[str, object]]:
     async def boot() -> None:
         async with app.run_test() as pilot:
             await pilot.pause()  # the TUI registers its hooks on mount
-            tables["TUI"] = table(app.repl._plugins)
+            tables["TUI"] = dict(app.repl._plugins)
 
     asyncio.run(boot())
     return tables
@@ -2182,8 +2177,17 @@ def _divergent_commands(tables: dict[str, dict[str, object]]) -> dict[str, list[
 
 
 @pytest.fixture(scope="module")
-def frontend_tables(tmp_path_factory) -> dict[str, dict[str, object]]:
-    return _frontend_tables(tmp_path_factory.mktemp("frontends"))
+def frontend_plugins(tmp_path_factory) -> dict[str, dict[str, Any]]:
+    return _frontend_plugins(tmp_path_factory.mktemp("frontends"))
+
+
+@pytest.fixture(scope="module")
+def frontend_tables(frontend_plugins) -> dict[str, dict[str, object]]:
+    """``{frontend: {command name: handler identity}}``."""
+    return {
+        frontend: {name: _handler_identity(info.handler) for name, info in plugins.items()}
+        for frontend, plugins in frontend_plugins.items()
+    }
 
 
 def test_each_command_has_one_handler_in_every_frontend(frontend_tables):
@@ -2235,6 +2239,87 @@ def test_known_divergent_commands_has_no_stale_entries(frontend_tables):
     # Assert
     stale = sorted(set(KNOWN_DIVERGENT_COMMANDS) - set(divergent))
     assert stale == [], f"one handler everywhere now; drop from KNOWN_DIVERGENT_COMMANDS: {stale}"
+
+
+# ── /help AVAILABLE says where a command is registered ───────────────────────
+#
+# Review 2026-10-15 (D8): /help computes its AVAILABLE row from a command's
+# ``needs=`` against ``ENVIRONMENTS``, so the row is right only while every
+# frontend whose capabilities satisfy a command also registers it.
+# ``/help run.profile`` said "MCP: yes" for a hook only the TUI and the CLI
+# registered; ``/clr`` was the CLI's alone.  This builds the three tables and
+# fails on a frontend that lacks a command its row claims.  The allowlist
+# only shrinks.
+KNOWN_UNREGISTERED_WHERE_AVAILABLE: dict[str, str] = {
+    "cli.completion": "the CLI prompt's own setting; no capability names the CLI prompt, so the row says TUI: yes",
+}
+
+
+def _claimed_but_unregistered(
+    plugins_by_frontend: dict[str, dict[str, Any]], environments: dict[str, Any],
+) -> dict[str, list[str]]:
+    """``{command name: [frontends]}`` where a frontend's /help row says yes and that frontend has no such command."""
+    claimed: dict[str, set[str]] = {}
+    for plugins in plugins_by_frontend.values():
+        for name, info in plugins.items():
+            for env_name, env_caps in environments.items():
+                if env_name in plugins_by_frontend and not info.needs.missing_from(env_caps):
+                    if name not in plugins_by_frontend[env_name]:
+                        claimed.setdefault(name, set()).add(env_name)
+    return {name: sorted(frontends) for name, frontends in sorted(claimed.items())}
+
+
+def test_help_available_names_only_frontends_that_register_the_command(frontend_plugins):
+    """available-matches-registration: every frontend /help AVAILABLE says yes for registers the command."""
+    from termapy.plugins.capabilities import ENVIRONMENTS
+
+    # Arrange / Act
+    unregistered = {
+        name: frontends
+        for name, frontends in _claimed_but_unregistered(frontend_plugins, ENVIRONMENTS).items()
+        if name not in KNOWN_UNREGISTERED_WHERE_AVAILABLE
+    }
+
+    # Assert
+    assert unregistered == {}, (
+        "/help AVAILABLE says yes where the command is not registered; register it there "
+        "or declare the capability it really needs:\n  "
+        + "\n  ".join(f"/{name}: {', '.join(frontends)}" for name, frontends in unregistered.items())
+    )
+
+
+def test_available_guard_fires_on_a_probe():
+    """The guard flags a command whose needs a frontend meets but which that frontend lacks, and passes a gated one."""
+    from types import SimpleNamespace
+
+    from termapy.plugins import CapabilitySet
+
+    # Arrange -- "both" needs interactive, which both frontends have; "tui" needs tui_mode
+    environments = {
+        "TUI": CapabilitySet(interactive=True, tui_mode=True),
+        "CLI": CapabilitySet(interactive=True),
+    }
+    both = SimpleNamespace(needs=CapabilitySet.INTERACTIVE)
+    tui = SimpleNamespace(needs=CapabilitySet.TUI_MODE)
+    plugins = {"TUI": {"both": both, "tui": tui}, "CLI": {}}
+
+    # Act
+    actual = _claimed_but_unregistered(plugins, environments)
+
+    # Assert
+    assert actual == {"both": ["CLI"]}, "only the command the CLI qualifies for and lacks"
+
+
+def test_known_unregistered_where_available_has_no_stale_entries(frontend_plugins):
+    """Every allowlisted name still makes a false AVAILABLE claim, so the list only shrinks."""
+    from termapy.plugins.capabilities import ENVIRONMENTS
+
+    # Arrange / Act
+    unregistered = _claimed_but_unregistered(frontend_plugins, ENVIRONMENTS)
+
+    # Assert
+    stale = sorted(set(KNOWN_UNREGISTERED_WHERE_AVAILABLE) - set(unregistered))
+    assert stale == [], f"/help tells the truth now; drop from KNOWN_UNREGISTERED_WHERE_AVAILABLE: {stale}"
 
 
 def test_the_legacy_table_is_the_same_in_every_frontend(frontend_tables):

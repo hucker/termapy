@@ -19,10 +19,10 @@ Method-to-capability map:
   - ``clear_screen``      -> ``tui_mode``
   - ``screenshot``        -> ``screen_capture``
   - ``get_screen_text``   -> ``screen_capture``
-  - ``exit_app``          -> (not gated; underlying impl is a clean
-                              exit in TUI and a no-op in CLI/MCP, so
-                              always safe to call.  Commands that
-                              genuinely need TUI still gate via
+  - ``exit_app``          -> (not gated; ends the session in the TUI
+                              and the CLI and does nothing over MCP,
+                              so always safe to call.  ``/exit`` keeps
+                              itself out of MCP with
                               ``Command.needs=CapabilitySet.INTERACTIVE``)
 """
 
@@ -132,13 +132,12 @@ class UIHandle:
     # ── App lifecycle ────────────────────────────────────────────────
 
     def exit_app(self) -> None:
-        """Exit the app.  No-op in CLI mode (the REPL loop handles ``/exit``).
+        """End the session: the TUI shuts down, the CLI ends after this command.
 
-        Not capability-gated at the handle level: the underlying
-        impl is a no-op in CLI/MCP and a clean shutdown in TUI, so
-        it's always safe to call.  Commands that genuinely need TUI
-        semantics (e.g. ``/exit``) still declare
-        ``needs=CapabilitySet.INTERACTIVE`` to keep the command
-        out of MCP and other non-interactive environments.
+        In the CLI a running script stops before its next line and the
+        prompt loop ends.  Not capability-gated at the handle level: the
+        underlying impl is a no-op over MCP, so it's always safe to
+        call.  ``/exit`` declares ``needs=CapabilitySet.INTERACTIVE`` to
+        keep itself out of MCP and other non-interactive environments.
         """
         self._exit_app_impl()

@@ -208,10 +208,9 @@ optional `N`. `N>0` saves/prints the **last N** lines (most recent),
 | --------------------------- | ------------------------------------------------------------ |
 | `/run.profile <script>`     | Run a script with per-line timing (saves CSV to `prof/`)     |
 | `/run.profile.cmd <command>`| Profile a single command                                     |
-| `/run.profile.dump`         | Print newest profile to the terminal                         |
-| `/run.profile.explore`      | Open `prof/` folder in file explorer                         |
-| `/run.profile.list`         | List profile files                                           |
-| `/run.profile.show`         | Open newest profile in system viewer                         |
+
+The CSVs in `prof/` have the per-folder file commands below
+(`/run.profile.list`, `.dump`, `.show`, ...).
 
 ## Per-folder file commands
 
@@ -226,9 +225,9 @@ family of file subcommands:
 | `.explore`            | Open the folder in the system file explorer             | all                            |
 | `.show`               | Open the newest file in the system viewer               | all                            |
 | `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
-| `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | run, proto, plugin, ss, cap    |
+| `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | all                            |
 | `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin |
-| `.clear`              | Delete all files                                        | ss, cap (generated output only) |
+| `.clear`              | Delete all files                                        | ss, cap, prof (generated output only) |
 
 Examples:
 

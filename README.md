@@ -988,7 +988,7 @@ COMMAND = Command(
 1. **Built-in:** shipped with termapy, always available
 2. **Global:** `termapy_cfg/plugin/*.py`, shared across all configs
 3. **Per-config:** `termapy_cfg/<name>/plugin/*.py`, specific to one config
-4. **App hooks:** frontend-specific commands (`/ss`, `/demo`, `/tui`, etc.)
+4. **App hooks:** frontend-specific commands (`/ss.svg`, `/vt100`, `/tui`, etc.)
 
 Resolution is the same in every frontend (TUI, CLI, MCP server) and reruns on every config switch; a folder plugin can never take an app hook's name.
 

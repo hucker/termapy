@@ -10,7 +10,7 @@ import pytest
 
 from termapy.cli import CLITerminal, PlainFileHistory
 from termapy.defaults import DEFAULT_CFG
-from termapy.plugins import CapabilitySet
+from termapy.plugins import CapabilitySet, CmdResult
 
 pytestmark = pytest.mark.slow  # subprocess-spawning + CLITerminal end-to-end
 
@@ -436,14 +436,15 @@ class TestEditCfgCallableInCli:
         assert [Path(path).name for path in opened] == ["foo.run"], "only the named form opened a file"
 
 
-# -- Hook: run.profile.* (CLI parity with TUI) -------------------------------
+# -- /run.profile.* ----------------------------------------------------------
 
 
-class TestHookRunProfile:
-    """``/run.profile.*`` subcommands installed by
-    ``run_profile_hooks.register_run_profile_hooks``.  CLI gained
-    these in chore/run-profile-cli-parity; tests guard the parity
-    so future CLI refactors don't silently drop them again.
+class TestRunProfile:
+    """``/run.profile`` and its ``prof/`` folder family, one builtin in every frontend.
+
+    Until 2026-10-16 the TUI and the CLI each registered hooks with a
+    hand-written copy of the folder family (review 2026-10-15, D8); the
+    folder subcommands are now ``build_folder_subcommands("prof")``.
     """
 
     def test_list_empty_prof_dir(self, cli, capsys):
@@ -472,13 +473,14 @@ class TestHookRunProfile:
         assert "first.csv" in actual, "first profile listed"
         assert "second.csv" in actual, "second profile listed"
 
-    def test_dump_empty_prof_dir_fails(self, cli):
-        """Dumping with no profiles fails instead of printing nothing."""
+    def test_dump_empty_prof_dir_says_empty(self, cli, capsys):
+        """Dumping with no profiles answers as every folder family does: an empty prof/, not an error."""
         # Act
         result = cli.repl.dispatch("run.profile.dump")
 
         # Assert
-        assert not result.success, "no profile to dump"
+        assert (result.success, result.value) == (True, ""), "nothing to dump is an empty answer"
+        assert "prof/ is empty." in capsys.readouterr().out, "and says so"
 
     def test_dump_prints_newest_csv(self, cli, capsys):
         """With no name given, dump prints the newest CSV's contents."""
@@ -496,6 +498,30 @@ class TestHookRunProfile:
         assert "step,dt_ms" in actual, "header line printed"
         assert "0,1.5" in actual, "data line printed"
 
+    def test_dump_takes_a_name_without_its_extension(self, cli):
+        """file-name-default-ext: /run.profile.dump boot finds prof/boot.csv."""
+        # Arrange
+        prof_dir = cli.repl.prof_dir
+        prof_dir.mkdir(exist_ok=True)
+        (prof_dir / "boot.csv").write_text("step,dt_ms\n")
+
+        # Act
+        result = cli.repl.dispatch("run.profile.dump boot")
+
+        # Assert
+        assert (result.success, result.value) == (True, "step,dt_ms\n"), result.error
+
+    def test_cmd_is_one_command_never_split(self, cli):
+        """A /run.profile.cmd argument is one command string: an escaped newline in it does not make two lines."""
+        # Act
+        result = cli.repl.dispatch(r"run.profile.cmd /print one\n/print two")
+
+        # Assert
+        assert result.success, result.error
+        scripts = list(cli.repl.scripts_dir.glob("_profile_tmp_*.run"))
+        actual = [script.read_text(encoding="utf-8").splitlines() for script in scripts]
+        assert actual == [[r"/print one\n/print two"]], "the temporary script holds the one line"
+
     def test_dump_named_file_not_found(self, cli):
         """A named profile that is missing fails rather than dumping another."""
         # Act
@@ -504,13 +530,19 @@ class TestHookRunProfile:
         # Assert
         assert not result.success, "named file that doesn't exist fails"
 
-    def test_show_no_profiles_fails(self, cli):
-        """Show fails when prof/ has nothing to open."""
+    def test_show_no_profiles_says_empty(self, cli, capsys):
+        """Show with nothing in prof/ answers as every folder family does and opens nothing."""
+        # Arrange
+        _grant_gui_apps(cli)
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = opened.append
+
         # Act
         result = cli.repl.dispatch("run.profile.show")
 
         # Assert
-        assert not result.success, "nothing to show with empty prof/"
+        assert (result.success, opened) == (True, []), "an empty prof/ opens nothing"
+        assert "prof/ is empty." in capsys.readouterr().out, "and says so"
 
     def test_show_opens_newest(self, cli):
         """Show opens the newest CSV by mtime, not by name order."""
@@ -563,7 +595,7 @@ class TestHookRunProfile:
         expected = prof_dir.resolve()
         assert result.success, "explore succeeds"
         assert actual == expected, f"returns prof/ dir path, got {actual}"
-        assert opened == [str(prof_dir)], "opened prof/ folder via ctx.fs.open_file"
+        assert [Path(path) for path in opened] == [prof_dir], "opened prof/ folder via ctx.fs.open_file"
 
     def test_cmd_empty_fails_with_usage(self, cli, capsys):
         """Profiling with no command fails and prints the usage line."""
@@ -905,10 +937,10 @@ class TestFileCompletion:
         assert actual == expected, "only the matching .pro, replacing the typed partial"
 
     def test_profile_hooks_keep_their_declarations(self, cli):
-        """The CLI's re-registered /run.profile hooks still declare their folders."""
+        """/run.profile and /run.profile.dump declare the folders their file argument completes from."""
         profile = cli.repl.plugin_for("run.profile")
         dump = cli.repl.plugin_for("run.profile.dump")
-        assert profile is not None and dump is not None, "both hooks are registered"
+        assert profile is not None and dump is not None, "both are registered"
         assert profile.files == "run", "/run.profile completes run/ scripts"
         assert dump.files == "prof", "/run.profile.dump completes prof/ results"
 
@@ -1066,6 +1098,41 @@ class TestNoSessionLog:
         assert expand_vars("$(CFG.LOG_FILE)") == "", "nothing to name"
 
 
+class TestExitFromAScript:
+    """/exit and /tui end a CLI session from a script, not only typed at the prompt.
+
+    Until 2026-10-16 the prompt loop matched the typed words, and dispatched
+    from a ``.run`` file or ``-e`` ``/exit`` was a no-op, so the script went
+    on (review 2026-10-15, D10).
+    """
+
+    @staticmethod
+    def _run_script(cli, body: str) -> CmdResult:
+        """Write ``body`` to run/bye.run and run it through /run."""
+        (Path(cli.config_path).parent / "run" / "bye.run").write_text(body, encoding="utf-8")
+        return cli.repl.dispatch("run bye.run")
+
+    def test_exit_stops_the_script_and_ends_the_session(self, cli, capsys):
+        """The line after /exit never runs, and the session is asked to end."""
+        # Act
+        self._run_script(cli, "/print before\n/exit\n/print after\n")
+
+        # Assert
+        out = capsys.readouterr().out
+        assert "before" in out, "the line before /exit ran"
+        assert "after" not in out, "the script stopped at /exit"
+        assert (cli._exit_requested, cli.switch_to) == (True, None), "a plain exit, no mode switch"
+
+    def test_tui_in_a_script_switches_to_the_tui(self, cli, capsys):
+        """/tui in a script stops it and hands the mode loop the TUI."""
+        # Act
+        self._run_script(cli, "/tui\n/print after\n")
+
+        # Assert
+        assert "after" not in capsys.readouterr().out, "the script stopped at /tui"
+        assert (cli._exit_requested, cli.switch_to) == (True, "tui")
+
+
 class TestConfirmInAScript:
     """/confirm in a CLI script asks on stdin and a No stops the script.
 
@@ -1121,9 +1188,7 @@ class TestHookRegistration:
             # term.color / color moved to a portable builtin + legacy alias
             # (see TestTermColor); no longer CLI-registered hooks.
             "run", "run.profile",
-            # /run.profile.* subcommands installed by
-            # run_profile_hooks.register_run_profile_hooks().  CLI gained
-            # these in chore/run-profile-cli-parity for TUI/CLI parity.
+            # /run.profile.* is the run builtin's since 2026-10-16 (D8).
             "run.profile.cmd", "run.profile.dump",
             "run.profile.list", "run.profile.show", "run.profile.explore",
             "demo", "demo.force", "clr", "raw", "help.open",

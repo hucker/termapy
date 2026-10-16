@@ -147,7 +147,9 @@ PROFILE_SUFFIX = ".profile.json"
 # 2026-09; prepare_cfg_folder migrates it at load).
 SYMBOLS_SUFFIX = ".symbols.json"
 SEQ_FILE = ".cap_seq"
-PROFILE_TMP_GLOB = "_profile_tmp_*.run"
+# /run.profile.cmd's temporary one-line script, deleted at the next load.
+PROFILE_TMP_PREFIX = "_profile_tmp_"
+PROFILE_TMP_GLOB = f"{PROFILE_TMP_PREFIX}*.run"
 
 # -- Stem-named sidecars ------------------------------------------------------
 

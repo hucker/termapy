@@ -210,6 +210,9 @@ class CLITerminal(TerminalHost):
         self.prefix = cmd_prefix(cfg)
         self._xfer_cancel = threading.Event()
         self._exec_exit_code = 0
+        # Set by /exit and /tui (_request_exit); the prompt loop ends on it.
+        self._exit_requested = False
+        self.switch_to: str | None = None
 
         # In exec mode the output is meant for piping/scripting, so
         # suppress the input echo ("demo> AT+VER") that's helpful in
@@ -340,7 +343,7 @@ class CLITerminal(TerminalHost):
         # CLI-specific callbacks
         self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
         self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
-        self.ctx.ui._exit_app_impl = lambda: None
+        self.ctx.ui._exit_app_impl = self._request_exit
         self.ctx.ui._get_screen_text_impl = lambda: ""
         # CLI provides interactive (a human at a terminal -- including
         # over SSH) and gui_apps when a local desktop is available.  No
@@ -375,42 +378,13 @@ class CLITerminal(TerminalHost):
             self.ctx.ns("flags")["output_level"] = self.output_level
 
     def _register_hooks(self) -> None:
-        """Register CLI-specific hooks for /term.color, /run."""
+        """Register the CLI's own commands."""
         # /term.color (device-color toggle) is now a portable builtin
         # backed by flags["color"], with /color as its legacy alias in
         # legacy.py -- so it works in the TUI too, not just the CLI.
         # /run and its sub_commands (.help, .legacy, .list, .dump,
-        # .show, .explore) are owned by the run.py builtin; the host
-        # only wires ctx.internal.run_script via TerminalHost.  /run.profile.*
-        # is still a hook because the runner is host-specific.
-        from termapy.run_profile_hooks import register_run_profile_hooks
-
-        register_run_profile_hooks(self)
-        self.repl.register_hook(
-            "demo",
-            "",
-            "Set up and switch to the demo device config.",
-            self._hook_demo,
-            source="app",
-            needs=CapabilitySet.INTERACTIVE,
-        )
-        self.repl.register_hook(
-            "demo.force",
-            "",
-            "Reset demo config to defaults.",
-            lambda ctx, args: self._hook_demo(ctx, "--force"),
-            source="app",
-            needs=CapabilitySet.INTERACTIVE,
-        )
-        self.repl.register_hook(
-            "clr",
-            "",
-            "Clear the terminal screen (alias for {prefix}cls).",
-            # SPECIAL CASE: clearing the screen produces no scriptable value.
-            lambda ctx, args: (ctx.io.clear_screen(), CmdResult.ok(value=""))[-1],
-            source="app",
-            needs=CapabilitySet.INTERACTIVE,
-        )
+        # .show, .explore, .profile) are owned by the run.py builtin; the
+        # host only wires ctx.internal.run_script via TerminalHost.
         self.repl.register_hook(
             "help.open",
             "{topic}",
@@ -425,10 +399,7 @@ class CLITerminal(TerminalHost):
             "tui",
             "",
             "Switch to TUI mode.",
-            # SPECIAL CASE: mode switch is intercepted in _run_interactive
-            # before this lambda returns; value="" is a placeholder that
-            # never actually reaches a script capture site.
-            lambda ctx, args: CmdResult.ok(value=""),
+            self._hook_tui,
             source="app",
             needs=CapabilitySet.INTERACTIVE,
         )
@@ -459,6 +430,28 @@ class CLITerminal(TerminalHost):
 
     # -- Hook handlers --------------------------------------------------------
 
+    def _request_exit(self, switch_to: str | None = None) -> None:
+        """End the session once the current command returns (``ctx.ui.exit_app``).
+
+        ``/exit`` asks for it, and ``/tui`` with ``switch_to="tui"``, which
+        the mode loop opens next.  A running script stops before its next
+        line, and the prompt loop ends after the dispatch that asked.  Until
+        2026-10-16 both worked only typed at the prompt: from a ``.run``
+        file or ``-e``, ``/exit`` did nothing and the script went on (review
+        2026-10-15, D10).
+        """
+        self._exit_requested = True
+        if switch_to is not None:
+            self.switch_to = switch_to
+        self.repl._script_stop.set()
+
+    def _hook_tui(self, ctx, args: str) -> CmdResult:
+        """``/tui``: leave the CLI for the TUI, on the current config."""
+        self._request_exit("tui")
+        # SPECIAL CASE: the session ends after this returns; no caller
+        # reads the value.
+        return CmdResult.ok(value="")
+
     def _hook_cli_completion(self, ctx, args: str):
         """Query, set, or toggle CLI completion (tab completion, auto-suggest, toolbar).
 
@@ -488,28 +481,6 @@ class CLITerminal(TerminalHost):
     # ``_run_script`` lives on ``TerminalHost`` so the built-in
     # ``/run`` handler can use ``ctx.internal.run_script`` uniformly
     # across CLI and MCP.  No CLI-specific override needed.
-
-    def _hook_demo(self, ctx, args: str):
-        """Set up and switch to demo device config."""
-        from termapy.config import cfg_dir, setup_demo_config
-
-        force = "--force" in args.lower()
-        try:
-            ctx.io.status("Setting up demo files...")
-            config_path = str(setup_demo_config(cfg_dir(), force=force))
-        except OSError as e:
-            return CmdResult.fail(msg=f"Demo setup failed: {e}")
-
-        ctx.io.status("Loading demo config...")
-        result = self._switch_to_cfg_path(config_path)
-        if not result.success:
-            return result
-        msg = "Switched to demo device"
-        if force:
-            msg += " (config reset)"
-        self.status(msg, "green")
-        return result
-
 
     # -- Progress bar (CLI-specific: blocking sleep with bar) -----------------
 
@@ -766,13 +737,13 @@ class CLITerminal(TerminalHost):
                         self._dispatch("")
                     continue
 
-                if line.lower() in (self.prefix + "exit", self.prefix + "quit"):
-                    break
-                if line.lower() == self.prefix + "tui":
-                    self.switch_to = "tui"
+                # /quit is the prompt's own word for /exit (no command).
+                if line.lower() == self.prefix + "quit":
                     break
 
                 self._dispatch(line)
+                if self._exit_requested:
+                    break
 
         # patch_stdout requires an actual TTY (it needs console
         # dimensions and cursor ops).  Only wrap the loop when a
@@ -812,7 +783,6 @@ class CLITerminal(TerminalHost):
         Returns:
             Mode to switch to ("tui") or None for normal exit.
         """
-        self.switch_to: str | None = None
         self.repl.fire_lifecycle("on_app_start")
 
         # Zero-config mode: show a welcome banner with available ports,

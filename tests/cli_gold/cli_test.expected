@@ -1131,7 +1131,7 @@ SUBCOMMANDS
   /run.help       Show /run help, or print a script's docstring.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
   /run.list       List .run scripts, newest first, with size, age, and docstring summary.
-  /run.profile    Run a script with per-line timing.
+  /run.profile    Run a script with per-line timing (CSV to prof/).
   /run.record     Record commands to a .run script (bare /run.record stops).
   /run.rename     Rename a file in run/ (extension kept; never overwrites).
   /run.show       Open the newest file in run/ with the system viewer.
@@ -1158,8 +1158,6 @@ demo> /print === section: help.plugin ===
 demo> /help.plugin
 -- Application --
   /cli          Already in CLI mode.
-  /clr          Clear the terminal screen (alias for /cls).
-  /demo         Set up and switch to the demo device config.
   /tui          Switch to TUI mode.
 
 -- Application Plugins --
@@ -1169,6 +1167,7 @@ demo> /help.plugin
   /cls          Clear the terminal screen.
   /credits      Print acknowledgments / third-party attributions.
   /delay        Wait for a duration (e.g. 500ms, 1.5s); Escape or Ctrl+C cancels.
+  /demo         Switch to the built-in demo device (creates its config if needed).
   /dev          Device files: a part's registers as data (see /help devices).
   /edit         Open a project file for editing (run/, proto/ or plugin/).
   /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).
@@ -1207,7 +1206,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm      Show Yes/Cancel dialog; Cancel stops a running script.
   /expect       Wait for text in serial output (blocks until match or timeout).
-  44 commands.
+  43 commands.
   [179/219] /help.plugin (6.49ms)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===

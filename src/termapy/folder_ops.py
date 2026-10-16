@@ -29,7 +29,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
-from termapy.config import open_with_system, validate_file_stem
+from termapy.config import validate_file_stem
 from termapy.folders import FOLDERS, FolderSpec, default_file_name, ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
@@ -264,7 +264,9 @@ def _make_show_handler(folder: str, pattern: str):
             return CmdResult.ok(value="")
         newest = max(files, key=lambda f: f.stat().st_mtime)
         ctx.io._write(f"Opening {newest.name}")
-        open_with_system(str(newest))
+        # Through the fs handle, as .explore does: it carries the gui_apps
+        # gate, and a test hands it a recorder instead of a viewer.
+        ctx.fs.open_file(str(newest))
         return CmdResult.ok(value=newest)
 
     return handler

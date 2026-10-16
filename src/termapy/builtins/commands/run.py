@@ -25,10 +25,17 @@ come from the shared ``build_folder_subcommands`` helper, and
 ``/run.edit`` is ``/edit.run`` under its noun-first name
 (``edit.edit_command``).  ``/run.legacy`` rides along by re-exporting
 the existing ``termapy.run_legacy`` handler.
+
+``/run.profile`` runs a script with per-line timing through the same
+``ctx.internal.run_script``, and its results folder ``prof/`` has the
+shared folder family.  Until 2026-10-16 it was a hook the TUI and the
+CLI each registered, with a hand-written copy of that family (review
+2026-10-15, D8): MCP never had it although ``/help`` said it did.
 """
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -47,7 +54,7 @@ from termapy.folder_ops import (
     file_table,
     list_entries,
 )
-from termapy.folders import default_file_name
+from termapy.folders import PROFILE_TMP_PREFIX, default_file_name, ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError
 from termapy.run_docstring import extract_docstring
 
@@ -143,6 +150,47 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     return result
 
 
+def _handler_profile(ctx: PluginContext, args: str) -> CmdResult:
+    """``/run.profile <script>`` -- run a script with per-line timing.
+
+    The runner writes the timings to ``prof/<script>_<timestamp>.csv``.
+    Inside a script the runner intercepts this line itself, to run the
+    nested script inline (``ReplEngine._BLOCKING_COMMANDS``).
+    """
+    arg = args.strip()
+    if not arg:
+        raise UsageError()
+    if ctx.internal.start_script is None or ctx.internal.run_script is None:
+        return CmdResult.fail(msg="This host does not support script execution.")
+    path, result = ctx.internal.start_script(arg)
+    if path:
+        ctx.internal.run_script(path, profile=True, verbose=ctx.output_level == "verbose")
+    return result
+
+
+def _handler_profile_cmd(ctx: PluginContext, args: str) -> CmdResult:
+    """``/run.profile.cmd <command>`` -- profile one command as a one-line script.
+
+    One command string, never split at a newline (the one-command-string
+    rule): several commands are a ``.run`` file and ``/run.profile``.  A
+    first token with a dot and no prefix is taken as a command
+    (``port.info``).
+    """
+    line = args.strip()
+    if not line:
+        raise UsageError()
+    if ctx.internal.start_script is None or ctx.internal.run_script is None:
+        return CmdResult.fail(msg="This host does not support script execution.")
+    if not line.startswith(ctx.prefix) and "." in line.split()[0]:
+        line = ctx.prefix + line
+    name = f"{PROFILE_TMP_PREFIX}{int(time.time() * 1000)}.run"
+    (ensure_folder(ctx.fs.scripts_dir) / name).write_text(line + "\n", encoding="utf-8")
+    path, result = ctx.internal.start_script(name)
+    if path:
+        ctx.internal.run_script(path, profile=True)
+    return result
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 _FOLDER_SUBS = build_folder_subcommands("run")
 # Override .list with the docstring-aware version.  The other folder
@@ -200,6 +248,20 @@ COMMAND = Command(
             handler=_handler_record,
         ),
         "edit": edit_command("run"),
+        "profile": Command(
+            args="<filename>",
+            help="Run a script with per-line timing (CSV to prof/).",
+            handler=_handler_profile,
+            files="run",
+            sub_commands={
+                "cmd": Command(
+                    args="<command>",
+                    help="Profile a single command.",
+                    handler=_handler_profile_cmd,
+                ),
+                **build_folder_subcommands("prof", noun="profile"),
+            },
+        ),
         **_FOLDER_SUBS,
     },
 )

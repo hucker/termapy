@@ -82,10 +82,9 @@ This saves a CSV to the `prof/` folder with elapsed time for each line.
 | ---------------------------- | ---------------------------------------- |
 | `/run.profile <script>`      | Run script with per-line timing          |
 | `/run.profile.cmd <command>` | Profile a single command                 |
-| `/run.profile.show`          | Open newest profile in system viewer     |
-| `/run.profile.dump`          | Print newest profile to the terminal     |
-| `/run.profile.explore`       | Open `prof/` folder in file explorer     |
-| `/run.profile.list`          | List profile files                       |
+
+The CSVs are listed, printed and opened with the per-folder file commands
+(`/run.profile.list`, `.dump`, `.show`); see the command reference.
 
 ## Output levels
 

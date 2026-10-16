@@ -42,8 +42,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     With no arguments, prints every key/value pair. With a key only,
     prints that key's current value. With key and value, validates the
-    type against the existing value and delegates to the confirmation
-    dialog (or applies directly if no dialog is configured).
+    type against the existing value, then asks the frontend to confirm
+    and answers after it does (Cancel fails), or applies directly where
+    the frontend has no dialog.
 
     Args:
         ctx: Plugin context for config access and output.
@@ -79,8 +80,11 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
         return CmdResult.ok(value=str(old_val))
+    # The TUI asks first and answers only after the dialog does, so a
+    # script line after /cfg sees the outcome (review 2026-10-15, D7).
     if ctx.internal.confirm_save_cfg:
-        ctx.internal.confirm_save_cfg(key, new_val)
+        if not ctx.internal.confirm_save_cfg(key, new_val):
+            return CmdResult.fail(msg="Canceled.")
     else:
         ctx.internal.apply_cfg(key, new_val)
     return CmdResult.ok(value=str(new_val))

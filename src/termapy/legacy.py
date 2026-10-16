@@ -177,6 +177,13 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
         CapabilitySet(interactive=True),
     ),
     LegacyForwarder(
+        "clr",
+        "",
+        "Legacy alias for /cls (the CLI's alone until 2026-10-16).",
+        make_forwarder("clr", "cls"),
+        CapabilitySet.INTERACTIVE,
+    ),
+    LegacyForwarder(
         "log.clear",
         "",
         "Legacy alias for /log.delete (\"clear\" empties what you see; \"delete\" removes a file).",

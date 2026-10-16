@@ -382,6 +382,9 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     # Derived from comparing plugin.needs against ENVIRONMENTS -- single
     # source of truth, no per-host special casing.  Future hosts get a
     # column for free by adding an entry to ENVIRONMENTS in plugins.py.
+    # Right only while every frontend that meets a command's needs
+    # registers it: test_architecture pins that (registry
+    # available-matches-registration).
     # ENVIRONMENTS treats dynamic capabilities as attainable (see its
     # comment), so this matrix means "could ever run there"; right-now
     # status lives in the REQUIRED CAPABILITIES rows above.  The column

@@ -99,14 +99,32 @@ class TestCfgChange:
         # Arrange
         engine, _, _, output = repl_env
         called_with = []
-        engine.ctx.internal.confirm_save_cfg = lambda k, v: called_with.append((k, v))
+
+        def confirm(key, value):
+            called_with.append((key, value))
+            return True
+
+        engine.ctx.internal.confirm_save_cfg = confirm
 
         # Act
-        engine.dispatch("cfg baud_rate 9600")
+        result = engine.dispatch("cfg baud_rate 9600")
 
         # Assert
         expected = [("baud_rate", 9600)]
         assert called_with == expected, "hook called with key and coerced value"
+        assert result.value == "9600", "a confirmed change answers with the new value"
+
+    def test_a_declined_confirmation_fails(self, repl_env):
+        """When the frontend's confirmation is declined, /cfg fails as Canceled instead of answering the value."""
+        # Arrange
+        engine, _, _, _ = repl_env
+        engine.ctx.internal.confirm_save_cfg = lambda key, value: False
+
+        # Act
+        result = engine.dispatch("cfg baud_rate 9600")
+
+        # Assert
+        assert (result.success, result.error) == (False, "Canceled.")
 
     def test_falls_back_to_apply_without_hook(self, repl_env):
         """With no save hook (CLI), /cfg applies the change for this session only."""

@@ -197,7 +197,6 @@ Gated methods today:
   always-works fallback)
 - `ctx.ui.clear_screen` -- requires `tui_mode` (use `ctx.io.clear_screen`)
 - `ctx.ui.screenshot` -- requires `screen_capture` (no fallback)
-- `ctx.ui.exit_app` -- requires `tui_mode`
 - `ctx.wait_for_match` -- requires `block_until`
 
 ## Returning scriptable values
@@ -700,7 +699,7 @@ the matching capability on `Command.needs`.
 | `ctx.ui.clear_screen()` | `tui_mode` |
 | `ctx.ui.screenshot(path)` | `screen_capture` |
 | `ctx.ui.get_screen_text()` | `screen_capture` |
-| `ctx.ui.exit_app()` | `tui_mode` |
+| `ctx.ui.exit_app()` | none: ends the TUI or CLI session, does nothing over MCP |
 
 ### Top-level
 

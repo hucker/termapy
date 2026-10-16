@@ -83,7 +83,7 @@ because its folders hold different types of file.
 | `/help.run`               | List available .run scripts with descriptions                               |
 | `/help.target`            | Show only imported target device commands                                   |
 | `/log`                    | Open the session log (same as the Log button and `/log.show`)               |
-| `/log.delete`             | Delete the session log file                                                 |
+| `/log.delete`             | Delete the session log file (TUI and CLI; not over MCP)                     |
 | `/log.dump {N}`           | Print the session log (all, or an N-line slice) to the terminal             |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
 | `/log.show`               | Open the session log in the system viewer                                   |

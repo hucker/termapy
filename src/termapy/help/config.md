@@ -152,7 +152,7 @@ reported as a type warning.
 | `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
 | `echo`                        | `false`                       | Echo device commands sent to the wire (bare + `/term.send`). Runtime: `/term.echo {on\|off\|toggle}` |
 | `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |
-| `log_file`                    | `""`                          | Session log path (defaults to `<name>.log` in config subfolder) |
+| `log_file`                    | `""`                          | The TUI's session log path (defaults to `<name>.log` in config subfolder); MCP logs to `mcp/session.log`, the CLI keeps none |
 | `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |
 | `eol_markers`                 | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
 | `line_no`                     | `false`                       | Show line numbers in serial output |

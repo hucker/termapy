@@ -431,25 +431,6 @@ def register_tui_hooks(app) -> None:
             ),
             needs=CapabilitySet.TUI_MODE,
         )
-    app.repl.register_hook(
-        "log.delete",
-        "",
-        "Delete the session log file.",
-        lambda ctx, args: app._tui_hook_log_delete(),
-        source="app",
-    )
-    # /log.clear is a hidden legacy alias -- "clear" should mean
-    # "empty visible state," and the canonical "delete the file"
-    # verb is /log.delete.  Forwarder pattern matches /port.open
-    # -> /port.connect and the rest of the v0.64 renames.
-    app.repl.register_hook(
-        "log.clear",
-        "",
-        "Legacy alias for /log.delete.",
-        make_forwarder("log.clear", "log.delete"),
-        source="app",
-        hidden=True,
-    )
     # /log.show, /log.dump, /log.fingerprint live as builtin plugins
     # in termapy/builtins/commands/log_*.py so MCP gets them too.
     # /edit.log -- hidden legacy forwarder to /log.show.

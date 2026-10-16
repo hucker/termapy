@@ -589,40 +589,61 @@ class TestEnsureHelpServer:
 # -- _hook_log_delete ---------------------------------------------------------
 
 
-class TestHookLogClear:
-    def test_no_log_file(self, host):
-        """Deleting the log when none exists on disk fails rather than reporting success."""
-        # Arrange - config_path has no log file
+class _LoggingHost(_StubHost):
+    """A host whose session log is ``log_file`` (None: keeps none), recording when it lets go of it."""
+
+    log_file: Path | None = None
+    closes: int = 0
+
+    def session_log_path(self) -> Path | None:
+        return self.log_file
+
+    def _close_session_log(self) -> None:
+        self.closes += 1
+
+
+class TestLogDelete:
+    """/log.delete removes the frontend's own session log through ctx.internal (review 2026-10-15, D3)."""
+
+    @staticmethod
+    def _delete(host, log_file: Path | None):
+        """Run /log.delete's handler against ``host``'s real handle wiring."""
+        from termapy.builtins.commands.log import _handler_delete
+
+        logging_host = _LoggingHost(host.cfg, host.config_path, host.engine, host.repl, host.capture)
+        logging_host.log_file = log_file
+        ctx = logging_host._build_plugin_context(logging_host._build_internal_handle())
+        return logging_host, _handler_delete(ctx, "")
+
+    def test_a_frontend_without_a_log_says_so(self, host):
+        """A frontend that keeps no session log (the CLI) answers No log file."""
+        _, result = self._delete(host, None)
+        assert (result.success, result.error) == (False, "No log file.")
+
+    def test_deletes_the_frontends_log_after_letting_go_of_it(self, host, tmp_path):
+        """The frontend's log is closed, then removed, and the deleted path is the value."""
+        # Arrange
+        log_file = tmp_path / "session.log"
+        log_file.write_text("session log data")
 
         # Act
-        result = host._hook_log_delete(None, "")
+        logging_host, result = self._delete(host, log_file)
 
         # Assert
-        assert result.success is False, "fails when no log file"
+        assert result.success, result.error
+        assert not log_file.exists(), "log file deleted"
+        assert logging_host.closes == 1, "the frontend let go of the file first"
+        assert result.value == str(log_file.resolve())
 
-    def test_deletes_log_file(self, host, tmp_path):
-        """The log delete hook removes the session log file from disk."""
-        # Arrange
-        log_path = tmp_path / "test_cfg" / "test.log"
-        log_path.write_text("session log data")
-        with patch("termapy.config.cfg_log_path", return_value=str(log_path)):
-            # Act
-            result = host._hook_log_delete(None, "")
+    def test_a_delete_the_os_refuses_fails_with_its_reason(self, host, tmp_path):
+        """An OSError from the delete fails the command with the OS's message (a folder cannot be unlinked)."""
+        # Arrange -- a folder where the log should be: it exists, unlink refuses
+        folder = tmp_path / "session.log"
+        folder.mkdir()
 
-        # Assert
-        assert result.success is True, "succeeds when log exists"
-        assert not log_path.exists(), "log file deleted"
-
-    def test_delete_oserror(self, host, tmp_path):
-        """An OSError from unlink fails the delete and passes the OS message through."""
-        # Arrange
-        log_path = tmp_path / "test_cfg" / "test.log"
-        log_path.write_text("session log data")
-        with patch("termapy.config.cfg_log_path", return_value=str(log_path)), \
-             patch.object(Path, "unlink", side_effect=OSError("permission denied")):
-            # Act
-            result = host._hook_log_delete(None, "")
+        # Act
+        _, result = self._delete(host, folder)
 
         # Assert
         assert result.success is False, "fails on OSError"
-        assert "permission denied" in result.error, "error message passed through"
+        assert result.error.startswith("Delete failed: "), result.error

@@ -406,6 +406,41 @@ def cfg_log_path(config_path: str) -> str:
     return str((cfg_data_dir(config_path) / name).resolve())
 
 
+def session_log_file(cfg: Mapping[str, Any], config_path: str | None) -> Path | None:
+    """The TUI's session log: ``log_file`` when set, else ``<cfg>.log``; None with no config.
+
+    The TUI's ``session_log_path`` is this; nothing else reads ``log_file``
+    or calls ``cfg_log_path`` for the session log (registry
+    ``session-log-one-owner``).  A relative ``log_file`` resolves against
+    the working directory, as it always has.
+    """
+    configured = cfg.get("log_file", "")
+    if configured:
+        return Path(configured).resolve()
+    if config_path:
+        return Path(cfg_log_path(config_path))
+    return None
+
+
+# The MCP server's state folder beside the config, and its session log in it.
+MCP_DIR = "mcp"
+MCP_SESSION_LOG = "session.log"
+
+
+def mcp_dir(config_path: str) -> Path:
+    """The MCP server's state folder for a config (logs, cached profiles)."""
+    return Path(config_path).parent / MCP_DIR
+
+
+def mcp_log_path(config_path: str) -> Path:
+    """Where the MCP server writes its session log for a config.
+
+    One owner: the MCP host writes here and ``/mcp.log.*`` reads it from
+    any frontend.  A path, whether or not the file exists.
+    """
+    return mcp_dir(config_path) / MCP_SESSION_LOG
+
+
 def cfg_history_path(config_path: str | None) -> str:
     """Return the command-history file path (single owner; hosts call this).
 

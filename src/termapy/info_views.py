@@ -48,9 +48,9 @@ def show_config_info(app, path: str) -> None:
         app._status(f"Xfer root:   {Path(xfer_root).resolve()}", "green")
     else:
         app._status(f"Xfer root:   {resolved.parent / 'cap'}", "green")
-    log_path = app._log_path()
-    if log_path:
-        app._status(f"Log file:    {Path(log_path).resolve()}", "green")
+    log_path = app.session_log_path()
+    if log_path is not None:
+        app._status(f"Log file:    {log_path}", "green")
 
 
 def show_port_picker(app) -> None:

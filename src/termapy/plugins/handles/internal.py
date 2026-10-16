@@ -147,6 +147,15 @@ class InternalHandle:
     # the wait itself; this is the only per-frontend part of it.
     delay_progress: Callable | None = None
 
+    # session_log_path() -> Path | None: the file THIS frontend writes its
+    # session log to (TUI <cfg>.log or log_file, MCP mcp/session.log), or
+    # None where it keeps none (CLI).  The one answer to "which log": every
+    # /log.* command, $(CFG.LOG_FILE) and /cfg.info read it (registry
+    # session-log-one-owner).  close_session_log() lets go of the file
+    # before /log.delete removes it (the TUI holds it open).
+    session_log_path: Callable = lambda: None
+    close_session_log: Callable = lambda: None
+
     xfer_cancel: Any = None  # threading.Event - Escape cancels a transfer
 
     # open_picker(name, one of command.PICKERS) -> CmdResult; opens the

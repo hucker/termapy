@@ -1133,7 +1133,7 @@ class TestSharedStateRaces:
                 assert result.error == "Send error: Not connected.", (
                     "a send with no port is a failed command, not a silent drop"
                 )
-                logged = Path(app._log_path()).read_text(encoding="utf-8")
+                logged = Path(app.session_log_path()).read_text(encoding="utf-8")
                 tx_lines = [line for line in logged.splitlines() if line.endswith("> AT")]
                 assert tx_lines == [], (
                     f"no TX line may claim bytes went out. Log was: {logged!r}"
@@ -1578,7 +1578,7 @@ class TestSessionLog:
                 await pilot.pause()
 
                 # Assert
-                log = Path(app._log_path()).read_text(encoding="utf-8")
+                log = Path(app.session_log_path()).read_text(encoding="utf-8")
                 assert "#   $(MARKUP_TAG) = [ok] boot" in log, f"markup output logged as its text:\n{log}"
                 assert log.count(command) == 1, f"the command is logged once, as its > line:\n{log}"
 
@@ -1586,6 +1586,39 @@ class TestSessionLog:
             _run(scenario)
         finally:
             unset_user_var("MARKUP_TAG")  # user variables are process-global
+
+    def test_log_commands_work_on_the_tuis_own_log(self, app_factory):
+        """/log.dump reads the TUI's own log, and /log.delete closes the open file before removing it."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                app._open_log()
+                app._status("tui-was-here")
+                log_path = app.session_log_path()
+                assert log_path is not None and log_path.exists(), "the TUI keeps a log"
+
+                # Act -- off the main thread, as every typed command runs
+                results: dict = {}
+
+                def run() -> None:
+                    results["dump"] = app._dispatch_single("/log.dump")
+                    results["delete"] = app._dispatch_single("/log.delete")
+
+                worker = threading.Thread(target=run, daemon=True)
+                worker.start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while worker.is_alive() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await pilot.pause()
+
+                # Assert
+                assert results["dump"].success, results["dump"].error
+                assert results["delete"].value == str(log_path), "the TUI's own log was deleted"
+                assert not log_path.exists(), "the file is gone"
+                assert app.log_fh is None, "the TUI let go of the file before the delete"
+
+        _run(scenario)
 
     def test_multi_line_output_logs_every_line_with_its_prefix(self, app_factory):
         """A multi-line message, plain or markup, is one # entry per line; a blank line stays one empty entry."""
@@ -1601,7 +1634,7 @@ class TestSessionLog:
                 await pilot.pause()
 
                 # Assert
-                lines = Path(app._log_path()).read_text(encoding="utf-8").splitlines()
+                lines = Path(app.session_log_path()).read_text(encoding="utf-8").splitlines()
                 logged = [line.split("] ", 1)[1] for line in lines[-5:]]
                 assert logged == ["# plain one", "# plain two", "# tree", "# ├── leaf", "# "], (
                     f"every line carries the prefix, markup flattened:\n{lines[-5:]}"
@@ -1741,7 +1774,7 @@ class TestBatchedOutputIsEquivalent:
                 await pilot.pause()
 
                 # Assert -- one write and one flush, but still one line each
-                logged = Path(app._log_path()).read_text(encoding="utf-8")
+                logged = Path(app.session_log_path()).read_text(encoding="utf-8")
                 rx = [ln for ln in logged.splitlines() if ln.endswith(("alpha", "beta", "gamma"))]
                 actual = len(rx)
                 assert actual == 3, f"one log line per received line, got {actual}"

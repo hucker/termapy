@@ -224,7 +224,7 @@ Edit-restart-test cycle: edit termapy source, restart the MCP client, the new co
 | Need to see what the server is doing           | Add `--mcp-verbose` to args; tees the session log to stderr                                                                                                              |
 | Several servers running, or `uv sync` can't replace `termapy.exe` | Every server has the same command line (`termapy.exe --mcp`).  Ask each one `/mcp.info` for its `pid`, find it in `tasklist` / `ps`, and end a stale one by that PID (`taskkill /F /PID <pid>`, `kill <pid>`); its launchers exit with it and release `termapy.exe` |
 
-The session log lives at `<cfg_dir>/mcp/session.log`.  Every dispatch, every TX/RX, every error is recorded there.  Open it with `/mcp.log` (system viewer), `/mcp.log.dump` (inline), or `/mcp.log.path` (just the path).
+The session log lives at `<cfg_dir>/mcp/session.log`.  Every dispatch, every TX/RX, every error is recorded there.  Open it with `/mcp.log` (system viewer), `/mcp.log.dump` (inline), or `/mcp.log.path` (just the path).  Over MCP, `/log.dump` and `$(CFG.LOG_FILE)` mean this file too: the session log is the frontend's own, never the TUI's `<name>.log`.  An agent cannot run `/log.delete`.
 
 ## See also
 

@@ -368,6 +368,10 @@ class TerminalHost:
             run_script=lambda path, profile=False, verbose=False: (
                 self._run_script(path, profile=profile, verbose=verbose)
             ),
+            # Which file this frontend's session log is: one owner, the
+            # host's session_log_path (registry session-log-one-owner).
+            session_log_path=lambda: self.session_log_path(),
+            close_session_log=lambda: self._close_session_log(),
             # Post-dispatch observer pair, shared by all hosts.  /run.record
             # registers via add_post_dispatch_observer; future audit-log /
             # repeat-last / event-stream features will use the same hook.
@@ -837,24 +841,21 @@ class TerminalHost:
         webbrowser.open(url)
         return CmdResult.ok(value=url)
 
-    # -- Shared hook handlers -------------------------------------------------
+    # -- Session log ------------------------------------------------------------
 
-    def _hook_log_delete(self, ctx, args: str) -> CmdResult:
-        """Delete the session log file on disk.
+    def session_log_path(self) -> Path | None:
+        """The file this frontend writes its session log to, or None when it keeps none.
 
-        Canonical name; ``/log.clear`` is a hidden legacy alias.
-        Vocabulary: "clear" means "empty visible state" (``/cls``);
-        "delete" means "permanently remove from disk."
+        The one answer every ``/log.*`` command, ``$(CFG.LOG_FILE)`` and
+        ``/cfg.info`` read (review 2026-10-15, D3).  The default is the
+        CLI's: no session log.  The TUI and the MCP host override it.
         """
-        from termapy.config import cfg_log_path
+        return None
 
-        log_path = cfg_log_path(self.config_path) if self.config_path else ""
-        if not log_path or not Path(log_path).exists():
-            return CmdResult.fail(msg="No log file.")
-        try:
-            Path(log_path).unlink()
-            self.status(f"Deleted {Path(log_path).name}", "green")
-            return CmdResult.ok(value=Path(log_path))
-        except OSError as e:
-            return CmdResult.fail(msg=f"Delete failed: {e}")
+    def _close_session_log(self) -> None:
+        """Let go of the session log file before ``/log.delete`` removes it.
+
+        A host that keeps the file open (the TUI) closes it here; the
+        default holds nothing open.
+        """
 

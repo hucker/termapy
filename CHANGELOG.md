@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.77.1 (2026-10-15)
+
+A README and release-tooling fix; termapy itself is unchanged from 0.77.0.
+
+- **One coverage number.** The README showed two: Codecov's 82% and a
+  static 84% from a release-day local run. The Project Status row now
+  carries the one figure, `coverage NN%`, live from Codecov on every push;
+  the Built with row names the tool like its neighbors, `coverage | code
+  coverage`. The release script no longer measures or writes a coverage
+  percentage.
+- **The build backend is bounded.** `build-system` now requires
+  `uv_build>=0.9,<0.10`. Unbounded, the 0.77.0 build pulled the newest
+  `uv_build`, whose source distribution an older uv could not read, and the
+  package had to be built and published by hand.
+
 ## 0.77.0 (2026-10-15)
 
 The largest release since the MCP server: termapy can now read and write a

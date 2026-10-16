@@ -21,22 +21,10 @@ in ``_build_context``.
 
 from __future__ import annotations
 
-import webbrowser
-from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.app import CONFIG_LOAD_ERRORS
-from termapy.builtins.commands.edit import (
-    make_edit_handler,
-    make_explore_handler,
-    make_list_handler,
-)
-from termapy.config import open_with_system
-from termapy.config_resolve import resolve_config
-from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
-from termapy.folders import default_file_name, ensure_folder
-from termapy.help_dynamic import compose, folder_line
+from termapy.folders import ensure_folder
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 from termapy.run_profile_hooks import register_run_profile_hooks
@@ -50,29 +38,7 @@ from termapy.scripting import (
 )
 
 if TYPE_CHECKING:
-    from termapy.plugins import PluginContext
-
-
-def _hook_help_open(app, ctx: "PluginContext | None", args: str) -> CmdResult:
-    """Open a help topic in the local docs server."""
-
-    html_dir = pkg_files("termapy").joinpath("html")
-    topic = args.strip()
-    if not topic:
-        page = "index.html"
-    else:
-        topic = topic.replace(".md", "").replace(".html", "")
-        page = f"{topic}.html"
-    if not Path(str(html_dir.joinpath(page))).exists():
-        return CmdResult.fail(
-            msg=f"Unknown topic: {topic!r}. Available: {', '.join(app._HELP_TOPICS)}"
-        )
-    port = app._ensure_help_server()
-
-    url = f"http://127.0.0.1:{port}/{page}"
-    webbrowser.open(url)
-    # Return the URL so scripts can capture / log which help page was opened.
-    return CmdResult.ok(value=url)
+    pass
 
 
 def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
@@ -185,119 +151,6 @@ def _hook_line_no(app, ctx, args: str) -> CmdResult:
     return CmdResult.ok(value=label)
 
 
-def _hook_edit_cfg(app) -> CmdResult:
-    """Open the config editor modal."""
-    app._on_main(
-        app.push_screen,
-        ConfigEditor(dict(app.cfg), app.config_path),
-        callback=app._on_config_result,
-    )
-    return CmdResult.ok(value=Path(app.config_path) if app.config_path else "")
-
-
-def _hook_edit_info(app) -> CmdResult:
-    """Open the info report in the system viewer.
-
-    A failure is returned, not also written: the dispatcher prints it.
-    """
-    if not app.config_path:
-        return CmdResult.fail(msg="No config loaded.")
-    stem = Path(app.config_path).stem
-    path = Path(app.config_path).parent / f"{stem}.md"
-    if path.exists():
-        open_with_system(str(path))
-        return CmdResult.ok(value=path)
-    return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
-
-
-def _hook_edit(app, ctx, args: str) -> CmdResult:
-    """Edit a project file using the same dialogs as the UI menus.
-
-    Routes to ScriptEditor (.run) or ProtoEditor (.pro).
-
-    Args:
-        ctx: Plugin context (unused).
-        args: Filename (scripts/proto path).
-    """
-    filename = args.strip()
-    if not filename:
-        raise UsageError()
-
-    # Resolve prefixed or bare filename
-    path = app._resolve_project_file(filename)
-    if path is None:
-        return CmdResult.fail(msg=f"File not found: {filename}")
-
-    ext = path.suffix.lower()
-    if ext == ".run":
-        app._on_main(
-            app.push_screen,
-            ScriptEditor(app.repl.scripts_dir, str(path)),
-            callback=app._on_script_saved,
-        )
-    elif ext == ".pro":
-        app._on_main(
-            app.push_screen,
-            ProtoEditor(app.repl.proto_dir, str(path)),
-            callback=app._on_proto_saved,
-        )
-    return CmdResult.ok(value=path)
-
-
-def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
-    """Edit a file from a specific folder using Textual modal.
-
-    A bare call never arrives: the hook declares ``picker=<folder>``, so
-    the dispatcher opens the folder's picker (whose Edit button reaches
-    the same editor) before this runs.
-    """
-    name = args.strip()
-    if not name:
-        raise UsageError()
-    dir_map = {"run": app.repl.scripts_dir, "proto": app.repl.proto_dir}
-    base = dir_map.get(folder)
-    if not base:
-        return CmdResult.fail(msg=f"Unknown folder: {folder}")
-    # The extension is optional (registry ``file-name-default-ext``).
-    path = default_file_name(base / name, ext)
-    if not path.is_file():
-        return CmdResult.fail(msg=f"File not found: {name}")
-    if ext == ".run":
-        app._on_main(
-            app.push_screen,
-            ScriptEditor(base, str(path)),
-            callback=app._on_script_saved,
-        )
-    elif ext == ".pro":
-        app._on_main(
-            app.push_screen,
-            ProtoEditor(base, str(path)),
-            callback=app._on_proto_saved,
-        )
-    return CmdResult.ok(value=path)
-
-
-def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
-    """Switch to a different config by name or path."""
-    name = args.strip()
-    if not name:
-        raise UsageError()
-    # The CLI and MCP's chain (TerminalHost._load_config), not a copy of it.
-    found = resolve_config(name)
-    if found is None:
-        return CmdResult.fail(msg=f"Config not found: {name}")
-    path = Path(found)
-    try:
-        from termapy.config import load_config
-
-        cfg = load_config(str(path))
-    except CONFIG_LOAD_ERRORS as e:
-        return CmdResult.fail(msg=f"Failed to load config: {e}")
-    app._on_main(app._switch_config, cfg, str(path))
-    app._on_main(app._show_config_info, str(path))
-    return CmdResult.ok(value=path)
-
-
 def register_tui_hooks(app) -> None:
     """Register TUI-specific commands as plugin hooks."""
 
@@ -404,136 +257,11 @@ def register_tui_hooks(app) -> None:
         source="app",
         needs=CapabilitySet.TUI_MODE,
     )
-    # /edit - TUI overrides root (Textual modals for .run/.pro)
-    # This wipes all edit.* children from the plugin, so we must
-    # re-register every subcommand the TUI wants to expose.  The hooks
-    # that open termapy's own editors need the TUI, not a desktop: they
-    # work over SSH, where GUI_APPS is false.  Only the ones that hand a
-    # file to the system viewer or file manager need GUI_APPS.
-    app.repl.register_hook(
-        "edit",
-        "<filename>",
-        "Edit a project file (scripts/proto path).",
-        lambda ctx, args: _hook_edit(app, ctx, args),
-        source="app",
-        needs=CapabilitySet.TUI_MODE,
-    )
-    for name in ("edit.cfg", "cfg.edit"):
-        app.repl.register_hook(
-            name,
-            "",
-            "Edit the current config file.",
-            lambda ctx, args: _hook_edit_cfg(app),
-            source="app",
-            long_help=(
-                "Opens the loaded config in termapy's config editor, as F10 "
-                "does.  /cfg.edit and /edit.cfg are the same command."
-            ),
-            needs=CapabilitySet.TUI_MODE,
-        )
-    # /log.show, /log.dump, /log.fingerprint live as builtin plugins
-    # in termapy/builtins/commands/log_*.py so MCP gets them too.
-    # /edit.log -- hidden legacy forwarder to /log.show.
-    app.repl.register_hook(
-        "edit.log",
-        "",
-        "Open the session log in the system viewer.",
-        make_forwarder("edit.log", "log.show"),
-        source="app",
-        needs=CapabilitySet.GUI_APPS,
-    )
-    app.repl._plugins["edit.log"].hidden = True
-    app.repl.register_hook(
-        "edit.info",
-        "",
-        "Open the info report in the system viewer.",
-        lambda ctx, args: _hook_edit_info(app),
-        source="app",
-        needs=CapabilitySet.GUI_APPS,
-    )
-    # Re-register folder subcommands (wiped by /edit override)
-
-    for folder, get_dir, ext, pat in (
-        ("run", lambda ctx: ctx.fs.scripts_dir, ".run", "*.run"),
-        ("proto", lambda ctx: ctx.fs.proto_dir, ".pro", "*.pro"),
-        (
-            "plugin",
-            lambda ctx: Path(ctx.config_path).parent / "plugin"
-            if ctx.config_path
-            else Path("."),
-            ".py",
-            "*.py",
-        ),
-    ):
-        # TUI uses Textual modals for run and proto edit, under both
-        # spellings: /edit.run and its noun-first twin /run.edit.
-        if folder in ("run", "proto"):
-            text = (
-                f"With a name, opens that existing file from {folder}/ in "
-                f"termapy's editor (the {ext} is optional); a missing name "
-                f"fails.  In the {folder.capitalize()} picker, Edit opens the "
-                f"highlighted file.  /{folder}.edit and /edit.{folder} are "
-                f"the same command."
-            )
-            for name in (f"edit.{folder}", f"{folder}.edit"):
-                app.repl.register_hook(
-                    name,
-                    "{filename}",
-                    f"Edit a {ext} file in termapy's editor.",
-                    (
-                        lambda f=folder, e=ext: lambda ctx,
-                        args: _hook_edit_folder(app, ctx, args, f, e)
-                    )(),
-                    source="app",
-                    long_help=(
-                        lambda f=folder, t=text: lambda ctx:
-                        compose(folder_line(ctx, f, noun="script"), t)
-                    )(),
-                    needs=CapabilitySet.TUI_MODE,
-                    files=folder,
-                    picker=folder,
-                )
-        else:
-            # /plugin.edit is not wiped by the /edit override; the builtin
-            # twin already runs this same make_edit_handler.
-            app.repl.register_hook(
-                f"edit.{folder}",
-                "{filename}",
-                f"Open a {ext} file in the system editor.",
-                make_edit_handler(folder, get_dir, ext),
-                source="app",
-                needs=CapabilitySet.GUI_APPS,
-                files=folder,
-            )
-        # /edit.<folder>.list is the only branch where listing is useful
-        # to the LLM -- it's a discovery tool, not an editor invocation.
-        app.repl.register_hook(
-            f"edit.{folder}.list",
-            "",
-            f"List {ext} files.",
-            make_list_handler(folder),
-            source="app",
-        )
-        app.repl.register_hook(
-            f"edit.{folder}.explore",
-            "",
-            f"Open {folder}/ in file explorer.",
-            make_explore_handler(get_dir),
-            source="app",
-            needs=CapabilitySet.GUI_APPS,
-        )
-    app.repl.register_hook(
-        "cfg.load",
-        "<name>",
-        "Switch to a different config by name.",
-        lambda ctx, args: _hook_cfg_load(app, ctx, args),
-        source="app",
-    )
     app.repl.register_hook(
         "help.open",
         "{topic}",
         "Open help file in system viewer.",
-        lambda ctx, args: _hook_help_open(app, ctx, args),
+        app._hook_help_open,  # TerminalHost's: the CLI's handler too
         source="app",
         needs=CapabilitySet.GUI_APPS,
     )

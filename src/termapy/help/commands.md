@@ -60,7 +60,7 @@ because its folders hold different types of file.
 | `/confirm {message}`      | Ask Yes/Cancel (TUI dialog, CLI y/n); Cancel stops a script                 |
 | `/credits`                | Print acknowledgments (libraries and authors termapy depends on)            |
 | `/delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`); Escape/Ctrl+C cancel            |
-| `/edit <file>`            | Edit a project file (`run/`/`proto/` path)                                  |
+| `/edit <file>`            | Edit a project file (`run/`, `proto/` or `plugin/`)                         |
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.info`              | Open the info report in the system viewer                                   |
 | `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given (also `/plugin.edit`) |

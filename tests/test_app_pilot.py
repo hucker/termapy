@@ -2129,6 +2129,123 @@ class TestEditHooks:
 
         _run(scenario)
 
+    @pytest.mark.parametrize(
+        ("command", "screen_name"),
+        [("/edit.run probe", "ScriptEditor"), ("/cfg.edit", "ConfigEditor")],
+    )
+    def test_a_typed_edit_opens_its_editor(self, app_factory, command, screen_name):
+        """A typed /edit command, run on its dispatch worker, opens termapy's editor.
+
+        Every typed /edit failed with "call_from_thread() got multiple
+        values for argument 'callback'": push_screen's callback= was passed
+        through _on_main.  The tests dispatched on main, where _on_main calls
+        straight through, so none of them saw it (found by the B3 manual
+        test, 2026-10-16).
+        """
+        async def scenario():
+            from termapy import dialogs
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                app.repl.scripts_dir.mkdir(parents=True, exist_ok=True)
+                (app.repl.scripts_dir / "probe.run").write_text("/print hi\n")
+                results: list = []
+
+                # Act -- on a worker, as typed input runs
+                worker = threading.Thread(
+                    target=lambda: results.append(app._dispatch_single(command)), daemon=True,
+                )
+                worker.start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while worker.is_alive() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+                await pilot.pause()
+
+                # Assert
+                assert results and results[0].success, results[0].error if results else "no result"
+                assert isinstance(app.screen, getattr(dialogs, screen_name)), f"{screen_name} opened"
+
+        _run(scenario)
+
+    def test_cfg_load_switches_before_it_returns(self, app_factory, tmp_path):
+        """one-handler-per-command: /cfg.load from a worker returns after the TUI's switch, not before it.
+
+        The TUI's own /cfg.load scheduled the switch on main and returned at
+        once, so a script line after it ran against the old config.
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            _, second_path = _write_cfg(tmp_path, name="second")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                seen: dict = {}
+
+                def run() -> None:
+                    seen["result"] = app._dispatch_single(f"/cfg.load {second_path}")
+                    seen["config_path"] = app.config_path  # read the moment it returns
+
+                # Act -- on a worker, as a typed command or a script line runs
+                worker = threading.Thread(target=run, daemon=True)
+                worker.start()
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while worker.is_alive() and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.02)
+
+                # Assert
+                assert seen["result"].success, seen["result"].error
+                assert seen["config_path"] == second_path, "the switch was done when the command returned"
+
+        _run(scenario)
+
+    def test_cfg_load_of_an_unknown_name_answers_like_every_frontend(self, app_factory):
+        """An unknown name gets the shared message (TerminalHost._load_config), the CLI's and MCP's too."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                result = app.repl.dispatch("cfg.load no_such_config")
+
+                # Assert
+                assert result.success is False
+                assert result.error.startswith("No config matching 'no_such_config'."), result.error
+
+        _run(scenario)
+
+    def test_edit_opens_a_plugin_file_in_the_system_editor(self, app_factory):
+        """/edit foo.py finds plugin/foo.py in the TUI and hands it to the system editor, as in the CLI.
+
+        The TUI's own /edit resolver knew only .run and .pro, so this
+        failed in the TUI while it worked in the CLI (review 2026-10-15, D5).
+        """
+        async def scenario():
+            from dataclasses import replace
+
+            app, _, path = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- a desktop whose opener is a list, and a plugin file
+                caps = replace(app.repl.ctx.capabilities, gui_apps=True)
+                app.repl.ctx.capabilities = caps
+                app.repl.ctx.fs.capabilities = caps
+                opened: list[str] = []
+                app.repl.ctx.fs._open_file_impl = lambda target: opened.append(str(target))
+                plugin = Path(path).parent / "plugin" / "probe.py"
+                plugin.parent.mkdir(exist_ok=True)
+                plugin.write_text("# probe\n", encoding="utf-8")
+
+                # Act
+                result = app.repl.dispatch("edit probe.py")
+                await pilot.pause()
+
+                # Assert
+                assert result.success, result.error
+                assert opened == [str(plugin)], "the system editor got the plugin file"
+
+        _run(scenario)
+
 
 class TestSymbolsAutoload:
     """The symbol sidecar loads on mount, before the startup auto-connect.

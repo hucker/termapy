@@ -63,7 +63,8 @@ def _grant_gui_apps(ctx) -> list[str]:
     to ``open_with_system`` in production); a list stands in for the file
     manager here.
     """
-    caps = ctx.capabilities.union(CapabilitySet(gui_apps=True))
+    # A CLI with a desktop has both: its system editor is its file editor.
+    caps = ctx.capabilities.union(CapabilitySet(gui_apps=True, file_editor=True))
     ctx.capabilities = caps
     ctx.fs.capabilities = caps
     opened: list[str] = []
@@ -290,7 +291,7 @@ class TestCliWritersCreateTheirFolder:
         result = cli.repl.dispatch("run.edit fresh")
 
         # Assert
-        assert result.error == "File not found: fresh.run", "a missing script is refused"
+        assert result.error == "File not found: fresh", "a missing script is refused"
         assert not (Path(cli.config_path).parent / "run").exists(), "a read never creates a data folder"
         assert opened == [], "nothing was handed to the editor"
 

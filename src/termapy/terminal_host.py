@@ -372,6 +372,8 @@ class TerminalHost:
             # host's session_log_path (registry session-log-one-owner).
             session_log_path=lambda: self.session_log_path(),
             close_session_log=lambda: self._close_session_log(),
+            # How this frontend opens a file for editing (/edit decides which).
+            edit_file=lambda path: self._edit_file(path),
             # Post-dispatch observer pair, shared by all hosts.  /run.record
             # registers via add_post_dispatch_observer; future audit-log /
             # repeat-last / event-stream features will use the same hook.
@@ -689,7 +691,7 @@ class TerminalHost:
         if path is None:
             return CmdResult.fail(
                 msg=f"No config matching {name!r}. "
-                f"Try {self.prefix}cfg.list to list available."
+                f"Try {self.repl.prefix}cfg.list to list available."
             )
         result = self._switch_to_cfg_path(path)
         if result.success:
@@ -822,24 +824,45 @@ class TerminalHost:
         return port
 
     def _hook_help_open(self, ctx, args: str) -> CmdResult:
-        """Open a help topic in the local docs server."""
+        """Open a help topic in the local docs server (the one /help.open, TUI and CLI).
+
+        An unknown topic lists the pages that exist, read from the built
+        help itself rather than a list kept beside it.
+        """
         from importlib.resources import files as pkg_files
 
-        html_dir = pkg_files("termapy").joinpath("html")
+        html_dir = Path(str(pkg_files("termapy").joinpath("html")))
         topic = args.strip()
         if not topic:
             page = "index.html"
         else:
             topic = topic.replace(".md", "").replace(".html", "")
             page = f"{topic}.html"
-        if not Path(str(html_dir.joinpath(page))).exists():
-            return CmdResult.fail(msg=f"Unknown help topic: {topic}")
+        if not (html_dir / page).exists():
+            topics = sorted(
+                path.stem for path in html_dir.glob("*.html")
+                if path.stem not in ("index", "404")
+            )
+            return CmdResult.fail(
+                msg=f"Unknown help topic: {topic} (use one of: {', '.join(topics)})"
+            )
         port = self._ensure_help_server()
         import webbrowser
 
         url = f"http://127.0.0.1:{port}/{page}"
         webbrowser.open(url)
         return CmdResult.ok(value=url)
+
+    # -- Editing ----------------------------------------------------------------
+
+    def _edit_file(self, path: Path) -> None:
+        """``ctx.internal.edit_file``: open ``path`` in the system editor.
+
+        The CLI's only editor, through ``ctx.fs.open_file`` (the one gated
+        opener); ``file_editor`` (a desktop) gates the command.  The TUI
+        overrides this with its own editors.
+        """
+        self.repl.ctx.fs.open_file(path)
 
     # -- Session log ------------------------------------------------------------
 

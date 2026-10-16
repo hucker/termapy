@@ -216,6 +216,11 @@ LEGACY_COMMANDS["term.verbose"] = "term.output"
 # only").  Forward old-idiom callers to the new spelling.
 LEGACY_COMMANDS["echo.quiet"] = "echo.silent"
 LEGACY_COMMANDS["term.echo.quiet"] = "term.echo.silent"
+# The TUI registers the /ss.svg.quiet forwarder (only it has /ss.svg.silent),
+# but the rename is listed here so /run.legacy reads one table in every
+# frontend; it used to appear only where the TUI had registered it (review
+# 2026-10-15, D9).
+LEGACY_COMMANDS["ss.svg.quiet"] = "ss.svg.silent"
 register_legacy_rewrite(r"^verbose\s+on\b", "term.output verbose")
 register_legacy_rewrite(r"^verbose\s+off\b", "term.output normal")
 register_legacy_rewrite(r"^term\.verbose\s+on\b", "term.output verbose")

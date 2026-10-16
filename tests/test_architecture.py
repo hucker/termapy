@@ -14,6 +14,8 @@ import ast
 import re
 from pathlib import Path
 
+import pytest
+
 import termapy
 
 SRC = Path(termapy.__file__).parent
@@ -32,9 +34,6 @@ BUILTINS_DIR = SRC / "builtins"
 ALLOWED_CORE_IMPORTS: frozenset[tuple[str, str]] = frozenset({
     # (1) Published plugin functions.
     ("termapy.builtins.commands.find", "dismiss"),
-    ("termapy.builtins.commands.edit", "make_edit_handler"),
-    ("termapy.builtins.commands.edit", "make_explore_handler"),
-    ("termapy.builtins.commands.edit", "make_list_handler"),
     # (2) Helper modules under commands/ that are not plugins.
     ("termapy.builtins.commands._cfg_icon", "retire_launcher"),
     ("termapy.builtins.commands", "_run_record"),
@@ -2018,3 +2017,181 @@ def derive(ctx, cfg):
 
     # Assert
     assert actual == [3, 4, 5, 6], "two calls and two reads; not a key set, a default or the owner"
+
+
+# ── One handler per command name, in every frontend ──────────────────────────
+#
+# Review 2026-10-15 (D5): the TUI registered its own /help.open, /cfg.load
+# and /edit family over the commands it already had, and the copies drifted
+# -- "/edit foo.py" worked in the CLI and failed in the TUI.  A frontend
+# changes HOW a command does its job through a host method or a handle
+# field (``_switch_to_cfg_path``, ``ctx.internal.edit_file``), never by
+# registering a second handler under the same name.  This builds the TUI
+# (headless), CLI and MCP command tables and compares each name's handler
+# code.  The allowlist names what still differs and why; it only shrinks.
+KNOWN_DIVERGENT_COMMANDS: dict[str, str] = {
+    "cli": "switches to the CLI: a different act in each frontend",
+    "tui": "switches to the TUI: a different act in each frontend",
+    "demo": "D6: the TUI switches on a worker, the CLI inline (stage B4)",
+    "demo.force": "D6, as /demo (stage B4)",
+    "term.line_no": "D4: the TUI's line-number setting (stage B4)",
+    "ss.svg": "a stub builtin the TUI replaces (Chuck 2026-10-16: convert later)",
+    "ss.txt": "a stub builtin the TUI replaces (convert later)",
+}
+
+
+def _handler_identity(handler) -> object:
+    """The code a handler runs: a bound method and a plain function compare by their code object."""
+    function = getattr(handler, "__func__", handler)
+    return getattr(function, "__code__", None) or id(function)
+
+
+def _frontend_tables(tmp_path: Path) -> dict[str, dict[str, object]]:
+    """``{frontend: {command name: handler identity}}`` for the TUI, CLI and MCP."""
+    import asyncio
+    import json
+
+    from termapy.cli import CLITerminal
+    from termapy.defaults import DEFAULT_CFG
+
+    def make_cfg(name: str) -> tuple[dict, str]:
+        default_serial = DEFAULT_CFG["serial"]
+        assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+        cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": ""}}
+        path = tmp_path / name / f"{name}.cfg"
+        path.parent.mkdir()
+        path.write_text(json.dumps(cfg))
+        return cfg, str(path)
+
+    def table(plugins) -> dict[str, object]:
+        return {name: _handler_identity(info.handler) for name, info in plugins.items()}
+
+    tables: dict[str, dict[str, object]] = {}
+    cfg, path = make_cfg("cli")
+    cli = CLITerminal(cfg, path, no_color=True)
+    cli.repl.global_root = tmp_path
+    tables["CLI"] = table(cli.repl._plugins)
+
+    mcp = pytest.importorskip("termapy.mcp.server", reason="mcp SDK not installed")
+    cfg, path = make_cfg("mcp")
+    tables["MCP"] = table(mcp.MCPHost(cfg, path, verbose=False).repl._plugins)
+
+    from termapy.app import SerialTerminal
+
+    cfg, path = make_cfg("tui")
+    app = SerialTerminal(cfg, path)
+    app.repl.global_root = tmp_path
+
+    async def boot() -> None:
+        async with app.run_test() as pilot:
+            await pilot.pause()  # the TUI registers its hooks on mount
+            tables["TUI"] = table(app.repl._plugins)
+
+    asyncio.run(boot())
+    return tables
+
+
+def _divergent_commands(tables: dict[str, dict[str, object]]) -> dict[str, list[str]]:
+    """``{command name: [frontends]}`` for every name two frontends register with different handlers."""
+    names = set().union(*tables.values())
+    divergent: dict[str, list[str]] = {}
+    for name in sorted(names):
+        holders = {frontend: table[name] for frontend, table in tables.items() if name in table}
+        if len(set(holders.values())) > 1:
+            divergent[name] = sorted(holders)
+    return divergent
+
+
+@pytest.fixture(scope="module")
+def frontend_tables(tmp_path_factory) -> dict[str, dict[str, object]]:
+    return _frontend_tables(tmp_path_factory.mktemp("frontends"))
+
+
+def test_each_command_has_one_handler_in_every_frontend(frontend_tables):
+    """one-handler-per-command: no name runs different handlers in two frontends, outside the allowlist."""
+    # Arrange / Act
+    divergent = {
+        name: frontends
+        for name, frontends in _divergent_commands(frontend_tables).items()
+        if name not in KNOWN_DIVERGENT_COMMANDS
+    }
+
+    # Assert
+    assert divergent == {}, (
+        "a frontend registers its own handler for a command another frontend has; "
+        "change HOW through a host method or a handle field instead:\n  "
+        + "\n  ".join(f"/{name}: {', '.join(frontends)}" for name, frontends in divergent.items())
+    )
+
+
+def test_one_handler_guard_fires_on_a_probe():
+    """The guard flags a name whose handlers differ and passes a shared or one-frontend name."""
+    # Arrange
+    def shared(ctx, args):
+        return None
+
+    def tui_own(ctx, args):
+        return None
+
+    def cli_own(ctx, args):
+        return None
+
+    tables = {
+        "TUI": {"same": _handler_identity(shared), "split": _handler_identity(tui_own), "tui_only": 1},
+        "CLI": {"same": _handler_identity(shared), "split": _handler_identity(cli_own)},
+    }
+
+    # Act
+    actual = _divergent_commands(tables)
+
+    # Assert
+    assert actual == {"split": ["CLI", "TUI"]}, "only the name with two handlers"
+
+
+def test_known_divergent_commands_has_no_stale_entries(frontend_tables):
+    """Every allowlisted name still differs between frontends, so the list only shrinks."""
+    # Arrange / Act
+    divergent = _divergent_commands(frontend_tables)
+
+    # Assert
+    stale = sorted(set(KNOWN_DIVERGENT_COMMANDS) - set(divergent))
+    assert stale == [], f"one handler everywhere now; drop from KNOWN_DIVERGENT_COMMANDS: {stale}"
+
+
+def test_the_legacy_table_is_the_same_in_every_frontend(frontend_tables):
+    """one-handler-per-command: /run.legacy reads one rename table; no frontend adds to it by registering.
+
+    Until 2026-10-16 ``make_forwarder`` recorded a rename when a frontend
+    registered it, so the table differed by frontend (review 2026-10-15,
+    D9).  A fresh interpreter that loads the commands every frontend
+    shares (a bare engine: the builtins and the central forwarders) must
+    already hold every rename the three frontends know.
+    """
+    import subprocess
+    import sys
+
+    from termapy.legacy import LEGACY_COMMANDS
+
+    # Arrange -- frontend_tables has built the TUI, CLI and MCP in this process
+    assert frontend_tables, "the frontends ran"
+    script = (
+        "import json, pathlib, tempfile\n"
+        "from termapy.repl import ReplEngine\n"
+        "from termapy.legacy import LEGACY_COMMANDS\n"
+        "root = pathlib.Path(tempfile.mkdtemp())\n"
+        "cfg = root / 'bare.cfg'\n"
+        "cfg.write_text('{}')\n"
+        "ReplEngine({}, str(cfg), lambda *a, **k: None, global_root=root)\n"
+        "print(json.dumps(sorted(LEGACY_COMMANDS)))\n"
+    )
+
+    # Act
+    fresh = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=30, check=True,
+    ).stdout
+
+    # Assert
+    import json
+
+    added = sorted(set(LEGACY_COMMANDS) - set(json.loads(fresh)))
+    assert added == [], f"renames only a frontend's registration records; list them in legacy.py: {added}"

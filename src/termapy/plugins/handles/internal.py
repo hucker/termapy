@@ -156,6 +156,12 @@ class InternalHandle:
     session_log_path: Callable = lambda: None
     close_session_log: Callable = lambda: None
 
+    # edit_file(path) -> None: open a project file for editing, this
+    # frontend's way: the TUI's own editor for a config, .run or .pro file,
+    # else the system editor.  /edit decides WHICH file, the frontend HOW
+    # (review 2026-10-15, D5); gated by the file_editor capability.
+    edit_file: Callable = lambda path: None
+
     xfer_cancel: Any = None  # threading.Event - Escape cancels a transfer
 
     # open_picker(name, one of command.PICKERS) -> CmdResult; opens the

@@ -195,6 +195,15 @@ class CapabilitySet:
     #        with ``TERMAPY_GUI=1`` / ``TERMAPY_GUI=0``.  Not MCP.
     gui_apps: bool = False
 
+    # What:  Can open a project file for editing (``ctx.internal.edit_file``).
+    #        The TUI opens its own editors for a config, a .run or a .pro
+    #        file, and hands anything else to the system editor; the CLI
+    #        has only the system editor.  One /edit command for both
+    #        (review 2026-10-15, D5): the frontend decides how to open.
+    # Where: TUI always (its editors work over SSH); CLI when ``gui_apps``.
+    #        Not MCP.
+    file_editor: bool = False
+
     # What:  Handler may resolve a caller-supplied path OUTSIDE the
     #        per-config sandbox -- an absolute path or ``..`` traversal
     #        (e.g. ``/cap.text file=<abs>``, ``/profile.save <abs>``,
@@ -240,6 +249,12 @@ class CapabilitySet:
     SSH user is interactive but has no local display, so a
     ``webbrowser.open()`` would "succeed" invisibly on the remote box.
     Detected at startup; ``TERMAPY_GUI=1/0`` overrides."""
+
+    FILE_EDITOR: ClassVar["CapabilitySet"]
+    """Can open a project file for editing (``file_editor=True``).
+
+    The TUI's own config and script editors, or a desktop's system
+    editor.  The TUI has it over SSH too; the CLI only with a desktop."""
 
     SCREEN_CAPTURE: ClassVar["CapabilitySet"]
     """Can capture the rendered screen (``screen_capture=True``).
@@ -303,6 +318,7 @@ class CapabilitySet:
 CapabilitySet.SERIAL_CONNECTED = CapabilitySet(serial_connected=True)
 CapabilitySet.INTERACTIVE = CapabilitySet(interactive=True)
 CapabilitySet.GUI_APPS = CapabilitySet(gui_apps=True)
+CapabilitySet.FILE_EDITOR = CapabilitySet(file_editor=True)
 CapabilitySet.SCREEN_CAPTURE = CapabilitySet(screen_capture=True)
 CapabilitySet.TUI_MODE = CapabilitySet(tui_mode=True)
 CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
@@ -328,6 +344,7 @@ REQUIREMENT_HINTS: dict[str, str] = {
     "serial_connected": "an open serial port",
     "interactive": "an interactive session (a human at a terminal; not MCP)",
     "gui_apps": "a local desktop that can open apps the user sees",
+    "file_editor": "an editor for project files (the TUI's own, or a desktop's)",
     "filesystem_unconfined": "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)",
     "network_egress": "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
 }
@@ -402,6 +419,7 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
         "TUI": CapabilitySet(
             interactive=True,
             gui_apps=gui,
+            file_editor=True,
             tui_mode=True,
             screen_capture=True,
             confirm_dialog=True,
@@ -415,6 +433,7 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
         "CLI": CapabilitySet(
             interactive=True,
             gui_apps=gui,
+            file_editor=gui,
             confirm_dialog=True,
             filesystem_unconfined=True,
             network_egress=True,

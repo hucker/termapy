@@ -1,10 +1,10 @@
 # termapy
 
-**Project Status:** [![CI](https://github.com/hucker/termapy/actions/workflows/tests.yml/badge.svg)](https://github.com/hucker/termapy/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/hucker/termapy/graph/badge.svg)](https://codecov.io/gh/hucker/termapy) [![ty](https://img.shields.io/badge/ty-0%20issues-brightgreen)](https://github.com/astral-sh/ty) ![license](https://img.shields.io/badge/license-MIT-green) [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hucker.github.io/termapy/)
+**Project Status:** [![CI](https://github.com/hucker/termapy/actions/workflows/tests.yml/badge.svg)](https://github.com/hucker/termapy/actions/workflows/tests.yml) [![coverage](https://img.shields.io/codecov/c/github/hucker/termapy?logo=codecov)](https://codecov.io/gh/hucker/termapy) [![ty](https://img.shields.io/badge/ty-0%20issues-brightgreen)](https://github.com/astral-sh/ty) ![license](https://img.shields.io/badge/license-MIT-green) [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hucker.github.io/termapy/)
 
 **Powered by:** [![Textual](https://img.shields.io/badge/Textual-TUI-blue?logo=python)](https://textual.textualize.io/) [![pySerial](https://img.shields.io/badge/pySerial-serial%20I%2FO-orange?logo=python)](https://pyserial.readthedocs.io/) [![zensical](https://img.shields.io/badge/zensical-docs-green)](https://github.com/hucker/zensical)
 
-**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.15-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-84%25-brightgreen)](https://coverage.readthedocs.io/)
+**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.15-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-code%20coverage-green)](https://coverage.readthedocs.io/)
 
 Pronounced "ter-map-ee"
 
@@ -1156,10 +1156,12 @@ Every command runs on a worker thread, the serial reader is the only long-lived 
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 4913 tests, 84% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 4913 tests</summary>
 
 Run the full suite with `uv run pytest`. (The count above is the one place it
-is tracked; `release_prep` refreshes it each release.)
+is tracked; `release_prep` refreshes it each release.) The coverage figure is
+the coverage badge at the top, live from Codecov, measured by CI on every
+push to main.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

@@ -202,25 +202,6 @@ def count_ruff_issues() -> int:
     return 0  # unreachable, satisfies type checker
 
 
-def measure_coverage_percent() -> int:
-    """Total coverage percent from ``pytest --cov``.
-
-    Runs a fresh quick pytest with the default ``-v --cov=termapy
-    --cov-report=term-missing`` addopts (from pyproject), parses the
-    ``TOTAL ... N%`` line at the end of the cov summary, and returns
-    the integer percent.  The release commit substitutes this number
-    into README.md so the figure can't silently drift.
-    """
-    out = run_out(["uv", "run", "pytest", "-q"])
-    # The coverage terminal report ends with:
-    #     TOTAL                       9562    1834    81%
-    m = re.search(r"^TOTAL\s+\d+\s+\d+\s+(\d+)%", out, re.MULTILINE)
-    if m:
-        return int(m.group(1))
-    die("could not parse coverage percent from pytest --cov output")
-    return 0  # unreachable, satisfies type checker
-
-
 def assert_zero_lint() -> None:
     """Hard-fail the release if ruff or ty has any issues.
 
@@ -321,20 +302,6 @@ def ty_badge_color(count: int) -> str:
     return "red"
 
 
-def coverage_badge_color(percent: int) -> str:
-    """Return the shields.io color name for a coverage percentage.
-
-    Thresholds chosen to give visible "you're slipping" feedback as
-    coverage drops below the project's typical 70-80% band: 80+ green,
-    65-79 yellow, below 65 red.
-    """
-    if percent >= 80:
-        return "brightgreen"
-    if percent >= 65:
-        return "yellow"
-    return "red"
-
-
 def update_architecture_md() -> None:
     """Update per-module line counts in ARCHITECTURE.md.
 
@@ -404,27 +371,25 @@ def update_architecture_md() -> None:
     ok(f"ARCHITECTURE.md updated ({len(tracked)} line counts)")
 
 
-def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
-    """Update the Test coverage summary line and the ty + coverage badges.
+def update_readme_md(test_count: int, ty_count: int) -> None:
+    """Update the Test coverage summary line's test count and the ty badge.
 
-    These are the ONLY exact figures README carries -- the summary line
-    (test count + coverage %) and the two badges.  Everything else is
-    general-terms prose with no numbers to keep in sync; per-module line
-    counts live in ARCHITECTURE.md's tree (see update_architecture_md).
+    These are the ONLY exact figures README carries -- the summary line's
+    test count and the ty badge.  Coverage is deliberately not one of them:
+    the Codecov badge in the first row is the one coverage number, measured
+    by CI on every push, so a local figure here would be a second, drifting
+    one.  Everything else is general-terms prose with no numbers to keep in
+    sync; per-module line counts live in ARCHITECTURE.md's tree (see
+    update_architecture_md).
     """
     path = REPO_ROOT / "README.md"
     text = path.read_text(encoding="utf-8")
 
     # The test count lives in exactly ONE place: the <details> Test
-    # coverage summary line.  The body line below it is count-free prose,
-    # so only the summary's count + the coverage % are refreshed here.
-    # ``cov_percent`` is the coverage config's reported number, which omits
-    # app.py/dialogs/builtins (see pyproject [tool.coverage.run]) -- i.e.
-    # core-module coverage, NOT whole-repo.  The wording says "core-module"
-    # rather than "overall" on purpose; don't revert it to "overall".
+    # coverage summary line.  The body line below it is count-free prose.
     text, n = re.subn(
-        r"<strong>Test coverage</strong> - \d+ tests, \d+% core-module coverage",
-        f"<strong>Test coverage</strong> - {test_count} tests, {cov_percent}% core-module coverage",
+        r"<strong>Test coverage</strong> - \d+ tests</summary>",
+        f"<strong>Test coverage</strong> - {test_count} tests</summary>",
         text,
         count=1,
     )
@@ -443,24 +408,8 @@ def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
     if n != 1:
         die("could not find the ty badge in README.md")
 
-    # Coverage badge in the "Built with:" row.  Drives the displayed
-    # percent from pytest --cov output; coverage_badge_color() picks
-    # green/yellow/red so a drop is visible at a glance.
-    cov_color = coverage_badge_color(cov_percent)
-    text, n = re.subn(
-        r"badge/coverage-[^-]+-[a-z]+",
-        f"badge/coverage-{cov_percent}%25-{cov_color}",
-        text,
-        count=1,
-    )
-    if n != 1:
-        die("could not find the coverage badge in README.md")
-
     path.write_text(text, encoding="utf-8")
-    ok(
-        f"README.md updated (tests={test_count}, ty={ty_count} ({color}), "
-        f"coverage={cov_percent}% ({cov_color}))"
-    )
+    ok(f"README.md updated (tests={test_count}, ty={ty_count} ({color}))")
 
 
 # ── changelog ────────────────────────────────────────────────────────────────
@@ -846,12 +795,11 @@ def main() -> None:
     step(5, "Running the hw_loopback suite...")
     run_hw_loopback_suite(args.skip_hw_loopback)
 
-    step(6, "Updating doc counts (test count, ty count, coverage, line counts)...")
+    step(6, "Updating doc counts (test count, ty count, line counts)...")
     test_count = count_tests()
     ty_count = count_ty_issues()
-    cov_percent = measure_coverage_percent()
     update_architecture_md()
-    update_readme_md(test_count, ty_count, cov_percent)
+    update_readme_md(test_count, ty_count)
     update_suppression_count()
 
     step(7, "Refreshing generated docs (config examples, credits sync)...")

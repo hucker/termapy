@@ -477,7 +477,10 @@ CFG_HELP: dict[str, tuple] = {
         "Absolute path, or empty for the default.",
     ),
     # Logging
-    "log_file": ("Session log file path.", "Empty = <name>.log in config subfolder."),
+    "log_file": (
+        "The TUI's session log file path.",
+        "Empty = <name>.log in config subfolder. MCP logs to mcp/session.log; the CLI keeps none.",
+    ),
     "show_traceback": ("Show full stack trace on serial errors.", "Valid: true, false"),
     # Proto
     "proto_frame_gap_ms": (

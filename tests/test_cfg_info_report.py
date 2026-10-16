@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from termapy.config import cfg_history_path, cfg_log_path, rename_config
+from termapy.config import cfg_history_path, cfg_log_path, rename_config, session_log_file
 from termapy.folders import INFO_REPORT_SUFFIX
 from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext
 from termapy.repl import ReplEngine
@@ -45,6 +45,7 @@ def _build(tmp_path: Path, *, interactive: bool = True, oneshot: bool = False):
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
         dispatch=engine.dispatch,
+        session_log_path=lambda: session_log_file(cfg, str(config_path)),
     )
     ctx = PluginContext(
         cfg=cfg,

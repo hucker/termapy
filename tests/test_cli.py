@@ -583,34 +583,6 @@ class TestHookRunProfile:
 # -- Hook: log.clear ---------------------------------------------------------
 
 
-class TestHookLogClear:
-    def test_no_log_file(self, cli):
-        """log.clear fails when there is no log file to delete."""
-        # Act
-        result = cli._hook_log_delete(cli.ctx, "")
-
-        # Assert
-        assert not result.success, "no log file to delete"
-
-    def test_delete_log(self, cli):
-        """log.clear removes the file at the real cfg_log_path location."""
-        # Arrange -- write the log file at the path the real
-        # cfg_log_path() would compute, so the test exercises the
-        # real resolution logic instead of a patched return value.
-        from termapy.config import cfg_log_path
-
-        log_path = Path(cfg_log_path(cli.config_path))
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_path.write_text("log data")
-
-        # Act
-        result = cli._hook_log_delete(cli.ctx, "")
-
-        # Assert
-        assert result.success, "deletion succeeds"
-        assert not log_path.exists(), "file removed"
-
-
 # -- Connect / Disconnect ---------------------------------------------------
 
 
@@ -1060,21 +1032,42 @@ class TestBareForms:
         assert opened == expected, f"bare /{folder} opened {folder}/"
 
     def test_bare_log_is_log_show(self, cli, tmp_path):
-        """Bare /log does what the Log button does, /log.show: here, refusing a log that is not there."""
-        # Arrange -- an absent log, so no system viewer is launched
+        """Bare /log does what the Log button does, /log.show: in the CLI, which keeps no log, refusing."""
+        # Arrange -- the CLI has no session log, so no system viewer is launched
         _grant_gui_apps(cli)
-        cli.ctx.cfg["log_file"] = str(tmp_path / "absent.log")
 
         # Act
         bare = cli.repl.dispatch("log")
         shown = cli.repl.dispatch("log.show")
 
         # Assert
-        assert bare.error.startswith("Log file not found"), "bare /log ran /log.show"
+        assert bare.error == "No log file.", "bare /log ran /log.show"
         assert bare.error == shown.error, "bare /log and /log.show are one behavior"
 
 
 # -- Hook registration ------------------------------------------------------
+
+
+class TestNoSessionLog:
+    """D3: the CLI keeps no session log, and every /log command and $(CFG.LOG_FILE) agrees."""
+
+    def test_the_cli_keeps_no_session_log(self, cli):
+        """/log.dump and /log.delete answer No log file, and $(CFG.LOG_FILE) is empty.
+
+        Until 2026-10-16 they read the TUI's <cfg>.log, so a CLI could dump
+        or delete another frontend's log (review 2026-10-15, D3).
+        """
+        from termapy.variables import expand_vars
+
+        # Act
+        dumped = cli.repl.dispatch_full("/log.dump")
+        deleted = cli.repl.dispatch_full("/log.delete")
+
+        # Assert
+        assert cli.session_log_path() is None, "the CLI writes no session log"
+        assert (dumped.success, dumped.error) == (False, "No log file.")
+        assert (deleted.success, deleted.error) == (False, "No log file.")
+        assert expand_vars("$(CFG.LOG_FILE)") == "", "nothing to name"
 
 
 class TestConfirmInAScript:

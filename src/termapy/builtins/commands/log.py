@@ -1,19 +1,17 @@
 """Built-in plugin: ``/log.*`` -- session-log commands.
 
-Groups the three read-side session-log commands under one ``/log``
-parent:
-
+* ``/log.delete``      -- delete the session log file
 * ``/log.dump``        -- print the log to the terminal (all or an N-line slice)
 * ``/log.fingerprint`` -- write a provenance fingerprint to the log
 * ``/log.show``        -- open the log in the system viewer
 
-The write-side ``/log.clear`` and ``/log.delete`` are registered
-separately as host hooks (they need frontend state), and coexist with
-this parent: registering ``log.clear`` / ``log.delete`` does not touch
-the ``log`` parent or its ``dump`` / ``fingerprint`` / ``show`` children.
-
-Lives in ``builtins/commands/`` so MCP, CLI, and TUI all share the same
-handlers.
+"The session log" is the frontend's own: the TUI's ``<cfg>.log`` (or
+``log_file``), the MCP server's ``mcp/session.log``, and none in the CLI.
+Every command here asks ``ctx.internal.session_log_path()`` which file
+that is (registry ``session-log-one-owner``).  Until 2026-10-16 six
+places worked it out for themselves, so over MCP ``/log.dump`` read the
+TUI's log rather than the agent's own (review 2026-10-15, D3).
+``/log.clear`` is the legacy name of ``/log.delete`` (``legacy.py``).
 """
 
 from __future__ import annotations
@@ -24,7 +22,7 @@ import socket
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.config import cfg_log_path, open_with_system
+from termapy.config import open_with_system
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.scripting import select_lines
 
@@ -65,25 +63,14 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
     return CmdResult.ok(value=str(len(lines)))
 
 
-def _log_path(ctx: PluginContext) -> str:
-    """Resolve the session log path from ctx.cfg / ctx.config_path."""
-    configured = ctx.cfg.get("log_file", "") if ctx.cfg else ""
-    if configured:
-        return str(Path(configured).resolve())
-    if ctx.config_path:
-        return cfg_log_path(ctx.config_path)
-    return ""
-
-
 # ── /log.dump ─────────────────────────────────────────────────────────────────
 
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     """Print the session log: all, last N (N>0), or first N (N<0) lines."""
-    path = _log_path(ctx)
-    if not path:
-        return CmdResult.fail(msg="No log file configured.")
-    p = Path(path)
+    p = ctx.internal.session_log_path()
+    if p is None:
+        return CmdResult.fail(msg="No log file.")
     # Sandbox: cfg["log_file"] can be pointed at any file (via /cfg.auto),
     # turning /log.dump into an arbitrary-file read.  Under the MCP host,
     # refuse a log path outside the config directory.  Reading the cfg's
@@ -103,7 +90,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
                 )
             )
     if not p.exists():
-        return CmdResult.fail(msg=f"Log file not found: {path}")
+        return CmdResult.fail(msg=f"Log file not found: {p}")
 
     return dump_text_slice(ctx, p, args)
 
@@ -242,9 +229,7 @@ def _config_snapshot(ctx: PluginContext) -> list[str]:
     lines.append(_kv("  Config name", cfg_name))
     lines.append(_kv("  Config path", cfg_path or "(none)"))
 
-    log_file = ctx.cfg.get("log_file", "") if ctx.cfg else ""
-    if not log_file and cfg_path:
-        log_file = f"{Path(cfg_path).with_suffix('.log')}"
+    log_file = ctx.internal.session_log_path()
     lines.append(_kv("  Log file", log_file or "(none)"))
 
     lines.append(_kv("  Encoding", ctx.cfg.get("encoding", "utf-8")))
@@ -335,13 +320,13 @@ _FINGERPRINT_FLAGS = {"--show": "Also echo the fingerprint to the terminal outpu
 
 def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     """Open the session log in the system viewer."""
-    path = _log_path(ctx)
-    if not path:
-        return CmdResult.fail(msg="No log file configured.")
-    if not Path(path).exists():
+    path = ctx.internal.session_log_path()
+    if path is None:
+        return CmdResult.fail(msg="No log file.")
+    if not path.exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
-    open_with_system(path)
-    ctx.io.result(f"  Opening {Path(path).name}")
+    open_with_system(str(path))
+    ctx.io.result(f"  Opening {path.name}")
     return CmdResult.ok(value=path)
 
 
@@ -353,6 +338,32 @@ _SHOW_LONG_HELP = (
 )
 
 
+# ── /log.delete ───────────────────────────────────────────────────────────────
+
+
+def _handler_delete(ctx: PluginContext, args: str) -> CmdResult:
+    """Delete the session log file; the frontend lets go of it first."""
+    path = ctx.internal.session_log_path()
+    if path is None or not path.exists():
+        return CmdResult.fail(msg="No log file.")
+    ctx.internal.close_session_log()
+    try:
+        path.unlink()
+    except OSError as e:
+        return CmdResult.fail(msg=f"Delete failed: {e}")
+    ctx.io.result(f"Deleted {path.name}")
+    # The deleted path, so a script can log or confirm it.
+    return CmdResult.ok(value=path)
+
+
+_DELETE_HELP = "Delete the session log file."
+_DELETE_LONG_HELP = (
+    "Removes the session log from disk (the TUI closes it first).  Not\n"
+    "over MCP: an agent cannot erase the log of what it did.  The CLI\n"
+    "keeps no session log, so there it answers No log file."
+)
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="log",
@@ -360,10 +371,18 @@ COMMAND = Command(
     # Bare /log does what the Log button does: open the session log.
     bare_sub="show",
     long_help=(
-        "Read-side session-log commands.  /log.clear and /log.delete "
-        "(write-side) are provided by the active frontend."
+        "The session log is the frontend's own: the TUI's <cfg>.log (or\n"
+        "the log_file key), the MCP server's mcp/session.log, none in the\n"
+        "CLI."
     ),
     sub_commands={
+        "delete": Command(
+            args="",
+            help=_DELETE_HELP,
+            long_help=_DELETE_LONG_HELP,
+            handler=_handler_delete,
+            needs=CapabilitySet.INTERACTIVE,
+        ),
         "dump": Command(
             args="{N}",
             help=_DUMP_HELP,

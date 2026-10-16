@@ -256,7 +256,6 @@ class CLITerminal(TerminalHost):
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status)
 
-        from termapy.config import cfg_log_path
         from termapy.variables import (
             register_cfg_vars,
             set_context_var,
@@ -271,9 +270,7 @@ class CLITerminal(TerminalHost):
         register_cfg_vars(
             get_config_path=lambda: self.config_path,
             get_cfg=lambda: self.cfg,
-            get_log_path=lambda: cfg_log_path(self.config_path)
-            if self.config_path
-            else "",
+            get_log_path=lambda: str(self.session_log_path() or ""),
         )
         self._setup_context()
         self._register_hooks()
@@ -419,29 +416,8 @@ class CLITerminal(TerminalHost):
             source="app",
             needs=CapabilitySet.GUI_APPS,
         )
-        self.repl.register_hook(
-            "log.delete",
-            "",
-            "Delete the session log file.",
-            self._hook_log_delete,
-            source="app",
-        )
-        # /log.clear is a hidden legacy alias -- "clear" means "empty
-        # visible state," and "delete" is the canonical verb for
-        # removing on-disk files.
-        from termapy.legacy import make_forwarder
-
-        self.repl.register_hook(
-            "log.clear",
-            "",
-            "Legacy alias for /log.delete.",
-            make_forwarder("log.clear", "log.delete"),
-            source="app",
-            hidden=True,
-        )
-        # /log.show, /log.dump, /log.fingerprint live as builtin
-        # plugins in termapy/builtins/commands/log_*.py so MCP gets
-        # them too -- no hook registration needed here.
+        # The /log.* family, /log.delete and its legacy /log.clear included,
+        # is the log builtin's (builtins/commands/log.py, legacy.py).
         self.repl.register_hook(
             "tui",
             "",

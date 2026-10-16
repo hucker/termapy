@@ -19,7 +19,6 @@ from termapy.config import (
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
-    cfg_log_path,
     config_summary,
     global_plugins_dir,
     open_with_system,
@@ -486,7 +485,9 @@ def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
                 "",
             ]
         )
-    md_lines.extend(_tail_section("Log", Path(cfg_log_path(ctx.config_path))))
+    session_log = ctx.internal.session_log_path()
+    if session_log is not None:
+        md_lines.extend(_tail_section("Log", session_log))
     md_lines.extend(_tail_section("History", Path(cfg_history_path(ctx.config_path))))
 
     data_dir = cfg_data_dir(ctx.config_path)

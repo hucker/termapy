@@ -3297,18 +3297,18 @@ class TestPortHandlerValues:
 class TestLogDump:
     """Signed line-count scheme on /log.dump (shares scripting.select_lines)."""
 
-    def _seed_log(self, cfg, config_path, content: str) -> Path:
-        """Point cfg at a temp log file and write content to it."""
+    def _seed_log(self, engine, config_path, content: str) -> Path:
+        """Write a session log and make it this frontend's (ctx.internal.session_log_path)."""
         log = Path(config_path).parent / "session.log"
         log.write_text(content, encoding="utf-8")
-        cfg["log_file"] = str(log)
+        engine.ctx.internal.session_log_path = lambda: log
         return log
 
     def test_full_dump_prints_all(self, repl_env):
         """Bare /log.dump covers the whole file and returns the line count as value."""
         # Arrange
         engine, cfg, config_path, output = repl_env
-        self._seed_log(cfg, config_path, "a\nb\nc\n")
+        self._seed_log(engine, config_path, "a\nb\nc\n")
 
         # Act
         output.clear()
@@ -3322,7 +3322,7 @@ class TestLogDump:
         """Positive N is a tail: the newest N lines print and older ones do not."""
         # Arrange
         engine, cfg, config_path, output = repl_env
-        self._seed_log(cfg, config_path, "a\nb\nc\nd\ne\n")
+        self._seed_log(engine, config_path, "a\nb\nc\nd\ne\n")
 
         # Act -- positive N is the most-recent N (tail)
         output.clear()
@@ -3340,7 +3340,7 @@ class TestLogDump:
         """Negative N is a head: the oldest N lines print and newer ones do not."""
         # Arrange
         engine, cfg, config_path, output = repl_env
-        self._seed_log(cfg, config_path, "a\nb\nc\nd\ne\n")
+        self._seed_log(engine, config_path, "a\nb\nc\nd\ne\n")
 
         # Act -- negative N is the oldest N (head)
         output.clear()
@@ -3358,7 +3358,7 @@ class TestLogDump:
         """N=0 is ambiguous (-0 == 0), so it is rejected with the value named."""
         # Arrange
         engine, cfg, config_path, _output = repl_env
-        self._seed_log(cfg, config_path, "x\ny\n")
+        self._seed_log(engine, config_path, "x\ny\n")
 
         # Act
         result = engine.dispatch("log.dump 0")
@@ -3371,7 +3371,7 @@ class TestLogDump:
         """A non-integer N is a usage error, not a silent full dump."""
         # Arrange
         engine, cfg, config_path, _output = repl_env
-        self._seed_log(cfg, config_path, "x\n")
+        self._seed_log(engine, config_path, "x\n")
 
         # Act
         result = engine.dispatch("log.dump notanumber")

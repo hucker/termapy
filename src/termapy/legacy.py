@@ -177,6 +177,13 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
         CapabilitySet(interactive=True),
     ),
     LegacyForwarder(
+        "log.clear",
+        "",
+        "Legacy alias for /log.delete (\"clear\" empties what you see; \"delete\" removes a file).",
+        make_forwarder("log.clear", "log.delete"),
+        CapabilitySet.INTERACTIVE,
+    ),
+    LegacyForwarder(
         "ver",
         "",
         "Legacy alias for /app.ver (installed version).",
@@ -209,10 +216,6 @@ LEGACY_COMMANDS["term.verbose"] = "term.output"
 # only").  Forward old-idiom callers to the new spelling.
 LEGACY_COMMANDS["echo.quiet"] = "echo.silent"
 LEGACY_COMMANDS["term.echo.quiet"] = "term.echo.silent"
-# "clear" should mean "empty visible state" -- /log.clear was the outlier
-# that deleted the on-disk file.  Renamed to /log.delete to match the
-# verb's meaning elsewhere; old name keeps working as a hidden forwarder.
-LEGACY_COMMANDS["log.clear"] = "log.delete"
 register_legacy_rewrite(r"^verbose\s+on\b", "term.output verbose")
 register_legacy_rewrite(r"^verbose\s+off\b", "term.output normal")
 register_legacy_rewrite(r"^term\.verbose\s+on\b", "term.output verbose")

@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.builtins.commands.log import dump_text_slice
-from termapy.config import open_with_system
+from termapy.config import mcp_log_path, open_with_system
 from termapy.mcp.catalog import build_catalog, catalog_json
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
@@ -195,21 +195,14 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 # ── /mcp.log ────────────────────────────────────────────────────────────────
 
 
-def _mcp_log_path(ctx: PluginContext) -> Path:
-    """Resolve the MCP session log path.
+def _mcp_log_path(ctx: PluginContext) -> Path | None:
+    """Where the MCP server writes its session log for this config, or None without one.
 
-    Lives at ``<cfg_dir>/mcp/session.log`` where cfg_dir is the parent
-    of the active config file.  For zero-config sessions, falls back
-    to ``<cwd>/mcp/session.log``.  Mirrors ``MCPHost._resolve_mcp_dir``
-    in mcp/server.py -- duplicated rather than imported because mcp/
-    server.py has heavy imports (the MCP SDK) we don't want to pull into
-    a bare /mcp.log call from CLI/TUI.
-
-    Returns the path even when the file doesn't exist; callers check.
+    ``config.mcp_log_path``, the path the MCP host writes, so neither
+    copies it.  Without a config the server keeps no log.  Returns the
+    path even when the file doesn't exist; callers check.
     """
-    if ctx.config_path:
-        return Path(ctx.config_path).parent / "mcp" / "session.log"
-    return Path.cwd() / "mcp" / "session.log"
+    return mcp_log_path(ctx.config_path) if ctx.config_path else None
 
 
 def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
@@ -226,6 +219,8 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     different file.
     """
     path = _mcp_log_path(ctx)
+    if path is None:
+        return CmdResult.fail(msg="No config loaded.")
     if not path.exists():
         return CmdResult.fail(
             msg=(
@@ -250,6 +245,8 @@ def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
     Mirrors ``/log.dump`` for the regular session log (same count scheme).
     """
     path = _mcp_log_path(ctx)
+    if path is None:
+        return CmdResult.fail(msg="No config loaded.")
     if not path.exists():
         return CmdResult.fail(msg=f"MCP session log not found: {path}")
     # MCP's own log is inside the session dir (in-sandbox), so no external
@@ -266,6 +263,8 @@ def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
     with a marker noting absence.
     """
     path = _mcp_log_path(ctx)
+    if path is None:
+        return CmdResult.fail(msg="No config loaded.")
     marker = "" if path.exists() else "  (not yet created)"
     ctx.io.output(f"{path}{marker}")
     return CmdResult.ok(value=path)

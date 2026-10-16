@@ -40,12 +40,12 @@ from termapy.config import (
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
-    cfg_log_path,
     load_config,
     on_connect_commands,
     open_serial,
     open_with_system,
     rename_config,
+    session_log_file,
     setup_demo_config,
 )
 
@@ -966,21 +966,25 @@ class SerialTerminal(TerminalHost, App):
         """Delegate to ``info_views.show_config_info``."""
         from termapy.info_views import show_config_info
         show_config_info(self, *args, **kwargs)
-    def _log_path(self) -> str:
-        """Return log file path in the per-config data directory."""
-        configured = self.cfg.get("log_file", "")
-        if configured:
-            return str(Path(configured).resolve())
-        if self.config_path:
-            return cfg_log_path(self.config_path)
-        return ""
+    def session_log_path(self) -> Path | None:
+        """The TUI's session log: ``log_file`` when set, else ``<cfg>.log`` (``config.session_log_file``)."""
+        return session_log_file(self.cfg, self.config_path)
+
+    def _close_session_log(self) -> None:
+        """Close the open log handle so ``/log.delete`` can remove the file.
+
+        ``_log_line`` tolerates a handle closed under it from a worker.
+        """
+        if self.log_fh:
+            self.log_fh.close()
+            self.log_fh = None
 
     def _open_log(self) -> None:
         """Open the log file if a config is loaded and log isn't already open."""
         if self.log_fh or not self.config_path:
             return
-        log_path = self._log_path()
-        if not log_path:
+        log_path = self.session_log_path()
+        if log_path is None:
             return
         self.log_fh = open(log_path, "a", encoding="utf-8")
         self._log_line("#", f"{' Session Start ':-^60s}")
@@ -1164,7 +1168,7 @@ class SerialTerminal(TerminalHost, App):
         register_cfg_vars(
             get_config_path=lambda: self.config_path,
             get_cfg=lambda: self.cfg,
-            get_log_path=lambda: self._log_path(),
+            get_log_path=lambda: str(self.session_log_path() or ""),
         )
 
     def _build_context(self) -> None:
@@ -2209,7 +2213,7 @@ class SerialTerminal(TerminalHost, App):
         self._hook_help_open(None, "")
 
     def _btn_log(self) -> None:
-        open_with_system(self._log_path())
+        self._dispatch_on_thread(f"{cmd_prefix(self.cfg)}log.show")
 
     def _btn_record(self) -> None:
         """Toggle /run.record by dispatching the REPL command.
@@ -2506,23 +2510,23 @@ class SerialTerminal(TerminalHost, App):
         self._new_config()
 
     def _palette_view_log(self) -> None:
-        open_with_system(self._log_path())
+        self._dispatch_on_thread(f"{cmd_prefix(self.cfg)}log.show")
 
     def _palette_delete_log(self) -> None:
         """Delete the current session log file after confirmation."""
-        log_path = self._log_path()
-        if not log_path or not Path(log_path).exists():
+        log_path = self.session_log_path()
+        if log_path is None or not log_path.exists():
             self._status("No log file to delete.", "yellow")
             return
 
         def on_confirmed(confirmed: bool) -> None:
             # Single owner of the delete (close fh + unlink + status):
-            # the log.delete hook.  Palette only adds the confirm gate.
+            # /log.delete.  The palette only adds the confirm gate.
             if confirmed:
-                self._tui_hook_log_delete()
+                self._dispatch_on_thread(f"{cmd_prefix(self.cfg)}log.delete")
 
         self.push_screen(  # ty: ignore[no-matching-overload] -- no (screen, callback=) overload
-            ConfirmDialog(f"Delete {Path(log_path).name}?"),
+            ConfirmDialog(f"Delete {log_path.name}?"),
             callback=on_confirmed,
         )
 
@@ -3518,31 +3522,6 @@ class SerialTerminal(TerminalHost, App):
         if path:
             self._status(f"Proto script saved: {Path(path).name}", "green")
             self._sync_proto_button()
-
-    def _tui_hook_log_delete(self) -> CmdResult:
-        """Delete the session log file on disk.
-
-        This is the canonical name; ``/log.clear`` is a hidden legacy
-        alias that forwards here (with a one-time deprecation note).
-        Vocabulary: "clear" should mean "empty visible/transient state"
-        (``/cls`` for the screen; ``/var.clear`` for variables;
-        ``/seq.reset`` for counters), and "delete" should mean
-        "permanently remove from disk."  Pre-rename behavior
-        conflated those.
-        """
-        log_path = self._log_path()
-        if not log_path or not Path(log_path).exists():
-            return CmdResult.fail(msg="No log file.")
-        if self.log_fh:
-            self.log_fh.close()
-            self.log_fh = None
-        try:
-            Path(log_path).unlink()
-            self._status(f"Deleted {Path(log_path).name}", "green")
-            # Return the deleted path so scripts can log / confirm.
-            return CmdResult.ok(value=Path(log_path))
-        except OSError as e:
-            return CmdResult.fail(msg=f"Delete failed: {e}")
 
     def _open_picker(self, *args, **kwargs):
         """Delegate to ``pickers.open_picker``."""

@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from termapy.capture import CaptureEngine, format_capture_result
-from termapy.config import on_connect_commands, open_serial
+from termapy.config import mcp_dir, mcp_log_path, on_connect_commands, open_serial
 from termapy.folder_ops import file_record
 from termapy.folders import PROFILE_SUFFIX
 from termapy.markup import markup_to_plain
@@ -161,7 +161,6 @@ class MCPHost(TerminalHost):
         self.repl = ReplEngine(cfg, config_path, write=self.write)
 
         # Var/cfg interpolation, matching CLITerminal.
-        from termapy.config import cfg_log_path
         from termapy.variables import (
             register_cfg_vars,
             set_context_var,
@@ -176,9 +175,7 @@ class MCPHost(TerminalHost):
         register_cfg_vars(
             get_config_path=lambda: self.config_path,
             get_cfg=lambda: self.cfg,
-            get_log_path=lambda: cfg_log_path(self.config_path)
-            if self.config_path
-            else "",
+            get_log_path=lambda: str(self.session_log_path() or ""),
         )
         self._setup_context()
 
@@ -194,7 +191,7 @@ class MCPHost(TerminalHost):
         under ``--mcp-verbose``).
         """
         if self.config_path:
-            return Path(self.config_path).parent / "mcp"
+            return mcp_dir(self.config_path)
         return None
 
     def _refresh_log_paths(self) -> None:
@@ -207,9 +204,13 @@ class MCPHost(TerminalHost):
         self._mcp_dir = self._resolve_mcp_dir()
         if self._mcp_dir is not None:
             self._mcp_dir.mkdir(parents=True, exist_ok=True)
-            self._log_path = self._mcp_dir / "session.log"
+            self._log_path = mcp_log_path(self.config_path)
         else:
             self._log_path = None
+
+    def session_log_path(self) -> Path | None:
+        """The MCP server's session log, ``mcp/session.log``: /log.* over MCP reads the agent's own."""
+        return self._log_path
 
     def _active_cap_dir(self) -> Path | None:
         """Return the captures directory, or None when no cfg is loaded.

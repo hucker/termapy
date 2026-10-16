@@ -77,7 +77,7 @@ async def _until(pilot, predicate, seconds: float = 5.0) -> bool:
 
 def _log_text(app) -> str:
     """The session log as written so far."""
-    return Path(app._log_path()).read_text(encoding="utf-8")
+    return Path(app.session_log_path()).read_text(encoding="utf-8")
 
 
 def _squash(text: str) -> str:

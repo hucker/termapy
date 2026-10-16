@@ -38,7 +38,7 @@ src/termapy/
 │   │   ├── find.py     #  /find - navigate scrollback matches (interactive)
 │   │   ├── grep.py     #  /grep - search scrollback for matching lines
 │   │   ├── help.py     #  /help - forgiving help with man-page detail view
-│   │   ├── log.py      #  /log.* - dump / fingerprint / show the session log
+│   │   ├── log.py      #  /log.* - the frontend's session log: delete / dump / fingerprint / show
 │   │   ├── mcp.py      #  /mcp.* - MCP catalog, status, session log
 │   │   ├── mem.py      #  /mem.* - device memory dump/write over the MEM spec
 │   │   ├── os_cmd.py   #  /os - run a shell command (gated by TERMAPY_OS_CMD_ENABLED)
@@ -200,7 +200,7 @@ The subcommand tree is flattened at registration into dotted names (`cfg.auto`, 
 
 ### Hooks
 
-A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss.svg`, `run.profile.*`, `cfg.load`, `help.open`, `log.delete`.
+A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss.svg`, `run.profile.*`, `cfg.load`, `help.open`.
 
 Hooks and plugins share one registry and one dispatch path; a hook is just a late, host-supplied entry that can override a plugin of the same name (see [Loading order](#loading-order-later-overrides-earlier)). The rule of thumb: if a command can be expressed through `PluginContext`, it's a plugin (large, portable set); if it genuinely needs Textual/host state, it's a hook (small, frontend-bound set).
 
@@ -495,7 +495,7 @@ CLI-specific features: prompt_toolkit tab completion, shared command history, `/
 
 `termapy --mcp` runs a third frontend (`MCPHost`): an MCP stdio server that exposes the same `ReplEngine`, `PluginContext`, and built-in plugins to an LLM client rather than to a human. Like CLI mode it has no Textual, so the `ctx.ui.*` handle raises `MissingCapability`; everything else (serial I/O, plugins, scripting) is the same engine the TUI uses. This is why MCP is a first-class audience for the project, not a bolt-on: an LLM drives the device through the identical command pipeline a support engineer types into.
 
-A client discovers what a device can do from a JSON **catalog** (`mcp/catalog.py`) — the command list plus device-state resources — and invokes commands through a single `run_command` tool that dispatches them down the normal pipeline. When a v2 device **profile** is loaded (`profile/`), requests and responses are *shaped* by the profile (typed arguments in, structured fields out) instead of returned as raw text. Each cfg-with-profile is served by its own `--mcp` process; there is no hot-swap, so a client config lists one entry per device. The session log is inspectable inline with `/mcp.log.dump`. For the catalog schema, profile shaping, and the destructive-action approval gate, see `mcp/catalog.py`, `mcp/server.py`, and `help/authoring-profiles.md`.
+A client discovers what a device can do from a JSON **catalog** (`mcp/catalog.py`) — the command list plus device-state resources — and invokes commands through a single `run_command` tool that dispatches them down the normal pipeline. When a v2 device **profile** is loaded (`profile/`), requests and responses are *shaped* by the profile (typed arguments in, structured fields out) instead of returned as raw text. Each cfg-with-profile is served by its own `--mcp` process; there is no hot-swap, so a client config lists one entry per device. The session log, `mcp/session.log`, is inspectable inline with `/mcp.log.dump`, or `/log.dump` over MCP: each frontend's session log is its own (`session_log_path()`; the TUI's `<name>.log`, none in the CLI). For the catalog schema, profile shaping, and the destructive-action approval gate, see `mcp/catalog.py`, `mcp/server.py`, and `help/authoring-profiles.md`.
 
 ## VT100 mode (`vt100.py`)
 

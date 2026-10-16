@@ -338,6 +338,42 @@ class TestCatalog:
         )
 
 
+# ── the session log is the agent's own ─────────────────────────────────────
+
+
+class TestSessionLog:
+    """D3: over MCP the session log is mcp/session.log, the agent's own, never the TUI's."""
+
+    def test_log_commands_read_the_frontends_own_log(self, host):
+        """session-log-one-owner: /log.dump over MCP prints mcp/session.log, and $(CFG.LOG_FILE) names it.
+
+        Until 2026-10-16 every frontend's /log.dump read the TUI's <cfg>.log,
+        so an agent saw another session's log (review 2026-10-15, D3).
+        """
+        # Arrange -- a TUI log beside the cfg that MCP must not read
+        tui_log = Path(host.config_path).with_suffix(".log")
+        tui_log.write_text("TUI-ONLY-LINE\n", encoding="utf-8")
+        asyncio.run(host.run_command_async("/print agent-was-here", "normal", 5.0))
+
+        # Act -- verbose: over MCP a per-call "normal" leaves the session's quiet in force
+        dumped = asyncio.run(host.run_command_async("/log.dump", "verbose", 5.0))
+        named = asyncio.run(host.run_command_async("/print $(CFG.LOG_FILE)", "normal", 5.0))
+
+        # Assert
+        text = "\n".join(line["text"] for line in dumped["output_lines"])
+        assert "agent-was-here" in text, "the agent's own log"
+        assert "TUI-ONLY-LINE" not in text, "never the TUI's log"
+        log_path = host.session_log_path()
+        assert log_path is not None and log_path.name == "session.log"
+        assert Path(named["value"]) == log_path.resolve(), "$(CFG.LOG_FILE) is the same file"
+
+    def test_an_agent_cannot_delete_its_log(self, host):
+        """/log.delete needs an interactive session: an agent cannot erase the log of what it did."""
+        result = asyncio.run(host.run_command_async("/log.delete", "normal", 5.0))
+        assert result["success"] is False
+        assert "interactive" in result["error"]
+
+
 # ── run_command happy paths ─────────────────────────────────────────────────
 
 

@@ -21,7 +21,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
-from termapy.config import cfg_log_path
 from termapy.folders import EXT_TO_FOLDER, FOLDERS, ensure_folder
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
@@ -85,13 +84,9 @@ def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
-    configured = ctx.cfg.get("log_file", "")
-    if configured:
-        path = Path(configured).resolve()
-    else:
-        path = Path(cfg_log_path(ctx.config_path))
+    path = ctx.internal.session_log_path()
+    if path is None:
+        return CmdResult.fail(msg="No log file.")
     ctx.fs.open_file(path)
     return CmdResult.ok(value=path)
 

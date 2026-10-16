@@ -1946,3 +1946,75 @@ def test_failure_printers_has_no_stale_entries():
     # Assert
     stale = sorted(set(FAILURE_PRINTERS) - used)
     assert stale == [], f"allowlisted but no longer printing a failure; drop them: {stale}"
+
+
+# ── The session log has one owner per frontend ────────────────────────────────
+#
+# Review 2026-10-15 (D3): six places worked out "the session log" from the
+# cfg, and they disagreed -- over MCP /log.dump read the TUI's log, and the
+# CLI's $(CFG.LOG_FILE) ignored log_file.  Each frontend answers
+# ``session_log_path()`` (``ctx.internal.session_log_path`` for a plugin);
+# the TUI's rule is ``config.session_log_file``.  Nothing else calls
+# ``cfg_log_path`` or reads the ``log_file`` key.
+SESSION_LOG_RULE_MODULE = "config.py"
+
+
+def _session_log_derivations(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every ``cfg_log_path(...)`` call and every read of the ``log_file`` key."""
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if name == "cfg_log_path":
+                sites.append((qualname, node.lineno))
+            elif (
+                name == "get" and node.args
+                and isinstance(node.args[0], ast.Constant) and node.args[0].value == "log_file"
+            ):
+                sites.append((qualname, node.lineno))
+        elif (
+            isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Load)
+            and isinstance(node.slice, ast.Constant) and node.slice.value == "log_file"
+        ):
+            sites.append((qualname, node.lineno))
+    return sites
+
+
+def test_the_session_log_is_resolved_in_one_place():
+    """session-log-one-owner: only config.py derives the session log from the cfg; everything else asks the frontend."""
+    # Arrange / Act
+    violations = [
+        f"{rel}:{line} in {qualname}"
+        for rel, tree in _source_modules()
+        if rel != SESSION_LOG_RULE_MODULE
+        for qualname, line in _session_log_derivations(tree)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "ask the frontend which file its session log is (ctx.internal.session_log_path() "
+        "in a plugin, host.session_log_path() in a host); never derive it from the cfg:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_session_log_guard_fires_on_a_probe():
+    """The guard flags cfg_log_path calls and log_file reads, and passes a declaration and a set of key names."""
+    # Arrange
+    source = '''
+def derive(ctx, cfg):
+    a = cfg_log_path(ctx.config_path)
+    b = config.cfg_log_path(path)
+    c = ctx.cfg.get("log_file", "")
+    d = cfg["log_file"]
+    keys = frozenset({"log_file", "profile_path"})
+    defaults = {"log_file": ""}
+    return ctx.internal.session_log_path()
+'''
+
+    # Act
+    actual = [line for _, line in _session_log_derivations(ast.parse(source))]
+
+    # Assert
+    assert actual == [3, 4, 5, 6], "two calls and two reads; not a key set, a default or the owner"

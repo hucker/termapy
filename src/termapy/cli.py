@@ -349,9 +349,12 @@ class CLITerminal(TerminalHost):
         # runner when running a .run file in CLI mode -- see
         # ReplEngine._effective_capabilities.
         from termapy.plugins import detect_gui_apps
+        gui = detect_gui_apps()
         self.ctx.capabilities = CapabilitySet(
             interactive=True,
-            gui_apps=detect_gui_apps(),
+            gui_apps=gui,
+            # The CLI's only editor is the system one: it needs a desktop.
+            file_editor=gui,
             # ctx.ui.confirm is the y/n prompt on stdin (_confirm): /confirm
             # works in a CLI script, and a piped run reads No and stops.
             confirm_dialog=True,

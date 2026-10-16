@@ -798,7 +798,7 @@ AVAILABLE
 SUBCOMMANDS
   /cfg.auto       Set immediately (no confirmation).
   /cfg.dump       Print the config (JSON) or a cfg-folder file to the terminal.
-  /cfg.edit       Open the config file in the system editor.
+  /cfg.edit       Edit the current config file.
   /cfg.explore    Open config directory in file explorer.
   /cfg.help       Show /cfg help.
   /cfg.icon       Create a desktop / menu launcher for the current cfg.
@@ -984,7 +984,7 @@ SUBCOMMANDS
   /proto.crc        Browse and compute CRC algorithms.
   /proto.debug      Interactive protocol debug screen.
   /proto.dump       Print the newest (or named) file from proto/ to the terminal.
-  /proto.edit       Open a .pro file in the system editor.
+  /proto.edit       Open a .pro file for editing.
   /proto.explore    Open proto/ in the system file explorer.
   /proto.help       Show /proto help.
   /proto.hex        Toggle hex display of incoming bytes (same flag as /term.hex).
@@ -1004,7 +1004,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
-  /plugin.edit       Open a .py file in the system editor.
+  /plugin.edit       Open a .py file for editing.
   /plugin.explore    Open plugin/ in the system file explorer.
   /plugin.list       List files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
@@ -1126,7 +1126,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
-  /run.edit       Open a .run file in the system editor.
+  /run.edit       Open a .run file for editing.
   /run.explore    Open run/ in the system file explorer.
   /run.help       Show /run help, or print a script's docstring.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
@@ -1170,7 +1170,7 @@ demo> /help.plugin
   /credits      Print acknowledgments / third-party attributions.
   /delay        Wait for a duration (e.g. 500ms, 1.5s); Escape or Ctrl+C cancels.
   /dev          Device files: a part's registers as data (see /help devices).
-  /edit         Open a project file in the system editor.
+  /edit         Open a project file for editing (run/, proto/ or plugin/).
   /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).
   /exit         Exit termapy.
   /find         Navigate scrollback matches with an interactive find bar.

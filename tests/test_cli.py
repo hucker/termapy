@@ -57,7 +57,8 @@ def _grant_gui_apps(cli):
     what PluginContext.__post_init__ does at construction.  Lets these tests
     exercise the open behavior on a headless host (CI has no DISPLAY).
     """
-    caps = cli.ctx.capabilities.union(CapabilitySet(gui_apps=True))
+    # A CLI with a desktop has both: its system editor is its file editor.
+    caps = cli.ctx.capabilities.union(CapabilitySet(gui_apps=True, file_editor=True))
     cli.ctx.capabilities = caps
     cli.ctx.fs.capabilities = caps
 
@@ -368,11 +369,10 @@ class TestHookRun:
 
 
 class TestEditCfgCallableInCli:
-    """``/edit.cfg`` is registered as a sub_command of the ``edit``
-    built-in (see ``builtins/commands/edit.py``), so CLI gets it for
-    free -- TUI overrides with a modal config editor, but the builtin
-    handler in CLI spawns the system editor on the cfg file.  MCP
-    correctly hides the command via ``needs.gui_apps``.
+    """``/edit.cfg`` is a sub_command of the ``edit`` built-in (see
+    ``builtins/commands/edit.py``), the one /edit in every frontend: the
+    TUI opens it in its config editor, the CLI in the system editor
+    (``ctx.internal.edit_file``).  MCP hides it via ``needs.file_editor``.
 
     The CLI/MCP parity audit (notes/cli-mcp-parity-audit.md, item 3)
     initially flagged this as a gap; verification showed it already
@@ -381,14 +381,14 @@ class TestEditCfgCallableInCli:
     """
 
     def test_edit_cfg_registered_in_cli(self, cli):
-        """The CLI exposes edit.cfg, gated on gui_apps for headless hosts."""
+        """The CLI exposes edit.cfg, gated on file_editor (a desktop, in the CLI)."""
         # Arrange / Act
         plugin = cli.repl._plugins.get("edit.cfg")
 
         # Assert
         assert plugin is not None, "edit.cfg present in CLI plugin set"
-        assert plugin.needs.gui_apps, (
-            "edit.cfg needs gui_apps so headless CLI / MCP correctly gate it"
+        assert plugin.needs.file_editor, (
+            "edit.cfg needs file_editor so a CLI without a desktop and MCP correctly gate it"
         )
 
     def test_edit_cfg_opens_config_file_when_gui_apps_available(self, cli):
@@ -397,7 +397,7 @@ class TestEditCfgCallableInCli:
         # call without spawning a real editor.
         from termapy.plugins import CapabilitySet
 
-        cli.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True)
+        cli.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True, file_editor=True)
         cli.ctx.fs.capabilities = cli.ctx.capabilities
         opened = []
         cli.ctx.fs._open_file_impl = lambda path: opened.append(path)
@@ -417,7 +417,7 @@ class TestEditCfgCallableInCli:
         # Arrange
         from termapy.plugins import CapabilitySet
 
-        cli.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True)
+        cli.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True, file_editor=True)
         cli.ctx.fs.capabilities = cli.ctx.capabilities
         opened = []
         cli.ctx.fs._open_file_impl = lambda path: opened.append(path)
@@ -954,7 +954,7 @@ class TestEditTwins:
         original = cli.repl.dispatch("edit.run nope")
 
         # Assert
-        assert twin.error == "File not found: nope.run", "/run.edit no longer creates a script"
+        assert twin.error == "File not found: nope", "/run.edit no longer creates a script"
         assert original.error == twin.error, "both spellings fail alike"
 
     def test_bare_lists_the_folder_under_both_spellings(self, cli):

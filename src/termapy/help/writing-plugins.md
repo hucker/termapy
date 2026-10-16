@@ -537,7 +537,7 @@ COMMAND = Command(
 ```
 
 The recurring needs have **named profiles** -- `CapabilitySet.SERIAL_CONNECTED`,
-`.INTERACTIVE`, `.GUI_APPS`, `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`,
+`.INTERACTIVE`, `.GUI_APPS`, `.FILE_EDITOR`, `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`,
 `.SERIAL_INTERACTIVE` -- hover one in your editor for exactly what it gates.
 Spell out an unusual combination inline, as the `confirm_dialog` example
 above does.

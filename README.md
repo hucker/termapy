@@ -224,7 +224,7 @@ The most common ones:
 | `/term.encoding {name}`              | Show or set byte-decoding encoding (utf-8, latin-1, ...)                      |
 | `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
 | `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                          |
-| `/edit <file>`                       | Edit a project file (`run/`/`proto/` path)                                    |
+| `/edit <file>`                       | Edit a project file (`run/`, `proto/` or `plugin/`)                           |
 | `/edit.cfg`                          | Edit the current config file                                                  |
 | `/edit.log`                          | Open the session log in the system viewer                                     |
 | `/edit.info`                         | Open the info report in the system viewer                                     |

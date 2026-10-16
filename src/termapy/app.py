@@ -68,8 +68,10 @@ from termapy.dialogs import (
     ConfirmDialog,
     FilenameDialog,
     PortPicker,
+    ProtoEditor,
     ProtoPicker,
     QuickSetup,
+    ScriptEditor,
     ScriptPicker,
     UpdateAvailableDialog,
 )
@@ -695,42 +697,6 @@ class SerialTerminal(TerminalHost, App):
                         names.append(f"{d.name}/{f.name}")
         return names
 
-    def _resolve_project_file(self, name: str) -> Path | None:
-        """Resolve a user-supplied filename to an absolute path.
-
-        Handles prefixed paths (run/foo.run, proto/bar.pro).
-        Falls back to extension-based lookup for bare filenames.
-
-        Args:
-            name: User input (e.g. "run/demo.run", "test.pro").
-
-        Returns:
-            Resolved Path, or None if not found.
-        """
-        # Prefixed path: "run/foo.run" or "proto/bar.pro"
-        dir_map = {
-            "run": self.repl.scripts_dir,
-            "proto": self.repl.proto_dir,
-        }
-        parts = Path(name).parts
-        if len(parts) == 2:
-            base = dir_map.get(parts[0].lower())
-            if base:
-                path = base / parts[1]
-                return path if path.exists() else None
-
-        # Bare filename fallback by extension
-        ext = Path(name).suffix.lower()
-        ext_map = {
-            ".run": self.repl.scripts_dir,
-            ".pro": self.repl.proto_dir,
-        }
-        base = ext_map.get(ext)
-        if base:
-            path = base / name
-            return path if path.exists() else None
-        return None
-
     def _rebuild_suggester_commands(self) -> None:
         """Rebuild the cached command list (call on plugin/config/file changes)."""
         prefix = cmd_prefix(self.cfg)
@@ -1220,6 +1186,8 @@ class SerialTerminal(TerminalHost, App):
             tui_mode=True,
             interactive=True,
             gui_apps=detect_gui_apps(),
+            # Its own config and script editors work over SSH too.
+            file_editor=True,
             # The operator is the caller on their own machine: no sandbox.
             filesystem_unconfined=True,
             network_egress=True,
@@ -1702,6 +1670,22 @@ class SerialTerminal(TerminalHost, App):
         self._btn_dtr.display = show
         self._btn_rts.display = show
         self._btn_break.display = show
+
+    def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
+        """``/cfg.load``'s apply step in the TUI: the screen's own switch, done before the command returns.
+
+        ``TerminalHost._load_config`` resolves the name and words the
+        failure for every frontend; this replaces only how a found config
+        is applied.  ``_switch_config`` rebuilds the screen, so it runs on
+        main, and ``_on_main`` waits for it from the dispatch worker.
+        """
+        try:
+            cfg = load_config(config_path)
+        except CONFIG_LOAD_ERRORS as e:
+            return CmdResult.fail(msg=f"Cannot load config: {e}")
+        self._on_main(self._switch_config, cfg, config_path)
+        self._on_main(self._show_config_info, config_path)
+        return CmdResult.ok(value=config_path)
 
     def _switch_config(self, cfg: dict, path: str) -> None:
         """Apply a new config: disconnect, update state, refresh UI, reconnect."""
@@ -2497,6 +2481,42 @@ class SerialTerminal(TerminalHost, App):
         """Delegate to ``pickers.on_quick_setup``."""
         from termapy.pickers import on_quick_setup
         on_quick_setup(self, *args, **kwargs)
+    def _edit_file(self, path: Path) -> None:
+        """``ctx.internal.edit_file``: the TUI's own editor for the config, a .run or a .pro file.
+
+        Anything else goes to the system editor through ``ctx.fs.open_file``,
+        which needs a desktop.  /edit decides which file; this is the TUI's
+        half, so the TUI registers no /edit commands of its own (review
+        2026-10-15, D5).  Runs on a dispatch worker: the screens are pushed
+        on main.
+        """
+        ext = path.suffix.lower()
+        if self.config_path and path == Path(self.config_path):
+            config_path = self.config_path
+
+            def open_editor() -> None:
+                self.push_screen(
+                    ConfigEditor(dict(self.cfg), config_path), callback=self._on_config_result,
+                )
+        elif ext == ".run":
+            def open_editor() -> None:
+                self.push_screen(
+                    ScriptEditor(self.repl.scripts_dir, str(path)), callback=self._on_script_saved,
+                )
+        elif ext == ".pro":
+            def open_editor() -> None:
+                self.push_screen(
+                    ProtoEditor(self.repl.proto_dir, str(path)), callback=self._on_proto_saved,
+                )
+        else:
+            self.repl.ctx.fs.open_file(path)
+            return
+        # One no-argument call on main: ``_on_main`` forwards to
+        # ``call_from_thread``, whose own first parameter is ``callback``,
+        # so push_screen's ``callback=`` cannot ride through it.  Every
+        # typed /edit failed that way from its dispatch worker.
+        self._on_main(open_editor)
+
     def _palette_edit_config(self) -> None:
         self.push_screen(
             ConfigEditor(dict(self.cfg), self.config_path),
@@ -2594,22 +2614,6 @@ class SerialTerminal(TerminalHost, App):
         # path also reads the current screen, so the palette must
         # be gone first.
         self.call_after_refresh(self.repl.dispatch, "ss.txt")
-
-    _HELP_TOPICS = [
-        "getting-started",
-        "toolbar",
-        "commands",
-        "config",
-        "custom-buttons",
-        "scripting",
-        "protocol-testing",
-        "data-capture",
-        "symbols",
-        "memory",
-        "writing-plugins",
-        "using-git",
-        "demo",
-    ]
 
     def _palette_help(self) -> None:
         self._hook_help_open(None, "")

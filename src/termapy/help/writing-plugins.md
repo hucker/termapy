@@ -537,13 +537,17 @@ COMMAND = Command(
 ```
 
 The recurring needs have **named profiles** -- `CapabilitySet.SERIAL_CONNECTED`,
-`.INTERACTIVE`, `.GUI_APPS`, `.FILE_EDITOR`, `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`,
-`.SERIAL_INTERACTIVE` -- hover one in your editor for exactly what it gates.
+`.CONFIG_LOADED`, `.INTERACTIVE`, `.GUI_APPS`, `.FILE_EDITOR`, `.SCREEN_CAPTURE`,
+`.TUI_MODE`, `.BLOCK_UNTIL`, `.SERIAL_INTERACTIVE`, `.CONFIG_GUI_APPS` -- hover
+one in your editor for exactly what it gates.
 Spell out an unusual combination inline, as the `confirm_dialog` example
 above does.
 
 The handler then doesn't need to check `is_connected` -- the dispatcher
-returns `Not connected.` automatically when the port is down.
+returns `Not connected.` automatically when the port is down.  A command
+that works in the config's folder declares `CapabilitySet.CONFIG_LOADED`
+the same way, and the dispatcher answers `No config loaded.` when there
+is none.
 
 ## Bytes and hex
 

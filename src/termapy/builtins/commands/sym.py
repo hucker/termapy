@@ -31,6 +31,7 @@ from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import (
     BoundaryException,
+    CapabilitySet,
     CmdResult,
     Command,
     UsageError,
@@ -207,8 +208,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     if not path.is_file():
         return CmdResult.fail(msg=not_found_message("Map file", raw, ctx.config_path))
     dest = sidecar_path(ctx.config_path)
-    if dest is None:
-        return CmdResult.fail(msg="No config loaded.")
+    assert dest is not None, "/sym.import declares config_loaded"
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as e:
@@ -435,6 +435,7 @@ COMMAND = Command(
             ],
             help="Convert a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same map).",
             handler=_handler_import,
+            needs=CapabilitySet.CONFIG_LOADED,
         ),
         "load": Command(
             params=[

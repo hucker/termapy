@@ -3,7 +3,7 @@
 ``list_entries`` / ``file_columns`` / ``format_file_lines`` / ``file_record``
 feed every ``/x.list`` command, the TUI file pickers, and the MCP capture
 records, so their order and shape are pinned here once rather than per
-consumer.
+consumer.  So is what the generated folder subcommands declare they need.
 """
 
 from __future__ import annotations
@@ -12,11 +12,13 @@ import os
 import time
 
 from termapy.folder_ops import (
+    build_folder_subcommands,
     file_columns,
     file_record,
     format_file_lines,
     list_entries,
 )
+from termapy.folders import FOLDERS
 
 
 def _make(folder, name: str, payload: bytes, age_s: float = 0.0):
@@ -105,3 +107,20 @@ class TestFileRecord:
         """A missing file still yields every key, with zero bytes and None times."""
         actual = file_record(tmp_path / "gone.bin")
         assert actual == {"name": "gone.bin", "bytes": 0, "mtime": None, "age_s": None}
+
+
+class TestFolderSubcommandNeeds:
+    def test_every_folder_subcommand_needs_a_config(self):
+        """state-answered-by-gate: every generated folder subcommand declares config_loaded, so the gate answers for all."""
+        # Arrange / Act
+        undeclared = [
+            f"{spec.name}.{sub}"
+            for spec in FOLDERS
+            for sub, command in build_folder_subcommands(spec.name).items()
+            if not command.needs.config_loaded
+        ]
+
+        # Assert
+        assert undeclared == [], (
+            f"these would reach _folder_path with no config loaded: {undeclared}"
+        )

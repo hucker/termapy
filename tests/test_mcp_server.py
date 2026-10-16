@@ -95,6 +95,22 @@ class TestCatalog:
         # Assert
         assert "/term.send" in names, "/term.send present (Phase 2.5)"
 
+    def test_the_catalog_lists_commands_a_config_or_port_unlocks(self, host):
+        """state-answered-by-gate: a command that needs an open port or a config is listed while the port is closed.
+
+        The catalog read the host's static capabilities until 2026-10-16, so
+        every command needing a port (/mem.read, /ping) was missing from it.
+        """
+        # Arrange -- the fixture host has no port open
+        assert not host.engine.is_connected, "precondition: the port is closed"
+
+        # Act
+        names = {command["name"] for command in build_catalog(host.ctx)["commands"]}
+
+        # Assert
+        assert {"/ping", "/mem.read", "/run.list"} <= names, "attainable needs are not filters"
+        assert "/cls" not in names, "a need MCP can never meet still filters (interactive)"
+
     def test_catalog_emits_types_block_when_profile_declares_types(self, host):
         """Profile-declared types reach the catalog with kind, values and range intact."""
         # Arrange -- seed an active profile with a types block.
@@ -1049,11 +1065,11 @@ class TestRunCommandsAvailableInMCP:
         assert bare.value == listed.value, "bare /run is /run.list"
 
     def test_run_list_dump_callable_from_mcp(self, host):
-        """run.list, run.dump and run.legacy are all callable under MCP capabilities."""
-        # Arrange / Act
+        """run.list, run.dump and run.legacy are all callable under MCP capabilities, with its config loaded."""
+        # Arrange / Act -- the gate's own set: the static one plus the live config
         for name in ("run.list", "run.dump", "run.legacy"):
             plugin = host.repl._plugins.get(name)
-            missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+            missing = list(plugin.needs.missing_from(host.repl._effective_capabilities()))
 
             # Assert
             assert plugin is not None, f"{name} registered in MCP host"

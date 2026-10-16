@@ -43,7 +43,7 @@ from termapy.devices import (
 from termapy.devices.converters import FORMATS, find_converter
 from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, state_line
-from termapy.plugins import BoundaryException, CmdResult, Command, UsageError
+from termapy.plugins import BoundaryException, CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.symbols import get_devices, install_devices, parse_number
 from termapy.symbols.format import (
@@ -79,8 +79,6 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     fmt = ctx.arg("format") or ""
     if not raw:
         raise UsageError()
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
     # Reading an arbitrary path is a parse/existence oracle under MCP;
     # contain to the sandbox unless the operator opted out.
     ctx.fs.guard_external_path(raw, "Source path")
@@ -233,8 +231,6 @@ def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
     part = str(ctx.arg("part") or "").strip()
     if not part:
         raise UsageError()
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
     parts = scan_libraries(_library_layers(ctx))[0]
     match = next((p for p in parts if p.device == part), None)
     if match is None:
@@ -375,8 +371,7 @@ def _target_layer(ctx: PluginContext, to: str) -> tuple[Path, str] | CmdResult:
     if to == "global":
         return layers[0]
     if to == "cfg":
-        if len(layers) < 2:
-            return CmdResult.fail(msg="No config loaded.")
+        # /dev.import declares config_loaded, so the config's layer is last.
         return layers[-1]
     return CmdResult.fail(msg=f"Invalid to: {to} (use cfg or global)")
 
@@ -471,6 +466,7 @@ COMMAND = Command(
             ],
             help="Convert a vendor register description (CMSIS-SVD) into this config's library and use it here.",
             handler=_handler_import,
+            needs=CapabilitySet.CONFIG_LOADED,
         ),
         "list": Command(
             help="List the devices this config has loaded, with their layer and placement.",
@@ -489,6 +485,7 @@ COMMAND = Command(
             ],
             help="Add a library part to this config, with where it sits on this board.",
             handler=_handler_use,
+            needs=CapabilitySet.CONFIG_LOADED,
         ),
         "lib": Command(
             params=[

@@ -257,8 +257,6 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context.
         args: Unused.
     """
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
     data_dir = Path(ctx.config_path).parent
     open_with_system(str(data_dir))
     return CmdResult.ok(value=data_dir)
@@ -270,8 +268,6 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     Mirrors ``/edit.cfg``; named ``cfg.show`` for symmetry with the
     folder ``.show`` family on /run, /proto, /ss, etc.
     """
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
     ctx.fs.open_file(Path(ctx.config_path))
     return CmdResult.ok(value=Path(ctx.config_path))
 
@@ -505,9 +501,6 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context.
         args: ``"--display"`` to open report externally.
     """
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
-
     try:
         report_path, colored_tree = write_info_report(ctx, trigger="by /cfg.info")
         ctx.io.output_markup(colored_tree)
@@ -597,11 +590,12 @@ COMMAND = Command(
             flags={"--display": "Open full report in the system viewer."},
             help="Print project summary (tree + config + buttons).",
             handler=_handler_info,
+            needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(
             help="Open config directory in file explorer.",
             handler=_handler_explore,
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
         "edit": edit_cfg_command(),
         "dump": Command(
@@ -612,7 +606,7 @@ COMMAND = Command(
         "show": Command(
             help="Open the current config file in the system viewer.",
             handler=_handler_show,
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
         "help": Command(
             help="Show /cfg help.",
@@ -629,12 +623,12 @@ COMMAND = Command(
             long_help=_ICON_LONG_HELP,
             handler=_handler_icon,
             flags=_ICON_FLAGS,
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.CONFIG_GUI_APPS,
             sub_commands={
                 "remove": Command(
                     help="Delete the launcher for the current cfg.",
                     handler=_handler_icon_remove,
-                    needs=CapabilitySet.GUI_APPS,
+                    needs=CapabilitySet.CONFIG_GUI_APPS,
                 ),
                 "list": Command(
                     help=(

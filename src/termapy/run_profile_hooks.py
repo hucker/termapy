@@ -73,11 +73,9 @@ def _hook_run_profile_cmd(app, ctx, args: str) -> CmdResult:
     return result
 
 
-def _hook_run_profile_show(app, ctx, args: str) -> CmdResult:
+def _hook_run_profile_show(ctx, args: str) -> CmdResult:
     """Open the newest .csv profile file in the system viewer."""
-    prof_dir = app._prof_dir()
-    if not prof_dir:
-        return CmdResult.fail(msg="No config loaded.")
+    prof_dir = ctx.fs.prof_dir
     profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
     if not profs:
         return CmdResult.fail(msg="No profile files found.")
@@ -87,11 +85,9 @@ def _hook_run_profile_show(app, ctx, args: str) -> CmdResult:
     return CmdResult.ok(value=newest)
 
 
-def _hook_run_profile_dump(app, ctx, args: str) -> CmdResult:
+def _hook_run_profile_dump(ctx, args: str) -> CmdResult:
     """Print newest (or named) profile file to the terminal."""
-    prof_dir = app._prof_dir()
-    if not prof_dir:
-        return CmdResult.fail(msg="No config loaded.")
+    prof_dir = ctx.fs.prof_dir
     name = args.strip()
     if name:
         path = prof_dir / name
@@ -111,20 +107,16 @@ def _hook_run_profile_dump(app, ctx, args: str) -> CmdResult:
     return CmdResult.ok(value=text)
 
 
-def _hook_run_profile_explore(app, ctx, args: str) -> CmdResult:
+def _hook_run_profile_explore(ctx, args: str) -> CmdResult:
     """Open the prof/ directory in the system file browser."""
-    prof_dir = app._prof_dir()
-    if not prof_dir:
-        return CmdResult.fail(msg="No config loaded.")
+    prof_dir = ctx.fs.prof_dir
     ctx.fs.open_file(str(ensure_folder(prof_dir)))
     return CmdResult.ok(value=prof_dir)
 
 
-def _hook_run_profile_list(app, ctx, args: str) -> CmdResult:
+def _hook_run_profile_list(ctx, args: str) -> CmdResult:
     """List .csv profile files in prof/, newest first, with size and age."""
-    prof_dir = app._prof_dir()
-    if not prof_dir:
-        return CmdResult.fail(msg="No config loaded.")
+    prof_dir = ctx.fs.prof_dir
     return file_table("prof/", "profile", list_entries(prof_dir, "*.csv"))
 
 
@@ -149,17 +141,17 @@ def register_run_profile_hooks(app) -> None:
         "run.profile.show",
         "",
         "Open the newest .csv profile in system viewer.",
-        lambda ctx, args: _hook_run_profile_show(app, ctx, args),
+        _hook_run_profile_show,
         source="app",
-        needs=CapabilitySet.GUI_APPS,
+        needs=CapabilitySet.CONFIG_GUI_APPS,
     )
     app.repl.register_hook(
         "run.profile.explore",
         "",
         "Open the prof/ directory in file explorer.",
-        lambda ctx, args: _hook_run_profile_explore(app, ctx, args),
+        _hook_run_profile_explore,
         source="app",
-        needs=CapabilitySet.GUI_APPS,
+        needs=CapabilitySet.CONFIG_GUI_APPS,
     )
     app.repl.register_hook(
         "run.profile.cmd",
@@ -172,14 +164,16 @@ def register_run_profile_hooks(app) -> None:
         "run.profile.dump",
         "{filename}",
         "Print newest (or named) profile to the terminal.",
-        lambda ctx, args: _hook_run_profile_dump(app, ctx, args),
+        _hook_run_profile_dump,
         source="app",
+        needs=CapabilitySet.CONFIG_LOADED,
         files="prof",
     )
     app.repl.register_hook(
         "run.profile.list",
         "",
         "List profile (.csv) files.",
-        lambda ctx, args: _hook_run_profile_list(app, ctx, args),
+        _hook_run_profile_list,
         source="app",
+        needs=CapabilitySet.CONFIG_LOADED,
     )

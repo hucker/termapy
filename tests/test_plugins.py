@@ -13,6 +13,19 @@ from termapy.plugins import (
 class TestCapabilitySet:
     """Algebra tests for the capability declaration dataclass."""
 
+    def test_attainable_grants_the_dynamic_fields_and_keeps_a_baseline_off(self):
+        """attainable() adds config, port and block_until without re-granting a baseline the set turned off."""
+        from termapy.plugins.capabilities import attainable
+
+        # Act
+        actual = attainable(CapabilitySet(serial_io=False))
+
+        # Assert
+        assert (actual.config_loaded, actual.serial_connected, actual.block_until) == (True, True, True), (
+            "every dynamic field is attainable"
+        )
+        assert actual.serial_io is False, "a union would have turned the sandboxed baseline back on"
+
     def test_empty_satisfies_empty(self):
         """A command with no needs runs in any environment."""
         # Arrange

@@ -1318,7 +1318,11 @@ class TestDispatchCapabilities:
 
     def test_restricted_baseline_gates_ordinary_command(self, cap_env):
         """Flipping a baseline capability off gates commands that didn't
-        declare anything special.
+        declare anything special, while a dynamic capability is live.
+
+        The fixture has a config loaded, so ``config_loaded`` is live: until
+        2026-10-16 the engine merged the dynamic fields with ``union``, which
+        re-granted every baseline the sandbox had turned off.
         """
         # Arrange - sandbox environment without serial_io.
         eng, ctx, _ = cap_env
@@ -1390,6 +1394,65 @@ class TestDispatchCapabilities:
         # Assert
         expected = "/xfer requires: serial_connected, interactive (not available in this environment)"
         assert result.error == expected
+
+    def _register_needing(self, eng, needs, called):
+        """Register a ``lister`` that records each run, declaring ``needs``."""
+        eng.register_plugin(
+            PluginInfo(
+                name="lister",
+                args="",
+                help="h",
+                handler=lambda c, a: called.append(True),
+                needs=needs,
+            )
+        )
+
+    def test_no_config_answers_no_config_loaded(self, cap_env):
+        """state-answered-by-gate: a command that needs a config answers No config loaded. before its handler runs."""
+        # Arrange -- the session has no config
+        eng, ctx, _ = cap_env
+        ctx.config_path = ""
+        called = []
+        self._register_needing(eng, CapabilitySet.CONFIG_LOADED, called)
+
+        # Act
+        result = eng.dispatch("lister")
+
+        # Assert
+        assert (result.success, result.error) == (False, "No config loaded."), "the state, not the environment"
+        assert called == [], "handler never invoked"
+
+    def test_no_config_and_no_port_answers_the_config_first(self, cap_env):
+        """state-answered-by-gate: missing both, the gate names the config, since loading one may open the port."""
+        # Arrange -- no config, and the context reports no open port
+        eng, ctx, _ = cap_env
+        ctx.config_path = ""
+        self._register_needing(eng, CapabilitySet(config_loaded=True, serial_connected=True), [])
+
+        # Act
+        result = eng.dispatch("lister")
+
+        # Assert
+        assert result.error == "No config loaded.", "the config before the port"
+
+    def test_loading_a_config_opens_the_gate(self, cap_env):
+        """config_loaded is read per dispatch: the command refused without a config runs once one is loaded."""
+        # Arrange
+        eng, ctx, _ = cap_env
+        config_path = ctx.config_path
+        called = []
+        self._register_needing(eng, CapabilitySet.CONFIG_LOADED, called)
+
+        # Act -- unload, try; load, try again
+        ctx.config_path = ""
+        refused = eng.dispatch("lister")
+        ctx.config_path = config_path
+        ran = eng.dispatch("lister")
+
+        # Assert
+        assert refused.error == "No config loaded.", "refused while no config is loaded"
+        assert ran.success, f"runs once the config is back: {ran.error}"
+        assert called == [True], "the handler ran once, for the second dispatch"
 
 
 class TestOneScriptAtATime:

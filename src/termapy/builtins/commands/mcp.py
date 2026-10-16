@@ -195,16 +195,6 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 # ── /mcp.log ────────────────────────────────────────────────────────────────
 
 
-def _mcp_log_path(ctx: PluginContext) -> Path | None:
-    """Where the MCP server writes its session log for this config, or None without one.
-
-    ``config.mcp_log_path``, the path the MCP host writes, so neither
-    copies it.  Without a config the server keeps no log.  Returns the
-    path even when the file doesn't exist; callers check.
-    """
-    return mcp_log_path(ctx.config_path) if ctx.config_path else None
-
-
 def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     """Open the MCP session log in the system viewer.
 
@@ -218,9 +208,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     Mirrors ``/log.show`` for the regular session log.  Same idiom,
     different file.
     """
-    path = _mcp_log_path(ctx)
-    if path is None:
-        return CmdResult.fail(msg="No config loaded.")
+    path = mcp_log_path(ctx.config_path)
     if not path.exists():
         return CmdResult.fail(
             msg=(
@@ -244,9 +232,7 @@ def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
 
     Mirrors ``/log.dump`` for the regular session log (same count scheme).
     """
-    path = _mcp_log_path(ctx)
-    if path is None:
-        return CmdResult.fail(msg="No config loaded.")
+    path = mcp_log_path(ctx.config_path)
     if not path.exists():
         return CmdResult.fail(msg=f"MCP session log not found: {path}")
     # MCP's own log is inside the session dir (in-sandbox), so no external
@@ -262,9 +248,7 @@ def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
     MCP server.  Reports the path whether or not the file exists,
     with a marker noting absence.
     """
-    path = _mcp_log_path(ctx)
-    if path is None:
-        return CmdResult.fail(msg="No config loaded.")
+    path = mcp_log_path(ctx.config_path)
     marker = "" if path.exists() else "  (not yet created)"
     ctx.io.output(f"{path}{marker}")
     return CmdResult.ok(value=path)
@@ -306,16 +290,18 @@ COMMAND = Command(
         "log": Command(
             help="Open the MCP session log in the system viewer.",
             handler=_handler_log,
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.CONFIG_GUI_APPS,
             sub_commands={
                 "dump": Command(
                     args="{N}",
                     help="Print the MCP session log; N>0 last N lines, N<0 first N.",
                     handler=_handler_log_dump,
+                    needs=CapabilitySet.CONFIG_LOADED,
                 ),
                 "path": Command(
                     help="Print the MCP session log file path.",
                     handler=_handler_log_path,
+                    needs=CapabilitySet.CONFIG_LOADED,
                 ),
             },
         ),

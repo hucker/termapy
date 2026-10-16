@@ -79,8 +79,6 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
     ctx.internal.edit_file(Path(ctx.config_path))
     return CmdResult.ok(value=Path(ctx.config_path))
 
@@ -94,8 +92,6 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
     stem = Path(ctx.config_path).stem
     path = Path(ctx.config_path).parent / f"{stem}.md"
     if path.exists():
@@ -220,7 +216,7 @@ def edit_cfg_command() -> Command:
             "and /edit.cfg are the same command."
         ),
         handler=_handler_cfg,
-        needs=CapabilitySet.FILE_EDITOR,
+        needs=CapabilitySet(file_editor=True, config_loaded=True),
     )
 
 
@@ -268,7 +264,7 @@ COMMAND = Command(
         "info": Command(
             help="Open the info report in the system viewer.",
             handler=_handler_info,
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
     },
 )

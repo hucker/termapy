@@ -94,8 +94,9 @@ class InternalHandle:
     in_script: Callable = lambda: False
     # effective_capabilities() -> CapabilitySet: the engine's "what can a
     # command do RIGHT NOW" answer -- ctx.capabilities plus the dynamic
-    # fields (serial_connected while a port is open, block_until inside a
-    # script).  The same set the dispatch gate checks; /help reads it so
+    # fields (config_loaded while a config is loaded, serial_connected
+    # while a port is open, block_until inside a script).  The same set
+    # the dispatch gate checks; /help reads it so
     # REQUIRED CAPABILITIES rows double as live status.  None on a bare
     # test fake -> callers fall back to the static ctx.capabilities.
     effective_capabilities: Callable | None = None

@@ -101,8 +101,6 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """
     if not args:
         raise UsageError()
-    if not ctx.serial.is_connected():
-        return CmdResult.fail(msg="Not connected.")
     encoding = ctx.cfg.get("encoding", "utf-8")
     line_ending = ctx.cfg.get("eol", "\r")
     try:
@@ -625,6 +623,7 @@ COMMAND = Command(
             ),
             handler=_handler_send,
             raw_args=True,
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "line_no": Command(
             args="{on|off|toggle}",

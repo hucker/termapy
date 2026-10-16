@@ -57,6 +57,7 @@ from termapy.plugins import (
     format_usage,
     load_plugins_from_dir,
 )
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.params import parse_params
 from termapy.scripting import (
     expand_template,
@@ -1589,8 +1590,8 @@ class ReplEngine:
             _echo(self.format_echo_markup(cmd, eol_label))
 
         if is_connected and not is_connected():
-            _fail_status("Not connected.", "red")
-            return CmdResult.fail(msg="Not connected.")
+            _fail_status(STATE_MESSAGES["serial_connected"], "red")
+            return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
 
         # Opt-in typed-arg validation against the active profile.  Off by
         # default so a typist gets raw wire access -- device errors are
@@ -1829,11 +1830,12 @@ class ReplEngine:
             # A mismatch fails with a clear message naming what's missing,
             # rather than letting the handler hit a no-op lambda or crash.
             missing = plugin.needs.missing_from(self._effective_capabilities())
-            if missing == ["serial_connected"]:
-                # A closed port is session state the user can change, not
-                # an environment limit: answer as every handler and the
-                # bare-line path do (CapabilitySet.SERIAL_CONNECTED).
-                return _finish(CmdResult.fail(msg="Not connected."))
+            if missing and set(missing) <= STATE_MESSAGES.keys():
+                # No config or a closed port is session state the user can
+                # change, not an environment limit: answer with the state,
+                # config first (registry ``state-answered-by-gate``).
+                state = next(need for need in STATE_MESSAGES if need in missing)
+                return _finish(CmdResult.fail(msg=STATE_MESSAGES[state]))
             if missing:
                 return _finish(CmdResult.fail(
                     msg=f"{self.prefix}{name} requires: {', '.join(missing)} "
@@ -2440,6 +2442,7 @@ class ReplEngine:
           - ``block_until``: true only inside a script (script runner
             executes on a background thread where blocking is safe).
           - ``serial_connected``: true only when a port is currently open.
+          - ``config_loaded``: true only while a config is loaded.
 
         Kept here as a single point of truth for "what can this command
         do right now" so every dispatch sees a consistent effective set.
@@ -2455,6 +2458,10 @@ class ReplEngine:
         is_connected = getattr(serial, "is_connected", None) if serial is not None else None
         if is_connected is not None and is_connected():
             dynamic_fields["serial_connected"] = True
-        if dynamic_fields:
-            effective = effective.union(CapabilitySet(**dynamic_fields))
-        return effective
+        # ctx.config_path is what every handler reads; "" means none loaded.
+        if self.ctx.config_path:
+            dynamic_fields["config_loaded"] = True
+        # replace, not union: a fresh CapabilitySet has every baseline True,
+        # so a union re-granted any baseline a sandbox had turned off the
+        # moment a port opened or a script ran.
+        return replace(effective, **dynamic_fields)

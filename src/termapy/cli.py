@@ -489,18 +489,6 @@ class CLITerminal(TerminalHost):
     # ``/run`` handler can use ``ctx.internal.run_script`` uniformly
     # across CLI and MCP.  No CLI-specific override needed.
 
-    def _prof_dir(self) -> Path | None:
-        """Return the prof/ directory for the current config, or None.
-
-        Used by ``/run.profile.show``, ``/run.profile.dump``,
-        ``/run.profile.explore``, ``/run.profile.list``.  Mirrors
-        ``SerialTerminal._prof_dir`` so the shared
-        ``run_profile_hooks`` handlers work unchanged.
-        """
-        if not self.config_path:
-            return None
-        return Path(self.config_path).parent / "prof"
-
     def _hook_demo(self, ctx, args: str):
         """Set up and switch to demo device config."""
         from termapy.config import cfg_dir, setup_demo_config

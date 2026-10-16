@@ -182,10 +182,12 @@ def format_file_lines(files: list[Path]) -> list[str]:
     return [f"{row.name}  {row.size}  {row.age}" for row in file_columns(files)]
 
 
-def _folder_path(ctx: PluginContext, folder: str) -> Path | None:
-    """Return the absolute per-config path for ``folder``, or None."""
-    if not ctx.config_path:
-        return None
+def _folder_path(ctx: PluginContext, folder: str) -> Path:
+    """Return the absolute per-config path for ``folder``.
+
+    Every folder command declares ``config_loaded``, so dispatch has
+    answered "No config loaded." before a handler asks.
+    """
     return Path(ctx.config_path).parent / folder
 
 
@@ -225,8 +227,6 @@ def _make_list_handler(folder: str, pattern: str, noun: str = "file"):
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
-        if data_dir is None:
-            return CmdResult.fail(msg="No config loaded.")
         return file_table(f"{folder}/", noun, list_entries(data_dir, pattern))
 
     return handler
@@ -241,8 +241,6 @@ def _make_explore_handler(folder: str):
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
-        if data_dir is None:
-            return CmdResult.fail(msg="No config loaded.")
         ctx.fs.open_file(ensure_folder(data_dir))
         return CmdResult.ok(value=data_dir)
 
@@ -254,8 +252,6 @@ def _make_show_handler(folder: str, pattern: str):
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
-        if data_dir is None:
-            return CmdResult.fail(msg="No config loaded.")
         if not data_dir.exists():
             ctx.io.output(f"  {folder}/ is empty.")
             return CmdResult.ok(value="")
@@ -283,8 +279,6 @@ def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
-        if data_dir is None:
-            return CmdResult.fail(msg="No config loaded.")
         name = args.strip()
         if name:
             # Containment: .dump reads files from within the folder only.
@@ -336,8 +330,6 @@ def _make_clear_handler(folder: str, pattern: str):
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
-        if data_dir is None:
-            return CmdResult.fail(msg="No config loaded.")
         if not data_dir.exists():
             ctx.io.output(f"  {folder}/ is already empty.")
             return CmdResult.ok(value="0")
@@ -398,8 +390,6 @@ def _make_rename_handler(folder: str, ext: str):
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
-        if data_dir is None:
-            return CmdResult.fail(msg="No config loaded.")
         old_name = str(ctx.arg("old"))
         # The file a bare old name means, for the message: it is gone after.
         shown = default_file_name(data_dir / old_name, ext).name
@@ -448,15 +438,17 @@ def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Comma
         "list": Command(
             help=f"List files in {folder}/, newest first, with size and age.",
             handler=_make_list_handler(folder, pattern, noun),
+            needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(
             help=f"Open {folder}/ in the system file explorer.",
             handler=_make_explore_handler(folder),
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
         "rename": Command(
             help=f"Rename a file in {folder}/ (extension kept; never overwrites).",
             handler=_make_rename_handler(folder, spec.ext),
+            needs=CapabilitySet.CONFIG_LOADED,
             files=folder,
             params=[
                 ParamSpec("old", "str", positional=True, required=True,
@@ -470,18 +462,20 @@ def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Comma
         subs["show"] = Command(
             help=f"Open the newest file in {folder}/ with the system viewer.",
             handler=_make_show_handler(folder, pattern),
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.CONFIG_GUI_APPS,
         )
     if spec.dumpable:
         subs["dump"] = Command(
             args="{filename}",
             help=f"Print the newest (or named) file from {folder}/ to the terminal.",
             handler=_make_dump_handler(folder, pattern, spec.ext),
+            needs=CapabilitySet.CONFIG_LOADED,
             files=folder,
         )
     if spec.clearable:
         subs["clear"] = Command(
             help=f"Delete all files in {folder}/.",
             handler=_make_clear_handler(folder, pattern),
+            needs=CapabilitySet.CONFIG_LOADED,
         )
     return subs

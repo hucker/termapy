@@ -3533,12 +3533,6 @@ class SerialTerminal(TerminalHost, App):
         return open_picker(self, *args, **kwargs)
     _PROFILE_TMP_PREFIX = "_profile_tmp_"
 
-    def _prof_dir(self) -> Path | None:
-        """Return the prof/ directory, or None if no config loaded."""
-        if not self.config_path:
-            return None
-        return Path(self.config_path).parent / "prof"
-
     _script_last_label: str = ""
 
     def on_serial_terminal_script_started(self, event: ScriptStarted) -> None:

@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from typing import ClassVar
 
 
@@ -120,6 +120,9 @@ class CapabilitySet:
     #        (``scripts_dir``, ``proto_dir``, ...) are populated and
     #        readable.
     # Where: Every environment.  Tests sometimes use a synthetic config.
+    #        Note: having a config *loaded* is the ``config_loaded``
+    #        capability below -- this one only says the fields are
+    #        wired up (``config_path`` is ``""`` when none is loaded).
     config_read: bool = True
 
     # ── Restrictive (default False) ──────────────────────────────────────
@@ -165,6 +168,18 @@ class CapabilitySet:
     #        *reading* the render surface; this is about *using* TUI-only
     #        features at runtime.
     tui_mode: bool = False
+
+    # What:  A config is loaded: ``ctx.config_path`` names its file, so
+    #        the config's folder and the data folders under it are
+    #        there to read and write.
+    # Where: Dynamic -- evaluated per dispatch from ``ctx.config_path``.
+    #        Any environment once a config is loaded; the zero-config
+    #        CLI and the TUI's startup picker begin without one.
+    #        Commands that work in the config's folder (/run.list,
+    #        /cfg.info, /sym.import, ...) declare this need so dispatch
+    #        answers "No config loaded." instead of each handler
+    #        re-implementing the check.
+    config_loaded: bool = False
 
     # What:  A serial port is currently open and transmitting.
     # Where: Dynamic -- evaluated per dispatch by checking
@@ -235,6 +250,13 @@ class CapabilitySet:
     The command sends or reads bytes; dispatch answers ``Not connected.``
     before the handler runs instead of every handler re-checking."""
 
+    CONFIG_LOADED: ClassVar["CapabilitySet"]
+    """Needs a LOADED config (``config_loaded=True``).
+
+    The command works in the config's folder (its data folders, sidecars,
+    report); dispatch answers ``No config loaded.`` before the handler
+    runs instead of every handler re-checking."""
+
     INTERACTIVE: ClassVar["CapabilitySet"]
     """Needs a human at an interactive session (``interactive=True``).
 
@@ -281,6 +303,13 @@ class CapabilitySet:
     ``serial_connected=True, interactive=True`` -- an XMODEM/YMODEM run
     holds the port and needs someone watching the progress."""
 
+    CONFIG_GUI_APPS: ClassVar["CapabilitySet"]
+    """Opens the loaded config's files in a desktop app the user SEES.
+
+    ``config_loaded=True, gui_apps=True`` -- the ``.explore`` and
+    ``.show`` commands: a folder or file of the config, opened in the
+    file explorer or the system viewer."""
+
     def satisfied_by(self, provided: "CapabilitySet") -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(
@@ -316,6 +345,7 @@ class CapabilitySet:
 # The named profiles declared as ClassVars above.  Assigned here because a
 # class body cannot reference the class it is defining.
 CapabilitySet.SERIAL_CONNECTED = CapabilitySet(serial_connected=True)
+CapabilitySet.CONFIG_LOADED = CapabilitySet(config_loaded=True)
 CapabilitySet.INTERACTIVE = CapabilitySet(interactive=True)
 CapabilitySet.GUI_APPS = CapabilitySet(gui_apps=True)
 CapabilitySet.FILE_EDITOR = CapabilitySet(file_editor=True)
@@ -323,6 +353,7 @@ CapabilitySet.SCREEN_CAPTURE = CapabilitySet(screen_capture=True)
 CapabilitySet.TUI_MODE = CapabilitySet(tui_mode=True)
 CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
 CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interactive=True)
+CapabilitySet.CONFIG_GUI_APPS = CapabilitySet(config_loaded=True, gui_apps=True)
 
 
 # ── Requirement hints ────────────────────────────────────────────────────────
@@ -341,6 +372,7 @@ REQUIREMENT_HINTS: dict[str, str] = {
     "status_bar": "the TUI's status line",
     "screen_capture": "the TUI's render surface (screenshots, screen text)",
     "tui_mode": "the TUI (switch with /tui)",
+    "config_loaded": "a loaded config",
     "serial_connected": "an open serial port",
     "interactive": "an interactive session (a human at a terminal; not MCP)",
     "gui_apps": "a local desktop that can open apps the user sees",
@@ -348,6 +380,40 @@ REQUIREMENT_HINTS: dict[str, str] = {
     "filesystem_unconfined": "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)",
     "network_egress": "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
 }
+
+
+# ── Session-state answers ────────────────────────────────────────────────────
+# The dynamic fields that are session STATE the user can change, not limits
+# of the environment.  When they are all a command lacks, dispatch answers
+# with the state rather than "requires: ... (not available in this
+# environment)".  In order: with neither, load a config first (it may open
+# the port too).  The one place these answers are spelled (registry
+# ``state-answered-by-gate``).
+STATE_MESSAGES: dict[str, str] = {
+    "config_loaded": "No config loaded.",
+    "serial_connected": "Not connected.",
+}
+
+
+# ── Attainable capabilities ──────────────────────────────────────────────────
+# The dynamic fields are ATTAINABLE in every environment rather than
+# properties of one: any host can load a config (``config_loaded`` via
+# /cfg.load), open a port (``serial_connected`` via /port.connect) and reach
+# a blocking-safe thread (``block_until``: .run scripts under TUI/CLI; the
+# MCP host grants it outright).  The dispatch gate reads them live
+# (``ReplEngine._effective_capabilities``); whatever answers "can this
+# command EVER run here" -- /help's AVAILABLE row, ``/help --mcp``, the MCP
+# catalog -- grants them through ``attainable``.
+ATTAINABLE: tuple[str, ...] = ("config_loaded", "serial_connected", "block_until")
+
+
+def attainable(caps: CapabilitySet) -> CapabilitySet:
+    """``caps`` with every dynamic capability granted: what it could EVER do.
+
+    ``replace``, not ``union``: a fresh ``CapabilitySet`` has every baseline
+    True, so a union would also re-grant a baseline ``caps`` turned off.
+    """
+    return replace(caps, **dict.fromkeys(ATTAINABLE, True))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -445,18 +511,11 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
             network_egress=MCP_NET_EGRESS,
         ),
     }
-    # Dynamic capabilities are ATTAINABLE in every environment rather
-    # than properties of one: any host can open a port
-    # (``serial_connected`` via /port.connect) and any host can reach a
-    # blocking-safe thread (``block_until``: .run scripts under TUI/CLI;
-    # the MCP host opts in directly on its ctx.capabilities).  This
-    # matrix answers "can the command EVER run there"; "is it available
-    # RIGHT NOW" is the REQUIRED CAPABILITIES section's job (its
-    # "(missing)" marker).  Without this union every serial command
-    # rendered "TUI: no  CLI: no  MCP: no" -- statically wrong, and
-    # /help expect's matrix contradicted its own description text.
-    attainable = CapabilitySet(serial_connected=True, block_until=True)
-    return {name: caps.union(attainable) for name, caps in environments.items()}
+    # This matrix answers "can the command EVER run there"; "is it
+    # available RIGHT NOW" is the REQUIRED CAPABILITIES section's job (its
+    # "(missing)" marker).  Without the dynamic capabilities every serial
+    # command rendered "TUI: no  CLI: no  MCP: no" -- statically wrong.
+    return {name: attainable(caps) for name, caps in environments.items()}
 
 
 ENVIRONMENTS: dict[str, "CapabilitySet"] = _build_environments()

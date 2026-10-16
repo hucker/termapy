@@ -465,10 +465,8 @@ _LAUNCHER_COLUMNS = (
 # ── Handler entry points ─────────────────────────────────────────────────────
 
 
-def _resolve_name(ctx: PluginContext) -> tuple[str, str, Path] | None:
-    """Return (display_name, filename_stem, cfg_path), or None if no cfg."""
-    if not ctx.config_path:
-        return None
+def _resolve_name(ctx: PluginContext) -> tuple[str, str, Path]:
+    """Return (display_name, filename_stem, cfg_path) for the loaded config."""
     cfg_path = Path(ctx.config_path).resolve()
     stem = cfg_path.stem
     name = str(ctx.cfg.get("title") or stem).strip() or stem
@@ -477,18 +475,12 @@ def _resolve_name(ctx: PluginContext) -> tuple[str, str, Path] | None:
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """``/cfg.icon`` -- create a desktop launcher for the current cfg."""
-    resolved = _resolve_name(ctx)
-    if resolved is None:
-        return CmdResult.fail(msg="No config loaded.")
-    return _create(ctx, *resolved, ctx.flag("--force"))
+    return _create(ctx, *_resolve_name(ctx), ctx.flag("--force"))
 
 
 def _handler_remove(ctx: PluginContext, args: str) -> CmdResult:
     """``/cfg.icon.remove`` -- delete the launcher for the current cfg."""
-    resolved = _resolve_name(ctx)
-    if resolved is None:
-        return CmdResult.fail(msg="No config loaded.")
-    name, stem, _ = resolved
+    name, stem, _ = _resolve_name(ctx)
     return _remove(ctx, name, stem)
 
 

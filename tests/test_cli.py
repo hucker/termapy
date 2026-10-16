@@ -459,8 +459,7 @@ class TestHookRunProfile:
     def test_list_enumerates_csvs(self, cli, capsys):
         """Every profile CSV in prof/ appears in the listing."""
         # Arrange
-        prof_dir = cli._prof_dir()
-        assert prof_dir is not None, "fixture cfg gives prof_dir"
+        prof_dir = cli.repl.prof_dir
         prof_dir.mkdir(exist_ok=True)
         (prof_dir / "first.csv").write_text("")
         (prof_dir / "second.csv").write_text("")
@@ -484,8 +483,7 @@ class TestHookRunProfile:
     def test_dump_prints_newest_csv(self, cli, capsys):
         """With no name given, dump prints the newest CSV's contents."""
         # Arrange
-        prof_dir = cli._prof_dir()
-        assert prof_dir is not None, "fixture cfg gives prof_dir"
+        prof_dir = cli.repl.prof_dir
         prof_dir.mkdir(exist_ok=True)
         prof_path = prof_dir / "demo.csv"
         prof_path.write_text("step,dt_ms\n0,1.5\n")
@@ -523,8 +521,7 @@ class TestHookRunProfile:
         # 'older'), causing the wrong file to be picked as "newest."
         import os
 
-        prof_dir = cli._prof_dir()
-        assert prof_dir is not None, "fixture cfg gives prof_dir"
+        prof_dir = cli.repl.prof_dir
         prof_dir.mkdir(exist_ok=True)
         older = prof_dir / "older.csv"
         older.write_text("")
@@ -553,8 +550,7 @@ class TestHookRunProfile:
     def test_explore_opens_prof_dir(self, cli):
         """Explore opens the prof/ folder itself and returns its path."""
         # Arrange
-        prof_dir = cli._prof_dir()
-        assert prof_dir is not None, "fixture cfg gives prof_dir"
+        prof_dir = cli.repl.prof_dir
         _grant_gui_apps(cli)
         opened: list[str] = []
         cli.ctx.fs._open_file_impl = opened.append

@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 import termapy
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 SRC = Path(termapy.__file__).parent
 BUILTINS_DIR = SRC / "builtins"
@@ -1945,6 +1946,84 @@ def test_failure_printers_has_no_stale_entries():
     # Assert
     stale = sorted(set(FAILURE_PRINTERS) - used)
     assert stale == [], f"allowlisted but no longer printing a failure; drop them: {stale}"
+
+
+# ── A missing config or port is answered by the gate ─────────────────────────
+#
+# 2026-10-16: some thirty handlers each checked ``ctx.config_path`` and spelled
+# "No config loaded." themselves.  A command that needs a loaded config or an
+# open port declares it (``CapabilitySet.CONFIG_LOADED`` / ``.SERIAL_CONNECTED``)
+# and the dispatch gate answers from ``capabilities.STATE_MESSAGES``, so no
+# handler spells the answer.  A handler checks the state itself only where one
+# branch needs it and the rest of the command does not; each such site is
+# listed here with its branch.
+
+# (module, function): the branch that needs the state, or why the gate cannot.
+STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
+    ("builtins/commands/cfg.py", "_handler_dump"): "bare prints the in-memory cfg; only a named file needs the config's folder",
+    ("builtins/commands/sym.py", "_handler_load"): "an explicit path loads without a config; only bare reads the sidecar",
+    ("builtins/commands/proto.py", "_handler_send"): "--dry-run sends nothing",
+    ("builtins/commands/proto.py", "_handler_crc_find"): "only cmd= mode talks to the device",
+    ("builtins/commands/proto.py", "_handler_crc_reverse"): "only cmd= mode talks to the device",
+    ("builtins/commands/var.py", "_handler_capture"): "only a device-command capture sends; a slash command does not",
+    ("builtins/commands/profile.py", "_load_from_device"): "only cmd= reads the profile from the device",
+    ("builtins/commands/raw.py", "_handler"): "typed /raw reaches the handler from dispatch_full, past the gate, so the text stays as typed",
+}
+
+
+def _state_answers(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every failure that spells a ``STATE_MESSAGES`` answer."""
+    answers = set(STATE_MESSAGES.values())
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if isinstance(node, ast.Call) and _is_fail_call(node):
+            message = _fail_message(node)
+            if isinstance(message, ast.Constant) and message.value in answers:
+                sites.append((qualname, node.lineno))
+    return sites
+
+
+def test_a_missing_config_or_port_is_answered_by_the_gate():
+    """state-answered-by-gate: no handler spells "No config loaded." or "Not connected."; its command declares the need."""
+    # Arrange / Act
+    violations, _ = _unallowed(_state_answers, STATE_CHECKED_IN_A_BRANCH)
+
+    # Assert
+    assert violations == [], (
+        "declare needs=CapabilitySet.CONFIG_LOADED / .SERIAL_CONNECTED and drop the check, "
+        "or list a branch-only check in STATE_CHECKED_IN_A_BRANCH:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_state_answer_guard_fires_on_a_probe():
+    """The guard flags each spelled answer, positional or msg=, and passes other states and the table."""
+    # Arrange
+    source = '''
+def handler(ctx, args):
+    if not ctx.config_path:
+        return CmdResult.fail(msg="No config loaded.")
+    if not ctx.serial.is_connected():
+        return CmdResult.fail("Not connected.")
+    if a:
+        return CmdResult.fail(msg="No log file.")
+    return CmdResult.fail(msg=STATE_MESSAGES["config_loaded"])
+'''
+
+    # Act
+    lines = [line for _, line in _state_answers(ast.parse(source))]
+
+    # Assert
+    assert lines == [4, 6], "both spelled answers; not another state, not the table's own"
+
+
+def test_state_checked_in_a_branch_has_no_stale_entries():
+    """Every STATE_CHECKED_IN_A_BRANCH function still checks the state, so no entry outlives its branch."""
+    # Arrange / Act
+    _, used = _unallowed(_state_answers, STATE_CHECKED_IN_A_BRANCH)
+
+    # Assert
+    stale = sorted(set(STATE_CHECKED_IN_A_BRANCH) - used)
+    assert stale == [], f"listed but no longer checking the state; drop them: {stale}"
 
 
 # ── The session log has one owner per frontend ────────────────────────────────

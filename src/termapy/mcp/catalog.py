@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from termapy.folder_ops import file_record, list_entries
 from termapy.plugins import CapabilitySet, resolve_long_help
+from termapy.plugins.capabilities import attainable
 from termapy.profile import TypeRegistry, typedef_to_catalog
 
 if TYPE_CHECKING:
@@ -67,13 +68,16 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
 
     plugins = ctx.internal.plugins
     # Filter to commands the LLM can actually invoke meaningfully:
-    # ``needs`` not satisfied by ``ctx.capabilities`` -- the capability
-    # gate would reject these at dispatch.  The MCP host advertises
-    # neither ``interactive`` nor ``gui_apps``, so commands that
-    # require a human at a terminal (/grep, /cls, /seq, ...) or a
-    # local desktop (/edit, /help.open, ...) are filtered out
-    # automatically.  TUI-only commands (/term.line_no via tui_mode,
-    # /confirm via confirm_dialog) drop out the same way.
+    # ``needs`` this host can never satisfy -- the capability gate would
+    # reject these at dispatch.  The MCP host advertises neither
+    # ``interactive`` nor ``gui_apps``, so commands that require a human
+    # at a terminal (/grep, /cls, /seq, ...) or a local desktop (/edit,
+    # /help.open, ...) are filtered out automatically.  TUI-only
+    # commands (/term.line_no via tui_mode, /confirm via confirm_dialog)
+    # drop out the same way.  A loaded config and an open port are
+    # ``attainable``, not filters: until 2026-10-16 this read the static
+    # set, and every command that needs a port (/mem.*, /ping, /cap.*)
+    # was missing from the catalog an agent discovers commands by.
     #
     # The ``hidden`` flag is intentionally NOT a filter.  ``hidden``
     # is a UI-discoverability concern (don't list in /help) used for
@@ -81,10 +85,11 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     # Hidden plugins still appear in the catalog with ``hidden: true``
     # so MCP clients that want to skip them can do it themselves.
     capabilities = getattr(ctx, "capabilities", None)
+    reachable = attainable(capabilities) if capabilities is not None else None
     cmd_list: list[dict[str, Any]] = []
     for name in sorted(plugins):
         plugin = plugins[name]
-        if capabilities is not None and plugin.needs.missing_from(capabilities):
+        if reachable is not None and plugin.needs.missing_from(reachable):
             continue
         cmd_list.append(_command_descriptor(plugin, ctx))
 

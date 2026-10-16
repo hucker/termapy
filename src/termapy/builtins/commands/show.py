@@ -57,8 +57,6 @@ def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for config path and output.
         args: Unused.
     """
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
     _show_file(ctx, Path(ctx.config_path))
     return CmdResult.ok(value=Path(ctx.config_path))
 
@@ -83,7 +81,7 @@ Examples:
         "cfg": Command(
             help="Show the current config file.",
             handler=_handler_cfg,
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
     },
 )

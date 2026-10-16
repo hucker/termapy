@@ -48,7 +48,7 @@ from termapy.folder_ops import (
     list_entries,
 )
 from termapy.folders import default_file_name
-from termapy.plugins import CmdResult, Column, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -107,8 +107,6 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     key in each data record).  Scripts without a docstring still appear
     with an empty summary, so the listing is never silently filtered.
     """
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
     files = list_entries(ctx.fs.scripts_dir, "*.run")
     summary = Column("SUMMARY", lambda record: record["summary"])
     return file_table(
@@ -154,6 +152,7 @@ _FOLDER_SUBS["list"] = Command(
     args="",
     help="List .run scripts, newest first, with size, age, and docstring summary.",
     handler=_handler_list,
+    needs=CapabilitySet.CONFIG_LOADED,
 )
 
 

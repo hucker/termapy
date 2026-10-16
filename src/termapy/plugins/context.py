@@ -158,7 +158,9 @@ class PluginContext:
 
     Methods on the base context (universal, not domain-specific):
 
-      - ``dispatch(cmd)``         -- re-dispatch a REPL command
+      - ``dispatch(cmd)``         -- re-dispatch a REPL command; pass
+        ``report=False`` when returning its result as your own answer,
+        so a failure prints once (registry ``failure-reported-once``)
       - ``wait_for_match(...)``   -- block until a line matches (capability-gated)
       - ``is_oneshot()``          -- True if running --run / --exec
       - ``ns(name)``              -- session-scoped namespace dict
@@ -190,7 +192,7 @@ class PluginContext:
     # These don't fit any single domain handle (dispatch routes to all
     # commands; wait_for_match is script-runner only; is_oneshot is a
     # property of the invocation environment).
-    dispatch: Callable = lambda cmd: None
+    dispatch: Callable = lambda cmd, report=True: None
     wait_for_match: Callable = lambda predicate, timeout=5.0: None
     is_oneshot: Callable = lambda: False
 

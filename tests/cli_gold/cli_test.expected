@@ -1287,16 +1287,16 @@ demo> /cfg nonexistent_key
   Error: Unknown config key: nonexistent_key
   [198/219] /cfg nonexistent_key (6us)
 demo> /port.baud_rate not_a_number
-  Invalid baud rate: not_a_number
+  Error: Invalid baud rate: not_a_number
   [199/219] /port.baud_rate not_a_number (133us)
 demo> /port.parity X
-  Invalid parity: X (use E, M, N, O, S)
+  Error: Invalid parity: X (use E, M, N, O, S)
   [200/219] /port.parity X (125us)
 demo> /port.dtr maybe
-  Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)
+  Error: Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)
   [201/219] /port.dtr maybe (126us)
 demo> /port.break -5
-  Invalid duration (use milliseconds, e.g. 250)
+  Error: Invalid duration (use milliseconds, e.g. 250)
   [202/219] /port.break -5 (116us)
 demo> /print === section: capability gates (tui_mode + screen_capture) ===
   === section: capability gates (tui_mode + screen_capture) ===

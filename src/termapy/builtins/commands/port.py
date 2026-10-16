@@ -31,6 +31,19 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
         ctx.serial.apply_port_effects(effects)
 
 
+def _answer(ctx: PluginContext, result: port_control.Result, value: str) -> CmdResult:
+    """A setter's answer: its refusal as the failure, else its lines and ``value``.
+
+    A refusal (``port_control.problem``) applies nothing and prints nothing
+    here; dispatch prints the failure once.
+    """
+    refusal = port_control.problem(result)
+    if refusal is not None:
+        return CmdResult.fail(msg=refusal)
+    _apply(ctx, result)
+    return CmdResult.ok(value=value)
+
+
 def _page(ctx: PluginContext, report: port_control.Report) -> CmdResult:
     """A port page as a record answer, or its problem line and an empty value.
 
@@ -94,7 +107,6 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
     try:
         roots = gather_usb_tree()
     except UnsupportedPlatform as exc:
-        ctx.io.output(str(exc), "yellow")
         return CmdResult.fail(msg=str(exc))
     # Structured consumer: the nested record tree (same shape as
     # ``--usb --json``), skipping the box-drawing render entirely.
@@ -109,7 +121,6 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
     if err:
-        ctx.io.output(err, "red")
         return CmdResult.fail(msg=err)
     # Network egress: a serial-over-URL "port" (socket://, rfc2217://)
     # opens an outbound TCP connection.  Refuse under the MCP sandbox so
@@ -121,7 +132,6 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
             "sandbox. Set TERMAPY_MCP_NET_EGRESS=1 in the server's shell to "
             "allow them."
         )
-        ctx.io.output(msg, "red")
         return CmdResult.fail(msg=msg)
     # Apply all optional settings to config before connecting so the
     # port opens with the requested settings.  Each branch is a no-op
@@ -147,17 +157,13 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
         ctx.serial.apply_port_effects(
             {"cfg_update": {"echo": echo}}
         )
-    ctx.serial.connect(port)
-    if not ctx.serial.is_connected():
-        # The port did not open (bad name, in use, ...).  Report failure so
-        # scripts and MCP see it instead of a false success -- the original
-        # bug was returning ok() unconditionally.  _connect already showed
-        # the specific reason via its status line, so use msg="" to avoid
-        # printing that same error a second time (see var.py's
-        # capture-abort pattern).  Note: a /port.connect issued while
-        # already connected only re-applies cfg settings and stays
-        # connected -- that is not a failure and falls through to ok().
-        return CmdResult.fail(msg="")
+    # The port not opening (bad name, in use, ...) raises its reason, which
+    # is this command's failure.  A /port.connect issued while already
+    # connected only re-applies the cfg settings above; that is not a failure.
+    try:
+        ctx.serial.connect(port)
+    except OSError as e:
+        return CmdResult.fail(msg=str(e))
     return CmdResult.ok(value=port or "")
 
 
@@ -196,23 +202,19 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
     result = port_control.set_mode(ctx.internal.port(), ctx.cfg, args)
-    _apply(ctx, result)
-    return CmdResult.ok(value=_joined_value(result))
+    return _answer(ctx, result, _joined_value(result))
 
 
 def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
     result = port_control.get_set_flow(ctx.internal.port(), ctx.cfg, args)
-    _apply(ctx, result)
-    return CmdResult.ok(value=_joined_value(result))
+    return _answer(ctx, result, _joined_value(result))
 
 
 def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
     result = port_control.send_break(ctx.internal.port(), args)
-    _apply(ctx, result)
-    # Break is a pure side-effect.  Return the (typically empty / status)
-    # message text so silent scripts get something deterministic instead
-    # of None.
-    return CmdResult.ok(value=_joined_value(result))
+    # Break is a pure side-effect.  Return the "Break sent" line so silent
+    # scripts get something deterministic instead of None.
+    return _answer(ctx, result, _joined_value(result))
 
 
 def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
@@ -330,10 +332,8 @@ def _joined_value(result: port_control.Result) -> str:
 def _make_prop_handler(key: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, key, args)
-        _apply(ctx, result)
         # Only return value on read (no args); set returns prose not useful as value
-        value = _read_value(result) if not args.strip() else ""
-        return CmdResult.ok(value=value)
+        return _answer(ctx, result, _read_value(result) if not args.strip() else "")
 
     return _handler
 
@@ -341,9 +341,7 @@ def _make_prop_handler(key: str):
 def _make_hw_handler(line: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_hw_line(ctx.internal.port(), line, args)
-        _apply(ctx, result)
-        value = _read_value(result) if not args.strip() else ""
-        return CmdResult.ok(value=value)
+        return _answer(ctx, result, _read_value(result) if not args.strip() else "")
 
     return _handler
 
@@ -352,8 +350,7 @@ def _make_signal_handler(signal: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Signals are always read-only; extract value from the single msg
         result = port_control.read_signal(ctx.internal.port(), signal, args)
-        _apply(ctx, result)
-        return CmdResult.ok(value=_read_value(result))
+        return _answer(ctx, result, _read_value(result))
 
     return _handler
 

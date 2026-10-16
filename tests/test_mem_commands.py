@@ -637,6 +637,24 @@ class TestSpaceForm:
         assert result.success, result.error
         assert result.value == "1B00", "identical to /mem.dump gTemp 2"
 
+    def test_a_failed_redirect_answers_once_with_the_subcommands_error(self, cli, capsys):
+        """failure-reported-once: /mem dump on a closed port fails with Not connected., printed once.
+
+        The redirect handed up a failure the subcommand had already printed,
+        so the line showed twice (review 2026-10-15, S4).
+        """
+        # Arrange
+        cli._disconnect()
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch("mem dump gTemp 2")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert (result.success, result.error) == (False, "Not connected."), "the subcommand's failure is the answer"
+        assert out.count("Not connected.") == 1, "printed once, at the redirect's exit"
+
     def test_unknown_subcommand_names_the_choices(self, cli):
         """An unknown word after /mem is an error that lists the real subcommands."""
         result = cli.repl.dispatch("mem bogus 1")

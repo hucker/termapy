@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import queue
+import threading
 import time
 
 import pytest
 
 from termapy.builtins.commands._xmodem_handlers import QueueByteReader
+from termapy.cli import CLITerminal
+from termapy.defaults import DEFAULT_CFG
 from termapy.demo import FakeSerial, _xmodem_crc16
+from termapy.folders import ensure_folder
 from termapy.vendor.xmodem import XMODEM
 
 # -- QueueByteReader tests -------------------------------------------------
@@ -437,3 +442,83 @@ class TestXmodemLibraryIntegration:
         assert ok is True, "transfer succeeded"
         received = dev.vfs["roundtrip.bin"]
         assert received[:len(test_data)] == test_data, "roundtrip data matches"
+
+
+# -- /xfer.xmodem.recv through the dispatcher --------------------------------
+
+
+@pytest.fixture
+def cli(tmp_path):
+    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
+    config_path = tmp_path / "rig" / "rig.cfg"
+    config_path.parent.mkdir()
+    config_path.write_text(json.dumps(cfg))
+    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
+    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
+    terminal.repl.global_root = tmp_path
+    assert terminal._connect() is True, "the DEMO port opens"
+    yield terminal
+    terminal._disconnect()
+
+
+def _wait_for(condition, what: str, timeout_s: float = 5.0) -> None:
+    """Poll ``condition`` until it holds; fail naming ``what`` after ``timeout_s``."""
+    deadline = time.monotonic() + timeout_s
+    while not condition():
+        assert time.monotonic() < deadline, f"timed out waiting for {what}"
+        time.sleep(0.01)
+
+
+class TestRecvCommand:
+    """/xfer.xmodem.recv leaves a file at its name alone unless a receive completes.
+
+    It used to open the name with "wb" before a byte arrived and delete
+    it on cancel, so a receive to the wrong name destroyed the file that
+    was there (review 2026-10-15, X1).
+    """
+
+    def test_a_completed_receive_replaces_the_file(self, cli):
+        """A full transfer lands at the name with the 0x1A padding stripped, replacing the old file."""
+        # Arrange -- an old file at the name, the device sending config.dat
+        target = cli.ctx.fs.cap_dir / "got.bin"
+        ensure_folder(target.parent)
+        target.write_bytes(b"old contents")
+        device = cli.engine.port_obj
+        assert isinstance(device, FakeSerial), "the DEMO engine opens a FakeSerial"
+        cli.repl.dispatch_full("AT+XMODEM=SEND config.dat")
+        # The OK reply must be read before the command drains the queue.
+        _wait_for(lambda: device.in_waiting == 0 and not cli.engine.rx_queue.empty(), "the OK reply")
+
+        # Act
+        result = cli.repl.dispatch_full("/xfer.xmodem.recv got.bin")
+
+        # Assert
+        assert result.success, result.error
+        assert target.read_bytes() == bytes(range(64)), "config.dat, padding stripped"
+        assert not target.with_name("got.bin.part").exists(), "the partial file was moved into place"
+
+    def test_a_canceled_receive_leaves_the_old_file(self, cli):
+        """A receive canceled before any data arrives fails and leaves the file at its name untouched."""
+        # Arrange -- nothing is sending; the receive waits for a sender
+        target = cli.ctx.fs.cap_dir / "keep.bin"
+        ensure_folder(target.parent)
+        target.write_bytes(b"precious")
+        results = []
+        worker = threading.Thread(
+            target=lambda: results.append(cli.repl.dispatch_full("/xfer.xmodem.recv keep.bin")),
+        )
+
+        # Act -- cancel once the receive has started writing its partial file
+        worker.start()
+        _wait_for(target.with_name("keep.bin.part").exists, "the receive to start")
+        cli._xfer_cancel.set()
+        worker.join(timeout=10)
+
+        # Assert
+        assert not worker.is_alive(), "the cancel ended the receive"
+        assert (results[0].success, results[0].error) == (False, "XMODEM recv canceled.")
+        assert target.read_bytes() == b"precious", "the file at the name survived the cancel"
+        assert not target.with_name("keep.bin.part").exists(), "the partial file is gone"

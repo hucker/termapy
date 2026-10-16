@@ -1807,6 +1807,39 @@ class TestPickersNeedAConfig:
         _run(scenario)
 
 
+class TestFailureReportedOnce:
+    """failure-reported-once in the TUI, whose ``ctx.dispatch`` is ``_dispatch_single``.
+
+    The TUI replaces the host's ``ctx.dispatch`` with its guarded
+    ``_dispatch_single``.  When the capture began passing ``report=False``
+    that override took no such argument, so every ``$(X) <- /cmd`` in the
+    TUI failed with a TypeError (found by the stage A manual test,
+    2026-10-16); the CLI-rig tests could not see it.
+    """
+
+    def test_a_failed_capture_answers_with_the_inner_error_once(self, app_factory):
+        """$(B) <- a refused command fails with the inner error, shown once on screen."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app._connect() is True, "DEMO port should connect"
+
+                # Act
+                result = app._dispatch_single("$(B) <- /port.baud_rate fast")
+                await pilot.pause()
+
+                # Assert
+                assert (result.success, result.error) == (False, "Invalid baud rate: fast"), (
+                    "the inner failure is the capture's answer"
+                )
+                text = app._get_screen_text()
+                assert text.count("Invalid baud rate: fast") == 1, f"shown once. Screen was: {text!r}"
+                app._disconnect()
+
+        _run(scenario)
+
+
 class TestDelayHook:
     """``/delay`` of a second or more animates the bottom-bar progress bar.
 

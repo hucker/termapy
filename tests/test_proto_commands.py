@@ -338,7 +338,8 @@ class TestRun:
         out = capsys.readouterr().out
 
         # Assert
-        assert result.success is True, result.error
+        assert (result.success, result.error) == (False, "2 of 4 tests failed"), "a failed expect fails the run"
+        assert Path(result.value) == script.resolve(), "the value is still the script that ran"
         assert "Flat demo" in out and "every.pro - 13 steps" in out, "the banner: @name, then the step count"
         assert "[PROTO] hello" in out and "PASS (4 bytes, " in out, "the text expect matched OK CR LF"
         assert "[PROTO] wrong answer" in out, "a labeled failing expect"
@@ -359,10 +360,30 @@ class TestRun:
         out = capsys.readouterr().out
 
         # Assert
-        assert result.success is True, result.error
+        assert (result.success, result.error) == (False, "2 of 3 tests failed"), "a failed test fails the run"
         assert out.count("CMD: AT") == 3, "script setup, the second test's setup, script teardown"
         assert "[PROTO] silent" in out and "(timeout after 50ms)" in out, "an unanswered send is a timeout FAIL"
         assert "Results: 1/3 PASS" in out
+
+    def test_a_failing_suite_answers_json_with_its_results(self, cli, tmp_path, capsys):
+        """failure-is-failure: a failing suite answers --json with success false and the results as data.
+
+        Until 2026-10-16 /proto.run returned success whatever failed, so a
+        regression .run or an agent saw a failing suite pass; ``termapy
+        --proto`` already exited 1.
+        """
+        # Arrange
+        script = _pro(tmp_path, "mixed.pro", _TOML_MIXED)
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(f"/proto.run {script} --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+
+        # Assert
+        assert (envelope["success"], envelope["error"]) == (False, "2 of 3 tests failed")
+        assert result.data["summary"]["failed"] == 2, "the results document rides on the failure"
+        assert envelope["data"]["summary"] == result.data["summary"], "and reaches the envelope"
 
     def test_a_flat_script_without_steps_is_refused(self, cli, tmp_path):
         """A flat script with directives but no steps fails as having no steps."""

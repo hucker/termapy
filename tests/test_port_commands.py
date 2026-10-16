@@ -84,18 +84,20 @@ class TestSignals:
             assert result.value == expected, f"{signal} mirrors the port"
 
     def test_a_value_is_refused_as_read_only(self, cli, capsys):
-        """An input signal takes no argument: the line says so and the value is empty."""
+        """An input signal takes no argument: the command fails saying so, printed once, with no level."""
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.dsr 1")
-        assert "DSR is read-only" in capsys.readouterr().out
-        assert result.value == "", "a warning is not a scriptable level"
+        assert (result.success, result.error) == (False, "DSR is read-only"), "a refusal is a failure"
+        assert capsys.readouterr().out.count("DSR is read-only") == 1, "dispatch prints it, once"
+        assert result.value == "", "a refusal is not a scriptable level"
 
     def test_disconnected_reports_not_connected(self, cli, capsys):
-        """Without an open port a signal read says Not connected and returns no level."""
+        """Without an open port a signal read fails with Not connected and returns no level."""
         cli._disconnect()
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.cd")
         assert "Not connected." in capsys.readouterr().out
+        assert (result.success, result.error) == (False, "Not connected."), "no port, no level"
         assert result.value == ""
 
 
@@ -125,16 +127,18 @@ class TestHardwareLines:
         port = _demo_port(cli)
         port.rts = True
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.rts maybe")
+        result = cli.repl.dispatch_full("/port.rts maybe")
         assert "Invalid RTS value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)" in capsys.readouterr().out
+        assert result.success is False, "a refused value fails the command"
         assert port.rts is True, "a refused value leaves the line alone"
 
     def test_disconnected_reports_not_connected(self, cli, capsys):
-        """A line read or set without an open port says Not connected."""
+        """A line read or set without an open port fails with Not connected."""
         cli._disconnect()
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.dtr 1")
+        result = cli.repl.dispatch_full("/port.dtr 1")
         assert "Not connected." in capsys.readouterr().out
+        assert result.success is False, "nothing was set"
 
 
 # ── frame properties ────────────────────────────────────────────────────────
@@ -170,15 +174,28 @@ class TestProperties:
         """A data-bits value outside 5-8 is refused with the valid set, and nothing changes."""
         port = _demo_port(cli)
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.byte_size 9")
+        result = cli.repl.dispatch_full("/port.byte_size 9")
         assert "Invalid data bits: 9 (use 5, 6, 7, 8)" in capsys.readouterr().out
+        assert result.success is False, "a refused value fails the command"
         assert (port.bytesize, cli.cfg["serial"]["byte_size"]) == (8, 8), "refused value applied nowhere"
 
     def test_a_non_number_is_refused(self, cli, capsys):
-        """A baud rate that is not an integer is refused by name."""
+        """failure-is-failure: a baud rate that is not an integer fails by name, printed once.
+
+        Until 2026-10-16 every /port.* setter printed its refusal and
+        returned success, so a script or agent read a typo as applied.
+        """
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.baud_rate fast")
-        assert "Invalid baud rate: fast" in capsys.readouterr().out
+        result = cli.repl.dispatch_full("/port.baud_rate fast")
+        assert (result.success, result.error) == (False, "Invalid baud rate: fast"), "a refusal is a failure"
+        assert capsys.readouterr().out.count("Invalid baud rate: fast") == 1, "dispatch prints it, once"
+
+    def test_json_carries_the_refusal(self, cli, capsys):
+        """A refused set answers --json with success false and the reason in error."""
+        capsys.readouterr()
+        cli.repl.dispatch_full("/port.baud_rate fast --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert (envelope["success"], envelope["error"]) == (False, "Invalid baud rate: fast")
 
     def test_disconnected_read_shows_the_cfg_value_and_strips_the_annotation(self, cli, capsys):
         """Without an open port the cfg value is shown as '<v> (disconnected)' and the value is the bare number."""
@@ -225,8 +242,9 @@ class TestMode:
         """A token that is neither a baud rate nor a frame is refused with an example, and nothing changes."""
         port = _demo_port(cli)
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.mode fast")
+        result = cli.repl.dispatch_full("/port.mode fast")
         assert "Invalid mode argument: fast (use e.g. 9600 N81)" in capsys.readouterr().out
+        assert result.success is False, "a refused line fails the command"
         assert port.baudrate == 115200, "a refused line applies nothing"
 
     def test_two_frames_are_refused(self, cli, capsys):
@@ -239,8 +257,9 @@ class TestMode:
         """A mode set without an open port says Not connected and leaves the cfg alone."""
         cli._disconnect()
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.mode 9600")
+        result = cli.repl.dispatch_full("/port.mode 9600")
         assert "Not connected." in capsys.readouterr().out
+        assert result.success is False, "nothing was set"
         assert cli.cfg["serial"]["baud_rate"] == 115200, "the cfg did not move without a port"
 
 
@@ -278,8 +297,9 @@ class TestFlowControl:
         """A mode outside none/rtscts/xonxoff/manual is refused with the valid set, and nothing changes."""
         port = _demo_port(cli)
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.flow_control bogus")
+        result = cli.repl.dispatch_full("/port.flow_control bogus")
         assert "Invalid flow control: bogus (use none/rtscts/xonxoff/manual)" in capsys.readouterr().out
+        assert result.success is False, "a refused mode fails the command"
         assert (port.rtscts, cli.cfg["serial"]["flow_control"]) == (False, "none"), "refused mode applied nowhere"
 
     def test_disconnected_read_carries_the_annotation(self, cli, capsys):
@@ -303,15 +323,17 @@ class TestBreak:
     def test_a_non_positive_duration_is_refused(self, cli, capsys):
         """A zero or non-numeric duration is refused with the unit named."""
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.break 0")
+        result = cli.repl.dispatch_full("/port.break 0")
         assert "Invalid duration (use milliseconds, e.g. 250)" in capsys.readouterr().out
+        assert result.success is False, "no break was sent"
 
     def test_disconnected_reports_not_connected(self, cli, capsys):
-        """A break without an open port says Not connected."""
+        """A break without an open port fails with Not connected."""
         cli._disconnect()
         capsys.readouterr()
-        cli.repl.dispatch_full("/port.break")
+        result = cli.repl.dispatch_full("/port.break")
         assert "Not connected." in capsys.readouterr().out
+        assert result.success is False, "no break was sent"
 
 
 # ── /port.info ──────────────────────────────────────────────────────────────
@@ -381,6 +403,63 @@ class TestConnect:
         assert result.success is False
         assert "Duplicate baud rate" in result.error
         assert cli.cfg["serial"]["baud_rate"] == 115200, "nothing applied on a refused line"
+
+    def test_a_port_that_does_not_open_fails_with_its_reason(self, cli, capsys):
+        """failure-reported-once: an open that fails answers with why, in error and printed once.
+
+        The reason used to reach only the host's status line while the
+        command failed with an empty error, so --json and MCP said nothing.
+        """
+        # Arrange
+        cli._disconnect()
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/port.connect DEMO_FAIL")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert result.success is False, "the port did not open"
+        assert result.error.startswith("Cannot open DEMO_FAIL"), result.error
+        assert out.count("Cannot open DEMO_FAIL") == 1, "dispatch prints it; the status line stays quiet"
+
+
+# ── a failed command captured into a variable ───────────────────────────────
+
+
+class TestCapture:
+
+    def test_a_failed_capture_answers_with_the_inner_error_once(self, cli, capsys):
+        """failure-reported-once: $(B) <- a refused command fails with its error, printed once, B unset.
+
+        The capture used to blank the error to dodge a double print, so an
+        agent saw success false with error "" (review 2026-10-15, S4).
+        """
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("$(B) <- /port.baud_rate fast")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert (result.success, result.error) == (False, "Invalid baud rate: fast"), "the inner failure is the answer"
+        assert out.count("Invalid baud rate: fast") == 1, "printed once, at the capture's exit"
+        assert cli.repl.dispatch_full("/var B").value == "", "B was not assigned"
+
+    def test_json_names_the_inner_error(self, cli, capsys):
+        """--json on a failed capture carries the inner error in the envelope and prints no line outside it."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("$(B) <- /port.baud_rate fast --json")
+        lines = capsys.readouterr().out.strip().splitlines()
+
+        # Assert
+        envelope = json.loads(lines[-1])
+        assert (envelope["success"], envelope["error"]) == (False, "Invalid baud rate: fast")
+        assert len(lines) == 1, "the envelope is the whole answer"
 
 
 # ── /port.chip family on the DEMO fleet ─────────────────────────────────────

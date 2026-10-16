@@ -30,7 +30,9 @@ command (e.g. after entering a bootloader's receive mode).
 ```
 
 Receive a file from the device and save it to the `cap/` directory.
-Supports auto-numbered filenames with `$(n000)`.
+Supports auto-numbered filenames with `$(n000)`. The data arrives as
+`<file>.part` and replaces `<file>` only when the transfer completes, so a
+canceled or failed receive leaves a file already at that name as it was.
 
 ```text
 /xfer.xmodem.recv dump.bin

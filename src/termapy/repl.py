@@ -1438,7 +1438,7 @@ class ReplEngine:
             target = f"{plugin.name}.{plugin.bare_sub}"
 
             def _run(ctx: PluginContext, args: str) -> CmdResult:
-                return self.dispatch(target)
+                return self.dispatch(target, report=False)
             return _run
         return None
 
@@ -1491,19 +1491,13 @@ class ReplEngine:
         plugin = self._plugins.get(name)
         return plugin.raw_args if plugin else False
 
-    def _validate_bare_typed_args(
-        self, cmd: str, _status: Callable[[str, str], None],
-    ) -> CmdResult | None:
+    def _validate_bare_typed_args(self, cmd: str) -> CmdResult | None:
         """Validate bound typed_args for a bare device command.
 
         Returns None to pass through (no profile match, no typed_args,
         all values valid, or no profile loaded).  Returns a
         ``CmdResult.fail`` when a value fails validation; the caller
-        short-circuits and does not write bytes to the wire.
-
-        Surfaces failures via the ``_status`` callback so the typist
-        sees the error in the terminal exactly as if the device had
-        replied with one.
+        shows it, short-circuits and does not write bytes to the wire.
         """
         profile = self.ctx.ns("active_profile")
         if not isinstance(profile, dict) or not profile:
@@ -1532,11 +1526,9 @@ class ReplEngine:
                 continue
             outcome = registry.validate(arg_type, bound[arg_name])
             if not outcome.ok:
-                msg = (
-                    f"Arg {arg_name!r} invalid for {name!r}: {outcome.error}"
+                return CmdResult.fail(
+                    msg=f"Arg {arg_name!r} invalid for {name!r}: {outcome.error}"
                 )
-                _status(msg, "red")
-                return CmdResult.fail(msg=msg)
         return None
 
     # -- Full dispatch pipeline ------------------------------------------------
@@ -1578,6 +1570,7 @@ class ReplEngine:
         serial_write: Callable[[bytes], None] | None = None,
         is_connected: Callable[[], bool] | None = None,
         eol_label: Callable[[str], str] | None = None,
+        report: bool = True,
     ) -> CmdResult:
         """Route a raw command through the full pipeline.
 
@@ -1593,6 +1586,7 @@ class ReplEngine:
             serial_write: Send encoded bytes to serial port.
             is_connected: Returns True if serial port is open.
             eol_label: Format a line ending string for display.
+            report: Show a failure here; ``dispatch``'s, on every path.
 
         Returns:
             CmdResult with success/error status and elapsed time.
@@ -1601,6 +1595,8 @@ class ReplEngine:
         _log = log or (lambda _d, _t: None)
         _echo = echo_markup or (lambda _t: None)
         _status = status or (lambda _t, _c: None)
+        # A failure line, silent when the caller answers with the result.
+        _fail_status = _status if report else (lambda _t, _c: None)
         # REPL/slash-command echo (/cfg, /help, /raw, directives, warnings)
         # is governed by echo_repl -- distinct from device-command echo
         # (self.echo / cfg echo), which fires on the bare-line path.
@@ -1623,7 +1619,7 @@ class ReplEngine:
             if echo_repl_on:
                 _echo(self.format_echo_markup(cmd))
             result = raw_plugin.handler(self.ctx, raw_text)
-            if not result.success:
+            if report and not result.success:
                 self.write(result.err_msg, "red")
             return result
 
@@ -1633,7 +1629,7 @@ class ReplEngine:
             _log(">", cmd)
             if echo_repl_on:
                 _echo(f"[cyan]> {escape_markup(cmd)}[/]")
-            return self.dispatch(result.payload)
+            return self.dispatch(result.payload, report=report)
         if result.action == "warn":
             _log(">", cmd)
             if echo_repl_on:
@@ -1645,7 +1641,7 @@ class ReplEngine:
             _log(">", cmd)
             if echo_repl_on:
                 _echo(f"[cyan]> {escape_markup(cmd)}[/]")
-            _status(f"Error: {result.payload}", "red")
+            _fail_status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
 
         # 3. REPL command (starts with prefix)
@@ -1664,9 +1660,9 @@ class ReplEngine:
                     try:
                         repl_cmd = self.transform_repl(repl_cmd)
                     except ValueError as e:
-                        _status(str(e), "red")
+                        _fail_status(str(e), "red")
                         return CmdResult.fail(msg=str(e))
-            return self.dispatch(repl_cmd)
+            return self.dispatch(repl_cmd, report=report)
 
         # 4. Non-prefix line -> rewrite to /term.send <text> and dispatch.
         #    Goal: every dispatched action has a discoverable slash-command
@@ -1689,7 +1685,7 @@ class ReplEngine:
             try:
                 cmd = self.transform_serial(cmd)
             except ValueError as e:
-                _status(str(e), "red")
+                _fail_status(str(e), "red")
                 return CmdResult.fail(msg=str(e))
 
         # Skip the legacy plain-text echo when request_mode is on -- the
@@ -1705,7 +1701,7 @@ class ReplEngine:
             _echo(self.format_echo_markup(cmd, eol_label))
 
         if is_connected and not is_connected():
-            _status("Not connected.", "red")
+            _fail_status("Not connected.", "red")
             return CmdResult.fail(msg="Not connected.")
 
         # Opt-in typed-arg validation against the active profile.  Off by
@@ -1715,8 +1711,10 @@ class ReplEngine:
         # MCP path uses.  Skips silently when no profile is loaded or
         # the command isn't a profile entry.
         if self.cfg.get("validate_typed_args"):
-            fail = self._validate_bare_typed_args(cmd, _status)
+            fail = self._validate_bare_typed_args(cmd)
             if fail is not None:
+                # Shown as if the device had replied with the error.
+                _fail_status(fail.error, "red")
                 return fail
 
         # Bridge dispatch_full's serial_write callback into ctx for the
@@ -1759,10 +1757,10 @@ class ReplEngine:
                     try:
                         self.ctx.serial.write(ending.encode(encoding))
                     except (OSError, UnicodeError, LookupError) as e:
-                        _status(f"Send error: {e}", "red")
+                        _fail_status(f"Send error: {e}", "red")
                         return CmdResult.fail(msg=f"Send error: {e}")
                 return CmdResult.ok(value="")
-            return self.dispatch(f"term.send {cmd}")
+            return self.dispatch(f"term.send {cmd}", report=report)
         finally:
             self.ctx.serial.write = saved_serial_write
             self.ctx._call_level = saved_bare_call_level
@@ -1795,7 +1793,7 @@ class ReplEngine:
         if token in self._post_dispatch_observers:
             self._post_dispatch_observers.remove(token)
 
-    def dispatch(self, line: str) -> CmdResult:
+    def dispatch(self, line: str, *, report: bool = True) -> CmdResult:
         """Parse and dispatch a REPL command (prefix already stripped).
 
         Splits the line into command name and args, expands sequence
@@ -1806,11 +1804,15 @@ class ReplEngine:
 
         Args:
             line: Command string without the REPL prefix (e.g. "grep error").
+            report: Print a failure here.  False when the caller answers
+                with this result (a forwarder, a redirect, a capture): its
+                own exit prints the failure, once (registry
+                ``failure-reported-once``).
 
         Returns:
             CmdResult with success/error status and elapsed time.
         """
-        result = self._dispatch_inner(line)
+        result = self._dispatch_inner(line, report=report)
         for post_dispatch_observer in self._post_dispatch_observers:
             try:
                 post_dispatch_observer(line, result)
@@ -1818,11 +1820,12 @@ class ReplEngine:
                 self.write(f"Observer error: {e}", "red")
         return result
 
-    def _dispatch_inner(self, line: str) -> CmdResult:
+    def _dispatch_inner(self, line: str, *, report: bool = True) -> CmdResult:
         """Original dispatch body -- pure dispatch logic, no observers.
 
         Extracted from ``dispatch()`` so the observer fire-site is one
         place at the wrapper level, not duplicated at every early return.
+        ``report`` is ``dispatch``'s.
         """
         parts = line.split(None, 1)
         if not parts:
@@ -1913,6 +1916,11 @@ class ReplEngine:
             Outside JSON mode a result's view (``CmdResult.table``'s
             table) is printed here too -- see ``_render_view``.  Either
             way the view is stripped: it never leaves dispatch.
+
+            The red line is printed only when this dispatch ``report``s:
+            a caller that answers with the result prints it at its own
+            exit, so a forwarded or captured failure shows once and keeps
+            its ``error`` for the envelope.
             """
             if wants_json:
                 self._emit_json_envelope(
@@ -1922,7 +1930,7 @@ class ReplEngine:
                     call_level=call_level,
                 )
                 return replace(result, view=None) if result.view is not None else result
-            if not result.success and result.error:
+            if report and not result.success and result.error:
                 self.write(result.err_msg, "red")
             return self._render_view(result, call_level)
 
@@ -1933,6 +1941,11 @@ class ReplEngine:
             # A mismatch fails with a clear message naming what's missing,
             # rather than letting the handler hit a no-op lambda or crash.
             missing = plugin.needs.missing_from(self._effective_capabilities())
+            if missing == ["serial_connected"]:
+                # A closed port is session state the user can change, not
+                # an environment limit: answer as every handler and the
+                # bare-line path do (CapabilitySet.SERIAL_CONNECTED).
+                return _finish(CmdResult.fail(msg="Not connected."))
             if missing:
                 return _finish(CmdResult.fail(
                     msg=f"{self.prefix}{name} requires: {', '.join(missing)} "

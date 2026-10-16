@@ -87,7 +87,7 @@ class TestBuildSerialHandle:
     """Serial lifecycle verbs delegate to the host (moved off ctx.internal)."""
 
     def test_connect_callback_wired(self, host):
-        """ctx.serial.connect reaches host._connect with the port name unchanged."""
+        """ctx.serial.connect reaches host._connect with the port name unchanged and the status line left quiet."""
         # Arrange
         host._connect = MagicMock()
 
@@ -96,8 +96,9 @@ class TestBuildSerialHandle:
         serial.connect("COM1")
 
         # Assert
-        # connect delegates to host (the mock method raises on mismatch)
-        host._connect.assert_called_once_with("COM1")
+        # connect delegates to host (the mock method raises on mismatch);
+        # report=False because the command answers for a failure itself.
+        host._connect.assert_called_once_with("COM1", report=False)
 
     def test_disconnect_callback_wired(self, host):
         """ctx.serial.disconnect reaches host._disconnect."""

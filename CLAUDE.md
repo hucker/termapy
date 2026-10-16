@@ -224,6 +224,7 @@ for any multi-arg command.
 - Sentence case: capitalize the first letter (`"Count is required"`, not `"count is required"`)
 - Exception: when the subject is a literal keyword/flag name, keep its native case (`"cmd= must have at least one command"`)
 - No leading whitespace — the dispatcher adds the `Error:` prefix and formats the line
+- **A failure is a failure, reported once, by dispatch** (registry `failure-is-failure`, `failure-reported-once`). A command that refuses returns `CmdResult.fail(msg)` with the reason, never `ok` beside a red line, never `fail(msg="")`, and prints none of it itself. A handler that answers with a nested command's result dispatches it with `report=False` (`ctx.internal.dispatch` always does) and returns it, so its own exit prints the failure once and `error` keeps the reason for scripts and agents. **Enforced by `tests/test_architecture.py`** for the empty message and the print-then-fail shape.
 - State statements end with a period: `"No config loaded."`, `"Not connected."`, `"No log file."`
 - Validation/lookup errors do NOT end with a period: `"Unknown config key: X"`, `"Invalid delay: Y"`
 - Standard phrasings (reuse these verbatim before inventing a new form):

@@ -929,7 +929,7 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset({
     "edit.log", "edit.plugin.list", "edit.proto.list", "edit.run.list",
     "help.plugin", "help.target", "ping.quiet",
     "term.encoding", "term.log", "term.send_bare_enter",
-    "xfer.root", "xfer.xmodem.recv", "xfer.xmodem.send", "xfer.ymodem.send",
+    "xfer.root", "xfer.xmodem.send", "xfer.ymodem.send",
 })
 
 
@@ -1765,3 +1765,184 @@ def test_kv_callers_has_no_stale_entries():
         + "\n  ".join(stale)
     )
     assert KV_RENDERER in actual, "the record view is where format_kv_lines is called"
+
+
+# ── A failure is reported once ───────────────────────────────────────────────
+#
+# Review 2026-10-15 (S4): an error had three owners -- the handler's own red
+# line, a host status line and dispatch's exit -- so a failure showed twice,
+# and the workaround, ``CmdResult.fail(msg="")``, emptied the JSON ``error``
+# an agent branches on.  Dispatch's exit is the one reporter: a handler
+# returns ``CmdResult.fail(msg)`` with the reason and prints none of it, and a
+# caller answering with a nested dispatch's result passes ``report=False``
+# (``ctx.internal.dispatch`` always does), so the failure prints once, at the
+# caller's exit.  A hint printed beside a failure is not the failure and passes.
+
+# (module, function): why it shows a failure itself.  These ARE the reporter.
+FAILURE_PRINTERS: dict[tuple[str, str], str] = {
+    ("repl.py", "ReplEngine.dispatch_full"): "a line's own exit on the paths that never reach a handler; silent under report=False",
+    ("app.py", "SerialTerminal._dispatch_quiet"): "the find-bar buttons' entry point; its callers discard the result, so the Busy line is the only report",
+}
+
+_OUTPUT_SINKS = frozenset({
+    "output", "output_markup", "result", "result_markup", "status", "status_markup",
+    "_write", "_write_markup", "write", "notify",
+})
+_ERROR_COLORS = frozenset({"red", "yellow"})
+
+
+def _is_fail_call(node: ast.AST | None) -> bool:
+    """True for ``<anything>.fail(...)``."""
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "fail"
+    )
+
+
+def _fail_message(call: ast.Call) -> ast.expr | None:
+    """The message a ``.fail(...)`` call passes, positional or ``msg=``."""
+    if call.args:
+        return call.args[0]
+    return next((keyword.value for keyword in call.keywords if keyword.arg == "msg"), None)
+
+
+def _sink_name(call: ast.Call) -> str:
+    """The called name, bare or the attribute (``ctx.io.output`` -> ``output``)."""
+    func = call.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return func.id if isinstance(func, ast.Name) else ""
+
+
+def _empty_failures(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every failure built with no message.
+
+    ``.fail()``, ``.fail("")``, ``.fail(msg="")``, and a ``CmdResult(...)``
+    built with ``success=False`` and no non-empty ``error``.
+    """
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if _is_fail_call(node):
+            message = _fail_message(node)
+            if message is None or (isinstance(message, ast.Constant) and message.value == ""):
+                sites.append((qualname, node.lineno))
+        elif isinstance(node.func, ast.Name) and node.func.id == "CmdResult":
+            keywords = {keyword.arg: keyword.value for keyword in node.keywords}
+            success = keywords.get("success")
+            error = keywords.get("error")
+            if (
+                isinstance(success, ast.Constant) and success.value is False
+                and (error is None or (isinstance(error, ast.Constant) and error.value == ""))
+            ):
+                sites.append((qualname, node.lineno))
+    return sites
+
+
+def _printed_failures(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every output call that prints the failure returned next.
+
+    The statement directly before a ``return <x>.fail(...)`` in the same
+    block, when it is an output call with a red or yellow color, or one
+    whose text is the failure's own message.
+    """
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        for field in ("body", "orelse", "finalbody"):
+            block = getattr(node, field, None)
+            if not isinstance(block, list):
+                continue
+            for previous, statement in zip(block, block[1:]):
+                if not (isinstance(statement, ast.Return) and _is_fail_call(statement.value)):
+                    continue
+                if not (isinstance(previous, ast.Expr) and isinstance(previous.value, ast.Call)):
+                    continue
+                call = previous.value
+                name = _sink_name(call)
+                if name not in _OUTPUT_SINKS and not name.endswith("_status"):
+                    continue
+                assert isinstance(statement.value, ast.Call), "checked by _is_fail_call"
+                message = _fail_message(statement.value)
+                colored = any(
+                    isinstance(arg, ast.Constant) and arg.value in _ERROR_COLORS
+                    for arg in [*call.args, *(keyword.value for keyword in call.keywords)]
+                )
+                repeated = (
+                    message is not None and bool(call.args)
+                    and ast.dump(call.args[0]) == ast.dump(message)
+                )
+                if colored or repeated:
+                    sites.append((qualname, previous.lineno))
+    return sites
+
+
+def test_a_failure_carries_its_message():
+    """failure-reported-once: no failure is built with an empty message, so ``error`` always says why."""
+    # Arrange / Act
+    violations, _ = _unallowed(_empty_failures, {})
+
+    # Assert
+    assert violations == [], (
+        "a failure carries its reason in error; to avoid printing it twice, return the "
+        "nested result (report=False) instead of blanking it:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_a_handler_never_prints_the_failure_it_returns():
+    """failure-reported-once: dispatch's exit prints a failure; nothing prints it beside the return."""
+    # Arrange / Act
+    violations, _ = _unallowed(_printed_failures, FAILURE_PRINTERS)
+
+    # Assert
+    assert violations == [], (
+        "return CmdResult.fail(msg) and let dispatch print it once; a hint line in the "
+        "default color is fine:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_failure_guard_fires_on_a_probe():
+    """Both failure guards flag an empty failure and a printed one, and pass a hint and a reason."""
+    # Arrange -- each forbidden shape, then the correct forms
+    source = '''
+def handler(ctx, args):
+    if a:
+        return CmdResult.fail(msg="")
+    if b:
+        return CmdResult.fail()
+    if c:
+        return CmdResult(success=False, error="", value="")
+    if d:
+        ctx.io.output(err, "red")
+        return CmdResult.fail(msg=err)
+    if e:
+        app._status("No log file to delete.", "yellow")
+        return CmdResult.fail(msg="No log file.")
+    if f:
+        ctx.io.output("No profile files found.")
+        return CmdResult.fail(msg="No profile files found.")
+    if g:
+        ctx.io.output("Use /proto.crc.list to see available algorithms.")
+        return CmdResult.fail(msg=f"Unknown algorithm: {name}")
+    return CmdResult.fail(msg="Not connected.")
+'''
+    tree = ast.parse(source)
+
+    # Act
+    empty = [line for _, line in _empty_failures(tree)]
+    printed = [line for _, line in _printed_failures(tree)]
+
+    # Assert
+    assert empty == [4, 6, 8], "fail(msg=''), bare fail() and a hand-built failure with no error"
+    assert printed == [10, 13, 16], "a red line, a yellow status and a repeated message; not the hint"
+
+
+def test_failure_printers_has_no_stale_entries():
+    """Every FAILURE_PRINTERS function still prints a failure, so the list only shrinks."""
+    # Arrange / Act
+    _, used = _unallowed(_printed_failures, FAILURE_PRINTERS)
+
+    # Assert
+    stale = sorted(set(FAILURE_PRINTERS) - used)
+    assert stale == [], f"allowlisted but no longer printing a failure; drop them: {stale}"

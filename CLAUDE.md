@@ -352,8 +352,8 @@ The narrative — the thread diagram, the two hand-off mechanisms and why each r
   a hand-edited table.
 - Update README.md and help/*.md
 - Update ARCHITECTURE.md if modules, plugins, or structure changed
-- **Do NOT hand-update the test/coverage/ty counts or badges on feature
-  builds.** The test count, coverage percent, ty diagnostic count, and the
+- **Do NOT hand-update the test/ty counts or badges on feature
+  builds.** The test count, ty diagnostic count, and the
   per-module line counts in README.md and ARCHITECTURE.md are refreshed
   ONLY by `release_prep.py` during the release process (see the
   "Auto-refreshed every release" list below). Editing them on every branch
@@ -393,10 +393,14 @@ Auto-refreshed every release (`update_readme_md` / `update_architecture_md`):
   README's "Test coverage" `<details>` summary line. Everywhere else the count
   is imprecise prose ("extensively tested", "thousands of tests") that never
   needs updating. ARCHITECTURE.md and the README body line carry no count.
-- coverage percent (parsed from `pytest --cov` `TOTAL` line) — only the README
-  summary line + the coverage badge. Prose describes coverage in general terms
-  and carries no percentage.
 - ty diagnostic count + badge color
+- NOT coverage: the `coverage NN%` badge in README's first row is the one
+  coverage number, live from Codecov (shields.io's codecov endpoint), measured
+  by CI on every push (Linux, the coverage config in pyproject). The badge rows
+  follow one rule: Project Status badges show a value and its color, Built with
+  badges name a tool and its genre -- so coverage.py is `coverage | code
+  coverage` there. No line carries a local percentage: a release-day Windows
+  run differed from Codecov by a few points and showed two numbers.
 - ARCHITECTURE.md per-module line counts (the tree diagram is the one home for
   exact line counts — prose elsewhere names modules without counts)
 

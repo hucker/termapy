@@ -173,7 +173,11 @@ all = ["termapy[mcp,web]"]
 wheel-exclude = ["*.md", "**/*.md"]
 
 [build-system]
-requires = ["uv_build"]
+# Bounded to the uv frontend's series: unbounded, the build pulled uv_build
+# 0.13 under a uv 0.9 frontend, whose tar reader then failed on the new
+# backend's sdist in both `uv build` and `uv publish` (the v0.77.0 release).
+# Move this bound in the same chore as a uv upgrade.
+requires = ["uv_build>=0.9,<0.10"]
 build-backend = "uv_build"
 
 [project.scripts]

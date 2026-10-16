@@ -24,7 +24,7 @@ This will:
 3. Bump version in `pyproject.toml` and `mkdocs.yml`; `uv lock --upgrade` so every dependency the manifest does not pin moves to its newest allowed version; re-run the ruff/ty gate against that environment
 4. Audit `uv.lock` for known vulnerabilities (`audit_lock.py`); a finding reviewed as unreachable is passed with `--ignore-vuln <ID>`
 5. Run the hw_loopback suite (`tests/test_hw_loopback.py`) with `--require-hw-loopback`, serially and without coverage; it refuses unless the suite passes on the attached TX-RX-jumpered adapter (`TERMAPY_HW_LOOPBACK_SN`, default `BG03U7VTA`). `--skip-hw-loopback` releases without it, on the command line on purpose
-6. Refresh the release-updated counts: per-module line counts in `ARCHITECTURE.md`, the test count, coverage percent and ty badge in `README.md`, the suppression count
+6. Refresh the release-updated counts: per-module line counts in `ARCHITECTURE.md`, the test count and ty badge in `README.md`, the suppression count. Coverage is not one of them: the Codecov badge, measured by CI on every push, is the one coverage number
 7. Regenerate tagged config examples (`update_doc_configs.py`) and check `credits.py` is in sync with `help/acknowledgments.md`
 8. Refresh the USB vendor table from upstream `usb.ids`
 9. Insert a CHANGELOG stub populated from `git log <last-tag>..HEAD --oneline --no-merges`

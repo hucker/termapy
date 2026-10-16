@@ -121,38 +121,44 @@ class TestOutput:
         assert "error text" in actual, "error goes to stderr"
 
 
-# -- Hook: delay -------------------------------------------------------------
+# -- /delay: one builtin, the CLI only draws its bar -----------------------
 
 
-class TestHookDelay:
-    def test_short_delay(self, cli):
-        """A valid duration like 10ms sleeps and reports success."""
+class TestDelay:
+    def test_short_delay(self, cli, capsys):
+        """A valid duration like 10ms waits, reports success with the seconds, and says it is done."""
         # Act
-        result = cli._hook_delay(cli.ctx, "10ms")
+        result = cli.repl.dispatch_full("/delay 10ms")
 
         # Assert
-        assert result.success, "short delay completes ok"
+        assert (result.success, result.value) == (True, "0.01"), "short delay completes ok"
+        assert "Delay 10ms done." in capsys.readouterr().out
 
     def test_invalid_duration(self, cli):
-        """An unparseable duration fails instead of sleeping a default."""
+        """An unparseable duration fails through the duration reader instead of sleeping a default."""
         # Act
-        result = cli._hook_delay(cli.ctx, "xyz")
+        result = cli.repl.dispatch_full("/delay xyz")
 
         # Assert
         assert not result.success, "invalid duration fails"
+        assert "invalid duration: 'xyz'" in result.error
 
-    def test_delay_quiet(self, cli):
-        """The silent delay variant accepts the same duration grammar."""
+    def test_silent_waits_without_output(self, cli, capsys):
+        """/delay.silent is the universal level suffix: it waits and prints nothing."""
+        # Arrange
+        capsys.readouterr()
+
         # Act
-        result = cli._hook_delay_quiet(cli.ctx, "10ms")
+        result = cli.repl.dispatch_full("/delay.silent 10ms")
 
         # Assert
-        assert result.success, "quiet delay completes ok"
+        assert result.success, "silent delay completes ok"
+        assert "Delay" not in capsys.readouterr().out, "no done line at silent"
 
-    def test_delay_quiet_invalid(self, cli):
-        """The silent variant still fails on a bad duration; quiet is not lenient."""
+    def test_silent_still_refuses_a_bad_duration(self, cli):
+        """The silent variant still fails on a bad duration; silent is not lenient."""
         # Act
-        result = cli._hook_delay_quiet(cli.ctx, "bad")
+        result = cli.repl.dispatch_full("/delay.silent bad")
 
         # Assert
         assert not result.success, "invalid duration fails"
@@ -1071,12 +1077,58 @@ class TestBareForms:
 # -- Hook registration ------------------------------------------------------
 
 
+class TestConfirmInAScript:
+    """/confirm in a CLI script asks on stdin and a No stops the script.
+
+    Until 2026-10-16 the script runner called ``ctx.ui.confirm`` itself, the
+    CLI did not declare ``confirm_dialog``, and the run died with "Script
+    error: ctx.ui.confirm requires confirm_dialog capability".  The CLI's
+    y/n prompt is its confirmation now, and /confirm is the one plugin.
+    """
+
+    @staticmethod
+    def _run(tmp_path, answer: str) -> str:
+        """Run a script that confirms between two prints, feeding ``answer`` on stdin."""
+        import subprocess
+        import sys as _sys
+
+        script = tmp_path / "ask.run"
+        script.write_text("/print before\n/confirm go?\n/print reached-the-end\n", encoding="utf-8")
+        cfg_root = tmp_path / "cfg"
+        cfg_root.mkdir()
+        result = subprocess.run(
+            [_sys.executable, "-c",
+             "import sys; "
+             f"sys.argv = ['termapy', '--cli', '--demo', '--run', {str(script)!r}, "
+             f"'--no-color', '--cfg-dir', {str(cfg_root)!r}]; "
+             "from termapy.entry import main; main()"],
+            input=answer,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.stdout + result.stderr
+
+    def test_yes_continues_the_script(self, tmp_path):
+        """A y on stdin lets the line after /confirm run."""
+        out = self._run(tmp_path, "y\n")
+        assert "reached-the-end" in out, out
+        assert "Script error" not in out, "the prompt is the CLI's confirmation"
+
+    def test_no_stops_the_script(self, tmp_path):
+        """An n on stdin stops the script before the next line."""
+        out = self._run(tmp_path, "n\n")
+        assert "Canceled." in out, out
+        assert "reached-the-end" not in out, "a declined confirm stops the run"
+        assert "Script error" not in out, "the prompt is the CLI's confirmation"
+
+
 class TestHookRegistration:
     def test_hooks_registered(self, cli):
         """All expected CLI hooks are registered."""
         # Arrange
         expected = {
-            "delay", "delay.silent",
+            # /delay is a builtin since 2026-10-16 (D2), not a CLI hook.
             # term.color / color moved to a portable builtin + legacy alias
             # (see TestTermColor); no longer CLI-registered hooks.
             "run", "run.profile",

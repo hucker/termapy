@@ -19,7 +19,6 @@ all six free functions live here.
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -185,38 +184,5 @@ def _cap_hide_progress(app) -> None:
         inp.focus()
     except SHUTDOWN_RACE:
         pass  # overlay gone or main widgets unmounted
-
-
-def _run_progress_bar(app, seconds: float, label: str) -> None:
-    """Block on the caller's thread while animating a progress bar in
-    the bottom-bar status label.  Same rendering as the CLI and
-    script-path delays -- shares ``render_progress_bar`` in
-    scripting.py.
-
-    Escape (action_stop_script) sets ``repl._script_stop`` and ends
-    the wait early.  Caller must be on a background thread; label
-    writes hop to the main thread via ``_on_main``.
-    """
-    from termapy.scripting import render_progress_bar
-
-    t0 = time.perf_counter()
-    canceled = False
-    while True:
-        elapsed = time.perf_counter() - t0
-        if elapsed >= seconds:
-            break
-        if app.repl._script_stop.is_set():
-            canceled = True
-            break
-        app._on_main(
-            app._set_progress_label,
-            render_progress_bar(elapsed, seconds),
-        )
-        time.sleep(0.25)
-    app._on_main(app._set_progress_label, "")
-    if canceled:
-        app._on_main(app._status, f"Delay {label} canceled.", "red")
-    else:
-        app._on_main(app._status, f"Delay {label} done.")
 
 

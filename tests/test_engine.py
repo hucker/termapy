@@ -242,6 +242,17 @@ class TestApplyCfg:
 # -- run_script --------------------------------------------------------------
 
 
+def test_only_nested_runs_are_intercepted_by_the_script_runner():
+    """blocking-commands-need-sctx: a script line dispatches like any other unless it runs a nested script.
+
+    /delay, /expect and /confirm were intercepted until 2026-10-16, second
+    copies that behaved differently from the dispatched commands (review
+    2026-10-15, D1 and D2); stopping the run is open to any command through
+    ``ctx.internal.script_stop()``.
+    """
+    assert set(ReplEngine._BLOCKING_COMMANDS) == {"run", "run.profile"}
+
+
 class TestRunScript:
     def _make_engine(self, tmp_path, script_text, connected=True):
         """Create an engine with mock serial context and a script file."""
@@ -362,7 +373,7 @@ class TestRunScript:
         assert any("Delay" in t for t, _ in output), "delay confirmation shown"
 
     def test_invalid_delay(self, tmp_path):
-        """A bad /delay duration reports an error instead of crashing the run."""
+        """A bad /delay duration reports the duration reader's error instead of crashing the run."""
         # Arrange
         eng, output, writes, script = self._make_engine(tmp_path, "/delay bad_value\n")
 
@@ -370,7 +381,7 @@ class TestRunScript:
         eng.run_script(script)
 
         # Assert
-        assert any("Invalid" in t for t, _ in output), "error message shown"
+        assert any("invalid duration: 'bad_value'" in t for t, _ in output), "error message shown"
 
     def test_script_stop(self, tmp_path):
         """A stop set before the run sends no lines and reports the script stopped."""

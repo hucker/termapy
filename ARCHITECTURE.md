@@ -200,7 +200,7 @@ The subcommand tree is flattened at registration into dotted names (`cfg.auto`, 
 
 ### Hooks
 
-A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss.svg`, `run.profile.*`, `delay`, `cfg.load`, `help.open`, `log.delete`.
+A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss.svg`, `run.profile.*`, `cfg.load`, `help.open`, `log.delete`.
 
 Hooks and plugins share one registry and one dispatch path; a hook is just a late, host-supplied entry that can override a plugin of the same name (see [Loading order](#loading-order-later-overrides-earlier)). The rule of thumb: if a command can be expressed through `PluginContext`, it's a plugin (large, portable set); if it genuinely needs Textual/host state, it's a hook (small, frontend-bound set).
 
@@ -273,7 +273,7 @@ Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` 
 1. builtins/commands/        - built-in command plugins (one module per command family)
 2. termapy_cfg/plugin/       - user plugins (all configs on this machine)
 3. termapy_cfg/<name>/plugin/ - per-config plugins (one config only)
-4. App hooks (app.py/cli.py) - commands needing frontend access (ss.svg, delay, run.profile.*, etc.)
+4. App hooks (app.py/cli.py) - commands needing frontend access (ss.svg, run.profile.*, etc.)
 ```
 
 A user plugin with the same name as a built-in replaces it. App hooks override everything; they need direct access to frontend-specific features (Textual widgets in TUI, readline in CLI).
@@ -421,7 +421,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 │  └──────────────────────────────────────────┘    │
 │  ┌──────────────────────────────────────────┐    │
 │  │ App Hooks - commands needing Textual     │    │
-│  │ ss.svg, delay, cfg.load, edit, help.open │    │
+│  │ ss.svg, cfg.load, edit, help.open        │    │
 │  └──────────────────────────────────────────┘    │
 ├──────────────────────────────────────────────────┤
 │  serial_engine.py - SerialEngine                 │
@@ -487,7 +487,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 | `ctx.ui.confirm()`   | Modal dialog + `event.wait()`| `input()` prompt              |
 | `ctx.fs.open_file()` | `open_with_system()`         | `open_with_system()`          |
 | `ctx.internal.port`  | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |
-| `/delay`             | `set_timer()` (non-blocking) | `time.sleep()` + progress bar |
+| `delay_progress`     | bottom bar / script overlay  | bar at the prompt only        |
 
 CLI-specific features: prompt_toolkit tab completion, shared command history, `/term.color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer); `/edit.cfg` opens the system editor instead of the built-in modal editor.
 
@@ -573,10 +573,9 @@ went out (registry `tx-only-what-went-out`).
 /run script.run → _run_script [background thread]
   → post ScriptStarted → mount overlay
   → repl.run_script() processes lines:
-    → /delay → Event.wait (stop-aware)
     → /run nested.run → inline recursive call (up to 5 deep)
-    → /confirm → dialog via call_from_thread
-    → other → dispatch callback → _dispatch_single
+    → every other line, /delay /expect /confirm included
+      → dispatch callback → _dispatch_single
   → post ScriptProgress → update overlay label
   → post ScriptFinished → teardown overlay
   Input disabled during execution, Escape or Stop button aborts
@@ -642,11 +641,11 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 │ @work(thread=True)  │  serialized by _acquire_dispatch_guard.
 ├─────────────────────┤
 │ _run_script()       │  Short-lived per script; every line is
-│ @work(thread=True)  │  dispatched on this thread.  /delay,
-│                     │  /confirm, /expect, /run are run here by
-│                     │  the script runner itself -- they need
-│                     │  ScriptCtx or _script_stop, not a
-│                     │  particular thread.  Nested /run is inline.
+│ @work(thread=True)  │  dispatched on this thread.  /run and
+│                     │  /run.profile are run here by the script
+│                     │  runner itself -- they need the ScriptCtx,
+│                     │  not a particular thread.  Nested /run is
+│                     │  inline.
 ├─────────────────────┤
 │ _run_reconnect()    │  Short-lived, retries the connection
 │ _run_lines()        │  Short-lived, multi-line send with delays

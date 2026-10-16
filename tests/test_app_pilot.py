@@ -26,7 +26,7 @@ import serial
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.folders import SYMBOLS_SUFFIX
-from termapy.plugins.command import LifecycleHook
+from termapy.plugins.command import CmdResult, LifecycleHook
 
 DEMO_SYMBOLS = (
     Path(__file__).parent.parent / "src" / "termapy" / "builtins" / "demo" / f"demo{SYMBOLS_SUFFIX}"
@@ -1841,48 +1841,67 @@ class TestFailureReportedOnce:
 
 
 class TestDelayHook:
-    """``/delay`` of a second or more animates the bottom-bar progress bar.
+    """``/delay`` in the TUI is the builtin, drawn on the bottom bar.
 
-    ``_run_progress_bar`` became a free function in ``capture_view`` when
-    the capture view was extracted, but ``app_hooks._hook_delay`` kept
-    calling it as an app method -- every TUI ``/delay 1s`` crashed with
-    ``'SerialTerminal' object has no attribute '_run_progress_bar'`` and
-    nothing drove the path, so nothing noticed.  This does.
+    Until 2026-10-16 the TUI registered its own ``/delay`` and
+    ``/delay.silent`` hooks.  The progress path once crashed on every
+    ``/delay 1s`` with nothing driving it, and ``/delay.silent`` scheduled a
+    no-op timer and returned at once, so a script line after it did not
+    wait (review 2026-10-15, D2).  Both now run the one builtin.
     """
+
+    @staticmethod
+    async def _dispatch_on_worker(pilot, app, line: str) -> tuple[CmdResult, float]:
+        """Dispatch ``line`` on a worker, as typed input runs; return its result and seconds taken."""
+        outcome: dict = {}
+
+        def run() -> None:
+            t0 = time.monotonic()
+            outcome["result"] = app._dispatch_single(line)
+            outcome["seconds"] = time.monotonic() - t0
+
+        worker = threading.Thread(target=run, daemon=True)
+        worker.start()
+        deadline = time.monotonic() + 5.0
+        while worker.is_alive() and time.monotonic() < deadline:
+            await asyncio.sleep(0.05)  # keep the loop serving _on_main
+        assert not worker.is_alive(), f"{line} finished within the deadline"
+        return outcome["result"], outcome["seconds"]
 
     @pytest.mark.slow  # real 1 s wait: the progress path is the point
     def test_one_second_delay_runs_the_progress_bar_to_done(self, app_factory):
-        """The 1s hook finishes on a worker without raising and reports 1.0 as its value."""
+        """A typed /delay 1s draws its bar, finishes, says so, and reports 1.0 as its value."""
         async def scenario():
-            from termapy.app_hooks import _hook_delay
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
                 await pilot.pause()
-                outcome: dict = {}
-
-                def run_hook():
-                    # The hook is written for a dispatch worker: it blocks
-                    # and marshals label writes via _on_main, so it must
-                    # not run on the event loop's thread.
-                    try:
-                        outcome["result"] = _hook_delay(app, app.repl.ctx, "1s")
-                    except Exception as exc:  # noqa: BLE001 - the assertion is the type
-                        outcome["error"] = exc
 
                 # Act
-                worker = threading.Thread(target=run_hook, daemon=True)
-                worker.start()
-                deadline = time.monotonic() + 5.0
-                while worker.is_alive() and time.monotonic() < deadline:
-                    await asyncio.sleep(0.1)  # keep the loop serving _on_main
+                result, _ = await self._dispatch_on_worker(pilot, app, "/delay 1s")
+                await pilot.pause()
 
                 # Assert
-                assert not worker.is_alive(), "the delay finished within the deadline"
-                assert "error" not in outcome, (
-                    f"the progress-bar path raised: {outcome.get('error')!r}"
-                )
-                assert outcome["result"].success, "/delay 1s reports success"
-                assert outcome["result"].value == "1.0", "value is the seconds waited"
+                assert result.success, result.error
+                assert result.value == "1.0", "value is the seconds waited"
+                assert "Delay 1s done." in app._get_screen_text()
+
+        _run(scenario)
+
+    def test_silent_delay_waits(self, app_factory):
+        """/delay.silent waits its full duration in the TUI and prints nothing."""
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                result, seconds = await self._dispatch_on_worker(pilot, app, "/delay.silent 300ms")
+                await pilot.pause()
+
+                # Assert
+                assert result.success, result.error
+                assert seconds >= 0.3, f"the silent delay must wait; it took {seconds:.3f}s"
+                assert "Delay" not in app._get_screen_text(), "silent prints nothing"
 
         _run(scenario)
 

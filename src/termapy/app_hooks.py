@@ -21,7 +21,6 @@ in ``_build_context``.
 
 from __future__ import annotations
 
-import time
 import webbrowser
 from importlib.resources import files as pkg_files
 from pathlib import Path
@@ -47,7 +46,6 @@ from termapy.scripting import (
     filename_timestamp,
     parse_bool_setting,
     parse_count_arg,
-    parse_duration,
     select_lines,
 )
 
@@ -161,48 +159,6 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
     app._status(f"Text screenshot saved ({saved} lines): {path}", "green")
     app._on_main(app._sync_ss_button)
     return CmdResult.ok(value=path)
-
-
-def _hook_delay(app, ctx, args: str) -> CmdResult:
-    """Pause script execution for a duration, with a TUI progress bar.
-
-    Short delays (< 1s) block on ``time.sleep`` and print a single
-    "done" status.  Longer delays mount a progress bar at the bottom
-    of the terminal that updates every 250ms.
-
-    Args:
-        app: The SerialTerminal instance.
-        ctx: PluginContext (unused).
-        args: Duration string -- ``"500ms"``, ``"1.5s"``, ``"2m"``, etc.
-
-    Returns:
-        ``CmdResult.ok()`` on success, or
-        ``CmdResult.fail(msg=...)`` if the duration string is invalid.
-    """
-    try:
-        seconds = parse_duration(args)
-    except ValueError as e:
-        return CmdResult.fail(msg=str(e))
-    if seconds < 1:
-        time.sleep(seconds)
-        app._on_main(app._status, f"Delay {args} done.")
-        return CmdResult.ok(value=str(seconds))
-    # Free function since the capture-view extraction; it is not an app
-    # method (lazy import: capture_view is UI-layer, same as app.py does).
-    from termapy.capture_view import _run_progress_bar
-
-    _run_progress_bar(app, seconds, args.strip())
-    return CmdResult.ok(value=str(seconds))
-
-
-def _hook_delay_quiet(app, ctx, args: str) -> CmdResult:
-    """Wait silently - non-blocking timer, no output."""
-    try:
-        seconds = parse_duration(args)
-    except ValueError as e:
-        return CmdResult.fail(msg=str(e))
-    app._on_main(app.set_timer, seconds, lambda: None)
-    return CmdResult.ok(value=str(seconds))
 
 
 def _hook_line_no(app, ctx, args: str) -> CmdResult:
@@ -382,28 +338,6 @@ def register_tui_hooks(app) -> None:
         lambda ctx, args: _hook_ss_txt(app, ctx, args),
         source="app",
         needs=CapabilitySet.SCREEN_CAPTURE,
-    )
-    app.repl.register_hook(
-        "delay",
-        "<duration>",
-        "Wait for duration (e.g. 500ms, 1.5s).",
-        lambda ctx, args: _hook_delay(app, ctx, args),
-        source="app",
-    )
-    app.repl.register_hook(
-        "delay.silent",
-        "<duration>",
-        "Wait silently (no output).",
-        lambda ctx, args: _hook_delay_quiet(app, ctx, args),
-        source="app",
-    )
-    app.repl.register_hook(
-        "delay.quiet",
-        "<duration>",
-        "Legacy alias for /delay.silent.",
-        make_forwarder("delay.quiet", "delay.silent"),
-        source="app",
-        hidden=True,
     )
     # /run and its sub_commands (.help, .legacy, .list, .dump, .show,
     # .explore) are owned by the run.py builtin -- its picker="run" opens

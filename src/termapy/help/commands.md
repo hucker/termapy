@@ -57,9 +57,9 @@ because its folders hold different types of file.
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
 | `/cfg.show`               | Open the current config file in the system viewer                           |
 | `/cls`                    | Clear the terminal                                                          |
-| `/confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script                       |
+| `/confirm {message}`      | Ask Yes/Cancel (TUI dialog, CLI y/n); Cancel stops a script                 |
 | `/credits`                | Print acknowledgments (libraries and authors termapy depends on)            |
-| `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
+| `/delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`); Escape/Ctrl+C cancel            |
 | `/edit <file>`            | Edit a project file (`run/`/`proto/` path)                                  |
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.info`              | Open the info report in the system viewer                                   |
@@ -70,7 +70,7 @@ because its folders hold different types of file.
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
 | `/exit`                   | Exit termapy                                                                |
-| `/expect {timeout=<dur>} match=<text>` | Wait for serial-output line containing text (blocks; needs block_until) |
+| `/expect {timeout=<dur>} match=<text>` | Wait for a serial line containing text (default 5s; a timeout stops a script) |
 | `/expect.regex {timeout=<dur>} match=<pat>` | Wait for serial-output line matching regex                         |
 | `/find {pattern}`         | Navigate scrollback matches with an interactive find bar (not over MCP; use `/grep` there) |
 | `/find.next` / `/find.prev` | Step to next / previous find match                                        |

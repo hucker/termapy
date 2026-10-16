@@ -454,12 +454,10 @@ class MCPHost(TerminalHost):
         self.ctx.io.clear_screen = lambda: None
         self.ctx.ui._exit_app_impl = lambda: None
         self.ctx.ui._get_screen_text_impl = lambda: ""
-        # Wire wait_for_match to the engine's serial-line predicate
-        # waiter so /expect can block on serial input.  Each
+        # /expect blocks in ctx.wait_for_match (wired by TerminalHost).  Each
         # run_command runs in a worker thread (asyncio executor); the
         # asyncio lock serializes them, so the engine's single-active-
         # predicate model is honored.
-        self.ctx.wait_for_match = self.repl.wait_for_match
         # Capabilities: baseline + block_until (for /expect).  Keeps
         # tui_mode/confirm_dialog/etc. off so commands that need a
         # screen still fail-fast.  Host access beyond the device is
@@ -491,57 +489,14 @@ class MCPHost(TerminalHost):
         # progress chatter.  Per-call override via run_command(output=...).
         self._init_flags(echo_repl=False, device_echo_allowed=False, color=False)
         self.ctx.ns("flags")["output_level"] = "quiet"
-        self._register_hooks()
 
-    def _register_hooks(self) -> None:
-        """Register MCP-mode hooks that aren't built-in plugins.
-
-        Mirrors a subset of CLITerminal._register_hooks().  Notable
-        difference: no progress bar UI for /delay (MCP has no display).
-        """
-        from termapy.scripting import parse_duration
-
-        def _hook_delay(ctx: PluginContext, args: str) -> CmdResult:
-            """Sleep for ``args`` (e.g. ``500ms``, ``2s``).  No UI."""
-            try:
-                duration = parse_duration(args)
-            except ValueError as e:
-                return CmdResult.fail(msg=f"Invalid delay: {e}")
-            import time as _time
-
-            _time.sleep(duration)
-            return CmdResult.ok(value=str(duration))
-
-        self.repl.register_hook(
-            "delay",
-            "<duration>",
-            "Pause for a duration (e.g. 500ms, 2s).",
-            _hook_delay,
-            source="app",
-        )
-        self.repl.register_hook(
-            "delay.silent",
-            "<duration>",
-            "Pause silently.",
-            _hook_delay,
-            source="app",
-        )
-
-        # /run and its sub_commands (.help, .legacy, .list, .dump,
-        # .show, .explore) are owned by the run.py built-in.  MCP picks
-        # it up automatically via the plugin loader and dispatches
-        # through ctx.internal.run_script -- which TerminalHost wires to
-        # this host's synchronous _run_script.  No MCP-specific
-        # registration needed.
-
-        # Profile-load (file) + banner-watch + user on_connect_cmd fire
-        # from _on_connected (the TerminalHost override below).  We
-        # don't use the on_connect lifecycle hook for these because
-        # TerminalHost._connect fires the lifecycle BEFORE
-        # _start_reader() -- the reader thread isn't pumping yet, so
-        # any user-configured /profile.load cmd=... can't read the
-        # device's reply.  _on_connected runs AFTER _start_reader.
-
+    # Profile-load (file) + banner-watch + user on_connect_cmd fire
+    # from _on_connected (the TerminalHost override below).  We
+    # don't use the on_connect lifecycle hook for these because
+    # TerminalHost._connect fires the lifecycle BEFORE
+    # _start_reader() -- the reader thread isn't pumping yet, so
+    # any user-configured /profile.load cmd=... can't read the
+    # device's reply.  _on_connected runs AFTER _start_reader.
     def _on_connected(self, message: str) -> None:
         """Override: run post-reader-start hooks (profile load, banner watch).
 

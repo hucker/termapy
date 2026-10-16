@@ -62,9 +62,6 @@ from termapy.scripting import (
     expand_template,
     filename_timestamp,
     format_duration,
-    parse_bool,
-    parse_duration,
-    parse_keywords,
     strip_ansi,
     strip_leading_echo,
 )
@@ -80,6 +77,8 @@ _CORE_LIFECYCLE: frozenset[str] = frozenset({"on_app_start", "on_config_load"})
 # token, whitespace, then the partial argument (possibly empty) running to
 # the end.  ``complete_file_arg`` matches it from just past the prefix.
 _FILE_ARG_RE = re.compile(r"(\S+)\s+(\S*)\Z")
+# How often a wait for a device line checks for a script stop (Escape).
+_EXPECT_STOP_POLL_S = 0.1
 
 # Those plus app stop: the moments an empty data folder is dropped (the rule
 # in ``folders``), so the folder is tidy when the user looks right after
@@ -265,7 +264,6 @@ class ScriptCtx:
     verbose: bool
     progress: Callable | None
     on_nest: Callable | None
-    delay_progress: Callable | None = None
     lines: list = field(default_factory=list)
     step: int = 0
     total: int = 0
@@ -427,7 +425,6 @@ class ReplEngine:
             self.register_directive(directive)
         for hook in result.lifecycle_hooks:
             self.register_lifecycle_hook(hook)
-        self._register_script_commands()
         self._register_legacy_forwarders()
 
     def _register_legacy_forwarders(self) -> None:
@@ -454,124 +451,6 @@ class ReplEngine:
                     hidden=True,
                 )
             )
-
-    def _register_script_commands(self) -> None:
-        """Register the blocking commands as first-class plugins.
-
-        ``/expect`` and ``/expect.regex`` are dispatched two ways:
-
-        - **From a .run script**: the script runner's ``_BLOCKING_COMMANDS``
-          dispatch (see ``_run_line``) intercepts BEFORE ``dispatch()`` is
-          reached, calling ``_script_expect`` which can write progress to
-          the script's ``sctx`` and stop the whole script on timeout.
-        - **From dispatch (REPL prompt or MCP)**: ``_expect_handler``
-          below runs.  Same wait, simpler return shape -- no script
-          state, just ``CmdResult`` with the matched line in ``value``.
-
-        Both paths require ``block_until=True``: scripts have it
-        dynamically; MCP hosts opt in by setting it on
-        ``ctx.capabilities``; the interactive REPL doesn't have it,
-        so the capability gate keeps ``/expect`` script-only there.
-
-        ``/confirm`` is a regular plugin (see ``confirm.py``) that
-        declares its own ``needs``; no registration here.
-        """
-        from termapy.scripting import parse_duration, parse_keywords
-
-        def _make_expect_handler(use_regex: bool) -> Callable:
-            def _expect_handler(ctx: PluginContext, args: str) -> CmdResult:
-                kw = parse_keywords(
-                    args, {"timeout", "match"}, rest_keyword="match"
-                )
-                pattern = kw.get("match", "").strip()
-                if not pattern:
-                    return CmdResult.fail(msg="Expect: missing match= keyword")
-                try:
-                    timeout_s = (
-                        parse_duration(kw["timeout"]) if "timeout" in kw else 5.0
-                    )
-                except ValueError as e:
-                    return CmdResult.fail(msg=f"Expect: {e}")
-                if use_regex:
-                    import re as _re
-
-                    try:
-                        compiled = _re.compile(pattern)
-                    except _re.error as e:
-                        return CmdResult.fail(msg=f"Expect: invalid regex: {e}")
-
-                    def predicate(line: str) -> bool:
-                        return bool(compiled.search(line))
-                else:
-
-                    def predicate(line: str) -> bool:
-                        return pattern in line
-
-                match = ctx.wait_for_match(predicate, timeout=timeout_s)
-                if match is None:
-                    return CmdResult.fail(
-                        msg=f'Expect "{pattern}" timeout after {format_duration(timeout_s)}'
-                    )
-                return CmdResult.ok(value=match)
-
-            return _expect_handler
-
-        self.register_plugin(
-            PluginInfo(
-                name="expect",
-                args="{timeout=<dur>} match=<text>",
-                help="Wait for text in serial output (blocks until match or timeout).",
-                long_help=(
-                    "Block until the device outputs a line containing <text>.\n"
-                    "Returns the matched line as the result value; fails on\n"
-                    "timeout (default 5s).\n"
-                    "\n"
-                    "Lines that arrived before {prefix}expect ran are searched\n"
-                    "too.  A match consumes the output up to and including the\n"
-                    "matched line, so the next {prefix}expect waits for new\n"
-                    "output instead of finding the same reply again.\n"
-                    "\n"
-                    "Available wherever ``block_until`` is provided: inside\n"
-                    "a .run script (always), and from the MCP server (the\n"
-                    "MCPHost opts in).  The interactive REPL prompt does\n"
-                    "not provide it -- type {prefix}expect there and you'll\n"
-                    "get a clear capability error.\n"
-                    "\n"
-                    "**match= must be the LAST keyword** because it consumes\n"
-                    "to end of line (text can contain spaces).\n"
-                    "\n"
-                    "Example:\n"
-                    "  AT+CONNECT\n"
-                    "  {prefix}expect timeout=5s match=CONNECTED"
-                ),
-                handler=_make_expect_handler(False),
-                needs=CapabilitySet.BLOCK_UNTIL,
-                raw_args=True,
-            )
-        )
-        self.register_plugin(
-            PluginInfo(
-                name="expect.regex",
-                args="{timeout=<dur>} match=<pattern>",
-                help="Wait for regex match in serial output (blocks until match or timeout).",
-                long_help=(
-                    "Block until the device outputs a line matching <pattern>.\n"
-                    "<pattern> is a Python regex.  See {prefix}expect for the\n"
-                    "non-regex variant, how a match consumes earlier output,\n"
-                    "and the capability gate that decides where this command\n"
-                    "runs.\n"
-                    "\n"
-                    "**match= must be the LAST keyword.**\n"
-                    "\n"
-                    "Example:\n"
-                    "  AT+STATUS\n"
-                    "  {prefix}expect.regex timeout=2s match=^\\+STATUS: \\d+$"
-                ),
-                handler=_make_expect_handler(True),
-                needs=CapabilitySet.BLOCK_UNTIL,
-                raw_args=True,
-            )
-        )
 
     # -- Expect / pattern matching ---------------------------------------------
 
@@ -612,7 +491,16 @@ class ReplEngine:
                     return line
             self._expect_predicate = predicate
         try:
-            self._expect_event.wait(timeout=timeout)
+            # Inside a script, Escape must end the wait now, not when the
+            # timeout runs out; outside one a stale stop is not this wait's.
+            deadline = time.monotonic() + timeout
+            while not self._expect_event.wait(
+                timeout=min(_EXPECT_STOP_POLL_S, max(0.0, deadline - time.monotonic()))
+            ):
+                if time.monotonic() >= deadline:
+                    break
+                if self.in_script and self._script_stop.is_set():
+                    break
         finally:
             with self._expect_lock:
                 self._expect_predicate = None
@@ -2266,50 +2154,6 @@ class ReplEngine:
 
     # -- Script blocking command handlers ----------------------------------------
 
-    def _script_delay(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /delay in scripts - sleep on background thread.
-
-        For ``/delay`` (not ``.silent``) with ``sctx.delay_progress``
-        registered, ticks every 0.25s and posts a rendered bar string
-        so the TUI overlay can animate.  For short delays (<1s) or
-        the silent variant, falls back to a single blocking wait.
-        """
-        expanded = self._expand_template(args.strip())
-        try:
-            seconds = parse_duration(expanded)
-        except ValueError as e:
-            return CmdResult.fail(msg=str(e))
-        cb = sctx.delay_progress if name == "delay" else None
-        if cb is None or seconds < 1:
-            self._script_stop.wait(timeout=seconds)
-        else:
-            from termapy.scripting import render_progress_bar
-
-            t0 = time.perf_counter()
-            while True:
-                elapsed = time.perf_counter() - t0
-                if elapsed >= seconds:
-                    break
-                if self._script_stop.is_set():
-                    break
-                cb(render_progress_bar(elapsed, seconds), False)
-                self._script_stop.wait(timeout=0.25)
-            cb("", True)
-        if self._script_stop.is_set():
-            return CmdResult.fail(msg="Script stopped.")
-        if not sctx.profile and name == "delay":
-            sctx.w(f"Delay {expanded} done.")
-        return CmdResult.ok(value=str(seconds))
-
-    def _script_confirm(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /confirm in scripts - show dialog, block on background thread."""
-        message = args.strip() or "Continue?"
-        accepted = self.ctx.ui.confirm(message)
-        if not accepted:
-            sctx.w("Script canceled by user.")
-            self._script_stop.set()
-        return CmdResult.ok(value="yes" if accepted else "no")
-
     def _script_run(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
         """Handle /run and /run.profile in scripts - nested execution.
 
@@ -2337,47 +2181,8 @@ class ReplEngine:
                 progress=sctx.progress,
                 on_nest=sctx.on_nest,
                 verbose=sctx.verbose,
-                delay_progress=sctx.delay_progress,
             )
         return result
-
-    def _script_expect(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /expect and /expect.regex in scripts - wait for serial pattern."""
-        use_regex = name == "expect.regex"
-        kw = parse_keywords(args, {"timeout", "quiet", "match"}, rest_keyword="match")
-        pattern = kw.get("match", "").strip()
-        if not pattern:
-            return CmdResult.fail(msg="Expect: missing match= keyword")
-        try:
-            timeout_s = parse_duration(kw["timeout"]) if "timeout" in kw else 0.25
-        except ValueError as e:
-            return CmdResult.fail(msg=f"Expect: {e}")
-        try:
-            quiet = parse_bool(kw.get("quiet"), default=False, what="quiet")
-        except ValueError as e:
-            return CmdResult.fail(msg=f"Expect: {e}")
-        timeout_str = kw.get("timeout", "250ms")
-        if use_regex:
-            import re as _re
-
-            def predicate(line: str) -> bool:
-                return bool(_re.search(pattern, line))
-        else:
-
-            def predicate(line: str) -> bool:
-                return pattern in line
-
-        match = self.wait_for_match(predicate, timeout=timeout_s)
-        if self._script_stop.is_set():
-            return CmdResult.fail(msg="Script stopped.")
-        if match is None:
-            self._script_stop.set()
-            return CmdResult.fail(msg=f'Expect "{pattern}" timeout after {timeout_str}')
-        if not quiet:
-            sctx.w(f'Expect "{pattern}" matched', "green")
-        # Return the matched line so scripts can capture it via
-        # ``$(LINE) <- /expect ready.quiet``.
-        return CmdResult.ok(value=match)
 
     # Commands the script runner handles ITSELF instead of dispatching.
     #
@@ -2386,27 +2191,22 @@ class ReplEngine:
     # script's own worker thread, because ``app._dispatch_single`` calls
     # ``repl.dispatch_full`` INLINE on the caller (see CLAUDE.md "Threading").
     # These are intercepted because ``dispatch`` cannot give them what they
-    # need -- the ScriptCtx, or control over the run itself:
+    # need, the ScriptCtx:
     #
-    #   /delay              waits on ``_script_stop`` so Escape interrupts it,
-    #                       and drives ``sctx.delay_progress`` for the overlay
-    #   /expect             ABORTS the run (sets ``_script_stop``) on timeout,
-    #                       and reports through ``sctx.w``
-    #   /confirm            ABORTS the run when the user declines
     #   /run, /run.profile  must execute the nested script INLINE, inheriting
     #                       the parent's writer / dispatch_fn / progress /
     #                       on_nest / verbose.  Dispatching ``/run`` instead
     #                       schedules a SECOND worker -- that is the path that
     #                       yields two scripts running at one device.
     #
-    # So the test for adding an entry is "does it need sctx or _script_stop?",
-    # never "does it block?".
+    # Stopping the run is not a reason: any command may set the stop through
+    # ``ctx.internal.script_stop()`` (/expect on a timeout, /confirm on
+    # Cancel).  Until 2026-10-16 /delay, /expect and /confirm were here too,
+    # second copies that behaved differently from the dispatched ones
+    # (review 2026-10-15, D1 and D2).  So the test for adding an entry is
+    # "does it need the ScriptCtx?", never "does it block?" or "does it stop
+    # the script?".
     _BLOCKING_COMMANDS: dict[str, Callable] = {
-        "delay": _script_delay,
-        "delay.silent": _script_delay,
-        "expect": _script_expect,
-        "expect.regex": _script_expect,
-        "confirm": _script_confirm,
         "run": _script_run,
         "run.profile": _script_run,
     }
@@ -2466,7 +2266,7 @@ class ReplEngine:
 
     @contextmanager
     def _script_session(
-        self, path, w, dispatch, profile, verbose, progress, on_nest, delay_progress
+        self, path, w, dispatch, profile, verbose, progress, on_nest
     ):
         """Context manager for script lifecycle - setup, yield, teardown."""
         sctx = ScriptCtx(
@@ -2477,7 +2277,6 @@ class ReplEngine:
             verbose=verbose,
             progress=progress,
             on_nest=on_nest,
-            delay_progress=delay_progress,
         )
         try:
             all_lines = path.read_text(encoding="utf-8").splitlines()
@@ -2540,7 +2339,6 @@ class ReplEngine:
         progress: Callable[[int, int], None] | None = None,
         on_nest: Callable[[], None] | None = None,
         verbose: bool = False,
-        delay_progress: Callable[[str, bool], None] | None = None,
     ) -> None:
         """Execute a script file line by line (call from a background thread).
 
@@ -2552,9 +2350,6 @@ class ReplEngine:
             progress: Callback for progress updates (step, total).
             on_nest: Callback when a nested script starts.
             verbose: Show per-command timing output.
-            delay_progress: Callback for ``/delay`` progress updates
-                ``(bar_text, done)``.  ``done=True`` fires once on the
-                final tick so the UI can restore state.
         """
         w = write or self.write
         # The frontend may hand the run to a different thread than the one
@@ -2564,7 +2359,7 @@ class ReplEngine:
         # nesting and any other thread's launch is refused.
         self._script_owner = threading.get_ident()
         with self._script_session(
-            path, w, dispatch, profile, verbose, progress, on_nest, delay_progress
+            path, w, dispatch, profile, verbose, progress, on_nest
         ) as sctx:
             for step, raw_line in enumerate(sctx.lines, 1):
                 if self._script_stop.is_set():

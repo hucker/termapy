@@ -455,6 +455,10 @@ class TerminalHost:
             fs=fs,
             ui=ui,
             dispatch=lambda cmd, report=True: self._dispatch(cmd, report=report),
+            # /expect's wait, in every host: until 2026-10-16 only the TUI and
+            # MCP wired it, and the CLI's scripts reached the engine's wait
+            # through the script runner's own /expect instead.
+            wait_for_match=self.repl.wait_for_match,
             # is_oneshot: True when --run / --exec is in effect.  Plugins
             # use this to suppress chatter that would corrupt captured
             # stdout.  Defaults to False; CLITerminal overrides via a

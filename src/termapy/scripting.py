@@ -541,9 +541,8 @@ def render_progress_bar(
     ``elapsed >= total`` (so a caller rendering a final static line gets
     100%); it never reaches 100% before then.
 
-    Both ``_hook_delay`` (interactive, TUI) and the script-path
-    ``_script_delay`` (also TUI) share this helper so the two render
-    sites stay byte-identical.
+    The TUI and CLI ``delay_progress`` sinks both render /delay's bar
+    with it, so the two frontends draw the same bar.
     """
     sub = _PROGRESS_SUB_ASCII if ascii_only else _PROGRESS_SUB_UNICODE
     sub_n = len(sub) - 1

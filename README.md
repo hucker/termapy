@@ -203,8 +203,8 @@ The most common ones:
 | `/run.list`                          | List .run files in run/, newest first, with size, age, and summary            |
 | `/run.rename <old> <new>`            | Rename a script (`.run` kept; never overwrites)                               |
 | `/run.help`                          | Same as `/help run`                                                           |
-| `/delay <duration>`                  | Wait for a duration (e.g. `500ms`, `1.5s`)                                    |
-| `/confirm {message}`                 | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)     |
+| `/delay <duration>`                  | Wait for a duration (e.g. `500ms`, `1.5s`); Escape or Ctrl+C cancels          |
+| `/confirm {message}`                 | Ask Yes/Cancel (TUI dialog, CLI y/n); Cancel stops a running script           |
 | `/stop`                              | Abort a running script                                                        |
 | `/seq`                               | Show sequence counters                                                        |
 | `/seq.reset`                         | Reset all sequence counters to zero                                           |
@@ -988,7 +988,7 @@ COMMAND = Command(
 1. **Built-in:** shipped with termapy, always available
 2. **Global:** `termapy_cfg/plugin/*.py`, shared across all configs
 3. **Per-config:** `termapy_cfg/<name>/plugin/*.py`, specific to one config
-4. **App hooks:** frontend-specific commands (`/ss`, `/delay`, `/run`, etc.)
+4. **App hooks:** frontend-specific commands (`/ss`, `/demo`, `/tui`, etc.)
 
 Resolution is the same in every frontend (TUI, CLI, MCP server) and reruns on every config switch; a folder plugin can never take an app hook's name.
 

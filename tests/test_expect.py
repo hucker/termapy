@@ -1,15 +1,18 @@
-"""Tests for the /expect and /expect.regex commands (Phase 4).
+"""Tests for the /expect and /expect.regex commands.
 
-The script-runner path (_BLOCKING_COMMANDS dispatch) is unchanged
-from before Phase 4; existing tests under tests/test_engine.py and
-test_proto_runner.py cover that.
+There is one /expect (``builtins/commands/expect.py``): until 2026-10-16 the
+script runner had its own copy with another default and another timeout
+rule (review 2026-10-15, D1).  The engine-level tests below drive the
+command and the wait; ``TestInAScript`` runs it from .run files on the CLI
+against the DEMO device:
 
-These tests cover the dispatch-callable form (used by MCP):
 - block_until capability gate
 - happy-path match returns CmdResult.ok(value=<line>)
 - timeout returns CmdResult.fail with a useful message
 - regex variant
 - malformed regex error path
+- inside a script: a timeout stops the script on every path, a stop ends a
+  wait at once, and the default is 5 s (decision 6)
 """
 
 from __future__ import annotations
@@ -292,3 +295,109 @@ class TestExpectTimeout:
         result = eng.dispatch("expect timeout=notaduration match=X")
         # Assert
         assert result.success is False, "bad duration = failure"
+
+
+# ── Inside a .run script, on the CLI against the DEMO device ───────────────
+
+
+@pytest.fixture
+def cli(tmp_path):
+    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
+    from termapy.cli import CLITerminal
+    from termapy.defaults import DEFAULT_CFG
+
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
+    config_path = tmp_path / "rig" / "rig.cfg"
+    config_path.parent.mkdir()
+    config_path.write_text(json.dumps(cfg))
+    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
+    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
+    terminal.repl.global_root = tmp_path
+    assert terminal._connect() is True, "the DEMO port opens"
+    yield terminal
+    terminal._disconnect()
+
+
+def _script(tmp_path, *lines: str):
+    """A .run file holding ``lines``."""
+    path = tmp_path / "check.run"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+class TestInAScript:
+    """Decision 6: 5 s by default everywhere; a timeout inside a script stops it, however the line is spelled."""
+
+    def test_a_match_lets_the_script_continue(self, cli, tmp_path, capsys):
+        """A reply the device sends is matched, said so, and the next line runs."""
+        # Arrange
+        script = _script(tmp_path, "AT", "/expect timeout=2s match=OK", "/print reached-the-end")
+
+        # Act
+        cli.repl.dispatch_full(f"/run {script}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert 'Expect "OK" matched' in out
+        assert "reached-the-end" in out, "a matched expect does not stop the script"
+
+    def test_a_timeout_stops_the_script(self, cli, tmp_path, capsys):
+        """A missed expect fails with the timeout and the script stops there."""
+        # Arrange
+        script = _script(tmp_path, "/expect timeout=300ms match=NEVER", "/print reached-the-end")
+
+        # Act
+        cli.repl.dispatch_full(f"/run {script}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert 'Expect "NEVER" timeout after 300ms' in out
+        assert "reached-the-end" not in out, "the line after a missed expect never runs"
+
+    def test_a_captured_timeout_stops_the_script_too(self, cli, tmp_path, capsys):
+        """$(L) <- /expect is the same command: a timeout stops the script, as the plain line does.
+
+        Before 2026-10-16 a capture line was not intercepted by the script
+        runner, so it took the other /expect, which never stopped a script.
+        """
+        # Arrange
+        script = _script(tmp_path, "$(L) <- /expect timeout=300ms match=NEVER", "/print reached-the-end")
+
+        # Act
+        cli.repl.dispatch_full(f"/run {script}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert 'Expect "NEVER" timeout after 300ms' in out
+        assert "reached-the-end" not in out, "the capture spelling stops the script as well"
+
+    def test_a_stop_ends_a_long_wait_at_once(self, cli, tmp_path, capsys):
+        """A stop (Escape) during a 5 s expect ends the wait within a poll, not at the timeout."""
+        # Arrange
+        script = _script(tmp_path, "/expect timeout=5s match=NEVER", "/print reached-the-end")
+        worker = threading.Thread(target=lambda: cli.repl.dispatch_full(f"/run {script}"))
+
+        # Act
+        worker.start()
+        deadline = time.monotonic() + 2.0
+        while cli.repl._expect_predicate is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        t0 = time.monotonic()
+        cli.repl._script_stop.set()
+        worker.join(timeout=3.0)
+        elapsed = time.monotonic() - t0
+
+        # Assert
+        assert not worker.is_alive(), "the run ended"
+        assert elapsed < 1.0, f"the stop ended the wait at once; it took {elapsed:.2f}s"
+        assert "reached-the-end" not in capsys.readouterr().out
+
+    def test_the_default_timeout_is_five_seconds(self, cli):
+        """Without timeout= /expect waits 5 s, typed, over MCP and in a script alike."""
+        # Arrange
+        params = {spec.name: spec for spec in cli.repl._plugins["expect"].params}
+
+        # Assert
+        assert params["timeout"].default == 5.0

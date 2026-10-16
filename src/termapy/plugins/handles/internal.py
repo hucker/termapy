@@ -141,6 +141,12 @@ class InternalHandle:
 
     run_script: Callable | None = None  # (path, profile, verbose); TUI via @work
 
+    # delay_progress(elapsed_s, total_s, done) -> None: how this frontend
+    # draws /delay's progress (the TUI's bottom bar or script overlay, the
+    # CLI's terminal bar); None where nothing is drawn (MCP).  /delay owns
+    # the wait itself; this is the only per-frontend part of it.
+    delay_progress: Callable | None = None
+
     xfer_cancel: Any = None  # threading.Event - Escape cancels a transfer
 
     # open_picker(name, one of command.PICKERS) -> CmdResult; opens the

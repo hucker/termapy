@@ -135,11 +135,11 @@ class CapabilitySet:
     #        background worker thread that it's safe to block.
     block_until: bool = False
 
-    # What:  ``ctx.confirm(message)`` can show a real Yes/Cancel dialog
-    #        and return the user's answer synchronously.
-    # Where: TUI + script runner.  Implies block_until (the handler stops
-    #        until the user answers).  CLI has no dialog today, though a
-    #        text-mode prompt could provide this later.
+    # What:  ``ctx.ui.confirm(message)`` asks Yes/Cancel and returns the
+    #        user's answer synchronously.
+    # Where: TUI (a dialog) and CLI (a y/n prompt on stdin; a piped run
+    #        reads No).  Not MCP.  Implies block_until (the handler stops
+    #        until the user answers).
     confirm_dialog: bool = False
 
     # What:  ``ctx.notify(text)`` shows a transient toast-style message
@@ -320,7 +320,7 @@ CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interact
 # stale key fails it too.
 REQUIREMENT_HINTS: dict[str, str] = {
     "block_until": "a thread that may block (.run scripts only)",
-    "confirm_dialog": "a Yes/Cancel dialog (TUI and script runner)",
+    "confirm_dialog": "a Yes/Cancel prompt (the TUI's dialog, the CLI's y/n)",
     "ui_notify": "the TUI's toast notifications",
     "status_bar": "the TUI's status line",
     "screen_capture": "the TUI's render surface (screenshots, screen text)",
@@ -411,9 +411,11 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
             network_egress=True,
         ),
         # CLI (interactive REPL or --run script): interactive but no Textual UI.
+        # Its confirmation is the y/n prompt on stdin.
         "CLI": CapabilitySet(
             interactive=True,
             gui_apps=gui,
+            confirm_dialog=True,
             filesystem_unconfined=True,
             network_egress=True,
         ),

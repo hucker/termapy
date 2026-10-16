@@ -113,6 +113,7 @@ from termapy.scripting import (  # noqa: E402
     format_age,
     format_duration,
     format_timestamp,
+    render_progress_bar,
     split_cmd_lines,
 )
 
@@ -1176,6 +1177,7 @@ class SerialTerminal(TerminalHost, App):
         )
         internal.start_capture = self._cap_start
         internal.stop_capture = self._cap_stop
+        internal.delay_progress = self._delay_progress
         internal.directives = self.repl._directives
         # /find plugin calls this with a state snapshot to refresh the
         # FindBar widget (or None to hide it).  It runs on a dispatch
@@ -1192,7 +1194,6 @@ class SerialTerminal(TerminalHost, App):
         ctx.io._write_markup = lambda markup: self._write_output_markup(markup, log=True)
         ctx.io.log = self._log_line
         ctx.serial.wait_for_data = self._wait_for_data
-        ctx.wait_for_match = self.repl.wait_for_match
         ctx.io.status_bar = self._set_status_bar
         ctx.dispatch = self._dispatch_single
         # A plugin's notification is text unless it asks otherwise.
@@ -3422,6 +3423,18 @@ class SerialTerminal(TerminalHost, App):
 
     # -- REPL hook implementations (app-coupled commands) ----------------------
 
+    def _delay_progress(self, elapsed: float, total: float, done: bool) -> None:
+        """Draw /delay's progress: on the script overlay while a script runs, else the bottom bar.
+
+        Called off main by /delay (``ctx.internal.delay_progress``); the
+        overlay message and ``_on_main`` both reach the widgets safely.
+        """
+        bar = "" if done else render_progress_bar(elapsed, total)
+        if self.repl.in_script:
+            self.post_message(self.DelayProgress(bar, done))
+        else:
+            self._on_main(self._set_progress_label, bar)
+
     def _set_progress_label(self, text: str) -> None:
         """Write progress text to the bottom-bar status label (main thread).
 
@@ -3669,9 +3682,6 @@ class SerialTerminal(TerminalHost, App):
         def _on_nest() -> None:
             self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
 
-        def _delay_progress(bar: str, done: bool) -> None:
-            self.post_message(self.DelayProgress(bar, done))
-
         try:
             self.repl.run_script(
                 path,
@@ -3681,7 +3691,6 @@ class SerialTerminal(TerminalHost, App):
                 verbose=verbose,
                 progress=_progress,
                 on_nest=_on_nest,
-                delay_progress=_delay_progress,
             )
         except RuntimeError:
             pass

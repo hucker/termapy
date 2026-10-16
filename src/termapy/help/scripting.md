@@ -53,10 +53,10 @@ in `/run.list` and `/run.help`.
 
 | Command | Description |
 |---------|-------------|
-| `/delay <duration>` | Pause execution (e.g. `500ms`, `2s`, `1.5s`) |
-| `/expect {timeout=<dur>} match=<text>` | Wait for a serial line containing `<text>` (default 5s). Fails on timeout. |
+| `/delay <duration>` | Pause execution (e.g. `500ms`, `2s`, `1.5s`). Escape or Ctrl+C cancels it and the script. |
+| `/expect {timeout=<dur>} match=<text>` | Wait for a serial line containing `<text>` (default 5s). A timeout fails the line and stops the script. |
 | `/expect.regex {timeout=<dur>} match=<pattern>` | Same but the pattern is a regex. |
-| `/confirm {message}` | Show Yes/Cancel dialog. Canceling stops the script. |
+| `/confirm {message}` | Ask Yes/Cancel: a dialog in the TUI, a y/n prompt in the CLI. Canceling stops the script. |
 | `/run <script>` | Run a nested script (max 5 levels deep) |
 | `/run.profile <script>` | Run nested script with per-line timing |
 | `/run.rename <old> <new>` | Rename a script (`.run` is kept; never overwrites) |

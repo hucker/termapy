@@ -1159,7 +1159,6 @@ demo> /help.plugin
 -- Application --
   /cli          Already in CLI mode.
   /clr          Clear the terminal screen (alias for /cls).
-  /delay        Wait for duration with progress bar (e.g. 500ms, 1.5s).
   /demo         Set up and switch to the demo device config.
   /tui          Switch to TUI mode.
 
@@ -1169,6 +1168,7 @@ demo> /help.plugin
   /cfg          Show or set config values.
   /cls          Clear the terminal screen.
   /credits      Print acknowledgments / third-party attributions.
+  /delay        Wait for a duration (e.g. 500ms, 1.5s); Escape or Ctrl+C cancels.
   /dev          Device files: a part's registers as data (see /help devices).
   /edit         Open a project file in the system editor.
   /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).

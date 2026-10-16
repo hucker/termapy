@@ -14,7 +14,6 @@ import shutil
 import sys
 import textwrap
 import threading
-import time
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -338,6 +337,7 @@ class CLITerminal(TerminalHost):
     def _setup_context(self) -> None:
         """Build PluginContext and InternalHandle, wire to REPL."""
         internal_handle = self._build_internal_handle()
+        internal_handle.delay_progress = self._delay_progress
 
         self.ctx = self._build_plugin_context(internal_handle)
         # CLI-specific callbacks
@@ -355,6 +355,9 @@ class CLITerminal(TerminalHost):
         self.ctx.capabilities = CapabilitySet(
             interactive=True,
             gui_apps=detect_gui_apps(),
+            # ctx.ui.confirm is the y/n prompt on stdin (_confirm): /confirm
+            # works in a CLI script, and a piped run reads No and stops.
+            confirm_dialog=True,
             # The operator is the caller on their own machine: no sandbox.
             filesystem_unconfined=True,
             network_egress=True,
@@ -372,30 +375,7 @@ class CLITerminal(TerminalHost):
             self.ctx.ns("flags")["output_level"] = self.output_level
 
     def _register_hooks(self) -> None:
-        """Register CLI-specific hooks for /delay, /term.color, /run."""
-        self.repl.register_hook(
-            "delay",
-            "<duration>",
-            "Wait for duration with progress bar (e.g. 500ms, 1.5s).",
-            self._hook_delay,
-            source="app",
-        )
-        self.repl.register_hook(
-            "delay.silent",
-            "<duration>",
-            "Wait silently (no progress bar or output).",
-            self._hook_delay_quiet,
-            source="app",
-        )
-        from termapy.legacy import make_forwarder
-        self.repl.register_hook(
-            "delay.quiet",
-            "<duration>",
-            "Legacy alias for /delay.silent.",
-            make_forwarder("delay.quiet", "delay.silent"),
-            source="app",
-            hidden=True,
-        )
+        """Register CLI-specific hooks for /term.color, /run."""
         # /term.color (device-color toggle) is now a portable builtin
         # backed by flags["color"], with /color as its legacy alias in
         # legacy.py -- so it works in the TUI too, not just the CLI.
@@ -449,6 +429,8 @@ class CLITerminal(TerminalHost):
         # /log.clear is a hidden legacy alias -- "clear" means "empty
         # visible state," and "delete" is the canonical verb for
         # removing on-disk files.
+        from termapy.legacy import make_forwarder
+
         self.repl.register_hook(
             "log.clear",
             "",
@@ -522,41 +504,6 @@ class CLITerminal(TerminalHost):
             self.status("CLI completion disabled.")
         return CmdResult.ok(value="on" if enabled else "off")
 
-    def _hook_delay(self, ctx, args: str):
-        """Wait with progress bar (>=1s) or silently (<1s).
-        Shows elapsed/total time and sub-character resolution bar.
-        Ctrl+C cancels."""
-        from termapy.scripting import parse_duration
-
-        try:
-            seconds = parse_duration(args)
-        except ValueError as e:
-            return CmdResult.fail(msg=str(e))
-        try:
-            if seconds < 1:
-                time.sleep(seconds)
-                self.status(f"Delay {args.strip()} done.")
-            else:
-                self._draw_progress_bar(seconds, args.strip())
-        except KeyboardInterrupt:
-            self._raw(f"\r  Delay canceled.{' ' * 30}")
-        return CmdResult.ok(value=str(seconds))
-
-    def _hook_delay_quiet(self, ctx, args: str):
-        """Wait silently - no progress bar, no output.
-        For scripts where delay output would clutter results."""
-        from termapy.scripting import parse_duration
-
-        try:
-            seconds = parse_duration(args)
-        except ValueError as e:
-            return CmdResult.fail(msg=str(e))
-        try:
-            time.sleep(seconds)
-        except KeyboardInterrupt:
-            pass
-        return CmdResult.ok(value=str(seconds))
-
     # ``_hook_run`` and ``_hook_run_help`` are gone -- ``/run`` and
     # ``/run.help`` are now owned by the ``run.py`` built-in.
     # ``_run_script`` lives on ``TerminalHost`` so the built-in
@@ -599,31 +546,23 @@ class CLITerminal(TerminalHost):
 
     # -- Progress bar (CLI-specific: blocking sleep with bar) -----------------
 
-    def _draw_progress_bar(self, seconds: float, label: str) -> None:
-        """Draw a live progress bar, then a final 'done' line.
+    _DELAY_BAR_WIDTH = 30
 
-        Shares ``scripting.render_progress_bar`` (the sub-cell bar
-        algorithm) with the TUI delay hooks; only the CLI's carriage-return
-        redraw loop and terminal state live here.
+    def _delay_progress(self, elapsed: float, total: float, done: bool) -> None:
+        """Draw /delay's progress as a bar redrawn in place, and erase it when done.
+
+        Only for a delay typed at the prompt: inside a script or a one-shot
+        run (--run / --exec) the CLI draws no bar, so piped output carries
+        no carriage-return redraws.  The wait and the done line are /delay's.
         """
-        width = 30
-        t0 = time.perf_counter()
-        while True:
-            elapsed = time.perf_counter() - t0
-            if elapsed >= seconds:
-                break
-            bar = render_progress_bar(
-                elapsed, seconds, width, ascii_only=self.no_color
-            )
-            self._raw(f"\r  {bar}", end="")
-            time.sleep(0.25)
-        # elapsed == total -> render_progress_bar returns the full 100% bar.
-        done = render_progress_bar(
-            seconds, seconds, width, ascii_only=self.no_color
-        )
-        self._raw(f"\r  {done}", end="")
-        msg = f"Delay {label} done."
-        self._raw(f"\r  {msg}{' ' * (width + 10 - len(msg))}")
+        if self.repl.in_script or self.is_oneshot:
+            return
+        if done:
+            full = render_progress_bar(total, total, self._DELAY_BAR_WIDTH, ascii_only=self.no_color)
+            self._raw("\r" + " " * (len(full) + 2) + "\r", end="")
+            return
+        bar = render_progress_bar(elapsed, total, self._DELAY_BAR_WIDTH, ascii_only=self.no_color)
+        self._raw(f"\r  {bar}", end="")
 
     # -- Connection uses TerminalHost._connect / _disconnect -------------------
     # CLI has no additional UI to update on connect/disconnect, so the

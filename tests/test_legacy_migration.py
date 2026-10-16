@@ -222,7 +222,7 @@ def engine_with_term(tmp_path):
     # the way TerminalHost would, so legacy forwarders that delegate via
     # ctx.internal.dispatch reach the REPL pipeline instead of the no-op
     # lambda default.
-    eng.ctx.internal.dispatch = eng.dispatch
+    eng.ctx.internal.dispatch = lambda line: eng.dispatch(line, report=False)
     # Real CLI/TUI hosts advertise interactive + gui_apps; legacy aliases
     # under test (/verbose, /term.verbose) declare needs.interactive=True.
     # Mirror the host capability set so the dispatcher allows them through.
@@ -347,3 +347,21 @@ class TestSimpleForwarderRuntime:
         # Assert -- one note per session, not per call.
         assert first_count == 1, "first /echo call warns"
         assert second_count == 0, "second /echo call stays silent"
+
+    def test_a_failed_forward_keeps_its_error_and_prints_once(self, engine_with_term):
+        """failure-reported-once: /echo maybe fails with /term.echo's error, printed once.
+
+        The forwarder used to blank the error to dodge a double print, so a
+        script or agent saw the failure without its reason.
+        """
+        # Arrange
+        eng, writes = engine_with_term
+        expected = "Invalid value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+
+        # Act
+        result = eng.dispatch("echo maybe")
+
+        # Assert
+        assert (result.success, result.error) == (False, expected), "the target's failure is the answer"
+        printed = [text for text, _ in writes if expected in text]
+        assert len(printed) == 1, "printed once, by the forwarder's exit"

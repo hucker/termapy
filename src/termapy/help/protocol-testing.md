@@ -40,9 +40,11 @@ send_fmt = "Title:AT_Command Command:S1-*"      # optional inline format specs
 expect_fmt = "Title:AT_Response Response:S1-*"  # (see the format spec language below)
 ```
 
-Run with `/proto.run example.pro`. Each test reports PASS/FAIL. Escape
-stops a run after the current test (the script-level teardown is then
-skipped). `/proto.run example.pro --json` returns the results document
+Run with `/proto.run example.pro`. Each test reports PASS/FAIL, and the
+command fails when any test fails (`2 of 5 tests failed`), so a `.run`
+script or an agent can branch on it as `termapy --proto` does on its exit
+code. Escape stops a run after the current test (the script-level teardown
+is then skipped). `/proto.run example.pro --json` returns the results document
 described under [Headless runs](#headless-runs) instead of the prose,
 which is also what an MCP client receives.
 

@@ -166,15 +166,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
         except ValueError as e:
             return CmdResult.fail(msg=str(e))
         target = "term.output verbose" if verbose else "term.output normal"
-    result = ctx.internal.dispatch(target)
-    if not result.success:
-        return CmdResult(
-            success=False,
-            error="",
-            elapsed_s=result.elapsed_s,
-            value=result.value,
-        )
-    return result
+    return ctx.internal.dispatch(target)
 
 
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:

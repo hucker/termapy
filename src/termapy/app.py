@@ -1295,11 +1295,11 @@ class SerialTerminal(TerminalHost, App):
             self.log_fh.close()
             self.log_fh = None
 
-    def _connect(self, port: str | None = None) -> bool:
+    def _connect(self, port: str | None = None, *, report: bool = True) -> bool:
         if self.is_connected:
             return False
         # The engine joins any prior reader before it opens a new handle.
-        connected = super()._connect(port)
+        connected = super()._connect(port, report=report)
         if connected:
             # Whoever opened the port, a reconnect still retrying is done; left
             # running it would keep trying to open the port we now hold.
@@ -3080,17 +3080,20 @@ class SerialTerminal(TerminalHost, App):
             return self._dispatch_guard.acquire(blocking=False)
         return self._dispatch_guard.acquire(timeout=self._DISPATCH_WAIT_S)
 
-    def _dispatch_single(self, cmd: str) -> CmdResult:
+    def _dispatch_single(self, cmd: str, *, report: bool = True) -> CmdResult:
         """Dispatch a single command (delegates to repl.dispatch_full).
 
         Safe to call from any thread - output helpers (_status,
         _write_output_markup) detect their thread internally.  Serialized
         via _dispatch_guard so a second command on another thread is
         refused rather than corrupting the shared PluginContext; nested
-        ctx.dispatch on the same thread re-enters freely.
+        ctx.dispatch on the same thread re-enters freely.  This is the
+        TUI's ``ctx.dispatch``, so it takes ``report`` like the others:
+        False when the caller answers with the result and prints it.
         """
         if not self._acquire_dispatch_guard():
-            self._status(self._BUSY_MSG, "yellow")
+            if report:
+                self._status(self._BUSY_MSG, "yellow")
             return CmdResult.fail(msg=self._BUSY_MSG)
         try:
             return self.repl.dispatch_full(
@@ -3101,6 +3104,7 @@ class SerialTerminal(TerminalHost, App):
                 serial_write=self._serial_write,
                 is_connected=lambda: self.is_connected,
                 eol_label=eol_label,
+                report=report,
             )
         finally:
             self._dispatch_guard.release()
@@ -3515,7 +3519,6 @@ class SerialTerminal(TerminalHost, App):
         """
         log_path = self._log_path()
         if not log_path or not Path(log_path).exists():
-            self._status("No log file to delete.", "yellow")
             return CmdResult.fail(msg="No log file.")
         if self.log_fh:
             self.log_fh.close()
@@ -3526,8 +3529,7 @@ class SerialTerminal(TerminalHost, App):
             # Return the deleted path so scripts can log / confirm.
             return CmdResult.ok(value=Path(log_path))
         except OSError as e:
-            self._status(f"Delete failed: {e}", "red")
-            return CmdResult.fail(msg=str(e))
+            return CmdResult.fail(msg=f"Delete failed: {e}")
 
     def _open_picker(self, *args, **kwargs):
         """Delegate to ``pickers.open_picker``."""

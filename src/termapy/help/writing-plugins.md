@@ -640,7 +640,10 @@ ctx.io.output(f"  {name} = {value}")  # no markup, nothing to escape
 
 **Errors** flow through `return CmdResult.fail(msg=...)` -- the dispatcher
 paints the red error line.  Do not write red error text via the output
-channels.
+channels, and never return a failure with an empty message: scripts and
+agents read the reason from it.  A handler that answers with another
+command's result dispatches it with `ctx.dispatch(cmd, report=False)` and
+returns that result, so a failure prints once, at your command's exit.
 
 **Forbidden in handler code**: `ctx.io._write` and `ctx.io._write_markup`
 (the underscore-prefixed primitives that bypass level gating) are
@@ -700,7 +703,7 @@ the matching capability on `Command.needs`.
 | Member | Description |
 | --- | --- |
 | `ctx.arg(name)` / `ctx.flag(name)` | A declared parameter's coerced value / a declared flag's presence |
-| `ctx.dispatch(cmd)` | Run a REPL or serial command through the full pipeline |
+| `ctx.dispatch(cmd, report=True)` | Run a REPL or serial command through the full pipeline; `report=False` when you return its result |
 | `ctx.wait_for_match(predicate, timeout)` | Block until serial matches (gated on `block_until`) |
 | `ctx.ns(name)` | Get/create a session-scoped state dict |
 | `ctx.plugin_cfg(name)` | Get a per-plugin persistent config dict (per config: it follows a config switch) |

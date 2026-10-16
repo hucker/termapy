@@ -77,11 +77,9 @@ def _hook_run_profile_show(app, ctx, args: str) -> CmdResult:
     """Open the newest .csv profile file in the system viewer."""
     prof_dir = app._prof_dir()
     if not prof_dir:
-        ctx.io._write("No config loaded.", "red")
         return CmdResult.fail(msg="No config loaded.")
     profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
     if not profs:
-        ctx.io.output("No profile files found.")
         return CmdResult.fail(msg="No profile files found.")
     newest = profs[-1]
     ctx.io._write(f"Opening {newest.name}")
@@ -93,18 +91,15 @@ def _hook_run_profile_dump(app, ctx, args: str) -> CmdResult:
     """Print newest (or named) profile file to the terminal."""
     prof_dir = app._prof_dir()
     if not prof_dir:
-        ctx.io._write("No config loaded.", "red")
         return CmdResult.fail(msg="No config loaded.")
     name = args.strip()
     if name:
         path = prof_dir / name
         if not path.exists():
-            ctx.io._write(f"File not found: {name}", "red")
             return CmdResult.fail(msg=f"File not found: {name}")
     else:
         profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
         if not profs:
-            ctx.io.output("No profile files found.")
             return CmdResult.fail(msg="No profile files found.")
         path = profs[-1]
     try:
@@ -112,7 +107,6 @@ def _hook_run_profile_dump(app, ctx, args: str) -> CmdResult:
         for line in text.splitlines():
             ctx.io.output(line)
     except OSError as e:
-        ctx.io._write(f"Read error: {e}", "red")
         return CmdResult.fail(msg=f"Read error: {e}")
     return CmdResult.ok(value=text)
 
@@ -121,7 +115,6 @@ def _hook_run_profile_explore(app, ctx, args: str) -> CmdResult:
     """Open the prof/ directory in the system file browser."""
     prof_dir = app._prof_dir()
     if not prof_dir:
-        ctx.io._write("No config loaded.", "red")
         return CmdResult.fail(msg="No config loaded.")
     ctx.fs.open_file(str(ensure_folder(prof_dir)))
     return CmdResult.ok(value=prof_dir)

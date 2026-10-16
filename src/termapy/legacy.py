@@ -83,20 +83,8 @@ def make_forwarder(old_name: str, new_name: str) -> Callable:
         # serial and sent to the device.  ctx.internal.dispatch takes the
         # name-and-args directly and routes through plugin lookup,
         # capability gates, and flag parsing.
-        target = f"{new_name} {args}".strip()
-        result = ctx.internal.dispatch(target)
-        # ctx.internal.dispatch already wrote any error message to the user
-        # via self.write(err_msg, "red").  Clear .error so the outer
-        # dispatch layer that invoked us doesn't print the same
-        # message a second time.  Preserve success/value for scripting.
-        if not result.success:
-            result = CmdResult(
-                success=False,
-                error="",
-                elapsed_s=result.elapsed_s,
-                value=result.value,
-            )
-        return result
+        # A failure comes back unprinted; returning it prints it once.
+        return ctx.internal.dispatch(f"{new_name} {args}".strip())
 
     return handler
 
@@ -136,15 +124,7 @@ def _verbose_forwarder(ctx: PluginContext, args: str) -> CmdResult:
         except ValueError as e:
             return CmdResult.fail(msg=str(e))
         target = "term.output verbose" if verbose else "term.output normal"
-    result = ctx.internal.dispatch(target)
-    if not result.success:
-        return CmdResult(
-            success=False,
-            error="",
-            elapsed_s=result.elapsed_s,
-            value=result.value,
-        )
-    return result
+    return ctx.internal.dispatch(target)
 
 
 @dataclass(frozen=True)

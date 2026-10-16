@@ -41,6 +41,9 @@ class SerialHandle:
     # update the frontend, update_port rewrites the port name, and
     # apply_port_effects pushes serial settings (baud, DTR/RTS, ...) to
     # the live port.  The host wires these; defaults are no-ops.
+    # connect(port=None) opens the port, or raises an OSError
+    # (SerialException) whose message is why it did not open; the caller
+    # reports it.  A port that is already open is not a failure.
     connect: Callable = lambda port=None: None
     disconnect: Callable = lambda: None
     update_port: Callable = lambda name: None

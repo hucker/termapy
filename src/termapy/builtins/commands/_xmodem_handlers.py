@@ -179,29 +179,25 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
                 _last[0] = success
                 ctx.io.status(f"  XMODEM: {success} packets ({success * pkt_size} bytes) received, {error} errors")
 
+        # Receive beside the target and move into place only on success: a
+        # canceled or failed receive must leave a file already at that name
+        # as it was (review 2026-10-15, X1).
         ensure_folder(path.parent)
-        with open(path, "wb") as f:
+        partial = path.with_name(f"{path.name}.part")
+        with open(partial, "wb") as f:
             ok = modem.recv(f, callback=_progress)
 
+        if (cancel and cancel.is_set()) or not ok:
+            partial.unlink(missing_ok=True)
+            if cancel and cancel.is_set():
+                return CmdResult.fail(msg="XMODEM recv canceled.")
+            return CmdResult.fail(msg="XMODEM recv failed.")
         # Strip trailing 0x1A padding (standard XMODEM EOF fill)
-        if ok and path.exists():
-            data = path.read_bytes()
-            stripped = data.rstrip(b"\x1a")
-            if len(stripped) < len(data):
-                path.write_bytes(stripped)
-
-        if cancel and cancel.is_set():
-            if path.exists():
-                path.unlink(missing_ok=True)
-            return CmdResult.fail(msg="XMODEM recv canceled.")
-        if ok:
-            size = path.stat().st_size
-            ctx.io.result(f"XMODEM recv complete: {path} ({size} bytes)")
-            return CmdResult.ok(value=path)
-        # Clean up empty file on failure
-        if path.exists() and path.stat().st_size == 0:
-            path.unlink()
-        return CmdResult.fail(msg="XMODEM recv failed.")
+        data = partial.read_bytes().rstrip(b"\x1a")
+        partial.write_bytes(data)
+        partial.replace(path)
+        ctx.io.result(f"XMODEM recv complete: {path} ({len(data)} bytes)")
+        return CmdResult.ok(value=path)
 
 
 # Public surface re-exported for xfer.py (the new home of the /xfer.xmodem

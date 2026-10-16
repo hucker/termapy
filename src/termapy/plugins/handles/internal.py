@@ -85,7 +85,9 @@ class InternalHandle:
     # Bare REPL dispatch through the plugin pipeline (capability gates,
     # flag parsing) WITHOUT ctx.dispatch's serial-output sugar.  Legacy
     # forwarders (/echo -> /term.echo) use this -- dispatch_full would
-    # misread the un-prefixed target as a serial send.
+    # misread the un-prefixed target as a serial send.  A failure comes
+    # back unprinted: return the result as your answer and dispatch's
+    # exit prints it once (registry ``failure-reported-once``).
     dispatch: Callable = lambda _line: None
 
     apply_cfg: Callable = lambda key, val: None  # set cfg in-memory, no dialog

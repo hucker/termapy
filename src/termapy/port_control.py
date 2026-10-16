@@ -2,7 +2,10 @@
 
 Each function accepts a serial-like object (or None), config dict, and args,
 and returns a list of (text, color) message tuples plus a dict of side effects
-for the caller to apply.
+for the caller to apply.  A function that refuses (a bad value, no open port,
+a read-only signal, a pyserial error) returns exactly one red or yellow
+message and no side effects; ``problem`` reads that refusal back out, so the
+``/port.*`` commands answer it as a failure.
 
 Side effects dict keys:
     update_title: bool - refresh the title bar
@@ -295,6 +298,26 @@ def _msg(text: str, color: str | None = None) -> Msg:
 
 def _result(msgs: list[Msg], **side_effects: Any) -> Result:
     return msgs, side_effects
+
+
+def problem(result: Result) -> str | None:
+    """The refusal a result carries, or None when the function did its job.
+
+    A refusal is the red or yellow message (see the module docstring); the
+    ``/port.*`` setters return it as ``CmdResult.fail`` rather than printing
+    it beside a success (review 2026-10-15, S1).
+
+    Args:
+        result: What a port_control function returned.
+
+    Returns:
+        The refusal's text, or None.
+    """
+    msgs, _ = result
+    for text, color in msgs:
+        if color in ("red", "yellow"):
+            return text
+    return None
 
 
 def list_ports(*, source: PortSource | None = None) -> Result:

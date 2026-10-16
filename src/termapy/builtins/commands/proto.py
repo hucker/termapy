@@ -316,7 +316,7 @@ def _run_toml_script(
 
 def _run_flat_script(
     ctx: PluginContext, path: Path, settings: dict, steps: list
-) -> None:
+) -> tuple[int, int]:
     """Execute a flat-format proto script.
 
     Args:
@@ -324,6 +324,9 @@ def _run_flat_script(
         path: Path to the script file (for display).
         settings: Parsed script settings.
         steps: Parsed step list.
+
+    Returns:
+        ``(failed, total)``: the expects that failed and the expects that ran.
     """
     do_strip_ansi = settings.get("strip_ansi", False)
     quiet = False
@@ -427,6 +430,7 @@ def _run_flat_script(
         ctx.io.output(f"{'─' * 40}")
         ctx.io.output(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
         ctx.io.output(f"{'─' * 40}")
+    return fail_count, total
 
 
 # ---- Leaf handlers ---------------------------------------------------------
@@ -688,14 +692,29 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
             if not ctx.wants_data:
                 ctx.io.output(f"  JSON: {out_path}")
         # The path is the scriptable value; the results document is the
-        # structured twin for --json / MCP.
-        return CmdResult.ok(value=path, data=results if ctx.wants_data else None)
+        # structured twin for --json / MCP, on a failing run too.
+        data = results if ctx.wants_data else None
+        summary = results["summary"]
+        if summary["failed"]:
+            return CmdResult.fail(
+                msg=_failed_tests_msg(summary["failed"], summary["total"]),
+                value=str(path.resolve()),
+                data=data,
+            )
+        return CmdResult.ok(value=path, data=data)
     settings, steps = result[1]
     if not steps:
         return CmdResult.fail(msg="Script has no steps.")
-    _run_flat_script(ctx, path, settings, steps)
+    failed, total = _run_flat_script(ctx, path, settings, steps)
+    if failed:
+        return CmdResult.fail(msg=_failed_tests_msg(failed, total), value=str(path.resolve()))
     # Return the script path so scripts can confirm what was run.
     return CmdResult.ok(value=path)
+
+
+def _failed_tests_msg(failed: int, total: int) -> str:
+    """The failure ``/proto.run`` answers with when a test failed, as ``termapy --proto`` exits 1."""
+    return f"{failed} of {total} tests failed"
 
 
 def _handler_debug(ctx: PluginContext, args: str) -> CmdResult:
@@ -1412,12 +1431,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             for n in names:
                 part = gen(n, **gen_kwargs_each)
                 if part is None:
-                    p = ctx.prefix
-                    ctx.io.output(
-                        f"Unknown algorithm: {n}. "
-                        f"Use {p}proto.crc.list to see available.",
-                        "red",
-                    )
+                    ctx.io.output(f"Use '{ctx.prefix}proto.crc.list' to see available algorithms.")
                     return CmdResult.fail(
                         msg=f"Unknown algorithm: {n}{_did_you_mean(n)}"
                     )
@@ -1462,12 +1476,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                 gen_kwargs_single["naming"] = naming
             result = gen(name, **gen_kwargs_single)
             if result is None:
-                p = ctx.prefix
-                ctx.io.output(
-                    f"Unknown algorithm: {name}. "
-                    f"Use {p}proto.crc.list to see available.",
-                    "red",
-                )
+                ctx.io.output(f"Use '{ctx.prefix}proto.crc.list' to see available algorithms.")
                 return CmdResult.fail(
                     msg=f"Unknown algorithm: {name}{_did_you_mean(name)}"
                 )

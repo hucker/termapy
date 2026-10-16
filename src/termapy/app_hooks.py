@@ -66,12 +66,9 @@ def _hook_help_open(app, ctx: "PluginContext | None", args: str) -> CmdResult:
         topic = topic.replace(".md", "").replace(".html", "")
         page = f"{topic}.html"
     if not Path(str(html_dir.joinpath(page))).exists():
-        msg = (
-            f"Unknown topic: {topic!r}. "
-            f"Available: {', '.join(app._HELP_TOPICS)}"
+        return CmdResult.fail(
+            msg=f"Unknown topic: {topic!r}. Available: {', '.join(app._HELP_TOPICS)}"
         )
-        app._status(msg, "red")
-        return CmdResult.fail(msg=msg)
     port = app._ensure_help_server()
 
     url = f"http://127.0.0.1:{port}/{page}"
@@ -185,7 +182,6 @@ def _hook_delay(app, ctx, args: str) -> CmdResult:
     try:
         seconds = parse_duration(args)
     except ValueError as e:
-        app._status(str(e), "red")
         return CmdResult.fail(msg=str(e))
     if seconds < 1:
         time.sleep(seconds)
@@ -204,7 +200,6 @@ def _hook_delay_quiet(app, ctx, args: str) -> CmdResult:
     try:
         seconds = parse_duration(args)
     except ValueError as e:
-        app._status(str(e), "red")
         return CmdResult.fail(msg=str(e))
     app._on_main(app.set_timer, seconds, lambda: None)
     return CmdResult.ok(value=str(seconds))

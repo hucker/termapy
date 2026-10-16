@@ -175,13 +175,19 @@ class TerminalHost:
         except KeyboardInterrupt:
             self.status("Script interrupted", "red")
 
-    def _connect(self, port: str | None = None) -> bool:
+    def _connect(self, port: str | None = None, *, report: bool = True) -> bool:
         """Connect to a serial port.
 
         Handles the shared logic: set port, call engine.connect(), build
         connection string, fire lifecycle, start reader.  Returns True on
         success.  Subclasses override ``_on_connected()`` and
         ``_on_connect_failed()`` for UI updates.
+
+        Args:
+            port: Port to set before opening; None keeps the cfg's.
+            report: Show why an open failed on the status line.  False
+                when a command answers for the failure itself
+                (``ctx.serial.connect``), so it is shown once.
         """
         if self.engine.is_connected:
             self.status("Already connected", "yellow")
@@ -189,16 +195,33 @@ class TerminalHost:
         if port:
             self.repl._cfg_data["serial"]["port"] = port
         if not self.engine.connect():
-            port_name = self.cfg["serial"]["port"] or "?"
-            detail = self.engine.last_error
-            if detail:
-                self.status(f"Cannot open {port_name}: {detail}", "red")
-            else:
-                self.status(f"Cannot open {port_name}", "red")
+            if report:
+                self.status(self._open_error(), "red")
             self._on_connect_failed()
             return False
         self._finish_connect()
         return True
+
+    def _open_error(self) -> str:
+        """Why the last open of the cfg's port failed, as the user reads it."""
+        port_name = self.cfg["serial"]["port"] or "?"
+        detail = self.engine.last_error
+        return f"Cannot open {port_name}: {detail}" if detail else f"Cannot open {port_name}"
+
+    def _connect_for_command(self, port: str | None = None) -> None:
+        """``ctx.serial.connect``: open the port or raise why it did not open.
+
+        The command returns the reason as its failure, so the status line
+        stays quiet (``report=False``); an already-open port is not a failure.
+
+        Raises:
+            SerialException: The port did not open; the message is the reason.
+        """
+        if self._connect(port, report=False) or self.engine.is_connected:
+            return
+        from serial import SerialException
+
+        raise SerialException(self._open_error())
 
     def _finish_connect(self) -> None:
         """The half of a connect after the port is open: banner, lifecycle, reader, hook.
@@ -322,7 +345,9 @@ class TerminalHost:
             effective_capabilities=lambda: self.repl._effective_capabilities(),
             script_stop=lambda: self.repl._script_stop.set(),
             apply_cfg=self.repl._apply_cfg,
-            dispatch=self.repl.dispatch,
+            # Every caller answers with the result (a forwarder, a
+            # redirect), so the failure is printed once, at its exit.
+            dispatch=lambda line: self.repl.dispatch(line, report=False),
             # set_proto_active intentionally not exposed -- the bare flag
             # setter is private; ``ctx.serial.io()`` is the public path.
             # TUI override installs a real modal launcher.  In non-TUI
@@ -336,7 +361,7 @@ class TerminalHost:
             script_stop_event=self.repl._script_stop,
             # /run's built-in handler reaches script-running via these
             # two callbacks.  ``start_script`` is host-agnostic;
-            # ``run_script`` polymorphs -- CLI / MCP inherit the
+            # ``run_script`` differs by host -- CLI / MCP inherit the
             # synchronous TerminalHost._run_script, TUI overrides with
             # @work(thread=True).
             start_script=lambda args: self.repl.start_script(args),
@@ -383,7 +408,7 @@ class TerminalHost:
 
         serial = SerialHandle(
             is_connected=lambda: self.engine.is_connected,
-            connect=lambda port=None: self._connect(port),
+            connect=self._connect_for_command,
             disconnect=lambda: self._disconnect(),
             update_port=lambda name: self._update_port(name),
             apply_port_effects=lambda effects: self._apply_port_effects(effects),
@@ -429,7 +454,7 @@ class TerminalHost:
             serial=serial,
             fs=fs,
             ui=ui,
-            dispatch=lambda cmd: self._dispatch(cmd),
+            dispatch=lambda cmd, report=True: self._dispatch(cmd, report=report),
             # is_oneshot: True when --run / --exec is in effect.  Plugins
             # use this to suppress chatter that would corrupt captured
             # stdout.  Defaults to False; CLITerminal overrides via a
@@ -584,8 +609,8 @@ class TerminalHost:
 
     # -- Dispatch -------------------------------------------------------------
 
-    def _dispatch(self, cmd: str) -> CmdResult:
-        """Route a command through the full dispatch pipeline."""
+    def _dispatch(self, cmd: str, *, report: bool = True) -> CmdResult:
+        """Route a command through the full dispatch pipeline (``ctx.dispatch``)."""
         return self.repl.dispatch_full(
             cmd,
             log=self._log,
@@ -594,6 +619,7 @@ class TerminalHost:
             serial_write=self._serial_write,
             is_connected=lambda: self.engine.is_connected,
             eol_label=eol_label,
+            report=report,
         )
 
     # -- Port effects ---------------------------------------------------------
@@ -820,13 +846,11 @@ class TerminalHost:
 
         log_path = cfg_log_path(self.config_path) if self.config_path else ""
         if not log_path or not Path(log_path).exists():
-            self.status("No log file to delete.", "yellow")
             return CmdResult.fail(msg="No log file.")
         try:
             Path(log_path).unlink()
             self.status(f"Deleted {Path(log_path).name}", "green")
             return CmdResult.ok(value=Path(log_path))
         except OSError as e:
-            self.status(f"Delete failed: {e}", "red")
-            return CmdResult.fail(msg=str(e))
+            return CmdResult.fail(msg=f"Delete failed: {e}")
 

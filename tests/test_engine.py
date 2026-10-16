@@ -1331,6 +1331,55 @@ class TestDispatchCapabilities:
         assert "serial_io" in result.error, "reports baseline gap"
         assert called == [], "handler never invoked"
 
+    def test_a_closed_port_answers_not_connected(self, cap_env):
+        """failure-is-failure: a command that needs an open port answers Not connected., as handlers do.
+
+        The gate used to name the capability (``requires: serial_connected
+        (not available in this environment)``), which reads as a permanent
+        environment limit for what is session state (review 2026-10-15, S5).
+        """
+        # Arrange -- the context's serial handle reports no open port
+        eng, _, _ = cap_env
+        called = []
+        eng.register_plugin(
+            PluginInfo(
+                name="sender",
+                args="",
+                help="h",
+                handler=lambda c, a: called.append(True),
+                needs=CapabilitySet.SERIAL_CONNECTED,
+            )
+        )
+
+        # Act
+        result = eng.dispatch("sender")
+
+        # Assert
+        assert (result.success, result.error) == (False, "Not connected."), "the state, not the environment"
+        assert called == [], "handler never invoked"
+
+    def test_a_closed_port_with_another_gap_names_the_environment(self, cap_env):
+        """When an environment need is missing too, the gate names every gap: connecting would not help."""
+        # Arrange -- no interactive session and no open port
+        eng, ctx, _ = cap_env
+        ctx.capabilities = CapabilitySet()
+        eng.register_plugin(
+            PluginInfo(
+                name="xfer",
+                args="",
+                help="h",
+                handler=lambda c, a: None,
+                needs=CapabilitySet.SERIAL_INTERACTIVE,
+            )
+        )
+
+        # Act
+        result = eng.dispatch("xfer")
+
+        # Assert
+        expected = "/xfer requires: serial_connected, interactive (not available in this environment)"
+        assert result.error == expected
+
 
 class TestOneScriptAtATime:
     """T6: two outermost scripts must not run against one device.

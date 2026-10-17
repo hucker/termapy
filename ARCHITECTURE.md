@@ -85,7 +85,6 @@ src/termapy/
 │   ├── config_picker.py    #   ConfigPicker -- pick a config to load or edit, or create a new one
 │   ├── confirm_dialog.py   #   ConfirmDialog -- the generic Yes/Cancel prompt (/confirm, delete confirmations)
 │   ├── filename_dialog.py  #   FilenameDialog -- one-line filename prompt
-│   ├── name_picker.py      #   NamePicker -- a name prompt for a new config
 │   ├── port_picker.py      #   PortPicker -- pick a serial port from a list that follows USB plug and unplug
 │   ├── proto_editor.py     #   ProtoEditor -- the .pro protocol-script editor, with TOML highlighting
 │   ├── proto_picker.py     #   ProtoPicker -- pick a .pro script to run or edit, or create one
@@ -93,8 +92,7 @@ src/termapy/
 │   ├── script_editor.py    #   ScriptEditor -- the .run script editor
 │   ├── script_picker.py    #   ScriptPicker -- pick a .run script to run or edit, or create one
 │   ├── set_var_dialog.py   #   SetVarDialog -- two-field name/value prompt for /var.set
-│   ├── update_available.py #   UpdateAvailableDialog -- reports a newer termapy on PyPI (Info / OK)
-│   └── welcome_dialog.py   #   WelcomeDialog -- a one-button welcome message
+│   └── update_available.py #   UpdateAvailableDialog -- reports a newer termapy on PyPI (Info / OK)
 ├── help/                   #              Markdown help pages, the source of the HTML help
 ├── html/                   #              Generated HTML help, what the wheel ships (rebuilt at release)
 ├── mcp/                    # (2178 lines) Termapy MCP (Model Context Protocol) server package
@@ -467,7 +465,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 │  ┌──────────────────────────────────────────┐    │
 │  │ dialogs/ - Modal Screens (per-file pkg)  │    │
 │  │ ConfigPicker, ConfigEditor, PortPicker,  │    │
-│  │ ScriptPicker, NamePicker, ConfirmDialog  │    │
+│  │ ScriptPicker, ConfirmDialog, QuickSetup  │    │
 │  └──────────────────────────────────────────┘    │
 │  ┌──────────────────────────────────────────┐    │
 │  │ proto_debug.py - Proto Debug Screen      │    │
@@ -822,7 +820,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_dialogs.py                     | Behavioral tests for the modal dialogs' result contracts                                                                                           |
 | test_dialogs_config_editor.py       | The ConfigEditor dialog: what it shows, how it validates, what it dismisses with                                                                   |
 | test_dialogs_quick_setup.py         | The QuickSetup dialog: name, baud entry, and the tuple it dismisses with                                                                           |
-| test_dialogs_small.py               | The nine small dialogs: what each shows and what it dismisses with                                                                                 |
+| test_dialogs_small.py               | The seven small dialogs: what each shows and what it dismisses with                                                                                |
 | test_engine.py                      | Tests for ReplEngine internals: start_script, run_script, properties                                                                               |
 | test_env_var.py                     | Tests for the env_var built-in transform and commands                                                                                              |
 | test_env_var_gates.py               | Tests for the env-var security gates                                                                                                               |

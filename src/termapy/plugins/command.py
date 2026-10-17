@@ -36,8 +36,9 @@ plus a couple of helpers.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Sequence, Union
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from termapy.folders import FOLDER_NAMES
 from termapy.plugins.capabilities import CapabilitySet
@@ -61,7 +62,7 @@ if TYPE_CHECKING:
 # Uses the quoted string "PluginContext" because that class is defined in
 # the sibling ``context`` module; this module avoids importing context to
 # keep the import graph one-way.
-LongHelp = Union[str, Callable[["PluginContext"], str]]
+LongHelp = str | Callable[["PluginContext"], str]
 
 
 # The pickers a host's ``ctx.internal.open_picker`` opens -- each one the
@@ -116,7 +117,7 @@ class UsageError(Exception):
         super().__init__(detail)
 
 
-def usage_synopsis(command: "Command | PluginInfo") -> str:
+def usage_synopsis(command: Command | PluginInfo) -> str:
     """Return the argument synopsis for *command*.
 
     Params-declared commands synthesize it from their ``ParamSpec`` list
@@ -129,7 +130,7 @@ def usage_synopsis(command: "Command | PluginInfo") -> str:
 
 
 def format_usage(
-    prefix: str, name: str, command: "Command | PluginInfo", detail: str = ""
+    prefix: str, name: str, command: Command | PluginInfo, detail: str = ""
 ) -> str:
     """Format the canonical usage message for *command*.
 
@@ -245,7 +246,7 @@ class CmdResult:
         *,
         value: Any,
         data: dict[str, Any] | None = None,
-    ) -> "CmdResult":
+    ) -> CmdResult:
         """A list answer: ``records`` as ``data``, their table as the view.
 
         The handler renders nothing; dispatch prints the table, or hands
@@ -279,7 +280,7 @@ class CmdResult:
         value: Any,
         title: Sequence[Line] = (),
         notes: Sequence[Line] = (),
-    ) -> "CmdResult":
+    ) -> CmdResult:
         """A status answer: ``data`` with real JSON types, ``rows`` as its view.
 
         The handler renders nothing; dispatch prints the aligned rows, or
@@ -307,7 +308,7 @@ class CmdResult:
         return cls(value=value, data=data, view=RecordView(items))
 
     @classmethod
-    def ok(cls, *, value: Any, data: Any = None) -> "CmdResult":
+    def ok(cls, *, value: Any, data: Any = None) -> CmdResult:
         """Return a successful result with a value.
 
         ``value`` is REQUIRED -- pass ``value=""`` explicitly for
@@ -338,7 +339,7 @@ class CmdResult:
         return cls(value=value, data=data)
 
     @classmethod
-    def fail(cls, msg: str = "", *, value: Any = "", data: Any = None) -> "CmdResult":
+    def fail(cls, msg: str = "", *, value: Any = "", data: Any = None) -> CmdResult:
         """Return a failure result with an error message.
 
         ``value`` is optional; profile executors set it on parse-failure
@@ -431,7 +432,7 @@ class Command:
     args: str = ""
     long_help: LongHelp = ""
     handler: Callable | None = None
-    sub_commands: dict[str, "Command"] | None = None
+    sub_commands: dict[str, Command] | None = None
     bare_sub: str = ""
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
@@ -760,7 +761,7 @@ def interpolate_help(text: str, prefix: str) -> str:
     return text.replace("{prefix}", prefix)
 
 
-def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:
+def resolve_long_help(plugin: PluginInfo, ctx: PluginContext) -> str:
     """Return ``plugin.long_help`` as a prefix-interpolated string.
 
     Static strings pass through with ``{prefix}`` substituted.  Callables

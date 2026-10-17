@@ -47,9 +47,10 @@ Design notes:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, TextIO
+from typing import TYPE_CHECKING, TextIO
 
 from termapy.folders import ensure_folder
 from termapy.plugins import CmdResult, UsageError

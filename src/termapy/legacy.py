@@ -23,8 +23,9 @@ Two rename tables back the migration tool:
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.scripting import parse_bool

@@ -14,8 +14,9 @@ argument string into either a bound ``dict`` or a single error reason.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from termapy.scripting import BOOL_TOKENS_HELP, parse_bool, parse_duration, parse_keywords
 

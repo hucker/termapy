@@ -8,8 +8,8 @@ the ``_common`` submodule for shared constants and helpers.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from rich.text import Text
 from textual import events, on

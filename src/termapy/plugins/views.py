@@ -32,8 +32,9 @@ prints its rows into a JSON answer.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from termapy.markup import escape_markup
 from termapy.plugins.output_levels import format_kv_lines

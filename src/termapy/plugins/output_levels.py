@@ -67,7 +67,7 @@ def format_kv_lines(
     rows: Sequence[tuple[str, str] | tuple[str, str, str]],
     indent: str = "  ",
     label_color: str = "cyan",
-) -> "list[str]":
+) -> list[str]:
     """Render ``(label, value)`` rows as cyan-key markup lines.
 
     Pads labels to the widest in the set and adds a colon-space

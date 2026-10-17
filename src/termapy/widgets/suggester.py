@@ -7,7 +7,7 @@ prefix match.  Extracted from ``app.py`` so that contract has coverage.
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from textual.suggester import Suggester
 

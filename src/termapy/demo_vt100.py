@@ -328,7 +328,7 @@ class FakeSerialVT100(FakeSerial):
         head = f"{_CYAN}Calibration{_RESET}  -  bare-\\r redraw   (q back, Ctrl-] quit)"
         # Full draw: clear, header (CRLF), blank line, then the bar line LAST so
         # the cursor stays on it for the CR-based updates that follow.
-        return f"\x1b[2J\x1b[H{head}\r\n\r\n{line}".encode("utf-8")
+        return f"\x1b[2J\x1b[H{head}\r\n\r\n{line}".encode()
 
     def _calib_progress_line(self) -> str:
         pct = self._calib

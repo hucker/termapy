@@ -28,8 +28,8 @@ Method-to-capability map:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from termapy.plugins.capabilities import CapabilitySet, MissingCapability
 

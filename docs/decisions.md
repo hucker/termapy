@@ -342,3 +342,21 @@ v29 -> v30 migration moves each existing chain into `run/<field>.run`
 doing what it did. **Where:** `config.on_connect_commands` (a field holding
 a line break is skipped, and `validate_config` names it), `entry._OneCommand`
 for `-e`, `migration._migrate_v29_to_v30`.
+
+## 2026-10-17 — The floor is Python 3.11, and ruff's pyupgrade holds the code to it
+
+Python 3.10 support is dropped (3.11 through 3.15 are supported), and the
+code is written for the floor rather than for the oldest version ever
+supported: `collections.abc` over `typing` for abstract types, unquoted
+annotations under `from __future__ import annotations`, `datetime.UTC`, the
+builtin `TimeoutError` (asyncio's and concurrent.futures' are the same class
+since 3.11), and `fromisoformat` reading a trailing `Z` itself. **Why:** a
+workaround outliving the version that needed it reads as a requirement, and
+nobody can tell which ones still matter. **Where:** ruff's `UP` family in
+`[tool.ruff.lint]`, which flags the next set of upgrades when the floor moves;
+the gate (`.githooks/pre-commit`, `release_prep`) runs it. Other ruff families
+were surveyed the same day and land one per branch, findings reviewed:
+the gate's scope (`scripts/`, `examples/`), then B, A, chosen RUF rules,
+small style families, and RUF100 last. S, ANN, D, PL, E501, TRY, T20, DTZ,
+BLE, SIM and PTH are not planned: they mostly flag the project's deliberate
+choices. `ruff format` is a separate decision.

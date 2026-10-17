@@ -31,7 +31,8 @@ import asyncio
 import contextvars
 import sys
 import threading
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -351,13 +352,13 @@ class MCPHost(TerminalHost):
         (``"pre_send_drain"``).  The ring is capped to keep the
         device_state resource bounded.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         self._async_events.append(
             {
                 "line": line,
                 "source": source,
-                "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
         )
         if len(self._async_events) > 50:
@@ -753,7 +754,8 @@ class MCPHost(TerminalHost):
                 )
                 try:
                     result = await asyncio.wait_for(fut, timeout=timeout_s)
-                except (asyncio.TimeoutError, FutTimeout):
+                # asyncio's and concurrent.futures' TimeoutError are this one class since 3.11.
+                except TimeoutError:
                     # The worker keeps running -- a blocking dispatch cannot
                     # be cancelled.  timeout_s bounds the CALLER's wait, not
                     # the device operation; the shared worker keeps the next
@@ -777,9 +779,9 @@ class MCPHost(TerminalHost):
 
             # Track for device_state resource.  ISO 8601 timestamp matches
             # the spec's "<at>" field; UTC with explicit Z avoids TZ surprises.
-            from datetime import datetime, timezone
+            from datetime import datetime
 
-            at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             self._last_command = {
                 "cmd": command,
                 "success": bool(result.success),

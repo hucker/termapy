@@ -11,7 +11,7 @@ To add a migration:
 """
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 CURRENT_CONFIG_VERSION = 30
 

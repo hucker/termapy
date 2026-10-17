@@ -11,13 +11,13 @@ etc.) and exposes it through PluginContext lambdas.
 import re
 import threading
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from io import TextIOWrapper
 from pathlib import Path
 from threading import Event
 from types import MappingProxyType
-from typing import Callable
 
 from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY

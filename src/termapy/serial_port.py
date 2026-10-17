@@ -15,8 +15,9 @@ import codecs
 import queue
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from termapy.protocol.core import format_hex
 
@@ -40,7 +41,7 @@ class SerialPort:
     def __init__(
         self,
         port: Any,
-        rx_queue: "queue.Queue[bytes]",
+        rx_queue: queue.Queue[bytes],
         log: Callable[[str, str], None] | None = None,
         encoding: str = "utf-8",
         last_rx: Callable[[], float] | None = None,

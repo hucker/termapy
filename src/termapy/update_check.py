@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from packaging.version import InvalidVersion, Version
 
@@ -71,17 +71,17 @@ def _save_state(slice_: dict) -> None:
 
 def _now() -> datetime:
     """Return current UTC time.  Seam for test clock injection."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _parse_iso(value: str) -> datetime | None:
-    """Parse an ISO-8601 string; return None on any failure."""
+    """Parse an ISO-8601 string (a trailing ``Z`` is UTC); return None on any failure."""
     try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except (ValueError, TypeError, AttributeError):
+        dt = datetime.fromisoformat(value)
+    except (ValueError, TypeError):
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 

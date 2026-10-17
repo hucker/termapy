@@ -46,9 +46,10 @@ from __future__ import annotations
 import json
 import re
 from bisect import bisect_right
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
-from typing import Any, Final, Iterable
+from typing import Any, Final
 
 from termapy import folders
 

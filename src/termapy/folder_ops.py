@@ -24,10 +24,11 @@ folder operations per plugin.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from termapy.config import validate_file_stem
 from termapy.folders import FOLDERS, FolderSpec, default_file_name, ensure_folder

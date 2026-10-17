@@ -1424,4 +1424,213 @@ demo> /print prose is back
   prose is back
   [219/219] /print prose is back (263us)
   Script cli_test.run done (11.3s)
+demo> /print === section: coverage: terminal settings ===
+  === section: coverage: terminal settings ===
+demo> /term.echo
+  on
+demo> /term.encoding
+  utf-8
+demo> /term.eol
+  cr
+demo> /term.eol.markers
+  off
+demo> /term.eol.rx
+  auto
+demo> /term.hex
+  off
+demo> /proto.hex
+  Hex display mode disabled.
+demo> /term.json
+  compact
+demo> /term.output
+  normal
+demo> /term.send_bare_enter
+  off
+demo> /term.timestamps
+  off
+demo> /term.color
+  off
+demo> /term.info
+  echo           : on
+  echo_repl      : on
+  color          : off
+  output         : normal
+  hex            : off
+  line_no        : off
+  eol            : cr
+  eol_rx         : auto
+  eol_markers    : off
+  timestamps     : off
+  send_bare_enter: off
+  encoding       : utf-8
+demo> /term.log a line for the session log, not the screen
+demo> /port.mode
+  115200 8N1
+demo> /raw AT
+demo> +PROD-ID
++PROD-ID:BASSOMATIC-77
+demo> /print === section: coverage: folders ===
+  === section: coverage: folders ===
+demo> /run.help at_demo
+  AT Command Demo -- Walks through all demo device commands
+demo> /run.legacy at_demo
+    at_demo.run: no legacy commands found.
+demo> /edit.run.list
+  run/ - 9 scripts
+  NAME SIZE UPDATED SUMMARY
+  -- -- -- --
+  at_demo.run  <SIZE>  just now  AT Command Demo -- Walks through all demo device commands
+  crc_tour.run  <SIZE>  just now  the whole /proto.crc.* API in one screen
+  doc_screenshots.run  <SIZE>  just now  Generate documentation images
+  expect_test.run  <SIZE>  just now  Expect command test
+  gps_demo.run  <SIZE>  just now  GPS/NMEA Demo -- Query simulated GPS receiver
+  smoke_test.run  <SIZE>  just now  Smoke test for demo device
+  status_check.run  <SIZE>  just now  Quick status check
+  var_demo.run  <SIZE>  just now  Variable Demo -- Set variables and use them in commands
+  welcome.run  <SIZE>  just now  Welcome script -- Runs on connect via on_connect_cmd config
+demo> /run.dump status_check
+  # Quick status check
+
+  AT+STATUS
+  /delay 300ms
+  AT+TEMP
+  /delay 300ms
+demo> /proto
+  proto/ - 3 scripts
+  NAME SIZE UPDATED
+  -- -- --
+  at_test.pro  <SIZE>  just now
+  bitfield_inline.pro  <SIZE>  just now
+  modbus_inline.pro  <SIZE>  just now
+demo> /proto.info
+  Hex mode : off
+  Connected: yes
+demo> /cfg.file demo_legacy.profile.json
+  {
+    "profile_version": 2,
+    "profile_revision": "1.0.0",
+    "profile_date": "2026-08-29",
+
+    "device": {
+      "name": "Bassomatic v77 (legacy memory grammar)",
+      "vendor": "termapy",
+      "model": "DEMO"
+    },
+
+    "memory": {
+      "dialect": "template",
+      "read": "mem {addr:X} {len}",
+      "write": "mem {addr:X} ={byte:02X}",
+      "ack": "^ok\\b",
+      "error": "(?i)^\\s*err\\b",
+      "max_block": 256,
+      "address_bits": 32,
+      "endian": "le"
+    },
+
+    "commands": {
+      "mem": {
+        "help": "Hex dump at addr; =val writes a byte, half-word or word by digit count: <addr> (count|=val)",
+        "safety": "readonly",
+        "response": {"format": "regex", "pattern": "(?s)(?P<text>.*)", "timeout_ms": 1000}
+      }
+    }
+  }
+demo> /dev.list
+    (no devices loaded)
+demo> /dev.lib
+    (no library parts)
+demo> /dev.use nosuch
+  Error: No library part named nosuch (try /dev.lib to see what there is)
+demo> /cap.stop
+demo> /print === section: coverage: protocol ===
+  === section: coverage: protocol ===
+demo> /proto.send --dry-run "AT\r"
+    TX (dry-run): 41 54 0D  |AT.|
+demo> /proto.crc.verify crc16-modbus endian=le 01 03 00 00 00 01 84 0A
+  OK  crc16-modbus  endian=little  crc=0x0A84  (6 data bytes)
+demo> /proto.debug demo.pro
+  Error: /proto.debug requires: tui_mode (not available in this environment)
+demo> /print === section: coverage: profile and help ===
+  === section: coverage: profile and help ===
+demo> /profile.validate demo_legacy.profile.json
+  Valid profile.  1 commands.
+demo> /profile.load demo_legacy.profile.json
+  Loaded demo_legacy.profile.json: 1 commands (rev 1.0.0).
+demo> /help.target
+-- Target Device --
+  mem    Hex dump at addr; =val writes a byte, half-word or word by digit count: <addr> (count|=val)
+  1 device commands.
+demo> /profile.unload
+  Unloaded profile (1 commands).
+demo> /help.dev print
+NAME
+  /print - Print a message to the terminal.
+
+SYNOPSIS
+  /print <text>
+
+DESCRIPTION (developer)
+  Write a message to the terminal output.
+
+    Prints the argument text directly to the terminal. Useful in
+    scripts for status messages or visual separators.
+
+  Args:
+      ctx: Plugin context for output.
+      args: Text to print.
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SUBCOMMANDS
+  /print.r    Print Rich markup text (e.g. [bold red]Warning![/]).
+demo> /search fingerprint
+/log.fingerprint {--show} - Write a full session fingerprint (OS, terminal, port params) to the session log.
+  (flags) --show Also echo the fingerprint to the terminal output.
+/log - Session log: print, fingerprint, or open it.
+  2 matches.
+demo> /print === section: coverage: memory and variables ===
+  === section: coverage: memory and variables ===
+demo> /mem.and gFlags 0xFFFFFF00
+  AND 0xFFFFFF00 at 0x00001008  gFlags  (0x00000014 -> 0x00000000)
+demo> /mem.dump gFlags 4
+  0x00001008  00 00 00 00                                      |....|  gFlags
+demo> /var.capture NAME AT+NAME?
+  $(NAME) = +NAME:Bassomatic v77
+demo> /var NAME
+  $(NAME) = +NAME:Bassomatic v77
+demo> /print.r [bold]plain in the gold[/]
+plain in the gold
+demo> /print === section: coverage: answered by the CLI's capabilities ===
+  === section: coverage: answered by the CLI's capabilities ===
+demo> /log.dump
+  Error: /log.dump requires: session_log (not available in this environment)
+demo> /log.delete
+  Error: /log.delete requires: session_log (not available in this environment)
+demo> /log.fingerprint
+  Error: /log.fingerprint requires: session_log (not available in this environment)
+demo> /grep OK
+  Error: Grep not available: no scrollback in CLI mode
+demo> /find OK
+  Error: Find not available: no scrollback in CLI mode (try /grep instead)
+demo> /find.next
+  Error: No active find.
+demo> /find.prev
+  Error: No active find.
+demo> /find.clear
+demo> /find.max_count
+  /find.max_count = 100
+demo> /print === section: coverage: files, timing, recording ===
+  === section: coverage: files, timing, recording ===
+demo> /run.rename status_check status_probe
+    Renamed status_check.run -> status_probe.run
+demo> /run.rename status_probe status_check
+    Renamed status_probe.run -> status_check.run
+demo> /delay 1ms
+  Delay 1ms done.
+demo> /run.record
+  Error: Not recording.
+demo> /cap.clear
+    cap/ is already empty.
 Disconnected: DEMO

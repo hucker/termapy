@@ -951,12 +951,18 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
 )
 
 
-def _command_groups() -> list[list[str]]:
-    """Every registered built-in command name, grouped by handler code object."""
+def _command_groups(*, visible_only: bool = False) -> list[list[str]]:
+    """Every registered built-in command name, grouped by handler code object.
+
+    Args:
+        visible_only: Leave out hidden commands (the legacy forwarders).
+    """
     from termapy.plugins import builtins_dir, load_plugins_from_dir
 
     groups: dict[object, list[str]] = {}
     for info in load_plugins_from_dir(builtins_dir(), source="built-in").plugins:
+        if visible_only and info.hidden:
+            continue
         key = getattr(info.handler, "__code__", None) or id(info.handler)
         groups.setdefault(key, []).append(info.name)
     return [sorted(names) for names in groups.values()]
@@ -1037,6 +1043,181 @@ def test_known_untested_commands_has_no_stale_entries():
     assert stale == [], (
         "KNOWN_UNTESTED_COMMANDS lists commands a test now names; drop them:\n  "
         + "\n  ".join(stale)
+    )
+
+
+# ── Every command is in the CLI gold run, or says why not ────────────────────
+#
+# 2026-10-17: the gold run (tests/cli_gold/cli_test.run) reached 53 of 182
+# command families, and a day of behavior changes went in without a gold line
+# until Chuck asked.  The gold run is the one end-to-end check of what a user
+# reads, so every family is in it -- one member suffices, as for
+# command-has-test -- or is listed below with the reason it cannot be.  A new
+# command fails here until it gets a gold line or a reason; the list only
+# shrinks.
+
+GOLD_RUN = Path(__file__).parent / "cli_gold" / "cli_test.run"
+
+_OPENS_APP = "opens a desktop app or editor; whether it can depends on the machine's desktop"
+_HARDWARE = "needs real serial hardware or the network"
+_PATH = "prints an absolute path (the run's temp config folder or the user's app folder)"
+_TIMED = "its output carries timing that changes from run to run"
+_CRCGLOT = "its output is crcglot's catalogue or generated code, which changes with crcglot"
+
+# One name per family: the family's alphabetically first name.
+NOT_IN_GOLD: dict[str, str] = {
+    "app.config": _PATH,
+    "app.config.dump": "prints the user's app-wide config, which differs per machine",
+    "app.config.edit": _OPENS_APP,
+    "app.explore": _OPENS_APP,
+    "app.list": "lists the user's app folder, which differs per machine",
+    "app.state": _PATH,
+    "app.state.dump": "prints the user's app state (update-check times), which differs per machine",
+    "app.state.edit": _OPENS_APP,
+    "app.ver": "prints the version, which changes every release",
+    "app.ver.info": "prints the version and how this machine installed termapy",
+    "app.ver.latest": _HARDWARE,
+    "cap.bin": "a capture runs on the device's timing; tests/test_capture*.py drive it",
+    "cap.explore": _OPENS_APP,
+    "cap.hex": "a capture runs on the device's timing; tests/test_capture*.py drive it",
+    "cap.show": _OPENS_APP,
+    "cap.struct": "a capture runs on the device's timing; tests/test_capture*.py drive it",
+    "cap.text": "a capture runs on the device's timing; tests/test_capture*.py drive it",
+    "cap.wire": _TIMED,
+    "cfg.edit": _OPENS_APP,
+    "cfg.explore": _OPENS_APP,
+    "cfg.help": "prints the same page as /help cfg, which the help section already pins",
+    "cfg.icon": "creates a desktop launcher on this machine",
+    "cfg.icon.list": "lists the desktop launchers on this machine",
+    "cfg.icon.remove": "removes a desktop launcher on this machine",
+    "cfg.info": _PATH,
+    "cfg.list": _PATH,
+    "cfg.load": "reloads the config mid-run, resetting the state the later lines rely on",
+    "cfg.show": _OPENS_APP,
+    "cls": "clears the screen with an escape sequence that swallows the next line",
+    "confirm": "waits for a human to answer",
+    "credits": "a long docs page; tests/test_credits_*.py guard its content",
+    "demo": "reinstalls the demo config mid-run",
+    "demo.force": "reinstalls the demo config mid-run",
+    "edit": _OPENS_APP,
+    "edit.info": _OPENS_APP,
+    "edit.log": _OPENS_APP,
+    "edit.plugin": _OPENS_APP,
+    "edit.plugin.explore": _OPENS_APP,
+    "env.reload": "reads the machine's environment variables",
+    "exit": "ends the session, and with it the gold run",
+    "expect": "races the device's reply; tests/test_expect.py drives it",
+    "expect.regex": "races the device's reply; tests/test_expect.py drives it",
+    "log.show": _OPENS_APP,
+    "mcp.catalog": "the whole command catalog as JSON; it changes with every command",
+    "mcp.info": "prints the process id",
+    "mcp.log": _OPENS_APP,
+    "mcp.log.dump": _PATH,
+    "mcp.log.path": _PATH,
+    "os": "runs a shell command, gated by TERMAPY_OS_CMD_ENABLED, a machine setting",
+    "ping": _TIMED,
+    "ping.quiet": _TIMED,
+    "port": "bare /port runs /port.list, which needs real serial hardware",
+    "port.chip": _HARDWARE,
+    "port.chip.description": _HARDWARE,
+    "port.chip.list": _HARDWARE,
+    "port.list": _HARDWARE,
+    "port.usb": _HARDWARE,
+    "profile.info": _PATH,
+    "proto.crc.c": _CRCGLOT,
+    "proto.crc.detect": _CRCGLOT,
+    "proto.crc.find": _CRCGLOT,
+    "proto.crc.list": _CRCGLOT,
+    "proto.crc.reverse": _CRCGLOT,
+    "proto.help": "prints the same page as /help proto, which the help section already pins",
+    "proto.run": _TIMED,
+    "run": "in a script the runner takes /run as a nested script, so bare /run is a usage error there",
+    "run.profile": _TIMED,
+    "run.profile.cmd": _TIMED,
+    "show": _OPENS_APP,
+    "show.cfg": _OPENS_APP,
+    "stop": "stops the running script, which is the gold run",
+    "term": "bare /term sends 'help term' to the device (review 2026-10-15, open)",
+    "term.send": "sends without waiting; the reply prints whenever it arrives",
+    "term.usb_db": _PATH,
+    "xfer.root": _PATH,
+    "xfer.xmodem.recv": _TIMED,
+    "xfer.xmodem.send": _TIMED,
+    "xfer.ymodem.recv": _TIMED,
+    "xfer.ymodem.send": _TIMED,
+}
+
+
+def _gold_names(script: str, known: set[str]) -> set[str]:
+    """The registered commands a gold script runs: each line's command, and a capture's (``<- /cmd``).
+
+    A level suffix (``/mem.dump.silent``) counts as its command.
+    """
+    used: set[str] = set()
+    for line in script.splitlines():
+        for match in re.finditer(r"(?:^\s*|<-\s*)/([\w.]+)", line):
+            name = match.group(1)
+            while name not in known and "." in name:
+                name = name.rsplit(".", 1)[0]
+            used.add(name)
+    return used
+
+
+def _gold_gaps() -> tuple[list[str], set[str]]:
+    """Families neither in the gold run nor excused; and the excused names actually used."""
+    groups = _command_groups(visible_only=True)
+    used = _gold_names(
+        GOLD_RUN.read_text(encoding="utf-8"), {name for names in groups for name in names}
+    )
+    missing: list[str] = []
+    excused: set[str] = set()
+    for names in groups:
+        if used & set(names):
+            continue
+        listed = set(names) & NOT_IN_GOLD.keys()
+        if listed:
+            excused |= listed
+        else:
+            missing.append(names[0])
+    return sorted(missing), excused
+
+
+def test_every_command_is_in_the_gold_run_or_says_why():
+    """command-in-gold: every command family runs in tests/cli_gold/cli_test.run, or NOT_IN_GOLD says why it cannot."""
+    # Arrange / Act
+    missing, _ = _gold_gaps()
+
+    # Assert
+    assert missing == [], (
+        "add a deterministic line to tests/cli_gold/cli_test.run (and its expected output), "
+        "or list the family in NOT_IN_GOLD with the reason it cannot run there:\n  "
+        + "\n  ".join(missing)
+    )
+
+
+def test_not_in_gold_has_no_stale_entries():
+    """Every NOT_IN_GOLD entry is a real command whose family is still not in the gold run."""
+    # Arrange / Act
+    _, excused = _gold_gaps()
+
+    # Assert
+    stale = sorted(NOT_IN_GOLD.keys() - excused)
+    assert stale == [], (
+        f"in the gold run now, or no longer a command; drop them from NOT_IN_GOLD: {stale}"
+    )
+
+
+def test_gold_parser_fires_on_a_probe():
+    """The gold parser takes a line's command and a capture's, maps a level suffix to its command, skips prose."""
+    # Arrange
+    script = "# /not.a.command in a comment\n/mem.dump.silent 0x0 4\n$(X) <- /var NAME\nAT+NAME?\n  /term.hex\n"
+
+    # Act
+    used = _gold_names(script, {"mem.dump", "var", "term.hex"})
+
+    # Assert
+    assert used == {"mem.dump", "var", "term.hex"}, (
+        "commands only; a comment and a device line are not"
     )
 
 

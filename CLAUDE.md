@@ -169,8 +169,11 @@ All other paths relative to `src/termapy/`.
   A missing config or port is the gate's answer (`No config loaded.`,
   `Not connected.`), never a handler's: declare the need and drop the
   check (registry `state-answered-by-gate`); code that must say it anyway
-  reads `capabilities.STATE_MESSAGES`, the one place it is spelled
-  (registry `state-messages-one-owner`)
+  reads `capabilities.STATE_MESSAGES`, the view of the capability field
+  that declares it (registry `state-messages-one-owner`). Everything about
+  a restrictive capability -- its `/help` hint, its gate answer, whether
+  any frontend can reach it -- is declared once on its field with
+  `_restricted` (registry `capability-declared-once`)
 - Handlers that produce scriptable data must return `CmdResult.ok(value=...)` — without it, scripts in quiet mode get nothing. See `CmdResult` docstring in `plugins/command.py`.
 - **`CmdResult.data` is the structured twin of `value`** — real JSON shape (dict/list/number) for agent consumers (MCP, `--json`); never a prose string. `value` stays the scriptable scalar. Optional: `data=None` is a legitimate permanent state (side-effect and prose-page commands); convert commands agents actually call, not all 185. Handlers with LARGE listings branch on `ctx.wants_data` and build either the prose or the records — never both (no doubled payload). Producers for `data` live in core beside the prose producers (`port_format.facts_to_json_record`, `usb_tree.to_json_records`, `variables.snapshot`), never inline in handlers.
 - **A list command returns `CmdResult.table(title, noun, columns, records, value=...)`** (files: `folder_ops.file_table`): raw-valued records become `data`, the table is a `views.TableView`, and the handler renders nothing -- dispatch's exit prints it unless the caller wants data (`--json`, `/term.request`, MCP), so the table reads the same in every list and the JSON is the same records. Never hand-format a list or branch on `ctx.wants_data` for one (registry `list-one-format`). When each row is one value under a unique name (`/env.list`), pass `data=` the name-to-value mapping so a consumer looks the name up; rows with several fields stay records.

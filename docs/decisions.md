@@ -405,6 +405,10 @@ fix, on Windows:
 run over and over, and a cost one path needs should not be charged to the
 rest. **Where:** the techniques are in ARCHITECTURE.md "Import cost"; the
 guard is `tests/test_cli.py::TestPathsStayLight` (registry
-`flag-paths-light`). The next cost on the list is crcglot's own import,
-which loads its code-generator languages eagerly; that fix belongs in
-crcglot.
+`flag-paths-light`). The same day `termapy.protocol` stopped building
+`GENERATORS` / `GENERATORS_FROM_ENTRY` at import, a crcglot 0.8.0
+leftover that touched every language's `.generator` and so loaded all
+eleven `crcglot.lang` modules for the one function that generates code;
+it now reads `crcglot.LANGUAGES[lang]` there. The next cost is in
+crcglot itself: building `crcglot.VERBS`, which termapy reads at plugin
+load, imports every language generator though no verb generates code.

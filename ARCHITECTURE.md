@@ -540,7 +540,7 @@ transitive: one top-level `import` in a widely shared module is paid by
 every door that reaches it. So each path loads only what it shows (registry
 `flag-paths-light`, decision 2026-10-17).
 
-Three techniques, in order of preference:
+Four techniques, in order of preference:
 
 1. **Import where used.** A library a module needs in one function is
    imported inside that function. `markup.py` imports Rich inside
@@ -558,6 +558,10 @@ Three techniques, in order of preference:
    `cli_prompt.py` is the CLI's interactive prompt; `cli.py` imports it only
    when it builds a prompt, so `-e` and `--run` one-shots never load
    prompt_toolkit.
+4. **Don't touch a lazy attribute eagerly.** crcglot loads a language's
+   generator module only when `LANGUAGES[code].generator` is read, so
+   termapy reads it in the codegen command, for that one language, never
+   in a module-level dict over every language.
 
 The usual trap is a package `__init__`. Importing
 `termapy.plugins.capabilities` runs `termapy/plugins/__init__.py` first,

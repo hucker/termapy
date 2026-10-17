@@ -1943,6 +1943,30 @@ class TestPathsStayLight:
         # Assert
         assert actual == {"importlib.metadata"}
 
+    def test_protocol_loads_no_code_generator(self):
+        """flag-paths-light: importing termapy.protocol loads no crcglot language module; codegen loads only its own."""
+        # Arrange -- a subprocess isolates the import graph
+        import subprocess
+        import sys as _sys
+
+        # Act
+        result = subprocess.run(
+            [
+                _sys.executable,
+                "-c",
+                "import sys, termapy.protocol; "
+                "print(sorted(m for m in sys.modules if m.startswith('crcglot.lang')))",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        # Assert
+        assert result.stdout.strip() == "[]", (
+            f"termapy.protocol loaded generators: {result.stdout}{result.stderr}"
+        )
+
     def test_cli_one_shot_loads_no_prompt(self, tmp_path):
         """A --cli -e one-shot never shows a prompt, so prompt_toolkit (and Textual) stay out."""
         # Arrange

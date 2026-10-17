@@ -22,9 +22,9 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-import cairosvg
-import icnsutil
-from PIL import Image
+import cairosvg  # ty: ignore[unresolved-import] -- a uvx --with dependency, never locked
+import icnsutil  # ty: ignore[unresolved-import] -- a uvx --with dependency, never locked
+from PIL import Image  # ty: ignore[unresolved-import] -- a uvx --with dependency, never locked
 
 ROOT = Path(__file__).resolve().parents[1]
 ICONS_DIR = ROOT / "src" / "termapy" / "templates" / "icons"

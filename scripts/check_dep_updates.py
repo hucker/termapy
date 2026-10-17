@@ -131,7 +131,7 @@ def _decide_action(
     if not any(s.operator in ("<", "<=") for s in cap):
         # No upper bound defined -- user takes whatever pip resolves.
         return ("no cap (unbounded)", 4)
-    if latest in cap:
+    if latest_v in cap:
         # Fits within the bound -- next `uv lock` will pick it up.
         return ("up to date", 3)
     # Outside the cap: a new release exists that we've chosen not to take.

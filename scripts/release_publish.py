@@ -48,7 +48,6 @@ from release_common import (  # noqa: E402
     validate_version,
 )
 
-
 RELEASE_BRANCH_RE = re.compile(r"^release/v(\d+\.\d+\.\d+)$")
 
 

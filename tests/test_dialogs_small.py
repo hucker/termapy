@@ -28,6 +28,7 @@ from termapy.dialogs import (
     SetVarDialog,
     UpdateAvailableDialog,
 )
+from termapy.dialogs._common import PathLink
 
 
 class _Host(App):
@@ -89,6 +90,50 @@ def _age(path: Path, seconds: float) -> None:
 
 
 class TestProtoPicker:
+    def test_the_title_path_follows_the_highlight_and_a_click_reveals_it(self, tmp_path):
+        """The title row shows the highlighted .pro file; moving the highlight moves it, and a click reveals that file."""
+
+        async def scenario():
+            # Arrange -- newer.pro lists first
+            older = tmp_path / "older.pro"
+            newer = tmp_path / "newer.pro"
+            older.write_text("# a\n", encoding="utf-8")
+            newer.write_text("# b\n", encoding="utf-8")
+            _age(newer, 60)
+            opened: list[str] = []
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                await _push(app, pilot, ProtoPicker(tmp_path, opener=opened.append))
+                link = app.screen.query_one("#proto-path", PathLink)
+                first_shown = link.path
+
+                # Act
+                app.screen.query_one("#proto-list", OptionList).highlighted = 2
+                await pilot.pause()
+                await pilot.click("#proto-path")
+                await pilot.pause()
+
+                # Assert
+                assert first_shown == newer.resolve(), "it opens on the newest script"
+                assert link.path == older.resolve(), "the path follows the highlight"
+                assert opened == [str(older.resolve())], "a click reveals the highlighted file"
+
+        _run(scenario)
+
+    def test_an_empty_folder_shows_the_folder_path(self, tmp_path):
+        """With nothing to highlight the title row shows the folder the picker lists."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                await _push(app, pilot, ProtoPicker(tmp_path, opener=lambda path: None))
+
+                # Assert
+                actual = app.screen.query_one("#proto-path", PathLink).path
+                assert actual == tmp_path.resolve(), "the folder stands in for a file"
+
+        _run(scenario)
+
     def test_empty_folder_leaves_only_new_and_cancel_live(self, tmp_path):
         """With no scripts every per-file button is disabled; New stays live; Cancel dismisses None."""
 

@@ -6,12 +6,13 @@ Underscore prefix marks this as package-private; consumers go through
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 
 from rich.text import Text
 from textual import events
-from textual.widgets import OptionList
+from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
 from termapy.folder_ops import file_columns, format_file_header
@@ -215,3 +216,130 @@ def _populate_port_option_list(
         ol.add_option(
             Option(format_row(row_data, widths, columns), id=port_id),
         )
+
+
+# Why a link to the file manager does nothing: the detection found no
+# display this process can reach.  The override is named because the
+# guess can be wrong (mosh, tmux inside SSH, WSLg).
+_NO_DISPLAY_TIP = (
+    "Not available in this environment: no display this process "
+    "can reach.  Set TERMAPY_GUI=1 to override the detection."
+)
+
+
+def _fit_path(path: Path, width: int) -> str:
+    """``path`` as text, shortened from the FRONT when it exceeds ``width``.
+
+    CSS ellipsis truncates at the end, which would drop the tail that
+    actually identifies the path.  Leading segments are replaced with
+    ``...`` instead, so ``.../termapy_cfg/demo/run/crc_tour.run`` survives.
+    Only the DISPLAY is shortened; a click still opens the full path.
+
+    Args:
+        path: The path to render.
+        width: Columns available to the path.
+
+    Returns:
+        The full path, or a front-elided form that fits.
+    """
+    text = str(path)
+    if len(text) <= width:
+        return text
+    parts = list(path.parts)
+    while len(parts) > 1:
+        parts.pop(0)
+        candidate = "..." + os.sep + os.sep.join(parts)
+        if len(candidate) <= width:
+            return candidate
+    return text[-width:]
+
+
+def _option_path(option_id: str | None, folder: Path) -> Path:
+    """The absolute file a highlighted option names, or ``folder`` for none.
+
+    The header row has no id, and an empty list highlights nothing; both
+    show the folder the picker lists.
+    """
+    return Path(option_id).resolve() if option_id else folder.resolve()
+
+
+class PathLink(Static):
+    """A path in a picker's title row; clicking hands it to the opener.
+
+    Shared by the config, run and proto pickers, so a path in a title row
+    looks and behaves the same in each: right-aligned in the space the
+    title leaves, front-shortened to fit (``_fit_path``), underlined while
+    a click does something.  A widget rather than a markup ``@click``
+    action so the behaviour does not depend on Textual's action-resolution
+    path, and a subclass rather than a handler on the screen so the click
+    target is unambiguous.  Built ``markup=False``, so ``set_path`` updates
+    stay plain text.
+
+    With no opener the link is inert: the path still shows, without the
+    underline, and a click does nothing.  The pickers make it inert where
+    a file manager would not reach the user (no display, or ``--web``).
+    """
+
+    DEFAULT_CSS = """
+    PathLink {
+        width: 1fr; text-align: right; color: $text-muted;
+        text-style: underline; text-overflow: ellipsis;
+    }
+    PathLink:hover { color: $accent; }
+    PathLink.-inert { text-style: none; }
+    PathLink.-inert:hover { color: $text-muted; }
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        width: int,
+        *,
+        link_id: str,
+        opener: Callable[[str], None] | None,
+    ) -> None:
+        """Build the link.
+
+        Args:
+            path: The path to display and to open on click.
+            width: Columns for the path before layout has measured the link.
+            link_id: The widget id.
+            opener: What a click calls with the path, or ``None`` for an
+                inert link.  Injected so a test can prove the click reaches
+                it without a file manager appearing -- the ``source=`` seam
+                used elsewhere in the codebase, not a patched global.
+        """
+        super().__init__(_fit_path(path, width), id=link_id, markup=False)
+        self.path = path
+        self._width = width
+        self._opener = opener
+        if opener is None:
+            self.add_class("-inert")
+
+    def set_path(self, path: Path) -> None:
+        """Show and open ``path`` from now on."""
+        self.path = path
+        self.update(_fit_path(path, self._width))
+
+    def on_resize(self, _event: events.Resize) -> None:
+        """Refit the path to the width layout gave the link (``width: 1fr``)."""
+        if self.content_size.width > 0:
+            self._width = self.content_size.width
+            self.update(_fit_path(self.path, self._width))
+
+    def on_click(self) -> None:
+        """Open the path with the opener, if there is one."""
+        if self._opener is not None:
+            self._opener(str(self.path))
+
+
+def _path_link_tooltip(*, live: bool, gui_apps: bool, action: str) -> str | None:
+    """What a picker's ``PathLink`` says on hover.
+
+    A live link says what a click does (``action``).  An inert one says why
+    when the reason is fixable (no display found, ``_NO_DISPLAY_TIP``) and
+    nothing under ``--web``, where it is inert by design.
+    """
+    if live:
+        return action
+    return None if gui_apps else _NO_DISPLAY_TIP

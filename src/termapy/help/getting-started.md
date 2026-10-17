@@ -162,6 +162,9 @@ The title bar buttons (left to right):
 - **Cfg** opens the config picker (Load / Edit / Explorer / New / Rename / Delete / Cancel; the Explorer button reads Finder on macOS and Files on Linux), listed newest first with size, age, port, baud, and title.
 - **Run** opens the script picker (Run / Edit / New / Rename / Delete / Cancel) with each script's docstring summary.
 - **Proto** opens the protocol test picker (Run / Debug / Edit / New / Rename / Delete / Cancel).
+  In the Run and Proto pickers the highlighted file's full path shows at
+  the top right; click it to show the file in Explorer (Finder on macOS,
+  the folder on Linux). The Cfg picker's path there opens the config folder.
 - **Update** appears only when a newer termapy is available on PyPI.
 - **Title** shows the config name (or custom title). Click to edit the config.
 - **Port** shows the port name and baud rate. Click to pick a different serial port.

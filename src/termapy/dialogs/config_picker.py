@@ -7,7 +7,6 @@ the ``_common`` submodule for shared constants and helpers.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -28,8 +27,11 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    _NO_DISPLAY_TIP,
     FileOptionList,
+    PathLink,
     _highlighted_file,
+    _path_link_tooltip,
 )
 from termapy.folder_ops import list_entries
 
@@ -71,74 +73,6 @@ def _config_details(paths: list[Path]) -> tuple[dict[Path, str], str]:
 _TITLE = "Select Config"
 
 
-def _fit_path(folder: Path, width: int) -> str:
-    """``folder`` as text, shortened from the FRONT when it exceeds ``width``.
-
-    CSS ellipsis truncates at the end, which would drop the tail that
-    actually identifies the folder.  Leading segments are replaced with
-    ``...`` instead, so ``.../termapy/termapy_cfg`` survives.  Only the
-    DISPLAY is shortened; a click still opens the full path.
-
-    Args:
-        folder: The path to render.
-        width: Columns available to the path.
-
-    Returns:
-        The full path, or a front-elided form that fits.
-    """
-    text = str(folder)
-    if len(text) <= width:
-        return text
-    parts = list(folder.parts)
-    while len(parts) > 1:
-        parts.pop(0)
-        candidate = "..." + os.sep + os.sep.join(parts)
-        if len(candidate) <= width:
-            return candidate
-    return text[-width:]
-
-
-class CfgDirLink(Static):
-    """The cfg-dir path in the title row; clicking opens it in the file explorer.
-
-    A widget rather than a markup ``@click`` action so the behaviour does
-    not depend on Textual's action-resolution path, and a subclass rather
-    than a handler on the screen so the click target is unambiguous.
-    ``open_with_system`` is the same cross-platform launcher ``/ss.explore``
-    and the log buttons use.
-    """
-
-    def __init__(
-        self,
-        folder: Path,
-        width: int,
-        *,
-        opener: Callable[[str], None] = open_with_system,
-    ) -> None:
-        """Build the link.
-
-        Args:
-            folder: The folder to display and to open on click.
-            width: Columns available for the path text.
-            opener: What a click calls.  Injected so a test can prove the
-                click actually reaches this handler without a file manager
-                appearing -- the ``source=`` seam used elsewhere in the
-                codebase, not a patched global.
-        """
-        super().__init__(_fit_path(folder, width), id="picker-cfgdir", markup=False)
-        self._folder = folder
-        self._opener = opener
-
-    def on_resize(self, _event: events.Resize) -> None:
-        """Refit the path to the width layout gave the link (``width: 1fr``)."""
-        if self.content_size.width > 0:
-            self.update(_fit_path(self._folder, self.content_size.width))
-
-    def on_click(self) -> None:
-        """Open the config folder with the system file manager."""
-        self._opener(str(self._folder))
-
-
 class ConfigPicker(ModalScreen[tuple | None]):
     """Modal dialog to select a config file: load, edit, or create new."""
 
@@ -153,14 +87,6 @@ class ConfigPicker(ModalScreen[tuple | None]):
     }}
     #picker-header {{ height: 1; }}
     #picker-title {{ width: auto; text-style: bold; }}
-    /* Fills the rest of the header row.  Ellipsis truncates at the END,
-       which would hide the identifying tail, so a path too long for the
-       dialog is shortened in Python (_fit_path) before it gets here. */
-    #picker-cfgdir {{
-        width: 1fr; text-align: right; color: $text-muted;
-        text-style: underline; text-overflow: ellipsis;
-    }}
-    #picker-cfgdir:hover {{ color: $accent; }}
     #picker-list {{ height: 1fr; border: thick $primary; }}
     #picker-buttons {{ height: 1; align: right middle; }}
     """
@@ -175,7 +101,11 @@ class ConfigPicker(ModalScreen[tuple | None]):
         ).tooltip = "Configs found under termapy_cfg/.  Press Enter to load."
         # No path here: the header row already shows it in full, and
         # repeating it in a tooltip is the clutter this replaced.
-        self.query_one("#picker-cfgdir", Static).tooltip = f"Open this folder in {self._manager}."
+        self.query_one("#picker-cfgdir", PathLink).tooltip = _path_link_tooltip(
+            live=self.gui_apps and not self.web,
+            gui_apps=self.gui_apps,
+            action=f"Open this folder in {self._manager}.",
+        )
         self.query_one("#picker-load", Button).tooltip = "Load and activate the selected config."
         self.query_one("#picker-edit", Button).tooltip = "Open the selected config in the editor."
         # Absent under --web (see __init__); disabled when this process has
@@ -186,8 +116,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
             explore.first(Button).tooltip = (
                 f"Open the selected config's folder in {self._manager}."
                 if self.gui_apps
-                else "Not available in this environment: no display this process "
-                "can reach.  Set TERMAPY_GUI=1 to override the detection."
+                else _NO_DISPLAY_TIP
             )
         self.query_one("#picker-new", Button).tooltip = "Create a new config."
         self.query_one(
@@ -219,8 +148,9 @@ class ConfigPicker(ModalScreen[tuple | None]):
             web: Served in a browser (``App.is_web``).  A folder would open
                 on the SERVER's desktop, never the viewer's, so Explore is
                 not offered at all rather than disabled.
-            opener: What Explore calls; injected so a test can prove the
-                press reaches it without a file manager appearing.
+            opener: What Explore and the folder link call; injected so a
+                test can prove a press reaches it without a file manager
+                appearing.
         """
         super().__init__()
         self.current_path = current_path
@@ -242,7 +172,14 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 # Display and open the ABSOLUTE folder; the listing above
                 # keeps the path shape cfg_dir() gave it, so what gets
                 # stored as a config path is unchanged.
-                yield CfgDirLink(d.resolve(), _FILE_PICKER_WIDTH - len(_TITLE) - 6)
+                # Live only where a file manager reaches the user, the
+                # Explore button's rule.
+                yield PathLink(
+                    d.resolve(),
+                    _FILE_PICKER_WIDTH - len(_TITLE) - 6,
+                    link_id="picker-cfgdir",
+                    opener=self._opener if self.gui_apps and not self.web else None,
+                )
             ol = FileOptionList(
                 json_files,
                 detail=details.__getitem__,

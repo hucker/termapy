@@ -21,12 +21,8 @@ from textual.widgets import Button, Input, OptionList, Static
 from termapy.config import file_manager_name
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog, ScriptPicker
-from termapy.dialogs.config_picker import (
-    CfgDirLink,
-    ConfigPicker,
-    _config_details,
-    _fit_path,
-)
+from termapy.dialogs._common import _NO_DISPLAY_TIP, PathLink, _fit_path
+from termapy.dialogs.config_picker import ConfigPicker, _config_details
 
 
 class _Host(App):
@@ -234,6 +230,71 @@ class TestScriptPicker:
         _run(scenario)
 
     @staticmethod
+    def _two_scripts(tmp_path) -> tuple[Path, Path, Path]:
+        """run/ with an older and a newer script; the newer one lists first."""
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        older = run_dir / "older.run"
+        older.write_bytes(b"/echo old\n")
+        hour_ago = time.time() - 3600
+        os.utime(older, (hour_ago, hour_ago))
+        newer = run_dir / "newer.run"
+        newer.write_bytes(b"/echo new\n")
+        return run_dir, older, newer
+
+    def test_the_title_path_follows_the_highlight_and_a_click_reveals_it(self, tmp_path):
+        """The title row shows the highlighted script's path; moving the highlight moves it, and a click reveals that file."""
+
+        async def scenario():
+            # Arrange
+            run_dir, older, newer = self._two_scripts(tmp_path)
+            opened: list[str] = []
+            app = _Host()
+            async with app.run_test(size=(160, 40)) as pilot:
+                app.push_screen(ScriptPicker(run_dir, opener=opened.append))
+                await pilot.pause()
+                link = app.screen.query_one("#script-path", PathLink)
+                first_shown = link.path
+
+                # Act -- down to the second script, then click the path
+                app.screen.query_one("#script-list", OptionList).highlighted = 2
+                await pilot.pause()
+                await pilot.click("#script-path")
+                await pilot.pause()
+
+                # Assert
+                assert first_shown == newer.resolve(), "it opens on the first (newest) script"
+                assert link.path == older.resolve(), "the path follows the highlight"
+                assert str(link.render()).endswith("older.run"), "and is what the row shows"
+                assert opened == [str(older.resolve())], "a click reveals the highlighted file"
+
+        _run(scenario)
+
+    def test_the_title_path_is_inert_without_a_display(self, tmp_path):
+        """With no display the path still shows, but it is not a link and says why."""
+
+        async def scenario():
+            # Arrange
+            run_dir, _, newer = self._two_scripts(tmp_path)
+            opened: list[str] = []
+            app = _Host()
+            async with app.run_test(size=(160, 40)) as pilot:
+                app.push_screen(ScriptPicker(run_dir, gui_apps=False, opener=opened.append))
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#script-path")
+                await pilot.pause()
+
+                # Assert
+                link = app.screen.query_one("#script-path", PathLink)
+                assert link.path == newer.resolve(), "the path is still shown"
+                assert link.has_class("-inert") and opened == [], "but a click opens nothing"
+                assert link.tooltip == _NO_DISPLAY_TIP, "the tooltip says why and how to override"
+
+        _run(scenario)
+
+    @staticmethod
     def _long_summaries(tmp_path) -> Path:
         """A run/ folder of three scripts whose summaries are far wider than any terminal row."""
         run_dir = tmp_path / "run"
@@ -346,8 +407,8 @@ class TestScriptPicker:
         _run(scenario)
 
 
-class TestConfigPickerCfgDir:
-    """The header row's cfg-dir path: absolute, front-elided, and clickable."""
+class TestPathLink:
+    """A picker's title-row path (``PathLink``): front-elided, clickable, re-aimable, or inert."""
 
     def test_path_fits_untouched_when_short(self):
         """A path within the width budget is displayed whole, unelided."""
@@ -383,10 +444,10 @@ class TestConfigPickerCfgDir:
         """Built for a wide header, the link front-elides its path to the narrower width it is laid out at."""
         # Arrange -- a deep path, a link told 200 columns, a layout that gives it 30
         folder = Path("/projects/clients/acme/firmware/bench/termapy_cfg")
-        link = CfgDirLink(folder, 200, opener=lambda path: None)
+        link = PathLink(folder, 200, link_id="link", opener=lambda path: None)
 
         class _NarrowHost(App):
-            CSS = "CfgDirLink { width: 30; }"
+            CSS = "PathLink { width: 30; }"
 
             def compose(self):
                 yield link
@@ -412,7 +473,7 @@ class TestConfigPickerCfgDir:
         # Arrange -- mount the link alone so the click has one possible
         # target, and inject the opener so no file manager appears.
         opened: list[str] = []
-        link = CfgDirLink(tmp_path, 80, opener=opened.append)
+        link = PathLink(tmp_path, 80, link_id="link", opener=opened.append)
 
         class _LinkHost(App):
             def compose(self):
@@ -422,13 +483,63 @@ class TestConfigPickerCfgDir:
             app = _LinkHost()
             async with app.run_test() as pilot:
                 # Act -- a real mouse click through Textual's event pipeline
-                await pilot.click(CfgDirLink)
+                await pilot.click(PathLink)
                 await pilot.pause()
 
                 # Assert
                 assert opened == [str(tmp_path)], (
                     "a plain left-click reaches on_click with the full folder"
                 )
+
+        _run(scenario)
+
+    def test_set_path_changes_what_shows_and_what_opens(self, tmp_path):
+        """After set_path the link displays the new path and a click opens it, not the first."""
+        # Arrange
+        opened: list[str] = []
+        first, second = tmp_path / "a.run", tmp_path / "b.run"
+        link = PathLink(first, 80, link_id="link", opener=opened.append)
+
+        class _LinkHost(App):
+            def compose(self):
+                yield link
+
+        async def scenario():
+            app = _LinkHost()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                link.set_path(second)
+                await pilot.pause()
+                await pilot.click(PathLink)
+                await pilot.pause()
+
+                # Assert
+                assert str(link.render()).endswith("b.run"), "the new path is shown"
+                assert opened == [str(second)], "and the new path is what a click opens"
+
+        _run(scenario)
+
+    def test_an_inert_link_shows_the_path_and_opens_nothing(self, tmp_path):
+        """With no opener the path still shows, but a click does nothing."""
+        # Arrange
+        link = PathLink(tmp_path, 80, link_id="link", opener=None)
+
+        class _LinkHost(App):
+            def compose(self):
+                yield link
+
+        async def scenario():
+            app = _LinkHost()
+            async with app.run_test() as pilot:
+                # Act
+                await pilot.click(PathLink)
+                await pilot.pause()
+
+                # Assert -- no opener to call, so no error and nothing opened
+                assert str(link.render()).endswith(tmp_path.name), "the path is shown"
+                assert link.has_class("-inert"), "styled as not clickable"
 
         _run(scenario)
 
@@ -446,8 +557,8 @@ class TestConfigPickerCfgDir:
                 await pilot.pause()
 
                 # Assert
-                link = app.screen.query_one("#picker-cfgdir", CfgDirLink)
-                assert link._folder == tmp_path.resolve(), (
+                link = app.screen.query_one("#picker-cfgdir", PathLink)
+                assert link.path == tmp_path.resolve(), (
                     "a click opens the absolute folder, not a relative name"
                 )
                 assert file_manager_name() in str(link.tooltip), (
@@ -459,6 +570,25 @@ class TestConfigPickerCfgDir:
                 assert app.screen.query_one("#picker-list").tooltip == (
                     "Configs found under termapy_cfg/.  Press Enter to load."
                 ), "the list tooltip is left as it was"
+
+        _run(scenario)
+
+    def test_cfg_dir_link_is_inert_without_a_display(self, tmp_path, monkeypatch):
+        """With no display the folder link follows the Explore button: inert, naming the override."""
+        # Arrange
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Act
+                app.push_screen(ConfigPicker(gui_apps=False))
+                await pilot.pause()
+
+                # Assert
+                link = app.screen.query_one("#picker-cfgdir", PathLink)
+                assert link.has_class("-inert"), "nothing to open it with"
+                assert link.tooltip == _NO_DISPLAY_TIP, "the tooltip says why and how to override"
 
         _run(scenario)
 

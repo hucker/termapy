@@ -12,6 +12,7 @@ import time
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal
 
 from termapy.markup import escape_markup
@@ -940,6 +941,24 @@ def load_proto_script(
     if doc:
         return ("toml", parse_toml_script(text))
     return ("flat", parse_proto_script(text))
+
+
+def script_name(path: Path) -> str:
+    """The ``name`` a ``.pro`` file declares, in either format; ``""`` if none.
+
+    What the Proto picker and ``/proto.list`` show beside the file name,
+    as the Run picker and ``/run.list`` show a ``.run`` docstring.  Read
+    through ``load_proto_script``, so it is the name ``/proto.run``
+    prints.  The one reader of a file in this otherwise pure module: a
+    listing hands it paths.  A file that does not read or parse has no
+    name rather than an error, since a listing must still show it.
+    """
+    try:
+        _, parsed = load_proto_script(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return ""
+    name = parsed.name if isinstance(parsed, ProtoScript) else parsed[0].get("name", "")
+    return str(name)
 
 
 def diff_bytes(expected: bytes, actual: bytes, mask: bytes) -> list[str]:

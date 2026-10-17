@@ -241,7 +241,7 @@ The most common ones:
 | `/proto.help`                        | Same as `/help proto`                                                         |
 | `/proto.send <hex>`                  | Send raw hex bytes and/or quoted text, display response as hex (see below)    |
 | `/proto.run <file>`                  | Run a binary protocol test script (.pro) with pass/fail                       |
-| `/proto.list`                        | List .pro files in proto/, newest first, with size and age                    |
+| `/proto.list`                        | List .pro files in proto/, newest first, with size, age and each one's `name`  |
 | `/proto.rename <old> <new>`          | Rename a protocol script (`.pro` kept; never overwrites)                      |
 | `/proto.hex {on\|off\|toggle}`        | Same flag as `/term.hex`                                                      |
 | `/proto.crc.list {pat}`              | List available CRC algorithms (optional glob filter)                          |

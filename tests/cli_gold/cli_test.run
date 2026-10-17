@@ -84,6 +84,7 @@ $(BAUD) <- /port.baud_rate
 /print === section: config folders ===
 /run.list
 /proto.list
+/cap.list
 
 # ── REPL: port control - read all properties ────────────────────────────────
 /print === section: port read ===

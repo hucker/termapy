@@ -120,6 +120,26 @@ class TestProtoPicker:
 
         _run(scenario)
 
+    def test_rows_show_the_name_each_script_declares(self, tmp_path):
+        """A TITLE column holds each script's declared name, as the Run picker holds a summary."""
+
+        async def scenario():
+            # Arrange
+            (tmp_path / "read.pro").write_text(
+                'name = "Modbus read"\n[[test]]\nsend = "01"\nexpect = "02"\n', encoding="utf-8"
+            )
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                await _push(app, pilot, ProtoPicker(tmp_path, opener=lambda path: None))
+                ol = app.screen.query_one("#proto-list", OptionList)
+                header, row = (str(ol.get_option_at_index(i).prompt) for i in range(2))
+
+                # Assert
+                assert header.rstrip().endswith("TITLE"), f"a TITLE column: {header!r}"
+                assert row.rstrip().endswith("Modbus read"), f"holding the name: {row!r}"
+
+        _run(scenario)
+
     def test_an_empty_folder_shows_the_folder_path(self, tmp_path):
         """With nothing to highlight the title row shows the folder the picker lists."""
 

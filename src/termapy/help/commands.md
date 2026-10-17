@@ -145,7 +145,7 @@ because its folders hold different types of file.
 | `/proto.edit {file}`      | Edit a .pro file (same as `/edit.proto`)                                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
 | `/proto.hex {on\|off\|toggle}`    | Same flag as `/term.hex`                                                    |
-| `/proto.list`             | List .pro files in proto/, newest first, with size and age                  |
+| `/proto.list`             | List .pro files in proto/, newest first, with size, age and each one's `name` |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro); TUI bare: the Proto picker        |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.info`             | Print current protocol mode state                                           |

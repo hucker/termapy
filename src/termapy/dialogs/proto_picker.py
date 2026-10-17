@@ -28,6 +28,7 @@ from termapy.dialogs._common import (
     _path_link_tooltip,
 )
 from termapy.folder_ops import list_entries
+from termapy.protocol import script_name
 
 _TITLE = "Select Protocol Script"
 
@@ -120,7 +121,14 @@ class ProtoPicker(ModalScreen[tuple | None]):
                     link_id="proto-path",
                     opener=self._opener if self._live_link else None,
                 )
-            ol = FileOptionList(protos, id="proto-list")
+            # The name each script declares, as the Run picker shows a
+            # docstring summary; the dialog widens to fit it.
+            ol = FileOptionList(
+                protos,
+                detail=script_name,
+                detail_header="TITLE",
+                id="proto-list",
+            )
             if protos:
                 ol.highlighted = ol.first_file
             dialog.styles.width = ol.dialog_width()

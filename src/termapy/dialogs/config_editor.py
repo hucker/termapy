@@ -22,11 +22,14 @@ from textual.widgets import Button, Input, TextArea
 
 from termapy.config import (
     BOOL_CFG_PATHS,
+    ConfigExistsError,
     cfg_path_for_name,
+    create_config,
     prepare_cfg_folder,
 )
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
 from termapy.scripting import parse_bool
 
@@ -64,14 +67,31 @@ class ConfigEditor(ModalScreen[tuple | None]):
         cfg: dict,
         config_path: str,
         highlight_key: str = "",
+        *,
+        is_new: bool = False,
     ) -> None:
+        """Edit ``cfg``, saved to ``config_path``.
+
+        Args:
+            cfg: The config to edit.
+            config_path: Where Save writes it.
+            highlight_key: A key to scroll to and highlight.
+            is_new: ``cfg`` is a config not yet on disk (the New Config
+                wizard's Advanced): Save creates it through
+                ``config.create_config``, asking before replacing a
+                config already there, and the editor shows ``cfg``
+                rather than that file.
+        """
         super().__init__()
         self.cfg = cfg
         self.config_path = config_path
+        self._is_new = is_new
         self._save_as_mode = False
         self._highlight_key = highlight_key
         # Read raw JSON from disk so $(env.NAME) templates are visible
         try:
+            if is_new:
+                raise FileNotFoundError(config_path)
             with open(config_path) as f:
                 self._disk_cfg = json.load(f)
         except (OSError, json.JSONDecodeError):
@@ -441,10 +461,38 @@ class ConfigEditor(ModalScreen[tuple | None]):
             err.update("\n".join(warnings))
             err.add_class("visible")
             return
+        if self._is_new:
+            self._create(new_cfg, self.config_path)
+            return
         prepare_cfg_folder(self.config_path)
         with open(self.config_path, "w") as f:
             json.dump(new_cfg, f, indent=4)
         self.dismiss((new_cfg, self.config_path))
+
+    def _create(self, new_cfg: dict, path: str, *, overwrite: bool = False) -> None:
+        """Write a new config through ``config.create_config``, then close with it.
+
+        A config already there gets the same question as the New Config
+        wizard and ``termapy --new``; on yes only its ``.cfg`` is replaced.
+        """
+        try:
+            create_config(path, new_cfg, overwrite=overwrite)
+        except ConfigExistsError as e:
+            self.app.push_screen(
+                ConfirmDialog(e.question),
+                callback=lambda confirmed: (
+                    self._create(new_cfg, path, overwrite=True) if confirmed else None
+                ),
+            )
+            return
+        except (ValueError, RuntimeError, OSError) as e:
+            from textual.widgets import Static
+
+            err = self.query_one("#config-error", Static)
+            err.update(str(e))
+            err.add_class("visible")
+            return
+        self.dismiss((new_cfg, path))
 
     @on(Button.Pressed, "#cfg-save-as")
     def save_as_config(self) -> None:
@@ -495,8 +543,6 @@ class ConfigEditor(ModalScreen[tuple | None]):
         if not p.parent or p.parent == Path("."):
             name = p.stem
             p = cfg_path_for_name(name)
-        prepare_cfg_folder(str(p))
-        filename = str(p)
         # Update title to reflect new filename
         base = p.stem
         old_title = new_cfg.get("title", "")
@@ -504,9 +550,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             new_cfg["title"] = f"{old_title} - {base}"
         elif not old_title:
             new_cfg["title"] = base
-        with open(filename, "w") as f:
-            json.dump(new_cfg, f, indent=4)
-        self.dismiss((new_cfg, filename))
+        self._create(new_cfg, str(p))
 
     @on(Button.Pressed, "#cfg-cancel")
     def cancel_config(self) -> None:

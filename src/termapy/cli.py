@@ -23,6 +23,7 @@ from prompt_toolkit.history import History
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from termapy.capture import CaptureEngine, format_capture_result
+from termapy.cli_flags import confirm_on_stdin
 from termapy.config import (
     CONFIG_LOAD_ERRORS,
     cfg_dir,
@@ -40,7 +41,6 @@ from termapy.repl import ReplEngine
 from termapy.scripting import (
     SETTING_QUERY,
     SETTING_TOGGLE,
-    parse_bool,
     parse_bool_setting,
     render_progress_bar,
     strip_ansi,
@@ -516,21 +516,8 @@ class CLITerminal(TerminalHost):
     # -- Confirmation ---------------------------------------------------------
 
     def _confirm(self, message: str) -> bool:
-        """Prompt for y/n confirmation on stdin.
-
-        A confirmation prompt tests for yes; it does not parse a boolean
-        (the exemption named in bool-one-vocabulary).  Any vocabulary
-        yes confirms; a bare Enter and any unrecognized word keep the
-        [y/N] default of No.
-        """
-        try:
-            answer = input(f"  {message} [y/N] ").strip()
-        except (EOFError, KeyboardInterrupt):
-            return False
-        try:
-            return parse_bool(answer, default=False)
-        except ValueError:
-            return False
+        """Prompt for y/n confirmation on stdin (``cli_flags.confirm_on_stdin``)."""
+        return confirm_on_stdin(message)
 
     # -- Prompt session (history + tab completion via prompt_toolkit) ----------
 

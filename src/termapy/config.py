@@ -25,6 +25,7 @@ from termapy.defaults import (
     VALID_PARITIES,
     VALID_STOP_BITS,
     cmd_prefix,
+    default_cfg,
 )
 from termapy.folders import (
     DEV,
@@ -270,6 +271,138 @@ def validate_file_stem(name: str) -> str | None:
     if name in (".", ".."):
         return f"Invalid name: {name}"
     return None
+
+
+def new_cfg_root() -> Path:
+    """Where ``termapy --new`` puts a config: the config directory, or a new ``./termapy_cfg``.
+
+    ``--cfg-dir``, ``TERMAPY_CFG_DIR`` and an existing ``./termapy_cfg``
+    win exactly as in ``cfg_dir``.  Otherwise a new config starts a project
+    in the current folder instead of landing in the OS config directory.
+    A read: nothing is created here; ``create_config`` makes the folder
+    when it writes.
+    """
+    if CFG_DIR is not None or os.environ.get("TERMAPY_CFG_DIR") or Path(_LOCAL_DIR_NAME).is_dir():
+        return cfg_dir()
+    return Path(_LOCAL_DIR_NAME)
+
+
+def new_config(
+    name: str,
+    *,
+    port: str = "",
+    baud: int | None = None,
+    custom_baud: bool | None = None,
+    mode: tuple[str, int, float] | None = None,
+    eol: str | None = None,
+    echo: bool | None = None,
+    auto_connect: bool = False,
+) -> dict:
+    """A fresh config for ``name``: the defaults, titled ``name``, with these settings.
+
+    The cfg half of making a config; ``create_config`` writes it.  Every
+    creator builds through here -- the QuickSetup wizard and ``termapy
+    --new`` -- so a new config is the same whichever frontend made it.  A
+    setting left ``None`` keeps its default.
+
+    Args:
+        name: The config name, which is also its title.
+        port: Port name, serial number or URL; ``""`` leaves it unset.
+        baud: Baud rate.
+        custom_baud: Whether ``baud`` is deliberately non-standard; ``None``
+            derives it (a rate outside ``STANDARD_BAUD_RATES``).
+        mode: ``(parity, byte_size, stop_bits)`` as ``port_control.parse_mode``
+            returns it.
+        eol: Line ending sent after each command.
+        echo: Echo sent commands locally.
+        auto_connect: Open the port when the config loads.
+
+    Returns:
+        The new cfg dict.
+    """
+    cfg = default_cfg()
+    cfg["title"] = name
+    serial_cfg = cfg["serial"]
+    if port:
+        serial_cfg["port"] = port
+    if baud is not None:
+        serial_cfg["baud_rate"] = baud
+        serial_cfg["custom_baud"] = (
+            baud not in STANDARD_BAUD_RATES if custom_baud is None else custom_baud
+        )
+    if mode is not None:
+        serial_cfg["parity"], serial_cfg["byte_size"], serial_cfg["stop_bits"] = mode
+    if eol is not None:
+        cfg["eol"] = eol
+    if echo is not None:
+        cfg["echo"] = echo
+    cfg["auto_connect"] = auto_connect
+    return cfg
+
+
+class ConfigExistsError(ValueError):
+    """A new config's place is taken; overwriting its ``.cfg`` needs a yes.
+
+    Every frontend asks ``question`` and, on yes, calls ``create_config``
+    again with ``overwrite=True``.  Only the ``.cfg`` is replaced: the run
+    scripts, profile, plugins, logs and captures beside it stay.
+
+    Attributes:
+        path: The ``.cfg`` that would be written.
+        file_count: Files already in the config's folder.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.file_count = sum(1 for entry in path.parent.rglob("*") if entry.is_file())
+        super().__init__(f"Config already exists: {path.stem}")
+
+    @property
+    def question(self) -> str:
+        """The overwrite question, the same words in every frontend."""
+        noun = "file" if self.file_count == 1 else "files"
+        return (
+            f"Config '{self.path.stem}' already exists ({self.path.parent}, "
+            f"{self.file_count} {noun}). Overwrite {self.path.name}? Other files are kept."
+        )
+
+
+def create_config(config_path: str | Path, cfg: dict, *, overwrite: bool = False) -> Path:
+    """Write a new config -- the one way a ``.cfg`` comes into being.
+
+    The place is taken when the ``.cfg`` exists, or when its own folder
+    (``<name>/<name>.cfg``) does: the folder may hold another setup's
+    scripts and profile.  Then it refuses unless ``overwrite`` is set,
+    and an overwrite replaces only the ``.cfg``.  ``prepare_cfg_folder``
+    sets the folder up, so a new config has the same folder and
+    ``.gitignore`` in every frontend.
+
+    Args:
+        config_path: The ``.cfg`` to write, normally
+            ``<cfg dir>/<name>/<name>.cfg``.
+        cfg: The config, usually from ``new_config``.
+        overwrite: Replace the ``.cfg`` of a config that already exists.
+
+    Returns:
+        The path written.
+
+    Raises:
+        ValueError: The name fails ``validate_file_stem``.
+        ConfigExistsError: The place is taken and ``overwrite`` is False.
+        RuntimeError: The path is inside the bundled package.
+        OSError: The folder or the file could not be written.
+    """
+    path = Path(config_path)
+    reason = validate_file_stem(path.stem)
+    if reason:
+        raise ValueError(reason)
+    own_folder = path.parent.name == path.stem and path.parent.is_dir()
+    if (path.exists() or own_folder) and not overwrite:
+        raise ConfigExistsError(path)
+    prepare_cfg_folder(str(path))
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=4)
+    return path
 
 
 def rename_config(config_path: str, new_name: str) -> str:

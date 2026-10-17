@@ -48,6 +48,12 @@ Low time commitment: about 1 minute from scratch, or under 10 seconds if you alr
     uv tool uninstall termapy
     ```
 
+For your own device, one line creates a config and connects:
+
+```sh
+termapy --new my_device COM4 115200 8N1
+```
+
 For a plain-text terminal (no TUI), use CLI mode:
 
 ```sh

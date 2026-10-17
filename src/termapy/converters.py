@@ -132,9 +132,7 @@ def converter_from_module(module: Any, source: str) -> ConverterSpec | None:
     if not callable(convert):
         raise ValueError(f"converter {fmt!r}: convert() is missing or not callable")
     detect = getattr(module, "DETECT", ())
-    if not isinstance(detect, tuple) or not all(
-        isinstance(marker, str) for marker in detect
-    ):
+    if not isinstance(detect, tuple) or not all(isinstance(marker, str) for marker in detect):
         raise ValueError(f"converter {fmt!r}: DETECT must be a tuple of strings")
     description = getattr(module, "DESCRIPTION", "")
     if not isinstance(description, str):

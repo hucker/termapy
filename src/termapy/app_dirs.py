@@ -52,9 +52,7 @@ def app_state_dir() -> Path:
     by the first write into it (``save_app_state``).
     """
     override = os.environ.get("TERMAPY_STATE_DIR")
-    return Path(override) if override else Path(
-        user_state_dir(_APP_NAME, appauthor=False)
-    )
+    return Path(override) if override else Path(user_state_dir(_APP_NAME, appauthor=False))
 
 
 def app_config_dir() -> Path:
@@ -66,9 +64,7 @@ def app_config_dir() -> Path:
     like ``app_state_dir``.
     """
     override = os.environ.get("TERMAPY_CONFIG_DIR")
-    return Path(override) if override else Path(
-        user_config_dir(_APP_NAME, appauthor=False)
-    )
+    return Path(override) if override else Path(user_config_dir(_APP_NAME, appauthor=False))
 
 
 def app_state_file() -> Path:

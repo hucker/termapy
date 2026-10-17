@@ -252,8 +252,38 @@ for any multi-arg command.
 uv run pytest              # run tests
 uv run termapy             # run the app
 uv run termapy --cfg-dir . # use cwd for configs
-git config core.hooksPath .githooks  # once per clone: ruff + ty gate every commit
+uv run ruff check --fix src/termapy/ tests/ && uv run ruff format && uv run ty check --fix src/termapy/ tests/  # before every commit: autofix, then format
+git config core.hooksPath .githooks  # once per clone: format + ruff + ty gate every commit
+git config alias.fblame 'blame --ignore-revs-file .git-blame-ignore-revs'  # once per clone: blame skipping format commits
+git config alias.fdiff '!git -c diff.ruff-format.textconv="sh scripts/format_textconv.sh" diff'  # once per clone
 ```
+
+`git fdiff <old> <new>` diffs Python files as ruff formats both sides, so a
+comparison with a branch older than the 2026-10-17 formatting commit shows
+real changes, not layout (`scripts/format_textconv.sh`; the last commit
+before formatting is tagged `pre-format`). Run it from a checkout that has
+the script (main); it compares any two commits by name. `git fblame` is
+`git blame` skipping the formatting commits. It is an alias rather than
+`blame.ignoreRevsFile` on purpose: git 2.43 makes blame fatal when that
+file is missing, as it is on every checkout older than it.
+
+VS Code formats on save. `.vscode/` is gitignored (it holds personal
+settings), so a new machine installs the ruff and ty extensions
+(`charliermarsh.ruff`, `astral-sh.ty`) and adds to `.vscode/settings.json`:
+
+```json
+"[python]": {
+  "editor.defaultFormatter": "charliermarsh.ruff",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.ruff": "explicit",
+    "source.organizeImports.ruff": "explicit"
+  }
+}
+```
+
+Never `ty check --add-ignore` or `ruff check --add-noqa`: they suppress in
+bulk, and a suppression needs its rule code and a reason.
 
 ## Testing
 
@@ -292,6 +322,17 @@ git config core.hooksPath .githooks  # once per clone: ruff + ty gate every comm
 
 ## Code Style
 
+- **Code is formatted by `ruff format`, always, with no exceptions**
+  (decision 2026-10-17). Never hand-format, align columns, or wrap lines to
+  taste, and never add `# fmt: off` / `# fmt: skip`: the formatter owns
+  layout so code reads the same across projects. Run `uv run ruff format`
+  before committing; the pre-commit hook and `release_prep` refuse
+  unformatted code, checking with `--no-cache`. If that check still finds a
+  file right after `ruff format`, run it once more: ruff's layout can settle
+  only on the second pass (two files did, 2026-10-17). Only the generated `usb/_vendors_full.py`, the vendored
+  tree and the generated HTML are excluded (`[tool.ruff.format]`). A
+  suppression comment the formatter would move goes on the line the tool
+  reports, with a trailing comma keeping the call exploded.
 - If code manages state, use a class — not functions with closures over shared variables
 - Pure functions are fine and preferred when there's no state (e.g. `scripting.py`)
 - `scripting.py` — pure functions, no state, no I/O
@@ -346,7 +387,7 @@ The narrative — the thread diagram, the two hand-off mechanisms and why each r
 
 ## Precommit
 
-- **Nothing is committed with a diagnostic -- checked at EVERY commit, not at release.** Before any commit, mine or Chuck's on request, all three must be clean: `uv run ruff check src/termapy/ tests/` = 0, `uv run ty check src/termapy/ tests/` = 0, and the test suite green. Tests are code: "it's only a test" is never a reason to leave one. Clean means no errors or warnings; hints (an unused parameter in a fake) are not diagnostics. Every diagnostic is fixed, or suppressed with its rule code and a reason (`# ty: ignore[rule] -- why`); never left for later. **The touched files' VS Code Problems panel must be EMPTY before the commit** -- a red or yellow underline the gates miss is still a defect, and so is a spelling note. Check it with the editor's diagnostics tool on every file the change touched; the post-edit hook prints the same list. Whatever is there gets fixed in the same change, not reported: a markdownlint warning is rewritten (never silenced in `.markdownlint.json` to make it go away), and "pre-existing" is not an exemption -- a diagnostic in a file you touched is yours. The one thing to flag rather than fix is a diagnostic whose fix would change behavior (a `# type: ignore` the gate wants removed, say); fix the rest and say what you fixed. **Spelling is the exception that needs Chuck's eyes:** a cSpell note is either a typo or a word the project uses, and that call is his, not the model's (a word added to the dictionary unasked is a typo that will never be flagged again). Fix a typo you introduced; for every other flagged word, add it to `cspell.json` (the tracked dictionary, alphabetical) in the branch so the panel is clean, and list those words verbatim in the hand-off under "Dictionary additions to confirm" so he can strike any of them before the merge. Never describe the additions in prose only, and never leave a word flagged without saying so. The release gate is the backstop, not the check: when it was the only place ty ran, and on `src/` alone, 101 problems built up in tests unseen, 12 of them real mistakes (a `-> callable` annotation, `active_flags={}` where a set was meant, handlers that raised on every run). **Enforced by `.githooks/pre-commit`** (ruff + ty, a few seconds; the suite is too slow for a hook and stays a manual step), active once per clone via `git config core.hooksPath .githooks`. Never bypass it with `--no-verify`; fix what it reports.
+- **Nothing is committed with a diagnostic -- checked at EVERY commit, not at release.** Before any commit, mine or Chuck's on request, all four must be clean: `uv run ruff format --check` finds nothing to reformat, `uv run ruff check src/termapy/ tests/` = 0, `uv run ty check src/termapy/ tests/` = 0, and the test suite green. Tests are code: "it's only a test" is never a reason to leave one. Clean means no errors or warnings; hints (an unused parameter in a fake) are not diagnostics. Every diagnostic is fixed, or suppressed with its rule code and a reason (`# ty: ignore[rule] -- why`); never left for later. **The touched files' VS Code Problems panel must be EMPTY before the commit** -- a red or yellow underline the gates miss is still a defect, and so is a spelling note. Check it with the editor's diagnostics tool on every file the change touched; the post-edit hook prints the same list. Whatever is there gets fixed in the same change, not reported: a markdownlint warning is rewritten (never silenced in `.markdownlint.json` to make it go away), and "pre-existing" is not an exemption -- a diagnostic in a file you touched is yours. The one thing to flag rather than fix is a diagnostic whose fix would change behavior (a `# type: ignore` the gate wants removed, say); fix the rest and say what you fixed. **Spelling is the exception that needs Chuck's eyes:** a cSpell note is either a typo or a word the project uses, and that call is his, not the model's (a word added to the dictionary unasked is a typo that will never be flagged again). Fix a typo you introduced; for every other flagged word, add it to `cspell.json` (the tracked dictionary, alphabetical) in the branch so the panel is clean, and list those words verbatim in the hand-off under "Dictionary additions to confirm" so he can strike any of them before the merge. Never describe the additions in prose only, and never leave a word flagged without saying so. The release gate is the backstop, not the check: when it was the only place ty ran, and on `src/` alone, 101 problems built up in tests unseen, 12 of them real mistakes (a `-> callable` annotation, `active_flags={}` where a set was meant, handlers that raised on every run). **Enforced by `.githooks/pre-commit`** (format + ruff + ty, a few seconds; the suite is too slow for a hook and stays a manual step), active once per clone via `git config core.hooksPath .githooks`. Never bypass it with `--no-verify`; fix what it reports.
 - **A new dependency gets a `Credit` record in `credits_data.py`.** That table
   is the only place a dependency is described; the Help tooltip, `/credits`,
   and `help/acknowledgments.md` all iterate it, and
@@ -393,7 +434,7 @@ Two-stage automation in `scripts/`, run from clean main: `python scripts/release
 
 Hard gates (`release_prep` aborts):
 
-- ruff and ty must both report zero issues -- checked before the branch is cut and again after the lock upgrade, because the upgraded environment can move ty's count
+- ruff and ty must both report zero issues and `ruff format --check` must find nothing to reformat -- checked before the branch is cut and again after the lock upgrade, because the upgraded environment can move ty's count
 - `uv.lock` must audit clean (`scripts/audit_lock.py`: pip-audit over the exported lock, every extra and group, nothing installed). A finding reviewed as unreachable is passed explicitly, `--ignore-vuln <ID>`, so the decision sits on the release command line
 - the hw_loopback suite must pass on the attached jumpered adapter (`--require-hw-loopback`, so an unplugged bench fails rather than skips). Releasing without it is `--skip-hw-loopback`, on the release command line for the same reason
 - `main` must be in sync with `origin/main`

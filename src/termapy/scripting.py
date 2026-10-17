@@ -62,18 +62,15 @@ _NO_DEFAULT = _NoDefault()
 
 
 @overload
-def parse_bool(text: str | None, *, what: str = ...) -> bool:
-    ...
+def parse_bool(text: str | None, *, what: str = ...) -> bool: ...
 
 
 @overload
-def parse_bool(text: str | None, *, default: bool, what: str = ...) -> bool:
-    ...
+def parse_bool(text: str | None, *, default: bool, what: str = ...) -> bool: ...
 
 
 @overload
-def parse_bool(text: str | None, *, default: None, what: str = ...) -> bool | None:
-    ...
+def parse_bool(text: str | None, *, default: None, what: str = ...) -> bool | None: ...
 
 
 def parse_bool(
@@ -119,7 +116,7 @@ def parse_bool(
 # confuse "no arg -> query" with "unrecognized arg -> error" -- the conflation
 # that let ``/term.color 2`` silently toggle.  A setting command NEVER mutates
 # on a bare invocation; see the rule in CLAUDE.md / writing-plugins.md.
-SETTING_QUERY = "query"    # empty args: show the current value, no change
+SETTING_QUERY = "query"  # empty args: show the current value, no change
 SETTING_TOGGLE = "toggle"  # the literal ``toggle`` verb: flip a boolean
 SETTING_TOKENS_HELP: str = f"{BOOL_TOKENS_HELP} or toggle"
 
@@ -155,9 +152,7 @@ def parse_bool_setting(args: str) -> str | bool:
     try:
         return parse_bool(arg)
     except ValueError:
-        raise ValueError(
-            f"Invalid value: {args.strip()} (use {SETTING_TOKENS_HELP})"
-        ) from None
+        raise ValueError(f"Invalid value: {args.strip()} (use {SETTING_TOKENS_HELP})") from None
 
 
 _CycleT = TypeVar("_CycleT")
@@ -286,9 +281,7 @@ def parse_duration(text: str, *, default_unit: str | None = None) -> float:
         if value == 0.0:
             return 0.0
         if default_unit is None:
-            raise ValueError(
-                f"Invalid duration: {text!r}. Use e.g. 500us, 25ms, 1.5s"
-            )
+            raise ValueError(f"Invalid duration: {text!r}. Use e.g. 500us, 25ms, 1.5s")
         unit = default_unit
     return value * _DURATION_UNITS[unit]
 
@@ -330,8 +323,7 @@ _DURATION_LABELS = {
     "days": "days",
 }
 _DURATION_TIERS = tuple(
-    (threshold, _DURATION_LABELS[unit], getter)
-    for threshold, unit, getter in Age.DURATION_UNITS
+    (threshold, _DURATION_LABELS[unit], getter) for threshold, unit, getter in Age.DURATION_UNITS
 )
 # Under this many seconds an age reads "just now" -- a presentation choice
 # (a file saved 30 s ago has no useful age), so it lives here, not in frist.
@@ -445,6 +437,7 @@ def filename_timestamp() -> str:
 
 # ── Line selection (shared count scheme) ──────────────────────────────────────
 
+
 def split_cmd_lines(text: str) -> list[str]:
     """Split a multi-command cfg value into stripped, non-blank commands.
 
@@ -511,9 +504,7 @@ def parse_count_arg(args: str, default_name: str) -> tuple[str, int | None]:
     int_tokens = [token for token in tokens if _COUNT_RE.fullmatch(token)]
     name_tokens = [token for token in tokens if not _COUNT_RE.fullmatch(token)]
     if len(int_tokens) > 1:
-        raise ValueError(
-            "Only one count allowed  (N>0 last N, N<0 first N)"
-        )
+        raise ValueError("Only one count allowed  (N>0 last N, N<0 first N)")
     n = int(int_tokens[0]) if int_tokens else None
     if n == 0:
         raise ValueError("Invalid line count: 0")
@@ -604,7 +595,7 @@ def parse_keywords(
         text_lower = text.lower()
         idx = text_lower.find(rk_lower)
         if idx != -1:
-            result[rest_keyword.lower()] = text[idx + len(rk_lower):].strip()
+            result[rest_keyword.lower()] = text[idx + len(rk_lower) :].strip()
             text = text[:idx]
 
     # Parse remaining tokens
@@ -661,9 +652,7 @@ def resolve_seq_filename(filename: str, directory: Path) -> str:
     zeros = m.group(1)
     width = len(zeros)
     if width > _MAX_SEQ_WIDTH:
-        raise ValueError(
-            f"$(n{zeros}) too wide - max {_MAX_SEQ_WIDTH} digits."
-        )
+        raise ValueError(f"$(n{zeros}) too wide - max {_MAX_SEQ_WIDTH} digits.")
 
     max_num = 10**width - 1
     pattern_key = filename  # use the un-resolved pattern as the dict key
@@ -683,9 +672,7 @@ def resolve_seq_filename(filename: str, directory: Path) -> str:
     counters[pattern_key] = next_num
     try:
         ensure_folder(directory)
-        seq_path.write_text(
-            json.dumps(counters, indent=2) + "\n", encoding="utf-8"
-        )
+        seq_path.write_text(json.dumps(counters, indent=2) + "\n", encoding="utf-8")
     except OSError:
         pass
 

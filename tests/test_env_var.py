@@ -123,6 +123,7 @@ class TestEnvCommands:
         """Create a minimal PluginContext that captures output."""
         output = []
         from termapy.plugins import IOHandle
+
         return PluginContext(io=IOHandle(_write=lambda t, c=None: output.append((t, c)))), output
 
     def test_set_adds_to_snapshot(self):
@@ -275,6 +276,7 @@ class TestMcpEnvGate:
     def _ctx(self):
         output = []
         from termapy.plugins import IOHandle
+
         return (
             PluginContext(io=IOHandle(_write=lambda t, c=None: output.append((t, c)))),
             output,
@@ -314,9 +316,7 @@ class TestMcpEnvGate:
         monkeypatch.setattr(env_flags, "_under_mcp", True)
         monkeypatch.setattr(env_flags, "MCP_ENV_ENABLED", False)
         # Act / Assert -- no $(env.) => untouched, no raise.
-        assert _cli_transform("rev") == "rev", (
-            "plain commands are unaffected by the env gate"
-        )
+        assert _cli_transform("rev") == "rev", "plain commands are unaffected by the env gate"
 
     def test_under_mcp_without_flag_blocks_env_list(self, monkeypatch):
         """Under MCP the bare /env dump is refused, and the error names the opt-in flag."""
@@ -330,9 +330,7 @@ class TestMcpEnvGate:
         result = _handler_list(ctx, "")
         # Assert
         assert not result.success, "/env refused under MCP"
-        assert "TERMAPY_MCP_ENV_ENABLED" in result.error, (
-            "refusal names the opt-in flag"
-        )
+        assert "TERMAPY_MCP_ENV_ENABLED" in result.error, "refusal names the opt-in flag"
 
     def test_under_mcp_with_flag_allows(self, monkeypatch):
         """TERMAPY_MCP_ENV_ENABLED restores both expansion and /env under MCP."""

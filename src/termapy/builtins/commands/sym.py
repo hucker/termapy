@@ -194,9 +194,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     if not raw:
         reused = _recorded_import(ctx)
         if reused is None:
-            raise UsageError(
-                "no map given, and the loaded table records no source to re-import"
-            )
+            raise UsageError("no map given, and the loaded table records no source to re-import")
         raw, recorded_fmt = reused
         # An explicit format= still wins: re-importing with a different
         # converter is how you switch a table's pipeline.
@@ -222,8 +220,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         # runtime -- see the ParamSpec comment below.
         subject = fmt if fmt else path.name
         return CmdResult.fail(
-            msg=f"Unknown map format: {subject} "
-            f"(formats: {', '.join(_known_formats(ctx))})"
+            msg=f"Unknown map format: {subject} (formats: {', '.join(_known_formats(ctx))})"
         )
     try:
         symbols = spec.convert(text)
@@ -366,7 +363,9 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value="")
     file = _display_path(ctx, table.path)
     return CmdResult.record(
-        table_record(table, file=file), info_rows(table, file=file), value=str(len(table)),
+        table_record(table, file=file),
+        info_rows(table, file=file),
+        value=str(len(table)),
     )
 
 
@@ -405,9 +404,7 @@ _GRAMMAR_HELP: Final[str] = (
 
 def _long_help(ctx: PluginContext) -> str:
     table = get_table(ctx)
-    state = (
-        f"{len(table)} ({_display_path(ctx, table.path)})" if table is not None else "none"
-    )
+    state = f"{len(table)} ({_display_path(ctx, table.path)})" if table is not None else "none"
     return compose(state_line("symbols", state), _GRAMMAR_HELP)
 
 
@@ -422,9 +419,11 @@ COMMAND = Command(
         "import": Command(
             params=[
                 ParamSpec(
-                    "file", "path", positional=True, rest=True,
-                    help="linker map to convert (default: re-import the "
-                         "loaded table's own source)",
+                    "file",
+                    "path",
+                    positional=True,
+                    rest=True,
+                    help="linker map to convert (default: re-import the loaded table's own source)",
                 ),
                 # A str, not an enum: plugin folders add converters at
                 # runtime (a per-config format is a board's own pipeline),
@@ -432,9 +431,10 @@ COMMAND = Command(
                 # validates against built-ins PLUS the loaded plugin
                 # converters and names them all on a miss.
                 ParamSpec(
-                    "format", "str",
+                    "format",
+                    "str",
                     help=f"map format ({', '.join(FORMATS)}, or a plugin "
-                         "converter); omitted = sniff the file",
+                    "converter); omitted = sniff the file",
                 ),
             ],
             help="Convert a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same map).",
@@ -444,7 +444,10 @@ COMMAND = Command(
         "load": Command(
             params=[
                 ParamSpec(
-                    "path", "path", positional=True, rest=True,
+                    "path",
+                    "path",
+                    positional=True,
+                    rest=True,
                     help="symbols JSON file (default: the cfg's sidecar)",
                 ),
             ],

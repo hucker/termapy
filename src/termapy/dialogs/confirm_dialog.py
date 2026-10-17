@@ -57,9 +57,7 @@ class ConfirmDialog(ModalScreen[bool]):
         yes_btn = self.query_one("#confirm-yes", Button)
         yes_btn.tooltip = "Confirm the action."
         yes_btn.focus()
-        self.query_one("#confirm-no", Button).tooltip = (
-            "Close without confirming."
-        )
+        self.query_one("#confirm-no", Button).tooltip = "Close without confirming."
 
     @on(Button.Pressed, "#confirm-yes")
     def confirm(self) -> None:

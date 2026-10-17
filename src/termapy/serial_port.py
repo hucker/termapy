@@ -144,6 +144,7 @@ class SerialPort:
         reset = getattr(self._port, "reset_input_buffer", None)
         if reset is not None:
             import serial as _serial
+
             try:
                 reset()
             except (OSError, _serial.SerialException):
@@ -514,7 +515,7 @@ class SerialReader:
             # Check for clear screen escape
             m = CLEAR_SCREEN_RE.search(self._buf)
             if m:
-                self._buf = self._buf[m.end():]
+                self._buf = self._buf[m.end() :]
                 # The hex view shows the escape's bytes instead of obeying it.
                 result.clear_screen = not self._hex_display
 
@@ -555,9 +556,7 @@ class SerialReader:
         if tail:
             self._buf += tail
         if self._hex_display:
-            result.hex_rows = (
-                [format_hex(bytes(self._hex_buf))] if self._hex_buf else []
-            )
+            result.hex_rows = [format_hex(bytes(self._hex_buf))] if self._hex_buf else []
             self._hex_buf.clear()
         if self._buf and not PARTIAL_ANSI_RE.search(self._buf):
             # A deferred trailing CR (held by split_rx_lines in case a CRLF

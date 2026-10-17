@@ -1,5 +1,6 @@
 #!/bin/sh
-# Refuse a commit that ruff or ty would flag (CLAUDE.md, "Precommit").
+# Refuse a commit that is unformatted, or that ruff or ty would flag
+# (CLAUDE.md, "Precommit").
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 #
@@ -10,6 +11,15 @@
 # uv warns on every run that VIRTUAL_ENV points somewhere other than the
 # project .venv; the warning is noise here, so drop the variable.
 unset VIRTUAL_ENV
+
+# --no-cache: the cache records what `ruff format` wrote as formatted, and
+# ruff's layout can still move on a second pass (it did, 2026-10-17), so a
+# cached check can pass a tree a fresh clone fails.  The full check is ~1 s.
+echo "pre-commit: ruff format --check --no-cache"
+if ! uv run --no-sync ruff format --check --no-cache; then
+    echo "pre-commit: unformatted files -- run: uv run ruff format.  Commit refused." >&2
+    exit 1
+fi
 
 echo "pre-commit: ruff check src/termapy/ tests/"
 if ! uv run --no-sync ruff check src/termapy/ tests/; then

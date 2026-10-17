@@ -68,9 +68,7 @@ class TestStyleKvArg:
 
         # Assert -- handler succeeded and Google-style docstring markers
         # (Args: / Returns:) appear in the emitted source.
-        assert result.success, (
-            f"style=google python should succeed, got {result.error!r}"
-        )
+        assert result.success, f"style=google python should succeed, got {result.error!r}"
         emitted = "".join(captured_markup)
         assert "Args:" in emitted, (
             f"Google-style docstring should include Args:, got: {emitted[:300]!r}"
@@ -85,11 +83,9 @@ class TestStyleKvArg:
         result = _crc_codegen(ctx, "crc16-modbus style=doxygen", "c")
 
         # Assert
-        assert result.success, (
-            f"style=doxygen C should succeed, got {result.error!r}"
-        )
+        assert result.success, f"style=doxygen C should succeed, got {result.error!r}"
         emitted = "".join(captured_markup)
-        assert ("@brief" in emitted or "@param" in emitted), (
+        assert "@brief" in emitted or "@param" in emitted, (
             f"Doxygen marker should appear in emitted C; got: {emitted[:300]!r}"
         )
 
@@ -102,13 +98,9 @@ class TestStyleKvArg:
         result = _crc_codegen(ctx, "crc32 style=rustdoc", "rust")
 
         # Assert
-        assert result.success, (
-            f"style=rustdoc rust should succeed, got {result.error!r}"
-        )
+        assert result.success, f"style=rustdoc rust should succeed, got {result.error!r}"
         emitted = "".join(captured_markup)
-        assert "///" in emitted, (
-            f"rustdoc style should emit /// comments; got: {emitted[:300]!r}"
-        )
+        assert "///" in emitted, f"rustdoc style should emit /// comments; got: {emitted[:300]!r}"
 
     def test_style_invalid_for_python_rejected_with_allowed_list(self):
         """A style valid elsewhere but not for Python fails and lists Python's allowed styles."""
@@ -122,13 +114,9 @@ class TestStyleKvArg:
         # pick a valid one without consulting docs.
         assert not result.success, "style=doxygen on python should fail"
         msg = result.error or ""
-        assert "allowed for python" in msg, (
-            f"error should list allowed styles; got: {msg!r}"
-        )
+        assert "allowed for python" in msg, f"error should list allowed styles; got: {msg!r}"
         for expected in ("plain", "google", "numpy", "rest"):
-            assert expected in msg, (
-                f"allowed list should mention {expected}; got: {msg!r}"
-            )
+            assert expected in msg, f"allowed list should mention {expected}; got: {msg!r}"
 
     def test_style_unknown_rejected(self):
         """A style no language knows fails with Unknown style."""
@@ -156,8 +144,7 @@ class TestStyleKvArg:
         # Assert
         assert not result.success, "style= with empty value should fail"
         assert "requires a value" in (result.error or ""), (
-            f"empty style= should mention 'requires a value'; "
-            f"got: {result.error!r}"
+            f"empty style= should mention 'requires a value'; got: {result.error!r}"
         )
 
 
@@ -174,14 +161,11 @@ class TestMultiAlgorithmBundle:
 
         # Assert -- handler succeeded; every algorithm name appears in
         # the emitted (header, source) output.
-        assert result.success, (
-            f"3-algo C bundle should succeed, got {result.error!r}"
-        )
+        assert result.success, f"3-algo C bundle should succeed, got {result.error!r}"
         emitted = "".join(captured_markup).lower()
         for expected in ("crc16_modbus", "crc32", "crc8"):
             assert expected in emitted, (
-                f"bundle output should include {expected}; "
-                f"got first 400 chars: {emitted[:400]!r}"
+                f"bundle output should include {expected}; got first 400 chars: {emitted[:400]!r}"
             )
 
     def test_bundle_python_succeeds(self):
@@ -194,9 +178,7 @@ class TestMultiAlgorithmBundle:
         result = _crc_codegen(ctx, "crc16-modbus crc32", "python")
 
         # Assert
-        assert result.success, (
-            f"python bundle should succeed, got {result.error!r}"
-        )
+        assert result.success, f"python bundle should succeed, got {result.error!r}"
         emitted = "".join(captured_markup)
         assert len(emitted) > 0, "python bundle should emit some source"
 
@@ -208,15 +190,15 @@ class TestMultiAlgorithmBundle:
 
         # Act
         result = _crc_codegen(
-            ctx, "crc16-modbus crc32 symbol=foo", "c",
+            ctx,
+            "crc16-modbus crc32 symbol=foo",
+            "c",
         )
 
         # Assert
         assert not result.success, "symbol= with bundle should fail"
         msg = result.error or ""
-        assert "symbol=" in msg, (
-            f"error should mention symbol=; got: {msg!r}"
-        )
+        assert "symbol=" in msg, f"error should mention symbol=; got: {msg!r}"
         assert "bundling" in msg or "multiple" in msg, (
             f"error should explain bundling; got: {msg!r}"
         )
@@ -243,15 +225,15 @@ class TestMultiAlgorithmBundle:
 
         # Act
         result = _crc_codegen(
-            ctx, "crc16-modbus crc32 style=doxygen", "c",
+            ctx,
+            "crc16-modbus crc32 style=doxygen",
+            "c",
         )
 
         # Assert
-        assert result.success, (
-            f"bundle + style=doxygen should succeed, got {result.error!r}"
-        )
+        assert result.success, f"bundle + style=doxygen should succeed, got {result.error!r}"
         emitted = "".join(captured_markup)
-        assert ("@brief" in emitted or "@param" in emitted), (
+        assert "@brief" in emitted or "@param" in emitted, (
             f"bundle should propagate doxygen style; got: {emitted[:300]!r}"
         )
 
@@ -265,13 +247,13 @@ class TestMultiAlgorithmBundle:
 
         # Act
         result = _crc_codegen(
-            ctx, "crc16-modbus crc32 file=my_crcs", "c",
+            ctx,
+            "crc16-modbus crc32 file=my_crcs",
+            "c",
         )
 
         # Assert
-        assert result.success, (
-            f"bundle + file= should succeed, got {result.error!r}"
-        )
+        assert result.success, f"bundle + file= should succeed, got {result.error!r}"
         h = tmp_path / "my_crcs.h"
         c = tmp_path / "my_crcs.c"
         assert h.exists(), f"expected my_crcs.h to be written; got: {list(tmp_path.iterdir())}"

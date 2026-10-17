@@ -93,8 +93,7 @@ def rewrite_markdown(md_text: str) -> str:
     match = _DEPS_RE.search(md_text)
     if match is None:
         raise RuntimeError(
-            f"deps:start / deps:end markers not found in {MD_PATH.name}; "
-            "restore them and re-run."
+            f"deps:start / deps:end markers not found in {MD_PATH.name}; restore them and re-run."
         )
     start_line = match.group(0).split("\n", 1)[0]
     return _DEPS_RE.sub(lambda _m: render_deps_block(start_line), md_text, count=1)
@@ -144,9 +143,7 @@ def rewrite_credits(py_text: str, new_block: str) -> str:
             "sentinels and re-run."
         )
     if len(matches) > 1:
-        raise RuntimeError(
-            f"Multiple generated blocks in {PY_PATH.name}; expected one."
-        )
+        raise RuntimeError(f"Multiple generated blocks in {PY_PATH.name}; expected one.")
     return _BLOCK_RE.sub(lambda _m: new_block, py_text, count=1)
 
 
@@ -171,7 +168,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.check:
-        stale = [name for name, changed in ((MD_PATH.name, md_changed), (PY_PATH.name, py_changed)) if changed]
+        stale = [
+            name
+            for name, changed in ((MD_PATH.name, md_changed), (PY_PATH.name, py_changed))
+            if changed
+        ]
         print(
             f"FAIL {', '.join(stale)} out of sync with the dependency registry.\n"
             f"     Run: python scripts/sync_acknowledgments.py",

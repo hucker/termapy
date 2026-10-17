@@ -35,9 +35,7 @@ class TestHelpImages:
         full_path = HELP_DIR / img_path
 
         # Assert
-        assert full_path.exists(), (
-            f"{md_file} references {img_path} but file does not exist"
-        )
+        assert full_path.exists(), f"{md_file} references {img_path} but file does not exist"
 
 
 # ── Config example validation ────────────────────────────────────────────────
@@ -73,10 +71,7 @@ class TestHelpConfigExamples:
     @pytest.mark.parametrize(
         "file_path, tag_line, json_text",
         _find_tagged_json_blocks(),
-        ids=[
-            f"{p.name}:{line}"
-            for p, line, _ in _find_tagged_json_blocks()
-        ],
+        ids=[f"{p.name}:{line}" for p, line, _ in _find_tagged_json_blocks()],
     )
     def test_config_example_keys(self, file_path, tag_line, json_text):
         """Tagged config examples must have all keys from DEFAULT_CFG."""
@@ -95,8 +90,7 @@ class TestHelpConfigExamples:
 
         # Assert
         assert not unknown_keys, (
-            f"{file_path.name}:{tag_line} has unknown config keys: "
-            f"{sorted(unknown_keys)}"
+            f"{file_path.name}:{tag_line} has unknown config keys: {sorted(unknown_keys)}"
         )
         assert not missing_keys, (
             f"{file_path.name}:{tag_line} is missing config keys: "

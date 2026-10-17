@@ -87,7 +87,8 @@ class TestRegistryMatchesTheTree:
         """Code added under vendor/ without a vendored credit fails; metadata files are skipped."""
         # Arrange -- every top-level entry under vendor/ except metadata files
         present = {
-            path.stem for path in _VENDOR.iterdir()
+            path.stem
+            for path in _VENDOR.iterdir()
             if not path.name.startswith(("_", ".")) and path.suffix in ("", ".py")
         }
         credited = {

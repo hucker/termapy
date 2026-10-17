@@ -36,7 +36,9 @@ _bench_only = pytest.mark.skipif(
 )
 
 
-def _run_hw_loopback_suite(flag: str, *, on_github: bool = False) -> subprocess.CompletedProcess[str]:
+def _run_hw_loopback_suite(
+    flag: str, *, on_github: bool = False
+) -> subprocess.CompletedProcess[str]:
     """Run the hw_loopback suite in a child pytest, aimed at an adapter that does not exist.
 
     ``on_github`` sets ``GITHUB_ACTIONS`` in the child, the way a runner does.
@@ -46,8 +48,20 @@ def _run_hw_loopback_suite(flag: str, *, on_github: bool = False) -> subprocess.
         env["GITHUB_ACTIONS"] = "true"
     return subprocess.run(
         [
-            sys.executable, "-m", "pytest", str(TESTS / "test_hw_loopback.py"),
-            flag, "-m", "hw_loopback", "-n", "0", "--no-cov", "-p", "no:cacheprovider", "-q", "-ra",
+            sys.executable,
+            "-m",
+            "pytest",
+            str(TESTS / "test_hw_loopback.py"),
+            flag,
+            "-m",
+            "hw_loopback",
+            "-n",
+            "0",
+            "--no-cov",
+            "-p",
+            "no:cacheprovider",
+            "-q",
+            "-ra",
         ],
         capture_output=True,
         text=True,
@@ -70,7 +84,9 @@ def test_hw_loopback_flags_are_refused_on_github_actions(flag):
         f"pytest's usage-error exit, before collection:\n{result.stdout[-1500:]}\n{result.stderr[-1500:]}"
     )
     assert "never runs on GitHub Actions" in result.stderr, "the refusal says why"
-    assert "collected" not in result.stdout, "nothing was collected, so no fixture and no port enumeration ran"
+    assert "collected" not in result.stdout, (
+        "nothing was collected, so no fixture and no port enumeration ran"
+    )
 
 
 @_bench_only
@@ -85,7 +101,9 @@ def test_require_hw_loopback_fails_without_the_rig():
         f"a run that demanded the rig must not read green without it:\n{result.stdout[-2000:]}"
     )
     assert _NO_SUCH_ADAPTER in result.stdout, "the failure names the serial number it looked for"
-    assert "skipped" not in result.stdout.splitlines()[-1], "no test may quietly skip under the demand"
+    assert "skipped" not in result.stdout.splitlines()[-1], (
+        "no test may quietly skip under the demand"
+    )
 
 
 @_bench_only
@@ -96,5 +114,7 @@ def test_run_hw_loopback_still_skips_without_the_rig():
     result = _run_hw_loopback_suite("--run-hw-loopback")
 
     # Assert
-    assert result.returncode == 0, f"an absent rig is a skip, not a failure:\n{result.stdout[-2000:]}"
+    assert result.returncode == 0, (
+        f"an absent rig is a skip, not a failure:\n{result.stdout[-2000:]}"
+    )
     assert "skipped" in result.stdout.splitlines()[-1], "the summary reports the skips"

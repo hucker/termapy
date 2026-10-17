@@ -93,8 +93,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     if spec is None:
         subject = fmt if fmt else path.name
         return CmdResult.fail(
-            msg=f"Unknown device format: {subject} "
-            f"(formats: {', '.join(_known_formats(ctx))})"
+            msg=f"Unknown device format: {subject} (formats: {', '.join(_known_formats(ctx))})"
         )
     try:
         doc = spec.convert(text)
@@ -131,8 +130,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     existing = _already_defined(library, device.name, dest)
     if existing is not None:
         return CmdResult.fail(
-            msg=f"Device {device.name} is already defined by {existing}; "
-            f"remove it first"
+            msg=f"Device {device.name} is already defined by {existing}; remove it first"
         )
     try:
         write_library_part(library, dest, doc)
@@ -153,17 +151,18 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
             return written
         ref_path = str(written)
         _reload(ctx)
-        ctx.io.output(
-            f"  {peripherals} peripherals; referenced by dev/{written.name}"
-        )
+        ctx.io.output(f"  {peripherals} peripherals; referenced by dev/{written.name}")
     else:
         ctx.io.output(
             f"  {peripherals} peripherals; {ctx.prefix}dev.use {device.name} "
             f"to add it to this config"
         )
     data = device_records([device])[0] | {
-        "format": spec.format, "path": str(dest), "layer": label,
-        "relative": relative, "reference": ref_path,
+        "format": spec.format,
+        "path": str(dest),
+        "layer": label,
+        "relative": relative,
+        "reference": ref_path,
     }
     return CmdResult.ok(value=str(len(device)), data=data)
 
@@ -177,7 +176,9 @@ def _already_defined(library: Path, name: str, dest: Path) -> str | None:
 
 
 def _write_reference(
-    ctx: PluginContext, part: str, instances: tuple[dict[str, object], ...],
+    ctx: PluginContext,
+    part: str,
+    instances: tuple[dict[str, object], ...],
 ) -> Path | CmdResult:
     """Write ``dev/<part>.device.json`` as a reference to a library part."""
     folder = device_dir(ctx.config_path)
@@ -214,12 +215,13 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     headers = ("DEVICE", "REGISTERS", "LAYER", "PLACEMENT")
     # Placement is last and often empty, so it needs no padding.
     widths = [
-        max(len(header), *(len(row[i]) for row in rows))
-        for i, header in enumerate(headers[:-1])
+        max(len(header), *(len(row[i]) for row in rows)) for i, header in enumerate(headers[:-1])
     ]
-    ctx.io.output("  " + "  ".join(
-        f"{header:<{width}}" for header, width in zip(headers, widths)
-    ) + f"  {headers[-1]}")
+    ctx.io.output(
+        "  "
+        + "  ".join(f"{header:<{width}}" for header, width in zip(headers, widths))
+        + f"  {headers[-1]}"
+    )
     for row in rows:
         line = "  ".join(f"{cell:<{width}}" for cell, width in zip(row, widths))
         ctx.io.output(f"  {line}  {row[-1]}".rstrip())
@@ -235,8 +237,7 @@ def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
     match = next((p for p in parts if p.device == part), None)
     if match is None:
         return CmdResult.fail(
-            msg=f"No library part named {part} "
-            f"(try {ctx.prefix}dev.lib to see what there is)"
+            msg=f"No library part named {part} (try {ctx.prefix}dev.lib to see what there is)"
         )
     placements = str(ctx.arg("at") or "").split()
     instances = _parse_placements(placements)
@@ -265,13 +266,14 @@ def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
         _reload(ctx)
         prefix = f"{written.name}: "
         problem = next(
-            (error[len(prefix):] for error in errors if error.startswith(prefix)),
+            (error[len(prefix) :] for error in errors if error.startswith(prefix)),
             "it did not load",
         )
         return CmdResult.fail(msg=f"{part} not added: {problem}")
     where = " ".join(
         f"{instance.name}@{hex_addr(instance.base)}"
-        for instance in loaded.instances if instance.name
+        for instance in loaded.instances
+        if instance.name
     )
     ctx.io.result(
         f"Using {part}: {len(loaded)} registers"
@@ -292,9 +294,7 @@ def _parse_placements(
     for token in tokens:
         name, _, addr = token.partition("@")
         if not name or not addr:
-            return CmdResult.fail(
-                msg=f"Invalid placement: {token} (expected NAME@ADDRESS)"
-            )
+            return CmdResult.fail(msg=f"Invalid placement: {token} (expected NAME@ADDRESS)")
         base = parse_number(addr)
         if base is None:
             return CmdResult.fail(msg=f"Invalid address: {addr}")
@@ -316,10 +316,15 @@ def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
     # vocabulary (exact -> regex -> substring): a library listing is
     # browsing, and a half-copy of that ladder would be two grammars to
     # learn for one job.
-    matched = [
-        part for part in parts
-        if _matches(pattern, part.device) or _matches(pattern, part.category)
-    ] if pattern else parts
+    matched = (
+        [
+            part
+            for part in parts
+            if _matches(pattern, part.device) or _matches(pattern, part.category)
+        ]
+        if pattern
+        else parts
+    )
     if not matched:
         where = f" matching '{pattern}'" if pattern else ""
         ctx.io.output(f"  (no library parts{where})")
@@ -339,8 +344,7 @@ def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
         mark = " *" if part.device in loaded else "  "
         detail = part.category or "-"
         ctx.io.output(
-            f"  {part.device:<{width}}{mark}  {count:>6}  "
-            f"{part.layer:<{layer_width}}  {detail}"
+            f"  {part.device:<{width}}{mark}  {count:>6}  {part.layer:<{layer_width}}  {detail}"
         )
     ctx.io.output(f"  ({len(matched)} of {len(parts)} parts; * = loaded here)")
     return CmdResult.ok(value="\n".join(part.device for part in matched))
@@ -441,26 +445,36 @@ COMMAND = Command(
         "import": Command(
             params=[
                 ParamSpec(
-                    "file", "path", positional=True, required=True, rest=True,
+                    "file",
+                    "path",
+                    positional=True,
+                    required=True,
+                    rest=True,
                     help="vendor register description to convert (CMSIS-SVD)",
                 ),
                 # A str, not an enum: plugin folders add converters at
                 # runtime, so the valid set is not knowable at import.
                 ParamSpec(
-                    "format", "str",
+                    "format",
+                    "str",
                     help=f"file format ({', '.join(FORMATS)}, or a plugin "
-                         "converter); omitted = sniff the file",
+                    "converter); omitted = sniff the file",
                 ),
                 ParamSpec(
-                    "category", "str",
+                    "category",
+                    "str",
                     help="sub-path under the vendor in lib/ (mcu/pic32cm)",
                 ),
                 ParamSpec(
-                    "to", "str", default="cfg",
+                    "to",
+                    "str",
+                    default="cfg",
                     help="which library: cfg (this config's lib/, default) or global",
                 ),
                 ParamSpec(
-                    "use", "bool", default=True,
+                    "use",
+                    "bool",
+                    default=True,
                     help="also add it to this config (off = library only)",
                 ),
             ],
@@ -475,11 +489,16 @@ COMMAND = Command(
         "use": Command(
             params=[
                 ParamSpec(
-                    "part", "str", positional=True, required=True,
+                    "part",
+                    "str",
+                    positional=True,
+                    required=True,
                     help="library part name (see /dev.lib)",
                 ),
                 ParamSpec(
-                    "at", "str", rest=True,
+                    "at",
+                    "str",
+                    rest=True,
                     help="placement for a relocatable part: NAME@ADDR ...",
                 ),
             ],
@@ -490,7 +509,10 @@ COMMAND = Command(
         "lib": Command(
             params=[
                 ParamSpec(
-                    "pattern", "str", positional=True, rest=True,
+                    "pattern",
+                    "str",
+                    positional=True,
+                    rest=True,
                     help="filter by part or category; glob (pic32*) or substring",
                 ),
             ],

@@ -59,8 +59,7 @@ def ctx_with_tracker(tmp_path):
     config_path.write_text(json.dumps(cfg))
 
     output: list = []
-    engine = ReplEngine(cfg, str(config_path),
-                        lambda t, c=None: output.append((t, c)))
+    engine = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
     api = InternalHandle(
         plugins=engine._plugins,
         in_script=lambda: engine.in_script,
@@ -144,7 +143,8 @@ class TestSerialIoContextManagerSafety:
         assert tracker.claimed is False, "fully released after both exit"
 
     def test_exception_in_outer_block_after_inner_completed(
-        self, ctx_with_tracker,
+        self,
+        ctx_with_tracker,
     ):
         """An outer raise after a completed inner block still releases the outer claim."""
         # Arrange -- exception fires after the inner block releases but before

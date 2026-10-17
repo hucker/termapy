@@ -92,7 +92,10 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"No variables matching: {pattern}")
     records = [{"name": name, "value": _ENV[name]} for name in names]
     return CmdResult.table(
-        "Environment snapshot", "variable", _ENV_COLUMNS, records,
+        "Environment snapshot",
+        "variable",
+        _ENV_COLUMNS,
+        records,
         value="\n".join(f"{name}={_ENV[name]}" for name in names),
         data={name: _ENV[name] for name in names},
     )

@@ -327,8 +327,7 @@ def _check_bare_sub(full_name: str, children: list[str], bare_sub: str) -> None:
     if bare_sub and f"{full_name}.{bare_sub}".lower() not in children:
         short_names = ", ".join(name.rsplit(".", 1)[1] for name in children)
         raise ValueError(
-            f"{full_name}: bare_sub {bare_sub!r} names no subcommand "
-            f"(subcommands: {short_names})"
+            f"{full_name}: bare_sub {bare_sub!r} names no subcommand (subcommands: {short_names})"
         )
 
 
@@ -368,9 +367,7 @@ def _make_interior_handler(full_name: str, children: list[str]) -> Callable:
                 # itself contains "$(".)
                 return ctx.internal.dispatch(f"{child_name} {rest}".rstrip())
             short_names = ", ".join(name.rsplit(".", 1)[1] for name in children)
-            return CmdResult.fail(
-                msg=f"Unknown subcommand: {first} (subcommands: {short_names})"
-            )
+            return CmdResult.fail(msg=f"Unknown subcommand: {first} (subcommands: {short_names})")
         ctx.io._write(f"Subcommands of {prefix}{full_name}:")
         plugins = ctx.internal.plugins
         for child_name in children:

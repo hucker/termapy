@@ -348,7 +348,7 @@ class TestPatternMatching:
     def test_all_wildcards(self):
         """A pattern of only wildcards matches any response of the same length."""
         data, mask = parse_pattern("** ** **")
-        actual = b"\xAA\xBB\xCC"
+        actual = b"\xaa\xbb\xcc"
         assert match_response(data, actual, mask) is True, "all-wildcard should match any bytes"
 
     def test_mask_values(self):
@@ -438,7 +438,9 @@ expect: 01 03 ** **
     def test_strip_ansi_directive_takes_a_boolean(self):
         """@strip_ansi alone is on; @strip_ansi off is off; a word outside the vocabulary fails on its line."""
         assert parse_proto_script("@strip_ansi\nsend: 01")[0]["strip_ansi"] is True, "bare is on"
-        assert parse_proto_script("@strip_ansi off\nsend: 01")[0]["strip_ansi"] is False, "off used to read as on"
+        assert parse_proto_script("@strip_ansi off\nsend: 01")[0]["strip_ansi"] is False, (
+            "off used to read as on"
+        )
         with pytest.raises(ValueError, match=r"^Line 1: Invalid @strip_ansi: maybe \(use on/off/"):
             parse_proto_script("@strip_ansi maybe\nsend: 01")
 
@@ -658,7 +660,7 @@ expect: "FB8d\\r"
 class TestParseTomlScript:
     def test_basic_two_tests(self):
         """TOML script with two simple tests parses correctly."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "Test A"
 send = "01 02"
@@ -668,7 +670,7 @@ expect = "03 04"
 name = "Test B"
 send = '"hello\\r"'
 expect = '"world\\r"'
-'''
+"""
         script = parse_toml_script(toml)
 
         assert len(script.tests) == 2
@@ -683,30 +685,30 @@ expect = '"world\\r"'
 
     def test_bad_fmt_spec_fails_at_load(self):
         """A *_fmt spec that does not parse is refused at load, named by test and key, not on the debug screen's render path."""
-        toml = '''\
+        toml = """\
 [[test]]
 send = "01"
 expect = "02"
 expect_fmt = "Title:Reply X:U0"
-'''
+"""
         with pytest.raises(ValueError, match="Test 1: expect_fmt: Invalid byte index: 0"):
             parse_toml_script(toml)
 
     def test_bad_script_level_fmt_spec_fails_at_load(self):
         """The script-level send_fmt is checked too, before any test inherits it."""
-        toml = '''\
+        toml = """\
 send_fmt = "X:"
 
 [[test]]
 send = "01"
 expect = "02"
-'''
+"""
         with pytest.raises(ValueError, match="send_fmt: Invalid column: X:"):
             parse_toml_script(toml)
 
     def test_settings(self):
         """TOML settings are parsed correctly."""
-        toml = '''\
+        toml = """\
 name = "My Test"
 frame_gap = "100ms"
 timeout = "2s"
@@ -717,7 +719,7 @@ quiet = true
 name = "T1"
 send = "01"
 expect = "02"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.name == "My Test"
@@ -728,19 +730,19 @@ expect = "02"
 
     def test_a_string_in_a_boolean_key_is_refused_at_load(self):
         """strip_ansi = "false" is a TOML string, not a boolean: it is refused by name instead of reading as on."""
-        toml = '''\
+        toml = """\
 strip_ansi = "false"
 
 [[test]]
 send = "01"
 expect = "02"
-'''
+"""
         with pytest.raises(ValueError, match=r"^strip_ansi: expected true or false, got 'false'$"):
             parse_toml_script(toml)
 
     def test_setup_teardown(self):
         """Setup and teardown arrays are parsed."""
-        toml = '''\
+        toml = """\
 setup = ["color off", "echo on"]
 teardown = ["color on"]
 
@@ -748,7 +750,7 @@ teardown = ["color on"]
 name = "T1"
 send = "01"
 expect = "02"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.setup == ["color off", "echo on"]
@@ -756,14 +758,14 @@ expect = "02"
 
     def test_per_test_setup_teardown(self):
         """Per-test setup/teardown lists are parsed."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "With setup"
 setup = ["echo off", "color off"]
 teardown = ["echo on"]
 send = '"fw\\r"'
 expect = '"FB8d\\r\\n"'
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].setup == ["echo off", "color off"]
@@ -771,7 +773,7 @@ expect = '"FB8d\\r\\n"'
 
     def test_undocumented_aliases_are_not_read(self):
         """A per-test cmd string and recv_fmt are plain unknown keys now; only the documented setup and expect_fmt bind."""
-        toml = '''\
+        toml = """\
 recv_fmt = "X:H1"
 
 [[test]]
@@ -779,7 +781,7 @@ name = "With cmd"
 cmd = "echo off"
 send = '"fw\\r"'
 expect = '"FB8d\\r\\n"'
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].setup == [], "cmd is not a setup alias"
@@ -787,7 +789,7 @@ expect = '"FB8d\\r\\n"'
 
     def test_per_test_timeout(self):
         """Per-test timeout overrides default."""
-        toml = '''\
+        toml = """\
 timeout = "1s"
 
 [[test]]
@@ -800,7 +802,7 @@ timeout = "200ms"
 name = "Default"
 send = "03"
 expect = "04"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].timeout_ms == 200
@@ -808,7 +810,7 @@ expect = "04"
 
     def test_binary_detection(self):
         """binary flag is True for hex, False for quoted text."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "hex"
 send = "01 02 03"
@@ -818,7 +820,7 @@ expect = "04 05"
 name = "text"
 send = '"hello"'
 expect = '"world"'
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].binary is True
@@ -832,32 +834,32 @@ expect = '"world"'
 
     def test_missing_send_raises(self):
         """Test without send field raises ValueError."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "No send"
 expect = "01"
-'''
+"""
         with pytest.raises(ValueError, match="missing 'send'"):
             parse_toml_script(toml)
 
     def test_missing_expect_raises(self):
         """Test without expect field raises ValueError."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "No expect"
 send = "01"
-'''
+"""
         with pytest.raises(ValueError, match="missing 'expect'"):
             parse_toml_script(toml)
 
     def test_wildcard_expect(self):
         """Expect with ** wildcards sets mask correctly."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "Wild"
 send = "01"
 expect = "01 ** 03"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].expect_data == b"\x01\x00\x03"
@@ -865,23 +867,23 @@ expect = "01 ** 03"
 
     def test_default_name(self):
         """Test without name gets auto-generated name."""
-        toml = '''\
+        toml = """\
 [[test]]
 send = "01"
 expect = "02"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].name == "Test 1"
 
     def test_raw_strings_preserved(self):
         """send_raw and expect_raw store original strings."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "T"
 send = '"fw\\r"'
 expect = '"FB8d\\r\\n"'
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].send_raw == '"fw\\r"'
@@ -895,7 +897,7 @@ class TestInlineFmtFields:
     def test_script_level_fmt(self):
         """Script-level send_fmt/expect_fmt are parsed and inherited by tests."""
         # Arrange
-        toml = '''\
+        toml = """\
 send_fmt = "Slave:H1 Func:H2"
 expect_fmt = "Slave:H1 Data:H2-*"
 
@@ -903,7 +905,7 @@ expect_fmt = "Slave:H1 Data:H2-*"
 name = "T1"
 send = "01 03"
 expect = "01 AA BB"
-'''
+"""
         # Act
         script = parse_toml_script(toml)
 
@@ -916,7 +918,7 @@ expect = "01 AA BB"
     def test_per_test_override(self):
         """Per-test send_fmt/expect_fmt override script-level defaults."""
         # Arrange
-        toml = '''\
+        toml = """\
 send_fmt = "Default:H1-*"
 expect_fmt = "Default:H1-*"
 
@@ -926,7 +928,7 @@ send = "01 03"
 expect = "01 AA"
 send_fmt = "Custom:H1 Func:H2"
 expect_fmt = "Custom:H1 Data:H2"
-'''
+"""
         # Act
         script = parse_toml_script(toml)
 
@@ -937,12 +939,12 @@ expect_fmt = "Custom:H1 Data:H2"
     def test_default_empty(self):
         """Missing send_fmt/expect_fmt default to empty string."""
         # Arrange
-        toml = '''\
+        toml = """\
 [[test]]
 name = "T1"
 send = "01"
 expect = "02"
-'''
+"""
         # Act
         script = parse_toml_script(toml)
 
@@ -955,14 +957,14 @@ expect = "02"
     def test_send_fmt_only(self):
         """Only send_fmt set, expect_fmt defaults to empty."""
         # Arrange
-        toml = '''\
+        toml = """\
 send_fmt = "Addr:H1 Cmd:H2"
 
 [[test]]
 name = "T1"
 send = "01 03"
 expect = "01 AA"
-'''
+"""
         # Act
         script = parse_toml_script(toml)
 
@@ -977,56 +979,56 @@ expect = "01 AA"
 class TestVizFields:
     def test_script_viz_list(self):
         """Script-level viz list is parsed from header."""
-        toml = '''\
+        toml = """\
 name = "Test"
 viz = ["Modbus", "Custom"]
 
 [[test]]
 send = "01"
 expect = "02"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.viz == ["Modbus", "Custom"]
 
     def test_script_viz_default_empty(self):
         """Script-level viz defaults to empty list when omitted."""
-        toml = '''\
+        toml = """\
 [[test]]
 send = "01"
 expect = "02"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.viz == []
 
     def test_test_viz_string(self):
         """Per-test viz field is parsed as a string."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "Read regs"
 viz = "Modbus"
 send = "01 03 00 00 00 01 84 0A"
 expect = "01 03 02 00 07 F9 86"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].viz == "Modbus"
 
     def test_test_viz_default_empty(self):
         """Per-test viz defaults to empty string when omitted."""
-        toml = '''\
+        toml = """\
 [[test]]
 send = "01"
 expect = "02"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.tests[0].viz == ""
 
     def test_mixed_viz_and_no_viz(self):
         """Some tests have viz, others don't."""
-        toml = '''\
+        toml = """\
 viz = ["Modbus"]
 
 [[test]]
@@ -1039,7 +1041,7 @@ expect = "02"
 name = "Without viz"
 send = "03"
 expect = "04"
-'''
+"""
         script = parse_toml_script(toml)
 
         assert script.viz == ["Modbus"]
@@ -1053,12 +1055,12 @@ expect = "04"
 class TestLoadProtoScript:
     def test_toml_detected(self):
         """TOML format is detected when [[test]] present."""
-        toml = '''\
+        toml = """\
 [[test]]
 name = "T1"
 send = "01"
 expect = "02"
-'''
+"""
         fmt, parsed = load_proto_script(toml)
 
         assert fmt == "toml"
@@ -1066,11 +1068,11 @@ expect = "02"
 
     def test_flat_fallback(self):
         """Flat format used when TOML parse fails."""
-        flat = '''\
+        flat = """\
 label: Test
 send: "fw\\r"
 expect: "FB8d\\r"
-'''
+"""
         fmt, parsed = load_proto_script(flat)
 
         assert fmt == "flat"
@@ -1113,7 +1115,7 @@ class TestDiffBytes:
     def test_mismatch(self):
         """Differing byte → 'mismatch'."""
         expected = b"\x01\x02\x03"
-        actual = b"\x01\xFF\x03"
+        actual = b"\x01\xff\x03"
         mask = b"\xff\xff\xff"
         result = diff_bytes(expected, actual, mask)
 
@@ -1122,7 +1124,7 @@ class TestDiffBytes:
     def test_wildcard(self):
         """Wildcard mask byte → 'wildcard'."""
         expected = b"\x01\x00\x03"
-        actual = b"\x01\xFF\x03"
+        actual = b"\x01\xff\x03"
         mask = b"\xff\x00\xff"
         result = diff_bytes(expected, actual, mask)
 
@@ -1155,7 +1157,7 @@ class TestDiffBytes:
     def test_mixed(self):
         """Mix of match, mismatch, wildcard with overflow."""
         expected = b"\x01\x00\x03"
-        actual = b"\x01\xFF\x04\x05"
+        actual = b"\x01\xff\x04\x05"
         mask = b"\xff\x00\xff"
         result = diff_bytes(expected, actual, mask)
 
@@ -1292,8 +1294,11 @@ class TestGenericCrcEngine:
         actual = _generic_crc(
             _CHECK_DATA,
             Crc(
-                width=entry["width"], poly=entry["poly"], init=entry["init"],
-                refin=entry["refin"], refout=entry["refout"],
+                width=entry["width"],
+                poly=entry["poly"],
+                init=entry["init"],
+                refin=entry["refin"],
+                refout=entry["refout"],
                 xorout=entry["xorout"],
             ),
         )
@@ -1315,11 +1320,11 @@ class TestCrcCatalogue:
     def test_catalogue_matches_crcglot(self):
         """The shim's CRC_CATALOGUE mirrors crcglot.ALGORITHMS one-for-one."""
         from crcglot import ALGORITHMS
+
         actual = len(CRC_CATALOGUE)
         expected = len(ALGORITHMS)
         assert actual == expected, (
-            f"shim catalog size diverged from crcglot: "
-            f"{actual} vs {expected}"
+            f"shim catalog size diverged from crcglot: {actual} vs {expected}"
         )
 
     def test_desc_is_short(self):
@@ -1336,8 +1341,7 @@ class TestExtractFmtTitle:
     def test_title_extracted(self):
         """A leading Title: token is split off and its underscores become spaces."""
         # Act
-        actual_title, actual_spec = extract_fmt_title(
-            "Title:Modbus_RTU Slave:H1 Func:H2")
+        actual_title, actual_spec = extract_fmt_title("Title:Modbus_RTU Slave:H1 Func:H2")
 
         # Assert
         assert actual_title == "Modbus RTU", "underscores replaced with spaces"
@@ -1499,11 +1503,14 @@ class TestParseFormatSpec:
         assert actual_names == expected_names
 
     @pytest.mark.parametrize(
-        "spec", ["X:U0", "X:H0-2", "X:H3-0", "X:H0-*", "X:B0.3", "X:0"],
+        "spec",
+        ["X:U0", "X:H0-2", "X:H3-0", "X:H0-*", "X:B0.3", "X:0"],
     )
     def test_byte_index_zero_is_refused(self, spec):
         """A byte reference of 0 fails at parse: it used to be Python's -1, the LAST byte, on every reader and on inject."""
-        with pytest.raises(ValueError, match=r"Invalid byte index: 0 \(bytes are numbered from 1\)"):
+        with pytest.raises(
+            ValueError, match=r"Invalid byte index: 0 \(bytes are numbered from 1\)"
+        ):
             parse_format_spec(spec)
 
     def test_zero_inside_a_longer_number_is_that_number(self):
@@ -1558,19 +1565,19 @@ class TestApplyFormat:
     def test_unsigned_two_bytes(self):
         """Two-byte unsigned decimal big-endian."""
         cols = parse_format_spec("Addr:U1-2")
-        headers, values = apply_format(b"\x00\x0A", cols)
+        headers, values = apply_format(b"\x00\x0a", cols)
         assert values == ["10"], "0x000A = 10"
 
     def test_signed_negative(self):
         """Signed decimal shows sign."""
         cols = parse_format_spec("Temp:I1-2")
-        headers, values = apply_format(b"\xFF\xFE", cols)
+        headers, values = apply_format(b"\xff\xfe", cols)
         assert values == ["-2"]
 
     def test_signed_positive(self):
         """Signed decimal shows + for positive."""
         cols = parse_format_spec("Temp:I1")
-        headers, values = apply_format(b"\x7F", cols)
+        headers, values = apply_format(b"\x7f", cols)
         assert values == ["+127"]
 
     def test_string_printable(self):
@@ -1612,7 +1619,7 @@ class TestApplyFormat:
         """Multi-byte bit field with all bits set in range."""
         # Arrange - 0xFFFF, bits 4-7 = 1111 = 15
         cols = parse_format_spec("Nibble:B1-2.4-7")
-        data = b"\xFF\xFF"
+        data = b"\xff\xff"
 
         # Act
         _, values = apply_format(data, cols)
@@ -1709,17 +1716,16 @@ class TestDiffColumns:
 
     def test_all_match(self):
         """All bytes match → all column statuses are 'match'."""
-        data = b"\x01\x03\x00\x0A"
+        data = b"\x01\x03\x00\x0a"
         mask = b"\xff\xff\xff\xff"
         cols = parse_format_spec("Slave:H1 Func:H2 Addr:U3-4")
-        headers, exp_vals, act_vals, statuses = diff_columns(
-            data, data, mask, cols)
+        headers, exp_vals, act_vals, statuses = diff_columns(data, data, mask, cols)
         assert all(status == "match" for status in statuses)
 
     def test_mismatch_column(self):
         """Byte mismatch in a column → that column is 'mismatch'."""
-        expected = b"\x01\x03\x00\x0A"
-        actual = b"\x01\x04\x00\x0A"
+        expected = b"\x01\x03\x00\x0a"
+        actual = b"\x01\x04\x00\x0a"
         mask = b"\xff\xff\xff\xff"
         cols = parse_format_spec("Slave:H1 Func:H2 Addr:U3-4")
         _, _, _, statuses = diff_columns(actual, expected, mask, cols)
@@ -1730,7 +1736,7 @@ class TestDiffColumns:
     def test_wildcard_column(self):
         """Wildcard mask bytes → column status is 'wildcard' (dimmed)."""
         expected = b"\x01\x00\x03"
-        actual = b"\x01\xFF\x03"
+        actual = b"\x01\xff\x03"
         mask = b"\xff\x00\xff"
         cols = parse_format_spec("A:H1 B:H2 C:H3")
         _, _, _, statuses = diff_columns(actual, expected, mask, cols)
@@ -1801,7 +1807,9 @@ class TestShortData:
         reset_crc_registry()
 
         # Act
-        _, _, act_values, statuses = diff_columns(b"\x01\x03\x02", frame, b"\xff" * len(frame), cols)
+        _, _, act_values, statuses = diff_columns(
+            b"\x01\x03\x02", frame, b"\xff" * len(frame), cols
+        )
 
         # Assert
         assert statuses == ["match", "match", "match", "missing", "missing"]
@@ -1864,9 +1872,11 @@ class TestCrcColumnStatus:
 
         # Act
         _, _, _, with_range = diff_columns(
-            frame, frame, mask, parse_format_spec("Sync:H1 Data:H2-3 CRC:crc16-modbus(2-3)"))
+            frame, frame, mask, parse_format_spec("Sync:H1 Data:H2-3 CRC:crc16-modbus(2-3)")
+        )
         _, _, _, without_range = diff_columns(
-            frame, frame, mask, parse_format_spec("Sync:H1 Data:H2-3 CRC:crc16-modbus"))
+            frame, frame, mask, parse_format_spec("Sync:H1 Data:H2-3 CRC:crc16-modbus")
+        )
 
         # Assert
         assert with_range[-1] == "match", "computed over the range the spec gave"
@@ -1877,7 +1887,8 @@ class TestCrcColumnStatus:
         frame = _modbus_frame(b"\xaa\x01\x02")
         reset_crc_registry()
         _, _, _, statuses = diff_columns(
-            frame, frame, b"\xff" * len(frame), parse_format_spec("Sync:H1 CRC:crc16-modbus(1-9)"))
+            frame, frame, b"\xff" * len(frame), parse_format_spec("Sync:H1 CRC:crc16-modbus(1-9)")
+        )
         assert statuses[-1] == "missing"
 
 
@@ -1918,7 +1929,7 @@ class TestHexViewColumns:
         from termapy.builtins.viz.hex_view import format_columns
 
         reset_crc_registry()
-        headers, values = format_columns(b"\x01\x02\x0A")
+        headers, values = format_columns(b"\x01\x02\x0a")
         assert headers == ["Hex"]
         assert values == ["01 02 0A"]
 
@@ -1927,8 +1938,7 @@ class TestHexViewColumns:
         from termapy.builtins.viz.hex_view import diff_columns
 
         reset_crc_registry()
-        _, _, _, statuses = diff_columns(
-            b"\x01\x02", b"\x01\x02", b"\xff\xff")
+        _, _, _, statuses = diff_columns(b"\x01\x02", b"\x01\x02", b"\xff\xff")
         assert statuses == ["match"]
 
     def test_diff_mismatch(self):
@@ -1936,8 +1946,7 @@ class TestHexViewColumns:
         from termapy.builtins.viz.hex_view import diff_columns
 
         reset_crc_registry()
-        _, _, act_values, statuses = diff_columns(
-            b"\x01\xFF", b"\x01\x02", b"\xff\xff")
+        _, _, act_values, statuses = diff_columns(b"\x01\xff", b"\x01\x02", b"\xff\xff")
         assert statuses == ["mixed"], "per-byte markup"
         assert "01" in act_values[0], "matching byte present"
         assert "FF" in act_values[0], "mismatched byte present"
@@ -1975,7 +1984,6 @@ class TestTextViewColumns:
 
 
 # ── Modbus View Column API ───────────────────────────────────────────────
-
 
 
 # ── Visualizer Loader ────────────────────────────────────────────────────
@@ -2035,7 +2043,7 @@ class TestLoadVisualizersFromDir:
         (tmp_path / "custom.py").write_text(
             'NAME = "Custom"\n'
             'DESCRIPTION = "A test visualizer"\n'
-            'SORT_ORDER = 99\n'
+            "SORT_ORDER = 99\n"
             'def format_columns(d): return ["Col"], ["custom"]\n'
             'def diff_columns(a, e, m): return ["Col"], ["e"], ["a"], ["match"]\n'
         )
@@ -2052,8 +2060,8 @@ class TestLoadVisualizersFromDir:
     def test_missing_name_skipped(self, tmp_path):
         """File without NAME is skipped."""
         (tmp_path / "bad.py").write_text(
-            'def format_columns(d): return [], []\n'
-            'def diff_columns(a, e, m): return [], [], [], []\n'
+            "def format_columns(d): return [], []\n"
+            "def diff_columns(a, e, m): return [], [], [], []\n"
         )
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
@@ -2062,8 +2070,7 @@ class TestLoadVisualizersFromDir:
     def test_missing_format_columns_skipped(self, tmp_path):
         """File without format_columns is skipped."""
         (tmp_path / "bad.py").write_text(
-            'NAME = "Bad"\n'
-            'def diff_columns(a, e, m): return [], [], [], []\n'
+            'NAME = "Bad"\ndef diff_columns(a, e, m): return [], [], [], []\n'
         )
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
@@ -2073,8 +2080,8 @@ class TestLoadVisualizersFromDir:
         """SORT_ORDER defaults to 50, DESCRIPTION to empty."""
         (tmp_path / "minimal.py").write_text(
             'NAME = "Min"\n'
-            'def format_columns(d): return [], []\n'
-            'def diff_columns(a, e, m): return [], [], [], []\n'
+            "def format_columns(d): return [], []\n"
+            "def diff_columns(a, e, m): return [], [], [], []\n"
         )
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
@@ -2090,8 +2097,6 @@ class TestLoadVisualizersFromDir:
 
 
 # -- Demo AT visualizer -------------------------------------------------------
-
-
 
 
 # ── Bit-field extract / inject: the decode + encode twins ───────────────────

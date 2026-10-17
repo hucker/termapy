@@ -398,7 +398,7 @@ def dump_rows(
         The rows, in address order.
     """
     return [
-        DumpRow(addr + offset, data[offset:offset + width], label(addr + offset) if label else "")
+        DumpRow(addr + offset, data[offset : offset + width], label(addr + offset) if label else "")
         for offset in range(0, len(data), width)
     ]
 
@@ -432,9 +432,7 @@ def row_record(row: DumpRow, *, address_bits: int = DEFAULT_ADDRESS_BITS) -> dic
 # any device traffic (Memory.write / Memory.modify pre-check, and the
 # template's own write_request as the backstop) -- an RMW must never read
 # a word it can then not write back.
-_READ_ONLY_MSG: Final[str] = (
-    "Read-only memory interface: the profile declares no write template."
-)
+_READ_ONLY_MSG: Final[str] = "Read-only memory interface: the profile declares no write template."
 
 
 class Dialect(Protocol):
@@ -459,7 +457,9 @@ class Dialect(Protocol):
         ...
 
     def read_request(self, addr: int, length: int) -> str: ...
-    def parse_read(self, text: str, request: str, addr: int, length: int, *, address_bits: int) -> bytes: ...
+    def parse_read(
+        self, text: str, request: str, addr: int, length: int, *, address_bits: int
+    ) -> bytes: ...
     def write_request(self, addr: int, data: bytes) -> str: ...
     def parse_write(self, text: str, request: str) -> None: ...
     def complete(self, text: str) -> bool: ...
@@ -498,7 +498,13 @@ class NativeDialect:
         return read_command(addr, length)
 
     def parse_read(
-        self, text: str, request: str, addr: int, length: int, *, address_bits: int,
+        self,
+        text: str,
+        request: str,
+        addr: int,
+        length: int,
+        *,
+        address_bits: int,
     ) -> bytes:
         reply = _verdict(text, request)
         return assemble(reply.rows, addr, length, address_bits=address_bits)
@@ -583,7 +589,9 @@ def _check_template(block: Mapping[str, Any], key: str, names: tuple[str, ...]) 
         raise ValueError(f"memory/{key}: required for the template dialect")
     fields = _template_fields(template, key)
     if any(name not in fields for name in names):
-        raise ValueError(f"memory/{key}: must use {' and '.join('{' + name + '}' for name in names)}")
+        raise ValueError(
+            f"memory/{key}: must use {' and '.join('{' + name + '}' for name in names)}"
+        )
     try:
         template.format(addr=0, len=0, hex="00", byte=0)
     except (KeyError, ValueError, IndexError) as e:
@@ -650,7 +658,13 @@ class TemplateDialect:
                 raise DeviceMemoryError(f"Device error: {line.strip()}")
 
     def parse_read(
-        self, text: str, request: str, addr: int, length: int, *, address_bits: int,
+        self,
+        text: str,
+        request: str,
+        addr: int,
+        length: int,
+        *,
+        address_bits: int,
     ) -> bytes:
         self._check_error(text)
         rows: list[tuple[int, bytes]] = []
@@ -658,7 +672,7 @@ class TemplateDialect:
             match = self.spec.row.match(line)
             if match:
                 data = bytes.fromhex("".join(match.group("hex").split()))
-                rows.append((int(match.group("addr"), 16), data[:self.spec.row_bytes]))
+                rows.append((int(match.group("addr"), 16), data[: self.spec.row_bytes]))
         if not rows:
             if not text.strip():
                 raise DeviceMemoryError(f"No reply to {request}")
@@ -746,8 +760,7 @@ class Memory:
             raise ValueError(f"Invalid length: {length}")
         if addr + length > 1 << bits:
             raise ValueError(
-                f"Invalid address range: {hex_addr(addr, bits)} + {length} exceeds "
-                f"{bits}-bit space"
+                f"Invalid address range: {hex_addr(addr, bits)} + {length} exceeds {bits}-bit space"
             )
 
     # -- operations ---------------------------------------------------------
@@ -769,7 +782,11 @@ class Memory:
             text = self._exchange(request)
             out.extend(
                 self.dialect.parse_read(
-                    text, request, chunk_addr, chunk_len, address_bits=self.info.address_bits,
+                    text,
+                    request,
+                    chunk_addr,
+                    chunk_len,
+                    address_bits=self.info.address_bits,
                 )
             )
         return bytes(out)
@@ -791,7 +808,7 @@ class Memory:
         self._check_range(addr, len(data))
         unit = self.dialect.write_unit or self.info.max_block
         for offset in range(0, len(data), unit):
-            chunk = data[offset:offset + unit]
+            chunk = data[offset : offset + unit]
             request = self.dialect.write_request(addr + offset, chunk)
             self.dialect.parse_write(self._exchange(request), request)
         return len(data)

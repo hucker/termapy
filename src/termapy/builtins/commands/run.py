@@ -89,20 +89,14 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg=f"Script not found: {name}")
         _summary, full = extract_docstring(path)
         if not full:
-            return CmdResult.fail(
-                msg=f"{path.name}: no docstring (add # comments at the top)."
-            )
+            return CmdResult.fail(msg=f"{path.name}: no docstring (add # comments at the top).")
         ctx.io.output(full)
         return CmdResult.ok(value=full)
 
     # Bare /run.help -- the original behavior.
     result = _show_command_help(ctx, "run")
     scripts_dir = ctx.fs.scripts_dir
-    files = (
-        sorted(f.name for f in scripts_dir.glob("*.run"))
-        if scripts_dir.is_dir()
-        else []
-    )
+    files = sorted(f.name for f in scripts_dir.glob("*.run")) if scripts_dir.is_dir() else []
     append_files_section(ctx, "AVAILABLE RUN FILES", files)
     return result
 
@@ -117,7 +111,9 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     files = list_entries(ctx.fs.scripts_dir, "*.run")
     summary = Column("SUMMARY", lambda record: record["summary"])
     return file_table(
-        "run/", "script", files,
+        "run/",
+        "script",
+        files,
         extra=((summary, lambda file: extract_docstring(file)[0], "summary"),),
     )
 

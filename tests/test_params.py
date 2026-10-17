@@ -36,9 +36,7 @@ class TestDeclarationValidation:
     def test_two_rest_params(self):
         """Only one param may consume the rest of the line."""
         with pytest.raises(ValueError, match="at most one rest"):
-            validate_param_specs(
-                [ParamSpec("a", rest=True), ParamSpec("b", rest=True)], "cmd"
-            )
+            validate_param_specs([ParamSpec("a", rest=True), ParamSpec("b", rest=True)], "cmd")
 
     def test_positional_rest_is_allowed(self):
         """A single positional rest is legal; /os and /grep take their whole line this way."""
@@ -50,8 +48,7 @@ class TestDeclarationValidation:
         """A positional after a positional rest is refused, since the rest would eat it."""
         with pytest.raises(ValueError, match="must be the last positional"):
             validate_param_specs(
-                [ParamSpec("a", positional=True, rest=True),
-                 ParamSpec("b", positional=True)],
+                [ParamSpec("a", positional=True, rest=True), ParamSpec("b", positional=True)],
                 "cmd",
             )
 
@@ -207,8 +204,9 @@ class TestParseParams:
     def test_defaults_fill_absent(self):
         """Omitted optional params bind their defaults, so handlers never see a missing key."""
         bound, err = parse_params(self._ping(), "cmd=AT")
-        assert (err, bound) == (None, {"cmd": "AT", "count": 1, "timeout": 0.25}), \
+        assert (err, bound) == (None, {"cmd": "AT", "count": 1, "timeout": 0.25}), (
             "absent optionals get their coerced defaults"
+        )
 
     def test_key_equals_value_spacing(self):
         """Spaces around = are tolerated, as in key = value."""
@@ -244,8 +242,9 @@ class TestParseParams:
             ParamSpec("timeout", "duration", default=0.5),
         ]
         bound, err = parse_params(spec, "out.txt timeout=1s")
-        assert (err, bound) == (None, {"file": "out.txt", "timeout": 1.0}), \
+        assert (err, bound) == (None, {"file": "out.txt", "timeout": 1.0}), (
             "positional bound in order, keyword alongside"
+        )
 
     def test_positional_rest_keeps_spaces(self):
         """A positional rest binds the whole remaining line, spaces included."""
@@ -253,8 +252,9 @@ class TestParseParams:
         # or regex with spaces survives (fixes the whitespace-split regression).
         spec = [ParamSpec("cmd", "str", positional=True, rest=True, required=True)]
         bound, err = parse_params(spec, "ls -la /tmp")
-        assert (err, bound) == (None, {"cmd": "ls -la /tmp"}), \
+        assert (err, bound) == (None, {"cmd": "ls -la /tmp"}), (
             "positional-rest keeps the whole line intact"
+        )
 
 
 # -- param-help-synth -----------------------------------------------------------
@@ -278,7 +278,9 @@ class TestSynopsisAndBlock:
         """An enum's synopsis hint lists its canonical values joined by |."""
         params = [
             ParamSpec(
-                "mode", "enum", default="new",
+                "mode",
+                "enum",
+                default="new",
                 values=(EnumValue("new"), EnumValue("append")),
             )
         ]
@@ -356,14 +358,19 @@ class TestDispatchArgAccess:
             seen["cmd"] = ctx.arg("cmd")
             return CmdResult.ok(value="")
 
-        eng.register_plugin(PluginInfo(
-            name="p", args="", help="", handler=handler,
-            params=[
-                ParamSpec("count", "int", default=1),
-                ParamSpec("timeout", "duration", default=0.25),
-                ParamSpec("cmd", "command", required=True, rest=True),
-            ],
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="p",
+                args="",
+                help="",
+                handler=handler,
+                params=[
+                    ParamSpec("count", "int", default=1),
+                    ParamSpec("timeout", "duration", default=0.25),
+                    ParamSpec("cmd", "command", required=True, rest=True),
+                ],
+            )
+        )
 
         # Act
         eng.dispatch("p count=3 timeout=1s cmd=AT")
@@ -382,10 +389,15 @@ class TestDispatchArgAccess:
             ran["handler"] = True
             return CmdResult.ok(value="")
 
-        eng.register_plugin(PluginInfo(
-            name="p", args="", help="", handler=handler,
-            params=[ParamSpec("cmd", "command", required=True, rest=True)],
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="p",
+                args="",
+                help="",
+                handler=handler,
+                params=[ParamSpec("cmd", "command", required=True, rest=True)],
+            )
+        )
 
         # Act
         result = eng.dispatch("p")
@@ -417,14 +429,24 @@ class TestDispatchNesting:
             seen["outer_after"] = ctx.arg("x")  # must still be the outer's value
             return CmdResult.ok(value="")
 
-        eng.register_plugin(PluginInfo(
-            name="inner", args="", help="", handler=inner,
-            params=[ParamSpec("x", default="")],
-        ))
-        eng.register_plugin(PluginInfo(
-            name="outer", args="", help="", handler=outer,
-            params=[ParamSpec("x", default="")],
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="inner",
+                args="",
+                help="",
+                handler=inner,
+                params=[ParamSpec("x", default="")],
+            )
+        )
+        eng.register_plugin(
+            PluginInfo(
+                name="outer",
+                args="",
+                help="",
+                handler=outer,
+                params=[ParamSpec("x", default="")],
+            )
+        )
 
         # Act
         eng.dispatch("outer x=outer")
@@ -432,8 +454,9 @@ class TestDispatchNesting:
         # Assert
         assert seen["inner_x"] == "inner", "inner saw its own param"
         assert seen["outer_before"] == "outer", "outer param bound before nesting"
-        assert seen["outer_after"] == "outer", \
+        assert seen["outer_after"] == "outer", (
             "outer param restored after nested dispatch (save/restore, not clear)"
+        )
 
 
 # -- Variadic positionals -------------------------------------------------------
@@ -535,8 +558,7 @@ class TestVariadic:
     def test_range_check_applies_per_element(self):
         """min and max are checked on every element of the list."""
         # Arrange
-        params = [ParamSpec("nums", "int", positional=True, variadic=True,
-                            min=0, max=10)]
+        params = [ParamSpec("nums", "int", positional=True, variadic=True, min=0, max=10)]
 
         # Act
         _, error = parse_params(params, "1 99")
@@ -593,8 +615,9 @@ class TestVariadic:
     def test_help_block_notes_repeatable(self):
         """The PARAMETERS block marks a variadic as repeatable."""
         # Arrange
-        params = [ParamSpec("frames", positional=True, variadic=True, required=True,
-                            help="a frame")]
+        params = [
+            ParamSpec("frames", positional=True, variadic=True, required=True, help="a frame")
+        ]
 
         # Act
         lines = render_parameters_block(params)
@@ -606,17 +629,31 @@ class TestVariadic:
 class TestVariadicDeclarationValidation:
     """A malformed variadic declaration fails at load, not at first dispatch."""
 
-    @pytest.mark.parametrize("params,fragment", [
-        ([ParamSpec("x", variadic=True)], "must be positional"),
-        ([ParamSpec("x", positional=True, rest=True, variadic=True)],
-         "cannot set both rest and variadic"),
-        ([ParamSpec("x", positional=True, variadic=True, default="z")],
-         "must not have a default"),
-        ([ParamSpec("a", positional=True, variadic=True),
-          ParamSpec("b", positional=True, rest=True)], "at most one tail positional"),
-        ([ParamSpec("a", positional=True, variadic=True),
-          ParamSpec("b", positional=True)], "must be the last positional"),
-    ])
+    @pytest.mark.parametrize(
+        "params,fragment",
+        [
+            ([ParamSpec("x", variadic=True)], "must be positional"),
+            (
+                [ParamSpec("x", positional=True, rest=True, variadic=True)],
+                "cannot set both rest and variadic",
+            ),
+            (
+                [ParamSpec("x", positional=True, variadic=True, default="z")],
+                "must not have a default",
+            ),
+            (
+                [
+                    ParamSpec("a", positional=True, variadic=True),
+                    ParamSpec("b", positional=True, rest=True),
+                ],
+                "at most one tail positional",
+            ),
+            (
+                [ParamSpec("a", positional=True, variadic=True), ParamSpec("b", positional=True)],
+                "must be the last positional",
+            ),
+        ],
+    )
     def test_rejected(self, params, fragment):
         """Each invalid variadic combination is refused with its own specific reason."""
         # Act / Assert
@@ -700,9 +737,7 @@ class TestResolveDeref:
 
         # Assert -- silently treating it as a literal would send "x$(*P)y" to
         # a device or a filename, which is never what was meant
-        assert error is not None and "invalid reference" in error, (
-            "a partial reference is an error"
-        )
+        assert error is not None and "invalid reference" in error, "a partial reference is an error"
 
     def test_malformed_reference_passes_through(self):
         """A token that only looks like the sigil, such as a regex, stays literal."""
@@ -772,10 +807,21 @@ class TestBoolType:
     """``bool`` params accept every scripting.parse_bool token, so keyword
     toggles match the setting commands' vocabulary instead of a bare enum."""
 
-    @pytest.mark.parametrize("token, expected", [
-        ("on", True), ("TRUE", True), ("yes", True), ("1", True), ("y", True),
-        ("off", False), ("false", False), ("No", False), ("0", False), ("f", False),
-    ])
+    @pytest.mark.parametrize(
+        "token, expected",
+        [
+            ("on", True),
+            ("TRUE", True),
+            ("yes", True),
+            ("1", True),
+            ("y", True),
+            ("off", False),
+            ("false", False),
+            ("No", False),
+            ("0", False),
+            ("f", False),
+        ],
+    )
     def test_coerces_the_full_vocabulary(self, token, expected):
         """Every parse_bool token in any case coerces to a real True or False."""
         spec = ParamSpec("flag", "bool", default=True)
@@ -787,9 +833,10 @@ class TestBoolType:
         """An unknown token fails and the message lists the accepted vocabulary."""
         ok, reason = coerce_value(ParamSpec("flag", "bool", default=True), "maybe")
         assert ok is False, "an unknown token errors, never silently means False"
-        assert reason == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0/y/n/t/f)", (
-            "the error teaches the accepted vocabulary"
-        )
+        assert (
+            reason
+            == "invalid flag: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0/y/n/t/f)"
+        ), "the error teaches the accepted vocabulary"
 
     def test_synopsis_hint_is_the_canonical_pair(self):
         """A bool param shows as on|off in the synopsis."""

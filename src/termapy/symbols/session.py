@@ -73,7 +73,9 @@ def install_devices(ctx: PluginContext, devices: list[Device]) -> SymbolTable | 
 
 
 def _install(
-    ctx: PluginContext, build: SymbolTable | None, devices: list[Device],
+    ctx: PluginContext,
+    build: SymbolTable | None,
+    devices: list[Device],
 ) -> SymbolTable | None:
     """The single writer.  Merges, installs, reports shadowed registers."""
     merged, shadowed = _merge(build, devices)
@@ -92,7 +94,8 @@ def _install(
 
 
 def _merge(
-    build: SymbolTable | None, devices: list[Device],
+    build: SymbolTable | None,
+    devices: list[Device],
 ) -> tuple[SymbolTable | None, list[str]]:
     """Build plus devices -> the merged table, and the shadowed names.
 
@@ -124,7 +127,9 @@ def _merge(
 
 
 def autoload(
-    ctx: PluginContext, config_path: str, global_root: Path | None = None,
+    ctx: PluginContext,
+    config_path: str,
+    global_root: Path | None = None,
 ) -> SymbolTable | None:
     """Load the sidecar and the config's device files; never raises.
 
@@ -156,7 +161,9 @@ def autoload(
 
 
 def reload_devices(
-    ctx: PluginContext, config_path: str, global_root: Path | None = None,
+    ctx: PluginContext,
+    config_path: str,
+    global_root: Path | None = None,
 ) -> list[str]:
     """Re-scan the ``dev/`` folders and reinstall; the build table is kept.
 
@@ -175,7 +182,11 @@ def reload_devices(
 
 
 def _resolve_and_report(
-    ctx: PluginContext, config_path: str, global_root: Path | None, *, announce: bool,
+    ctx: PluginContext,
+    config_path: str,
+    global_root: Path | None,
+    *,
+    announce: bool,
 ) -> tuple[list[Device], list[str]]:
     """Resolve the layers; report every error; optionally the load line."""
     devices, errors = devices_mod.resolve_devices(config_path, global_root)

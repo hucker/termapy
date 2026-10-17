@@ -20,7 +20,6 @@ from termapy.protocol.core import (
 
 
 class TestParse:
-
     def test_no_byte_range_parses_as_word_relative(self):
         """In a register spec a B column with no byte range parses with empty byte_indices."""
         on, mode = parse_format_spec("ON:B.15 MODE:B.8-9", word=True)
@@ -40,14 +39,16 @@ class TestParse:
 
 
 class TestResolve:
-
-    @pytest.mark.parametrize(("size", "endian", "expected"), [
-        (4, "le", [3, 2, 1, 0]),
-        (4, "be", [0, 1, 2, 3]),
-        (2, "le", [1, 0]),
-        (1, "le", [0]),
-        (1, "be", [0]),
-    ])
+    @pytest.mark.parametrize(
+        ("size", "endian", "expected"),
+        [
+            (4, "le", [3, 2, 1, 0]),
+            (4, "be", [0, 1, 2, 3]),
+            (2, "le", [1, 0]),
+            (1, "le", [0]),
+            (1, "be", [0]),
+        ],
+    )
     def test_binds_the_word(self, size, endian, expected):
         """The symbol's size and the device's endian decide the bound byte order."""
         (column,) = resolve_word_columns(parse_format_spec("F:B.0", word=True), size, endian)

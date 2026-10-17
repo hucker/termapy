@@ -14,8 +14,13 @@ from termapy.serial_engine import RX_QUEUE_MAX_CHUNKS, SerialEngine
 
 def _make_engine(cfg=None, open_fn=None):
     """Create a SerialEngine with FakeSerial (or the given open_fn) as the open function."""
-    cfg = cfg or {"port": "DEMO", "baud_rate": 115200, "encoding": "utf-8",
-                  "eol": "\r", "eol_markers": False}
+    cfg = cfg or {
+        "port": "DEMO",
+        "baud_rate": 115200,
+        "encoding": "utf-8",
+        "eol": "\r",
+        "eol_markers": False,
+    }
     capture = CaptureEngine()
     logged = []
     engine = SerialEngine(
@@ -184,9 +189,7 @@ class TestReadLoop:
         # Waiting on the event (not a fixed sleep) is deterministic: it
         # returns the instant the line arrives and only times out on a real
         # failure to read.
-        t = threading.Thread(
-            target=lambda: engine.read_loop(on_lines=on_lines), daemon=True
-        )
+        t = threading.Thread(target=lambda: engine.read_loop(on_lines=on_lines), daemon=True)
         t.start()
         delivered = got_ok.wait(timeout=2.0)
         engine.stop_event.set()
@@ -224,8 +227,10 @@ class TestReadLoop:
         class BadPort:
             is_open = True
             in_waiting = 1
+
             def read(self, n):
                 raise OSError("read failed")
+
             def close(self):
                 self.is_open = False
 
@@ -279,8 +284,7 @@ class TestReadLoop:
         assert len(events) == 2, f"one error then one disconnect, got {events!r}"
         assert "ValueError: bad render" in events[0], "the error names what was raised"
         assert events[1] == "disconnect", (
-            "the frontend must hear the reader is gone, or it shows Connected "
-            "over a closed port"
+            "the frontend must hear the reader is gone, or it shows Connected over a closed port"
         )
         assert getattr(port, "is_open", True) is False, "the reader closed its port on the way out"
 
@@ -303,7 +307,9 @@ class TestReadLoop:
 
         reader = threading.Thread(
             target=lambda: engine.read_loop(
-                on_lines=text_view.extend, on_hex=on_hex, hex_view=lambda: True,
+                on_lines=text_view.extend,
+                on_hex=on_hex,
+                hex_view=lambda: True,
             ),
             daemon=True,
         )
@@ -390,7 +396,10 @@ class TestRxQueueBounded:
             "the queue held more than its bound -- an idle session keeps every byte"
         )
         actual_ends = (queued[0], queued[-1])
-        expected_ends = (f"{total - RX_QUEUE_MAX_CHUNKS + 1:07d}\n".encode(), f"{total:07d}\n".encode())
+        expected_ends = (
+            f"{total - RX_QUEUE_MAX_CHUNKS + 1:07d}\n".encode(),
+            f"{total:07d}\n".encode(),
+        )
         assert actual_ends == expected_ends, "the OLDEST chunks are the ones dropped"
 
 
@@ -430,7 +439,9 @@ class TestReconnect:
         assert opener.calls == 2, (
             "each run opens once; a probe open before the real one is an extra DTR edge"
         )
-        assert first is not None and first is first_held, "the first run hands back the port it opened"
+        assert first is not None and first is first_held, (
+            "the first run hands back the port it opened"
+        )
         assert second is engine.port_obj, "the second run hands back the port the engine now holds"
         assert engine.is_connected is True, "the engine stays connected for the caller to finish"
         engine.disconnect()
@@ -439,6 +450,7 @@ class TestReconnect:
         """reconnect-opens-once: an open error connect() classifies, an ambiguous serial number included, is retried, never raised."""
         # Arrange
         from termapy.port_control import AmbiguousSerialNumberError
+
         opener = _CountingOpen(failures=[AmbiguousSerialNumberError("0001", ["COM3", "COM4"])])
         engine, _, _ = _make_engine(open_fn=opener)
 
@@ -472,12 +484,12 @@ class TestReconnect:
 
 
 class TestRxObservers:
-
     def test_add_and_remove(self):
         """A removed RX observer is gone from the observer list."""
         # Arrange
         engine, _, _ = _make_engine()
         received = []
+
         def cb(data):
             return received.append(data)
 
@@ -492,6 +504,7 @@ class TestRxObservers:
         """Adding the same RX observer twice registers it once, so it fires once."""
         # Arrange
         engine, _, _ = _make_engine()
+
         def cb(data):
             return None
 
@@ -580,11 +593,11 @@ class TestRxObservers:
 
 
 class TestTxObservers:
-
     def test_add_and_remove(self):
         """A removed TX observer is gone from the observer list."""
         # Arrange
         engine, _, _ = _make_engine()
+
         def cb(data):
             return None
 
@@ -631,6 +644,7 @@ class TestTxObservers:
         """Adding the same TX observer twice registers it once, so it fires once."""
         # Arrange
         engine, _, _ = _make_engine()
+
         def cb(data):
             return None
 
@@ -787,9 +801,7 @@ class TestReconnectLoop:
         # Gating the cancel on the status callback (not a sleep) guarantees the
         # loop was actually running when we stopped it.
         def run():
-            return engine.reconnect_loop(
-                stop, interval=0.5, on_status=lambda msg: attempted.set()
-            )
+            return engine.reconnect_loop(stop, interval=0.5, on_status=lambda msg: attempted.set())
 
         t = threading.Thread(target=run, daemon=True)
         t.start()
@@ -848,6 +860,7 @@ class TestClassifySerialError:
         """A chained PermissionError reads as permission denied; no port means no holder."""
         # Arrange
         from termapy.serial_engine import _classify_serial_error
+
         inner = PermissionError("Access is denied")
         outer = Exception("open failed")
         outer.__cause__ = inner
@@ -863,6 +876,7 @@ class TestClassifySerialError:
         """A chained FileNotFoundError reads as port not found and points at /port.list."""
         # Arrange
         from termapy.serial_engine import _classify_serial_error
+
         inner = FileNotFoundError("no such device")
         outer = Exception("open failed")
         outer.__cause__ = inner
@@ -878,6 +892,7 @@ class TestClassifySerialError:
         """A bare OSError with errno 13 (EACCES) is classified as permission denied."""
         # Arrange -- errno 13 is EACCES on POSIX
         from termapy.serial_engine import _classify_serial_error
+
         inner = OSError(13, "Permission denied")
         outer = Exception("open failed")
         outer.__cause__ = inner
@@ -893,6 +908,7 @@ class TestClassifySerialError:
         """A bare OSError with errno 2 (ENOENT) is classified as port not found."""
         # Arrange -- errno 2 is ENOENT
         from termapy.serial_engine import _classify_serial_error
+
         inner = OSError(2, "No such file")
         outer = Exception("open failed")
         outer.__cause__ = inner
@@ -907,6 +923,7 @@ class TestClassifySerialError:
         """With a port name and a known holder, the message names the holding process."""
         # Arrange -- stub out the holder lookup to return a known value.
         import termapy.serial_engine as se
+
         monkeypatch.setattr(se, "_find_port_holder", lambda _p: "arduino (PID 1234)")
         inner = PermissionError("Access is denied")
         outer = Exception("open failed")
@@ -923,6 +940,7 @@ class TestClassifySerialError:
         """A holder lookup that finds nothing leaves the base message without a holder."""
         # Arrange -- holder lookup fails silently (Windows, or lsof missing)
         import termapy.serial_engine as se
+
         monkeypatch.setattr(se, "_find_port_holder", lambda _p: None)
         inner = PermissionError("Access is denied")
         outer = Exception("open failed")
@@ -941,9 +959,9 @@ class TestClassifySerialError:
         # another app holds the port: SerialException with the OSError
         # stringified into the message and no __cause__ chaining.
         from termapy.serial_engine import _classify_serial_error
+
         exc = Exception(
-            "could not open port 'COM4': "
-            "PermissionError(13, 'Access is denied.', None, 5)"
+            "could not open port 'COM4': PermissionError(13, 'Access is denied.', None, 5)"
         )
         # cause deliberately None -- this is the bug we're guarding against.
         assert exc.__cause__ is None, "pyserial doesn't chain; the test knows that"
@@ -952,15 +970,16 @@ class TestClassifySerialError:
         actual = _classify_serial_error(exc, port_name="COM4")
 
         # Assert
-        assert "Permission denied -- port may be in use" in actual, \
+        assert "Permission denied -- port may be in use" in actual, (
             f"classified via string match, got {actual!r}"
-        assert "PermissionError" not in actual, \
-            "raw exception-class text is not shown to the user"
+        )
+        assert "PermissionError" not in actual, "raw exception-class text is not shown to the user"
 
     def test_pyserial_windows_file_not_found_via_message(self):
         """An unchained Windows missing-port error is classified as not found by message."""
         # Arrange -- same pattern for a missing port.
         from termapy.serial_engine import _classify_serial_error
+
         exc = Exception(
             "could not open port 'COM99': "
             "FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)"
@@ -981,6 +1000,7 @@ class TestFindPortHolder:
         """Windows skips the holder lookup entirely and returns None."""
         # Arrange
         import termapy.serial_engine as se
+
         monkeypatch.setattr(se.sys, "platform", "win32")
 
         # Act
@@ -993,6 +1013,7 @@ class TestFindPortHolder:
         """A missing lsof binary yields None instead of raising."""
         # Arrange -- simulate lsof not installed on PATH.
         import termapy.serial_engine as se
+
         monkeypatch.setattr(se.sys, "platform", "linux")
 
         def _raise_filenotfound(*args, **kwargs):
@@ -1010,6 +1031,7 @@ class TestFindPortHolder:
         """An lsof call that times out yields None instead of raising."""
         # Arrange
         import termapy.serial_engine as se
+
         monkeypatch.setattr(se.sys, "platform", "linux")
 
         def _raise_timeout(*args, **kwargs):
@@ -1027,6 +1049,7 @@ class TestFindPortHolder:
         """lsof -F pc output is parsed into a command (PID n) label."""
         # Arrange -- simulate lsof -F pc output format.
         import termapy.serial_engine as se
+
         monkeypatch.setattr(se.sys, "platform", "linux")
 
         class _Result:
@@ -1046,6 +1069,7 @@ class TestFindPortHolder:
         """Empty lsof output means no holder, returned as None."""
         # Arrange -- lsof exit=0 but no output means nothing has the port.
         import termapy.serial_engine as se
+
         monkeypatch.setattr(se.sys, "platform", "linux")
 
         class _Result:
@@ -1065,6 +1089,7 @@ class TestFindPortHolder:
         # Arrange -- user-supplied port already looks absolute; don't
         # prepend /dev/ again.
         import termapy.serial_engine as se
+
         monkeypatch.setattr(se.sys, "platform", "linux")
 
         captured = {}
@@ -1085,8 +1110,7 @@ class TestFindPortHolder:
         # Assert -- argv[-1] is the path lsof queried.
         actual_path = captured["cmd"][-1]
         expected_path = "/dev/tty.usbserial-XYZ"
-        assert actual_path == expected_path, \
-            "absolute path passed through untouched"
+        assert actual_path == expected_path, "absolute path passed through untouched"
 
 
 class TestTeardownIsAJoin:
@@ -1189,8 +1213,13 @@ class TestReaderOwnership:
     """
 
     def _engine_with_ports(self, ports):
-        cfg = {"port": "DEMO", "baud_rate": 115200, "encoding": "utf-8",
-               "eol": "\r", "eol_markers": False}
+        cfg = {
+            "port": "DEMO",
+            "baud_rate": 115200,
+            "encoding": "utf-8",
+            "eol": "\r",
+            "eol_markers": False,
+        }
         queue = list(ports)
         return SerialEngine(
             cfg=cfg,

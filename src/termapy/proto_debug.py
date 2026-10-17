@@ -156,9 +156,9 @@ class ProtoDebugScreen(ModalScreen[None]):
     }}
     """
 
-    def __init__(self, path: Path, ctx: PluginContext,
-                 script: ProtoScript,
-                 visualizers: list[VisualizerInfo]) -> None:
+    def __init__(
+        self, path: Path, ctx: PluginContext, script: ProtoScript, visualizers: list[VisualizerInfo]
+    ) -> None:
         """Initialize the debug screen.
 
         Args:
@@ -199,8 +199,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                     yield Static("Tests", id="test-label")
                     sl = SelectionList[int](id="proto-debug-select")
                     for test in script.tests:
-                        label = (f"{test.name} [{test.viz}]"
-                                 if test.viz else test.name)
+                        label = f"{test.name} [{test.viz}]" if test.viz else test.name
                         sl.add_option((label, test.index, True))
                     yield sl
                 with Vertical(id="viz-col"):
@@ -209,61 +208,63 @@ class ProtoDebugScreen(ModalScreen[None]):
                     yield viz_label
                     # Sort: custom visualizers first, then Hex/Text last
                     always_last = {"hex", "text"}
-                    ordered = (
-                        [visualizer for visualizer in self._visualizers
-                         if visualizer.name.lower() not in always_last]
-                        + [visualizer for visualizer in self._visualizers
-                           if visualizer.name.lower() in always_last]
-                    )
+                    ordered = [
+                        visualizer
+                        for visualizer in self._visualizers
+                        if visualizer.name.lower() not in always_last
+                    ] + [
+                        visualizer
+                        for visualizer in self._visualizers
+                        if visualizer.name.lower() in always_last
+                    ]
                     viz_sl = SelectionList[int](id="sel-viz")
                     for viz in ordered:
                         idx = self._visualizers.index(viz)
                         viz_sl.add_option((viz.name, idx, idx == 0))
                     yield viz_sl
                 with Vertical(id="chk-col"):
-                    yield StrongCheckbox(
-                        "Stop on Error", value=False, id="chk-stop-err")
-                    yield StrongCheckbox(
-                        "Show viz string", value=False, id="chk-show-viz")
-                    yield StrongCheckbox(
-                        "Compact", value=False, id="chk-compact")
-                    yield StrongCheckbox(
-                        "JSON", value=False, id="chk-json")
+                    yield StrongCheckbox("Stop on Error", value=False, id="chk-stop-err")
+                    yield StrongCheckbox("Show viz string", value=False, id="chk-show-viz")
+                    yield StrongCheckbox("Compact", value=False, id="chk-compact")
+                    yield StrongCheckbox("JSON", value=False, id="chk-json")
                 with Vertical(id="input-col"):
                     with Horizontal(classes="input-row"):
                         yield Static("Repeat:", classes="input-label")
-                        yield Input(value="1", id="input-repeat",
-                                    type="integer", compact=True)
+                        yield Input(value="1", id="input-repeat", type="integer", compact=True)
                     with Horizontal(classes="input-row"):
                         yield Static("Delay (ms):", classes="input-label")
-                        yield Input(value="10", id="input-delay",
-                                    type="integer", compact=True)
+                        yield Input(value="10", id="input-delay", type="integer", compact=True)
                     with Horizontal(classes="input-row"):
                         yield Static("JSON file:", classes="input-label")
-                        json_default = (self._script.json_file
-                                        or self._ctx.cfg.get(
-                                            "proto_results_template",
-                                            "{name}_results.json"))
-                        yield Input(value=json_default,
-                                    id="input-json-file", compact=True)
+                        json_default = self._script.json_file or self._ctx.cfg.get(
+                            "proto_results_template", "{name}_results.json"
+                        )
+                        yield Input(value=json_default, id="input-json-file", compact=True)
             yield Rule()
             yield RichLog(id="proto-debug-detail", wrap=False)
             yield Static("", id="proto-debug-status")
             yield Rule()
             with Horizontal(id="proto-debug-buttons"):
-                setup_btn = Button("Setup", id="btn-dbg-setup", variant="primary",
-                                   disabled=not script.setup)
-                setup_btn.tooltip = ("Run setup commands" if script.setup
-                                     else "No setup commands in script")
+                setup_btn = Button(
+                    "Setup", id="btn-dbg-setup", variant="primary", disabled=not script.setup
+                )
+                setup_btn.tooltip = (
+                    "Run setup commands" if script.setup else "No setup commands in script"
+                )
                 yield setup_btn
                 yield Button("Run", id="btn-dbg-send", variant="success")
                 stop_btn = Button("Stop", id="btn-dbg-stop", variant="error", disabled=True)
                 stop_btn.tooltip = "Stop after the current test"
                 yield stop_btn
-                td_btn = Button("Teardown", id="btn-dbg-teardown", variant="warning",
-                                disabled=not script.teardown)
-                td_btn.tooltip = ("Run teardown commands" if script.teardown
-                                  else "No teardown commands in script")
+                td_btn = Button(
+                    "Teardown",
+                    id="btn-dbg-teardown",
+                    variant="warning",
+                    disabled=not script.teardown,
+                )
+                td_btn.tooltip = (
+                    "Run teardown commands" if script.teardown else "No teardown commands in script"
+                )
                 yield td_btn
                 log_btn = Button("Log", id="btn-dbg-log")
                 log_btn.styles.background = "dodgerblue"
@@ -278,8 +279,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         """
         sl = self.query_one("#proto-debug-select", SelectionList)
         checked_indices = set(sl.selected)
-        return [test for test in self._script.tests
-                if test.index in checked_indices]
+        return [test for test in self._script.tests if test.index in checked_indices]
 
     def _get_highlighted_test(self) -> TestCase | None:
         """Get the test case at the current cursor position.
@@ -297,9 +297,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         return None
 
     @on(SelectionList.SelectionHighlighted, "#proto-debug-select")
-    def _on_test_highlighted(
-        self, event: SelectionList.SelectionHighlighted
-    ) -> None:
+    def _on_test_highlighted(self, event: SelectionList.SelectionHighlighted) -> None:
         """Update detail panel when cursor moves to a test.
 
         Suppressed while tests are running to preserve the scrolling log.
@@ -328,7 +326,8 @@ class ProtoDebugScreen(ModalScreen[None]):
             self._show_test_detail(tc)
 
     def _get_active_visualizers(
-        self, tc: TestCase | None = None,
+        self,
+        tc: TestCase | None = None,
     ) -> list[VisualizerInfo]:
         """Return visualizers whose checkboxes are checked.
 
@@ -342,9 +341,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         """
         viz_sl = self.query_one("#sel-viz", SelectionList)
         checked = set(viz_sl.selected)
-        active = [
-            v for i, v in enumerate(self._visualizers) if i in checked
-        ]
+        active = [v for i, v in enumerate(self._visualizers) if i in checked]
 
         # Add forced per-test visualizer if not already checked
         if tc and tc.viz:
@@ -386,12 +383,10 @@ class ProtoDebugScreen(ModalScreen[None]):
             for active_viz in active_vizs:
                 tx_spec = active_viz.format_spec(tc.send_data)
                 if tx_spec:
-                    lines.append(Text(
-                        f"  [{active_viz.name}] TX: {tx_spec}", style="cyan"))
+                    lines.append(Text(f"  [{active_viz.name}] TX: {tx_spec}", style="cyan"))
                 rx_spec = active_viz.format_spec(tc.expect_data)
                 if rx_spec and rx_spec != tx_spec:
-                    lines.append(Text(
-                        f"  [{active_viz.name}] RX: {rx_spec}", style="cyan"))
+                    lines.append(Text(f"  [{active_viz.name}] RX: {rx_spec}", style="cyan"))
             lines.append("")
 
         # Render inline format tables (always on when present)
@@ -401,10 +396,15 @@ class ProtoDebugScreen(ModalScreen[None]):
             cols = parse_format_spec(spec)
             headers, values = apply_format(tc.send_data, cols)
             self._render_unified_table(
-                lines, title or "Custom TX", headers,
+                lines,
+                title or "Custom TX",
+                headers,
                 [("TX", values, "bold cyan", [])],
-                [], [], [],
-                has_actual=False, is_timeout=False,
+                [],
+                [],
+                [],
+                has_actual=False,
+                is_timeout=False,
             )
             if not compact:
                 lines.append("")
@@ -416,12 +416,16 @@ class ProtoDebugScreen(ModalScreen[None]):
             act_statuses: list[str] = []
             if actual_data is not None:
                 _, _, act_values, act_statuses = proto_diff_columns(
-                    actual_data, tc.expect_data, tc.expect_mask, cols)
+                    actual_data, tc.expect_data, tc.expect_mask, cols
+                )
             self._render_unified_table(
-                lines, title or "Custom RX",
+                lines,
+                title or "Custom RX",
                 [c.name for c in cols if c.type_code != "_"],
                 [],
-                exp_values, act_values, act_statuses,
+                exp_values,
+                act_values,
+                act_statuses,
                 has_actual=(actual_data is not None),
                 is_timeout=(tc.index in self._results and actual_data is None),
             )
@@ -445,9 +449,12 @@ class ProtoDebugScreen(ModalScreen[None]):
                 # cross-variable invariant explicit for the type checker
                 # and gives a clear error if the invariant ever breaks.
                 assert actual_data is not None, "passed implies response data"
-                lines.append(Text(
-                    f"  PASS ({len(actual_data)} bytes, {format_duration(elapsed_ms / 1000)})",
-                    style="bold italic bright_green"))
+                lines.append(
+                    Text(
+                        f"  PASS ({len(actual_data)} bytes, {format_duration(elapsed_ms / 1000)})",
+                        style="bold italic bright_green",
+                    )
+                )
             else:
                 lines.append(Text("  FAIL", style="bold italic red"))
 
@@ -488,7 +495,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         self.query_one("#proto-debug-detail", RichLog).clear()
 
     def _build_tx_table(
-        self, lines: list[Text | str], tc: TestCase,
+        self,
+        lines: list[Text | str],
+        tc: TestCase,
         viz: VisualizerInfo,
     ) -> None:
         """Build the TX portion of a visualizer table.
@@ -500,15 +509,23 @@ class ProtoDebugScreen(ModalScreen[None]):
         """
         tx_headers, tx_values = viz.format_columns(tc.send_data)
         self._render_unified_table(
-            lines, f"{viz.name} TX", tx_headers,
+            lines,
+            f"{viz.name} TX",
+            tx_headers,
             [("TX", tx_values, "bold cyan", [])],
-            [], [], [],
-            has_actual=False, is_timeout=False,
+            [],
+            [],
+            [],
+            has_actual=False,
+            is_timeout=False,
         )
 
     def _build_rx_table(
-        self, lines: list[Text | str], tc: TestCase,
-        viz: VisualizerInfo, actual_data: bytes | None,
+        self,
+        lines: list[Text | str],
+        tc: TestCase,
+        viz: VisualizerInfo,
+        actual_data: bytes | None,
     ) -> None:
         """Build the RX (Expected+Actual) portion of a visualizer table.
 
@@ -523,25 +540,33 @@ class ProtoDebugScreen(ModalScreen[None]):
         act_values: list[str] = []
         act_statuses: list[str] = []
         if actual_data is not None:
-            _, _, act_values, act_statuses = (
-                viz.diff_columns(actual_data, tc.expect_data, tc.expect_mask)
+            _, _, act_values, act_statuses = viz.diff_columns(
+                actual_data, tc.expect_data, tc.expect_mask
             )
 
         self._render_unified_table(
-            lines, f"{viz.name} RX", exp_headers,
+            lines,
+            f"{viz.name} RX",
+            exp_headers,
             [],
-            exp_values, act_values, act_statuses,
+            exp_values,
+            act_values,
+            act_statuses,
             has_actual=(actual_data is not None),
             is_timeout=(tc.index in self._results and actual_data is None),
         )
 
     def _render_unified_table(
-        self, lines: list[Text | str], title: str,
+        self,
+        lines: list[Text | str],
+        title: str,
         headers: list[str],
         extra_rows: list[tuple[str, list[str], str, list[str]]],
-        exp_values: list[str], act_values: list[str],
+        exp_values: list[str],
+        act_values: list[str],
         act_statuses: list[str],
-        has_actual: bool, is_timeout: bool,
+        has_actual: bool,
+        is_timeout: bool,
     ) -> None:
         """Render a bordered multi-column table.
 
@@ -593,8 +618,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             return "".join(parts)
 
         # Top border
-        lines.append(Text(
-            "  " + border_line("┌", "─", "┬", "┐"), style="dim"))
+        lines.append(Text("  " + border_line("┌", "─", "┬", "┐"), style="dim"))
 
         # Header row
         hdr = Text("  │ ", style="dim")
@@ -606,8 +630,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         lines.append(hdr)
 
         # Header separator
-        lines.append(Text(
-            "  " + border_line("├", "─", "┼", "┤"), style="dim"))
+        lines.append(Text("  " + border_line("├", "─", "┼", "┤"), style="dim"))
 
         # Extra rows (TX)
         for label, values, style, _ in extra_rows:
@@ -661,8 +684,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             lines.append(row)
 
         # Bottom border
-        lines.append(Text(
-            "  " + border_line("└", "─", "┴", "┘"), style="dim"))
+        lines.append(Text("  " + border_line("└", "─", "┴", "┘"), style="dim"))
 
     def _get_repeat_count(self) -> int:
         """Get the repeat count from the input field.
@@ -823,8 +845,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                 pass
             self._log_file = None
 
-    def _log_session_header(self, tests: list[TestCase],
-                            repeat: int) -> None:
+    def _log_session_header(self, tests: list[TestCase], repeat: int) -> None:
         """Write a session header to the log.
 
         Args:
@@ -834,16 +855,20 @@ class ProtoDebugScreen(ModalScreen[None]):
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         title = self._script.name or self._path.name
         sep = "=" * 80
-        self._log_lines([
-            sep,
-            f"[{ts}] Script: {title} | "
-            f"Tests: {len(tests)} | Repeat: {repeat}",
-            sep,
-        ])
+        self._log_lines(
+            [
+                sep,
+                f"[{ts}] Script: {title} | Tests: {len(tests)} | Repeat: {repeat}",
+                sep,
+            ]
+        )
 
     def _log_test_result(
-        self, tc: TestCase, passed: bool,
-        response: bytes | None, elapsed_ms: float,
+        self,
+        tc: TestCase,
+        passed: bool,
+        response: bytes | None,
+        elapsed_ms: float,
         vizs: list[VisualizerInfo],
     ) -> None:
         """Write a single test result line to the log.
@@ -872,21 +897,24 @@ class ProtoDebugScreen(ModalScreen[None]):
             if tx_spec:
                 lines.append(f"         [{viz.name}] TX spec: {tx_spec}")
             tx_hdrs, tx_vals = viz.format_columns(tc.send_data)
-            lines.append(f"         [{viz.name}] TX: " + "  ".join(
-                f"{h}={v}" for h, v in zip(tx_hdrs, tx_vals)))
+            lines.append(
+                f"         [{viz.name}] TX: "
+                + "  ".join(f"{h}={v}" for h, v in zip(tx_hdrs, tx_vals))
+            )
             if response:
                 rx_spec = viz.format_spec(response)
                 if rx_spec:
-                    lines.append(
-                        f"         [{viz.name}] RX spec: {rx_spec}")
-                hdrs, _, act_vals, _ = viz.diff_columns(
-                    response, tc.expect_data, tc.expect_mask)
-                lines.append(f"         [{viz.name}] RX: " + "  ".join(
-                    f"{h}={v}" for h, v in zip(hdrs, act_vals)))
+                    lines.append(f"         [{viz.name}] RX spec: {rx_spec}")
+                hdrs, _, act_vals, _ = viz.diff_columns(response, tc.expect_data, tc.expect_mask)
+                lines.append(
+                    f"         [{viz.name}] RX: "
+                    + "  ".join(f"{h}={v}" for h, v in zip(hdrs, act_vals))
+                )
         self._log_lines(lines)
 
-    def _log_summary(self, tests: list[TestCase], pass_count: int,
-                     fail_count: int, stop_reason: str) -> None:
+    def _log_summary(
+        self, tests: list[TestCase], pass_count: int, fail_count: int, stop_reason: str
+    ) -> None:
         """Write a run summary to the log.
 
         Args:
@@ -961,9 +989,9 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         return passed
 
-    def _show_run_summary(self, tests: list[TestCase],
-                          pass_count: int, fail_count: int,
-                          stop_reason: str = "") -> None:
+    def _show_run_summary(
+        self, tests: list[TestCase], pass_count: int, fail_count: int, stop_reason: str = ""
+    ) -> None:
         """Update the status bar with a summary after running tests.
 
         Args:
@@ -1000,10 +1028,14 @@ class ProtoDebugScreen(ModalScreen[None]):
         """Get the JSON filename template from the input field."""
         return self.query_one("#input-json-file", Input).value.strip()
 
-    def _write_json_results(self, tests: list[TestCase],
-                            pass_count: int, fail_count: int,
-                            elapsed_ms: float,
-                            template: str) -> str | None:
+    def _write_json_results(
+        self,
+        tests: list[TestCase],
+        pass_count: int,
+        fail_count: int,
+        elapsed_ms: float,
+        template: str,
+    ) -> str | None:
         """Write JSON test results to the proto/test/ directory.
 
         The same document the headless runner and ``/proto.run`` write
@@ -1027,8 +1059,15 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         config_name = Path(self._ctx.config_path).stem if self._ctx.config_path else ""
         results = build_results(
-            self._script, self._path, self._path.read_text(encoding="utf-8"), cfg,
-            config_name, test_results, pass_count, fail_count, elapsed_ms,
+            self._script,
+            self._path,
+            self._path.read_text(encoding="utf-8"),
+            cfg,
+            config_name,
+            test_results,
+            pass_count,
+            fail_count,
+            elapsed_ms,
         )
         try:
             out_path = write_results(results, output_dir, template, self._path.stem, config_name)
@@ -1052,8 +1091,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             repeat = self.app.call_from_thread(self._get_repeat_count)
             delay_s = self.app.call_from_thread(self._get_start_delay)
             stop_on_error = self.app.call_from_thread(self._get_stop_on_error)
-            vizs = self.app.call_from_thread(
-                self._get_active_visualizers)
+            vizs = self.app.call_from_thread(self._get_active_visualizers)
             self._open_log()
             self._log_session_header(tests, repeat)
             self.app.call_from_thread(self._clear_detail)
@@ -1069,8 +1107,9 @@ class ProtoDebugScreen(ModalScreen[None]):
                     if run_num > 1 and delay_s > 0:
                         self.app.call_from_thread(
                             self._set_status,
-                            f"Delay {format_duration(delay_s)} "
-                            f"({run_num}/{repeat})...", "bold yellow")
+                            f"Delay {format_duration(delay_s)} ({run_num}/{repeat})...",
+                            "bold yellow",
+                        )
                         if self._stop_requested.wait(delay_s):
                             stop_reason = "stopped by user"
                             break
@@ -1086,19 +1125,14 @@ class ProtoDebugScreen(ModalScreen[None]):
 
                         # Log the result
                         response, elapsed_ms, _ = self._results[tc.index]
-                        self._log_test_result(
-                            tc, passed, response, elapsed_ms, vizs)
+                        self._log_test_result(tc, passed, response, elapsed_ms, vizs)
 
-                        prefix = (f"[{run_num}/{repeat}] "
-                                  if repeat > 1 else "")
-                        status = (f"{prefix}{tc.name} "
-                                  f"({ti + 1}/{len(tests)})...")
-                        self.app.call_from_thread(
-                            self._update_test_ui, tc, status)
+                        prefix = f"[{run_num}/{repeat}] " if repeat > 1 else ""
+                        status = f"{prefix}{tc.name} ({ti + 1}/{len(tests)})..."
+                        self.app.call_from_thread(self._update_test_ui, tc, status)
 
                         if tc.teardown:
-                            self._log(
-                                f"  teardown: {', '.join(tc.teardown)}")
+                            self._log(f"  teardown: {', '.join(tc.teardown)}")
                         self._send_proto_cmds(tc.teardown)
 
                         if passed:
@@ -1120,20 +1154,19 @@ class ProtoDebugScreen(ModalScreen[None]):
             # Write JSON results if checkbox is checked
             json_enabled = self.app.call_from_thread(self._get_json_enabled)
             if json_enabled:
-                json_template = self.app.call_from_thread(
-                    self._get_json_template)
+                json_template = self.app.call_from_thread(self._get_json_template)
                 json_file = self._write_json_results(
-                    tests, total_pass, total_fail,
-                    total_elapsed_ms, json_template)
+                    tests, total_pass, total_fail, total_elapsed_ms, json_template
+                )
                 if json_file:
                     # call_from_thread forwards query_one's return value
                     # through an untyped bridge, so ty can't see that
                     # passing expect_type=RichLog narrows the result.
-                    log = cast(RichLog, self.app.call_from_thread(
-                        self.query_one, "#proto-debug-detail", RichLog))
-                    self.app.call_from_thread(
-                        log.write,
-                        Text(f"  JSON: {json_file}", style="dim"))
+                    log = cast(
+                        RichLog,
+                        self.app.call_from_thread(self.query_one, "#proto-debug-detail", RichLog),
+                    )
+                    self.app.call_from_thread(log.write, Text(f"  JSON: {json_file}", style="dim"))
 
             # Clear _run_active *on the UI thread* so that any pending
             # SelectionHighlighted events still see _run_active=True and
@@ -1169,17 +1202,15 @@ class ProtoDebugScreen(ModalScreen[None]):
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self._log(f"[{ts}] {label}: {', '.join(cmds)}")
 
-            self.app.call_from_thread(
-                self._set_status,
-                f"{label}: running...", "bold yellow")
+            self.app.call_from_thread(self._set_status, f"{label}: running...", "bold yellow")
 
             with self._ctx.serial.io():
                 self._send_proto_cmds(cmds)
 
             self._log(f"{label}: done ({len(cmds)} commands)")
             self.app.call_from_thread(
-                self._set_status,
-                f"{label}: done ({len(cmds)} commands)", "dim")
+                self._set_status, f"{label}: done ({len(cmds)} commands)", "dim"
+            )
         except RuntimeError:
             # call_from_thread fails during app shutdown - exit silently.
             # Serial-port release is handled by the ctx.serial.io() context

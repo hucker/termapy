@@ -61,7 +61,7 @@ def probed(monkeypatch):
     monkeypatch.setattr(
         port_control,
         "_check_in_use",
-        lambda device, connected_port="": (calls.append(device) or "no"),
+        lambda device, connected_port="": calls.append(device) or "no",
     )
     monkeypatch.setattr(port_control, "_check_permissions", lambda device: "ok")
     return calls
@@ -178,8 +178,7 @@ class TestEnrichmentIsSeparateFromProbing:
         actual = _devices(enriched)
         expected = ["COM3", "COM7"]
         assert actual == expected, (
-            f"/port.list shows LOCATION and DRIVER, so it must look them up; "
-            f"enriched {actual}"
+            f"/port.list shows LOCATION and DRIVER, so it must look them up; enriched {actual}"
         )
         assert probed == [], f"and it still must not open a port; probed {probed}"
 
@@ -192,9 +191,7 @@ class TestEnrichmentIsSeparateFromProbing:
 
         from termapy import cli_flags
 
-        args = argparse.Namespace(
-            ports="*", json=False, vid=None, pid=None, mfg=None, sn=None
-        )
+        args = argparse.Namespace(ports="*", json=False, vid=None, pid=None, mfg=None, sn=None)
 
         # Act
         with pytest.raises(SystemExit), redirect_stdout(io.StringIO()):

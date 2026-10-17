@@ -62,6 +62,7 @@ if TYPE_CHECKING:
 @dataclass
 class _Active:
     """In-flight recording state.  ``_active`` holds None or one of these."""
+
     path: Path
     file: TextIO
     line_count: int
@@ -88,8 +89,7 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
 
     if _active is not None:
         return CmdResult.fail(
-            msg=f"Already recording to {_active.path.name}; "
-            f"stop with /run.record first.",
+            msg=f"Already recording to {_active.path.name}; stop with /run.record first.",
         )
 
     if (
@@ -100,8 +100,7 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
         # record.  TerminalHost wires both, so the only way to hit
         # this is a misconfigured embed.
         return CmdResult.fail(
-            msg="This host does not support /run.record "
-            "(post-dispatch observer not wired).",
+            msg="This host does not support /run.record (post-dispatch observer not wired).",
         )
 
     # Filename hygiene.  Auto-append .run if missing; refuse
@@ -110,9 +109,7 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
     if not name:
         raise UsageError()
     if "/" in name or "\\" in name:
-        return CmdResult.fail(
-            msg="Recording target must be a bare filename, not a path"
-        )
+        return CmdResult.fail(msg="Recording target must be a bare filename, not a path")
     if name.endswith(".run"):
         target = name
     elif "." in name:

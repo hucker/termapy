@@ -91,9 +91,9 @@ def _age(path: Path, seconds: float) -> None:
 
 
 class TestProtoPicker:
-
     def test_empty_folder_leaves_only_new_and_cancel_live(self, tmp_path):
         """With no scripts every per-file button is disabled; New stays live; Cancel dismisses None."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -106,8 +106,13 @@ class TestProtoPicker:
                 await pilot.click("#proto-cancel")
                 await pilot.pause()
                 assert disabled == {
-                    "run": True, "debug": True, "edit": True, "new": False,
-                    "rename": True, "delete": True, "cancel": False,
+                    "run": True,
+                    "debug": True,
+                    "edit": True,
+                    "new": False,
+                    "rename": True,
+                    "delete": True,
+                    "cancel": False,
                 }
                 assert results == [None]
 
@@ -116,6 +121,7 @@ class TestProtoPicker:
     @pytest.mark.parametrize("button", ["run", "debug", "edit", "rename", "delete"])
     def test_each_file_button_dismisses_with_its_verb_and_the_newest_script(self, tmp_path, button):
         """Each per-file button dismisses with (verb, path) for the highlighted row, which is the newest script."""
+
         async def scenario():
             older = tmp_path / "older.pro"
             newer = tmp_path / "newer.pro"
@@ -133,6 +139,7 @@ class TestProtoPicker:
 
     def test_enter_in_the_list_runs_the_highlighted_script(self, tmp_path):
         """Enter with the list focused is Run."""
+
         async def scenario():
             script = tmp_path / "only.pro"
             script.write_text("# x\n", encoding="utf-8")
@@ -149,6 +156,7 @@ class TestProtoPicker:
 
     def test_new_and_escape(self, tmp_path):
         """New dismisses with ("new",); Escape with None."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -164,6 +172,7 @@ class TestProtoPicker:
 
     def test_read_only_disables_the_editing_buttons_but_not_run(self, tmp_path):
         """A read-only picker keeps Run and Debug live and disables Edit, Rename, and Delete even with scripts present."""
+
         async def scenario():
             (tmp_path / "a.pro").write_text("# a\n", encoding="utf-8")
             app = _Host()
@@ -174,7 +183,13 @@ class TestProtoPicker:
                     name: screen.query_one(f"#proto-{name}", Button).disabled
                     for name in ("run", "debug", "edit", "rename", "delete")
                 }
-                assert state == {"run": False, "debug": False, "edit": True, "rename": True, "delete": True}
+                assert state == {
+                    "run": False,
+                    "debug": False,
+                    "edit": True,
+                    "rename": True,
+                    "delete": True,
+                }
 
         _run(scenario)
 
@@ -183,9 +198,9 @@ class TestProtoPicker:
 
 
 class TestSetVarDialog:
-
     def test_enter_on_the_name_moves_to_the_value_then_submits_the_pair(self, tmp_path):
         """Enter on a filled name focuses the value field; Enter there dismisses with (name stripped, value as typed)."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -202,6 +217,7 @@ class TestSetVarDialog:
 
     def test_an_empty_name_is_not_a_submit(self, tmp_path):
         """Enter on an empty name stays put; Enter on the value with no name sends focus back to the name."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -218,6 +234,7 @@ class TestSetVarDialog:
 
     def test_cancel_and_escape_dismiss_none(self, tmp_path):
         """Cancel and Escape both dismiss with None."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -236,9 +253,9 @@ class TestSetVarDialog:
 
 
 class TestUpdateAvailableDialog:
-
     def test_shows_both_versions_and_info_asks_for_the_help_page(self, tmp_path):
         """The body names the installed and latest versions; Info dismisses with "info"."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -253,6 +270,7 @@ class TestUpdateAvailableDialog:
 
     def test_ok_and_escape_both_mean_ok(self, tmp_path):
         """OK and Escape dismiss with "ok", so the caller just closes."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -271,9 +289,9 @@ class TestUpdateAvailableDialog:
 
 
 class TestCfgConfirm:
-
     def test_shows_the_change_and_yes_confirms(self, tmp_path):
         """The message reads key: old -> new; Yes dismisses True."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -288,6 +306,7 @@ class TestCfgConfirm:
 
     def test_no_and_escape_both_refuse(self, tmp_path):
         """No and Escape dismiss False, so the change is not applied."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -306,9 +325,9 @@ class TestCfgConfirm:
 
 
 class TestNamePicker:
-
     def test_enter_returns_the_stem(self, tmp_path):
         """A name typed with an extension comes back as its stem."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -320,6 +339,7 @@ class TestNamePicker:
 
     def test_empty_enter_keeps_the_dialog_open(self, tmp_path):
         """Enter on an empty name neither dismisses nor closes the dialog."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -332,6 +352,7 @@ class TestNamePicker:
 
     def test_cancel_and_escape_dismiss_none(self, tmp_path):
         """Cancel and Escape both dismiss with None."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -350,9 +371,9 @@ class TestNamePicker:
 
 
 class TestWelcomeDialog:
-
     def test_shows_title_and_message_and_ok_closes(self, tmp_path):
         """The title and message render as given; OK and Escape both close with None."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -374,9 +395,9 @@ class TestWelcomeDialog:
 
 
 class TestPortPicker:
-
     def test_selecting_a_row_dismisses_with_its_port(self, tmp_path):
         """Enter on a highlighted row dismisses with that row's port id; the loopback row is always there to pick."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -396,6 +417,7 @@ class TestPortPicker:
 
     def test_a_re_render_keeps_the_highlighted_port(self, tmp_path):
         """Re-rendering the list (what a plug or unplug triggers) keeps the user's highlighted row by its port id."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -419,6 +441,7 @@ class TestPortPicker:
 
     def test_cancel_and_escape_dismiss_none(self, tmp_path):
         """Cancel and Escape both dismiss with None."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -438,7 +461,14 @@ class TestPortPicker:
 # (editor class, widget id prefix, file extension, the new-file title, the new-file text)
 _EDITORS = [
     pytest.param(ProtoEditor, "ped", ".pro", "New Protocol Script", PROTO_TEMPLATE, id="proto"),
-    pytest.param(ScriptEditor, "sed", ".run", "New Script", SCRIPT_TEMPLATE.format(name="untitled"), id="script"),
+    pytest.param(
+        ScriptEditor,
+        "sed",
+        ".run",
+        "New Script",
+        SCRIPT_TEMPLATE.format(name="untitled"),
+        id="script",
+    ),
 ]
 
 
@@ -446,8 +476,11 @@ class TestFileEditors:
     """ProtoEditor and ScriptEditor share one shape: a name row, a text area, Save, Save As, Cancel."""
 
     @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
-    def test_a_new_file_starts_from_the_template(self, tmp_path, editor_cls, prefix, ext, title, template):
+    def test_a_new_file_starts_from_the_template(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
         """Opened without a path, the editor titles itself new, loads the template, and leaves the name empty."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -460,8 +493,11 @@ class TestFileEditors:
         _run(scenario)
 
     @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
-    def test_save_needs_a_name_then_writes_it_with_the_extension(self, tmp_path, editor_cls, prefix, ext, title, template):
+    def test_save_needs_a_name_then_writes_it_with_the_extension(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
         """Save with no name shows an error; with a name it creates the folder, writes name+ext, and dismisses with the path."""
+
         async def scenario():
             folder = tmp_path / "folder"
             app = _Host()
@@ -476,14 +512,19 @@ class TestFileEditors:
                 await _click_again(pilot, f"#{prefix}-save")
                 written = folder / f"mine{ext}"
                 assert error == "Enter a script name"
-                assert written.read_text(encoding="utf-8") == "# body\n", "folder created, file written"
+                assert written.read_text(encoding="utf-8") == "# body\n", (
+                    "folder created, file written"
+                )
                 assert results == [str(written)]
 
         _run(scenario)
 
     @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
-    def test_editing_an_existing_file_loads_it_and_enter_saves_it(self, tmp_path, editor_cls, prefix, ext, title, template):
+    def test_editing_an_existing_file_loads_it_and_enter_saves_it(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
         """Opened on a file, the editor shows its name and text; Enter in the name row saves back to it."""
+
         async def scenario():
             folder = tmp_path / "folder"
             folder.mkdir()
@@ -507,8 +548,11 @@ class TestFileEditors:
         _run(scenario)
 
     @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
-    def test_an_unreadable_path_is_reported_in_the_text(self, tmp_path, editor_cls, prefix, ext, title, template):
+    def test_an_unreadable_path_is_reported_in_the_text(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
         """A path that cannot be read opens with an error comment as the text instead of failing to open."""
+
         async def scenario():
             missing = tmp_path / f"gone{ext}"
             app = _Host()
@@ -520,8 +564,11 @@ class TestFileEditors:
         _run(scenario)
 
     @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
-    def test_save_as_asks_twice_before_overwriting(self, tmp_path, editor_cls, prefix, ext, title, template):
+    def test_save_as_asks_twice_before_overwriting(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
         """Save As reveals the name row; an empty name errors; an existing name warns once, then a second Save overwrites it."""
+
         async def scenario():
             folder = tmp_path / "folder"
             folder.mkdir()
@@ -551,14 +598,19 @@ class TestFileEditors:
                 assert revealed is True and empty_error == "Enter a filename"
                 assert warned == f"taken{ext} exists - click Save again to overwrite"
                 assert still_original == "# original\n", "the first Save only warns"
-                assert taken.read_text(encoding="utf-8") == "# replaced\n", "the second Save overwrites"
+                assert taken.read_text(encoding="utf-8") == "# replaced\n", (
+                    "the second Save overwrites"
+                )
                 assert results == [str(taken)]
 
         _run(scenario)
 
     @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
-    def test_save_as_enter_writes_a_new_name(self, tmp_path, editor_cls, prefix, ext, title, template):
+    def test_save_as_enter_writes_a_new_name(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
         """Enter in the Save As row writes the text under the new name and dismisses with that path."""
+
         async def scenario():
             folder = tmp_path / "folder"
             app = _Host()
@@ -576,8 +628,11 @@ class TestFileEditors:
         _run(scenario)
 
     @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
-    def test_cancel_and_escape_dismiss_none(self, tmp_path, editor_cls, prefix, ext, title, template):
+    def test_cancel_and_escape_dismiss_none(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
         """Cancel and Escape both dismiss with None and write nothing."""
+
         async def scenario():
             folder = tmp_path / "folder"
             app = _Host()

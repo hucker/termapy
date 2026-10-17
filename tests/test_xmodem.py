@@ -353,6 +353,7 @@ class TestXmodemLibraryIntegration:
 
     def _make_modem(self, dev: FakeSerial) -> XMODEM:
         """Create an XMODEM instance wired to a FakeSerial device."""
+
         def getc(size: int, timeout: int = 1) -> bytes | None:
             data = dev.read(size)
             return data if data else None
@@ -380,7 +381,7 @@ class TestXmodemLibraryIntegration:
         # Strip the OK text, put back any trailing protocol bytes
         ok_text = b"OK\r\n"
         if resp.startswith(ok_text) and len(resp) > len(ok_text):
-            dev._output_buf.extend(resp[len(ok_text):])
+            dev._output_buf.extend(resp[len(ok_text) :])
 
     def test_library_send_to_device(self, dev: FakeSerial, tmp_path) -> None:
         """xmodem library sends a file to FakeSerial VFS."""
@@ -400,9 +401,9 @@ class TestXmodemLibraryIntegration:
         # Assert
         assert ok is True, "transfer succeeded"
         received = dev.vfs["upload.bin"]
-        assert received[:len(test_data)] == test_data, "data matches"
+        assert received[: len(test_data)] == test_data, "data matches"
         # Padding is 0x1A (SUB) - XMODEM has no size metadata
-        padding = received[len(test_data):]
+        padding = received[len(test_data) :]
         assert all(b == 0x1A for b in padding), "correct padding"
 
     def test_library_recv_from_device(self, dev: FakeSerial, tmp_path) -> None:
@@ -441,7 +442,7 @@ class TestXmodemLibraryIntegration:
         # Assert
         assert ok is True, "transfer succeeded"
         received = dev.vfs["roundtrip.bin"]
-        assert received[:len(test_data)] == test_data, "roundtrip data matches"
+        assert received[: len(test_data)] == test_data, "roundtrip data matches"
 
 
 # -- /xfer.xmodem.recv through the dispatcher --------------------------------
@@ -490,7 +491,9 @@ class TestRecvCommand:
         assert isinstance(device, FakeSerial), "the DEMO engine opens a FakeSerial"
         cli.repl.dispatch_full("AT+XMODEM=SEND config.dat")
         # The OK reply must be read before the command drains the queue.
-        _wait_for(lambda: device.in_waiting == 0 and not cli.engine.rx_queue.empty(), "the OK reply")
+        _wait_for(
+            lambda: device.in_waiting == 0 and not cli.engine.rx_queue.empty(), "the OK reply"
+        )
 
         # Act
         result = cli.repl.dispatch_full("/xfer.xmodem.recv got.bin")
@@ -498,7 +501,9 @@ class TestRecvCommand:
         # Assert
         assert result.success, result.error
         assert target.read_bytes() == bytes(range(64)), "config.dat, padding stripped"
-        assert not target.with_name("got.bin.part").exists(), "the partial file was moved into place"
+        assert not target.with_name("got.bin.part").exists(), (
+            "the partial file was moved into place"
+        )
 
     def test_a_canceled_receive_leaves_the_old_file(self, cli):
         """A receive canceled before any data arrives fails and leaves the file at its name untouched."""

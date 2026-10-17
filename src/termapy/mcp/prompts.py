@@ -32,9 +32,7 @@ if TYPE_CHECKING:
 # ── Authoring guide loading ─────────────────────────────────────────────────
 
 
-_AUTHORING_GUIDE_PATH = (
-    Path(__file__).parent.parent / "help" / "authoring-profiles.md"
-)
+_AUTHORING_GUIDE_PATH = Path(__file__).parent.parent / "help" / "authoring-profiles.md"
 
 
 def _load_authoring_guide() -> str:
@@ -147,7 +145,7 @@ def _build_draft_profile_message(
         parts.append("```\n")
     else:
         parts.append(
-            "(none provided -- only use ``response.format: \"lines\"`` for now; "
+            '(none provided -- only use ``response.format: "lines"`` for now; '
             "do not invent regex patterns without sample data)\n"
         )
     parts.append("## Engineer notes\n")

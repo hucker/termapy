@@ -33,6 +33,7 @@ def engine(tmp_path):
     # model the OPERATOR, so grant filesystem_unconfined like a real host
     # (both the ctx field and the fs handle hold the CapabilitySet).
     from termapy.plugins import CapabilitySet
+
     caps = CapabilitySet(filesystem_unconfined=True)
     eng.ctx.capabilities = caps
     eng.ctx.fs.capabilities = caps
@@ -179,9 +180,7 @@ class TestRegisterPlugin:
         """A registered plugin becomes dispatchable under its own name."""
         # Arrange
         eng, _ = engine
-        info = PluginInfo(
-            name="test", args="", help="Test.", handler=lambda ctx, args: None
-        )
+        info = PluginInfo(name="test", args="", help="Test.", handler=lambda ctx, args: None)
 
         # Act
         eng.register_plugin(info)
@@ -193,10 +192,13 @@ class TestRegisterPlugin:
         """Re-registering a name replaces the handler -- later layers win."""
         # Arrange
         eng, _ = engine
+
         def h1(ctx, args):
             return None
+
         def h2(ctx, args):
             return None
+
         eng.register_plugin(PluginInfo(name="x", args="", help="", handler=h1))
 
         # Act
@@ -359,8 +361,9 @@ class TestRunScript:
         # Assert
         assert result.success, "script started"
         assert forced is False, "echo_repl forced off for the script body"
-        assert flags["echo_repl"] is True, \
+        assert flags["echo_repl"] is True, (
             "interactive echo_repl restored after the outermost script"
+        )
 
     def test_delay_command(self, tmp_path):
         """/delay inside a script runs and confirms the pause."""
@@ -400,9 +403,7 @@ class TestRunScript:
     def test_not_connected_skips_serial(self, tmp_path):
         """Serial lines are dropped while disconnected, and the run still unwinds."""
         # Arrange
-        eng, output, writes, script = self._make_engine(
-            tmp_path, "ATZ\n", connected=False
-        )
+        eng, output, writes, script = self._make_engine(tmp_path, "ATZ\n", connected=False)
 
         # Act
         eng.run_script(script)
@@ -817,9 +818,9 @@ class TestDispatchFull:
         )
 
         # Assert
-        assert any(
-            "Send error" in t for t, _ in output
-        ), "error reported via engine's write callback"
+        assert any("Send error" in t for t, _ in output), (
+            "error reported via engine's write callback"
+        )
 
     def test_echo_input_config(self, dispatch_env):
         """Device commands echo through the configured echo_fmt template."""
@@ -961,9 +962,7 @@ class TestWaitForMatch:
         eng._recent_lines.append("+TEMP: 23.5C")
 
         # Act
-        actual = eng.wait_for_match(
-            lambda line: bool(re.search(r"\d+\.\d+C", line)), timeout=0.05
-        )
+        actual = eng.wait_for_match(lambda line: bool(re.search(r"\d+\.\d+C", line)), timeout=0.05)
 
         # Assert
         assert actual == "+TEMP: 23.5C", "regex matched"
@@ -1371,7 +1370,9 @@ class TestDispatchCapabilities:
         result = eng.dispatch("sender")
 
         # Assert
-        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), "the state, not the environment"
+        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), (
+            "the state, not the environment"
+        )
         assert called == [], "handler never invoked"
 
     def test_a_closed_port_with_another_gap_names_the_environment(self, cap_env):
@@ -1393,7 +1394,9 @@ class TestDispatchCapabilities:
         result = eng.dispatch("xfer")
 
         # Assert
-        expected = "/xfer requires: serial_connected, interactive (not available in this environment)"
+        expected = (
+            "/xfer requires: serial_connected, interactive (not available in this environment)"
+        )
         assert result.error == expected
 
     def _register_needing(self, eng, needs, called):
@@ -1431,7 +1434,9 @@ class TestDispatchCapabilities:
         result = eng.dispatch("lister")
 
         # Assert
-        assert (result.success, result.error) == (False, STATE_MESSAGES["config_loaded"]), "the state, not the environment"
+        assert (result.success, result.error) == (False, STATE_MESSAGES["config_loaded"]), (
+            "the state, not the environment"
+        )
         assert called == [], "handler never invoked"
 
     def test_no_config_and_no_port_answers_the_config_first(self, cap_env):
@@ -1483,9 +1488,7 @@ class TestOneScriptAtATime:
         # Reuse the run_script harness -- same engine shape, same script on
         # disk.  It pre-sets depth=1 so run_script can be driven in
         # isolation; these tests drive the real outermost entry instead.
-        eng, output, writes, script = TestRunScript()._make_engine(
-            tmp_path, script_text
-        )
+        eng, output, writes, script = TestRunScript()._make_engine(tmp_path, script_text)
         eng._script_depth = 0
         caps = CapabilitySet(filesystem_unconfined=True)
         eng.ctx.capabilities = caps
@@ -1509,8 +1512,7 @@ class TestOneScriptAtATime:
         second_path, second = box[0]
         assert second_path is None, "the second launch must not get a script path"
         assert second.success is False, (
-            "a second outermost script would interleave two command streams "
-            "onto one device"
+            "a second outermost script would interleave two command streams onto one device"
         )
         assert "already running" in second.error, (
             f"the refusal should say why, got {second.error!r}"
@@ -1601,7 +1603,7 @@ def _wire_script_slots(eng) -> None:
     # lambda on a bare engine; route it back into the engine the way
     # dispatch_full does for a slash command.
     eng.ctx.dispatch = lambda line: eng.dispatch(
-        line[len(eng.prefix):] if line.startswith(eng.prefix) else line
+        line[len(eng.prefix) :] if line.startswith(eng.prefix) else line
     )
 
 
@@ -1680,19 +1682,20 @@ class TestJsonFlag:
         # Assert
         envelope = self._last_envelope(output)
         expected_keys = {
-            "cmd", "success", "error", "value", "data", "output_lines",
+            "cmd",
+            "success",
+            "error",
+            "value",
+            "data",
+            "output_lines",
             "elapsed_s",
         }
         assert set(envelope.keys()) == expected_keys, (
             "terminal envelope is the fixed seven-key core"
         )
         assert envelope["success"] is True, "dispatch succeeded"
-        assert envelope["data"]["user"] == {"PORT": "COM9"}, (
-            "structured namespaces in data"
-        )
-        assert envelope["output_lines"] == [], (
-            "converted command: data only, no captured prose"
-        )
+        assert envelope["data"]["user"] == {"PORT": "COM9"}, "structured namespaces in data"
+        assert envelope["output_lines"] == [], "converted command: data only, no captured prose"
         assert result.data is not None, "CmdResult carries data too"
 
     def test_unconverted_command_answer_is_captured(self, engine):
@@ -1709,9 +1712,7 @@ class TestJsonFlag:
         eng.dispatch("print.r [bold]echo[/] on --json")
 
         # Assert
-        assert len(output) == 1, (
-            "one line total: the envelope IS the answer, no prose printed"
-        )
+        assert len(output) == 1, "one line total: the envelope IS the answer, no prose printed"
         envelope = self._last_envelope(output)
         assert envelope["data"] is None, "no structured form for /print.r"
         actual = [line.strip() for line in envelope["output_lines"]]
@@ -1731,9 +1732,9 @@ class TestJsonFlag:
         assert envelope["success"] is False, "failure carried in the field"
         assert "Unknown command" in envelope["error"], "error in the field"
         assert envelope["data"] is None, "no data for a failed lookup"
-        assert not any(
-            color == "red" for _text, color in output
-        ), "no separate red error line: error is a field, not a second render"
+        assert not any(color == "red" for _text, color in output), (
+            "no separate red error line: error is a field, not a second render"
+        )
         assert result.success is False, "CmdResult still reports failure"
 
     def test_flag_stripped_from_args(self, engine):
@@ -1758,9 +1759,7 @@ class TestJsonFlag:
         eng.dispatch("var --json")
 
         # Assert
-        assert eng.ctx.wants_data is False, (
-            "per-call flag restored; the session default is prose"
-        )
+        assert eng.ctx.wants_data is False, "per-call flag restored; the session default is prose"
 
     def test_silent_suppresses_the_envelope(self, engine):
         """--silent wins over --json: nothing renders, but the result keeps its data."""
@@ -1798,9 +1797,8 @@ class TestRequestModeSessionJson:
         the module-global at "mcp", and the render gate would then skip the
         envelope these tests assert on."""
         from termapy import variables as _variables
-        monkeypatch.setattr(
-            _variables, "_LAUNCH_VARS", dict(_variables._LAUNCH_VARS)
-        )
+
+        monkeypatch.setattr(_variables, "_LAUNCH_VARS", dict(_variables._LAUNCH_VARS))
         _variables.set_launch_var("FRONT_END", "test")
 
     def test_termapy_command_envelopes_without_flag(self, engine):
@@ -1841,10 +1839,9 @@ class TestRequestModeSessionJson:
         # Arrange -- MCP delivers data on its outer response envelope;
         # rendering here too would duplicate it into output_lines.
         from termapy import variables as _variables
+
         eng, output = engine
-        monkeypatch.setattr(
-            _variables, "_LAUNCH_VARS", dict(_variables._LAUNCH_VARS)
-        )
+        monkeypatch.setattr(_variables, "_LAUNCH_VARS", dict(_variables._LAUNCH_VARS))
         _variables.set_launch_var("FRONT_END", "mcp")
         eng._apply_cfg("request_mode", True)
         output.clear()
@@ -1854,7 +1851,7 @@ class TestRequestModeSessionJson:
 
         # Assert -- data still produced (wants_data is MCP's session
         # default), but no envelope line printed by the dispatcher
-        assert all(
-            not text.lstrip().startswith("{") for text, _color in output
-        ), "no dispatcher-rendered envelope under MCP"
+        assert all(not text.lstrip().startswith("{") for text, _color in output), (
+            "no dispatcher-rendered envelope under MCP"
+        )
         assert result.value, "value still flows to the MCP response"

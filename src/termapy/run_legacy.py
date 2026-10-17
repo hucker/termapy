@@ -50,7 +50,7 @@ def _scan_line(line: str, prefix: str) -> tuple[str, list[tuple[str, str]]]:
     indent = line[: len(line) - len(stripped)]
     if not stripped.startswith(prefix):
         return line, []
-    body = stripped[len(prefix):]
+    body = stripped[len(prefix) :]
     # Args-aware rewrites first.  Each pattern matches the body (no
     # prefix); the first hit wins.  We rebuild the indent + prefix
     # around the substituted body so leading whitespace is preserved.
@@ -72,7 +72,7 @@ def _scan_line(line: str, prefix: str) -> tuple[str, list[tuple[str, str]]]:
     new_name = LEGACY_COMMANDS.get(name)
     if new_name is None:
         return line, []
-    rest = body[len(name):]
+    rest = body[len(name) :]
     return f"{indent}{prefix}{new_name}{rest}", [(name, new_name)]
 
 
@@ -92,9 +92,7 @@ def _resolve_script(ctx: PluginContext, name: str) -> Path | None:
     return None
 
 
-def _scan_one_file(
-    ctx: PluginContext, path: Path, prefix: str, fix_mode: bool
-) -> int:
+def _scan_one_file(ctx: PluginContext, path: Path, prefix: str, fix_mode: bool) -> int:
     """Scan ``path`` and report (or rewrite).  Returns the hit count.
 
     Writes per-file status to the terminal via ``ctx``.  A return of 0
@@ -145,8 +143,7 @@ def _scan_one_file(
         return len(hits)
 
     ctx.io._write(
-        f"  {path.name}: {len(hits)} legacy command(s) found "
-        f"(run with --fix to rewrite):",
+        f"  {path.name}: {len(hits)} legacy command(s) found (run with --fix to rewrite):",
         "yellow",
     )
     for lineno, old, new, original in hits:
@@ -205,8 +202,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 def _run_long_help(ctx: PluginContext) -> str:
     """Show current legacy table + script folder count."""
     mapping_lines = [
-        f"  {ctx.prefix}{old} -> {ctx.prefix}{new}"
-        for old, new in sorted(LEGACY_COMMANDS.items())
+        f"  {ctx.prefix}{old} -> {ctx.prefix}{new}" for old, new in sorted(LEGACY_COMMANDS.items())
     ]
     folder = folder_line(ctx, "run", noun="script")
     body = (
@@ -216,8 +212,7 @@ def _run_long_help(ctx: PluginContext) -> str:
         "Without --fix, reports the hits line by line.  With --fix,\n"
         "rewrites the file(s) in place.\n"
         "\n"
-        "Current rename table:\n"
-        + "\n".join(mapping_lines)
+        "Current rename table:\n" + "\n".join(mapping_lines)
     )
     return folder + "\n\n" + body if folder else body
 

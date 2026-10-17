@@ -49,7 +49,8 @@ def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedPro
 
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', 'proj', '--cli', "
             f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -91,20 +92,17 @@ class TestCrcCodegenUnknownAlgorithm:
             f"stderr: {result.stderr!r}"
         )
         assert "Unknown algorithm" in result.stdout, (
-            f"/proto.crc.{lang} {fake} should print 'Unknown algorithm'. "
-            f"stdout: {result.stdout!r}"
+            f"/proto.crc.{lang} {fake} should print 'Unknown algorithm'. stdout: {result.stdout!r}"
         )
         assert fake in result.stdout, (
-            f"/proto.crc.{lang} {fake} should echo the bad name back. "
-            f"stdout: {result.stdout!r}"
+            f"/proto.crc.{lang} {fake} should echo the bad name back. stdout: {result.stdout!r}"
         )
         assert "{prefix}" not in result.stdout, (
             f"/proto.crc.{lang} leaked the literal {{prefix}} placeholder. "
             f"stdout: {result.stdout!r}"
         )
         assert "/proto.crc.list" in result.stdout, (
-            f"/proto.crc.{lang} should point the user at /proto.crc.list. "
-            f"stdout: {result.stdout!r}"
+            f"/proto.crc.{lang} should point the user at /proto.crc.list. stdout: {result.stdout!r}"
         )
 
     def test_crc_calc_unknown_name_fails_gracefully(self, tmp_path):
@@ -114,12 +112,10 @@ class TestCrcCodegenUnknownAlgorithm:
 
         # Assert
         assert result.returncode == 0, (
-            f"/proto.crc.calc must exit 0, got {result.returncode}. "
-            f"stderr: {result.stderr!r}"
+            f"/proto.crc.calc must exit 0, got {result.returncode}. stderr: {result.stderr!r}"
         )
         assert "/proto.crc.list" in result.stdout, (
-            f"/proto.crc.calc should point the user at /proto.crc.list. "
-            f"stdout: {result.stdout!r}"
+            f"/proto.crc.calc should point the user at /proto.crc.list. stdout: {result.stdout!r}"
         )
         assert "{prefix}" not in result.stdout, (
             "/proto.crc.calc leaked the literal {prefix} placeholder"
@@ -132,12 +128,10 @@ class TestCrcCodegenUnknownAlgorithm:
 
         # Assert
         assert result.returncode == 0, (
-            f"/proto.crc.info must exit 0, got {result.returncode}. "
-            f"stderr: {result.stderr!r}"
+            f"/proto.crc.info must exit 0, got {result.returncode}. stderr: {result.stderr!r}"
         )
         assert "/proto.crc.list" in result.stdout, (
-            f"/proto.crc.info should point the user at /proto.crc.list. "
-            f"stdout: {result.stdout!r}"
+            f"/proto.crc.info should point the user at /proto.crc.list. stdout: {result.stdout!r}"
         )
         assert "{prefix}" not in result.stdout, (
             "/proto.crc.info leaked the literal {prefix} placeholder"

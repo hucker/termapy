@@ -60,9 +60,7 @@ class QueueByteReader:
             if remaining <= 0:
                 return None
             try:
-                self._buf.extend(
-                    self._queue.get(timeout=min(remaining, 0.05))
-                )
+                self._buf.extend(self._queue.get(timeout=min(remaining, 0.05)))
             except queue.Empty:
                 continue
         result = bytes(self._buf[:size])
@@ -132,7 +130,9 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         def _progress(total: int, success: int, error: int, pkt_size: int = 128) -> None:
             if success != _last[0]:
                 _last[0] = success
-                ctx.io.status(f"  XMODEM: {success} packets ({success * pkt_size} bytes) sent, {error} errors")
+                ctx.io.status(
+                    f"  XMODEM: {success} packets ({success * pkt_size} bytes) sent, {error} errors"
+                )
 
         with open(path, "rb") as f:
             ok = modem.send(f, callback=_progress)
@@ -177,7 +177,9 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         def _progress(total: int, success: int, error: int, pkt_size: int = 128) -> None:
             if success != _last[0]:
                 _last[0] = success
-                ctx.io.status(f"  XMODEM: {success} packets ({success * pkt_size} bytes) received, {error} errors")
+                ctx.io.status(
+                    f"  XMODEM: {success} packets ({success * pkt_size} bytes) received, {error} errors"
+                )
 
         # Receive beside the target and move into place only on success: a
         # canceled or failed receive must leave a file already at that name

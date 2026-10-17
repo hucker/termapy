@@ -41,6 +41,7 @@ def _hotkey_label(btn_id: str) -> str:
     title_bar via lazy stubs).  Resolved on first call instead.
     """
     from termapy.app import _hotkey_label as fn
+
     return fn(btn_id)
 
 
@@ -100,9 +101,7 @@ def port_tooltip_pairs(facts: ChipFacts | None) -> list[tuple[str, object]]:
     return pairs
 
 
-def format_title_tooltip(
-    title: str, kv_pairs: list[tuple[str, object]], action: str
-) -> str:
+def format_title_tooltip(title: str, kv_pairs: list[tuple[str, object]], action: str) -> str:
     """Render a title-bar tooltip with the shared three-section layout.
 
     Pure string formatting (no app, no widgets) -- shared by the config,
@@ -201,9 +200,9 @@ def update_title(app) -> None:
     ]
     # The tooltips are text (paths, ports, on_connect_cmd), so Text: Textual
     # would read a str as markup (registry widget-text-literal).
-    center.tooltip = Text(format_title_tooltip(
-        cfg_title, cfg_pairs, f"edit config ({_hotkey_label('title-center')})"
-    ))
+    center.tooltip = Text(
+        format_title_tooltip(cfg_title, cfg_pairs, f"edit config ({_hotkey_label('title-center')})")
+    )
 
     # Port button (left) tooltip + label
     try:
@@ -250,6 +249,7 @@ def update_port(app, port: str) -> None:
     that persists changes.  This keeps $(env.NAME) templates intact.
     """
     import copy
+
     # app.cfg is a read-only MappingProxyType view (ReplEngine owns the dict).
     # dict() un-proxies the top level so deepcopy can build a fully mutable
     # copy; deepcopy chokes on a mappingproxy ("cannot pickle 'mappingproxy'").
@@ -258,5 +258,3 @@ def update_port(app, port: str) -> None:
     app._switch_config(cfg, app.config_path)
     if app.is_connected:
         app._status(f"Port changed to {port} (session)", "green")
-
-

@@ -103,11 +103,16 @@ COMMAND = Command(
     params=[
         ParamSpec("count", "int", required=True, min=1, help="number of repetitions"),
         ParamSpec(
-            "delay", "duration", default=0.0,
+            "delay",
+            "duration",
+            default=0.0,
             help="pause between iterations, e.g. 100ms (default: no delay)",
         ),
         ParamSpec(
-            "var", "str", default="REPEAT_N", hint="<name>",
+            "var",
+            "str",
+            default="REPEAT_N",
+            hint="<name>",
             help="variable name for the iteration index",
         ),
         ParamSpec("cmd", "command", required=True, rest=True, help="command to repeat"),

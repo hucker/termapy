@@ -274,5 +274,3 @@ def open_picker(app, name: str) -> CmdResult:
     app._on_main(fn)
     # Return which picker was opened so scripts can log.
     return CmdResult.ok(value=name)
-
-

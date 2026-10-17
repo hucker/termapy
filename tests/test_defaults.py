@@ -91,7 +91,7 @@ class TestCfgHelpCoverage:
     the structural fix for CFG_HELP drifting out of sync by hand.
     """
 
-    DESC_MAX = 80   # "Line N: <desc>" stays on one line in the help panel
+    DESC_MAX = 80  # "Line N: <desc>" stays on one line in the help panel
     VALID_MAX = 90  # "Valid: <hint>" stays on one line too
 
     def test_every_landable_key_has_help(self):
@@ -129,9 +129,7 @@ class TestCfgHelpCoverage:
             # entry[1] may be a dynamic callable (e.g. _list_ports); skip those.
             if isinstance(valid, str) and ("\n" in valid or len(valid) > self.VALID_MAX):
                 bad.append((key, len(valid)))
-        assert bad == [], (
-            f"help 'valid' hints must be one line (<= {self.VALID_MAX} chars): {bad}"
-        )
+        assert bad == [], f"help 'valid' hints must be one line (<= {self.VALID_MAX} chars): {bad}"
 
 
 class TestDefaultCfg:
@@ -258,7 +256,9 @@ class TestResolveColor:
         actual = resolve_color("lightorange")
 
         # Assert
-        assert actual in ("light_orange", COLOR_ALIASES["orange"]), "Rich resolves light_orange or falls back to orange hex"
+        assert actual in ("light_orange", COLOR_ALIASES["orange"]), (
+            "Rich resolves light_orange or falls back to orange hex"
+        )
 
     def test_dark_prefix_strips_to_base_alias(self):
         """darkorange, with no alias of its own, resolves via Rich or the orange base."""
@@ -267,7 +267,9 @@ class TestResolveColor:
         actual = resolve_color("darkorange")
 
         # Assert
-        assert actual in ("dark_orange", COLOR_ALIASES["orange"]), "Rich resolves dark_orange or falls back to orange hex"
+        assert actual in ("dark_orange", COLOR_ALIASES["orange"]), (
+            "Rich resolves dark_orange or falls back to orange hex"
+        )
 
 
 # -- _preview_color ----------------------------------------------------------

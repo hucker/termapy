@@ -68,10 +68,12 @@ auto-responders, or device simulators.
 from termapy.plugins import Command
 from termapy.protocol import get_crc_registry
 
+
 def _handler(ctx, args):
     crc = get_crc_registry()["crc16-xmodem"].compute(args.encode())
     ctx.serial_write(f"{args} {crc:04X}\n".encode())
     ctx.write(f"Sent: {args} {crc:04X}", "green")
+
 
 COMMAND = Command(
     name="crcsend",

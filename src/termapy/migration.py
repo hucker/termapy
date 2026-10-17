@@ -62,7 +62,7 @@ DEPRECATED_CFG: dict[str, str] = {
     # v16 -> v17: /include retired in favor of /profile.load cmd=
     "auto_include_on_connect": (
         "removed in v17 (/include retired); use mcp_on_connect_cmd="
-        "\"/profile.load cmd=<command>\" instead"
+        '"/profile.load cmd=<command>" instead'
     ),
     "device_json_cmd": (
         "removed in v17 (/include retired); use /profile.load cmd=<command> "
@@ -305,9 +305,7 @@ def _migrate_v16_to_v17(cfg: dict) -> dict:
         existing = cfg.get("mcp_on_connect_cmd", "") or ""
         # Avoid double-appending if the user already migrated by hand.
         if new_step not in existing:
-            cfg["mcp_on_connect_cmd"] = (
-                f"{existing}\n{new_step}" if existing.strip() else new_step
-            )
+            cfg["mcp_on_connect_cmd"] = f"{existing}\n{new_step}" if existing.strip() else new_step
     return cfg
 
 
@@ -386,7 +384,8 @@ def _rewrite_color_in_chain(text: str) -> str:
     if not isinstance(text, str) or "/color" not in text:
         return text
     return _COLOR_VERB_RE.sub(
-        r"\g<lead>\g<ws>/term.color\g<tail>", text,
+        r"\g<lead>\g<ws>/term.color\g<tail>",
+        text,
     )
 
 
@@ -438,8 +437,13 @@ MIGRATIONS[20] = _migrate_v20_to_v21
 # Module-level constant so the migration step, the deprecated-key
 # lookup, and any future audit code share one source of truth.
 _V22_SERIAL_KEYS = (
-    "port", "baud_rate", "custom_baud", "byte_size",
-    "parity", "stop_bits", "flow_control",
+    "port",
+    "baud_rate",
+    "custom_baud",
+    "byte_size",
+    "parity",
+    "stop_bits",
+    "flow_control",
 )
 
 
@@ -687,9 +691,7 @@ def _migrate_v29_to_v30(cfg: dict) -> dict:
         value = cfg.get(key)
         if not isinstance(value, str):
             continue
-        commands = [
-            line.strip() for line in value.replace("\\n", "\n").split("\n") if line.strip()
-        ]
+        commands = [line.strip() for line in value.replace("\\n", "\n").split("\n") if line.strip()]
         if len(commands) < 2:
             cfg[key] = commands[0] if commands else ""
             continue
@@ -738,10 +740,7 @@ def migrate_config(cfg: dict) -> dict:
             # docstring's ``literal`` markup, which a status line shows raw.
             doc = (fn.__doc__ or "").strip()
             summary = doc.splitlines()[0].strip().rstrip(".").replace("``", "") if doc else ""
-            label = (
-                f"v{v} -> v{v + 1}: {summary}" if summary
-                else f"v{v} -> v{v + 1}"
-            )
+            label = f"v{v} -> v{v + 1}: {summary}" if summary else f"v{v} -> v{v + 1}"
             steps.append(label)
         v += 1
     cfg["config_version"] = CURRENT_CONFIG_VERSION

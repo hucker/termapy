@@ -36,9 +36,7 @@ class VisualizerInfo:
     name: str
     description: str
     sort_order: int
-    format_columns: Callable[
-        [bytes], tuple[list[str], list[str]]
-    ]
+    format_columns: Callable[[bytes], tuple[list[str], list[str]]]
     diff_columns: Callable[
         [bytes, bytes, bytes],
         tuple[list[str], list[str], list[str], list[str]],
@@ -57,9 +55,7 @@ def builtins_viz_dir() -> Path:
     return Path(__file__).parent.parent / "builtins" / "viz"
 
 
-def load_visualizers_from_dir(
-    folder: Path, source: str = "global"
-) -> list[VisualizerInfo]:
+def load_visualizers_from_dir(folder: Path, source: str = "global") -> list[VisualizerInfo]:
     """Discover and load visualizer .py files from a directory.
 
     Each file must define ``NAME`` (str), ``format_columns(data)``, and
@@ -123,11 +119,7 @@ def _load_visualizer_file(path: Path, source: str) -> VisualizerInfo | None:
     fmt_cols = getattr(mod, "format_columns", None)
     diff_cols = getattr(mod, "diff_columns", None)
 
-    if (
-        not isinstance(name, str)
-        or not callable(fmt_cols)
-        or not callable(diff_cols)
-    ):
+    if not isinstance(name, str) or not callable(fmt_cols) or not callable(diff_cols):
         return None
 
     fmt_spec = getattr(mod, "format_spec", None)

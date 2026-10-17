@@ -126,7 +126,8 @@ def _exchange_factory(ctx: PluginContext, dialect: Dialect) -> Callable[[str], s
                 if remaining_ms <= 0:
                     break
                 chunk = ctx.serial.read_raw(
-                    timeout_ms=remaining_ms, frame_gap_ms=dialect.settle_ms,
+                    timeout_ms=remaining_ms,
+                    frame_gap_ms=dialect.settle_ms,
                 )
                 if not chunk:
                     break
@@ -180,16 +181,14 @@ def _engine(ctx: PluginContext) -> Memory | CmdResult:
     """
     info = _memory_info(ctx)
     cache = ctx.ns(MEMORY_NS)
-    if (
-        _profile_block(ctx) is None
-        and cache.get("queried")
-        and cache.get("device_info") is None
-    ):
-        return CmdResult.fail(msg=(
-            f"No memory interface on this device "
-            f"({cache.get('device_error', 'no MEM.INFO answer')}). "
-            f"Load a profile memory block or retry with {ctx.prefix}mem.info."
-        ))
+    if _profile_block(ctx) is None and cache.get("queried") and cache.get("device_info") is None:
+        return CmdResult.fail(
+            msg=(
+                f"No memory interface on this device "
+                f"({cache.get('device_error', 'no MEM.INFO answer')}). "
+                f"Load a profile memory block or retry with {ctx.prefix}mem.info."
+            )
+        )
     try:
         dialect = make_dialect(info, _profile_block(ctx))
     except ValueError as e:
@@ -198,7 +197,11 @@ def _engine(ctx: PluginContext) -> Memory | CmdResult:
 
 
 def _resolve(
-    ctx: PluginContext, target: str, *, suffix_ok: bool = False, reads: bool = False,
+    ctx: PluginContext,
+    target: str,
+    *,
+    suffix_ok: bool = False,
+    reads: bool = False,
 ) -> Address | CmdResult:
     """The address a token names, or the failure to return.
 
@@ -366,7 +369,9 @@ def _default_dump_len(parsed: Address) -> int:
 
 
 def _guard_bulk_read(
-    ctx: PluginContext, parsed: Address, length: int,
+    ctx: PluginContext,
+    parsed: Address,
+    length: int,
 ) -> CmdResult | None:
     """Refuse a multi-register read that reaches into peripheral space.
 
@@ -408,11 +413,13 @@ def _guard_bulk_read(
     # paying a MEM.INFO exchange on a device that may not answer one.  The
     # cost is hex_addr's default padding instead of the device's address
     # width -- zero-padding only, never a truncated address.
-    return CmdResult.fail(msg=(
-        f"Bulk read refused: {length} bytes at "
-        f"{hex_addr(parsed.addr)} covers {spans} device registers "
-        f"({names}); read one by name instead"
-    ))
+    return CmdResult.fail(
+        msg=(
+            f"Bulk read refused: {length} bytes at "
+            f"{hex_addr(parsed.addr)} covers {spans} device registers "
+            f"({names}); read one by name instead"
+        )
+    )
 
 
 def _named(parsed: Address) -> str:
@@ -421,7 +428,10 @@ def _named(parsed: Address) -> str:
 
 
 def _log_peripheral_read(
-    ctx: PluginContext, parsed: Address, length: int, bits: int,
+    ctx: PluginContext,
+    parsed: Address,
+    length: int,
+    bits: int,
 ) -> None:
     """Record a read that touched device registers, so it is never invisible.
 
@@ -443,8 +453,7 @@ def _log_peripheral_read(
     note = f" read_effect={','.join(effects)}" if effects else ""
     ctx.io.log(
         "#",
-        f"MEM.R {hex_addr(parsed.addr, bits)} len={length} "
-        f"regs={names}{note} origin={_origin()}",
+        f"MEM.R {hex_addr(parsed.addr, bits)} len={length} regs={names}{note} origin={_origin()}",
     )
 
 
@@ -470,7 +479,11 @@ def _do_modify(
 
 
 def _modify_record(
-    memory: Memory, word_addr: int, target: BitTarget, old: bytes, new: bytes,
+    memory: Memory,
+    word_addr: int,
+    target: BitTarget,
+    old: bytes,
+    new: bytes,
 ) -> dict[str, Any]:
     info = memory.info
     return {
@@ -551,14 +564,17 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
             if type_name:
                 record["values"] = decode_words(row.data, type_name, info.endian)
             records.append(record)
-        return CmdResult.ok(value=value, data={
-            "addr": parsed.addr,
-            "addr_hex": hex_addr(parsed.addr, bits),
-            "len": len(data),
-            "type": type_name or "u8",
-            "bytes_hex": value,
-            "rows": records,
-        })
+        return CmdResult.ok(
+            value=value,
+            data={
+                "addr": parsed.addr,
+                "addr_hex": hex_addr(parsed.addr, bits),
+                "len": len(data),
+                "type": type_name or "u8",
+                "bytes_hex": value,
+                "rows": records,
+            },
+        )
     # Cell width keeps columns aligned across rows (a short last row too).
     for row in rows:
         parts: list[str] = []
@@ -619,16 +635,19 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
             f"{raw_target} = {field_value}  (word 0x{word:0{digits}X} "
             f"at {hex_addr(word_addr, bits)})"
         )
-        return CmdResult.ok(value=str(field_value), data={
-            "target": raw_target,
-            "addr": word_addr,
-            "addr_hex": hex_addr(word_addr, bits),
-            "field": label,
-            "low": target.low,
-            "bits": target.bit_width,
-            "value": field_value,
-            "word": word,
-        })
+        return CmdResult.ok(
+            value=str(field_value),
+            data={
+                "target": raw_target,
+                "addr": word_addr,
+                "addr_hex": hex_addr(word_addr, bits),
+                "field": label,
+                "low": target.low,
+                "bits": target.bit_width,
+                "value": field_value,
+                "word": word,
+            },
+        )
 
     if not type_name and symbol is not None and parsed.offset == 0:
         if symbol.type in SCALARS or symbol.type == "char":
@@ -652,13 +671,16 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
                     for column in columns
                     if column.type_code in ("B", "b")
                 }
-                return CmdResult.ok(value=data.hex().upper(), data={
-                    "target": raw_target,
-                    "addr": symbol.addr,
-                    "addr_hex": hex_addr(symbol.addr, bits),
-                    "bytes_hex": data.hex().upper(),
-                    "fields": fields,
-                })
+                return CmdResult.ok(
+                    value=data.hex().upper(),
+                    data={
+                        "target": raw_target,
+                        "addr": symbol.addr,
+                        "addr_hex": hex_addr(symbol.addr, bits),
+                        "bytes_hex": data.hex().upper(),
+                        "fields": fields,
+                    },
+                )
     if not type_name:
         return CmdResult.fail(
             msg="Type required: /mem.read <target> <type> "
@@ -673,11 +695,17 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
     if type_name == "char":
         byte = data[0]
         ctx.io.result(f"{raw_target} = {render_char(byte)}")
-        return CmdResult.ok(value=str(byte), data={
-            "target": raw_target, "addr": parsed.addr,
-            "addr_hex": hex_addr(parsed.addr, bits), "type": "char",
-            "value": byte, "char": chr(byte) if 0x20 <= byte < 0x7F else "",
-        })
+        return CmdResult.ok(
+            value=str(byte),
+            data={
+                "target": raw_target,
+                "addr": parsed.addr,
+                "addr_hex": hex_addr(parsed.addr, bits),
+                "type": "char",
+                "value": byte,
+                "char": chr(byte) if 0x20 <= byte < 0x7F else "",
+            },
+        )
     scalar = decode_scalar(data, type_name, info.endian)
     shown = f"{scalar:.6g}" if isinstance(scalar, float) else str(scalar)
     # The hex twin is the DECODED value, not the raw bytes: on a
@@ -685,15 +713,23 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
     # exactly the wrong thing to show for a register.  Signed types are
     # masked to the width so an i32 reads as two's complement (0xFFFFFFFE)
     # rather than -0x2.
-    tail = "" if isinstance(scalar, float) else (
-        f"  (0x{scalar & ((1 << (len(data) * 8)) - 1):0{len(data) * 2}X})"
+    tail = (
+        ""
+        if isinstance(scalar, float)
+        else (f"  (0x{scalar & ((1 << (len(data) * 8)) - 1):0{len(data) * 2}X})")
     )
     ctx.io.result(f"{raw_target} = {shown}{tail}")
-    return CmdResult.ok(value=shown, data={
-        "target": raw_target, "addr": parsed.addr,
-        "addr_hex": hex_addr(parsed.addr, bits), "type": type_name,
-        "value": scalar, "bytes_hex": data.hex().upper(),
-    })
+    return CmdResult.ok(
+        value=shown,
+        data={
+            "target": raw_target,
+            "addr": parsed.addr,
+            "addr_hex": hex_addr(parsed.addr, bits),
+            "type": type_name,
+            "value": scalar,
+            "bytes_hex": data.hex().upper(),
+        },
+    )
 
 
 def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
@@ -725,8 +761,7 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
         old, new = outcome
         word_addr = parsed.addr + target.offset
         ctx.io.result(
-            f"Set {raw_target} = {value}  "
-            f"({_word_change(old, new, target.width, info.byte_order)})"
+            f"Set {raw_target} = {value}  ({_word_change(old, new, target.width, info.byte_order)})"
         )
         record = _modify_record(memory, word_addr, target, old, new)
         record["value"] = value
@@ -753,20 +788,20 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
     _audit(ctx, "MEM.W", parsed, parsed.addr, before, data, bits)
-    was = (
-        f"was {before.hex().upper()}" if before is not None
-        else f"not read first: {skipped}"
-    )
+    was = f"was {before.hex().upper()}" if before is not None else f"not read first: {skipped}"
     ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}  ({was})")
-    return CmdResult.ok(value=str(count), data={
-        "addr": parsed.addr,
-        "addr_hex": hex_addr(parsed.addr, bits),
-        "count": count,
-        "before_hex": before.hex().upper() if before is not None else None,
-        "before_skipped": skipped,
-        "after_hex": data.hex().upper(),
-        "origin": _origin(),
-    })
+    return CmdResult.ok(
+        value=str(count),
+        data={
+            "addr": parsed.addr,
+            "addr_hex": hex_addr(parsed.addr, bits),
+            "count": count,
+            "before_hex": before.hex().upper() if before is not None else None,
+            "before_skipped": skipped,
+            "after_hex": data.hex().upper(),
+            "origin": _origin(),
+        },
+    )
 
 
 def _mask_width(parsed: Address, mask_text: str, default: int = 4) -> int:
@@ -776,8 +811,10 @@ def _mask_width(parsed: Address, mask_text: str, default: int = 4) -> int:
         return SCALARS[symbol.type][1]
     if symbol is not None and symbol.size in (1, 2, 4):
         return symbol.size
-    text = mask_text[2:] if mask_text[:2].lower() == "0x" else (
-        mask_text[:-1] if mask_text[-1:].lower() == "h" else ""
+    text = (
+        mask_text[2:]
+        if mask_text[:2].lower() == "0x"
+        else (mask_text[:-1] if mask_text[-1:].lower() == "h" else "")
     )
     if text:
         digits = len(text)
@@ -890,8 +927,11 @@ def _handler_not(ctx: PluginContext, args: str) -> CmdResult:
         f"({_word_change(old, new, width, info.byte_order)})"
     )
     record = _modify_record(
-        memory, parsed.addr, BitTarget(offset=0, width=width, low=0, bit_width=width * 8),
-        old, new,
+        memory,
+        parsed.addr,
+        BitTarget(offset=0, width=width, low=0, bit_width=width * 8),
+        old,
+        new,
     )
     record["op"] = "not"
     record["atomic"] = False
@@ -918,11 +958,13 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
         # Distinct spans, as in _guard_bulk_read: the verdict does not
         # change (any hit refuses), but the COUNT must not report a
         # mode-aliased register six times.
-        return CmdResult.fail(msg=(
-            f"String read refused: the scan from {hex_addr(parsed.addr)} "
-            f"can reach {distinct_spans(hit)} device register(s) "
-            f"(first {hit[0].symbol.name}); registers are not strings"
-        ))
+        return CmdResult.fail(
+            msg=(
+                f"String read refused: the scan from {hex_addr(parsed.addr)} "
+                f"can reach {distinct_spans(hit)} device register(s) "
+                f"(first {hit[0].symbol.name}); registers are not strings"
+            )
+        )
     memory = _engine(ctx)
     if isinstance(memory, CmdResult):
         return memory
@@ -947,13 +989,16 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
     bits = memory.info.address_bits
     suffix = "  ... (truncated)" if truncated else ""
     ctx.io.result(f'{_where(parsed, bits)}  "{escape_text(text)}"{suffix}')
-    return CmdResult.ok(value=text, data={
-        "addr": parsed.addr,
-        "addr_hex": hex_addr(parsed.addr, bits),
-        "length": len(collected),
-        "text": text,
-        "truncated": truncated,
-    })
+    return CmdResult.ok(
+        value=text,
+        data={
+            "addr": parsed.addr,
+            "addr_hex": hex_addr(parsed.addr, bits),
+            "length": len(collected),
+            "text": text,
+            "truncated": truncated,
+        },
+    )
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
@@ -1032,14 +1077,14 @@ _LONG_HELP: Final[str] = (
     "Reads and writes device memory.  Native firmware implements the\n"
     "termapy MEM spec (see /help memory):\n"
     "\n"
-    "  MEM.R <addr> <len>      -> rows \"<ADDR>: <XX XX ...>\" then OK\n"
+    '  MEM.R <addr> <len>      -> rows "<ADDR>: <XX XX ...>" then OK\n'
     "  MEM.W <addr> <hex>      -> OK\n"
     "  MEM.M <addr> <and> <or> -> the old word, then OK   (atomic masked write)\n"
     "  MEM.INFO                -> one JSON line then OK\n"
     "  any failure             -> ERR <reason>\n"
     "\n"
     "A device with its own peek/poke grammar is described by the profile's\n"
-    "\"memory\" block (dialect template).  Targets take every /sym form plus\n"
+    '"memory" block (dialect template).  Targets take every /sym form plus\n'
     "bits: gTemp, main+0x10, U1MODE.ON, gFlags.4-6, 0x1000.15.  Bit and\n"
     "mask writes use the device's atomic MEM.M when advertised, else a\n"
     "read + write-back that can race an ISR (xor always does).\n"
@@ -1075,13 +1120,21 @@ COMMAND = Command(
     sub_commands={
         "dump": Command(
             params=[
-                ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
                 ParamSpec(
-                    "len", "str", positional=True, default="",
+                    "target", "str", positional=True, required=True, help="address or symbol"
+                ),
+                ParamSpec(
+                    "len",
+                    "str",
+                    positional=True,
+                    default="",
                     help="bytes to read: decimal, 0x hex, or Nh (default: the symbol's size, else 64)",
                 ),
                 ParamSpec(
-                    "type", "str", positional=True, default="",
+                    "type",
+                    "str",
+                    positional=True,
+                    default="",
                     help="u8 (default) | u16/u32/u64 hex words | i8..i64 | f32/f64",
                 ),
                 ParamSpec("addr", "bool", default=True, help="address column"),
@@ -1095,11 +1148,17 @@ COMMAND = Command(
         "read": Command(
             params=[
                 ParamSpec(
-                    "target", "str", positional=True, required=True,
+                    "target",
+                    "str",
+                    positional=True,
+                    required=True,
                     help="address, symbol, field (U1MODE.ON), bit (.15) or slice (.4-6)",
                 ),
                 ParamSpec(
-                    "type", "str", positional=True, default="",
+                    "type",
+                    "str",
+                    positional=True,
+                    default="",
                     help="u8..u64, i8..i64, f32, f64, char (default: the symbol's type)",
                 ),
             ],
@@ -1111,11 +1170,18 @@ COMMAND = Command(
         "write": Command(
             params=[
                 ParamSpec(
-                    "target", "str", positional=True, required=True,
+                    "target",
+                    "str",
+                    positional=True,
+                    required=True,
                     help="address or symbol; with .field/.bit the value is masked in",
                 ),
                 ParamSpec(
-                    "hex", "str", positional=True, required=True, rest=True,
+                    "hex",
+                    "str",
+                    positional=True,
+                    required=True,
+                    rest=True,
                     help="hex bytes, or the field value for a .suffix target",
                 ),
             ],
@@ -1126,7 +1192,9 @@ COMMAND = Command(
         ),
         "or": Command(
             params=[
-                ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
+                ParamSpec(
+                    "target", "str", positional=True, required=True, help="address or symbol"
+                ),
                 ParamSpec("mask", "str", positional=True, required=True, help="bits to set"),
             ],
             help="OR a mask into one word (atomic via MEM.M when available).",
@@ -1136,7 +1204,9 @@ COMMAND = Command(
         ),
         "and": Command(
             params=[
-                ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
+                ParamSpec(
+                    "target", "str", positional=True, required=True, help="address or symbol"
+                ),
                 ParamSpec("mask", "str", positional=True, required=True, help="bits to keep"),
             ],
             help="AND a mask into one word (atomic via MEM.M when available).",
@@ -1146,7 +1216,9 @@ COMMAND = Command(
         ),
         "xor": Command(
             params=[
-                ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
+                ParamSpec(
+                    "target", "str", positional=True, required=True, help="address or symbol"
+                ),
                 ParamSpec("mask", "str", positional=True, required=True, help="bits to flip"),
             ],
             help="XOR a mask into one word (always read + write-back).",
@@ -1156,7 +1228,9 @@ COMMAND = Command(
         ),
         "clear": Command(
             params=[
-                ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
+                ParamSpec(
+                    "target", "str", positional=True, required=True, help="address or symbol"
+                ),
                 ParamSpec("mask", "str", positional=True, required=True, help="bits to clear"),
             ],
             help="Clear mask bits in one word: word &= ~mask (atomic via MEM.M when available).",
@@ -1166,7 +1240,9 @@ COMMAND = Command(
         ),
         "not": Command(
             params=[
-                ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
+                ParamSpec(
+                    "target", "str", positional=True, required=True, help="address or symbol"
+                ),
             ],
             help="Invert one word (always read + write-back).",
             handler=_handler_not,
@@ -1175,9 +1251,14 @@ COMMAND = Command(
         ),
         "str": Command(
             params=[
-                ParamSpec("target", "str", positional=True, required=True, help="address or symbol"),
                 ParamSpec(
-                    "max", "str", positional=True, default=str(_DEFAULT_STR_MAX),
+                    "target", "str", positional=True, required=True, help="address or symbol"
+                ),
+                ParamSpec(
+                    "max",
+                    "str",
+                    positional=True,
+                    default=str(_DEFAULT_STR_MAX),
                     help="byte cap when no NUL is found",
                 ),
             ],

@@ -96,9 +96,7 @@ class TestBuildTree:
         # a child of its device, NOT another hub tier, so it can never be
         # confused with a device plugged into a hub at the same path.
         actual = [child.interface_number for child in composite.children]
-        assert actual == ["0", "1"], (
-            f"both interfaces hang off the device at 1-8.4; got {actual}"
-        )
+        assert actual == ["0", "1"], f"both interfaces hang off the device at 1-8.4; got {actual}"
         assert all(child.path == "1-8.4" for child in composite.children), (
             "an interface keeps its device's path -- it is not a deeper tier"
         )
@@ -278,8 +276,14 @@ class TestJsonRecords:
 
         # Assert -- fixed shape so consumers can rely on it.
         expected_keys = {
-            "path", "interface_number", "description", "vid_pid",
-            "serial_number", "driver", "port", "children",
+            "path",
+            "interface_number",
+            "description",
+            "vid_pid",
+            "serial_number",
+            "driver",
+            "port",
+            "children",
         }
         assert set(records[0]) == expected_keys, (
             f"every documented field present; got {sorted(records[0])}"
@@ -441,11 +445,16 @@ def _fake_sysfs(root):
     Names are the real sysfs spelling: ``usb1`` for a root hub, ``1-8.2``
     for a device, ``1-8.2:1.0`` for one of its interfaces.
     """
-    _sysfs(root, "usb1", product="xHCI Host Controller",
-           idVendor="1d6b", idProduct="0002")
+    _sysfs(root, "usb1", product="xHCI Host Controller", idVendor="1d6b", idProduct="0002")
     _sysfs(root, "1-8", product="USB2.0 Hub", idVendor="2109", idProduct="2817")
-    _sysfs(root, "1-8.2", product="FT232R USB UART", idVendor="0403",
-           idProduct="6001", serial="BG03U7VTA")
+    _sysfs(
+        root,
+        "1-8.2",
+        product="FT232R USB UART",
+        idVendor="0403",
+        idProduct="6001",
+        serial="BG03U7VTA",
+    )
     _sysfs(root, "1-8.4", product="PICkit5", idVendor="04d8", idProduct="9036")
     _sysfs(root, "1-8.2:1.0", interface="FT232R USB UART")
     _sysfs(root, "1-8.4:1.0", interface="PICkit debug")
@@ -455,7 +464,7 @@ def _fake_sysfs(root):
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="a sysfs interface directory is named '1-8.2:1.0', and Windows "
-           "will not create a filename containing a colon",
+    "will not create a filename containing a colon",
 )
 class TestLinuxSysfsBackend:
     """The sysfs parse, against a synthesized tree.
@@ -482,8 +491,7 @@ class TestLinuxSysfsBackend:
             f"a colon means interface, no colon means device; got {devices}"
         )
         interfaces = sorted(
-            (r.path, r.interface_number) for r in records
-            if r.interface_number is not None
+            (r.path, r.interface_number) for r in records if r.interface_number is not None
         )
         assert interfaces == [("1-8.2", "0"), ("1-8.4", "0"), ("1-8.4", "1")], (
             f"the interface number is the part after the dot; got {interfaces}"
@@ -511,14 +519,12 @@ class TestLinuxSysfsBackend:
 
         # Act
         adapter = next(
-            r for r in _linux_records(root)
-            if r.path == "1-8.2" and r.interface_number is None
+            r for r in _linux_records(root) if r.path == "1-8.2" and r.interface_number is None
         )
 
         # Assert
         assert adapter.vid_pid == "0403:6001", (
-            f"idVendor/idProduct are lowercase in sysfs and shown upper; "
-            f"got {adapter.vid_pid!r}"
+            f"idVendor/idProduct are lowercase in sysfs and shown upper; got {adapter.vid_pid!r}"
         )
         assert adapter.serial == "BG03U7VTA", f"got {adapter.serial!r}"
         assert adapter.description == "FT232R USB UART", f"got {adapter.description!r}"
@@ -552,8 +558,7 @@ class TestLinuxSysfsBackend:
 
         # Act
         interface = next(
-            r for r in _linux_records(root)
-            if r.path == "1-8.2" and r.interface_number == "0"
+            r for r in _linux_records(root) if r.path == "1-8.2" and r.interface_number == "0"
         )
 
         # Assert -- the basename of the link target is the driver name.

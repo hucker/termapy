@@ -51,7 +51,6 @@ def _run(host: MCPHost, line: str, *, confirm: bool = False) -> dict:
 
 
 class TestCommandDeclaration:
-
     def test_default_tier_is_safe(self):
         """Command and PluginInfo both fall back to the safe tier when none is declared."""
         assert Command("Help text", name="x").safety == "safe", "commands are safe unless declared"
@@ -65,7 +64,8 @@ class TestCommandDeclaration:
     def test_tier_survives_plugin_loading(self, tmp_path):
         """The loader carries both root and subcommand tiers from a plugin file into PluginInfo."""
         # Arrange -- a plugin file declaring a destructive subcommand
-        (tmp_path / "boom.py").write_text(textwrap.dedent('''
+        (tmp_path / "boom.py").write_text(
+            textwrap.dedent("""
             from termapy.plugins import CmdResult, Command
 
             def _go(ctx, args):
@@ -76,7 +76,9 @@ class TestCommandDeclaration:
                 "Boom.", name="boom", handler=_go, safety="readonly",
                 sub_commands={"now": Command("Now.", handler=_go, safety="destructive")},
             )
-        '''), encoding="utf-8")
+        """),
+            encoding="utf-8",
+        )
 
         # Act
         loaded = {info.name: info for info in load_plugins_from_dir(tmp_path, "test").plugins}
@@ -87,7 +89,6 @@ class TestCommandDeclaration:
 
 
 class TestMcpGate:
-
     def test_destructive_refused_without_confirm(self, host):
         """No confirm -> the same structured refusal a destructive device command gets."""
         # Act
@@ -95,7 +96,9 @@ class TestMcpGate:
 
         # Assert -- the same shape _dispatch_via_profile returns for a device command
         assert result["success"] is False, "refused"
-        assert "Confirmation required: '/zap' is destructive" in result["error"], "names the command"
+        assert "Confirmation required: '/zap' is destructive" in result["error"], (
+            "names the command"
+        )
         assert result["value"]["needs_confirmation"] is True, "machine-readable marker"
         assert result["value"]["safety"] == "destructive", "the tier is reported"
 
@@ -117,15 +120,17 @@ class TestMcpGate:
         result = _run(host, "/mem.write gTemp 1B00")
 
         # Assert
-        assert result["value"]["needs_confirmation"] is True, "/mem.write pokes memory: confirm first"
+        assert result["value"]["needs_confirmation"] is True, (
+            "/mem.write pokes memory: confirm first"
+        )
         assert result["value"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
 
     def test_mem_dump_is_not_gated(self, host):
         """Readonly /mem.dump never asks for confirm; with no port it fails on that instead."""
         result = _run(host, "/mem.dump gTemp")
-        assert not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"], (
-            "a readonly command never asks for confirmation (it fails on 'not connected' instead)"
-        )
+        assert (
+            not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"]
+        ), "a readonly command never asks for confirmation (it fails on 'not connected' instead)"
 
     def test_safe_command_ignores_confirm(self, host):
         """A safe command like /help runs without confirm=true."""
@@ -139,13 +144,12 @@ class TestMcpGate:
         result = _run(host, "AT")
 
         # Assert
-        assert not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"], (
-            "the Command.safety gate only looks at slash commands"
-        )
+        assert (
+            not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"]
+        ), "the Command.safety gate only looks at slash commands"
 
 
 class TestCatalog:
-
     def test_tier_exposed_like_device_commands(self, host):
         """The catalog shows a non-safe tier on its entry and omits the key for safe commands."""
         # Act

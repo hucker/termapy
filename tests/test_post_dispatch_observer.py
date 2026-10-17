@@ -36,7 +36,9 @@ def engine(tmp_path):
         (config_path.parent / sub).mkdir(exist_ok=True)
     output: list = []
     eng = ReplEngine(
-        cfg, str(config_path), lambda t, c=None: output.append((t, c)),
+        cfg,
+        str(config_path),
+        lambda t, c=None: output.append((t, c)),
     )
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
@@ -49,9 +51,7 @@ class TestPostDispatchObserver:
         """An observer receives the raw line and the successful result after dispatch."""
         # Arrange
         seen: list[tuple[str, bool]] = []
-        engine.add_post_dispatch_observer(
-            lambda line, result: seen.append((line, result.success))
-        )
+        engine.add_post_dispatch_observer(lambda line, result: seen.append((line, result.success)))
 
         # Act -- /app.ver is a no-op safe command that succeeds without
         # requiring any capabilities, so the test engine's bare context
@@ -67,9 +67,7 @@ class TestPostDispatchObserver:
         """Failed dispatches reach observers too; each subscriber decides what to keep."""
         # Arrange -- an unknown command produces CmdResult.fail().
         seen: list[tuple[str, bool]] = []
-        engine.add_post_dispatch_observer(
-            lambda line, result: seen.append((line, result.success))
-        )
+        engine.add_post_dispatch_observer(lambda line, result: seen.append((line, result.success)))
 
         # Act
         engine.dispatch("definitely_not_a_command_xyz")
@@ -113,17 +111,13 @@ class TestPostDispatchObserver:
         # Assert -- dispatch returned cleanly AND the second observer
         # still fired despite the first one exploding.
         assert result.success, "dispatch completed despite broken observer"
-        assert good == ["app.ver"], (
-            "later observers still fire after an earlier one explodes"
-        )
+        assert good == ["app.ver"], "later observers still fire after an earlier one explodes"
 
     def test_remove_observer_stops_firing(self, engine):
         """After removal an observer sees no further dispatches."""
         # Arrange
         seen: list[str] = []
-        token = engine.add_post_dispatch_observer(
-            lambda line, _r: seen.append(line)
-        )
+        token = engine.add_post_dispatch_observer(lambda line, _r: seen.append(line))
 
         # Act
         engine.dispatch("app.ver")
@@ -147,21 +141,18 @@ class TestPostDispatchObserver:
         """An empty line still notifies observers, so /run.record keeps blank lines."""
         # Arrange -- empty dispatch (user typed just the prefix).
         seen: list[tuple[str, bool]] = []
-        engine.add_post_dispatch_observer(
-            lambda line, result: seen.append((line, result.success))
-        )
+        engine.add_post_dispatch_observer(lambda line, result: seen.append((line, result.success)))
 
         # Act
         engine.dispatch("")
 
         # Assert -- observer sees the empty line.  Important for the
         # recorder's "preserve blank lines for readability" behavior.
-        assert seen == [("", True)], (
-            f"observer fires for empty dispatch, got {seen}"
-        )
+        assert seen == [("", True)], f"observer fires for empty dispatch, got {seen}"
 
     def test_observer_token_is_the_callable_itself(self, engine):
         """The add token is the callable, so either reference deregisters it."""
+
         # Arrange / Act -- token returned by add_* IS the callable, so
         # remove_* can take either the original ref or the returned token.
         def _obs(_l, _r):

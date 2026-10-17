@@ -15,6 +15,7 @@ shaping) comes from crcglot, so there is nothing to keep in sync by hand.
 
 See ``project_crcglot_verbs_integration`` and ``docs/param-spec-implementation.md``.
 """
+
 from __future__ import annotations
 
 import json
@@ -48,8 +49,11 @@ def _input_group(verb: Any):
     and forwards it as the group's first member (e.g. ``packet_hex``).
     """
     return next(
-        (g for g in verb.mutually_exclusive
-         if g.required and any("packet" in param or "data" in param for param in g.params)),
+        (
+            g
+            for g in verb.mutually_exclusive
+            if g.required and any("packet" in param or "data" in param for param in g.params)
+        ),
         None,
     )
 
@@ -64,8 +68,11 @@ def _frames_param(verb: Any, group: Any) -> str | None:
     """
     if group is None:
         return None
-    arrays = [param.name for param in verb.params
-              if param.name in group.params and param.type == "array[string]"]
+    arrays = [
+        param.name
+        for param in verb.params
+        if param.name in group.params and param.type == "array[string]"
+    ]
     return arrays[0] if len(arrays) == 1 else None
 
 
@@ -95,36 +102,63 @@ def build_params(verb: Any) -> tuple[list[ParamSpec], dict[str, str], list[str]]
         input_map["frame"] = group.params[0]
         if frames_param:
             input_map["frames"] = frames_param
-            specs.append(ParamSpec(
-                name="frames", type="str", positional=True, variadic=True,
-                help="captured frame (payload + trailing CRC), as hex bytes",
-            ))
-            specs.append(ParamSpec(
-                name="frame", type="str", rest=True,
-                help=(
-                    "a single frame that contains spaces, e.g. frame=01 03 00 0a "
-                    "(must be the last argument)"
-                ),
-            ))
+            specs.append(
+                ParamSpec(
+                    name="frames",
+                    type="str",
+                    positional=True,
+                    variadic=True,
+                    help="captured frame (payload + trailing CRC), as hex bytes",
+                )
+            )
+            specs.append(
+                ParamSpec(
+                    name="frame",
+                    type="str",
+                    rest=True,
+                    help=(
+                        "a single frame that contains spaces, e.g. frame=01 03 00 0a "
+                        "(must be the last argument)"
+                    ),
+                )
+            )
         else:
-            specs.append(ParamSpec(
-                name="frame", type="str", positional=True, rest=True, required=True,
-                hint="<frame>",
-                help="captured frame (payload + trailing CRC), as hex bytes",
-            ))
+            specs.append(
+                ParamSpec(
+                    name="frame",
+                    type="str",
+                    positional=True,
+                    rest=True,
+                    required=True,
+                    hint="<frame>",
+                    help="captured frame (payload + trailing CRC), as hex bytes",
+                )
+            )
 
     skipped: list[str] = []
     for param in verb.params:
         if param.name in input_names:
             continue
         if param.choices:
-            specs.append(ParamSpec(
-                name=param.name, type="enum", values=_enum_values(param.choices),
-                default=param.default, help=param.help))
+            specs.append(
+                ParamSpec(
+                    name=param.name,
+                    type="enum",
+                    values=_enum_values(param.choices),
+                    default=param.default,
+                    help=param.help,
+                )
+            )
         elif param.type in _TYPE_MAP:
-            specs.append(ParamSpec(
-                name=param.name, type=_TYPE_MAP[param.type], required=param.required,
-                default=param.default, help=param.help))
+            specs.append(
+                ParamSpec(
+                    name=param.name,
+                    type=_TYPE_MAP[param.type],
+                    required=param.required,
+                    default=param.default,
+                    help=param.help,
+                )
+            )
         else:
             skipped.append(f"{param.name} ({param.type})")
     return specs, input_map, skipped

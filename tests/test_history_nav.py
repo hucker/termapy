@@ -59,9 +59,7 @@ class TestMergeHistory:
         actual = merge_history(["/from_file"], ["/mine"], 30)
 
         # Assert
-        assert actual == ["/from_file", "/mine"], (
-            "what this session typed must stay the first Up"
-        )
+        assert actual == ["/from_file", "/mine"], "what this session typed must stay the first Up"
 
     def test_a_shared_line_keeps_the_session_position(self):
         """A line in both lists appears once, at the newer slot the session gave it."""

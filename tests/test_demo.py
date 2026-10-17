@@ -153,6 +153,7 @@ class TestAsciiCommands:
     def test_help_json(self, dev: FakeSerial) -> None:
         """AT+HELP.JSON returns valid JSON with device commands."""
         import json as _json
+
         actual = _send_cmd(dev, "AT+HELP.JSON")
         data = _json.loads(actual)
         assert "commands" in data, "has commands wrapper"
@@ -171,6 +172,7 @@ class TestAsciiCommands:
         """AT+HELP is derived from the same descriptor as AT+HELP.JSON, so
         every cataloged command name appears in the text list (no drift)."""
         import json as _json
+
         catalog = _json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         text = _send_cmd(dev, "AT+HELP")
         missing = [name for name in catalog if name not in text]
@@ -311,11 +313,11 @@ class TestGpsNmea:
         """The NMEA checksum is the XOR of every byte between $ and *, in uppercase hex."""
         actual = _send_cmd(dev, "$GPGGA").strip()
         # Extract body between $ and *
-        body = actual[1:actual.rfind("*")]
+        body = actual[1 : actual.rfind("*")]
         expected_cs = 0
         for ch in body:
             expected_cs ^= ord(ch)
-        actual_cs = actual[actual.rfind("*") + 1:]
+        actual_cs = actual[actual.rfind("*") + 1 :]
         assert actual_cs == f"{expected_cs:02X}", "checksum matches"
 
     def test_pmtk_acknowledged(self, dev: FakeSerial) -> None:
@@ -342,6 +344,7 @@ class TestGpsNmea:
     def test_help_json_lists_gps(self, dev: FakeSerial) -> None:
         """AT+HELP.JSON includes GPS commands."""
         import json as _json
+
         cmds = _json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         assert "$GPGGA" in cmds, "GPS position fix in JSON"
         assert "$GPRMC" in cmds, "GPS nav data in JSON"
@@ -351,16 +354,12 @@ class TestGpsNmea:
 
 
 class TestModbus:
-    def _build_read_request(
-        self, slave_id: int, start_reg: int, num_regs: int
-    ) -> bytes:
+    def _build_read_request(self, slave_id: int, start_reg: int, num_regs: int) -> bytes:
         """Build a Modbus read holding registers request (func 0x03)."""
         payload = struct.pack(">BBH H", slave_id, 0x03, start_reg, num_regs)
         return _modbus_add_crc(payload)
 
-    def _build_write_request(
-        self, slave_id: int, reg_addr: int, value: int
-    ) -> bytes:
+    def _build_write_request(self, slave_id: int, reg_addr: int, value: int) -> bytes:
         """Build a Modbus write single register request (func 0x06)."""
         payload = struct.pack(">BBH H", slave_id, 0x06, reg_addr, value)
         return _modbus_add_crc(payload)
@@ -406,7 +405,7 @@ class TestModbus:
         """A frame with a bad CRC gets a 5-byte exception reply with the error bit set."""
         # Assign - valid frame but corrupt the CRC
         request = self._build_read_request(slave_id=1, start_reg=0, num_regs=1)
-        bad_request = request[:-2] + b"\xFF\xFF"
+        bad_request = request[:-2] + b"\xff\xff"
         # Act
         dev.write(bad_request)
         time.sleep(0.01)

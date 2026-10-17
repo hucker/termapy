@@ -277,10 +277,7 @@ def _var_state_line(ctx: PluginContext) -> str:
     dt = len(datetime_var_names())
     ctxv = len(context_vars())
     launch = len(launch_vars())
-    return green(
-        f"Currently defined: {user} user, {dt} datetime, "
-        f"{ctxv} context, {launch} launch"
-    )
+    return green(f"Currently defined: {user} user, {dt} datetime, {ctxv} context, {launch} launch")
 
 
 _VAR_PROSE = """\

@@ -150,13 +150,9 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
             }
         )
     if line_ending is not None:
-        ctx.serial.apply_port_effects(
-            {"cfg_update": {"eol": line_ending}}
-        )
+        ctx.serial.apply_port_effects({"cfg_update": {"eol": line_ending}})
     if echo is not None:
-        ctx.serial.apply_port_effects(
-            {"cfg_update": {"echo": echo}}
-        )
+        ctx.serial.apply_port_effects({"cfg_update": {"echo": echo}})
     # The port not opening (bad name, in use, ...) raises its reason, which
     # is this command's failure.  A /port.connect issued while already
     # connected only re-applies the cfg settings above; that is not a failure.
@@ -249,12 +245,20 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value="Count=0")
 
     records = [
-        {"vid_pid": f"{vid:04X}:{pid:04X}", "model": info.model,
-         "speed": info.speed, "max_baud": info.max_baud}
+        {
+            "vid_pid": f"{vid:04X}:{pid:04X}",
+            "model": info.model,
+            "speed": info.speed,
+            "max_baud": info.max_baud,
+        }
         for vid, pid, info in rows
     ]
     return CmdResult.table(
-        "USB-serial chips", "chip", _CHIP_COLUMNS, records, value=f"Count={len(records)}",
+        "USB-serial chips",
+        "chip",
+        _CHIP_COLUMNS,
+        records,
+        value=f"Count={len(records)}",
     )
 
 
@@ -276,7 +280,9 @@ def _make_chip_field_handler(field: str):
     """
     columns = (
         Column("DEVICE", lambda record: record["device"] or "?"),
-        Column(field.upper(), lambda record: "n/a" if record[field] is None else str(record[field])),
+        Column(
+            field.upper(), lambda record: "n/a" if record[field] is None else str(record[field])
+        ),
     )
 
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -287,10 +293,14 @@ def _make_chip_field_handler(field: str):
             if not records:
                 ctx.io.output("No serial ports found", "yellow")
                 return CmdResult.ok(value="")
-            lines = "\n".join(f"{record['device']}: {columns[1].cell(record)}" for record in records)
+            lines = "\n".join(
+                f"{record['device']}: {columns[1].cell(record)}" for record in records
+            )
             # The data maps each device to its value, so a consumer looks a port up.
             by_device = {str(record["device"]): record[field] for record in records}
-            return CmdResult.table(f"Chip {field}", "port", columns, records, value=lines, data=by_device)
+            return CmdResult.table(
+                f"Chip {field}", "port", columns, records, value=lines, data=by_device
+            )
         result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)
         # Single-port single-field call: return value via CmdResult.value
@@ -507,15 +517,15 @@ COMMAND = Command(
                 "Syntax: {prefix}port.connect [name|port=name] [baud] [mode] [cr|lf|crlf] [echo|noecho]\n"
                 "\n"
                 "  name         Port device or USB serial number. A bare name\n"
-                "               MUST come first. Falls back to cfg[\"port\"].\n"
+                '               MUST come first. Falls back to cfg["port"].\n'
                 "  port=name    Explicit port; may go anywhere. Use it for a\n"
                 "               purely-numeric serial number (e.g. port=0001),\n"
                 "               which a bare token would read as a baud rate.\n"
                 "  baud         Baud rate (e.g. 9600, 115200).\n"
                 "  mode         Frame; either field order -- 8N1 or N81, 7E2\n"
                 "               or E72. Parity: N/E/O/M/S.\n"
-                "  cr|lf|crlf   Line ending. Stored as cfg[\"eol\"].\n"
-                "  echo|noecho  Toggle cfg[\"echo\"].\n"
+                '  cr|lf|crlf   Line ending. Stored as cfg["eol"].\n'
+                '  echo|noecho  Toggle cfg["echo"].\n'
                 "\n"
                 "Tokens after name are order-independent. Mutations are\n"
                 "session-only -- edit the config file to persist.\n"

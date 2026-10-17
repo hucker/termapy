@@ -99,8 +99,14 @@ _COL_SEP = "  "
 #   - interface_number drops just before location: it qualifies the
 #     path, so the path is the more useful of the two to keep.
 DROP_ORDER: tuple[str, ...] = (
-    "speed", "chip", "vid_pid", "driver", "vendor", "sn",
-    "interface_number", "location",
+    "speed",
+    "chip",
+    "vid_pid",
+    "driver",
+    "vendor",
+    "sn",
+    "interface_number",
+    "location",
 )
 
 
@@ -305,6 +311,7 @@ def compute_widths(
     surviving-column tuple through the header / row formatters so
     dropped columns disappear from both the header and the data rows.
     """
+
     def _natural_widths(cols: tuple[str, ...]) -> dict:
         return {
             col: max(
@@ -364,9 +371,7 @@ def format_header(
     columns: tuple[str, ...] = PORT_COLUMNS,
 ) -> tuple[str, str]:
     """Return ``(header_line, separator_line)`` for the port table header."""
-    header = _COL_SEP.join(
-        COLUMN_HEADERS[column].ljust(widths[column]) for column in columns
-    )
+    header = _COL_SEP.join(COLUMN_HEADERS[column].ljust(widths[column]) for column in columns)
     separator = _COL_SEP.join("-" * widths[column] for column in columns)
     return header, separator
 
@@ -390,6 +395,7 @@ def format_row(
     preserve when we have to cut.  The full value is always available
     via ``/port.chip.serial``.
     """
+
     def _fit_head(value: str, width: int) -> str:
         if len(value) <= width:
             return value.ljust(width)
@@ -402,14 +408,12 @@ def format_row(
             return value.ljust(width)
         if width <= 3:
             return "..."[:width].ljust(width)
-        return ("..." + value[-(width - 3):]).ljust(width)
+        return ("..." + value[-(width - 3) :]).ljust(width)
 
     def _fit(col: str, value: str, width: int) -> str:
         return _fit_tail(value, width) if col == "sn" else _fit_head(value, width)
 
-    return _COL_SEP.join(
-        _fit(column, row[column], widths[column]) for column in columns
-    )
+    return _COL_SEP.join(_fit(column, row[column], widths[column]) for column in columns)
 
 
 def format_table(

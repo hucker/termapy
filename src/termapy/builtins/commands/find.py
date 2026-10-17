@@ -64,9 +64,7 @@ def current_state() -> dict | None:
     if _active is None:
         return None
     total = len(_active.matches)
-    line_no, snippet = (
-        _active.matches[_active.current] if total else (None, "")
-    )
+    line_no, snippet = _active.matches[_active.current] if total else (None, "")
     return {
         "pattern": _active.pattern,
         "total": total,
@@ -115,8 +113,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if err is not None:
         if "No scrollback" in err:
             return CmdResult.fail(
-                msg="Find not available: no scrollback in CLI mode "
-                "(try /grep instead)",
+                msg="Find not available: no scrollback in CLI mode (try /grep instead)",
             )
         if "Pattern required" in err:
             raise UsageError("Pattern required")
@@ -135,7 +132,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         )
 
     _active = _Active(
-        pattern=pattern, matches=matches, current=0,
+        pattern=pattern,
+        matches=matches,
+        current=0,
         scrollback_text=text,
     )
     _refresh(ctx)
@@ -199,9 +198,7 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
     try:
         n = int(raw)
     except ValueError:
-        raise UsageError(
-            f"Invalid count: {raw!r}  (current = {_max_count})"
-        ) from None
+        raise UsageError(f"Invalid count: {raw!r}  (current = {_max_count})") from None
     if n < 1:
         return CmdResult.fail(msg="Max count must be >= 1")
     _max_count = n

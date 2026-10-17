@@ -141,13 +141,16 @@ def build_tree(records: list[UsbRecord]) -> list[UsbNode]:
         if record.interface_number is None:
             # A duplicate path means the backend reported the same device
             # twice; first wins rather than growing a second subtree.
-            devices.setdefault(record.path, UsbNode(
-                path=record.path,
-                description=record.description,
-                vid_pid=record.vid_pid,
-                serial=record.serial,
-                driver=record.driver,
-            ))
+            devices.setdefault(
+                record.path,
+                UsbNode(
+                    path=record.path,
+                    description=record.description,
+                    vid_pid=record.vid_pid,
+                    serial=record.serial,
+                    driver=record.driver,
+                ),
+            )
         else:
             interfaces.append(record)
 
@@ -158,14 +161,16 @@ def build_tree(records: list[UsbRecord]) -> list[UsbNode]:
             # device so the interface still appears somewhere sensible.
             parent = UsbNode(path=record.path)
             devices[record.path] = parent
-        parent.children.append(UsbNode(
-            path=record.path,
-            interface_number=record.interface_number,
-            description=record.description,
-            vid_pid=record.vid_pid,
-            serial=record.serial,
-            driver=record.driver,
-        ))
+        parent.children.append(
+            UsbNode(
+                path=record.path,
+                interface_number=record.interface_number,
+                description=record.description,
+                vid_pid=record.vid_pid,
+                serial=record.serial,
+                driver=record.driver,
+            )
+        )
 
     roots: list[UsbNode] = []
     for path in sorted(devices, key=_sort_key):
@@ -253,10 +258,7 @@ def render_tree(roots: list[UsbNode], label_width: int = 0) -> list[str]:
     if not roots:
         return ["(no USB devices found)"]
     if not label_width:
-        label_width = max(
-            len(prefix) + len(node.label)
-            for prefix, node in _flatten(roots)
-        )
+        label_width = max(len(prefix) + len(node.label) for prefix, node in _flatten(roots))
     lines = []
     for prefix, node in _flatten(roots):
         left = f"{prefix}{node.label}".ljust(label_width)
@@ -332,9 +334,7 @@ def _ascii_fold(text: str) -> str:
     # sign into the letters "TM", so "PICkit(TM)5" would come out
     # "PICkitTM5".  Dropping them outright reads the way the name is
     # meant to be said.
-    without_symbols = "".join(
-        char for char in text if unicodedata.category(char) != "So"
-    )
+    without_symbols = "".join(char for char in text if unicodedata.category(char) != "So")
     decomposed = unicodedata.normalize("NFKD", without_symbols)
     plain = decomposed.encode("ascii", "ignore").decode("ascii")
     return re.sub(r"\s{2,}", " ", plain).strip()
@@ -363,9 +363,7 @@ def _windows_records() -> list[UsbRecord]:
     try:
         root = winreg.OpenKey(
             winreg.HKEY_LOCAL_MACHINE,
-            _DEVICE_ID_SEP.join(
-                ["SYSTEM", "CurrentControlSet", "Enum", "USB"]
-            ),
+            _DEVICE_ID_SEP.join(["SYSTEM", "CurrentControlSet", "Enum", "USB"]),
         )
     except OSError:
         return []
@@ -397,16 +395,16 @@ def _windows_records() -> list[UsbRecord]:
                     except OSError:
                         continue
                     with node:
-                        records.append(UsbRecord(
-                            path=path,
-                            interface_number=number,
-                            description=_clean_desc(
-                                _reg_value(winreg, node, "DeviceDesc")
-                            ),
-                            vid_pid=_vid_pid_from_hwid(hwid),
-                            serial=inst if _looks_like_serial(inst) else None,
-                            driver=_reg_value(winreg, node, "Service"),
-                        ))
+                        records.append(
+                            UsbRecord(
+                                path=path,
+                                interface_number=number,
+                                description=_clean_desc(_reg_value(winreg, node, "DeviceDesc")),
+                                vid_pid=_vid_pid_from_hwid(hwid),
+                                serial=inst if _looks_like_serial(inst) else None,
+                                driver=_reg_value(winreg, node, "Service"),
+                            )
+                        )
     return records
 
 
@@ -482,20 +480,24 @@ def _linux_records(root: str = SYSFS_USB_ROOT) -> list[UsbRecord]:
         if not path or not re.match(r"^\d+(-[\d.]+)?$", path):
             continue
         if number is None:
-            records.append(UsbRecord(
-                path=path,
-                description=_read(node, "product") or _read(node, "manufacturer"),
-                vid_pid=_linux_vid_pid(node),
-                serial=_read(node, "serial"),
-                driver=_link_name(os.path.join(node, "driver")),
-            ))
+            records.append(
+                UsbRecord(
+                    path=path,
+                    description=_read(node, "product") or _read(node, "manufacturer"),
+                    vid_pid=_linux_vid_pid(node),
+                    serial=_read(node, "serial"),
+                    driver=_link_name(os.path.join(node, "driver")),
+                )
+            )
         else:
-            records.append(UsbRecord(
-                path=path,
-                interface_number=number,
-                description=_read(node, "interface"),
-                driver=_link_name(os.path.join(node, "driver")),
-            ))
+            records.append(
+                UsbRecord(
+                    path=path,
+                    interface_number=number,
+                    description=_read(node, "interface"),
+                    driver=_link_name(os.path.join(node, "driver")),
+                )
+            )
     return records
 
 
@@ -553,8 +555,7 @@ def gather_usb_tree(
         records = _linux_records()
     else:
         raise UnsupportedPlatform(
-            f"USB tree is not available on {sys.platform} "
-            "(Windows and Linux only)"
+            f"USB tree is not available on {sys.platform} (Windows and Linux only)"
         )
     roots = build_tree(records)
     if facts_list is None:

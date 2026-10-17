@@ -21,17 +21,19 @@ class TestShutdownRaceMembership:
         """NoMatches from a torn-down widget query is a tolerated teardown race."""
         # NoMatches is what query_one raises when a widget is gone -- the
         # most common shutdown-race exception in termapy.
-        assert NoMatches in SHUTDOWN_RACE, \
-            "NoMatches must be in SHUTDOWN_RACE so query_one failures " \
+        assert NoMatches in SHUTDOWN_RACE, (
+            "NoMatches must be in SHUTDOWN_RACE so query_one failures "
             "during teardown are quietly swallowed"
+        )
 
     def test_contains_runtime_error(self):
         """RuntimeError from call_from_thread on a closing loop is tolerated."""
         # RuntimeError is raised by call_from_thread when the event
         # loop is shutting down.
-        assert RuntimeError in SHUTDOWN_RACE, \
-            "RuntimeError must be in SHUTDOWN_RACE so call_from_thread " \
+        assert RuntimeError in SHUTDOWN_RACE, (
+            "RuntimeError must be in SHUTDOWN_RACE so call_from_thread "
             "failures during teardown are quietly swallowed"
+        )
 
     def test_does_not_contain_generic_exception(self):
         """Bare Exception stays out of the tuple so real bugs are never swallowed."""
@@ -39,9 +41,9 @@ class TestShutdownRaceMembership:
         # exceptions -- real bugs should propagate.  If Exception ever
         # ends up in the tuple (e.g. someone 'cleaning up' the types),
         # we've regressed back to the bug we were trying to fix.
-        assert Exception not in SHUTDOWN_RACE, \
-            "Generic Exception must NOT be in SHUTDOWN_RACE or we'd be " \
-            "silencing real bugs again"
+        assert Exception not in SHUTDOWN_RACE, (
+            "Generic Exception must NOT be in SHUTDOWN_RACE or we'd be silencing real bugs again"
+        )
 
 
 class TestShutdownRaceBehavior:

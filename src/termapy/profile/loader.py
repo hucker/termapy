@@ -73,8 +73,7 @@ def load_profile(path: str | Path) -> dict:
             return json.loads(raw)
         except (json.JSONDecodeError, ValueError) as json_err:
             raise ValueError(
-                f"Profile is neither valid JSON nor TOML "
-                f"(json: {json_err}; toml: {toml_err})"
+                f"Profile is neither valid JSON nor TOML (json: {json_err}; toml: {toml_err})"
             ) from None
 
 
@@ -92,7 +91,12 @@ def save_profile(profile: dict, path: str | Path, *, indent: int = 2) -> None:
 # minor spec revision still works on an older host.  The lint layer
 # (validation warnings) flags non-canonical values for authors.
 RESPONSE_FORMATS: tuple[str, ...] = (
-    "none", "text", "literal", "lines", "regex", "json",
+    "none",
+    "text",
+    "literal",
+    "lines",
+    "regex",
+    "json",
 )
 SAFETY_TIERS: tuple[str, ...] = ("safe", "readonly", "mutable", "destructive")
 COERCION_NAMES: tuple[str, ...] = ("int", "float", "bool", "hex", "str")
@@ -137,7 +141,7 @@ def validate_profile(profile: dict) -> ValidationResult:
             errors=[
                 "transport: block is no longer supported; move wire-level "
                 "settings to your cfg file (baud_rate, line_ending, encoding, "
-                "etc.).  NDJSON support: set cfg `protocol: \"ndjson\"`."
+                'etc.).  NDJSON support: set cfg `protocol: "ndjson"`.'
             ],
         )
     try:
@@ -191,7 +195,7 @@ def _builtin_validate(profile: dict) -> ValidationResult:
         errors.append(
             "transport: block is no longer supported; move wire-level "
             "settings to your cfg file (baud_rate, line_ending, encoding, "
-            "etc.).  NDJSON support: set cfg `protocol: \"ndjson\"`."
+            'etc.).  NDJSON support: set cfg `protocol: "ndjson"`.'
         )
 
     commands = profile.get("commands")
@@ -285,10 +289,7 @@ def _warn_unknown(obj: Any, level: str, loc: str, out: list[str]) -> None:
         return
     for k in obj:
         if k not in known and not _is_extension_key(k):
-            out.append(
-                f"{loc}: unknown field {k!r} "
-                f"(ignored by this host{_suggest(k, known)})"
-            )
+            out.append(f"{loc}: unknown field {k!r} (ignored by this host{_suggest(k, known)})")
 
 
 def _warn_coercions(types_map: Any, loc: str, out: list[str]) -> None:
@@ -334,9 +335,7 @@ def _warn_command(name: str, spec: Any, loc: str, out: list[str]) -> None:
     subs = spec.get("subcommands")
     if isinstance(subs, dict):
         for sub_name, sub_spec in subs.items():
-            _warn_command(
-                sub_name, sub_spec, f"{loc}/subcommands/{sub_name}", out
-            )
+            _warn_command(sub_name, sub_spec, f"{loc}/subcommands/{sub_name}", out)
 
 
 def collect_warnings(profile: dict) -> list[str]:
@@ -420,9 +419,7 @@ def _parse_date(date_str: str | None) -> str:
     return date_str
 
 
-def precedence(
-    a: dict, b: dict, *, a_source: str = "", b_source: str = ""
-) -> int:
+def precedence(a: dict, b: dict, *, a_source: str = "", b_source: str = "") -> int:
     """Compare two profiles for cache-first lookup.
 
     Returns:

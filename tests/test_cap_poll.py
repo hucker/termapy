@@ -41,7 +41,6 @@ def _cap_dir(tmp_path: Path) -> Path:
 
 
 class TestTerminalPoll:
-
     def test_polls_a_repl_command_count_times(self, cli, capsys):
         """count= ticks, each row the command's value under its label, then the sample count as the value."""
         # Act
@@ -93,11 +92,12 @@ class TestTerminalPoll:
         out = capsys.readouterr().out
         assert result.success is True, result.error
         rows = [line.split() for line in out.splitlines() if line.strip()[:1].isdigit()]
-        assert len(rows) == 2 and all(float(row[1]) for row in rows), f"two numeric samples, got {rows}"
+        assert len(rows) == 2 and all(float(row[1]) for row in rows), (
+            f"two numeric samples, got {rows}"
+        )
 
 
 class TestFiles:
-
     def test_csv_file_gets_a_header_and_the_rows(self, cli, tmp_path):
         """file= writes a CSV under cap/ with the header row and one row per tick; the path is the value."""
         # Act
@@ -114,14 +114,22 @@ class TestFiles:
     def test_jsonl_rows_carry_the_labels(self, cli, tmp_path):
         """fmt=json writes one JSON object per tick, keyed by label, with a timestamp unless --notime."""
         # Act
-        cli.repl.dispatch_full("/cap.poll count=2 delay=0 fmt=json file=poll labels=val cmd=/print 7")
+        cli.repl.dispatch_full(
+            "/cap.poll count=2 delay=0 fmt=json file=poll labels=val cmd=/print 7"
+        )
         cli.repl.dispatch_full(
             "/cap.poll count=1 delay=0 --notime fmt=json file=bare labels=val cmd=/print 8",
         )
 
         # Assert
-        rows = [json.loads(line) for line in (_cap_dir(tmp_path) / "poll.jsonl").read_text().splitlines()]
-        bare = [json.loads(line) for line in (_cap_dir(tmp_path) / "bare.jsonl").read_text().splitlines()]
+        rows = [
+            json.loads(line)
+            for line in (_cap_dir(tmp_path) / "poll.jsonl").read_text().splitlines()
+        ]
+        bare = [
+            json.loads(line)
+            for line in (_cap_dir(tmp_path) / "bare.jsonl").read_text().splitlines()
+        ]
         assert [row["counter"] for row in rows] == [1, 2]
         assert all(row["val"] == "7" and "timestamp" in row for row in rows)
         assert bare == [{"counter": 1, "val": "8"}], "no timestamp key under --notime"
@@ -139,7 +147,9 @@ class TestFiles:
         cap = _cap_dir(tmp_path)
         assert second.value == str(cap / "poll_001.csv"), "numbered beside the original"
         assert third.value == str(cap / "poll.csv"), "--overwrite takes the name back"
-        assert (cap / "poll.csv").read_text(encoding="utf-8").splitlines()[1] == "1,3", "overwritten"
+        assert (cap / "poll.csv").read_text(encoding="utf-8").splitlines()[1] == "1,3", (
+            "overwritten"
+        )
 
     def test_a_poll_that_never_samples_leaves_no_file(self, cli, tmp_path):
         """A first sample that is not numeric aborts the poll and removes the empty file."""
@@ -150,7 +160,6 @@ class TestFiles:
 
 
 class TestValidation:
-
     @pytest.mark.parametrize(
         ("args", "fragment"),
         [
@@ -174,7 +183,6 @@ class TestValidation:
 
 
 class TestStop:
-
     def test_a_stop_already_requested_ends_the_poll_before_the_first_tick(self, cli):
         """The poll honors the script-stop event and never clears it: set beforehand, it samples nothing."""
         cli.repl._script_stop.set()

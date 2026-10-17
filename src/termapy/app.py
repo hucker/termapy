@@ -134,11 +134,11 @@ from termapy.scripting import (  # noqa: E402
 # _hotkey_label() to annotate tooltips, so the keys are defined exactly
 # once and the binding and the tooltip can never drift apart.
 _HOTKEYS: dict[str, tuple[str, str, str]] = {
-    "btn-help":     ("f1,ctrl+shift+1",   "btn_help",        "Help"),
-    "btn-cfg":      ("f2,ctrl+shift+2",   "btn_cfg",         "Cfg"),
-    "btn-scripts":  ("f3,ctrl+shift+3",   "btn_run",         "Run"),
-    "btn-proto":    ("f4,ctrl+shift+4",   "btn_proto",       "Proto"),
-    "title-center": ("f10,ctrl+shift+5",  "btn_open_config", "Open Config"),
+    "btn-help": ("f1,ctrl+shift+1", "btn_help", "Help"),
+    "btn-cfg": ("f2,ctrl+shift+2", "btn_cfg", "Cfg"),
+    "btn-scripts": ("f3,ctrl+shift+3", "btn_run", "Run"),
+    "btn-proto": ("f4,ctrl+shift+4", "btn_proto", "Proto"),
+    "title-center": ("f10,ctrl+shift+5", "btn_open_config", "Open Config"),
 }
 
 
@@ -394,8 +394,7 @@ class SerialTerminal(TerminalHost, App):
         # Ctrl+P opens Textual's built-in CommandPalette (top-center,
         # drop-down, fuzzy filter).  PALETTE_CMDS is exposed to it via
         # the PaletteProvider registered in App.COMMANDS below.
-        Binding("ctrl+p", "command_palette", "Command Palette",
-                show=False, priority=True),
+        Binding("ctrl+p", "command_palette", "Command Palette", show=False, priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
         Binding("escape", "stop_script", "Stop Script", show=False),
@@ -408,8 +407,7 @@ class SerialTerminal(TerminalHost, App):
         # so they give every user a path that survives hostile
         # terminals.  Harmless everywhere else.
         Binding("alt+q", "quit", "Quit (alt)", show=False),
-        Binding("alt+p", "command_palette", "Command Palette (alt)",
-                show=False, priority=True),
+        Binding("alt+p", "command_palette", "Command Palette (alt)", show=False, priority=True),
         Binding("alt+s", "screenshot", "Screenshot (alt)", show=False),
         Binding("alt+t", "text_screenshot", "Text Screenshot (alt)", show=False),
     ]
@@ -800,9 +798,7 @@ class SerialTerminal(TerminalHost, App):
             if exit_on_right:
                 yield _make_exit_btn()
         max_lines = self.cfg.get("max_lines", 10000)
-        yield RichLog(
-            highlight=False, markup=True, wrap=True, id="output", max_lines=max_lines
-        )
+        yield RichLog(highlight=False, markup=True, wrap=True, id="output", max_lines=max_lines)
         # Frozen-view companion for /find.  Hidden by default; when
         # find activates, _update_find_bar populates it with a
         # markup-styled copy of the current scrollback (matched
@@ -814,8 +810,11 @@ class SerialTerminal(TerminalHost, App):
         # explicit scroll_to(center).  Any new live data arriving
         # via _write_batch auto-dismisses the view.
         find_log = RichLog(
-            highlight=False, markup=True, wrap=True,
-            id="output-find", max_lines=max_lines,
+            highlight=False,
+            markup=True,
+            wrap=True,
+            id="output-find",
+            max_lines=max_lines,
             auto_scroll=False,
         )
         find_log.display = False
@@ -844,11 +843,12 @@ class SerialTerminal(TerminalHost, App):
                         # rather than a discovery button.  Square
                         # brackets would render as Rich markup tags
                         # and eat the label.
-                        "<Rec>", id="btn-record", variant="success",
+                        "<Rec>",
+                        id="btn-record",
+                        variant="success",
                     )
                     record_btn.tooltip = (
-                        "Record commands to a .run script. "
-                        "Click to start; click again to stop."
+                        "Record commands to a .run script. Click to start; click again to stop."
                     )
                     yield record_btn
                 # FindBar: ephemeral, hidden until /find runs.
@@ -862,19 +862,25 @@ class SerialTerminal(TerminalHost, App):
                     find_status.display = False
                     yield find_status
                     prev_btn = Button(
-                        "â–²", id="btn-find-prev", variant="default",
+                        "â–²",
+                        id="btn-find-prev",
+                        variant="default",
                     )
                     prev_btn.tooltip = "Previous find match (/find.prev)"
                     prev_btn.display = False
                     yield prev_btn
                     next_btn = Button(
-                        "â–¼", id="btn-find-next", variant="default",
+                        "â–¼",
+                        id="btn-find-next",
+                        variant="default",
                     )
                     next_btn.tooltip = "Next find match (/find.next)"
                     next_btn.display = False
                     yield next_btn
                     close_btn = Button(
-                        "Ã—", id="btn-find-close", variant="default",
+                        "Ã—",
+                        id="btn-find-close",
+                        variant="default",
                     )
                     close_btn.tooltip = "Close find (/find.clear)"
                     close_btn.display = False
@@ -932,7 +938,9 @@ class SerialTerminal(TerminalHost, App):
     def _show_config_info(self, *args, **kwargs):
         """Delegate to ``info_views.show_config_info``."""
         from termapy.info_views import show_config_info
+
         show_config_info(self, *args, **kwargs)
+
     def session_log_path(self) -> Path | None:
         """The TUI's session log: ``log_file`` when set, else ``<cfg>.log`` (``config.session_log_file``)."""
         return session_log_file(self.cfg, self.config_path)
@@ -1013,20 +1021,28 @@ class SerialTerminal(TerminalHost, App):
             return
         rule = Text("-" * 72, style="bold green")
         output.write(rule)
-        output.write(Text(
-            "VS Code detected: F-keys and Ctrl+P/S/T are captured by VS Code.",
-            style="bold green",
-        ))
-        output.write(Text(
-            "Top buttons: Ctrl+Shift+1=Help, 2=Cfg, 3=Run, 4=Proto, 5=Open Config.",
-            style="bold green",
-        ))
-        output.write(Text(
-            "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
-            style="bold green",
-        ))
+        output.write(
+            Text(
+                "VS Code detected: F-keys and Ctrl+P/S/T are captured by VS Code.",
+                style="bold green",
+            )
+        )
+        output.write(
+            Text(
+                "Top buttons: Ctrl+Shift+1=Help, 2=Cfg, 3=Run, 4=Proto, 5=Open Config.",
+                style="bold green",
+            )
+        )
+        output.write(
+            Text(
+                "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
+                style="bold green",
+            )
+        )
         output.write(rule)
-        self._log_line("#", "VS Code terminal detected -- Ctrl+Shift+N and Alt-key fallbacks bound.")
+        self._log_line(
+            "#", "VS Code terminal detected -- Ctrl+Shift+N and Alt-key fallbacks bound."
+        )
 
     @work(thread=True)
     def _check_for_updates(self) -> None:
@@ -1099,7 +1115,9 @@ class SerialTerminal(TerminalHost, App):
         except PackageNotFoundError:
             ver = "?"
         try:
-            self.query_one("#btn-help", Button).tooltip = build_help_tooltip(ver, _hotkey_label("btn-help"))
+            self.query_one("#btn-help", Button).tooltip = build_help_tooltip(
+                ver, _hotkey_label("btn-help")
+            )
         except SHUTDOWN_RACE:
             pass  # button gone (shutdown) or not yet composed
 
@@ -1155,9 +1173,7 @@ class SerialTerminal(TerminalHost, App):
         # worker and mutates widgets, so it marshals like every sibling
         # slot -- this was the one internal-handle callback wired bare,
         # racing _write_batch's auto-dismiss on the main thread.
-        internal.update_find_bar = lambda state: self._on_main(
-            self._update_find_bar, state
-        )
+        internal.update_find_bar = lambda state: self._on_main(self._update_find_bar, state)
 
         ctx = self._build_plugin_context(internal)
         # TUI-specific PluginContext overrides
@@ -1168,7 +1184,9 @@ class SerialTerminal(TerminalHost, App):
         ctx.io.status_bar = self._set_status_bar
         ctx.dispatch = self._dispatch_single
         # A plugin's notification is text unless it asks otherwise.
-        ctx.io.notify = lambda text, **kw: self._on_main(self.notify, text, **{"markup": False, **kw})
+        ctx.io.notify = lambda text, **kw: self._on_main(
+            self.notify, text, **{"markup": False, **kw}
+        )
         ctx.io.clear_screen = lambda: self._on_main(self._clear_output)
         ctx.ui._save_screenshot_impl = lambda *a, **kw: self._on_main(
             self.save_screenshot, *a, **kw
@@ -1179,6 +1197,7 @@ class SerialTerminal(TerminalHost, App):
         # vocabulary.  block_until is NOT set here -- it's provided
         # dynamically by the script runner (see _effective_capabilities).
         from termapy.plugins import detect_gui_apps
+
         ctx.capabilities = CapabilitySet(
             confirm_dialog=True,
             ui_notify=True,
@@ -1219,6 +1238,7 @@ class SerialTerminal(TerminalHost, App):
         frontends never call this).
         """
         from termapy.app_hooks import register_tui_hooks
+
         register_tui_hooks(self)
 
     def _run_startup(self) -> None:
@@ -1231,7 +1251,8 @@ class SerialTerminal(TerminalHost, App):
             self._status(f"Config warning: {w}", "yellow")
         if self.show_picker_on_start:
             self.push_screen(
-                self._config_picker(self.config_path), callback=self._on_config_picked,
+                self._config_picker(self.config_path),
+                callback=self._on_config_picked,
             )
         elif self.open_editor_on_start:
             self._new_config()
@@ -1306,7 +1327,9 @@ class SerialTerminal(TerminalHost, App):
         inp.placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
         inp.focus()
         self._sync_hw_buttons()
-        connect_cmds = [command for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd")]
+        connect_cmds = [
+            command for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd")
+        ]
         if connect_cmds:
             self._run_lines(connect_cmds, delay=0.2)
 
@@ -1348,9 +1371,7 @@ class SerialTerminal(TerminalHost, App):
         try:
             port = self._engine.reconnect_loop(
                 stop,
-                on_status=lambda msg: self.call_from_thread(
-                    self._show_reconnect_status, stop, msg
-                ),
+                on_status=lambda msg: self.call_from_thread(self._show_reconnect_status, stop, msg),
             )
             if port is not None:
                 self.call_from_thread(self._finish_reconnect, stop, port)
@@ -1397,9 +1418,7 @@ class SerialTerminal(TerminalHost, App):
         visualizers = load_visualizers_from_dir(builtins_viz_dir(), "built-in")
         if self.config_path:
             viz_dir = cfg_data_dir(self.config_path) / "viz"
-            visualizers += load_visualizers_from_dir(
-                viz_dir, Path(self.config_path).stem
-            )
+            visualizers += load_visualizers_from_dir(viz_dir, Path(self.config_path).stem)
 
         # Deduplicate by name (later wins), sort by sort_order
         by_name = {visualizer.name: visualizer for visualizer in visualizers}
@@ -1468,9 +1487,7 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one("#output", RichLog).write(
-                Text(text, style=f"bold italic {color}")
-            )
+            self.query_one("#output", RichLog).write(Text(text, style=f"bold italic {color}"))
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         self._log_lines("#", text.splitlines() or [""])
@@ -1939,7 +1956,9 @@ class SerialTerminal(TerminalHost, App):
     def _on_config_result(self, *args, **kwargs):
         """Delegate to ``pickers.on_config_result``."""
         from termapy.pickers import on_config_result
+
         return on_config_result(self, *args, **kwargs)
+
     def _port_info_str(self) -> str:
         """Format port info like 'COM4 115200 8N1' for title bar.
 
@@ -1962,7 +1981,9 @@ class SerialTerminal(TerminalHost, App):
     def _update_title(self) -> None:
         """Refresh title-bar widgets.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_title
+
         update_title(self)
+
     def _port_button_tooltip(self) -> str:
         """Build the title-bar port button tooltip with chip info.
 
@@ -1988,9 +2009,7 @@ class SerialTerminal(TerminalHost, App):
             if port_name and port_name != "(none)"
             else None
         )
-        return format_title_tooltip(
-            port_name, port_tooltip_pairs(facts), "select serial port"
-        )
+        return format_title_tooltip(port_name, port_tooltip_pairs(facts), "select serial port")
 
     def _set_conn_status(self, text: str, style: str = "") -> None:
         try:
@@ -2010,7 +2029,9 @@ class SerialTerminal(TerminalHost, App):
     def _update_conn_tooltip(self, *args, **kwargs) -> None:
         """Refresh the port-button tooltip.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_conn_tooltip
+
         update_conn_tooltip(self, *args, **kwargs)
+
     def _sync_hw_buttons(self, reset: bool = False) -> None:
         """Update DTR/RTS button labels to reflect actual pin state."""
         if reset:
@@ -2046,25 +2067,22 @@ class SerialTerminal(TerminalHost, App):
             )
         else:
             self.push_screen(
-                self._config_picker(self.config_path), callback=self._on_config_picked,
+                self._config_picker(self.config_path),
+                callback=self._on_config_picked,
             )
 
     def _on_btn_dtr(self) -> None:
         if self.is_connected:
             self._serial_op(
                 "DTR",
-                lambda: setattr(
-                    self._btn_dtr, "label", f"DTR:{int(self._engine.toggle_dtr())}"
-                ),
+                lambda: setattr(self._btn_dtr, "label", f"DTR:{int(self._engine.toggle_dtr())}"),
             )
 
     def _on_btn_rts(self) -> None:
         if self.is_connected:
             self._serial_op(
                 "RTS",
-                lambda: setattr(
-                    self._btn_rts, "label", f"RTS:{int(self._engine.toggle_rts())}"
-                ),
+                lambda: setattr(self._btn_rts, "label", f"RTS:{int(self._engine.toggle_rts())}"),
             )
 
     def _on_btn_break(self) -> None:
@@ -2092,9 +2110,7 @@ class SerialTerminal(TerminalHost, App):
         if not self._require_config():
             return
         self.push_screen(
-            ScriptPicker(
-                self.repl.scripts_dir, read_only=self.cfg.get("config_read_only", False)
-            ),
+            ScriptPicker(self.repl.scripts_dir, read_only=self.cfg.get("config_read_only", False)),
             callback=self._on_script_picked,
         )
 
@@ -2102,14 +2118,15 @@ class SerialTerminal(TerminalHost, App):
         if not self._require_config():
             return
         self.push_screen(
-            ProtoPicker(
-                self.repl.proto_dir, read_only=self.cfg.get("config_read_only", False)
-            ),
+            ProtoPicker(self.repl.proto_dir, read_only=self.cfg.get("config_read_only", False)),
             callback=self._on_proto_picked,
         )
 
     def _config_picker(
-        self, current_path: str, *, read_only: bool | None = None,
+        self,
+        current_path: str,
+        *,
+        read_only: bool | None = None,
     ) -> ConfigPicker:
         """The picker over ``current_path`` with this frontend's facts filled in.
 
@@ -2233,8 +2250,11 @@ class SerialTerminal(TerminalHost, App):
 
     # IDs of widgets that share the FindBar's show/hide lifecycle.
     _FIND_BAR_WIDGETS = (
-        "#find-bar", "#find-status",
-        "#btn-find-prev", "#btn-find-next", "#btn-find-close",
+        "#find-bar",
+        "#find-status",
+        "#btn-find-prev",
+        "#btn-find-next",
+        "#btn-find-close",
     )
 
     def _update_find_bar(self, state: dict | None) -> None:
@@ -2278,14 +2298,13 @@ class SerialTerminal(TerminalHost, App):
             self._find_overlay_active = False
             self._find_render_key = None
             self._find_last_current_line = None
-            if (
-                self._find_restore_scroll_on_close
-                and restore_line is not None
-            ):
+            if self._find_restore_scroll_on_close and restore_line is not None:
                 # Defer so #output has its layout back before we
                 # compute its viewport-center scroll target.
                 self.call_after_refresh(
-                    self._scroll_to_find_match, restore_line, output,
+                    self._scroll_to_find_match,
+                    restore_line,
+                    output,
                 )
             return
 
@@ -2344,7 +2363,8 @@ class SerialTerminal(TerminalHost, App):
             matched_set = {match[0] for match in matches}
             output_find.clear()
             for i, line in enumerate(
-                scrollback_text.splitlines(), start=1,
+                scrollback_text.splitlines(),
+                start=1,
             ):
                 # Text, never a str: the widget parses a str as markup,
                 # and a scrollback line is text (registry markup-escape).
@@ -2368,11 +2388,15 @@ class SerialTerminal(TerminalHost, App):
         # scroll to this same line when find ends.
         self._find_last_current_line = current_line
         self.call_after_refresh(
-            self._scroll_to_find_match, current_line, output_find,
+            self._scroll_to_find_match,
+            current_line,
+            output_find,
         )
 
     def _scroll_to_find_match(
-        self, line_no: int, target: RichLog | None = None,
+        self,
+        line_no: int,
+        target: RichLog | None = None,
     ) -> None:
         """Scroll target RichLog so ``line_no`` lands at viewport middle.
 
@@ -2437,17 +2461,22 @@ class SerialTerminal(TerminalHost, App):
     def _show_port_picker(self, *args, **kwargs):
         """Delegate to ``info_views.show_port_picker``."""
         from termapy.info_views import show_port_picker
+
         show_port_picker(self, *args, **kwargs)
+
     def _update_port(self, *args, **kwargs) -> None:
         """Refresh port-name display.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_port
+
         update_port(self, *args, **kwargs)
         # Connection failure already reported by _try_open_port
 
     def _on_port_picked(self, *args, **kwargs):
         """Delegate to ``pickers.on_port_picked``."""
         from termapy.pickers import on_port_picked
+
         on_port_picked(self, *args, **kwargs)
+
     # -- Palette action wrappers --
 
     def _new_config(self) -> None:
@@ -2456,7 +2485,9 @@ class SerialTerminal(TerminalHost, App):
     def _on_quick_setup(self, *args, **kwargs):
         """Delegate to ``pickers.on_quick_setup``."""
         from termapy.pickers import on_quick_setup
+
         on_quick_setup(self, *args, **kwargs)
+
     def _edit_file(self, path: Path) -> None:
         """``ctx.internal.edit_file``: the TUI's own editor for the config, a .run or a .pro file.
 
@@ -2472,17 +2503,22 @@ class SerialTerminal(TerminalHost, App):
 
             def open_editor() -> None:
                 self.push_screen(
-                    ConfigEditor(dict(self.cfg), config_path), callback=self._on_config_result,
+                    ConfigEditor(dict(self.cfg), config_path),
+                    callback=self._on_config_result,
                 )
         elif ext == ".run":
+
             def open_editor() -> None:
                 self.push_screen(
-                    ScriptEditor(self.repl.scripts_dir, str(path)), callback=self._on_script_saved,
+                    ScriptEditor(self.repl.scripts_dir, str(path)),
+                    callback=self._on_script_saved,
                 )
         elif ext == ".pro":
+
             def open_editor() -> None:
                 self.push_screen(
-                    ProtoEditor(self.repl.proto_dir, str(path)), callback=self._on_proto_saved,
+                    ProtoEditor(self.repl.proto_dir, str(path)),
+                    callback=self._on_proto_saved,
                 )
         else:
             self.repl.ctx.fs.open_file(path)
@@ -2607,7 +2643,9 @@ class SerialTerminal(TerminalHost, App):
         self._prompt_then_dispatch("Search help for:", "/search ")
 
     def _prompt_then_dispatch(
-        self, title: str, command_prefix: str,
+        self,
+        title: str,
+        command_prefix: str,
     ) -> None:
         """Push a single-line input prompt; on submit, dispatch a REPL line.
 
@@ -2817,6 +2855,7 @@ class SerialTerminal(TerminalHost, App):
         loop.  ``_on_main`` runs it inline when already on the main thread.
         """
         from termapy.capture_view import _cap_start
+
         return self._on_main(_cap_start, self, *args, **kwargs)
 
     def _cap_stop(self) -> None:
@@ -2829,6 +2868,7 @@ class SerialTerminal(TerminalHost, App):
         thread but the overlay teardown is Textual work.
         """
         from termapy.capture_view import _cap_stop
+
         self._on_main(_cap_stop, self)
 
     def _stop_capture(self) -> None:
@@ -2889,6 +2929,7 @@ class SerialTerminal(TerminalHost, App):
             self._find_restore_scroll_on_close = False
             try:
                 from termapy.builtins.commands.find import dismiss
+
                 dismiss(self.repl.ctx)
             except Exception:
                 # Defensive: a broken plugin must not block live data.
@@ -3138,6 +3179,7 @@ class SerialTerminal(TerminalHost, App):
     def _show_commands(self, *args, **kwargs):
         """Delegate to ``info_views.show_commands``."""
         from termapy.info_views import show_commands
+
         show_commands(self, *args, **kwargs)
 
     def _hide_history(self) -> None:
@@ -3257,9 +3299,7 @@ class SerialTerminal(TerminalHost, App):
         except SHUTDOWN_RACE:
             pass
 
-    def action_screenshot(
-        self, filename: str | None = None, path: str | None = None
-    ) -> None:
+    def action_screenshot(self, filename: str | None = None, path: str | None = None) -> None:
         ts = filename_timestamp()
         svg_path = str((ensure_folder(self.repl.ss_dir) / f"screenshot_{ts}.svg").resolve())
         self.save_screenshot(svg_path)
@@ -3354,9 +3394,7 @@ class SerialTerminal(TerminalHost, App):
         btn = self.query_one("#btn-scripts", Button)
         count = self._count_files(self.repl.scripts_dir, FOLDER_PATTERNS["run"])
         hk = _hotkey_label("btn-scripts")
-        suffix = (
-            f"{count} available{self._newest_age(self.repl.scripts_dir)}" if count else "empty"
-        )
+        suffix = f"{count} available{self._newest_age(self.repl.scripts_dir)}" if count else "empty"
         btn.tooltip = f"Run a script ({hk}, {suffix})."
 
     def _sync_proto_button(self) -> None:
@@ -3364,9 +3402,7 @@ class SerialTerminal(TerminalHost, App):
         btn = self.query_one("#btn-proto", Button)
         count = self._count_files(self.repl.proto_dir, FOLDER_PATTERNS["proto"])
         hk = _hotkey_label("btn-proto")
-        suffix = (
-            f"{count} available{self._newest_age(self.repl.proto_dir)}" if count else "empty"
-        )
+        suffix = f"{count} available{self._newest_age(self.repl.proto_dir)}" if count else "empty"
         btn.tooltip = f"Protocol test scripts ({hk}, {suffix})."
 
     def _sync_cap_button(self) -> None:
@@ -3477,7 +3513,9 @@ class SerialTerminal(TerminalHost, App):
     def _on_script_picked(self, *args, **kwargs):
         """Delegate to ``pickers.on_script_picked``."""
         from termapy.pickers import on_script_picked
+
         on_script_picked(self, *args, **kwargs)
+
     def _on_script_saved(self, path: str | None) -> None:
         if path:
             self._status(f"Script saved: {Path(path).name}", "green")
@@ -3487,7 +3525,9 @@ class SerialTerminal(TerminalHost, App):
     def _on_proto_picked(self, *args, **kwargs):
         """Delegate to ``pickers.on_proto_picked``."""
         from termapy.pickers import on_proto_picked
+
         on_proto_picked(self, *args, **kwargs)
+
     def _on_proto_saved(self, path: str | None) -> None:
         """Handle result from the ProtoEditor dialog.
 
@@ -3501,6 +3541,7 @@ class SerialTerminal(TerminalHost, App):
     def _open_picker(self, *args, **kwargs):
         """Delegate to ``pickers.open_picker``."""
         from termapy.pickers import open_picker
+
         return open_picker(self, *args, **kwargs)
 
     _script_last_label: str = ""
@@ -3622,9 +3663,7 @@ class SerialTerminal(TerminalHost, App):
         self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
 
         def _progress(step: int, total: int) -> None:
-            self.post_message(
-                self.ScriptProgress(self.repl._script_stack[:], step, total)
-            )
+            self.post_message(self.ScriptProgress(self.repl._script_stack[:], step, total))
 
         def _on_nest() -> None:
             self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
@@ -3699,8 +3738,10 @@ def _run_proto_headless(args) -> None:
     pro_path = resolve_proto_path(args.proto, config_path)
     if pro_path is None:
         proto_dir = proto_dir_for(config_path)
-        print(f"termapy: proto file not found: {Path(proto_script_name(args.proto)).resolve()}",
-              file=sys.stderr)
+        print(
+            f"termapy: proto file not found: {Path(proto_script_name(args.proto)).resolve()}",
+            file=sys.stderr,
+        )
         if proto_dir.exists():
             print(f"  (checked {proto_dir.resolve()})", file=sys.stderr)
         sys.exit(2)
@@ -3818,9 +3859,7 @@ def _run_tui_mode(args) -> str | None:
         try:
             cfg = load_config(config_path)
         except CONFIG_LOAD_ERRORS as e:
-            print(
-                f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr
-            )
+            print(f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr)
             sys.exit(1)
         app = SerialTerminal(
             cfg,
@@ -3840,9 +3879,7 @@ def _run_tui_mode(args) -> str | None:
         try:
             cfg = load_config(config_path)
         except CONFIG_LOAD_ERRORS as e:
-            print(
-                f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr
-            )
+            print(f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr)
             sys.exit(1)
         app = SerialTerminal(
             cfg,

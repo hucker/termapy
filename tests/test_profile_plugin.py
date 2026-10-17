@@ -214,18 +214,28 @@ class TestProfileReload:
         # Arrange -- write a profile, load it.
         eng, ctx, _output = env
         path = tmp_path / "p.profile.json"
-        path.write_text(json.dumps({
-            "profile_version": 2,
-            "profile_revision": "1.0.0",
-            "commands": {"X": {"help": "x"}},
-        }), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "profile_revision": "1.0.0",
+                    "commands": {"X": {"help": "x"}},
+                }
+            ),
+            encoding="utf-8",
+        )
         eng.dispatch(f"profile.load {path}")
         # Mutate the file on disk; bare /profile.load should pick it up.
-        path.write_text(json.dumps({
-            "profile_version": 2,
-            "profile_revision": "1.1.0",
-            "commands": {"X": {"help": "x"}, "Y": {"help": "y"}},
-        }), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "profile_revision": "1.1.0",
+                    "commands": {"X": {"help": "x"}, "Y": {"help": "y"}},
+                }
+            ),
+            encoding="utf-8",
+        )
         # Act
         result = eng.dispatch("profile.load")
         # Assert
@@ -260,12 +270,8 @@ class TestProfileSave:
         assert result.success is True, "save succeeds"
         assert out.exists(), "file written"
         loaded = json.loads(out.read_text(encoding="utf-8"))
-        assert loaded.get("profile_revision") == "1.0.0", (
-            "saved file round-trips"
-        )
-        assert "__source_path" not in loaded, (
-            "internal fields stripped from saved profile"
-        )
+        assert loaded.get("profile_revision") == "1.0.0", "saved file round-trips"
+        assert "__source_path" not in loaded, "internal fields stripped from saved profile"
 
     def test_save_no_args_uses_default_path(self, env):
         """Bare /profile.save writes <cfg stem>.profile.json beside the cfg file."""
@@ -294,13 +300,18 @@ class TestProfileSave:
         # Arrange -- write a profile where every command has enabled=false.
         eng, _ctx, output = env
         draft = tmp_path / "draft.profile.json"
-        draft.write_text(json.dumps({
-            "profile_version": 2,
-            "commands": {
-                "A": {"help": "a", "enabled": False},
-                "B": {"help": "b", "enabled": False},
-            },
-        }), encoding="utf-8")
+        draft.write_text(
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "commands": {
+                        "A": {"help": "a", "enabled": False},
+                        "B": {"help": "b", "enabled": False},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         eng.dispatch(f"profile.load {draft}")
         out = tmp_path / "saved.profile.json"
         output.clear()
@@ -372,12 +383,15 @@ class TestProfileLoadFromDevice:
         # Arrange -- simulate a device dumping a v2 profile.  The
         # profile carries types + commands + revision; wire-level
         # settings (baud, etc.) live in cfg now, not the profile.
-        _mock_device_json(env, {
-            "profile_version": 2,
-            "profile_revision": "1.0.0",
-            "types": {"on_off": {"kind": "enum", "values": ["on", "off"]}},
-            "commands": {"AT": {"help": "Connection test."}},
-        })
+        _mock_device_json(
+            env,
+            {
+                "profile_version": 2,
+                "profile_revision": "1.0.0",
+                "types": {"on_off": {"kind": "enum", "values": ["on", "off"]}},
+                "commands": {"AT": {"help": "Connection test."}},
+            },
+        )
         eng, ctx, _output = env
         # Act
         result = eng.dispatch("profile.load cmd=AT+HELP.JSON")
@@ -385,9 +399,7 @@ class TestProfileLoadFromDevice:
         assert result.success is True, "device-fetch succeeds"
         active = ctx.ns("active_profile")
         assert active.get("profile_revision") == "1.0.0", "revision installed"
-        assert "on_off" in active.get("types", {}), (
-            "top-level types block installed"
-        )
+        assert "on_off" in active.get("types", {}), "top-level types block installed"
         assert "AT" in active.get("commands", {}), "commands installed"
         assert active.get("__source_cmd") == "AT+HELP.JSON", (
             "source command recorded for no-args reload"
@@ -415,34 +427,39 @@ class TestProfileLoadFromDevice:
     def test_fetch_schema_invalid_payload_refuses(self, env):
         """A device payload failing the schema (version 99) leaves no profile active."""
         # Arrange -- device replies with something that fails the schema.
-        _mock_device_json(env, {
-            "profile_version": 99,
-            "commands": {"X": {"help": "x"}},
-        })
+        _mock_device_json(
+            env,
+            {
+                "profile_version": 99,
+                "commands": {"X": {"help": "x"}},
+            },
+        )
         eng, ctx, _output = env
         # Act
         result = eng.dispatch("profile.load cmd=AT+HELP.JSON")
         # Assert
         assert result.success is False, "bad payload refused"
-        assert ctx.ns("active_profile") == {}, (
-            "active profile untouched on failure"
-        )
+        assert ctx.ns("active_profile") == {}, "active profile untouched on failure"
 
     def test_fetch_then_no_args_reload_refetches(self, env):
         """After a cmd= load, bare /profile.load re-runs the device fetch, not a cache."""
         # Arrange -- first fetch, then mutate payload, then no-args reload.
         from termapy.builtins.commands import profile
 
-        seq = iter([
-            {
-                "profile_version": 2, "profile_revision": "1.0.0",
-                "commands": {"X": {"help": "x"}},
-            },
-            {
-                "profile_version": 2, "profile_revision": "1.1.0",
-                "commands": {"X": {"help": "x"}, "Y": {"help": "y"}},
-            },
-        ])
+        seq = iter(
+            [
+                {
+                    "profile_version": 2,
+                    "profile_revision": "1.0.0",
+                    "commands": {"X": {"help": "x"}},
+                },
+                {
+                    "profile_version": 2,
+                    "profile_revision": "1.1.0",
+                    "commands": {"X": {"help": "x"}, "Y": {"help": "y"}},
+                },
+            ]
+        )
         _mock_device_json(env, next(seq))
         eng, ctx, _output = env
         eng.dispatch("profile.load cmd=AT+HELP.JSON")
@@ -456,8 +473,6 @@ class TestProfileLoadFromDevice:
         assert active.get("profile_revision") == "1.1.0", (
             "no-args reload re-ran the device fetch and picked up new payload"
         )
-
-
 
 
 # ── /profile.load resolves a bare name beside the cfg ───────────────────────
@@ -488,14 +503,18 @@ class TestProfileLoadCfgRelative:
 
         # Assert
         assert result.success, result.error
-        assert ctx.ns("active_profile").get("device", {}).get("model") == "DEMO", "the demo profile is active"
+        assert ctx.ns("active_profile").get("device", {}).get("model") == "DEMO", (
+            "the demo profile is active"
+        )
 
     def test_missing_bare_name_names_what_was_typed(self, env):
         """A bare name found nowhere reports the name as typed, not a resolved path."""
         eng, _, _ = env
         result = eng.dispatch("profile.load nosuch.profile.json")
         assert not result.success
-        assert "Profile not found: nosuch.profile.json" in result.error, "falls back to the typed path in the error"
+        assert "Profile not found: nosuch.profile.json" in result.error, (
+            "falls back to the typed path in the error"
+        )
 
     def test_load_and_validate_take_a_bare_stem(self, env):
         """file-name-default-ext: /profile.load local and /profile.validate local both find local.profile.json beside the cfg."""
@@ -515,4 +534,6 @@ class TestProfileLoadCfgRelative:
         # Assert
         assert validated.success, validated.error
         assert loaded.success, loaded.error
-        assert ctx.ns("active_profile").get("device", {}).get("model") == "DEMO", "the stem loaded the profile"
+        assert ctx.ns("active_profile").get("device", {}).get("model") == "DEMO", (
+            "the stem loaded the profile"
+        )

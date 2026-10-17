@@ -43,14 +43,15 @@ class TestAtRnd:
         # SOME curated algorithm.  We don't pin the specific algorithm
         # (it's random), but the packet must verify against AT LEAST one
         # of the curated set.
-        assert response.endswith(b"\r\n"), (
-            f"AT+RND response should end with CRLF; got {response!r}"
-        )
+        assert response.endswith(b"\r\n"), f"AT+RND response should end with CRLF; got {response!r}"
         packet = response[:-2]
         curated = {
-            "crc8", "crc8-maxim",
-            "crc16-modbus", "crc16-xmodem",
-            "crc32", "crc32-bzip2",
+            "crc8",
+            "crc8-maxim",
+            "crc16-modbus",
+            "crc16-xmodem",
+            "crc32",
+            "crc32-bzip2",
         }
         matched = False
         for name in curated:
@@ -66,8 +67,7 @@ class TestAtRnd:
                 matched = True
                 break
         assert matched, (
-            f"AT+RND packet should verify against one of {curated}; "
-            f"got packet hex {packet.hex()}"
+            f"AT+RND packet should verify against one of {curated}; got packet hex {packet.hex()}"
         )
 
 
@@ -94,8 +94,7 @@ class TestAtRndCustom:
 
         # Assert
         assert observed == expected_payload_lengths, (
-            f"AT+RND.CUSTOM length cycle should be "
-            f"{expected_payload_lengths}; got {observed}"
+            f"AT+RND.CUSTOM length cycle should be {expected_payload_lengths}; got {observed}"
         )
 
     def test_crc_matches_reveal_params(self):
@@ -112,8 +111,12 @@ class TestAtRndCustom:
 
         # Act -- recompute via crcglot.generic_crc with the secret params
         secret = Crc(
-            width=16, poly=0x1A2B, init=0xABCD,
-            refin=False, refout=False, xorout=0x0000,
+            width=16,
+            poly=0x1A2B,
+            init=0xABCD,
+            refin=False,
+            refout=False,
+            xorout=0x0000,
         )
         expected_crc = generic_crc(payload, secret)
 
@@ -148,6 +151,5 @@ class TestAtRndCustomReveal:
         ]
         for fragment in expected_fragments:
             assert fragment in response, (
-                f"REVEAL output should contain {fragment!r}; "
-                f"got {response!r}"
+                f"REVEAL output should contain {fragment!r}; got {response!r}"
             )

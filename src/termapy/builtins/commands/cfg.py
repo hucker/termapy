@@ -282,9 +282,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     )
 
     result = _show_command_help(ctx, "cfg")
-    files = sorted(
-        f"{path.parent.name}/{path.name}" for path in cfg_dir().glob("*/*.cfg")
-    )
+    files = sorted(f"{path.parent.name}/{path.name}" for path in cfg_dir().glob("*/*.cfg"))
     append_files_section(ctx, "AVAILABLE CONFIGS", files)
     return result
 
@@ -348,7 +346,9 @@ def _build_tree(
         name_width = max(name_width, len(fname))
 
     color_lines = [f"[cyan]{escape_markup(abs_root)}[/]"] + FileTree(
-        entries, base_dir=data_dir, color=True,
+        entries,
+        base_dir=data_dir,
+        color=True,
     ).render()
     plain_lines = [abs_root] + FileTree(
         entries,
@@ -362,19 +362,25 @@ def _build_tree(
         global_sections = [(fname, []) for fname in global_names]
         color_lines.append("")
         color_lines.append("[cyan]plugin/ (global)[/]")
-        color_lines.extend(FileTree(
-            global_sections, base_dir=global_plugins_dir(), color=True,
-        ).render())
+        color_lines.extend(
+            FileTree(
+                global_sections,
+                base_dir=global_plugins_dir(),
+                color=True,
+            ).render()
+        )
 
         plain_lines.append("")
         plain_lines.append("plugin/ (global)")
-        plain_lines.extend(FileTree(
-            global_sections,
-            base_dir=global_plugins_dir(),
-            file_dates=True,
-            color=False,
-            name_width=name_width,
-        ).render())
+        plain_lines.extend(
+            FileTree(
+                global_sections,
+                base_dir=global_plugins_dir(),
+                file_dates=True,
+                color=False,
+                name_width=name_width,
+            ).render()
+        )
 
     return "\n".join(color_lines), "\n".join(plain_lines)
 
@@ -572,10 +578,15 @@ COMMAND = Command(
             help="Set immediately (no confirmation).",
             handler=_handler_auto,
             params=[
-                ParamSpec("key", "str", positional=True, required=True,
-                          help="config key to set"),
-                ParamSpec("value", "str", positional=True, rest=True, required=True,
-                          help="new value (may contain spaces)"),
+                ParamSpec("key", "str", positional=True, required=True, help="config key to set"),
+                ParamSpec(
+                    "value",
+                    "str",
+                    positional=True,
+                    rest=True,
+                    required=True,
+                    help="new value (may contain spaces)",
+                ),
             ],
         ),
         "list": Command(
@@ -610,7 +621,11 @@ COMMAND = Command(
             needs=CapabilitySet.CONFIG_LOADED,
             params=[
                 ParamSpec(
-                    "name", "path", positional=True, required=True, rest=True,
+                    "name",
+                    "path",
+                    positional=True,
+                    required=True,
+                    rest=True,
                     help="file relative to the config folder (subfolders allowed)",
                 ),
             ],
@@ -643,10 +658,7 @@ COMMAND = Command(
                     needs=CapabilitySet.CONFIG_GUI_APPS,
                 ),
                 "list": Command(
-                    help=(
-                        "List every termapy launcher this platform "
-                        "can see."
-                    ),
+                    help=("List every termapy launcher this platform can see."),
                     handler=_handler_icon_list,
                     needs=CapabilitySet.GUI_APPS,
                 ),

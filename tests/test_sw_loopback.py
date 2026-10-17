@@ -46,8 +46,12 @@ def test_loopback_opens_and_echoes():
 
     cfg = {
         "serial": {
-            "port": LOOPBACK_PORT, "baud_rate": 115200, "byte_size": 8,
-            "parity": "N", "stop_bits": 1, "flow_control": "none",
+            "port": LOOPBACK_PORT,
+            "baud_rate": 115200,
+            "byte_size": 8,
+            "parity": "N",
+            "stop_bits": 1,
+            "flow_control": "none",
         }
     }
     s = open_serial(cfg)
@@ -60,8 +64,16 @@ def test_loopback_opens_and_echoes():
 
 @pytest.mark.parametrize(
     "port",
-    ["loop://", "socket://host:9000", "rfc2217://host:2217",
-     "DEMO", "demo", "DEMO_JSON", "DEMO_VT100", "DEMO_FAIL"],
+    [
+        "loop://",
+        "socket://host:9000",
+        "rfc2217://host:2217",
+        "DEMO",
+        "demo",
+        "DEMO_JSON",
+        "DEMO_VT100",
+        "DEMO_FAIL",
+    ],
 )
 def test_url_and_reserved_ports_open_without_enumeration(port):
     """URL and DEMO ports connect directly, since comports() never lists them."""
@@ -82,6 +94,7 @@ class _Host(App):
 
 def test_picker_offers_loopback_and_selects_it():
     """The port picker lists loop:// and selecting it returns that spec."""
+
     async def scenario():
         app = _Host()
         async with app.run_test() as pilot:
@@ -90,11 +103,7 @@ def test_picker_offers_loopback_and_selects_it():
             await pilot.pause()
             ol = app.screen.query_one("#port-list", OptionList)
             loop_idx = next(
-                (
-                    i
-                    for i in range(ol.option_count)
-                    if ol.get_option_at_index(i).id == "loop://"
-                ),
+                (i for i in range(ol.option_count) if ol.get_option_at_index(i).id == "loop://"),
                 None,
             )
             assert loop_idx is not None, "loopback row offered in the picker"

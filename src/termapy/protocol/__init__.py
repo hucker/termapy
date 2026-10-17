@@ -135,9 +135,7 @@ from termapy.protocol.viz import (
 # commands for the subset it knows about; extra GENERATORS keys are
 # harmless (never dispatched to).
 GENERATORS = {code: info.generator for code, info in LANGUAGES.items()}
-GENERATORS_FROM_ENTRY = {
-    code: info.generator_from_entry for code, info in LANGUAGES.items()
-}
+GENERATORS_FROM_ENTRY = {code: info.generator_from_entry for code, info in LANGUAGES.items()}
 
 
 __all__ = [

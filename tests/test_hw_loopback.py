@@ -59,8 +59,8 @@ BAUD = 921600
 # the threshold set by pyserial's hardcoded 4 KB Windows RX buffer.
 SLOW_CONSUMER_S = 0.060
 FLOOD_KB = 64
-_LINE = b"X" * 62 + b"\r\n"          # 64 bytes
-_KB = _LINE * 16                     # 1024 bytes
+_LINE = b"X" * 62 + b"\r\n"  # 64 bytes
+_KB = _LINE * 16  # 1024 bytes
 
 
 def _open_raw(device: str, baud: int = BAUD):
@@ -108,7 +108,9 @@ def loopback_device(pytestconfig: pytest.Config) -> str:
         _rig_unusable(pytestconfig, f"serial number {HW_LOOPBACK_SN!r} is ambiguous: {exc}")
     if device == HW_LOOPBACK_SN:
         # resolve_port returns the spec verbatim when nothing matched.
-        _rig_unusable(pytestconfig, f"no serial adapter with serial number {HW_LOOPBACK_SN!r} attached")
+        _rig_unusable(
+            pytestconfig, f"no serial adapter with serial number {HW_LOOPBACK_SN!r} attached"
+        )
 
     import serial
 
@@ -202,9 +204,7 @@ class TestDriverBufferLoss:
         received = [0]
         engine.add_rx_observer(lambda d: received.__setitem__(0, received[0] + len(d)))
         reader = threading.Thread(
-            target=lambda: engine.read_loop(
-                on_lines=lambda _lines: time.sleep(SLOW_CONSUMER_S)
-            ),
+            target=lambda: engine.read_loop(on_lines=lambda _lines: time.sleep(SLOW_CONSUMER_S)),
             daemon=True,
         )
         reader.start()
@@ -269,9 +269,7 @@ class TestDrainPurgesDriverBuffer:
             while hold.is_set():
                 time.sleep(0.005)
 
-        reader = threading.Thread(
-            target=lambda: engine.read_loop(on_lines=on_lines), daemon=True
-        )
+        reader = threading.Thread(target=lambda: engine.read_loop(on_lines=on_lines), daemon=True)
         reader.start()
         sent = _flood(engine, kb=128)
         time.sleep(sent / (BAUD / 10) + 0.5)

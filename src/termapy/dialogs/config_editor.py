@@ -104,21 +104,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
     def on_mount(self) -> None:
         """Set tooltips and position cursor on highlight_key line."""
-        self.query_one("#config-editor", TextArea).tooltip = (
-            "Edit the raw JSON config.  Live validation shows hints below."
-        )
-        self.query_one("#save-as-input", Input).tooltip = (
-            "New filename for Save As (the .cfg extension is added automatically)."
-        )
-        self.query_one("#cfg-save", Button).tooltip = (
-            "Validate and save changes to this config."
-        )
-        self.query_one("#cfg-save-as", Button).tooltip = (
-            "Save the config to a new filename."
-        )
-        self.query_one("#cfg-cancel", Button).tooltip = (
-            "Discard changes and close."
-        )
+        self.query_one(
+            "#config-editor", TextArea
+        ).tooltip = "Edit the raw JSON config.  Live validation shows hints below."
+        self.query_one(
+            "#save-as-input", Input
+        ).tooltip = "New filename for Save As (the .cfg extension is added automatically)."
+        self.query_one("#cfg-save", Button).tooltip = "Validate and save changes to this config."
+        self.query_one("#cfg-save-as", Button).tooltip = "Save the config to a new filename."
+        self.query_one("#cfg-cancel", Button).tooltip = "Discard changes and close."
         if not self._highlight_key:
             return
         editor = self.query_one("#config-editor", TextArea)
@@ -160,12 +154,21 @@ class ConfigEditor(ModalScreen[tuple | None]):
     # it lives inside the custom_buttons list rather than at a dict path.
     _BOOL_KEYS = {path[-1] for path in BOOL_CFG_PATHS} | {"enabled"}
     _INT_KEYS = {
-        k for k, v in DEFAULT_CFG.items()
-        if isinstance(v, int) and not isinstance(v, bool)
+        k for k, v in DEFAULT_CFG.items() if isinstance(v, int) and not isinstance(v, bool)
     }
     _STANDARD_BAUDS = {
-        300, 1200, 2400, 4800, 9600, 19200, 38400, 57600,
-        115200, 230400, 460800, 921600,
+        300,
+        1200,
+        2400,
+        4800,
+        9600,
+        19200,
+        38400,
+        57600,
+        115200,
+        230400,
+        460800,
+        921600,
     }
 
     def _validate_value(self, key: str, raw_val: str) -> tuple[str, str]:
@@ -182,23 +185,27 @@ class ConfigEditor(ModalScreen[tuple | None]):
             import re as _re
 
             from termapy.config import expand_env_str
+
             template = raw_val.strip().strip('"')
             # Highlight $(var) references in cyan, in the escaped template
-            highlighted_markup = _re.sub(
-                r"(\$\([^)]+\))", r"[cyan]\1[/]", escape_markup(template)
-            )
+            highlighted_markup = _re.sub(r"(\$\([^)]+\))", r"[cyan]\1[/]", escape_markup(template))
             key_markup = escape_markup(key)
             resolved = expand_env_str(template)
             if resolved == template:
-                return (f"[yellow]{key_markup}[/] = {highlighted_markup}",
-                        "[yellow]variable - not resolved[/]")
+                return (
+                    f"[yellow]{key_markup}[/] = {highlighted_markup}",
+                    "[yellow]variable - not resolved[/]",
+                )
             if key in self._BOOL_KEYS:
                 # A templated boolean is read with the vocabulary at load
                 # (config.expand_env_cfg); show what it reads as.
                 try:
                     flag = parse_bool(resolved, what=key)
                 except ValueError as e:
-                    return (f"[red]{key_markup}[/] = {highlighted_markup}", f"[red]{escape_markup(e)}[/]")
+                    return (
+                        f"[red]{key_markup}[/] = {highlighted_markup}",
+                        f"[red]{escape_markup(e)}[/]",
+                    )
                 flag_markup = escape_markup(json.dumps(flag))
                 return (f"[green]{key_markup}[/] = {highlighted_markup} -> {flag_markup}", "")
             # Recurse: validate the resolved value
@@ -235,6 +242,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             # bug and should surface.
             try:
                 from serial.tools.list_ports import comports
+
                 available = {port.device for port in comports()}
                 if val.upper() == "DEMO":
                     return f"[green]{pair_markup}[/] [dim](simulated port)[/]", ""
@@ -242,7 +250,10 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     return f"[green]{pair_markup}[/]", ""
                 if available:
                     ports_markup = escape_markup(", ".join(sorted(available)))
-                    return f"[yellow]{pair_markup}[/]", f"[yellow]port not found (available: {ports_markup})[/]"
+                    return (
+                        f"[yellow]{pair_markup}[/]",
+                        f"[yellow]port not found (available: {ports_markup})[/]",
+                    )
                 return f"[dim]{pair_markup}[/]", ""
             except (OSError, ImportError):
                 return f"[dim]{pair_markup}[/]", ""
@@ -259,9 +270,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     # NoMatches covers the editor widget being gone
                     # during teardown.
                     try:
-                        editor_cfg = json.loads(
-                            self.query_one("#config-editor", TextArea).text
-                        )
+                        editor_cfg = json.loads(self.query_one("#config-editor", TextArea).text)
                         custom = editor_cfg.get("serial", {}).get("custom_baud", False)
                     except (json.JSONDecodeError, ValueError, NoMatches):
                         pass
@@ -270,7 +279,10 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     elif custom:
                         return f"[red]{pair_markup}[/]", "[red]custom baud requires >= 300[/]"
                     else:
-                        return f"[yellow]{pair_markup}[/]", "[yellow]non-standard rate -- set custom_baud to true[/]"
+                        return (
+                            f"[yellow]{pair_markup}[/]",
+                            "[yellow]non-standard rate -- set custom_baud to true[/]",
+                        )
             except (json.JSONDecodeError, ValueError):
                 error = "[red]must be a positive integer[/]"
         elif key in self._INT_KEYS:
@@ -291,10 +303,9 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 parsed = json.loads(raw_val.strip())
             except (json.JSONDecodeError, ValueError):
                 parsed = val
-            if (not isinstance(parsed, str)
-                    or not all(c in "\r\n\0\x03\x04" for c in parsed)):
+            if not isinstance(parsed, str) or not all(c in "\r\n\0\x03\x04" for c in parsed):
                 error = (
-                    r'[red]must be CR/LF/NUL/ETX/EOT bytes only '
+                    r"[red]must be CR/LF/NUL/ETX/EOT bytes only "
                     r'(e.g. "", "\r", "\n", "\r\n", "\0", '
                     r'"\u0003" (ETX), "\u0004" (EOT))[/]'
                 )
@@ -327,6 +338,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         entry = CFG_HELP.get(key)
         if not entry:
             from termapy.repl import _edit_distance
+
             best, best_dist = None, 3
             for k in CFG_HELP:
                 d = _edit_distance(key, k)
@@ -384,6 +396,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
     def _check_json(self) -> None:
         """Live JSON syntax check - show/hide error as user types."""
         from textual.widgets import Static
+
         text = self.query_one("#config-editor", TextArea).text
         err = self.query_one("#config-error", Static)
         try:
@@ -419,9 +432,11 @@ class ConfigEditor(ModalScreen[tuple | None]):
             return
         # Validate config values before saving
         from termapy.config import validate_config
+
         warnings = validate_config(new_cfg)
         if warnings:
             from textual.widgets import Static
+
             err = self.query_one("#config-error", Static)
             err.update("\n".join(warnings))
             err.add_class("visible")
@@ -448,9 +463,11 @@ class ConfigEditor(ModalScreen[tuple | None]):
             return
         # Validate config values before saving
         from termapy.config import validate_config
+
         warnings = validate_config(new_cfg)
         if warnings:
             from textual.widgets import Static
+
             err = self.query_one("#config-error", Static)
             err.update("\n".join(warnings))
             err.add_class("visible")

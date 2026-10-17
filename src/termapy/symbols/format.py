@@ -35,7 +35,10 @@ def symbolic_name(symbol: Symbol, addr: int) -> str:
 
 
 def format_symbol(
-    symbol: Symbol, query_addr: int | None = None, *, address_bits: int = 32,
+    symbol: Symbol,
+    query_addr: int | None = None,
+    *,
+    address_bits: int = 32,
 ) -> str:
     """One display line: ``0x00002010  main+0x10  [code 442 bytes main.c]``.
 
@@ -52,10 +55,7 @@ def format_symbol(
     name = symbol.name if query_addr is None else symbolic_name(symbol, query_addr)
     size_str = f" {symbol.size} bytes" if symbol.size else ""
     file_str = f" {symbol.file}" if symbol.file else ""
-    return (
-        f"{hex_addr(addr, address_bits)}  {name}"
-        f"  [{symbol.section_label}{size_str}{file_str}]"
-    )
+    return f"{hex_addr(addr, address_bits)}  {name}  [{symbol.section_label}{size_str}{file_str}]"
 
 
 def symbol_record(symbol: Symbol, *, address_bits: int = 32) -> dict[str, Any]:
@@ -77,7 +77,10 @@ def symbol_record(symbol: Symbol, *, address_bits: int = 32) -> dict[str, Any]:
 
 
 def lookup_record(
-    parsed: Address, at: Symbol | None, *, address_bits: int = 32,
+    parsed: Address,
+    at: Symbol | None,
+    *,
+    address_bits: int = 32,
 ) -> dict[str, Any]:
     """The ``/sym`` record: what was asked, what it resolved to, what is there.
 
@@ -102,7 +105,9 @@ def lookup_record(
 
 
 def device_list_rows(
-    devices: list[Device], *, address_bits: int = 32,
+    devices: list[Device],
+    *,
+    address_bits: int = 32,
 ) -> list[tuple[str, str, str, str]]:
     """``(device, registers, layer, placement)`` per loaded device, for a table.
 
@@ -126,7 +131,8 @@ def device_list_rows(
     for device in devices:
         placed = " ".join(
             f"{instance.name}@{hex_addr(instance.base, address_bits)}"
-            for instance in device.instances if instance.name
+            for instance in device.instances
+            if instance.name
         )
         rows.append((device.name, str(len(device)), device.layer or "-", placed))
     return rows
@@ -172,8 +178,7 @@ def device_records(devices: list[Device]) -> list[dict[str, Any]]:
             "vendor": device.vendor,
             "relocatable": device.relocatable,
             "instances": [
-                {"name": instance.name, "base": instance.base}
-                for instance in device.instances
+                {"name": instance.name, "base": instance.base} for instance in device.instances
             ],
             "registers": len(device),
             "layer": device.layer,
@@ -208,7 +213,9 @@ def table_record(table: SymbolTable, *, file: str = "") -> dict[str, Any]:
         "count": len(table),
         "devices": device_records(table.devices),
         "sections": table.stats(),
-        "range": None if span is None else {
+        "range": None
+        if span is None
+        else {
             "start": span[0],
             "end": span[1],
             "start_hex": hex_addr(span[0], bits),
@@ -229,8 +236,7 @@ def info_rows(table: SymbolTable, *, file: str = "") -> list[tuple[str, str]]:
     span = table.span()
     bits = table.address_bits
     span_text = (
-        "(empty)" if span is None
-        else f"{hex_addr(span[0], bits)} - {hex_addr(span[1], bits)}"
+        "(empty)" if span is None else f"{hex_addr(span[0], bits)} - {hex_addr(span[1], bits)}"
     )
     rows = [
         ("file", file or "(in-memory)"),
@@ -259,7 +265,8 @@ def info_rows(table: SymbolTable, *, file: str = "") -> list[tuple[str, str]]:
     for device in table.devices:
         placed = " ".join(
             f"{instance.name}@{hex_addr(instance.base, bits)}"
-            for instance in device.instances if instance.name
+            for instance in device.instances
+            if instance.name
         )
         detail = f"  {placed}" if placed else ""
         rows.append(("device", f"{device.name}{detail}  ({len(device)} registers)"))

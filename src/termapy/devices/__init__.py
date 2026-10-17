@@ -248,9 +248,7 @@ class Device:
 
     def registers(self) -> list[Register]:
         """Every concrete register across every instance, in file order."""
-        return [
-            register for instance in self.instances for register in instance.registers
-        ]
+        return [register for instance in self.instances for register in instance.registers]
 
 
 # ── Parsing ────────────────────────────────────────────────────────────────
@@ -280,9 +278,7 @@ def parse_device(data: Any, *, path: Path | None = None, layer: str = "") -> Dev
         raise ValueError(f"device_version: expected {DEVICE_VERSION}, got {version}")
     name = data.get("device")
     if not isinstance(name, str) or not _DEVICE_RE.match(name):
-        raise ValueError(
-            "device: expected a name of letters, digits, '_' or '-'"
-        )
+        raise ValueError("device: expected a name of letters, digits, '_' or '-'")
     texts = {key: _text(data, key) for key in ("description", "vendor", "source", "license")}
     parts = data.get("parts", [])
     if not isinstance(parts, list) or not all(isinstance(part, str) for part in parts):
@@ -294,8 +290,7 @@ def parse_device(data: Any, *, path: Path | None = None, layer: str = "") -> Dev
     if not isinstance(raw_registers, list):
         raise ValueError("registers: expected a list")
     templates = [
-        _register_template(raw, f"registers[{i}]", name)
-        for i, raw in enumerate(raw_registers)
+        _register_template(raw, f"registers[{i}]", name) for i, raw in enumerate(raw_registers)
     ]
     _check_unique([register.symbol.name for register in templates], "registers", "name")
     instances = _expand(templates, data.get("instances"), relocatable)
@@ -323,9 +318,7 @@ def _text(data: dict[str, Any], key: str) -> str:
 def _ident(raw: dict[str, Any], key: str, where: str) -> str:
     value = raw.get(key)
     if not isinstance(value, str) or not _IDENT_RE.match(value):
-        raise ValueError(
-            f"{where}.{key}: expected an identifier (letters, digits, '_'; no '.')"
-        )
+        raise ValueError(f"{where}.{key}: expected an identifier (letters, digits, '_'; no '.')")
     return value
 
 
@@ -381,12 +374,24 @@ def _register_template(raw: Any, where: str, device: str) -> Register:
     reset_raw = raw.get("reset")
     reset = None if reset_raw is None else parse_addr_field(reset_raw, where, key="reset")
     symbol = Symbol(
-        name, addr, size, DEVICE_SECTION,
-        file=device, type=type_spec, space=texts["space"],
-        rmw=flags["rmw"], access=access, read_effect=flags["read_effect"],
+        name,
+        addr,
+        size,
+        DEVICE_SECTION,
+        file=device,
+        type=type_spec,
+        space=texts["space"],
+        rmw=flags["rmw"],
+        access=access,
+        read_effect=flags["read_effect"],
     )
     return Register(
-        symbol, texts["peripheral"], texts["group"], texts["description"], reset, fields,
+        symbol,
+        texts["peripheral"],
+        texts["group"],
+        texts["description"],
+        reset,
+        fields,
     )
 
 
@@ -460,20 +465,22 @@ def derive_type(fields: tuple[Field, ...]) -> str:
 
 
 def _expand(
-    templates: list[Register], raw_instances: Any, relocatable: bool,
+    templates: list[Register],
+    raw_instances: Any,
+    relocatable: bool,
 ) -> tuple[Instance, ...]:
     """Place the template registers: one implicit copy, or one per instance."""
     if not relocatable:
         if raw_instances:
             raise ValueError(
                 "instances: only a relocatable device has instances "
-                "(set \"relocatable\": true if addr values are offsets)"
+                '(set "relocatable": true if addr values are offsets)'
             )
         return (Instance("", 0, tuple(templates)),)
     if not isinstance(raw_instances, list) or not raw_instances:
         raise ValueError(
             "instances: a relocatable device needs at least one "
-            "{\"name\": ..., \"base\": ...} -- its addr values are offsets"
+            '{"name": ..., "base": ...} -- its addr values are offsets'
         )
     instances: list[Instance] = []
     for i, raw in enumerate(raw_instances):
@@ -608,7 +615,9 @@ class DeviceLoad:
 
 
 def load_devices_from_dir(
-    folder: Path, layer: str = "", library: LibrarySource = None,
+    folder: Path,
+    layer: str = "",
+    library: LibrarySource = None,
 ) -> DeviceLoad:
     """Load every ``*.device.json`` in one folder.
 
@@ -646,7 +655,8 @@ def load_devices_from_dir(
 
 
 def resolve_devices(
-    config_path: str, global_root: Path | None = None,
+    config_path: str,
+    global_root: Path | None = None,
 ) -> tuple[list[Device], list[str]]:
     """Every device a config loads: global then per-config, later wins.
 
@@ -676,8 +686,11 @@ def resolve_devices(
     kept: list[Device] = []
     for device in by_name.values():
         clash = next(
-            (register.symbol.name for register in device.registers()
-             if register.symbol.name in owner),
+            (
+                register.symbol.name
+                for register in device.registers()
+                if register.symbol.name in owner
+            ),
             None,
         )
         if clash is not None:
@@ -735,7 +748,8 @@ def _layers(config_path: str, global_root: Path | None) -> list[tuple[Path, str]
 
 
 def merge_into(
-    symbols: list[Symbol], devices: list[Device],
+    symbols: list[Symbol],
+    devices: list[Device],
 ) -> tuple[list[Symbol], list[str]]:
     """Build symbols plus device registers; the build wins a name clash.
 
@@ -770,7 +784,9 @@ def merge_into(
 
 
 def registers_in_range(
-    devices: list[Device], addr: int, length: int,
+    devices: list[Device],
+    addr: int,
+    length: int,
 ) -> list[Register]:
     """Every loaded register whose bytes fall in ``[addr, addr + length)``.
 
@@ -904,17 +920,19 @@ def scan_library(root: Path, layer: str = "") -> tuple[list[LibraryPart], list[s
             continue
         seen[device] = path
         registers = data.get("registers")
-        parts.append(LibraryPart(
-            device=device,
-            path=path,
-            category=path.parent.relative_to(root).as_posix().strip("."),
-            description=_text(data, "description"),
-            vendor=_text(data, "vendor"),
-            registers=len(registers) if isinstance(registers, list) else -1,
-            layer=layer,
-            relative=label,
-            relocatable=data.get("relocatable") is True,
-        ))
+        parts.append(
+            LibraryPart(
+                device=device,
+                path=path,
+                category=path.parent.relative_to(root).as_posix().strip("."),
+                description=_text(data, "description"),
+                vendor=_text(data, "vendor"),
+                registers=len(registers) if isinstance(registers, list) else -1,
+                layer=layer,
+                relative=label,
+                relocatable=data.get("relocatable") is True,
+            )
+        )
     parts.sort(key=lambda part: (part.category, part.device))
     return parts, errors
 
@@ -947,7 +965,8 @@ def config_library_dir(config_path: str) -> Path:
 
 
 def library_layers(
-    config_path: str, global_root: Path | None = None,
+    config_path: str,
+    global_root: Path | None = None,
 ) -> list[tuple[Path, str]]:
     """``(folder, label)`` per library layer, lowest precedence first.
 

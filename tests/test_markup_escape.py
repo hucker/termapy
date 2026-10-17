@@ -34,8 +34,14 @@ from termapy.variables import set_context_var, unset_user_var
 # tag after it, a trailing pair Rich's own escape collapses, real markup that
 # must stay text, an escaped-looking bracket, and a number.
 TRICKY = [
-    "[ok] boot done", "[[test]] sections", "a [/] b", "C:\\dir\\", "x\\\\",
-    "[bold]x[/]", "x\\[y]", 42,
+    "[ok] boot done",
+    "[[test]] sections",
+    "a [/] b",
+    "C:\\dir\\",
+    "x\\\\",
+    "[bold]x[/]",
+    "x\\[y]",
+    42,
 ]
 
 
@@ -94,7 +100,9 @@ def test_escaped_text_renders_as_itself(value):
 
     # Assert
     assert tagged == str(value), "before a close tag"
-    assert line_end == f"x {value}", "at the end of a line, where Rich's own escape shows a doubled backslash"
+    assert line_end == f"x {value}", (
+        "at the end of a line, where Rich's own escape shows a doubled backslash"
+    )
 
 
 def test_markup_to_plain_strips_tags_and_keeps_escaped_text():
@@ -110,7 +118,10 @@ def test_markup_to_plain_strips_tags_and_keeps_escaped_text():
 def test_kv_lines_escape_labels_and_values_and_color_by_row():
     """format_kv_lines escapes every label and value; a third row element colors the value."""
     # Arrange
-    rows: list[tuple[str, str] | tuple[str, str, str]] = [("Path", "C:\\dir\\"), ("State", "[ok]", "red")]
+    rows: list[tuple[str, str] | tuple[str, str, str]] = [
+        ("Path", "C:\\dir\\"),
+        ("State", "[ok]", "red"),
+    ]
 
     # Act
     rendered = [Text.from_markup(line) for line in format_kv_lines(rows)]
@@ -160,10 +171,14 @@ def test_an_echoed_command_keeps_its_brackets(session):
     echoed: list[str] = []
 
     # Act
-    engine.dispatch_full("/print [ok]", echo_markup=lambda markup: echoed.append(markup_to_plain(markup)))
+    engine.dispatch_full(
+        "/print [ok]", echo_markup=lambda markup: echoed.append(markup_to_plain(markup))
+    )
 
     # Assert
-    assert any(line.endswith("/print [ok]") for line in echoed), f"echo shows the command as typed; got {echoed}"
+    assert any(line.endswith("/print [ok]") for line in echoed), (
+        f"echo shows the command as typed; got {echoed}"
+    )
 
 
 def test_the_echo_line_expands_vars_marks_the_eol_and_escapes_the_command(tmp_path):

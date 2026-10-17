@@ -79,8 +79,7 @@ def _apply_profile(
     result = validate_profile(profile)
     if not result.ok:
         ctx.io.output(
-            f"  Profile has {len(result.errors)} schema error(s); "
-            f"refusing to load:",
+            f"  Profile has {len(result.errors)} schema error(s); refusing to load:",
             "red",
         )
         for error in result.errors:
@@ -89,9 +88,7 @@ def _apply_profile(
     # Warnings never block a load: they flag unknown fields and
     # non-canonical values that degrade per the compatibility policy.
     if result.warnings:
-        ctx.io.output(
-            f"  {len(result.warnings)} compatibility warning(s):", "yellow"
-        )
+        ctx.io.output(f"  {len(result.warnings)} compatibility warning(s):", "yellow")
         for w in result.warnings:
             ctx.io.output(f"    - {w}", "yellow")
 
@@ -171,9 +168,7 @@ def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Parse error: {e}")
     result = validate_profile(profile)
     if result.warnings:
-        ctx.io.output(
-            f"  {len(result.warnings)} compatibility warning(s):", "yellow"
-        )
+        ctx.io.output(f"  {len(result.warnings)} compatibility warning(s):", "yellow")
         for w in result.warnings:
             ctx.io.output(f"    - {w}", "yellow")
     if result.ok:
@@ -208,13 +203,12 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
             return _load_from_file(ctx, src_path)
         if src_cmd:
             return _load_from_device(
-                ctx, src_cmd, _DEFAULT_FETCH_TIMEOUT_MS,
+                ctx,
+                src_cmd,
+                _DEFAULT_FETCH_TIMEOUT_MS,
             )
         return CmdResult.fail(
-            msg=(
-                "No profile loaded; nothing to reload.  Pass a path "
-                "or cmd=<command>."
-            ),
+            msg=("No profile loaded; nothing to reload.  Pass a path or cmd=<command>."),
         )
 
     # cmd= form -> device fetch.  Anything containing = needs the
@@ -258,14 +252,17 @@ def _load_from_file(ctx: PluginContext, path_str: str) -> CmdResult:
     except (OSError, ValueError) as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
     return _apply_profile(
-        ctx, profile,
+        ctx,
+        profile,
         source_path=str(path.resolve()),
         label=path.name,
     )
 
 
 def _load_from_device(
-    ctx: PluginContext, cmd: str, timeout_ms: int,
+    ctx: PluginContext,
+    cmd: str,
+    timeout_ms: int,
 ) -> CmdResult:
     """Send ``cmd`` to the device, read JSON back, install as profile."""
     if not ctx.serial.is_connected():
@@ -278,13 +275,11 @@ def _load_from_device(
 
     if data is None:
         return CmdResult.fail(
-            msg=(
-                f"No valid JSON received from {cmd!r} within "
-                f"{timeout_ms / 1000:.1f}s."
-            ),
+            msg=(f"No valid JSON received from {cmd!r} within {timeout_ms / 1000:.1f}s."),
         )
     return _apply_profile(
-        ctx, data,
+        ctx,
+        data,
         source_cmd=cmd,
         label=f"device:{cmd}",
     )
@@ -313,9 +308,7 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
     else:
         default = _default_save_path(ctx)
         if default is None:
-            raise UsageError(
-                "No config loaded; can't derive a default path"
-            )
+            raise UsageError("No config loaded; can't derive a default path")
         path = default
 
     # Strip internal __source_* fields before writing.  They're
@@ -329,8 +322,7 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
 
     commands = out.get("commands") or {}
     all_disabled = bool(commands) and all(
-        isinstance(spec, dict) and spec.get("enabled") is False
-        for spec in commands.values()
+        isinstance(spec, dict) and spec.get("enabled") is False for spec in commands.values()
     )
     n = len(commands)
     ctx.io.result(f"Wrote {path.name}: {n} commands.", "green")
@@ -431,7 +423,11 @@ COMMAND = Command(
             handler=_handler_validate,
             params=[
                 ParamSpec(
-                    "path", "path", positional=True, rest=True, required=True,
+                    "path",
+                    "path",
+                    positional=True,
+                    rest=True,
+                    required=True,
                     help="profile file to validate (.json or .toml)",
                 ),
             ],
@@ -469,8 +465,7 @@ COMMAND = Command(
         "save": Command(
             args="{path}",
             help=(
-                "Write the active profile to a file (default: "
-                "<cfg_dir>/<cfg_stem>.profile.json)."
+                "Write the active profile to a file (default: <cfg_dir>/<cfg_stem>.profile.json)."
             ),
             long_help=(
                 "Saves the active profile dict to disk so the next connect "

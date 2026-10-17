@@ -99,8 +99,7 @@ def _parse_search_terms(query: str) -> tuple[list[str], list[str]]:
     return positives, negatives
 
 
-def _field_text(name: str, plugin, field: str,
-                ctx: PluginContext | None = None) -> str:
+def _field_text(name: str, plugin, field: str, ctx: PluginContext | None = None) -> str:
     """Return the text body for a given searchable field on one plugin.
 
     ``long_help`` may be a callable; when ``ctx`` is supplied we resolve
@@ -132,9 +131,9 @@ def _tier_fields(include_dev: bool) -> tuple[str, ...]:
     return _FUZZY_FIELDS
 
 
-def _best_tier(needle: str, name: str, plugin, fields: tuple[str, ...],
-               ctx: PluginContext | None = None
-               ) -> tuple[int | None, str]:
+def _best_tier(
+    needle: str, name: str, plugin, fields: tuple[str, ...], ctx: PluginContext | None = None
+) -> tuple[int | None, str]:
     """Return the highest-priority (tier, field) where ``needle`` appears.
 
     ``ctx`` is forwarded to ``_field_text`` so callable long_help is
@@ -148,9 +147,9 @@ def _best_tier(needle: str, name: str, plugin, fields: tuple[str, ...],
     return None, ""
 
 
-def _fuzzy_matches(query: str, plugins: dict, include_dev: bool = False,
-                   ctx: PluginContext | None = None
-                   ) -> list[tuple[str, str]]:
+def _fuzzy_matches(
+    query: str, plugins: dict, include_dev: bool = False, ctx: PluginContext | None = None
+) -> list[tuple[str, str]]:
     """Return ``(command_name, field)`` pairs for a multi-term query.
 
     All positive terms must appear somewhere in the searched fields; any
@@ -174,15 +173,9 @@ def _fuzzy_matches(query: str, plugins: dict, include_dev: bool = False,
         tier, field = _best_tier(positives[0], name, plugin, fields, ctx)
         if tier is None:
             continue
-        if not all(
-            _best_tier(t, name, plugin, fields, ctx)[0] is not None
-            for t in positives[1:]
-        ):
+        if not all(_best_tier(t, name, plugin, fields, ctx)[0] is not None for t in positives[1:]):
             continue
-        if any(
-            _best_tier(t, name, plugin, fields, ctx)[0] is not None
-            for t in negatives
-        ):
+        if any(_best_tier(t, name, plugin, fields, ctx)[0] is not None for t in negatives):
             continue
         ranked.append((tier, name, field))
     ranked.sort(key=lambda item: (item[0], item[1]))
@@ -215,9 +208,9 @@ def _highlight_markup(text: str, span: tuple[int, int]) -> str:
     return f"{escape_markup(lead + before)}[yellow]{escape_markup(hit)}[/]{escape_markup(after + tail)}"
 
 
-def _search_fields(name: str, plugin, include_dev: bool,
-                   ctx: PluginContext | None = None
-                   ) -> list[tuple[str, str]]:
+def _search_fields(
+    name: str, plugin, include_dev: bool, ctx: PluginContext | None = None
+) -> list[tuple[str, str]]:
     """Return (field_label, field_text) pairs to search for one plugin.
 
     ``long_help`` may be a callable; when ``ctx`` is supplied we resolve it
@@ -244,10 +237,15 @@ def _search_fields(name: str, plugin, include_dev: bool,
     return fields
 
 
-def _render_hit(ctx: PluginContext, prefix: str, name: str, plugin,
-                hit_fields: list[tuple[str, str, tuple[int, int]]],
-                underlines: list[str] | None = None,
-                is_target: bool = False) -> None:
+def _render_hit(
+    ctx: PluginContext,
+    prefix: str,
+    name: str,
+    plugin,
+    hit_fields: list[tuple[str, str, tuple[int, int]]],
+    underlines: list[str] | None = None,
+    is_target: bool = False,
+) -> None:
     """Render a single search result: header line + per-field context sublines.
 
     ``is_target`` suppresses the REPL prefix and appends a dim "(target)"
@@ -305,8 +303,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     return _run_literal(ctx, pattern, include_dev, prefix)
 
 
-def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool,
-               prefix: str) -> CmdResult:
+def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool, prefix: str) -> CmdResult:
     """Regex-mode search: compile once, render each hit with context snippets."""
     try:
         rx = re.compile(pattern, re.IGNORECASE)
@@ -315,6 +312,7 @@ def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool,
 
     indexable = _indexable_commands(ctx)
     from termapy.profile import profile_command_view
+
     targets = profile_command_view(ctx.ns("active_profile"))
     matches: list[str] = []
     rendered = 0
@@ -332,21 +330,30 @@ def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool,
         if rendered >= _MAX_SEARCH_RESULTS:
             truncated = True
             continue
-        _render_hit(ctx, prefix, name, plugin, hit_fields,
-                    is_target=(name in targets and name not in ctx.internal.plugins))
+        _render_hit(
+            ctx,
+            prefix,
+            name,
+            plugin,
+            hit_fields,
+            is_target=(name in targets and name not in ctx.internal.plugins),
+        )
         rendered += 1
     return _finish(ctx, pattern, matches, truncated)
 
 
-def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool,
-                 prefix: str) -> CmdResult:
+def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool, prefix: str) -> CmdResult:
     """Literal-mode search: multi-term AND + `-exclude` grammar, context snippets."""
     positives, _ = _parse_search_terms(pattern)
     indexable = _indexable_commands(ctx)
     from termapy.profile import profile_command_view
+
     targets = profile_command_view(ctx.ns("active_profile"))
     matches = _fuzzy_matches(
-        pattern, indexable, include_dev=include_dev, ctx=ctx,
+        pattern,
+        indexable,
+        include_dev=include_dev,
+        ctx=ctx,
     )
     rendered = 0
     truncated = False
@@ -360,21 +367,25 @@ def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool,
             for term in positives:
                 idx = text_lc.find(term.lower())
                 if idx >= 0:
-                    hit_fields.append(
-                        (label, text, (idx, idx + len(term)))
-                    )
+                    hit_fields.append((label, text, (idx, idx + len(term))))
                     break  # one span per field is enough for rendering
         if rendered >= _MAX_SEARCH_RESULTS:
             truncated = True
             continue
-        _render_hit(ctx, prefix, name, plugin, hit_fields, underlines=positives,
-                    is_target=(name in targets and name not in ctx.internal.plugins))
+        _render_hit(
+            ctx,
+            prefix,
+            name,
+            plugin,
+            hit_fields,
+            underlines=positives,
+            is_target=(name in targets and name not in ctx.internal.plugins),
+        )
         rendered += 1
     return _finish(ctx, pattern, ordered_names, truncated)
 
 
-def _finish(ctx: PluginContext, pattern: str, matches: list[str],
-            truncated: bool) -> CmdResult:
+def _finish(ctx: PluginContext, pattern: str, matches: list[str], truncated: bool) -> CmdResult:
     """Emit the summary line and return a scripting-friendly value."""
     if not matches:
         ctx.io.result(f"No matches for '{pattern}'.")

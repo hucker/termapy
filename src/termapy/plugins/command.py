@@ -129,9 +129,7 @@ def usage_synopsis(command: Command | PluginInfo) -> str:
     return command.args
 
 
-def format_usage(
-    prefix: str, name: str, command: Command | PluginInfo, detail: str = ""
-) -> str:
+def format_usage(prefix: str, name: str, command: Command | PluginInfo, detail: str = "") -> str:
     """Format the canonical usage message for *command*.
 
     Single owner for every ``Usage:`` line the dispatcher emits, so the
@@ -725,18 +723,14 @@ class PluginInfo:
         """
         error = validate_synopsis(self.args)
         if error:
-            raise ValueError(
-                f"/{self.name}: invalid args synopsis {self.args!r}: {error}"
-            )
+            raise ValueError(f"/{self.name}: invalid args synopsis {self.args!r}: {error}")
         if self.files and self.files not in FOLDER_NAMES:
             raise ValueError(
-                f"/{self.name}: unknown files folder {self.files!r} "
-                f"(use {', '.join(FOLDER_NAMES)})"
+                f"/{self.name}: unknown files folder {self.files!r} (use {', '.join(FOLDER_NAMES)})"
             )
         if self.picker and self.picker not in PICKERS:
             raise ValueError(
-                f"/{self.name}: unknown picker {self.picker!r} "
-                f"(use {', '.join(PICKERS)})"
+                f"/{self.name}: unknown picker {self.picker!r} (use {', '.join(PICKERS)})"
             )
 
 

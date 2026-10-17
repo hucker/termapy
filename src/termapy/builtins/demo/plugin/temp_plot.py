@@ -88,10 +88,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         spark += bars[idx]
 
     ctx.io.output_markup(f"  [cyan]{escape_markup(spark)}[/]")
-    summary = (
-        f"{len(readings)} samples: "
-        f"min={lo:.1f}°C  max={hi:.1f}°C  avg={avg:.1f}°C"
-    )
+    summary = f"{len(readings)} samples: min={lo:.1f}°C  max={hi:.1f}°C  avg={avg:.1f}°C"
     ctx.io.output(f"  {summary}")
     return CmdResult.ok(value=summary)
 

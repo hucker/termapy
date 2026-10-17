@@ -19,7 +19,6 @@ DEMO_SYMBOLS = DEMO_DIR / f"demo{SYMBOLS_SUFFIX}"
 
 
 class TestBundledSymbols:
-
     def test_file_exists(self):
         """The demo symbol table ships inside the package, where setup_demo_config copies from."""
         # Assert
@@ -63,13 +62,14 @@ class TestBundledSymbols:
         scal = table.by_name("sCal")[0]
 
         # Assert
-        assert len(parse_format_spec(u1mode.type, word=True)) == 3, "U1MODE carries a 3-field format spec"
+        assert len(parse_format_spec(u1mode.type, word=True)) == 3, (
+            "U1MODE carries a 3-field format spec"
+        )
         assert u1sta.rmw is False, "U1STA is the rmw:false example"
         assert scal.size == 0, "sCal is the size-0 linker global"
 
 
 class TestSetupDemoConfig:
-
     def test_materializes_sidecar_byte_identical(self, tmp_path):
         """A fresh demo config gets the bundled table under sym/ as an exact byte copy."""
         # Act

@@ -65,4 +65,6 @@ def test_the_line_counts_stay_release_preps():
     actual = tracked_counts(text)["app.py"]
 
     # Assert
-    assert actual == 12345, "the number already in the doc wins, so a feature branch never churns it"
+    assert actual == 12345, (
+        "the number already in the doc wins, so a feature branch never churns it"
+    )

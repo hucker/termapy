@@ -32,6 +32,7 @@ def repl_env(tmp_path):
         apply_cfg=engine._apply_cfg,
     )
     from termapy.plugins import IOHandle
+
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),

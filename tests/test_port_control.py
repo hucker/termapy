@@ -71,7 +71,6 @@ def _cfg(**overrides):
 
 
 class TestConstants:
-
     def test_serial_keys_contains_expected(self):
         """The keys that identify the serial connection itself are all in SERIAL_KEYS."""
         assert "port" in SERIAL_KEYS, "SERIAL_KEYS should contain 'port'"
@@ -90,7 +89,6 @@ class TestConstants:
 
 
 class TestPortInfo:
-
     def test_disconnected(self):
         """With no open port, the info page falls back to the config values, says so, and has no signals."""
         # Act
@@ -99,7 +97,9 @@ class TestPortInfo:
         # Assert - config values with disconnected state, no live lines
         rows = {item[0]: item[1] for item in report.items if isinstance(item, tuple)}
         assert "disconnected" in rows["Port"], "the port row says disconnected"
-        assert (report.data["connected"], report.data["baud_rate"]) == (False, 115200), "config values as data"
+        assert (report.data["connected"], report.data["baud_rate"]) == (False, 115200), (
+            "config values as data"
+        )
         assert report.data["signals"] is None, "no live lines without an open port"
 
     def test_connected_shows_hw_lines(self):
@@ -114,14 +114,15 @@ class TestPortInfo:
         labels = [item[0] for item in report.items if isinstance(item, tuple)]
         assert {"DTR", "RTS"} <= set(labels), "the DTR and RTS rows"
         assert report.data["connected"] is True, "connected as a boolean"
-        assert set(report.data["signals"]) == {"dtr", "rts", "cts", "dsr", "ri", "cd"}, "all six lines"
+        assert set(report.data["signals"]) == {"dtr", "rts", "cts", "dsr", "ri", "cd"}, (
+            "all six lines"
+        )
 
 
 # ── get_set_prop ─────────────────────────────────────────────────────────────
 
 
 class TestGetSetProp:
-
     def test_get_disconnected_shows_config(self):
         """A bare query while disconnected reports the configured value, marked disconnected."""
         # Act
@@ -173,14 +174,15 @@ class TestGetSetProp:
         msgs, effects = get_set_prop(None, _cfg(), "baud_rate", "9600")
 
         # Assert - not connected warning
-        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), (
+            "should warn not connected"
+        )
 
 
 # ── get_set_flow ─────────────────────────────────────────────────────────────
 
 
 class TestGetSetFlow:
-
     def test_get_flow(self):
         """A bare flow query reports the configured mode even with no port open."""
         # Act
@@ -200,7 +202,9 @@ class TestGetSetFlow:
         # Assert
         assert ser.rtscts is True, "rtscts should be enabled on serial object"
         assert effects.get("sync_hw") is True, "should request hw sync"
-        assert effects["cfg_update"]["flow_control"] == "rtscts", "cfg_update should set flow_control to rtscts"
+        assert effects["cfg_update"]["flow_control"] == "rtscts", (
+            "cfg_update should set flow_control to rtscts"
+        )
 
     def test_set_invalid_flow(self):
         """An unknown flow-control name is reported as an error."""
@@ -218,7 +222,6 @@ class TestGetSetFlow:
 
 
 class TestGetSetHwLine:
-
     def test_get_dtr(self):
         """A bare line query prints the asserted state as 1."""
         # Arrange
@@ -267,14 +270,15 @@ class TestGetSetHwLine:
         msgs, _ = get_set_hw_line(None, "dtr", "1")
 
         # Assert
-        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), (
+            "should warn not connected"
+        )
 
 
 # ── read_signal ──────────────────────────────────────────────────────────────
 
 
 class TestReadSignal:
-
     def test_read_cts(self):
         """An asserted input signal reads back as 1."""
         # Arrange
@@ -303,14 +307,15 @@ class TestReadSignal:
         msgs, _ = read_signal(None, "cts", "")
 
         # Assert
-        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), (
+            "should warn not connected"
+        )
 
 
 # ── send_break ───────────────────────────────────────────────────────────────
 
 
 class TestSendBreak:
-
     def test_default_duration(self):
         """A bare break holds the line for 250 ms and reports that duration."""
         # Arrange
@@ -363,14 +368,15 @@ class TestSendBreak:
         msgs, _ = send_break(None, "")
 
         # Assert
-        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), (
+            "should warn not connected"
+        )
 
 
 # ── parse_mode ──────────────────────────────────────────────────────────────
 
 
 class TestParseMode:
-
     def test_n81(self):
         """The parity-first spelling yields (parity, data bits, stop bits) with float stops."""
         # Act
@@ -447,9 +453,7 @@ class TestParseMode:
 
         # Assert
         expected = ("N", 8, 1.0)
-        assert actual == expected, (
-            f"8N1 (data-bits-first) must parse like N81, got {actual}"
-        )
+        assert actual == expected, f"8N1 (data-bits-first) must parse like N81, got {actual}"
 
     def test_databits_first_fractional_stop(self):
         """Data-bits-first form also accepts a fractional 1.5 stop-bit suffix."""
@@ -465,7 +469,6 @@ class TestParseMode:
 
 
 class TestParseOpenArgs:
-
     def test_port_only(self):
         """A lone port name sets only the port; every other field stays None."""
         # Act
@@ -505,9 +508,7 @@ class TestParseOpenArgs:
         port, baud, _, _, _, err = parse_open_args("0001")
 
         assert err is None, "bare 0001 parses as baud"
-        assert port is None and baud == 1, (
-            f"bare numeric is baud, got port={port} baud={baud}"
-        )
+        assert port is None and baud == 1, f"bare numeric is baud, got port={port} baud={baud}"
 
     def test_port_equals_requires_value(self):
         """An empty port= is an error rather than clearing the port."""
@@ -568,9 +569,7 @@ class TestParseOpenArgs:
     def test_linux_port(self):
         """A /dev path is accepted as a port name alongside baud and mode."""
         # Act
-        port, baud, mode, le, echo, err = parse_open_args(
-            "/dev/ttyUSB0 115200 E71"
-        )
+        port, baud, mode, le, echo, err = parse_open_args("/dev/ttyUSB0 115200 E71")
 
         # Assert
         assert port == "/dev/ttyUSB0", "should handle Linux device paths"
@@ -652,9 +651,7 @@ class TestParseOpenArgs:
 
         # Assert
         assert err is not None, "two line endings should error"
-        assert "Duplicate line ending" in err, (
-            f"error names the duplicate; got {err!r}"
-        )
+        assert "Duplicate line ending" in err, f"error names the duplicate; got {err!r}"
 
     # -- Echo tokens -------------------------------------------------------
 
@@ -683,18 +680,14 @@ class TestParseOpenArgs:
 
         # Assert
         assert err is not None, "two echo tokens should error"
-        assert "Duplicate echo" in err, (
-            f"error names the duplicate; got {err!r}"
-        )
+        assert "Duplicate echo" in err, f"error names the duplicate; got {err!r}"
 
     # -- Order-independence after port-first -------------------------------
 
     def test_all_fields_any_order_after_port(self):
         """After the port, baud, mode, line ending and echo may come in any order."""
         # Act -- the user's example from the feature ask.
-        port, baud, mode, le, echo, err = parse_open_args(
-            "COM3 echo crlf 9600 N81"
-        )
+        port, baud, mode, le, echo, err = parse_open_args("COM3 echo crlf 9600 N81")
 
         # Assert
         assert port == "COM3", "port stays first"
@@ -725,9 +718,7 @@ class TestParseOpenArgs:
         _, _, _, _, _, err = parse_open_args("echo COM3")
 
         # Assert
-        assert err is not None, (
-            "port-name-looking token after other fields must error"
-        )
+        assert err is not None, "port-name-looking token after other fields must error"
         assert "Unexpected" in err, f"error phrasing; got {err!r}"
 
 
@@ -735,7 +726,6 @@ class TestParseOpenArgs:
 
 
 class TestSetMode:
-
     def test_show_current_disconnected(self):
         """A bare query while disconnected shows the configured baud and frame."""
         # Act
@@ -812,7 +802,9 @@ class TestSetMode:
         msgs, _ = set_mode(None, _cfg(), "9600 N81")
 
         # Assert
-        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), (
+            "should warn not connected"
+        )
 
     def test_invalid_token(self):
         """A token that is neither baud nor frame is reported as an error."""
@@ -888,8 +880,7 @@ class TestResolvePort:
 
         # Assert
         expected = "COM3"
-        assert actual == expected, \
-            f"SN A1B2C3D4 should resolve to {expected}, got {actual}"
+        assert actual == expected, f"SN A1B2C3D4 should resolve to {expected}, got {actual}"
 
     def test_serial_number_case_insensitive(self):
         """Serial-number lookup ignores case, since vendors and users disagree on it."""
@@ -898,8 +889,7 @@ class TestResolvePort:
 
         # Assert
         expected = "COM3"
-        assert actual == expected, \
-            f"SN match must be case-insensitive; got {actual}"
+        assert actual == expected, f"SN match must be case-insensitive; got {actual}"
 
     def test_pipe_fallback_first_candidate_wins(self):
         """In a pipe-separated spec the first candidate that resolves wins."""
@@ -909,8 +899,7 @@ class TestResolvePort:
         # Assert -- note fleet has COM7 so COM7 would also resolve;
         # test still proves order by checking we got the SN match, not COM7
         expected = "COM3"
-        assert actual == expected, \
-            f"first resolving candidate wins; got {actual}"
+        assert actual == expected, f"first resolving candidate wins; got {actual}"
 
     def test_pipe_fallback_second_wins_when_first_missing(self):
         """A missing first candidate falls through to the next one in the chain."""
@@ -919,8 +908,7 @@ class TestResolvePort:
 
         # Assert
         expected = "COM4"
-        assert actual == expected, \
-            f"literal fallback wins when SN not found; got {actual}"
+        assert actual == expected, f"literal fallback wins when SN not found; got {actual}"
 
     def test_reserved_demo_passes_through(self):
         """DEMO is reserved and returned as-is without consulting the fleet."""
@@ -955,22 +943,26 @@ class TestResolvePort:
         # in its "Cannot open <X>" error, which is what the user most
         # explicitly asked for.
         expected = "NOPE3"
-        assert actual == expected, \
-            f"last candidate returned on total miss; got {actual}"
+        assert actual == expected, f"last candidate returned on total miss; got {actual}"
 
     def test_ambiguous_sn_raises(self):
         """A serial number shared by two ports raises, naming both, instead of guessing."""
+
         # Arrange -- a fleet with two devices sharing the same SN "0001"
         # (a common burn-in on cheap CP2102 / CH340 clones), handed in
         # through source= rather than patched over the gather function.
         def _ambiguous_fleet():
             return [
                 ChipFacts(
-                    device="COM3", manufacturer="CH340", serial="0001",
+                    device="COM3",
+                    manufacturer="CH340",
+                    serial="0001",
                     vid_pid="1A86:7523",
                 ),
                 ChipFacts(
-                    device="COM7", manufacturer="CH340", serial="0001",
+                    device="COM7",
+                    manufacturer="CH340",
+                    serial="0001",
                     vid_pid="1A86:7523",
                 ),
             ]
@@ -978,11 +970,11 @@ class TestResolvePort:
         # Act + Assert
         with pytest.raises(AmbiguousSerialNumberError) as exc:
             resolve_port("0001", source=_ambiguous_fleet)
-        assert exc.value.matches == ["COM3", "COM7"], \
-            "both colliding devices named in exception"
+        assert exc.value.matches == ["COM3", "COM7"], "both colliding devices named in exception"
         assert "0001" in str(exc.value), "SN named in exception message"
-        assert "COM3" in str(exc.value) and "COM7" in str(exc.value), \
+        assert "COM3" in str(exc.value) and "COM7" in str(exc.value), (
             "both devices mentioned in exception message"
+        )
 
 
 class TestChipInfoResolvesSnSpec:
@@ -1011,7 +1003,9 @@ class TestChipInfoResolvesSnSpec:
     def test_chip_field_resolves_serial_number(self):
         """A single chip field also resolves an SN-based spec to its device first."""
         # Act -- /port.chip.model under an SN config.
-        msgs, _ = chip_field("model", "", "A1B2C3D4", connected_port="COM3", source=_build_demo_fleet)
+        msgs, _ = chip_field(
+            "model", "", "A1B2C3D4", connected_port="COM3", source=_build_demo_fleet
+        )
 
         # Assert
         texts = [text for text, _ in msgs]
@@ -1086,6 +1080,7 @@ class TestResolvePortTrace:
 
     def test_ambiguous_sn_reported_not_raised(self):
         """The trace marks a shared SN as ambiguous and keeps going, never raising."""
+
         # Arrange -- same duplicate-SN fleet as the raises test.
         # trace()'s contract is to NEVER raise, so the caller can build
         # one coherent error message even when one of multiple
@@ -1174,8 +1169,7 @@ class TestPortSourceLayers:
         # Assert
         serial = actual.serial if actual else None
         assert serial != "A1B2C3D4", (
-            "trust_env=False must reach real hardware, not the fleet the "
-            "environment is offering"
+            "trust_env=False must reach real hardware, not the fleet the environment is offering"
         )
 
     def test_a_named_port_missing_from_a_fleet_is_not_invented(self):
@@ -1196,9 +1190,7 @@ class TestPortSourceLayers:
         actual = resolve_port("INJECTED-9", source=self._fleet)
 
         # Assert
-        assert actual == "COM9", (
-            f"SN INJECTED-9 should resolve to COM9, got {actual}"
-        )
+        assert actual == "COM9", f"SN INJECTED-9 should resolve to COM9, got {actual}"
 
     def test_the_trace_reports_how_an_injected_candidate_matched(self):
         """The trace classifies SN and literal matches against an injected fleet too."""
@@ -1212,6 +1204,7 @@ class TestPortSourceLayers:
 
     def test_ambiguity_still_raises_against_an_injected_fleet(self):
         """The shared-SN refusal holds whatever the port source, injected fleets included."""
+
         # Arrange -- two ports burned with the same serial number
         def twins():
             return [
@@ -1245,9 +1238,7 @@ class TestParseLocationPaths:
         actual = parse_location_paths(paths)
 
         # Assert
-        assert actual == "1-8.3", (
-            f"bus 1, hub port 8, device port 3; got {actual!r}"
-        )
+        assert actual == "1-8.3", f"bus 1, hub port 8, device port 3; got {actual!r}"
 
     def test_a_port_directly_on_the_root_hub_has_no_dot(self):
         """A device on the root hub gets the bare bus-port form with no dot."""
@@ -1260,9 +1251,7 @@ class TestParseLocationPaths:
     def test_each_further_hop_adds_a_dot(self):
         """Each extra hub tier appends one dotted port number to the chain."""
         # Act -- a hub behind a hub behind a hub.
-        actual = parse_location_paths(
-            "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(4)#USB(2)"
-        )
+        actual = parse_location_paths("PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(4)#USB(2)")
 
         # Assert
         assert actual == "1-8.4.2", f"one dot per extra tier; got {actual!r}"
@@ -1319,9 +1308,7 @@ class TestWindowsLocationChain:
         actual = parse_location_paths(paths)
 
         # Assert -- same spelling pyserial produces for the same device.
-        assert actual == "1-8.4:x.1", (
-            f"interface 1 of the device at 1-8.4; got {actual!r}"
-        )
+        assert actual == "1-8.4:x.1", f"interface 1 of the device at 1-8.4; got {actual!r}"
 
     def test_channels_of_one_chip_are_told_apart(self):
         """Two channels of one chip share a hop chain and differ only by interface."""
@@ -1344,9 +1331,7 @@ class TestWindowsLocationChain:
         """Without a USBMI hop the location carries no interface suffix."""
         # Act -- no USBMI token means nothing to disambiguate, and
         # pyserial omits the suffix in that case on every platform.
-        actual = parse_location_paths(
-            "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)"
-        )
+        actual = parse_location_paths("PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(8)#USB(3)")
 
         # Assert
         assert actual == "1-8.3", f"no interface, no suffix; got {actual!r}"
@@ -1386,9 +1371,7 @@ class TestSplitLocationInterface:
         actual = split_location_interface("1-8.3")
 
         # Assert
-        assert actual == ("1-8.3", None), (
-            f"nothing to split, and None marks that; got {actual}"
-        )
+        assert actual == ("1-8.3", None), f"nothing to split, and None marks that; got {actual}"
 
     def test_the_registry_fallback_is_left_alone(self):
         """The Windows Hub_#/Port_# fallback is not mistaken for an interface tail."""
@@ -1420,27 +1403,38 @@ class TestListPortRecords:
         """One record per fleet port, in the fleet's order."""
         # Arrange / Act
         from termapy.port_control import _build_demo_fleet, list_port_records
+
         actual = list_port_records(source=_build_demo_fleet)
 
         # Assert
         actual_devices = [record["device"] for record in actual]
         expected_devices = [facts.device for facts in _build_demo_fleet()]
-        assert actual_devices == expected_devices, (
-            "one record per fleet port, order preserved"
-        )
+        assert actual_devices == expected_devices, "one record per fleet port, order preserved"
 
     def test_record_schema_is_fixed(self):
         """Every record carries every key, null when unknown, so consumers need not probe."""
         # Arrange / Act -- every record has every field (null for unknown),
         # so consumers can rely on the shape without probing.
         from termapy.port_control import _build_demo_fleet, list_port_records
+
         records = list_port_records(source=_build_demo_fleet)
 
         # Assert
         expected_keys = {
-            "device", "manufacturer", "manufacturer_raw", "vendor",
-            "description", "chip", "speed", "vid", "pid", "vid_pid",
-            "serial_number", "in_use", "driver", "location",
+            "device",
+            "manufacturer",
+            "manufacturer_raw",
+            "vendor",
+            "description",
+            "chip",
+            "speed",
+            "vid",
+            "pid",
+            "vid_pid",
+            "serial_number",
+            "in_use",
+            "driver",
+            "location",
             "interface_number",
         }
         for record in records:
@@ -1453,6 +1447,7 @@ class TestListPortRecords:
         # Arrange / Act -- injection expresses "no ports", which the env
         # layer cannot.
         from termapy.port_control import list_port_records
+
         actual = list_port_records(source=lambda: [])
 
         # Assert

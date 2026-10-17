@@ -76,16 +76,16 @@ Add `ParamSpec` (frozen dataclass) to a new module `src/termapy/plugins/params.p
 ```python
 @dataclass(frozen=True)
 class ParamSpec:
-    name: str                     # keyword name, lowercase (e.g. "timeout")
-    type: str = "str"             # see param-types
+    name: str  # keyword name, lowercase (e.g. "timeout")
+    type: str = "str"  # see param-types
     required: bool = False
-    default: Any = None           # post-coercion value (e.g. 1.0 for "1s")
-    help: str = ""                # one line; feeds help + MCP catalog
-    hint: str = ""                # override synopsis type-hint (e.g. "<name>")
-    positional: bool = False      # consumed from positional tokens, in declared order
-    rest: bool = False            # consumes to end of line; at most one; must sort last
-    values: tuple = ()            # enum only: EnumValue entries (see param-type-enum)
-    min: float | None = None      # int/float only
+    default: Any = None  # post-coercion value (e.g. 1.0 for "1s")
+    help: str = ""  # one line; feeds help + MCP catalog
+    hint: str = ""  # override synopsis type-hint (e.g. "<name>")
+    positional: bool = False  # consumed from positional tokens, in declared order
+    rest: bool = False  # consumes to end of line; at most one; must sort last
+    values: tuple = ()  # enum only: EnumValue entries (see param-type-enum)
+    min: float | None = None  # int/float only
     max: float | None = None
 ```
 

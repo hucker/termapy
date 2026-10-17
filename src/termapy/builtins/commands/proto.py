@@ -53,9 +53,16 @@ if TYPE_CHECKING:
 
 
 _TEXT_ESCAPES = {
-    0x00: r"\0", 0x07: r"\a", 0x08: r"\b", 0x09: r"\t",
-    0x0A: r"\n", 0x0B: r"\v", 0x0C: r"\f", 0x0D: r"\r",
-    0x22: r"\"", 0x5C: "\\\\",
+    0x00: r"\0",
+    0x07: r"\a",
+    0x08: r"\b",
+    0x09: r"\t",
+    0x0A: r"\n",
+    0x0B: r"\v",
+    0x0C: r"\f",
+    0x0D: r"\r",
+    0x22: r"\"",
+    0x5C: "\\\\",
 }
 
 
@@ -193,7 +200,10 @@ def _stopped(event: threading.Event | None) -> bool:
 
 
 def _run_toml_script(
-    ctx: PluginContext, path: Path, script: ProtoScript, source: str,
+    ctx: PluginContext,
+    path: Path,
+    script: ProtoScript,
+    source: str,
 ) -> dict:
     """Execute a TOML-format proto script.
 
@@ -310,8 +320,15 @@ def _run_toml_script(
 
     config_name = Path(ctx.config_path).stem if ctx.config_path else ""
     return build_results(
-        script, path, source, ctx.cfg, config_name,
-        test_results, pass_count, fail_count, elapsed_s * 1000,
+        script,
+        path,
+        source,
+        ctx.cfg,
+        config_name,
+        test_results,
+        pass_count,
+        fail_count,
+        elapsed_s * 1000,
     )
 
 
@@ -401,9 +418,7 @@ def _run_flat_script(
 
                 ctx.io.output(f"  Expected: {format_spaced(step.data, step.binary)}")
                 if response:
-                    ctx.io.output(
-                        f"  Actual:   {format_spaced(response, step.binary)}", "yellow"
-                    )
+                    ctx.io.output(f"  Actual:   {format_spaced(response, step.binary)}", "yellow")
                     if match_response(step.data, response, step.mask):
                         ctx.io.output(
                             f"  PASS ({len(response)} bytes, {format_duration(elapsed_s)})",
@@ -485,11 +500,7 @@ def _parse_send_algo(
         low = low[:-3]
 
     if low in registry:
-        big_endian = (
-            explicit_be
-            if explicit_be is not None
-            else not registry[low].refout
-        )
+        big_endian = explicit_be if explicit_be is not None else not registry[low].refout
         return low, big_endian, ascii_crc
     return None, False, False
 
@@ -577,8 +588,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         endian_label = "BE" if big_endian else "LE"
         mode_label = "ascii" if ascii_crc else "bin"
         ctx.io.output(
-            f"  CRC: {algo.name} = 0x{crc_value:0{algo.width * 2}X}"
-            f" ({endian_label}, {mode_label})"
+            f"  CRC: {algo.name} = 0x{crc_value:0{algo.width * 2}X} ({endian_label}, {mode_label})"
         )
 
     # Build display string with delay markers
@@ -593,10 +603,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
             parts: list[str] = []
             for s in segments:
                 if isinstance(s, bytes):
-                    parts.append(
-                        _format_as_quoted_text(s) if ascii_view
-                        else format_hex(s)
-                    )
+                    parts.append(_format_as_quoted_text(s) if ascii_view else format_hex(s))
                 else:
                     parts.append(f"[~{format_duration(s)}]")
             ctx.io.output(f"  TX (dry-run): {' '.join(parts)}")
@@ -686,7 +693,11 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
             config_name = Path(ctx.config_path).stem if ctx.config_path else ""
             try:
                 out_path = write_results(
-                    results, path.parent / "test", script.json_file, path.stem, config_name,
+                    results,
+                    path.parent / "test",
+                    script.json_file,
+                    path.stem,
+                    config_name,
                 )
             except OSError as e:
                 return CmdResult.fail(msg=f"Write error: {e}")
@@ -828,15 +839,21 @@ def _handler_crc_list(ctx: PluginContext, args: str) -> CmdResult:
     records = []
     for name in names:
         entry = CRC_CATALOGUE.get(name)
-        records.append({
-            "name": name,
-            "width": entry["width"] if entry else registry[name].width * 8,
-            "description": entry.get("desc", "") if entry else "(plugin)",
-        })
+        records.append(
+            {
+                "name": name,
+                "width": entry["width"] if entry else registry[name].width * 8,
+                "description": entry.get("desc", "") if entry else "(plugin)",
+            }
+        )
     records.sort(key=lambda record: (record["width"], record["name"]))
     # The value is the matched names, alphabetical, so scripts can iterate or count.
     return CmdResult.table(
-        "CRC algorithms", "algorithm", _CRC_COLUMNS, records, value="\n".join(names),
+        "CRC algorithms",
+        "algorithm",
+        _CRC_COLUMNS,
+        records,
+        value="\n".join(names),
     )
 
 
@@ -892,14 +909,14 @@ def _handler_crc_info(ctx: PluginContext, args: str) -> CmdResult:
         "spec": specs,
     }
     rows = [
-        ("Width",  f"{w} bits ({w // 8} bytes)"),
-        ("Poly",   f"0x{entry['poly']:0{hex_w}X}"),
-        ("Init",   f"0x{entry['init']:0{hex_w}X}"),
-        ("RefIn",  str(entry['refin'])),
-        ("RefOut", str(entry['refout'])),
+        ("Width", f"{w} bits ({w // 8} bytes)"),
+        ("Poly", f"0x{entry['poly']:0{hex_w}X}"),
+        ("Init", f"0x{entry['init']:0{hex_w}X}"),
+        ("RefIn", str(entry["refin"])),
+        ("RefOut", str(entry["refout"])),
         ("XorOut", f"0x{entry['xorout']:0{hex_w}X}"),
-        ("Check",  f"0x{entry['check']:0{hex_w}X}  (CRC of '123456789')"),
-        ("Spec",   "  or  ".join(specs)),
+        ("Check", f"0x{entry['check']:0{hex_w}X}  (CRC of '123456789')"),
+        ("Spec", "  or  ".join(specs)),
     ]
     title = ((name, "bold"), (desc, "")) if desc else ((name, "bold"),)
     # The value is the algorithm name so scripts can confirm the lookup.
@@ -996,6 +1013,7 @@ def _handler_crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     # beats any generated code by ~30x on CPU CRC instructions.  Flag
     # it as a status hint so high-volume users see the recommendation.
     from crcglot import ALGORITHMS, has_faster_alternative
+
     entry_info = ALGORITHMS.get(name)
     if entry_info is not None and has_faster_alternative(entry_info):
         ctx.io.status(
@@ -1010,12 +1028,12 @@ def _handler_crc_calc(ctx: PluginContext, args: str) -> CmdResult:
             expected = entry["check"]
             if crc_val == expected:
                 ctx.io.output(
-                    f"  Check:     PASS - matches expected " f"0x{expected:0{hex_w}X}",
+                    f"  Check:     PASS - matches expected 0x{expected:0{hex_w}X}",
                     "green",
                 )
             else:
                 ctx.io.output(
-                    f"  Check:     FAIL - expected " f"0x{expected:0{hex_w}X}",
+                    f"  Check:     FAIL - expected 0x{expected:0{hex_w}X}",
                     "red",
                 )
     return CmdResult.ok(value=crc_hex)
@@ -1051,6 +1069,7 @@ def _write_crc_codegen_files(
         C (.h + .c), length 1 for the other languages.
     """
     from crcglot import LANGUAGES
+
     extensions = LANGUAGES[lang].extensions if lang in LANGUAGES else (".txt",)
     written: list = []
     # ``str(content)`` casts -- ``result`` comes from a Callable in
@@ -1069,8 +1088,18 @@ def _write_crc_codegen_files(
 
 
 _CRC_CODEGEN_KV_KEYS = {
-    "file", "width", "poly", "init", "refin", "refout",
-    "xorout", "name", "desc", "symbol", "style", "naming",
+    "file",
+    "width",
+    "poly",
+    "init",
+    "refin",
+    "refout",
+    "xorout",
+    "name",
+    "desc",
+    "symbol",
+    "style",
+    "naming",
 }
 
 
@@ -1096,6 +1125,7 @@ def _did_you_mean(name: str) -> str:
     is a no-op).
     """
     from crcglot import suggest_algorithms
+
     suggestions = suggest_algorithms(name, limit=4)
     if not suggestions:
         return ""
@@ -1109,6 +1139,7 @@ def _symbol_from_stem(file_stem: str) -> str:
     so a stem like ``out/my-crc.v1`` becomes ``my_crc_v1``.
     """
     from pathlib import Path
+
     base = Path(file_stem).name
     return base.replace("-", "_").replace(".", "_")
 
@@ -1163,9 +1194,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     #                              with each other.
     #
     # No flag at all => ``auto`` (the upstream default).
-    explicit = [
-        f for f in ("--small", "--fast", "--table", "--slice8") if ctx.flag(f)
-    ]
+    explicit = [f for f in ("--small", "--fast", "--table", "--slice8") if ctx.flag(f)]
     if len(explicit) > 1:
         return CmdResult.fail(
             msg=f"Variant flags are mutually exclusive; got {', '.join(explicit)}"
@@ -1190,6 +1219,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     # calls out the measured 0.79x CPython regression specifically.
     if variant == "slice8":
         from crcglot import LANGUAGES
+
         variants = LANGUAGES[lang].variants if lang in LANGUAGES else frozenset()
         if "slice8" not in variants:
             if lang == "python":
@@ -1198,10 +1228,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                     "(measured 0.79x); using --table instead."
                 )
             else:
-                note = (
-                    f"Note: --slice8 not available for {lang}; "
-                    "using --table instead."
-                )
+                note = f"Note: --slice8 not available for {lang}; using --table instead."
             ctx.io.output(note, "yellow")
             variant = "table"
 
@@ -1231,9 +1258,8 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     stray = next((name_token for name_token in name_tokens if name_token.startswith("--")), None)
     if stray is not None:
         from crcglot import LANGUAGES
-        supported = (
-            sorted(LANGUAGES[lang].variants) if lang in LANGUAGES else []
-        )
+
+        supported = sorted(LANGUAGES[lang].variants) if lang in LANGUAGES else []
         disp = LANGUAGES[lang].display_name if lang in LANGUAGES else lang
         return CmdResult.fail(
             msg=f"/proto.crc.{lang} doesn't accept {stray} "
@@ -1260,13 +1286,13 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             comment_style_for,
             styles_for_language,
         )
+
         try:
             comment_style_for(lang, style)
         except ValueError:
             allowed = styles_for_language(lang)
             return CmdResult.fail(
-                msg=f"Unknown style: {style} "
-                f"(allowed for {lang}: {', '.join(allowed)})"
+                msg=f"Unknown style: {style} (allowed for {lang}: {', '.join(allowed)})"
             )
 
     # Naming convention: crcglot 0.13+ exposes a per-language curated
@@ -1280,6 +1306,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         return CmdResult.fail(msg="naming= requires a value")
     if naming is not None:
         from crcglot import LANGUAGES
+
         allowed_naming = LANGUAGES[lang].naming if lang in LANGUAGES else frozenset()
         if naming not in allowed_naming:
             return CmdResult.fail(
@@ -1303,18 +1330,15 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         except ValueError as e:
             return CmdResult.fail(msg=f"Custom CRC param: {e}")
         if width not in (8, 16, 32, 64):
-            return CmdResult.fail(
-                msg="Custom CRC width must be 8, 16, 32, or 64"
-            )
+            return CmdResult.fail(msg="Custom CRC width must be 8, 16, 32, or 64")
         if variant == "slice8":
             # Defer the slice8/width-32-or-64 rule to crcglot via
             # ``LanguageInfo.variants_for_width`` -- the rule lives
             # next to the generators that enforce it.
             from crcglot import LANGUAGES
+
             if "slice8" not in LANGUAGES[lang].variants_for_width(width):
-                return CmdResult.fail(
-                    msg=f"--slice8 requires width=32 or 64 (got width={width})"
-                )
+                return CmdResult.fail(msg=f"--slice8 requires width=32 or 64 (got width={width})")
 
         # Compute the check value (CRC of "123456789") via the same
         # engine that powers the bundled catalog.  Embedded in the
@@ -1324,8 +1348,12 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         check = _generic_crc(
             b"123456789",
             Crc(
-                width=width, poly=poly, init=init,
-                refin=refin, refout=refout, xorout=xorout,
+                width=width,
+                poly=poly,
+                init=init,
+                refin=refin,
+                refout=refout,
+                xorout=xorout,
             ),
         )
 
@@ -1347,9 +1375,14 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         # for catalog entries, free-form citation otherwise.  --custom
         # params are exactly that: the user.
         entry = AlgorithmInfo(
-            width=width, poly=poly, init=init,
-            refin=refin, refout=refout, xorout=xorout,
-            check=check, desc=desc,
+            width=width,
+            poly=poly,
+            init=init,
+            refin=refin,
+            refout=refout,
+            xorout=xorout,
+            check=check,
+            desc=desc,
             source="user",
         )
         # Symbol resolution: explicit > file basename > name=.
@@ -1403,20 +1436,15 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                     "algorithms (each algorithm keeps its own symbol)"
                 )
             from crcglot import LANGUAGES
+
             if variant == "slice8":
                 # ``variants_for_widths`` returns the intersection across
                 # every member's allowed-variant set, so the slice8 +
                 # width-32/64 rule applies bundle-wide for free.
                 from termapy.protocol.crc import CRC_CATALOGUE
-                widths = [
-                    CRC_CATALOGUE[n]["width"]
-                    for n in names if n in CRC_CATALOGUE
-                ]
-                if (
-                    widths
-                    and "slice8"
-                    not in LANGUAGES[lang].variants_for_widths(widths)
-                ):
+
+                widths = [CRC_CATALOGUE[n]["width"] for n in names if n in CRC_CATALOGUE]
+                if widths and "slice8" not in LANGUAGES[lang].variants_for_widths(widths):
                     bad = [w for w in sorted(set(widths)) if w not in (32, 64)]
                     return CmdResult.fail(
                         msg=f"--slice8 requires every bundled CRC to be "
@@ -1433,13 +1461,12 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                 part = gen(n, **gen_kwargs_each)
                 if part is None:
                     ctx.io.output(f"Use '{ctx.prefix}proto.crc.list' to see available algorithms.")
-                    return CmdResult.fail(
-                        msg=f"Unknown algorithm: {n}{_did_you_mean(n)}"
-                    )
+                    return CmdResult.fail(msg=f"Unknown algorithm: {n}{_did_you_mean(n)}")
                 parts.append(part)
             # Combined file stem: file= wins; otherwise let crcglot
             # derive a canonical one from the algorithm names.
             from crcglot import default_stem
+
             bundle_stem = file_stem or default_stem(names)
             result = combiner(parts, bundle_stem)
             name = bundle_stem
@@ -1447,10 +1474,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             name = names[0]
 
             # Symbol resolution: explicit > file basename > generator default.
-            symbol = (
-                symbol_override
-                or (_symbol_from_stem(file_stem) if file_stem else None)
-            )
+            symbol = symbol_override or (_symbol_from_stem(file_stem) if file_stem else None)
 
             if variant == "slice8":
                 # Defer the slice8/width rule to crcglot via
@@ -1459,17 +1483,17 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                 from crcglot import LANGUAGES
 
                 from termapy.protocol.crc import CRC_CATALOGUE
+
                 entry = CRC_CATALOGUE.get(name)
                 if entry is not None and (
-                    "slice8"
-                    not in LANGUAGES[lang].variants_for_width(entry["width"])
+                    "slice8" not in LANGUAGES[lang].variants_for_width(entry["width"])
                 ):
                     return CmdResult.fail(
-                        msg=f"--slice8 requires width=32 or 64; {name} is "
-                        f"width={entry['width']}"
+                        msg=f"--slice8 requires width=32 or 64; {name} is width={entry['width']}"
                     )
             gen_kwargs_single: dict[str, object] = {
-                "symbol": symbol, "variant": variant,
+                "symbol": symbol,
+                "variant": variant,
             }
             if style is not None:
                 gen_kwargs_single["comment_style"] = style
@@ -1478,9 +1502,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             result = gen(name, **gen_kwargs_single)
             if result is None:
                 ctx.io.output(f"Use '{ctx.prefix}proto.crc.list' to see available algorithms.")
-                return CmdResult.fail(
-                    msg=f"Unknown algorithm: {name}{_did_you_mean(name)}"
-                )
+                return CmdResult.fail(msg=f"Unknown algorithm: {name}{_did_you_mean(name)}")
 
     # ----- File output mode (file=STEM) -----
     if file_stem is not None:
@@ -1496,9 +1518,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                 )
             )
         written = _write_crc_codegen_files(result, lang, file_stem, Path.cwd())
-        ctx.io.output(
-            f"Wrote {', '.join(str(p.name) for p in written)}", "green"
-        )
+        ctx.io.output(f"Wrote {', '.join(str(p.name) for p in written)}", "green")
         # Return the joined paths so scripts can capture them.
         return CmdResult.ok(value=" ".join(str(p) for p in written))
 
@@ -1544,16 +1564,16 @@ def _parse_find_args(text: str) -> dict[str, str]:
         idx = stripped.find(marker)
         if idx != -1 and (idx == 0 or stripped[idx - 1].isspace()):
             result["mode"] = key
-            result["payload"] = stripped[idx + len(marker):].strip()
+            result["payload"] = stripped[idx + len(marker) :].strip()
             stripped = stripped[:idx].strip()
             break
     for token in stripped.split():
         if token.startswith("width="):
-            result["width"] = token[len("width="):]
+            result["width"] = token[len("width=") :]
         elif token.startswith("endian="):
-            result["endian"] = token[len("endian="):]
+            result["endian"] = token[len("endian=") :]
         elif token.startswith("form="):
-            result["form"] = token[len("form="):]
+            result["form"] = token[len("form=") :]
     return result
 
 
@@ -1608,10 +1628,10 @@ def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="form= requires a value")
     if form is not None:
         from crcglot import FORMATS
+
         if form not in FORMATS:
             return CmdResult.fail(
-                msg=f"Unknown form: {form} "
-                f"(known: {', '.join(sorted(FORMATS)) or '(none)'})"
+                msg=f"Unknown form: {form} (known: {', '.join(sorted(FORMATS)) or '(none)'})"
             )
 
     mode = kw["mode"]
@@ -1630,19 +1650,26 @@ def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
             try:
                 packet_text = packet.decode("utf-8")
             except UnicodeDecodeError:
-                return CmdResult.fail(
-                    msg=f"form={form} requires UTF-8 decodable bytes"
-                )
+                return CmdResult.fail(msg=f"form={form} requires UTF-8 decodable bytes")
             result = detect(
-                packet_text, match="all",
-                endian=endian_arg, form=form,
+                packet_text,
+                match="all",
+                endian=endian_arg,
+                form=form,
             )
         else:
             result = detect(
-                packet, mode="binary", match="all", endian=endian_arg,
+                packet,
+                mode="binary",
+                match="all",
+                endian=endian_arg,
             )
         return _render_detect_result(
-            ctx, result, len(packet), width_filter, is_text=False,
+            ctx,
+            result,
+            len(packet),
+            width_filter,
+            is_text=False,
         )
 
     if mode == "cmd":
@@ -1675,7 +1702,11 @@ def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
             if _width_matches(whole.candidates, width_filter):
                 frame, result = captured, whole
         return _render_detect_result(
-            ctx, result, len(frame), width_filter, is_text=False,
+            ctx,
+            result,
+            len(frame),
+            width_filter,
+            is_text=False,
         )
 
     # mode == "asc"
@@ -1690,7 +1721,11 @@ def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Empty asc= payload")
     result = _detect_ascii(text, endian_arg, width_filter)
     return _render_detect_result(
-        ctx, result, len(text), width_filter, is_text=True,
+        ctx,
+        result,
+        len(text),
+        width_filter,
+        is_text=True,
     )
 
 
@@ -1723,6 +1758,7 @@ def _send_and_capture(
     a terminator (``_strip_common_terminator``).
     """
     import time
+
     with ctx.serial.io():
         for segment in segments:
             if isinstance(segment, float):
@@ -1781,7 +1817,7 @@ def _handler_crc_verify(ctx: PluginContext, args: str) -> CmdResult:
     for token, value in endian_tokens:
         if rest.startswith(token + " "):
             endianness = value
-            rest = rest[len(token):].strip()
+            rest = rest[len(token) :].strip()
             break
 
     try:
@@ -1792,6 +1828,7 @@ def _handler_crc_verify(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No data")
 
     from crcglot import ALGORITHMS, verify
+
     algo = ALGORITHMS.get(name)
     if algo is None:
         ctx.io.output(f"Use '{p}proto.crc.list' to see available algorithms.")
@@ -1800,8 +1837,7 @@ def _handler_crc_verify(ctx: PluginContext, args: str) -> CmdResult:
     width_bytes = (algo.width + 7) // 8
     if len(packet) <= width_bytes:
         return CmdResult.fail(
-            msg=f"Packet too short: {len(packet)} bytes <= "
-            f"{width_bytes}-byte {name} CRC field"
+            msg=f"Packet too short: {len(packet)} bytes <= {width_bytes}-byte {name} CRC field"
         )
 
     result = verify(packet, algo, endianness=endianness)
@@ -1859,7 +1895,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
     cmd_payload: str | None = None
     cmd_idx = rest_text.find("cmd=")
     if cmd_idx != -1 and (cmd_idx == 0 or rest_text[cmd_idx - 1].isspace()):
-        cmd_payload = rest_text[cmd_idx + len("cmd="):].strip()
+        cmd_payload = rest_text[cmd_idx + len("cmd=") :].strip()
         rest_text = rest_text[:cmd_idx].strip()
     rest_tokens: list[str] = []
     for tok in rest_text.split():
@@ -1878,7 +1914,9 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
         body_words: list[str] = []
         for word in words:
             if "=" in word and word.split("=", 1)[0] in (
-                "count", "crc_bytes", "width",
+                "count",
+                "crc_bytes",
+                "width",
             ):
                 k, v = word.split("=", 1)
                 kv[k] = v
@@ -1913,9 +1951,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
         for _ in range(count):
             captured = _send_and_capture(ctx, segments)
             if captured is None:
-                return CmdResult.fail(
-                    msg=f"No response on capture #{len(packets) + 1} of {count}"
-                )
+                return CmdResult.fail(msg=f"No response on capture #{len(packets) + 1} of {count}")
             packets.append(captured)
         packets = _strip_common_terminator(packets)
     else:
@@ -1929,6 +1965,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
         # still counts as ONE packet.
         from termapy.plugins.params import resolve_deref
         from termapy.variables import deref_ref
+
         for token in rest_tokens:
             ok, resolved = resolve_deref(token, deref_ref)
             if not ok:
@@ -1943,6 +1980,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
     # Dispatch to crcglot.reverse_packets.  Explicit branches instead of
     # ``**kwargs`` so ty narrows the kwarg types correctly.
     from crcglot import reverse_packets
+
     try:
         result = reverse_packets(
             packets,
@@ -1955,7 +1993,8 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
 
     if result.status in ("none", "underdetermined") or not result.candidates:
         ctx.io.result(
-            f"  No model recovered (status={result.status})", "red",
+            f"  No model recovered (status={result.status})",
+            "red",
         )
         if result.note:
             ctx.io.output(f"  {result.note}")
@@ -1963,10 +2002,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
 
     # Canonical (first) candidate -- feeds the $(rev) pipeline value below.
     c = result.candidates[0]
-    catalog_str = (
-        f"  catalog: {result.catalogue_name}"
-        if result.catalogue_name else ""
-    )
+    catalog_str = f"  catalog: {result.catalogue_name}" if result.catalogue_name else ""
     # Display EVERY candidate.  For an ``equivalent`` result these are the
     # (init, xorout) labelings that reproduce the captured codewords
     # identically (same poly/refin/refout); the note below explains the class.
@@ -2027,7 +2063,8 @@ def _detect_ascii(
 
 
 def _width_matches(
-    candidates: tuple[DetectMatch, ...], width_filter: int | None,
+    candidates: tuple[DetectMatch, ...],
+    width_filter: int | None,
 ) -> tuple[DetectMatch, ...]:
     """The detect candidates of the filtered width, or all of them when no width is given."""
     if width_filter is None:
@@ -2073,41 +2110,28 @@ def _render_detect_result(
         trailer_hint = getattr(result, "trailer_hint", None)
         if trailer_hint is not None and trailer_hint.matched:
             top = trailer_hint.candidates[0]
-            trunc = (
-                f"{top.truncated_to}-byte prefix of "
-                if top.truncated_to else ""
-            )
+            trunc = f"{top.truncated_to}-byte prefix of " if top.truncated_to else ""
             ctx.io.result_markup(
                 f"  [yellow]No CRC match. Looks like {escape_markup(trunc + top.info.label)}[/]"
                 f"  ({escape_markup(f'{top.info.kind}, width={top.info.width}')})"
             )
             ctx.io.output(f"  {top.info.description}")
             if len(trailer_hint.candidates) > 1:
-                others = ", ".join(
-                    m.info.label for m in trailer_hint.candidates[1:]
-                )
+                others = ", ".join(m.info.label for m in trailer_hint.candidates[1:])
                 ctx.io.output(f"  Also consistent: {others}")
-            ctx.io.status(
-                "  Note: crcglot does not generate code for non-CRC trailers."
-            )
+            ctx.io.status("  Note: crcglot does not generate code for non-CRC trailers.")
             return CmdResult.ok(value="")
 
         ctx.io.result("  No matches found.", "red")
-        ctx.io.output(
-            "  Packet may use a non-standard algorithm, a CRC field that"
-        )
-        ctx.io.output(
-            "  isn't trailing, or be too short to identify."
-        )
+        ctx.io.output("  Packet may use a non-standard algorithm, a CRC field that")
+        ctx.io.output("  isn't trailing, or be too short to identify.")
         return CmdResult.ok(value="")
 
     p = ctx.prefix
     for m in candidates:
         width_bits = m.info.width
         width_bytes = (width_bits + 7) // 8
-        endian_str = (
-            f"  endian={m.endianness}" if m.endianness is not None else ""
-        )
+        endian_str = f"  endian={m.endianness}" if m.endianness is not None else ""
         data_len = packet_len - (width_bytes * 2 if is_text else width_bytes)
         unit = "chars" if is_text else "bytes"
         # crcglot 0.23+ tags the match's ``padding`` with the surface
@@ -2120,38 +2144,23 @@ def _render_detect_result(
         padding = getattr(m, "padding", None)
         form_str = (
             f"  form={padding.info.name}"
-            if padding is not None and hasattr(padding, "info")
-            and hasattr(padding.info, "name")
+            if padding is not None and hasattr(padding, "info") and hasattr(padding.info, "name")
             else ""
         )
         fields = f"width={width_bits}  field=last{width_bytes}{endian_str}{form_str}  data={data_len} {unit}"
         ctx.io.result_markup(f"  [cyan]{escape_markup(m.algorithm)}[/]  {escape_markup(fields)}")
         if form_str and padding is not None:
-            ctx.io.output(
-                f"  Wrapper: {padding.info.label}; "
-                f"message={padding.message!r}"
-            )
+            ctx.io.output(f"  Wrapper: {padding.info.label}; message={padding.message!r}")
     if len(candidates) == 1:
         name = candidates[0].algorithm
         ctx.io.status("")
-        ctx.io.status(
-            f"  Generate source: {p}proto.crc.c {name}  "
-            f"(or .python / .rust)"
-        )
+        ctx.io.status(f"  Generate source: {p}proto.crc.c {name}  (or .python / .rust)")
     else:
         ctx.io.status("")
-        ctx.io.status(
-            "  Multiple matches usually means the packet is too short to"
-        )
-        ctx.io.status(
-            "  disambiguate.  Capture a second packet with a different CRC"
-        )
-        ctx.io.status(
-            "  and intersect the match sets to narrow down."
-        )
-    return CmdResult.ok(
-        value=candidates[0].algorithm if len(candidates) == 1 else ""
-    )
+        ctx.io.status("  Multiple matches usually means the packet is too short to")
+        ctx.io.status("  disambiguate.  Capture a second packet with a different CRC")
+        ctx.io.status("  and intersect the match sets to narrow down.")
+    return CmdResult.ok(value=candidates[0].algorithm if len(candidates) == 1 else "")
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
@@ -2226,9 +2235,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     matched.
     """
     prefix = ctx.prefix
-    return CmdResult.fail(
-        msg=f"Usage: {prefix}proto.<sub>  (try {prefix}proto.help)"
-    )
+    return CmdResult.fail(msg=f"Usage: {prefix}proto.<sub>  (try {prefix}proto.help)")
 
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
@@ -2240,10 +2247,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
     result = _show_command_help(ctx, "proto")
     proto_dir = ctx.fs.proto_dir
-    files = (
-        sorted(path.name for path in proto_dir.glob("*.pro"))
-        if proto_dir.is_dir() else []
-    )
+    files = sorted(path.name for path in proto_dir.glob("*.pro")) if proto_dir.is_dir() else []
     append_files_section(ctx, "AVAILABLE PROTO FILES", files)
     return result
 
@@ -2274,8 +2278,7 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
     # variants every language supports, regardless of whether table or
     # slice8 are emitted.  --fast is the explicit form of the default.
     flags["--fast"] = (
-        "Emit the fastest variant this language+width supports "
-        "(default; same as no flag)."
+        "Emit the fastest variant this language+width supports (default; same as no flag)."
     )
     flags["--small"] = "Emit the smallest implementation (bit-by-bit)."
     if has_table:
@@ -2289,18 +2292,17 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
         # Table exists but no native slice-by-8: accept --slice8 and
         # fall back to --table (the fallback note is emitted at dispatch).
         flags["--slice8"] = (
-            "Accepted but falls back to --table (no native slice-by-8 "
-            f"for {info.display_name})."
+            f"Accepted but falls back to --table (no native slice-by-8 for {info.display_name})."
         )
 
     # Doc-comment styles per language (crcglot 0.13+).  ``plain`` is
     # always available; the rest are language-specific (e.g. doxygen
     # for C/Java, rustdoc for Rust, google/numpy/rest for Python).
     from crcglot.comments.registry import styles_for_language
+
     styles = tuple(styles_for_language(code))
     styles_line = (
-        f"Doc-comment styles: {', '.join(styles)} (default: plain). "
-        f"Pass via style=NAME.\n"
+        f"Doc-comment styles: {', '.join(styles)} (default: plain). Pass via style=NAME.\n"
         if len(styles) > 1
         else ""
     )
@@ -2331,20 +2333,15 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
     if len(styles) > 1:
         non_plain = next((style for style in styles if style != "plain"), None)
         if non_plain is not None:
-            example_lines.append(
-                f"  {{prefix}}proto.crc.{code} crc32 style={non_plain}"
-            )
+            example_lines.append(f"  {{prefix}}proto.crc.{code} crc32 style={non_plain}")
     if len(naming_options) > 1:
         non_default = next(
-            (n for n in naming_options if n != info.default_naming), None,
+            (n for n in naming_options if n != info.default_naming),
+            None,
         )
         if non_default is not None:
-            example_lines.append(
-                f"  {{prefix}}proto.crc.{code} crc32 naming={non_default}"
-            )
-    example_lines.append(
-        f"  {{prefix}}proto.crc.{code} crc16-modbus crc32 crc8 file=my_crcs"
-    )
+            example_lines.append(f"  {{prefix}}proto.crc.{code} crc32 naming={non_default}")
+    example_lines.append(f"  {{prefix}}proto.crc.{code} crc16-modbus crc32 crc8 file=my_crcs")
 
     long_help = (
         f"Prints a self-contained {info.display_name} implementation for the\n"
@@ -2357,18 +2354,11 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
         f"Pass two or more algorithm names to bundle them into a single\n"
         f"output (each algorithm keeps its own symbol; ``symbol=`` is not\n"
         f"allowed in bundle mode).\n"
-        f"\n"
-        + styles_line
-        + naming_line +
-        "Example:\n"
-        + "\n".join(example_lines)
+        f"\n" + styles_line + naming_line + "Example:\n" + "\n".join(example_lines)
     )
 
     return Command(
-        args=(
-            "<name> {name ...} {file=stem} {symbol=name} "
-            "{style=name} {naming=name}"
-        ),
+        args=("<name> {name ...} {file=stem} {symbol=name} {style=name} {naming=name}"),
         flags=flags,
         help=f"Generate {info.display_name} source code for a CRC algorithm.",
         long_help=long_help,
@@ -2387,9 +2377,9 @@ def _build_crc_lang_commands() -> dict[str, Command]:
     next dependency bump -- no termapy code change.
     """
     from crcglot import LANGUAGES
+
     return {
-        code: _build_one_crc_lang_command(code, info)
-        for code, info in sorted(LANGUAGES.items())
+        code: _build_one_crc_lang_command(code, info) for code, info in sorted(LANGUAGES.items())
     }
 
 
@@ -2407,10 +2397,7 @@ COMMAND = Command(
             handler=_handler_help,
         ),
         "send": Command(
-            args=(
-                '{algo{_le|_be}{_ascii}} <hex|"text"|~delay>... '
-                "{--dry-run} {--ascii}"
-            ),
+            args=('{algo{_le|_be}{_ascii}} <hex|"text"|~delay>... {--dry-run} {--ascii}'),
             help="Send raw bytes (with optional CRC), show response.",
             handler=_handler_send,
             flags={
@@ -2556,10 +2543,7 @@ COMMAND = Command(
                     # Two modes, explicit packets XOR cmd= capture: both
                     # groups are optional in the grammar and the long help
                     # states the either/or.
-                    args=(
-                        "{crc_bytes=N} {width=N} "
-                        "{cmd=<trigger> count=<N>} {packet-hex}..."
-                    ),
+                    args=("{crc_bytes=N} {width=N} {cmd=<trigger> count=<N>} {packet-hex}..."),
                     help="Recover the Rocksoft parameters of an unknown CRC.",
                     long_help=(
                         "Algebraic recovery via crcglot.reverse_packets.  Two\n"

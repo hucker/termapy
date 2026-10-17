@@ -40,7 +40,12 @@ _VENDOR_PART = "vendor"
 _FORMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ty-ignore", re.compile(r"#\s*ty:\s*ignore(?:\[(?P<code>[^\]]*)\])?(?P<rest>.*)$")),
     ("type-ignore", re.compile(r"#\s*type:\s*ignore(?:\[(?P<code>[^\]]*)\])?(?P<rest>.*)$")),
-    ("noqa", re.compile(r"#\s*noqa(?::\s*(?P<code>[A-Z][A-Z0-9]+(?:\s*,\s*[A-Z][A-Z0-9]+)*))?(?P<rest>.*)$")),
+    (
+        "noqa",
+        re.compile(
+            r"#\s*noqa(?::\s*(?P<code>[A-Z][A-Z0-9]+(?:\s*,\s*[A-Z][A-Z0-9]+)*))?(?P<rest>.*)$"
+        ),
+    ),
     ("pragma", re.compile(r"#\s*pragma:\s*no\s*cover(?P<rest>.*)$")),
 )
 
@@ -49,11 +54,11 @@ _FORMS: tuple[tuple[str, re.Pattern[str]], ...] = (
 class Suppression:
     """One suppression pragma found on a source line."""
 
-    file: str          # repo-relative path, forward slashes
+    file: str  # repo-relative path, forward slashes
     line: int
-    form: str          # ty-ignore | type-ignore | noqa | pragma
-    code: str | None   # rule code(s), or None if none was given
-    has_reason: bool   # is there explanatory text after the code?
+    form: str  # ty-ignore | type-ignore | noqa | pragma
+    code: str | None  # rule code(s), or None if none was given
+    has_reason: bool  # is there explanatory text after the code?
 
     @property
     def is_bare(self) -> bool:
@@ -114,9 +119,7 @@ def reason_above(supp: Suppression, repo_root: Path = REPO_ROOT) -> bool:
     return classify(supp.file, idx + 1, lines[idx]) is None
 
 
-def gate_offenders(
-    supps: list[Suppression], repo_root: Path = REPO_ROOT
-) -> list[Suppression]:
+def gate_offenders(supps: list[Suppression], repo_root: Path = REPO_ROOT) -> list[Suppression]:
     """Suppressions that fail the gate.
 
     A suppression fails if it is bare (no rule code -- a reason can't excuse a
@@ -138,9 +141,7 @@ def scan_tree(repo_root: Path = REPO_ROOT) -> list[Suppression]:
         if _VENDOR_PART in py.relative_to(src).parts:
             continue
         rel = py.relative_to(repo_root).as_posix()
-        for i, source_line in enumerate(
-            py.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for i, source_line in enumerate(py.read_text(encoding="utf-8").splitlines(), start=1):
             s = classify(rel, i, source_line)
             if s is not None:
                 found.append(s)
@@ -159,8 +160,12 @@ def added_since(tag: str, repo_root: Path = REPO_ROOT) -> list[Suppression]:
     # left ``stdout`` as None (a release run died here on a 0x90 byte).
     diff = subprocess.run(
         ["git", "diff", f"{tag}..HEAD", "--unified=0", "--", SRC_REL],
-        cwd=repo_root, capture_output=True, text=True, check=True,
-        encoding="utf-8", errors="replace",
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+        encoding="utf-8",
+        errors="replace",
     ).stdout
     added: list[Suppression] = []
     cur_file: str | None = None
@@ -186,7 +191,9 @@ def previous_tag(repo_root: Path = REPO_ROOT) -> str | None:
     """Most recent tag reachable from HEAD, or None if the repo has none."""
     result = subprocess.run(
         ["git", "describe", "--tags", "--abbrev=0"],
-        cwd=repo_root, capture_output=True, text=True,
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
     )
     tag = result.stdout.strip()
     return tag or None
@@ -227,11 +234,13 @@ def format_list(supps: list[Suppression], repo_root: Path = REPO_ROOT) -> list[s
 def _main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--since", metavar="TAG",
+        "--since",
+        metavar="TAG",
         help="Gate: fail if suppressions added since TAG are bare or reason-less.",
     )
     parser.add_argument(
-        "--list", action="store_true",
+        "--list",
+        action="store_true",
         help="Print every suppression with its file:line, form, and status.",
     )
     args = parser.parse_args(argv)
@@ -251,12 +260,16 @@ def _main(argv: list[str]) -> int:
     if args.since:
         offenders = gate_offenders(added_since(args.since))
         if offenders:
-            print(f"\nGATE FAILED: {len(offenders)} new suppression(s) "
-                  f"since {args.since} lack a rule code and/or a reason:")
+            print(
+                f"\nGATE FAILED: {len(offenders)} new suppression(s) "
+                f"since {args.since} lack a rule code and/or a reason:"
+            )
             for s in offenders:
                 print(f"  {s.describe()}")
-            print("\nEvery suppression must name its rule and say why "
-                  "(e.g. `# noqa: BLE001 -- boundary thread`).")
+            print(
+                "\nEvery suppression must name its rule and say why "
+                "(e.g. `# noqa: BLE001 -- boundary thread`)."
+            )
             return 1
         print(f"\nGate OK: no bare/reason-less suppressions added since {args.since}.")
     return 0

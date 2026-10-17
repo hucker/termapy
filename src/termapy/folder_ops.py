@@ -59,8 +59,7 @@ def list_entries(path: Path, pattern: str) -> list[Path]:
     if not path.is_dir():
         return []
     files = [
-        file for file in path.glob(pattern)
-        if file.is_file() and not file.name.startswith(".")
+        file for file in path.glob(pattern) if file.is_file() and not file.name.startswith(".")
     ]
     return sorted(files, key=lambda file: (-_mtime(file), file.name))
 
@@ -454,10 +453,20 @@ def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Comma
             needs=CapabilitySet.CONFIG_LOADED,
             files=folder,
             params=[
-                ParamSpec("old", "str", positional=True, required=True,
-                          help="current filename (extension optional)"),
-                ParamSpec("new", "str", positional=True, required=True,
-                          help="new name (the extension is kept)"),
+                ParamSpec(
+                    "old",
+                    "str",
+                    positional=True,
+                    required=True,
+                    help="current filename (extension optional)",
+                ),
+                ParamSpec(
+                    "new",
+                    "str",
+                    positional=True,
+                    required=True,
+                    help="new name (the extension is kept)",
+                ),
             ],
         ),
     }

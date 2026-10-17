@@ -41,6 +41,7 @@ def env(tmp_path):
     output: list = []
     eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
     from termapy.plugins import IOHandle, SerialHandle
+
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),
@@ -70,6 +71,7 @@ class TestCapabilityGate:
             (config_path.parent / sub).mkdir(exist_ok=True)
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: None)
         from termapy.plugins import IOHandle, SerialHandle
+
         ctx = PluginContext(
             cfg=cfg,
             config_path=str(config_path),
@@ -106,9 +108,7 @@ class TestExpectMatch:
         eng, ctx, _output = env
         eng.feed_lines(["+STATUS: 42"])
         # Act
-        result = eng.dispatch(
-            "expect.regex timeout=1s match=^\\+STATUS: \\d+$"
-        )
+        result = eng.dispatch("expect.regex timeout=1s match=^\\+STATUS: \\d+$")
         # Assert
         assert result.success is True, "regex match"
         assert "+STATUS: 42" in result.value, "matched line returned"
@@ -231,7 +231,7 @@ class TestRecentLinesBuffer:
 
         def feed():
             for i in range(0, len(expected), 3):
-                eng.feed_lines(expected[i:i + 3])
+                eng.feed_lines(expected[i : i + 3])
                 time.sleep(0)  # yield, so the poller interleaves with the feed
             eng.feed_lines(["DONE"])
 
@@ -363,7 +363,9 @@ class TestInAScript:
         runner, so it took the other /expect, which never stopped a script.
         """
         # Arrange
-        script = _script(tmp_path, "$(L) <- /expect timeout=300ms match=NEVER", "/print reached-the-end")
+        script = _script(
+            tmp_path, "$(L) <- /expect timeout=300ms match=NEVER", "/print reached-the-end"
+        )
 
         # Act
         cli.repl.dispatch_full(f"/run {script}")

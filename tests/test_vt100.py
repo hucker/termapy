@@ -75,12 +75,12 @@ class TestPassthroughTransforms:
 
     # Canonical VT100/ANSI byte sequences a real device emits.
     _SAMPLES = (
-        "\x1b[2J",                   # clear screen
-        "\x1b[10;5H",                # cursor to row 10, col 5
-        "\x1b[1;31mERROR\x1b[0m",    # bold red text
+        "\x1b[2J",  # clear screen
+        "\x1b[10;5H",  # cursor to row 10, col 5
+        "\x1b[1;31mERROR\x1b[0m",  # bold red text
         "line one\r\nline two\r\n",  # CRLF line endings
         "load 10%\rload 50%\rload 100%\r",  # bare-CR progress redraw
-        "\x07\x08\t",                # BEL, BS, TAB control bytes
+        "\x07\x08\t",  # BEL, BS, TAB control bytes
     )
 
     def test_rx_is_byte_verbatim(self):
@@ -202,9 +202,7 @@ class TestRunVt100ModeStreamRestore:
             def close(self):
                 self.serial.close()
 
-        monkeypatch.setattr(
-            "termapy.vendor.serial.tools.miniterm.Miniterm", _FakeMiniterm
-        )
+        monkeypatch.setattr("termapy.vendor.serial.tools.miniterm.Miniterm", _FakeMiniterm)
         args = Namespace(demo=True, config=None)
 
         # Act: run twice; the second call constructs Miniterm again, which only

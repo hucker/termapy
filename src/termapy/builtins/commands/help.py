@@ -31,11 +31,11 @@ if TYPE_CHECKING:
 _LABEL_RE = re.compile(r"^(\s*)(\w+:)(.*)")
 
 # Colors for help output
-_CMD = "cyan"          # command names
-_OPT = "green"         # {optional} args
-_REQ = "yellow"        # <required> args
-_SEP = "dim"           # section separators and hints
-_SRC = "dim"           # source labels
+_CMD = "cyan"  # command names
+_OPT = "green"  # {optional} args
+_REQ = "yellow"  # <required> args
+_SEP = "dim"  # section separators and hints
+_SRC = "dim"  # source labels
 
 _OPT_RE = re.compile(r"(\{[^}]+\})")
 _REQ_RE = re.compile(r"(<[^>]+>)")
@@ -96,7 +96,7 @@ def _underline_markup(text: str, needles: str | list[str]) -> str:
     parts: list[str] = []
     last = 0
     for m in pattern.finditer(text):
-        parts.append(escape_markup(text[last:m.start()]))
+        parts.append(escape_markup(text[last : m.start()]))
         parts.append(f"[u]{escape_markup(m.group())}[/u]")
         last = m.end()
     parts.append(escape_markup(text[last:]))
@@ -121,7 +121,7 @@ def _write_docstring(ctx: PluginContext, docstring: str) -> None:
         text = line.rstrip()
         if i == 0 and has_summary:
             ctx.io.output_markup(f"  [bold]{escape_markup(text)}[/]")
-        elif (m := _LABEL_RE.match(text)):
+        elif m := _LABEL_RE.match(text):
             indent, label, rest = m.groups()
             ctx.io.output_markup(
                 f"  {escape_markup(indent)}[bold]{escape_markup(label)}[/]{escape_markup(rest)}"
@@ -150,10 +150,7 @@ def _canonical_flags(plugin) -> list[tuple[str, list[str], str]]:
         else:
             descriptions[flag] = val
             aliases_of.setdefault(flag, [])
-    return [
-        (flag, sorted(aliases_of[flag]), descriptions[flag])
-        for flag in sorted(descriptions)
-    ]
+    return [(flag, sorted(aliases_of[flag]), descriptions[flag]) for flag in sorted(descriptions)]
 
 
 def _required_capability_rows(needs) -> list[tuple[str, str]]:
@@ -168,10 +165,7 @@ def _required_capability_rows(needs) -> list[tuple[str, str]]:
     silently dropped row -- the old silent skip hid every interactive /
     gui_apps declaration from /help.
     """
-    return [
-        (name, REQUIREMENT_HINTS[name])
-        for name in needs.missing_from(_BASELINE_CAPS)
-    ]
+    return [(name, REQUIREMENT_HINTS[name]) for name in needs.missing_from(_BASELINE_CAPS)]
 
 
 # ── Forgiving /help search ───────────────────────────────────────────────────
@@ -215,10 +209,7 @@ def _siblings_for_see_also(name: str, plugins: dict) -> list[str]:
     if not sep:
         # Root command; no parent, no siblings under a shared parent.
         return []
-    siblings = sorted(
-        n for n in plugins
-        if n.rpartition(".")[0] == parent and n != name
-    )
+    siblings = sorted(n for n in plugins if n.rpartition(".")[0] == parent and n != name)
     siblings.append(parent)
     return siblings
 
@@ -226,8 +217,9 @@ def _siblings_for_see_also(name: str, plugins: dict) -> list[str]:
 # ── Row rendering (shared by landscape + candidates + /help.plugin) ──────────
 
 
-def _landscape_row(prefix: str, name: str, plugin, cmd_w: int,
-                   needles: list[str] | None = None) -> str:
+def _landscape_row(
+    prefix: str, name: str, plugin, cmd_w: int, needles: list[str] | None = None
+) -> str:
     """Format one row of the clean name + one-liner layout.
 
     Pass ``needles`` only in search-result contexts; underlining is the
@@ -275,8 +267,7 @@ def _bare_form(plugin, name: str, prefix: str) -> str:
     return f"bare: runs {sub}" if sub else ""
 
 
-def _render_man_page(ctx: PluginContext, name: str, plugin,
-                     dev_mode: bool = False) -> None:
+def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = False) -> None:
     """Render a command's full detail view in man-page format.
 
     Sections: NAME, SYNOPSIS (if args), DESCRIPTION, FLAGS (if any),
@@ -514,15 +505,11 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
     prefix = ctx.prefix
     plugins = ctx.internal.plugins
     words = [word for word in term.split() if word]
-    ctx.io.output_markup(
-        f"Candidates matching [{_CMD}]{_underline_markup(term, words)}[/]:"
-    )
+    ctx.io.output_markup(f"Candidates matching [{_CMD}]{_underline_markup(term, words)}[/]:")
     cmd_w = _compute_cmd_w(names, prefix)
     for name in names:
         plugin = plugins[name]
-        ctx.io.output_markup(
-            _landscape_row(prefix, name, plugin, cmd_w, needles=words)
-        )
+        ctx.io.output_markup(_landscape_row(prefix, name, plugin, cmd_w, needles=words))
 
 
 # ── Extension hook: extra man-page section ───────────────────────────────────
@@ -570,10 +557,9 @@ def append_files_section(
         else:
             loose.append(f)
 
-    sections: list[tuple[str, list[str]]] = (
-        [(d + "/", dirs[d]) for d in sorted(dirs)]
-        + [(f, []) for f in loose]
-    )
+    sections: list[tuple[str, list[str]]] = [(d + "/", dirs[d]) for d in sorted(dirs)] + [
+        (f, []) for f in loose
+    ]
     for line in FileTree(sections, indent="  ").render():
         ctx.io.output_markup(line)
 
@@ -581,8 +567,7 @@ def append_files_section(
 # ── Main /help lookup ────────────────────────────────────────────────────────
 
 
-def _show_command_help(ctx: PluginContext, name: str,
-                       dev_mode: bool = False) -> CmdResult:
+def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) -> CmdResult:
     """Resolve ``name`` with forgiving lookup:
 
       1. Exact registry match  -> render man-page detail view.
@@ -605,6 +590,7 @@ def _show_command_help(ctx: PluginContext, name: str,
 
     # 2. Device command from the active profile.
     from termapy.profile import profile_command_view
+
     tc = profile_command_view(ctx.ns("active_profile")).get(name)
     if tc is not None:
         _render_target_man_page(ctx, tc)
@@ -620,8 +606,7 @@ def _show_command_help(ctx: PluginContext, name: str,
     # 4. No hits anywhere -- hint at the deeper tool.
     p = ctx.prefix
     return CmdResult.fail(
-        msg=f"No command matches '{name}'. "
-            f"Try {p}search {name} for a deeper search."
+        msg=f"No command matches '{name}'. Try {p}search {name} for a deeper search."
     )
 
 
@@ -707,8 +692,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # (matching the post-filter denominator users care about).
         shown = sum(len(value) for value in groups.values()) + len(script_only)
         total = sum(
-            1 for n, p in all_plugins.items()
-            if "." not in n and not getattr(p, "hidden", False)
+            1 for n, p in all_plugins.items() if "." not in n and not getattr(p, "hidden", False)
         )
         ctx.io.output_markup(
             f"[{_SEP}]-- MCP-visible only ({shown:d} of {total:d} top-level) --[/]"
@@ -747,6 +731,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             _render_scripts(ctx, scripts, prefix, cmd_w)
 
     from termapy.profile import profile_command_view
+
     if profile_command_view(ctx.ns("active_profile")):
         ctx.io.output_markup("")
         _render_target(ctx, cmd_w)
@@ -770,6 +755,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
     """Show only device commands from the active profile."""
     from termapy.profile import profile_command_view
+
     target_cmds = profile_command_view(ctx.ns("active_profile"))
     if not target_cmds:
         ctx.io.result(
@@ -791,6 +777,7 @@ def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
     drill-down for device commands.
     """
     from termapy.profile import profile_command_view
+
     target_cmds = profile_command_view(ctx.ns("active_profile"))
     names = list(target_cmds)
     if cmd_w is None:
@@ -814,12 +801,15 @@ def _script_description(path: Path) -> str:
     return extract_docstring(path)[0]
 
 
-def _render_scripts(ctx: PluginContext, scripts: list, prefix: str,
-                    cmd_w: int = _MAX_CMD_COL) -> None:
+def _render_scripts(
+    ctx: PluginContext, scripts: list, prefix: str, cmd_w: int = _MAX_CMD_COL
+) -> None:
     """Render the scripts table with matched column width."""
     ctx.io.output_markup(f"[{_SEP}]-- Scripts --[/]")
     for path in scripts:
-        cmd_markup = _pad_markup(f"  [{_CMD}]{escape_markup(f'{prefix}run {path.stem}')}[/]", cmd_w + 2)
+        cmd_markup = _pad_markup(
+            f"  [{_CMD}]{escape_markup(f'{prefix}run {path.stem}')}[/]", cmd_w + 2
+        )
         ctx.io.output_markup(f"{cmd_markup}  {escape_markup(_script_description(path))}")
 
 
@@ -867,14 +857,9 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
     script_only = [
         (cmd_name, plugin)
         for cmd_name, plugin in all_plugins.items()
-        if "." not in cmd_name
-        and plugin.needs.block_until
-        and not getattr(plugin, "hidden", False)
+        if "." not in cmd_name and plugin.needs.block_until and not getattr(plugin, "hidden", False)
     ]
-    all_names = (
-        [n for names in groups.values() for n, _ in names]
-        + [n for n, _ in script_only]
-    )
+    all_names = [n for names in groups.values() for n, _ in names] + [n for n, _ in script_only]
     prefix = ctx.prefix
     cmd_w = _compute_cmd_w(all_names, prefix)
     sorted_sources = sorted(groups, key=lambda s: _SOURCE_ORDER.get(s, 3))

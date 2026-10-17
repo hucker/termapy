@@ -48,9 +48,7 @@ class TestFormatTooltipValue:
 class TestFormatTitleTooltip:
     def test_three_section_layout(self):
         """Tooltip is title, blank, key rows, blank, then a "Click to:" action line."""
-        actual = format_title_tooltip(
-            "demo.cfg", [("port", "COM4"), ("echo", True)], "edit config"
-        )
+        actual = format_title_tooltip("demo.cfg", [("port", "COM4"), ("echo", True)], "edit config")
         lines = actual.splitlines()
         assert lines[0] == "demo.cfg", "title on the first line"
         assert lines[1] == "", "blank line after the title"
@@ -59,9 +57,7 @@ class TestFormatTitleTooltip:
 
     def test_equals_signs_align_across_rows(self):
         """Keys are padded to the longest so every row's = sign sits in one column."""
-        actual = format_title_tooltip(
-            "t", [("port", "COM4"), ("baud_rate", 115200)], "act"
-        )
+        actual = format_title_tooltip("t", [("port", "COM4"), ("baud_rate", 115200)], "act")
         positions = {line.index("=") for line in actual.splitlines() if "=" in line}
         assert len(positions) == 1, "keys padded so the = signs line up"
 
@@ -113,8 +109,9 @@ class TestPortTooltipPairs:
         """device, product, interface and permissions are gathered but never shown."""
         # Arrange -- device/product/interface/permissions are gathered but
         # deliberately not shown in the tooltip.
-        facts = ChipFacts(device="COM4", product="p", interface="i",
-                          permissions="rw", description="d")
+        facts = ChipFacts(
+            device="COM4", product="p", interface="i", permissions="rw", description="d"
+        )
 
         # Act
         keys = [k for k, _ in port_tooltip_pairs(facts)]

@@ -51,7 +51,6 @@ def _age(path, seconds: float) -> None:
 
 
 class TestInSync:
-
     def test_untouched_source_is_in_sync(self, map_file):
         """A map unchanged since import reads in sync, with no reason and not stale."""
         # Arrange
@@ -79,7 +78,6 @@ class TestInSync:
 
 
 class TestStale:
-
     def test_touched_source_is_stale_and_fixable(self, map_file):
         """A map rebuilt after import is stale, and fixable because the converter was recorded."""
         # Arrange
@@ -237,7 +235,8 @@ class TestRoundTrip:
         # Arrange
         dest = tmp_path / "bad.json"
         dest.write_text(
-            '{"symbols_version": 1, "symbols": [], "recipe": "xc32"}', encoding="utf-8",
+            '{"symbols_version": 1, "symbols": [], "recipe": "xc32"}',
+            encoding="utf-8",
         )
 
         # Act / Assert

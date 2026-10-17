@@ -45,12 +45,10 @@ class UpdateAvailableDialog(ModalScreen[str]):
         self.dismiss("ok")
 
     def on_mount(self) -> None:
-        self.query_one("#update-info", Button).tooltip = (
-            "Open the installation help page in a browser."
-        )
-        self.query_one("#update-ok", Button).tooltip = (
-            "Close this notification."
-        )
+        self.query_one(
+            "#update-info", Button
+        ).tooltip = "Open the installation help page in a browser."
+        self.query_one("#update-ok", Button).tooltip = "Close this notification."
 
     def __init__(self, current: str, latest: str) -> None:
         super().__init__()

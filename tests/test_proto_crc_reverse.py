@@ -36,9 +36,7 @@ import pytest
 from termapy.defaults import DEFAULT_CFG
 
 
-def _run_cli(
-    tmp_path: Path, script_lines: list[str]
-) -> subprocess.CompletedProcess[str]:
+def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedProcess[str]:
     """Invoke termapy --cli against a throwaway config and script."""
     proj_dir = tmp_path / "proj"
     proj_dir.mkdir(parents=True, exist_ok=True)
@@ -54,7 +52,8 @@ def _run_cli(
     script_path.write_text("\n".join(script_lines) + "\n")
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', 'proj', '--cli', "
             f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -80,17 +79,18 @@ class TestFindCmdMode:
         # Assert -- one of the curated algorithms appears.  Don't pin
         # which one (the demo picks randomly).
         assert result.returncode == 0, (
-            f"/proto.crc.find cmd= must exit 0, got {result.returncode}. "
-            f"stderr: {result.stderr!r}"
+            f"/proto.crc.find cmd= must exit 0, got {result.returncode}. stderr: {result.stderr!r}"
         )
         curated = (
-            "crc8", "crc8-maxim",
-            "crc16-modbus", "crc16-xmodem",
-            "crc32", "crc32-bzip2",
+            "crc8",
+            "crc8-maxim",
+            "crc16-modbus",
+            "crc16-xmodem",
+            "crc32",
+            "crc32-bzip2",
         )
         assert any(name in result.stdout for name in curated), (
-            f"/proto.crc.find cmd=AT+RND should report one of "
-            f"{curated}; stdout: {result.stdout!r}"
+            f"/proto.crc.find cmd=AT+RND should report one of {curated}; stdout: {result.stdout!r}"
         )
 
 
@@ -115,8 +115,7 @@ class TestReverseCmdMode:
 
         # Assert
         assert result.returncode == 0, (
-            f"reverse must exit 0, got {result.returncode}. "
-            f"stderr: {result.stderr!r}"
+            f"reverse must exit 0, got {result.returncode}. stderr: {result.stderr!r}"
         )
         # The recovered polynomial matches the secret poly=0x1A2B (the
         # rest of the params -- init/xorout -- may differ via the (x+1)
@@ -131,14 +130,12 @@ class TestReverseCmdMode:
         # first.  The demo's poly carries a 1-bit (x+1) ambiguity, so two
         # labelings are recovered and both must be printed.
         assert result.stdout.count("init=0x") >= 2, (
-            f"reverse should list all equivalent labelings, not just one; "
-            f"stdout: {result.stdout!r}"
+            f"reverse should list all equivalent labelings, not just one; stdout: {result.stdout!r}"
         )
         # The REVEAL line confirms the demo's secret matches what we
         # expected the test to drive against.
         assert "poly=0x1A2B" in result.stdout, (
-            f"REVEAL should print the demo's secret poly; "
-            f"stdout: {result.stdout!r}"
+            f"REVEAL should print the demo's secret poly; stdout: {result.stdout!r}"
         )
 
     def test_reverse_value_pipes_into_codegen(self, tmp_path):
@@ -158,15 +155,13 @@ class TestReverseCmdMode:
 
         # Assert
         assert result.returncode == 0, (
-            f"pipeline must exit 0, got {result.returncode}. "
-            f"stderr: {result.stderr!r}"
+            f"pipeline must exit 0, got {result.returncode}. stderr: {result.stderr!r}"
         )
         # The codegen output should mention `recovered` (the name the
         # /proto.crc.reverse handler assigns) somewhere in the emitted C
         # source -- it appears in struct names, function names, etc.
         assert "recovered" in result.stdout, (
-            f"codegen for $(rev) should use the 'recovered' name; "
-            f"stdout: {result.stdout!r}"
+            f"codegen for $(rev) should use the 'recovered' name; stdout: {result.stdout!r}"
         )
 
 
@@ -192,6 +187,7 @@ class TestReverseDeref:
 
     def _engine(self):
         from termapy.repl import ReplEngine
+
         engine = ReplEngine({}, "", lambda t, c=None: None)
         engine.ctx.dispatch = engine.dispatch
         return engine
@@ -200,23 +196,18 @@ class TestReverseDeref:
         """$(*NAME) packets give exactly the outcome of typing the same hex literals inline."""
         # Arrange -- the same three packets, expressed both ways
         from termapy import variables as var
+
         engine = self._engine()
         var._VARS.update({"p1": self.P1, "p2": self.P2, "p3": self.P3})
 
         # Act
-        literal = engine.dispatch(
-            f"proto.crc.reverse crc_bytes=2 {self.P1} {self.P2} {self.P3}"
-        )
-        referenced = engine.dispatch(
-            "proto.crc.reverse crc_bytes=2 $(*p1) $(*p2) $(*p3)"
-        )
+        literal = engine.dispatch(f"proto.crc.reverse crc_bytes=2 {self.P1} {self.P2} {self.P3}")
+        referenced = engine.dispatch("proto.crc.reverse crc_bytes=2 $(*p1) $(*p2) $(*p3)")
 
         # Assert -- identical outcome; the reference form is a pure substitution
         actual = (referenced.success, referenced.error)
         expected = (literal.success, literal.error)
-        assert actual == expected, (
-            "dereferenced packets must reduce to exactly the literal packets"
-        )
+        assert actual == expected, "dereferenced packets must reduce to exactly the literal packets"
 
     def test_value_with_spaces_stays_one_packet(self):
         """A spaced hex value behind $(*NAME) binds as one packet, not one packet per byte."""
@@ -224,48 +215,39 @@ class TestReverseDeref:
         # these would fork into 14 one-byte tokens; dereferenced they are three
         # packets, so the result must match the unspaced literals.
         from termapy import variables as var
+
         engine = self._engine()
-        var._VARS.update({
-            "s1": "01 02 03 AA 55",
-            "s2": "04 05 06 BB 66",
-            "s3": "07 08 CC AA",
-        })
+        var._VARS.update(
+            {
+                "s1": "01 02 03 AA 55",
+                "s2": "04 05 06 BB 66",
+                "s3": "07 08 CC AA",
+            }
+        )
 
         # Act
-        literal = engine.dispatch(
-            f"proto.crc.reverse crc_bytes=2 {self.P1} {self.P2} {self.P3}"
-        )
-        spaced = engine.dispatch(
-            "proto.crc.reverse crc_bytes=2 $(*s1) $(*s2) $(*s3)"
-        )
+        literal = engine.dispatch(f"proto.crc.reverse crc_bytes=2 {self.P1} {self.P2} {self.P3}")
+        spaced = engine.dispatch("proto.crc.reverse crc_bytes=2 $(*s1) $(*s2) $(*s3)")
 
         # Assert
         actual = (spaced.success, spaced.error)
         expected = (literal.success, literal.error)
-        assert actual == expected, (
-            "a dereferenced value containing spaces must bind as ONE packet"
-        )
+        assert actual == expected, "a dereferenced value containing spaces must bind as ONE packet"
 
     def test_unknown_reference_errors(self):
         """An undefined $(*NAME) fails naming the variable, not later as a hex parse error."""
         # Act
-        result = self._engine().dispatch(
-            f"proto.crc.reverse crc_bytes=2 $(*nope) {self.P2}"
-        )
+        result = self._engine().dispatch(f"proto.crc.reverse crc_bytes=2 $(*nope) {self.P2}")
 
         # Assert -- names the missing variable rather than failing later as
         # a Parse error, which is what the literal text would produce
         assert not result.success, "an undefined reference fails"
-        assert "unknown variable: 'nope'" in result.error, (
-            "the failure names the missing variable"
-        )
+        assert "unknown variable: 'nope'" in result.error, "the failure names the missing variable"
 
     def test_embedded_reference_errors(self):
         """A $(*NAME) glued inside a larger token is rejected rather than sent as literal text."""
         # Act
-        result = self._engine().dispatch(
-            f"proto.crc.reverse crc_bytes=2 x$(*p1)y {self.P2}"
-        )
+        result = self._engine().dispatch(f"proto.crc.reverse crc_bytes=2 x$(*p1)y {self.P2}")
 
         # Assert
         assert not result.success, "a partial reference fails"
@@ -276,12 +258,8 @@ class TestReverseDeref:
     def test_literal_hex_still_rejected_when_malformed(self):
         """The deref pass leaves the shared reader's Parse error intact for a malformed literal."""
         # Act -- the deref pass must not swallow the plain-hex error path
-        result = self._engine().dispatch(
-            f"proto.crc.reverse crc_bytes=2 ZZZZ {self.P2}"
-        )
+        result = self._engine().dispatch(f"proto.crc.reverse crc_bytes=2 ZZZZ {self.P2}")
 
         # Assert
         assert not result.success, "non-hex packet fails"
-        assert "Parse error" in result.error, (
-            "a malformed literal still reports the hex error"
-        )
+        assert "Parse error" in result.error, "a malformed literal still reports the hex error"

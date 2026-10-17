@@ -203,10 +203,10 @@ def _split_offset(text: str) -> tuple[str, str, int]:
     """
     plus = text.find("+", 1)
     if plus > 0:
-        return text[:plus], text[plus + 1:], 1
+        return text[:plus], text[plus + 1 :], 1
     minus = text.rfind("-")
-    if minus > 0 and parse_number(text[minus + 1:]) is not None:
-        return text[:minus], text[minus + 1:], -1
+    if minus > 0 and parse_number(text[minus + 1 :]) is not None:
+        return text[:minus], text[minus + 1 :], -1
     return text, "", 0
 
 
@@ -218,9 +218,7 @@ def _ambiguous(typed: str, name: str, hits: list[Symbol], address_bits: int) -> 
     HAS a file, or falls back to the address alone.
     """
     width = hex_digits(address_bits)
-    entries = ", ".join(
-        f"0x{symbol.addr:0{width}X} {symbol.file or '?'}" for symbol in hits
-    )
+    entries = ", ".join(f"0x{symbol.addr:0{width}X} {symbol.file or '?'}" for symbol in hits)
     first_file = next((symbol.file for symbol in hits if symbol.file), "")
     hint = f"use {name}@{first_file} or the address" if first_file else "use the address"
     return f"Ambiguous symbol: {typed} ({entries}; {hint})"

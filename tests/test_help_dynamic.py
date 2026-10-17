@@ -36,6 +36,7 @@ from termapy.plugins.capabilities import STATE_MESSAGES
 
 # ─── Fixtures / tiny fakes ───────────────────────────────────────────────────
 
+
 def _fake_ctx(
     tmp_path: Path,
     *,
@@ -235,13 +236,19 @@ class TestPortHelpers:
         actual = port_status(ctx)
 
         # Assert
-        assert actual == f"[green]{STATE_MESSAGES['serial_connected']}[/]", "closed port -> the gate's answer"
+        assert actual == f"[green]{STATE_MESSAGES['serial_connected']}[/]", (
+            "closed port -> the gate's answer"
+        )
 
     def test_port_status_summary_when_open(self, tmp_path):
         """An open port reads 'Connected: <port> @ <baud> 8N1', built from its live attributes."""
         # Arrange
         fake = SimpleNamespace(
-            port="COM3", baudrate=115200, bytesize=8, parity="N", stopbits=1,
+            port="COM3",
+            baudrate=115200,
+            bytesize=8,
+            parity="N",
+            stopbits=1,
         )
         ctx, _ = _fake_ctx(tmp_path, port=fake, connected=True)
 
@@ -371,6 +378,7 @@ class TestNsCount:
 
     def test_ns_count_propagates_ns_errors(self):
         """A broken ns() raises through; only a missing ns attribute counts as zero."""
+
         # Arrange - a buggy ns() should surface the exception, not get
         # silently coerced to 0.  ns_count only guards MISSING ns
         # (getattr returns None), not PRESENT-but-broken ns.

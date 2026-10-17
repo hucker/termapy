@@ -33,13 +33,15 @@ BUILTINS_DIR = SRC / "builtins"
 #
 # A private handler or private state (``_handler_clear``, ``_VARS``) never
 # belongs here: a plugin's privates carry no contract with the app.
-ALLOWED_CORE_IMPORTS: frozenset[tuple[str, str]] = frozenset({
-    # (1) Published plugin functions.
-    ("termapy.builtins.commands.find", "dismiss"),
-    # (2) Helper modules under commands/ that are not plugins.
-    ("termapy.builtins.commands._cfg_icon", "retire_launcher"),
-    ("termapy.builtins.commands", "_run_record"),
-})
+ALLOWED_CORE_IMPORTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        # (1) Published plugin functions.
+        ("termapy.builtins.commands.find", "dismiss"),
+        # (2) Helper modules under commands/ that are not plugins.
+        ("termapy.builtins.commands._cfg_icon", "retire_launcher"),
+        ("termapy.builtins.commands", "_run_record"),
+    }
+)
 
 
 def _core_python_files() -> list[Path]:
@@ -191,24 +193,23 @@ def test_plugins_do_not_use_engine_io_primitives():
 # engine, the plugin system, the serial stack, and every built-in command --
 # stays importable in CLI and MCP hosts, which never load Textual at all.
 UI_LAYER_PACKAGES: frozenset[str] = frozenset({"dialogs", "widgets"})
-UI_LAYER_MODULES: frozenset[str] = frozenset({
-    "app.py",
-    "capture_view.py",
-    "info_views.py",
-    "palette_provider.py",
-    "proto_debug.py",
-    "title_bar.py",
-})
+UI_LAYER_MODULES: frozenset[str] = frozenset(
+    {
+        "app.py",
+        "capture_view.py",
+        "info_views.py",
+        "palette_provider.py",
+        "proto_debug.py",
+        "title_bar.py",
+    }
+)
 
 
 def _imports_package(tree: ast.AST, root: str) -> bool:
     """True when the module imports ``root`` or anything beneath it."""
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            if any(
-                alias.name == root or alias.name.startswith(f"{root}.")
-                for alias in node.names
-            ):
+            if any(alias.name == root or alias.name.startswith(f"{root}.") for alias in node.names):
                 return True
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
@@ -265,8 +266,8 @@ def test_ui_layer_list_has_no_stale_entries():
     missing = sorted(name for name in UI_LAYER_MODULES if not (SRC / name).is_file())
 
     # Assert
-    assert missing == [], (
-        "UI_LAYER_MODULES names modules that no longer exist: " + ", ".join(missing)
+    assert missing == [], "UI_LAYER_MODULES names modules that no longer exist: " + ", ".join(
+        missing
     )
 
 
@@ -331,7 +332,8 @@ def _bool_rel(path: Path) -> str:
 def _bool_scan_targets() -> list[Path]:
     """Every module under src/termapy except the vendored tree and the allowlist."""
     return sorted(
-        path for path in SRC.rglob("*.py")
+        path
+        for path in SRC.rglob("*.py")
         if "vendor" not in path.relative_to(SRC).parts
         and _bool_rel(path) not in _BOOL_SCAN_ALLOWLIST
     )
@@ -349,8 +351,7 @@ def _bool_token_violations(tree: ast.AST, rel: str) -> list[str]:
                     constants.append(operand)
                 elif isinstance(operand, (ast.Tuple, ast.List, ast.Set)):
                     constants.extend(
-                        element for element in operand.elts
-                        if isinstance(element, ast.Constant)
+                        element for element in operand.elts if isinstance(element, ast.Constant)
                     )
                 elif (
                     isinstance(operand, ast.Call)
@@ -361,7 +362,8 @@ def _bool_token_violations(tree: ast.AST, rel: str) -> list[str]:
                 ):
                     # ``x in frozenset({...})``: the literal wrapped in a call.
                     constants.extend(
-                        element for element in operand.args[0].elts
+                        element
+                        for element in operand.args[0].elts
                         if isinstance(element, ast.Constant)
                     )
             if any(
@@ -400,8 +402,7 @@ def test_booleans_go_through_parse_bool():
     # Assert
     assert violations == [], (
         "boolean tokens must go through parse_bool / ParamSpec(type='bool') / "
-        "parse_bool_setting, never literal comparisons:\n  "
-        + "\n  ".join(violations)
+        "parse_bool_setting, never literal comparisons:\n  " + "\n  ".join(violations)
     )
 
 
@@ -439,7 +440,9 @@ def test_boolean_allowlist_has_no_stale_entries():
 
     # Assert
     assert stale == [], "\n  ".join(["the allowlist only shrinks:", *stale])
-    assert not any(rel.startswith("termapy/vendor/") for rel in scanned), "the vendored tree is never scanned"
+    assert not any(rel.startswith("termapy/vendor/") for rel in scanned), (
+        "the vendored tree is never scanned"
+    )
 
 
 # ── Data folders: one creator ────────────────────────────────────────────────
@@ -455,15 +458,17 @@ def test_boolean_allowlist_has_no_stale_entries():
 # being through ``folders.ensure_folder`` and goes away through
 # ``folders.prune_empty_folders``, and through nothing else -- that is what
 # keeps "reads never create, writes always create" true everywhere at once.
-ALLOWED_RAW_MKDIR: frozenset[str] = frozenset({
-    "termapy/app_dirs.py",
-    "termapy/builtins/commands/_cfg_icon.py",
-    "termapy/builtins/commands/app.py",
-    "termapy/config.py",
-    "termapy/devices/__init__.py",
-    "termapy/folders.py",
-    "termapy/mcp/server.py",
-})
+ALLOWED_RAW_MKDIR: frozenset[str] = frozenset(
+    {
+        "termapy/app_dirs.py",
+        "termapy/builtins/commands/_cfg_icon.py",
+        "termapy/builtins/commands/app.py",
+        "termapy/config.py",
+        "termapy/devices/__init__.py",
+        "termapy/folders.py",
+        "termapy/mcp/server.py",
+    }
+)
 
 
 def _raw_mkdir_calls(tree: ast.AST, rel: str) -> list[str]:
@@ -479,10 +484,7 @@ def _raw_mkdir_calls(tree: ast.AST, rel: str) -> list[str]:
 
 def _package_python_files() -> list[Path]:
     """Every .py file in the package except the vendored tree."""
-    return sorted(
-        path for path in SRC.rglob("*.py")
-        if "vendor" not in path.relative_to(SRC).parts
-    )
+    return sorted(path for path in SRC.rglob("*.py") if "vendor" not in path.relative_to(SRC).parts)
 
 
 def _raw_mkdir_files() -> dict[str, list[str]]:
@@ -656,17 +658,20 @@ TESTS = Path(__file__).parent
 # them (the stale-entry test below forces that), and when it is empty this
 # constant and its stale-entry test are deleted.  Never add a file here -- a
 # new or edited test gets its header instead.
-ALLOWED_HEADERLESS: frozenset[str] = frozenset({
-    "test_devices.py",
-    "test_devices_svd.py",
-    "test_firmware_mem.py",
-    "test_memory_views.py",
-    "test_sym_commands.py",
-})
+ALLOWED_HEADERLESS: frozenset[str] = frozenset(
+    {
+        "test_devices.py",
+        "test_devices_svd.py",
+        "test_firmware_mem.py",
+        "test_memory_views.py",
+        "test_sym_commands.py",
+    }
+)
 
 
 def _test_functions(
-    body: list[ast.stmt], prefix: str = "",
+    body: list[ast.stmt],
+    prefix: str = "",
 ) -> list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]]:
     """``(qualname, def)`` for every test pytest collects from ``body``.
 
@@ -925,13 +930,25 @@ def test_registry_guard_fires_on_a_probe():
 # test exercises the one implementation.  The set below is what was untested
 # when the guard was written; it only shrinks.
 
-KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset({
-    "app.state.edit", "cap.hex", "cfg.help",
-    "edit.plugin.list", "edit.proto.list", "edit.run.list",
-    "help.plugin", "help.target", "ping.quiet",
-    "term.encoding", "term.log", "term.send_bare_enter",
-    "xfer.root", "xfer.xmodem.send", "xfer.ymodem.send",
-})
+KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.state.edit",
+        "cap.hex",
+        "cfg.help",
+        "edit.plugin.list",
+        "edit.proto.list",
+        "edit.run.list",
+        "help.plugin",
+        "help.target",
+        "ping.quiet",
+        "term.encoding",
+        "term.log",
+        "term.send_bare_enter",
+        "xfer.root",
+        "xfer.xmodem.send",
+        "xfer.ymodem.send",
+    }
+)
 
 
 def _command_groups() -> list[list[str]]:
@@ -978,7 +995,9 @@ def test_every_command_is_mentioned_by_a_test():
     # Arrange / Act
     untested = _untested_groups(_command_groups(), _tests_text())
     violations = [
-        " ".join(names) for names in untested if not any(name in KNOWN_UNTESTED_COMMANDS for name in names)
+        " ".join(names)
+        for names in untested
+        if not any(name in KNOWN_UNTESTED_COMMANDS for name in names)
     ]
 
     # Assert
@@ -993,19 +1012,25 @@ def test_command_guard_fires_on_a_probe():
     # Arrange -- a dotted name, a name that is only a prefix of what the
     # tests mention, and a family with one mentioned member
     groups = [["cap.text"], ["port.open"], ["proto.crc.go", "proto.crc.rust"]]
-    tests_text = 'eng.dispatch("cap.text t.txt")\nresult = run("/port.open_wide")\nuse("/proto.crc.rust")\n'
+    tests_text = (
+        'eng.dispatch("cap.text t.txt")\nresult = run("/port.open_wide")\nuse("/proto.crc.rust")\n'
+    )
 
     # Act
     untested = _untested_groups(groups, tests_text)
 
     # Assert
-    assert untested == [["port.open"]], "a prefix of a longer token is not a mention; one member covers a family"
+    assert untested == [["port.open"]], (
+        "a prefix of a longer token is not a mention; one member covers a family"
+    )
 
 
 def test_known_untested_commands_has_no_stale_entries():
     """Every allowlisted command is still untested, so the set only shrinks."""
     # Arrange / Act
-    still_untested = {name for names in _untested_groups(_command_groups(), _tests_text()) for name in names}
+    still_untested = {
+        name for names in _untested_groups(_command_groups(), _tests_text()) for name in names
+    }
 
     # Assert
     stale = sorted(KNOWN_UNTESTED_COMMANDS - still_untested)
@@ -1067,25 +1092,34 @@ def _sw_loopback_unlabeled(tree: ast.Module) -> list[str]:
         and isinstance(node.body[0].value, ast.Constant)
         and isinstance(node.body[0].value.value, str)
     }
-    module_marks = _mark_names([
-        stmt.value
-        for stmt in tree.body
-        if isinstance(stmt, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "pytestmark" for target in stmt.targets)
-    ])
+    module_marks = _mark_names(
+        [
+            stmt.value
+            for stmt in tree.body
+            if isinstance(stmt, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "pytestmark"
+                for target in stmt.targets
+            )
+        ]
+    )
 
     unlabeled: list[str] = []
     in_tests: set[int] = set()
 
     def visit(body: list[ast.stmt], prefix: str, inherited: set[str]) -> None:
         for node in body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
+                "test"
+            ):
                 uses = _loop_url_constants(node, docstrings)
                 in_tests.update(uses)
                 if uses and "sw_loopback" not in inherited | _mark_names(node.decorator_list):
                     unlabeled.append(prefix + node.name)
             elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
-                visit(node.body, f"{prefix}{node.name}.", inherited | _mark_names(node.decorator_list))
+                visit(
+                    node.body, f"{prefix}{node.name}.", inherited | _mark_names(node.decorator_list)
+                )
 
     visit(tree.body, "", module_marks)
     if _loop_url_constants(tree, docstrings) - in_tests and "sw_loopback" not in module_marks:
@@ -1143,7 +1177,9 @@ class TestMarkedClass:
     actual = _sw_loopback_unlabeled(ast.parse(source))
 
     # Assert
-    assert actual == ["test_unlabeled", "<module>"], "the unlabeled test, and the helper with no module mark"
+    assert actual == ["test_unlabeled", "<module>"], (
+        "the unlabeled test, and the helper with no module mark"
+    )
 
 
 # ── Hex: one reader for input, one case for output ───────────────────────────
@@ -1160,7 +1196,10 @@ SRC_REL = SRC  # src/termapy
 # (module, function): why it may read hex itself.
 HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
     ("protocol/core.py", "parse_hex"): "the published hex-only reader",
-    ("protocol/core.py", "_match_hex_byte"): "the one hex-byte tokenizer behind parse_data, parse_data_segments and parse_pattern",
+    (
+        "protocol/core.py",
+        "_match_hex_byte",
+    ): "the one hex-byte tokenizer behind parse_data, parse_data_segments and parse_pattern",
     ("symbols/address.py", "parse_number"): "the published number reader",
     ("port_format.py", "split_vid_pid"): "the USB id reader; USB ids are hex by convention",
     ("cli_flags.py", "_parse_hex_int"): "a --ports VID/PID filter, hex by USB convention",
@@ -1170,7 +1209,10 @@ HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
     ("memory.py", "parse_reply"): "a MEM reply from the device, not user text",
     ("memory.py", "TemplateDialect.parse_read"): "a device's read reply, not user text",
     ("response_parsers.py", "_coerce"): "device response text",
-    ("builtins/commands/proto.py", "_detect_ascii"): "a packet's ASCII-hex CRC trailer, device text",
+    (
+        "builtins/commands/proto.py",
+        "_detect_ascii",
+    ): "a packet's ASCII-hex CRC trailer, device text",
     ("symbols/converters/xc32.py", "convert"): "a linker map's own address format",
     ("symbols/table.py", "parse_addr_field"): "a symbol file's 0x address field",
 }
@@ -1209,8 +1251,12 @@ def _hex_parse_sites(tree: ast.Module) -> list[tuple[str, int]]:
         if isinstance(func, ast.Attribute) and func.attr in ("fromhex", "unhexlify", "a2b_hex"):
             sites.append((qualname, node.lineno))
         elif isinstance(func, ast.Name) and func.id == "int":
-            base = node.args[1] if len(node.args) > 1 else next(
-                (keyword.value for keyword in node.keywords if keyword.arg == "base"), None
+            base = (
+                node.args[1]
+                if len(node.args) > 1
+                else next(
+                    (keyword.value for keyword in node.keywords if keyword.arg == "base"), None
+                )
             )
             if isinstance(base, ast.Constant) and base.value == 16:
                 sites.append((qualname, node.lineno))
@@ -1223,30 +1269,49 @@ def _lowercase_hex_sites(tree: ast.Module) -> list[tuple[str, int]]:
     A ``.hex()`` call not followed by ``.upper()``, an f-string spec ending
     in ``x``, a ``format(..., "...x")``, a ``%x`` string, and builtin ``hex()``.
     """
-    parents = {id(child): parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+    parents = {
+        id(child): parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)
+    }
     sites: list[tuple[str, int]] = []
     for qualname, node in _scoped_nodes(tree):
         line = getattr(node, "lineno", 0)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "hex":
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "hex"
+        ):
             parent = parents.get(id(node))
             if not (isinstance(parent, ast.Attribute) and parent.attr == "upper"):
                 sites.append((qualname, line))
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "hex":
+        elif (
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "hex"
+        ):
             sites.append((qualname, line))
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "format":
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "format"
+        ):
             spec = node.args[1] if len(node.args) > 1 else None
-            if isinstance(spec, ast.Constant) and isinstance(spec.value, str) and spec.value.endswith("x"):
+            if (
+                isinstance(spec, ast.Constant)
+                and isinstance(spec.value, str)
+                and spec.value.endswith("x")
+            ):
                 sites.append((qualname, line))
         elif isinstance(node, ast.FormattedValue) and isinstance(node.format_spec, ast.JoinedStr):
             spec = "".join(
-                part.value for part in node.format_spec.values
+                part.value
+                for part in node.format_spec.values
                 if isinstance(part, ast.Constant) and isinstance(part.value, str)
             )
             if spec.endswith("x"):
                 sites.append((qualname, getattr(node.value, "lineno", line)))
         elif (
-            isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod)
-            and isinstance(node.left, ast.Constant) and isinstance(node.left.value, str)
+            isinstance(node, ast.BinOp)
+            and isinstance(node.op, ast.Mod)
+            and isinstance(node.left, ast.Constant)
+            and isinstance(node.left.value, str)
             and _LOWERCASE_PRINTF.search(node.left.value)
         ):
             sites.append((qualname, line))
@@ -1261,7 +1326,9 @@ def _source_modules():
             yield rel, ast.parse(path.read_text(encoding="utf-8"))
 
 
-def _unallowed(finder, allowed: dict[tuple[str, str], str]) -> tuple[list[str], set[tuple[str, str]]]:
+def _unallowed(
+    finder, allowed: dict[tuple[str, str], str]
+) -> tuple[list[str], set[tuple[str, str]]]:
     """Sites ``finder`` reports outside ``allowed``, and the allowlist entries that matched something."""
     violations: list[str] = []
     used: set[tuple[str, str]] = set()
@@ -1305,7 +1372,7 @@ def test_hex_output_is_uppercase():
 def test_hex_guard_fires_on_a_probe():
     """Both hex guards flag what they exist to catch and pass what they allow."""
     # Arrange -- one of each reader shape and each lowercase shape, plus their correct forms
-    source = '''
+    source = """
 def reads():
     bytes.fromhex(a)
     int(b, 16)
@@ -1322,7 +1389,7 @@ def renders():
     "%02x" % n
     data.hex().upper()
     f"{n:02X}"
-'''
+"""
     tree = ast.parse(source)
 
     # Act
@@ -1330,7 +1397,9 @@ def renders():
     lowercase = _lowercase_hex_sites(tree)
 
     # Assert
-    assert [line for _, line in parsed] == [3, 4, 5, 6], "fromhex, int(x, 16) both ways, unhexlify; not int(x)"
+    assert [line for _, line in parsed] == [3, 4, 5, 6], (
+        "fromhex, int(x, 16) both ways, unhexlify; not int(x)"
+    )
     assert [line for _, line in lowercase] == [10, 11, 12, 13, 14, 15], (
         "bare .hex() twice, hex(), a lowercase f-spec, format(), printf; not .upper() or :02X"
     )
@@ -1343,7 +1412,9 @@ def test_hex_allowlist_has_no_stale_entries():
     _, lower_used = _unallowed(_lowercase_hex_sites, HEX_LOWERCASE_ALLOWED)
 
     # Assert
-    stale = sorted(set(HEX_PARSE_ALLOWED) - parse_used) + sorted(set(HEX_LOWERCASE_ALLOWED) - lower_used)
+    stale = sorted(set(HEX_PARSE_ALLOWED) - parse_used) + sorted(
+        set(HEX_LOWERCASE_ALLOWED) - lower_used
+    )
     assert stale == [], f"allowlisted but no longer a hex site; drop them: {stale}"
 
 
@@ -1367,15 +1438,19 @@ _HANDLER_NAME = re.compile(r"^_handler(_[a-z0-9]+)*$")
 
 def _misnamed_handlers(tree: ast.Module) -> list[str]:
     """Names passed as ``Command(handler=...)`` that break the ``_handler`` / ``_handler_<sub>`` shape."""
-    return sorted({
-        keyword.value.id
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "Command"
-        for keyword in node.keywords
-        if keyword.arg == "handler"
-        and isinstance(keyword.value, ast.Name)
-        and not _HANDLER_NAME.match(keyword.value.id)
-    })
+    return sorted(
+        {
+            keyword.value.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "Command"
+            for keyword in node.keywords
+            if keyword.arg == "handler"
+            and isinstance(keyword.value, ast.Name)
+            and not _HANDLER_NAME.match(keyword.value.id)
+        }
+    )
 
 
 def test_handlers_follow_one_naming_shape():
@@ -1398,7 +1473,7 @@ def test_handlers_follow_one_naming_shape():
 def test_handler_naming_guard_fires_on_a_probe():
     """The guard flags the old styles and passes the shape, a nested subcommand, and a factory-built handler."""
     # Arrange
-    source = '''
+    source = """
 COMMAND = Command(name="x", handler=_handler, sub_commands={
     "a": Command(handler=_handler_a),
     "b": Command(handler=_handler_crc_calc),
@@ -1407,7 +1482,7 @@ COMMAND = Command(name="x", handler=_handler, sub_commands={
     "e": Command(handler=_make_list_handler("x", "*")),
     "f": Command(handler=_HandlerTypo),
 })
-'''
+"""
 
     # Act
     actual = _misnamed_handlers(ast.parse(source))
@@ -1432,10 +1507,17 @@ COMMAND = Command(name="x", handler=_handler, sub_commands={
 # The reverse is refused too: markup handed to a plain channel (`ctx.io.output`)
 # shows its tags as text, as the demo traffic plugin's counts did.
 
-MARKUP_SINKS = frozenset({
-    "result_markup", "output_markup", "status_markup",
-    "_write_markup", "write_markup", "_write_output_markup", "from_markup",
-})
+MARKUP_SINKS = frozenset(
+    {
+        "result_markup",
+        "output_markup",
+        "status_markup",
+        "_write_markup",
+        "write_markup",
+        "_write_output_markup",
+        "from_markup",
+    }
+)
 PLAIN_CHANNELS = frozenset({"result", "output", "status"})
 _NUMERIC_SPEC = frozenset("bcdeEfFgGnoxX%")
 MARKUP_SCAN_FOLDERS = (SRC, SRC.parent.parent / "examples" / "plugins")
@@ -1482,13 +1564,16 @@ def _unescaped_markup_sites(tree: ast.Module) -> list[tuple[int, str]]:
     """``(line, what)`` for every value that reaches markup unescaped, and every opaque template."""
     templates = {
         target.id
-        for node in tree.body if isinstance(node, ast.Assign) and "[/" in _literal(node.value)
-        for target in node.targets if isinstance(target, ast.Name)
+        for node in tree.body
+        if isinstance(node, ast.Assign) and "[/" in _literal(node.value)
+        for target in node.targets
+        if isinstance(target, ast.Name)
     }
     sink_args = {
         id(node.args[0])
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and node.args
+        if isinstance(node, ast.Call)
+        and node.args
         and (getattr(node.func, "attr", None) or getattr(node.func, "id", None)) in MARKUP_SINKS
     }
     sites: list[tuple[int, str]] = []
@@ -1497,17 +1582,32 @@ def _unescaped_markup_sites(tree: ast.Module) -> list[tuple[int, str]]:
             # A placeholder stands where each value goes, so "[{step}/{total}]" is not "[/]".
             shape = "".join(_literal(part) or "\0" for part in node.values)
             if id(node) in sink_args or "[/" in shape:
-                sites.extend((part.lineno, ast.unparse(part.value)) for part in _raw_interpolations(node))
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "format":
+                sites.extend(
+                    (part.lineno, ast.unparse(part.value)) for part in _raw_interpolations(node)
+                )
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "format"
+        ):
             receiver = node.func.value
-            if "[/" in _literal(receiver) or (isinstance(receiver, ast.Name) and receiver.id in templates):
+            if "[/" in _literal(receiver) or (
+                isinstance(receiver, ast.Name) and receiver.id in templates
+            ):
                 sites.append((node.lineno, f"{ast.unparse(receiver)}.format(...)"))
-        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod) and "[/" in _literal(node.left):
+        elif (
+            isinstance(node, ast.BinOp)
+            and isinstance(node.op, ast.Mod)
+            and "[/" in _literal(node.left)
+        ):
             sites.append((node.lineno, "markup % ..."))
         if (
-            isinstance(node, ast.Call) and node.args
-            and isinstance(node.func, ast.Attribute) and node.func.attr in PLAIN_CHANNELS
-            and isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "io"
+            isinstance(node, ast.Call)
+            and node.args
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in PLAIN_CHANNELS
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "io"
         ):
             arg = node.args[0]
             parts = arg.values if isinstance(arg, ast.JoinedStr) else [arg]
@@ -1546,7 +1646,7 @@ def test_text_reaches_markup_escaped():
 def test_markup_guard_fires_on_a_probe():
     """The markup guard flags raw values, conversions, templates and markup on a plain channel; it passes the rest."""
     # Arrange -- each flagged shape, then each allowed one
-    source = '''
+    source = """
 _TEMPLATE = "[bold]{text}[/]"
 
 def render(ctx, name, n, color, value_markup):
@@ -1561,7 +1661,7 @@ def render(ctx, name, n, color, value_markup):
     plain = f"plain {name} [1/3]"
     progress = f"[{n}/{total}] {name}"
     ctx.io.output(f"[{name}]")
-'''
+"""
 
     # Act
     actual = [line for line, _ in _unescaped_markup_sites(ast.parse(source))]
@@ -1591,7 +1691,13 @@ _MARKUP_KW_WIDGETS = frozenset({"Static", "Label"})
 def _call_name(node: ast.Call) -> str:
     """The called name: ``Static`` for ``Static(...)``, ``notify`` for ``self.notify(...)``."""
     func = node.func
-    return func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+    return (
+        func.id
+        if isinstance(func, ast.Name)
+        else func.attr
+        if isinstance(func, ast.Attribute)
+        else ""
+    )
 
 
 def _authored(node: ast.expr, constants: set[str]) -> bool:
@@ -1603,7 +1709,9 @@ def _authored(node: ast.expr, constants: set[str]) -> bool:
     if isinstance(node, ast.Call):
         func = node.func
         return (isinstance(func, ast.Name) and func.id == "Text") or (
-            isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "Text"
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "Text"
         )
     return False
 
@@ -1612,8 +1720,10 @@ def _widget_markup_sites(tree: ast.Module) -> list[tuple[int, str]]:
     """``(line, call)`` for every widget or notification built from text that Textual would parse."""
     constants = {
         target.id
-        for node in tree.body if isinstance(node, ast.Assign) and _literal(node.value)
-        for target in node.targets if isinstance(target, ast.Name)
+        for node in tree.body
+        if isinstance(node, ast.Assign) and _literal(node.value)
+        for target in node.targets
+        if isinstance(target, ast.Name)
     }
     sites: list[tuple[int, str]] = []
     for node in ast.walk(tree):
@@ -1623,8 +1733,10 @@ def _widget_markup_sites(tree: ast.Module) -> list[tuple[int, str]]:
         if name not in _MARKUP_KW_WIDGETS | {"Button", "notify"}:
             continue
         keyword = {"Button": "label", "notify": "message"}.get(name, "content")
-        content = node.args[0] if node.args else next(
-            (kw.value for kw in node.keywords if kw.arg == keyword), None
+        content = (
+            node.args[0]
+            if node.args
+            else next((kw.value for kw in node.keywords if kw.arg == keyword), None)
         )
         markup_off = any(
             kw.arg == "markup" and isinstance(kw.value, ast.Constant) and kw.value.value is False
@@ -1656,7 +1768,7 @@ def test_widget_text_is_never_parsed_as_markup():
 def test_widget_guard_fires_on_a_probe():
     """The widget guard flags text built into each widget and notify; it passes literals, constants, Text and markup=False."""
     # Arrange -- each flagged shape, then each allowed one
-    source = '''
+    source = """
 _TITLE = "[b]Pick a config[/]"
 
 def compose(self, name, path):
@@ -1671,7 +1783,7 @@ def compose(self, name, path):
     yield Button(Text(name))
     self.notify(f"Saved {path}", markup=False)
     yield Label(Text.assemble(("x", "bold"), name))
-'''
+"""
 
     # Act
     actual = [line for line, _ in _widget_markup_sites(ast.parse(source))]
@@ -1781,14 +1893,30 @@ def test_kv_callers_has_no_stale_entries():
 
 # (module, function): why it shows a failure itself.  These ARE the reporter.
 FAILURE_PRINTERS: dict[tuple[str, str], str] = {
-    ("repl.py", "ReplEngine.dispatch_full"): "a line's own exit on the paths that never reach a handler; silent under report=False",
-    ("app.py", "SerialTerminal._dispatch_quiet"): "the find-bar buttons' entry point; its callers discard the result, so the Busy line is the only report",
+    (
+        "repl.py",
+        "ReplEngine.dispatch_full",
+    ): "a line's own exit on the paths that never reach a handler; silent under report=False",
+    (
+        "app.py",
+        "SerialTerminal._dispatch_quiet",
+    ): "the find-bar buttons' entry point; its callers discard the result, so the Busy line is the only report",
 }
 
-_OUTPUT_SINKS = frozenset({
-    "output", "output_markup", "result", "result_markup", "status", "status_markup",
-    "_write", "_write_markup", "write", "notify",
-})
+_OUTPUT_SINKS = frozenset(
+    {
+        "output",
+        "output_markup",
+        "result",
+        "result_markup",
+        "status",
+        "status_markup",
+        "_write",
+        "_write_markup",
+        "write",
+        "notify",
+    }
+)
 _ERROR_COLORS = frozenset({"red", "yellow"})
 
 
@@ -1835,7 +1963,8 @@ def _empty_failures(tree: ast.Module) -> list[tuple[str, int]]:
             success = keywords.get("success")
             error = keywords.get("error")
             if (
-                isinstance(success, ast.Constant) and success.value is False
+                isinstance(success, ast.Constant)
+                and success.value is False
                 and (error is None or (isinstance(error, ast.Constant) and error.value == ""))
             ):
                 sites.append((qualname, node.lineno))
@@ -1871,7 +2000,8 @@ def _printed_failures(tree: ast.Module) -> list[tuple[str, int]]:
                     for arg in [*call.args, *(keyword.value for keyword in call.keywords)]
                 )
                 repeated = (
-                    message is not None and bool(call.args)
+                    message is not None
+                    and bool(call.args)
                     and ast.dump(call.args[0]) == ast.dump(message)
                 )
                 if colored or repeated:
@@ -1906,7 +2036,7 @@ def test_a_handler_never_prints_the_failure_it_returns():
 def test_failure_guard_fires_on_a_probe():
     """Both failure guards flag an empty failure and a printed one, and pass a hint and a reason."""
     # Arrange -- each forbidden shape, then the correct forms
-    source = '''
+    source = """
 def handler(ctx, args):
     if a:
         return CmdResult.fail(msg="")
@@ -1927,7 +2057,7 @@ def handler(ctx, args):
         ctx.io.output("Use /proto.crc.list to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
     return CmdResult.fail(msg="Not connected.")
-'''
+"""
     tree = ast.parse(source)
 
     # Act
@@ -1936,7 +2066,9 @@ def handler(ctx, args):
 
     # Assert
     assert empty == [4, 6, 8], "fail(msg=''), bare fail() and a hand-built failure with no error"
-    assert printed == [10, 13, 16], "a red line, a yellow status and a repeated message; not the hint"
+    assert printed == [10, 13, 16], (
+        "a red line, a yellow status and a repeated message; not the hint"
+    )
 
 
 def test_failure_printers_has_no_stale_entries():
@@ -1966,9 +2098,18 @@ STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
     ("builtins/commands/proto.py", "_handler_send"): "--dry-run sends nothing",
     ("builtins/commands/proto.py", "_handler_crc_find"): "only cmd= mode talks to the device",
     ("builtins/commands/proto.py", "_handler_crc_reverse"): "only cmd= mode talks to the device",
-    ("builtins/commands/var.py", "_handler_capture"): "only a device-command capture sends; a slash command does not",
-    ("builtins/commands/profile.py", "_load_from_device"): "only cmd= reads the profile from the device",
-    ("repl.py", "ReplEngine.dispatch_full"): "a bare device line is no command, so it has no needs= to declare",
+    (
+        "builtins/commands/var.py",
+        "_handler_capture",
+    ): "only a device-command capture sends; a slash command does not",
+    (
+        "builtins/commands/profile.py",
+        "_load_from_device",
+    ): "only cmd= reads the profile from the device",
+    (
+        "repl.py",
+        "ReplEngine.dispatch_full",
+    ): "a bare device line is no command, so it has no needs= to declare",
 }
 
 
@@ -1988,7 +2129,9 @@ def _state_answers(tree: ast.Module) -> list[tuple[str, int]]:
     return [
         (qualname, node.lineno)
         for qualname, node in _scoped_nodes(tree)
-        if isinstance(node, ast.Call) and _is_fail_call(node) and _is_state_answer(_fail_message(node))
+        if isinstance(node, ast.Call)
+        and _is_fail_call(node)
+        and _is_state_answer(_fail_message(node))
     ]
 
 
@@ -2013,7 +2156,7 @@ def test_a_missing_config_or_port_is_answered_by_the_gate():
 def test_state_answer_guard_fires_on_a_probe():
     """The guard flags each state answer, spelled or read from the table, positional or msg=, and passes other states."""
     # Arrange
-    source = '''
+    source = """
 def handler(ctx, args):
     if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
@@ -2024,7 +2167,7 @@ def handler(ctx, args):
     if b:
         return CmdResult.fail(msg=refusal)
     return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
-'''
+"""
 
     # Act
     lines = [line for _, line in _state_answers(ast.parse(source))]
@@ -2060,7 +2203,8 @@ def _state_answer_copies(tree: ast.Module) -> list[tuple[str, int]]:
     return [
         (qualname, node.lineno)
         for qualname, node in _scoped_nodes(tree)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
         and node.value.rstrip(".") in answers
     ]
 
@@ -2123,13 +2267,17 @@ def _session_log_derivations(tree: ast.Module) -> list[tuple[str, int]]:
             if name == "cfg_log_path":
                 sites.append((qualname, node.lineno))
             elif (
-                name == "get" and node.args
-                and isinstance(node.args[0], ast.Constant) and node.args[0].value == "log_file"
+                name == "get"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and node.args[0].value == "log_file"
             ):
                 sites.append((qualname, node.lineno))
         elif (
-            isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Load)
-            and isinstance(node.slice, ast.Constant) and node.slice.value == "log_file"
+            isinstance(node, ast.Subscript)
+            and isinstance(node.ctx, ast.Load)
+            and isinstance(node.slice, ast.Constant)
+            and node.slice.value == "log_file"
         ):
             sites.append((qualname, node.lineno))
     return sites
@@ -2156,7 +2304,7 @@ def test_the_session_log_is_resolved_in_one_place():
 def test_session_log_guard_fires_on_a_probe():
     """The guard flags cfg_log_path calls and log_file reads, and passes a declaration and a set of key names."""
     # Arrange
-    source = '''
+    source = """
 def derive(ctx, cfg):
     a = cfg_log_path(ctx.config_path)
     b = config.cfg_log_path(path)
@@ -2165,7 +2313,7 @@ def derive(ctx, cfg):
     keys = frozenset({"log_file", "profile_path"})
     defaults = {"log_file": ""}
     return ctx.internal.session_log_path()
-'''
+"""
 
     # Act
     actual = [line for _, line in _session_log_derivations(ast.parse(source))]
@@ -2284,6 +2432,7 @@ def test_each_command_has_one_handler_in_every_frontend(frontend_tables):
 
 def test_one_handler_guard_fires_on_a_probe():
     """The guard flags a name whose handlers differ and passes a shared or one-frontend name."""
+
     # Arrange
     def shared(ctx, args):
         return None
@@ -2295,7 +2444,11 @@ def test_one_handler_guard_fires_on_a_probe():
         return None
 
     tables = {
-        "TUI": {"same": _handler_identity(shared), "split": _handler_identity(tui_own), "tui_only": 1},
+        "TUI": {
+            "same": _handler_identity(shared),
+            "split": _handler_identity(tui_own),
+            "tui_only": 1,
+        },
         "CLI": {"same": _handler_identity(shared), "split": _handler_identity(cli_own)},
     }
 
@@ -2331,7 +2484,8 @@ KNOWN_UNREGISTERED_WHERE_AVAILABLE: dict[str, str] = {
 
 
 def _claimed_but_unregistered(
-    plugins_by_frontend: dict[str, dict[str, Any]], environments: dict[str, Any],
+    plugins_by_frontend: dict[str, dict[str, Any]],
+    environments: dict[str, Any],
 ) -> dict[str, list[str]]:
     """``{command name: [frontends]}`` where a frontend's /help row says yes and that frontend has no such command."""
     claimed: dict[str, set[str]] = {}
@@ -2359,7 +2513,9 @@ def test_help_available_names_only_frontends_that_register_the_command(frontend_
     assert unregistered == {}, (
         "/help AVAILABLE says yes where the command is not registered; register it there "
         "or declare the capability it really needs:\n  "
-        + "\n  ".join(f"/{name}: {', '.join(frontends)}" for name, frontends in unregistered.items())
+        + "\n  ".join(
+            f"/{name}: {', '.join(frontends)}" for name, frontends in unregistered.items()
+        )
     )
 
 
@@ -2394,7 +2550,9 @@ def test_known_unregistered_where_available_has_no_stale_entries(frontend_plugin
 
     # Assert
     stale = sorted(set(KNOWN_UNREGISTERED_WHERE_AVAILABLE) - set(unregistered))
-    assert stale == [], f"/help tells the truth now; drop from KNOWN_UNREGISTERED_WHERE_AVAILABLE: {stale}"
+    assert stale == [], (
+        f"/help tells the truth now; drop from KNOWN_UNREGISTERED_WHERE_AVAILABLE: {stale}"
+    )
 
 
 def test_the_legacy_table_is_the_same_in_every_frontend(frontend_tables):
@@ -2426,11 +2584,17 @@ def test_the_legacy_table_is_the_same_in_every_frontend(frontend_tables):
 
     # Act
     fresh = subprocess.run(
-        [sys.executable, "-c", script], capture_output=True, text=True, timeout=30, check=True,
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
     ).stdout
 
     # Assert
     import json
 
     added = sorted(set(LEGACY_COMMANDS) - set(json.loads(fresh)))
-    assert added == [], f"renames only a frontend's registration records; list them in legacy.py: {added}"
+    assert added == [], (
+        f"renames only a frontend's registration records; list them in legacy.py: {added}"
+    )

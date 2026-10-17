@@ -47,9 +47,7 @@ from pathlib import Path
 
 # Default upstream URL.  linux-usb.org publishes via plain HTTP; the
 # GitHub mirror is HTTPS and tends to be more reliable.
-DEFAULT_SOURCE = (
-    "https://raw.githubusercontent.com/usbids/usbids/master/usb.ids"
-)
+DEFAULT_SOURCE = "https://raw.githubusercontent.com/usbids/usbids/master/usb.ids"
 FALLBACK_SOURCE = "http://www.linux-usb.org/usb.ids"
 
 # Repo paths.
@@ -190,8 +188,7 @@ def main() -> int:
 
     if len(vendors) < 1000:
         print(
-            f"  warning: parsed only {len(vendors)} vendors -- did the "
-            "format change?",
+            f"  warning: parsed only {len(vendors)} vendors -- did the format change?",
             file=sys.stderr,
         )
 
@@ -206,8 +203,7 @@ def main() -> int:
     # release.  Compare with the stamps masked out and skip the write when
     # only the date would differ -- the existing stamp stays truthful about
     # when the DATA last changed, which is the useful reading.
-    if out_path.exists() and _same_vendor_data(out_path.read_text(encoding="utf-8"),
-                                               new_text):
+    if out_path.exists() and _same_vendor_data(out_path.read_text(encoding="utf-8"), new_text):
         print(f"==> {out_path} already current")
         print(f"OK  {len(vendors):,} vendors unchanged (file left alone)")
         return 0

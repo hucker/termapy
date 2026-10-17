@@ -180,9 +180,7 @@ class TestSimulatorBasics:
 # ── End-to-end: MCPHost driving DEMO_JSON ───────────────────────────────────
 
 
-pytest_mcp = pytest.importorskip(
-    "mcp", reason="mcp SDK not installed; install with [mcp] extra"
-)
+pytest_mcp = pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] extra")
 
 
 class TestMcpHostAgainstDemoJson:
@@ -217,11 +215,7 @@ class TestMcpHostAgainstDemoJson:
         """/expect.regex after a /term.send request returns the reply line carrying its id."""
         # Arrange — send the line literally, then /expect to wait for the reply
         # Act
-        asyncio.run(
-            host.run_command_async(
-                '/term.send {"cmd":"get_temp","id":42}', "normal", 5.0
-            )
-        )
+        asyncio.run(host.run_command_async('/term.send {"cmd":"get_temp","id":42}', "normal", 5.0))
         result = asyncio.run(
             host.run_command_async(
                 '/expect.regex timeout=2s match="id":\\s*42',

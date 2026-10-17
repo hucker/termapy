@@ -39,7 +39,6 @@ def _names(table: SymbolTable, section: str | None = None) -> list[str]:
 
 
 class TestXc32Parse:
-
     def test_parses_text_symbols(self, table):
         """Dotted .text.<name> input sections become text-section symbols."""
         # Act
@@ -156,11 +155,14 @@ class TestXc32Parse:
 
 
 class TestXc32ObjectFile:
-
     def test_file_from_next_line_form(self, table):
         """An object path on the line after the input section sets Symbol.file."""
         # Act
-        hits = [symbol for symbol in table.symbols if symbol.name == "sState" and symbol.addr == 0x200062F2]
+        hits = [
+            symbol
+            for symbol in table.symbols
+            if symbol.name == "sState" and symbol.addr == 0x200062F2
+        ]
 
         # Assert
         assert [symbol.file for symbol in hits] == ["mon.c"], "object path on the continuation line"
@@ -168,10 +170,16 @@ class TestXc32ObjectFile:
     def test_file_from_same_line_form(self, table):
         """An object path on the input-section line itself sets Symbol.file."""
         # Act
-        hits = [symbol for symbol in table.symbols if symbol.name == "sState" and symbol.addr == 0x200062F3]
+        hits = [
+            symbol
+            for symbol in table.symbols
+            if symbol.name == "sState" and symbol.addr == 0x200062F3
+        ]
 
         # Assert
-        assert [symbol.file for symbol in hits] == ["adc.c"], "object path on the input-section line"
+        assert [symbol.file for symbol in hits] == ["adc.c"], (
+            "object path on the input-section line"
+        )
 
     def test_duplicate_statics_are_both_kept(self, table):
         """Two same-named statics in different objects stay two symbols, one per file."""
@@ -184,7 +192,9 @@ class TestXc32ObjectFile:
     def test_block_without_object_line_keeps_empty_file(self, table):
         """A section block with no object line leaves Symbol.file empty, not guessed."""
         # Act
-        hits = [symbol for symbol in table.symbols if symbol.name == "u8PicAdcInternal_ReadBlockingAvg"]
+        hits = [
+            symbol for symbol in table.symbols if symbol.name == "u8PicAdcInternal_ReadBlockingAvg"
+        ]
 
         # Assert
         assert [symbol.file for symbol in hits] == [""], "no object line -> file stays empty"
@@ -226,7 +236,6 @@ class TestXc32ObjectFile:
 
 
 class TestRegistry:
-
     def test_formats(self):
         """The registry exposes exactly one format today, xc32; a new converter updates this."""
         # Act / Assert
@@ -287,7 +296,9 @@ class TestRegistry:
     def test_explicit_unknown_format(self):
         """An unknown format name returns None; the calling handler owns the error."""
         # Act / Assert
-        assert find_converter(format_name="nope") is None, "unknown key -> None (handler owns the error)"
+        assert find_converter(format_name="nope") is None, (
+            "unknown key -> None (handler owns the error)"
+        )
 
 
 @pytest.mark.parametrize("fixture", sorted(MAPS_DIR.glob("*.map")), ids=lambda p: p.name)

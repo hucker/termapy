@@ -100,7 +100,8 @@ class SerialHandle:
 
     @contextmanager
     def rx_observer(
-        self, cb: Callable[[bytes], None],
+        self,
+        cb: Callable[[bytes], None],
     ) -> Generator[None, None, None]:
         """Register an RX byte observer for the duration of the block.
 
@@ -121,7 +122,8 @@ class SerialHandle:
 
     @contextmanager
     def tx_observer(
-        self, cb: Callable[[bytes], None],
+        self,
+        cb: Callable[[bytes], None],
     ) -> Generator[None, None, None]:
         """Register a TX byte observer for the duration of the block.
 

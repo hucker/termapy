@@ -18,13 +18,7 @@ import pytest
 
 from termapy.profile import Profile, load_profile, validate_profile
 
-DEMO_DIR = (
-    Path(__file__).parent.parent
-    / "src"
-    / "termapy"
-    / "builtins"
-    / "demo"
-)
+DEMO_DIR = Path(__file__).parent.parent / "src" / "termapy" / "builtins" / "demo"
 DEMO_PROFILE = DEMO_DIR / "demo.profile.json"
 DEMO_NDJSON_PROFILE = DEMO_DIR / "demo_ndjson.profile.json"
 
@@ -49,9 +43,7 @@ class TestBundledProfiles:
         profile = load_profile(path)
         result = validate_profile(profile)
         # Assert
-        assert result.ok is True, (
-            f"{path.name} should validate; errors: {result.errors}"
-        )
+        assert result.ok is True, f"{path.name} should validate; errors: {result.errors}"
 
     def test_profile_dataclass_load(self, path):
         """Profile.load yields a profile carrying its path, a revision and a command catalog."""
@@ -114,13 +106,11 @@ class TestDemoNdjsonProfileShape:
             "set_threshold": "mutable",
             "set_mode": "mutable",
             "calibrate": "destructive",  # alters stored cal data
-            "reset": "destructive",       # loses RAM state
+            "reset": "destructive",  # loses RAM state
         }
         for name, expected in expected_safety.items():
             actual = commands[name].get("safety")
-            assert actual == expected, (
-                f"{name} expected safety={expected!r}, got {actual!r}"
-            )
+            assert actual == expected, f"{name} expected safety={expected!r}, got {actual!r}"
 
     def test_reset_is_fire_and_forget(self):
         """reset declares no response, since the simulator sends nothing back."""
@@ -135,9 +125,7 @@ class TestDemoNdjsonProfileShape:
 # ── Bundled profiles are loadable via /profile.load (smoke) ────────────────
 
 
-pytest_mcp = pytest.importorskip(
-    "mcp", reason="mcp SDK not installed; install with [mcp] extra"
-)
+pytest_mcp = pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] extra")
 
 
 class TestProfileLoadAcceptsBundled:
@@ -174,6 +162,5 @@ class TestProfileLoadAcceptsBundled:
         result = host.repl.dispatch(f"profile.load {DEMO_NDJSON_PROFILE}")
         # Assert
         assert result.success is True, (
-            f"demo_ndjson.profile.json loads via /profile.load; "
-            f"error: {result.error}"
+            f"demo_ndjson.profile.json loads via /profile.load; error: {result.error}"
         )

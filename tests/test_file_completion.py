@@ -67,9 +67,7 @@ class TestCompleteFileArg:
         eng, cfg_dir = engine
         _touch(cfg_dir / "run" / "notes.txt")
         _touch(cfg_dir / "run" / "boot.run")
-        assert eng.complete_file_arg("/run ") == (5, ["boot.run"]), (
-            "run/ lists *.run only"
-        )
+        assert eng.complete_file_arg("/run ") == (5, ["boot.run"]), "run/ lists *.run only"
 
     def test_each_command_reads_its_own_folder(self, engine):
         """/proto.run lists proto/ and /cap.dump lists cap/, not run/."""
@@ -138,7 +136,9 @@ class TestDeclarations:
     def test_an_unknown_folder_fails_at_construction(self):
         """A typo in files= fails loud at load, naming the folder, instead of completing nothing."""
         with pytest.raises(ValueError, match="unknown files folder 'runs'"):
-            PluginInfo(name="x", args="{filename}", help="h", handler=lambda ctx, args: None, files="runs")
+            PluginInfo(
+                name="x", args="{filename}", help="h", handler=lambda ctx, args: None, files="runs"
+            )
 
     @pytest.mark.parametrize(
         ("command", "folder"),

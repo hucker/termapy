@@ -207,7 +207,9 @@ class CapabilitySet:
     #        answers "No config loaded." instead of each handler
     #        re-implementing the check.
     config_loaded: bool = _restricted(
-        "a loaded config", state="No config loaded.", attainable=True,
+        "a loaded config",
+        state="No config loaded.",
+        attainable=True,
     )
 
     # What:  A serial port is currently open and transmitting.
@@ -218,7 +220,9 @@ class CapabilitySet:
     #        so dispatch gives a clear "not connected" error instead of
     #        each handler re-implementing the check.
     serial_connected: bool = _restricted(
-        "an open serial port", state="Not connected.", attainable=True,
+        "an open serial port",
+        state="Not connected.",
+        attainable=True,
     )
 
     # What:  An interactive session -- a human at a terminal with
@@ -365,9 +369,7 @@ class CapabilitySet:
 
     def satisfied_by(self, provided: CapabilitySet) -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
-        return all(
-            not getattr(self, f.name) or getattr(provided, f.name) for f in fields(self)
-        )
+        return all(not getattr(self, f.name) or getattr(provided, f.name) for f in fields(self))
 
     def missing_from(self, provided: CapabilitySet) -> list[str]:
         """Return field names required by ``self`` that ``provided`` lacks.
@@ -376,9 +378,7 @@ class CapabilitySet:
         vocabulary (not alphabetical).
         """
         return [
-            f.name
-            for f in fields(self)
-            if getattr(self, f.name) and not getattr(provided, f.name)
+            f.name for f in fields(self) if getattr(self, f.name) and not getattr(provided, f.name)
         ]
 
     def union(self, other: CapabilitySet) -> CapabilitySet:
@@ -388,10 +388,7 @@ class CapabilitySet:
         runner's capabilities are the REPL's plus ``block_until``.
         """
         return CapabilitySet(
-            **{
-                f.name: getattr(self, f.name) or getattr(other, f.name)
-                for f in fields(self)
-            }
+            **{f.name: getattr(self, f.name) or getattr(other, f.name) for f in fields(self)}
         )
 
 
@@ -430,7 +427,9 @@ REQUIREMENT_HINTS: dict[str, str] = {
 # before ``serial_connected``.  Registries ``state-answered-by-gate`` and
 # ``state-messages-one-owner``.
 STATE_MESSAGES: dict[str, str] = {
-    spec.name: spec.metadata["state"] for spec in fields(CapabilitySet) if spec.metadata.get("state")
+    spec.name: spec.metadata["state"]
+    for spec in fields(CapabilitySet)
+    if spec.metadata.get("state")
 }
 
 # The fields any frontend can reach during a session: a config (/cfg.load),
@@ -492,9 +491,7 @@ def detect_gui_apps() -> bool:
     if os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_TTY"):
         return bool(os.environ.get("DISPLAY"))
     if sys.platform.startswith("linux") or sys.platform == "darwin":
-        return bool(
-            os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
-        )
+        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
     if sys.platform == "win32":
         return True
     return False

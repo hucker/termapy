@@ -52,9 +52,9 @@ async def _submit_name(pilot, screen: QuickSetup, name: str) -> None:
 
 
 class TestSubmit:
-
     def test_enter_returns_connect_with_the_standard_baud(self, tmp_path):
         """Enter in the name field dismisses with ("connect", name, port, 115200, False, False)."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -62,13 +62,20 @@ class TestSubmit:
                 await _submit_name(pilot, screen, "probe_dev")
                 assert len(results) == 1 and results[0] is not None, "dismissed once"
                 action, name, port, baud, custom, add_icon = results[0]
-                assert (action, name, baud, custom, add_icon) == ("connect", "probe_dev", 115200, False, False)
+                assert (action, name, baud, custom, add_icon) == (
+                    "connect",
+                    "probe_dev",
+                    115200,
+                    False,
+                    False,
+                )
                 assert isinstance(port, str), "whatever this machine has, or empty"
 
         _run(scenario)
 
     def test_name_is_reduced_to_its_stem(self, tmp_path):
         """A name typed with an extension or path comes back as the bare stem."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -80,6 +87,7 @@ class TestSubmit:
 
     def test_submit_needs_a_name(self, tmp_path):
         """Enter on an empty name neither dismisses nor closes the dialog."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -92,6 +100,7 @@ class TestSubmit:
 
     def test_a_picked_standard_baud_comes_back(self, tmp_path):
         """Highlighting another standard rate in the list returns that rate."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -105,6 +114,7 @@ class TestSubmit:
 
     def test_cancel_and_escape_dismiss_none(self, tmp_path):
         """Cancel and Escape both dismiss with None."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -120,9 +130,9 @@ class TestSubmit:
 
 
 class TestCustomBaud:
-
     def test_the_toggle_swaps_list_for_input_and_back(self, tmp_path):
         """The baud button flips between the standard list and a custom entry field, relabeling itself."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -134,7 +144,11 @@ class TestCustomBaud:
                 # Act
                 await pilot.click("#qs-standard-baud")
                 await pilot.pause()
-                custom_state = (str(button.label), baud_list.has_class("qs-hidden"), baud_input.has_class("qs-hidden"))
+                custom_state = (
+                    str(button.label),
+                    baud_list.has_class("qs-hidden"),
+                    baud_input.has_class("qs-hidden"),
+                )
                 # Textual drops a click on a button still showing its 0.2 s
                 # active effect; wait it out before clicking the same one again.
                 for _ in range(50):
@@ -143,7 +157,11 @@ class TestCustomBaud:
                     await pilot.pause(0.02)
                 await pilot.click("#qs-standard-baud")
                 await pilot.pause()
-                standard_state = (str(button.label), baud_list.has_class("qs-hidden"), baud_input.has_class("qs-hidden"))
+                standard_state = (
+                    str(button.label),
+                    baud_list.has_class("qs-hidden"),
+                    baud_input.has_class("qs-hidden"),
+                )
 
                 # Assert
                 assert custom_state == ("Custom Baud Rate", True, False), "list hidden, input shown"
@@ -153,6 +171,7 @@ class TestCustomBaud:
 
     def test_custom_entry_is_validated(self, tmp_path):
         """An empty, non-numeric, or sub-300 custom rate keeps the dialog open; a valid one comes back flagged custom."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -168,15 +187,17 @@ class TestCustomBaud:
                     assert results == [], f"{bad!r} must not submit"
                 baud_input.value = "250000"
                 await _submit_name(pilot, screen, "custom_dev")
-                assert results[0] is not None and results[0][3:5] == (250000, True), "custom rate, flagged custom"
+                assert results[0] is not None and results[0][3:5] == (250000, True), (
+                    "custom rate, flagged custom"
+                )
 
         _run(scenario)
 
 
 class TestAdvanced:
-
     def test_advanced_returns_the_advanced_action_with_the_icon_choice(self, tmp_path):
         """Advanced dismisses with action "advanced" and carries the add-icon checkbox through."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -192,12 +213,19 @@ class TestAdvanced:
                 # Assert
                 assert len(results) == 1 and results[0] is not None, "dismissed once"
                 action, name, _, baud, custom, add_icon = results[0]
-                assert (action, name, baud, custom, add_icon) == ("advanced", "adv_dev", 115200, False, True)
+                assert (action, name, baud, custom, add_icon) == (
+                    "advanced",
+                    "adv_dev",
+                    115200,
+                    False,
+                    True,
+                )
 
         _run(scenario)
 
     def test_advanced_needs_a_name(self, tmp_path):
         """Advanced without a name neither dismisses nor closes the dialog."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
@@ -210,9 +238,9 @@ class TestAdvanced:
 
 
 class TestPortList:
-
     def test_connect_button_tells_the_truth_about_ports(self, tmp_path):
         """With ports the list highlights the first real row and Connect is live; without, Connect reads No Ports and is disabled."""
+
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:

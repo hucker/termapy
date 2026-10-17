@@ -166,6 +166,7 @@ def _classify_serial_error(
             _gather_all_chip_facts,
             resolve_port_trace,
         )
+
         trace = resolve_port_trace(port_name, source=source)
         lines = [f"Cannot open {port_name!r}. Tried each candidate:"]
         for candidate, reason in trace:
@@ -431,6 +432,7 @@ class SerialEngine:
         import serial as _serial
 
         from termapy.port_control import AmbiguousSerialNumberError
+
         # pyserial open() can raise SerialException (typical: port in
         # use, port missing), OSError (permissions, device vanished),
         # or ValueError (bad baud / unsupported parameter combo).
@@ -536,6 +538,7 @@ class SerialEngine:
         for a join that expired).
         """
         import serial as _serial
+
         self.stop_reader()
         if self._port_obj:
             # Close can raise if the device already vanished; nothing
@@ -583,6 +586,7 @@ class SerialEngine:
             return
 
         import serial as _serial
+
         try:
             while not self._stop_event.is_set():
                 if not getattr(port, "is_open", False):
@@ -644,8 +648,7 @@ class SerialEngine:
                     # below closes, so it is reported like a lost port
                     # (registry ``reader-failure-reported``).
                     failure = (
-                        f"reader stopped by an internal error -- "
-                        f"{exc.__class__.__name__}: {exc}"
+                        f"reader stopped by an internal error -- {exc.__class__.__name__}: {exc}"
                     )
                 if failure:
                     if on_error:

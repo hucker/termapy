@@ -33,10 +33,7 @@ class TestHighlightEscapesUserMarkup:
         # a follow-up description produces.  The match is far enough into
         # the text that the context window slices through the closing
         # ``[/]`` without grabbing the matching ``[green]``.
-        text = (
-            "[green]Current baud rate = 115200[/]\n\n"
-            "Combined form for baud + mode triple..."
-        )
+        text = "[green]Current baud rate = 115200[/]\n\nCombined form for baud + mode triple..."
         start = text.index("baud", text.index("Combined"))
         end = start + len("baud")
 
@@ -52,8 +49,7 @@ class TestHighlightEscapesUserMarkup:
             console.print(snippet)
         except MarkupError as e:
             raise AssertionError(
-                f"_highlight_markup produced unparseable markup: {snippet!r}\n"
-                f"Rich error: {e}"
+                f"_highlight_markup produced unparseable markup: {snippet!r}\nRich error: {e}"
             ) from e
 
     def test_snippet_with_literal_bracket_pair_renders(self):
@@ -75,8 +71,7 @@ class TestHighlightEscapesUserMarkup:
             console.print(snippet)
         except MarkupError as e:
             raise AssertionError(
-                f"_highlight_markup produced unparseable markup: {snippet!r}\n"
-                f"Rich error: {e}"
+                f"_highlight_markup produced unparseable markup: {snippet!r}\nRich error: {e}"
             ) from e
 
     def test_match_itself_wrapped_in_yellow(self):
@@ -126,15 +121,12 @@ class TestCliStatusEscapesUserText:
             cli.status(text, "red")
         except MarkupError as e:
             raise AssertionError(
-                f"cli.status raised MarkupError on text with literal '[/]'; "
-                f"got {e}"
+                f"cli.status raised MarkupError on text with literal '[/]'; got {e}"
             ) from e
 
         # Assert -- some output was produced.
         out = buf.getvalue()
-        assert "closing tag" in out, (
-            f"the message text reached the console; got {out!r}"
-        )
+        assert "closing tag" in out, f"the message text reached the console; got {out!r}"
 
     def test_write_with_literal_closing_tag_in_text(self):
         """Colored write() escapes a literal [/] in its text the same way status() does."""
@@ -145,15 +137,12 @@ class TestCliStatusEscapesUserText:
             cli.write(text, "yellow")
         except MarkupError as e:
             raise AssertionError(
-                f"cli.write raised MarkupError on text with literal '[/]'; "
-                f"got {e}"
+                f"cli.write raised MarkupError on text with literal '[/]'; got {e}"
             ) from e
 
         # Assert
         out = buf.getvalue()
-        assert "value contains" in out, (
-            f"the message text reached the console; got {out!r}"
-        )
+        assert "value contains" in out, f"the message text reached the console; got {out!r}"
 
     def test_write_uncolored_prints_text_literally(self):
         """markup-escape: uncolored write() is text too; CLI notify's "[notice]" prefix and a tag both print as typed."""

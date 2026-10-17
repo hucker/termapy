@@ -58,8 +58,12 @@ class TestSchemaFile:
         # Act
         actual = set(schema["properties"].keys())
         expected_required = {
-            "profile_version", "profile_revision", "profile_date",
-            "device", "error_detection", "commands",
+            "profile_version",
+            "profile_revision",
+            "profile_date",
+            "device",
+            "error_detection",
+            "commands",
         }
         # Assert
         assert expected_required.issubset(actual), (
@@ -90,9 +94,7 @@ class TestReferenceProfiles:
         # Act
         result = validate_profile(profile)
         # Assert
-        assert result.ok is True, (
-            f"{name} should validate cleanly, got errors: {result.errors}"
-        )
+        assert result.ok is True, f"{name} should validate cleanly, got errors: {result.errors}"
 
     def test_reference_profile_round_trip(self, tmp_path, name):
         """Save then load returns an equal profile, so saving drops nothing from a reference."""
@@ -254,30 +256,26 @@ class TestBuiltinValidator:
         """An unknown safety tier warns that it degrades to destructive, but never blocks a load."""
         # Arrange -- compatibility policy: a tier from a future spec
         # revision must degrade (gate like destructive), not fail load.
-        profile = {
-            "commands": {"X": {"help": "h", "safety": "kinda-mostly-safe"}}
-        }
+        profile = {"commands": {"X": {"help": "h", "safety": "kinda-mostly-safe"}}}
         # Act
         result = validate_profile(profile)
         # Assert
         assert result.ok is True, "unknown safety tier never blocks a load"
-        assert any(
-            "safety" in w and "destructive" in w for w in result.warnings
-        ), "warning names the field and states the degrade rule"
+        assert any("safety" in w and "destructive" in w for w in result.warnings), (
+            "warning names the field and states the degrade rule"
+        )
 
     def test_unknown_response_format_warns_but_loads(self):
         """An unknown response format warns that it degrades to text, but never blocks a load."""
         # Arrange -- same policy: unknown format degrades to 'text'.
-        profile = {
-            "commands": {"X": {"help": "h", "response": {"format": "yaml"}}}
-        }
+        profile = {"commands": {"X": {"help": "h", "response": {"format": "yaml"}}}}
         # Act
         result = validate_profile(profile)
         # Assert
         assert result.ok is True, "unknown response format never blocks a load"
-        assert any(
-            "format" in w and "text" in w for w in result.warnings
-        ), "warning names the field and states the degrade rule"
+        assert any("format" in w and "text" in w for w in result.warnings), (
+            "warning names the field and states the degrade rule"
+        )
 
     def test_valid_minimal_profile_passes(self):
         """A command carrying only help is a complete profile -- help is the one required field."""
@@ -334,9 +332,7 @@ class TestTypesBlockSchema:
         # Act
         result = validate_profile(profile)
         # Assert
-        assert result.ok is True, (
-            f"all six kinds should validate; errors: {result.errors}"
-        )
+        assert result.ok is True, f"all six kinds should validate; errors: {result.errors}"
 
     def test_unknown_kind_warns_but_loads(self):
         """An unknown kind loads with a warning; args of that type refuse later at dispatch."""
@@ -347,9 +343,7 @@ class TestTypesBlockSchema:
         result = validate_profile(profile)
         # Assert
         assert result.ok is True, "unknown kind never blocks a load"
-        assert any("kind" in warning for warning in result.warnings), (
-            "warning names kind"
-        )
+        assert any("kind" in warning for warning in result.warnings), "warning names kind"
 
     def test_enum_without_values_fails(self):
         """An enum type with no values list is rejected."""
@@ -381,15 +375,16 @@ class TestTypesBlockSchema:
     def test_str_length_with_only_max_len_validates(self):
         """A str_length needs only one bound; max_len alone is enough."""
         # Arrange — anyOf: at least one of min_len / max_len.
-        profile = {"commands": {}, "types": {
-            "n": {"kind": "str_length", "max_len": 16},
-        }}
+        profile = {
+            "commands": {},
+            "types": {
+                "n": {"kind": "str_length", "max_len": 16},
+            },
+        }
         # Act
         result = validate_profile(profile)
         # Assert
-        assert result.ok is True, (
-            f"str_length with only max_len is valid; errors: {result.errors}"
-        )
+        assert result.ok is True, f"str_length with only max_len is valid; errors: {result.errors}"
 
     def test_str_length_with_neither_bound_fails(self):
         """A str_length with neither min_len nor max_len is rejected."""
@@ -408,18 +403,14 @@ class TestTypesBlockSchema:
             "commands": {
                 "MOVE": {
                     "help": "Move at a speed.",
-                    "typed_args": [
-                        {"name": "rate", "type": "speed", "required": True}
-                    ],
+                    "typed_args": [{"name": "rate", "type": "speed", "required": True}],
                 }
             },
         }
         # Act
         result = validate_profile(profile)
         # Assert
-        assert result.ok is True, (
-            f"custom type name allowed; errors: {result.errors}"
-        )
+        assert result.ok is True, f"custom type name allowed; errors: {result.errors}"
 
     def test_typed_arg_type_still_accepts_builtins(self):
         """Builtin type names keep working in typed_args now that custom names are allowed."""
@@ -428,9 +419,7 @@ class TestTypesBlockSchema:
             "commands": {
                 "AT": {
                     "help": "Test.",
-                    "typed_args": [
-                        {"name": "pin", "type": "str", "required": True}
-                    ],
+                    "typed_args": [{"name": "pin", "type": "str", "required": True}],
                 }
             }
         }
@@ -563,14 +552,13 @@ class TestParseRegex:
         text = "VER=1.4.7"
         # Act
         actual = parse_response(
-            text, "regex",
+            text,
+            "regex",
             pattern=r"VER=(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)",
             types={"major": "int", "minor": "int", "patch": "int"},
         )
         # Assert
-        assert actual == {"major": 1, "minor": 4, "patch": 7}, (
-            "named groups coerced to typed dict"
-        )
+        assert actual == {"major": 1, "minor": 4, "patch": 7}, "named groups coerced to typed dict"
 
     def test_regex_no_match_returns_none(self):
         """A regex that does not match yields None."""
@@ -604,14 +592,13 @@ class TestParseRegex:
         """A group that fails int coercion keeps its raw string instead of raising."""
         # Arrange / Act
         actual = parse_response(
-            "X=hello", "regex",
+            "X=hello",
+            "regex",
             pattern=r"X=(?P<v>\w+)",
             types={"v": "int"},
         )
         # Assert
-        assert actual == {"v": "hello"}, (
-            "failed coercion preserves raw string, doesn't raise"
-        )
+        assert actual == {"v": "hello"}, "failed coercion preserves raw string, doesn't raise"
 
 
 # ── parse_response: lines ───────────────────────────────────────────────────
@@ -642,7 +629,8 @@ class TestParseLines:
         text = "CH1 V=12.5 I=0.500 ON\nCH2 V=5.0 I=0.100 OFF\nEND"
         # Act
         actual = parse_response(
-            text, "lines",
+            text,
+            "lines",
             terminator=r"^END$",
             line_pattern=(
                 r"CH(?P<id>\d+)\s+V=(?P<v>-?\d+\.\d+)"
@@ -737,8 +725,9 @@ class TestCompatibilityWarnings:
         # Arrange
         profile = {
             "profile_version": 2,
-            "commands": {"AT": {"help": "test", "safety": "readonly",
-                                "response": {"format": "text"}}},
+            "commands": {
+                "AT": {"help": "test", "safety": "readonly", "response": {"format": "text"}}
+            },
         }
         # Act
         result = validate_profile(profile)
@@ -754,9 +743,9 @@ class TestCompatibilityWarnings:
         result = validate_profile(profile)
         # Assert
         assert result.ok is True, "unknown field is tolerated"
-        assert any(
-            "retry_count" in w and "commands/AT" in w for w in result.warnings
-        ), "warning names the field and its location"
+        assert any("retry_count" in w and "commands/AT" in w for w in result.warnings), (
+            "warning names the field and its location"
+        )
 
     def test_unknown_root_field_warns(self):
         """A root-level typo such as commmands warns instead of being silently ignored."""
@@ -777,8 +766,7 @@ class TestCompatibilityWarnings:
         profile = {
             "$schema": "https://termapy.org/profile.schema.json",
             "x_vendor_blob": {"anything": True},
-            "commands": {"AT": {"help": "h", "x-notes": "internal",
-                                "x_trace_id": 7}},
+            "commands": {"AT": {"help": "h", "x-notes": "internal", "x_trace_id": 7}},
         }
         # Act
         result = validate_profile(profile)
@@ -790,33 +778,42 @@ class TestCompatibilityWarnings:
         """An unknown coercion type loads, with a warning that the value degrades to str."""
         # Arrange
         profile = {
-            "commands": {"V": {"help": "h", "response": {
-                "format": "regex", "pattern": "(?P<v>\\d+)",
-                "types": {"v": "decimal128"},
-            }}}
+            "commands": {
+                "V": {
+                    "help": "h",
+                    "response": {
+                        "format": "regex",
+                        "pattern": "(?P<v>\\d+)",
+                        "types": {"v": "decimal128"},
+                    },
+                }
+            }
         }
         # Act
         result = validate_profile(profile)
         # Assert
         assert result.ok is True, "unknown coercion tolerated"
-        assert any(
-            "decimal128" in w and "str" in w for w in result.warnings
-        ), "warning names the coercion and the degrade-to-str rule"
+        assert any("decimal128" in w and "str" in w for w in result.warnings), (
+            "warning names the coercion and the degrade-to-str rule"
+        )
 
     def test_unit_metadata_is_canonical_not_warned(self):
         """Unit metadata (typed_arg unit, response units) is canonical and draws no warnings."""
         # Arrange -- unit / units / line_units are first-class fields.
         profile = {
-            "commands": {"volt": {
-                "help": "Read voltage.",
-                "send_template": "volt {ch}",
-                "typed_args": [{"name": "ch", "type": "str",
-                                "unit": "channel#"}],
-                "response": {"format": "regex",
-                             "pattern": "(?P<mv>-?\\d+)",
-                             "types": {"mv": "int"},
-                             "units": {"mv": "mV"}},
-            }}
+            "commands": {
+                "volt": {
+                    "help": "Read voltage.",
+                    "send_template": "volt {ch}",
+                    "typed_args": [{"name": "ch", "type": "str", "unit": "channel#"}],
+                    "response": {
+                        "format": "regex",
+                        "pattern": "(?P<mv>-?\\d+)",
+                        "types": {"mv": "int"},
+                        "units": {"mv": "mV"},
+                    },
+                }
+            }
         }
         # Act
         result = validate_profile(profile)
@@ -829,30 +826,24 @@ class TestCompatibilityWarnings:
         # Arrange -- the dangerous typo class: a misspelled `safety`
         # key silently un-gates a command, so the warning must point
         # straight at the fix.
-        profile = {
-            "commands": {"X": {"help": "h", "saftey": "destructive"}}
-        }
+        profile = {"commands": {"X": {"help": "h", "saftey": "destructive"}}}
         # Act
         result = validate_profile(profile)
         # Assert
         assert result.ok is True, "typo'd field still loads (warn, not fail)"
-        assert any(
-            "saftey" in w and "did you mean 'safety'" in w
-            for w in result.warnings
-        ), "warning carries a did-you-mean suggestion"
+        assert any("saftey" in w and "did you mean 'safety'" in w for w in result.warnings), (
+            "warning carries a did-you-mean suggestion"
+        )
 
     def test_misspelled_value_warning_suggests_correction(self):
         """A near-miss safety value gets a did-you-mean suggestion too, not only field names."""
         # Arrange
-        profile = {
-            "commands": {"X": {"help": "h", "safety": "destructiv"}}
-        }
+        profile = {"commands": {"X": {"help": "h", "safety": "destructiv"}}}
         # Act
         result = validate_profile(profile)
         # Assert
         assert any(
-            "destructiv" in w and "did you mean 'destructive'" in w
-            for w in result.warnings
+            "destructiv" in w and "did you mean 'destructive'" in w for w in result.warnings
         ), "value typos get suggestions too"
 
     def test_unrelated_unknown_field_has_no_suggestion(self):
@@ -864,9 +855,7 @@ class TestCompatibilityWarnings:
         result = validate_profile(profile)
         # Assert
         warning = next(w for w in result.warnings if "telemetry_channel" in w)
-        assert "did you mean" not in warning, (
-            "no suggestion when nothing is edit-distance close"
-        )
+        assert "did you mean" not in warning, "no suggestion when nothing is edit-distance close"
 
     def test_builtin_validator_is_structural_only(self):
         """Without jsonschema, the fallback checks structure only; vocabulary never fails."""
@@ -876,15 +865,13 @@ class TestCompatibilityWarnings:
         from termapy.profile.loader import _builtin_validate
 
         profile = {
-            "commands": {"X": {"help": "h", "safety": "wild",
-                               "response": {"format": "yaml"}}}
+            "commands": {"X": {"help": "h", "safety": "wild", "response": {"format": "yaml"}}}
         }
         # Act
         result = _builtin_validate(profile)
         # Assert
         assert result.ok is True, (
-            "builtin fallback no longer hard-fails on vocabulary; "
-            "structure only"
+            "builtin fallback no longer hard-fails on vocabulary; structure only"
         )
 
 
@@ -964,9 +951,7 @@ class TestValidateProfileCli:
             text=True,
         )
         # Assert
-        assert result.returncode == 0, (
-            f"valid profile exits 0; stderr: {result.stderr}"
-        )
+        assert result.returncode == 0, f"valid profile exits 0; stderr: {result.stderr}"
         assert "OK" in result.stdout, "OK printed on success"
 
     def test_cli_rejects_invalid_profile(self, tmp_path):
@@ -975,10 +960,12 @@ class TestValidateProfileCli:
         # a hard error under the compatibility policy.
         bad = tmp_path / "bad.profile.json"
         bad.write_text(
-            json.dumps({
-                "profile_version": 2,
-                "commands": {"X": {"safety": "readonly"}},
-            }),
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "commands": {"X": {"safety": "readonly"}},
+                }
+            ),
             encoding="utf-8",
         )
         # Act
@@ -998,10 +985,12 @@ class TestValidateProfileCli:
         # policy, so the CLI validator warns on stderr and exits 0.
         newer = tmp_path / "newer.profile.json"
         newer.write_text(
-            json.dumps({
-                "profile_version": 2,
-                "commands": {"X": {"help": "h", "safety": "made-up"}},
-            }),
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "commands": {"X": {"help": "h", "safety": "made-up"}},
+                }
+            ),
             encoding="utf-8",
         )
         # Act
@@ -1022,41 +1011,41 @@ class TestValidateProfileCli:
         # the CI mode where a typo must stop the build.
         newer = tmp_path / "newer.profile.json"
         newer.write_text(
-            json.dumps({
-                "profile_version": 2,
-                "commands": {"X": {"help": "h", "saftey": "destructive"}},
-            }),
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "commands": {"X": {"help": "h", "saftey": "destructive"}},
+                }
+            ),
             encoding="utf-8",
         )
         # Act
         result = subprocess.run(
-            [sys.executable, "-m", "termapy",
-             "--validate-profile", str(newer), "--strict"],
+            [sys.executable, "-m", "termapy", "--validate-profile", str(newer), "--strict"],
             capture_output=True,
             text=True,
         )
         # Assert
         assert result.returncode == 1, "--strict turns warnings into failure"
         assert "FAIL" in result.stderr, "FAIL verdict under --strict"
-        assert "did you mean 'safety'" in result.stderr, (
-            "suggestion surfaced where CI logs show it"
-        )
+        assert "did you mean 'safety'" in result.stderr, "suggestion surfaced where CI logs show it"
 
     def test_cli_strict_passes_clean_profile(self, tmp_path):
         """A warning-free profile still passes under --strict; strict only escalates warnings."""
         # Arrange
         clean = tmp_path / "clean.profile.json"
         clean.write_text(
-            json.dumps({
-                "profile_version": 2,
-                "commands": {"X": {"help": "h", "safety": "readonly"}},
-            }),
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "commands": {"X": {"help": "h", "safety": "readonly"}},
+                }
+            ),
             encoding="utf-8",
         )
         # Act
         result = subprocess.run(
-            [sys.executable, "-m", "termapy",
-             "--validate-profile", str(clean), "--strict"],
+            [sys.executable, "-m", "termapy", "--validate-profile", str(clean), "--strict"],
             capture_output=True,
             text=True,
         )
@@ -1069,8 +1058,7 @@ class TestValidateProfileCli:
         # Arrange
         # Act
         result = subprocess.run(
-            [sys.executable, "-m", "termapy",
-             "--validate-profile", "/no/such/file.json"],
+            [sys.executable, "-m", "termapy", "--validate-profile", "/no/such/file.json"],
             capture_output=True,
             text=True,
         )

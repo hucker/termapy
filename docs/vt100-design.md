@@ -238,9 +238,10 @@ result and reusable for MCP/capture.
 
    ```python
    if args.vt100:
-     from termapy.vt100 import run_vt100_mode   # new, Textual-free module
-     run_vt100_mode(args)
-     return
+       from termapy.vt100 import run_vt100_mode  # new, Textual-free module
+
+       run_vt100_mode(args)
+       return
    ```
 
 3. **Runner (`src/termapy/vt100.py`, new):**

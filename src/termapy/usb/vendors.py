@@ -43,30 +43,27 @@ USB_VENDORS: dict[int, str] = {
     0x1A86: "WCH",
     0x067B: "Prolific",
     0x04D8: "Microchip",
-    0x03EB: "Atmel",                # now Microchip; descriptor-honest
+    0x03EB: "Atmel",  # now Microchip; descriptor-honest
     0x04B4: "Cypress",
     0x058B: "Infineon",
-
     # Microcontroller / SoC vendors that present native USB serial
     0x0451: "Texas Instruments",
     0x0483: "STMicro",
     0x1FC9: "NXP",
     0x1915: "Nordic",
     0x303A: "Espressif",
-    0x16C0: "Teensy",               # PJRC, Teensy series
+    0x16C0: "Teensy",  # PJRC, Teensy series
     0x2E8A: "Raspberry Pi",
     0x239A: "Adafruit",
     0x1B4F: "SparkFun",
     0x2341: "Arduino",
-    0x2A03: "Arduino",              # alternate Arduino VID
+    0x2A03: "Arduino",  # alternate Arduino VID
     0x0D28: "ARM mbed",
-
     # Debug / programmer hardware
     0x1366: "Segger",
-    0x0925: "Lakeview Research",    # used by Saleae and some hobby kit
-    0x1B3F: "Generalplus",          # CDC ACM clones
+    0x0925: "Lakeview Research",  # used by Saleae and some hobby kit
+    0x1B3F: "Generalplus",  # CDC ACM clones
     0x0BDA: "Realtek",
-
     # Driver INFs likely to appear as "manufacturer" via generic OS drivers.
     # Including these lets us still surface a vendor for devices using
     # vendor-neutral hardware.
@@ -109,4 +106,5 @@ def vendor_for(vid: int | None) -> str | None:
     # lookup; cached by Python's import system thereafter.  Keeps
     # cold-start fast for callers that only need the curated names.
     from termapy.usb._vendors_full import USB_VENDORS_FULL
+
     return USB_VENDORS_FULL.get(vid)

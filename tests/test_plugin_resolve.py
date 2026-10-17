@@ -24,7 +24,7 @@ from termapy.plugins import (
 from termapy.repl import ReplEngine
 
 # A minimal COMMAND plugin whose handler returns a recognizable value.
-_COMMAND_PLUGIN = '''
+_COMMAND_PLUGIN = """
 from termapy.plugins import CmdResult, Command
 
 
@@ -33,10 +33,10 @@ def _handler(ctx, args):
 
 
 COMMAND = Command(name="__NAME__", args="", help="test", handler=_handler)
-'''
+"""
 
 # A plugin exporting every kind: command, transform, directive, two hooks.
-_FULL_PLUGIN = '''
+_FULL_PLUGIN = """
 from termapy.plugins import CmdResult, Command, Directive, Transform
 
 
@@ -64,7 +64,7 @@ def on_config_load(ctx):
 COMMAND = Command(name="__NAME__", args="", help="test", handler=_handler)
 TRANSFORM = Transform(name="__NAME___x", help="test", repl=_rewrite)
 DIRECTIVE = Directive(name="__NAME___d", help="test", handler=_directive)
-'''
+"""
 
 
 def _command_plugin(name: str, token: str = "x") -> str:
@@ -79,8 +79,13 @@ def _write_cfg(root: Path, name: str) -> Path:
     """``<root>/<name>/<name>.cfg`` with a minimal serial block."""
     cfg = {
         "serial": {
-            "port": "", "baud_rate": 115200, "custom_baud": False, "byte_size": 8,
-            "parity": "N", "stop_bits": 1, "flow_control": "none",
+            "port": "",
+            "baud_rate": 115200,
+            "custom_baud": False,
+            "byte_size": 8,
+            "parity": "N",
+            "stop_bits": 1,
+            "flow_control": "none",
         },
         "echo": False,
         "eol": "\r",
@@ -97,7 +102,11 @@ def _write_plugin(folder: Path, filename: str, content: str) -> None:
 
 
 def _build(
-    root: Path, config_path: str, *, trusted_only: bool = False, oneshot: bool = False,
+    root: Path,
+    config_path: str,
+    *,
+    trusted_only: bool = False,
+    oneshot: bool = False,
 ):
     """An engine + context whose global root is ``root``; output captured as (text, color)."""
     cfg = json.loads(Path(config_path).read_text(encoding="utf-8")) if config_path else {}
@@ -107,7 +116,11 @@ def _build(
         output.append((text, color))
 
     engine = ReplEngine(
-        cfg, config_path, write, trusted_only=trusted_only, global_root=root,
+        cfg,
+        config_path,
+        write,
+        trusted_only=trusted_only,
+        global_root=root,
     )
     internal = InternalHandle(
         plugins=engine._plugins,
@@ -145,7 +158,6 @@ def _load_lines(output) -> list[str]:
 
 
 class TestLayers:
-
     def test_on_app_start_loads_global_then_config(self, rig):
         """on_app_start loads the global layer, then the per-config one, labeled by cfg stem."""
         # Arrange
@@ -171,7 +183,9 @@ class TestLayers:
         # Arrange
         root, config_path = rig
         _write_plugin(root / "plugin", "same.py", _command_plugin("same", token="global"))
-        _write_plugin(config_path.parent / "plugin", "same.py", _command_plugin("same", token="rig"))
+        _write_plugin(
+            config_path.parent / "plugin", "same.py", _command_plugin("same", token="rig")
+        )
         engine, _ = _build(root, str(config_path))
 
         # Act
@@ -213,17 +227,22 @@ class TestLayers:
 
 
 class TestProtection:
-
     def test_app_hook_is_never_overridden(self, rig):
         """An app-registered command keeps its name over a folder plugin, with a warning."""
         # Arrange
         root, config_path = rig
         _write_plugin(
-            config_path.parent / "plugin", "hello.py", _command_plugin("hello", token="plugin"),
+            config_path.parent / "plugin",
+            "hello.py",
+            _command_plugin("hello", token="plugin"),
         )
         engine, output = _build(root, str(config_path))
         engine.register_hook(
-            "hello", "", "app-owned", lambda ctx, args: CmdResult.ok(value="app"), source="app",
+            "hello",
+            "",
+            "app-owned",
+            lambda ctx, args: CmdResult.ok(value="app"),
+            source="app",
         )
 
         # Act
@@ -237,7 +256,6 @@ class TestProtection:
 
 
 class TestConfigSwitch:
-
     def test_config_switch_drops_and_rebuilds(self, tmp_path):
         """A config switch drops every export of the old config and loads only the new one."""
         # Arrange -- rig and other each carry a full plugin
@@ -300,8 +318,10 @@ class TestConfigSwitch:
         engine, _ = _build(root, str(config_path))
         engine.fire_lifecycle("on_app_start")
         before = (
-            len(engine._plugins), len(engine._transform_infos),
-            len(engine._directives), len(engine._lifecycle_hooks),
+            len(engine._plugins),
+            len(engine._transform_infos),
+            len(engine._directives),
+            len(engine._lifecycle_hooks),
         )
 
         # Act
@@ -309,14 +329,15 @@ class TestConfigSwitch:
 
         # Assert
         after = (
-            len(engine._plugins), len(engine._transform_infos),
-            len(engine._directives), len(engine._lifecycle_hooks),
+            len(engine._plugins),
+            len(engine._transform_infos),
+            len(engine._directives),
+            len(engine._lifecycle_hooks),
         )
         assert after == before, "a second resolution replaces, never accumulates"
 
 
 class TestGateAndReporting:
-
     def test_trusted_only_loads_builtins_only(self, rig):
         """Trusted-only mode skips both folder layers and prints its notice just once."""
         # Arrange

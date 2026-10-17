@@ -43,7 +43,6 @@ def _exchange(dev: FakeSerial, command: str) -> str:
 
 
 class TestMemInfo:
-
     def test_one_json_line_then_ok(self, dev):
         """MEM.INFO answers one JSON record of the device's memory facts, then OK."""
         # Act
@@ -59,7 +58,6 @@ class TestMemInfo:
 
 
 class TestMemRead:
-
     def test_seeded_gtemp_is_readable(self, dev):
         """A read row is an 8-digit address, spaced hex pairs, and a closing OK."""
         # Arrange -- gTemp (u16 le) is seeded to 27 at 0x1000
@@ -67,7 +65,9 @@ class TestMemRead:
         text = _exchange(dev, "MEM.R 0x1000 2")
 
         # Assert
-        assert text.splitlines() == ["00001000: 1B 00", "OK"], "row + OK, 8-digit address, hex pairs"
+        assert text.splitlines() == ["00001000: 1B 00", "OK"], (
+            "row + OK, 8-digit address, hex pairs"
+        )
 
     def test_rows_are_sixteen_bytes_and_contiguous(self, dev):
         """Long reads split into contiguous 16-byte rows with a short tail row."""
@@ -87,7 +87,9 @@ class TestMemRead:
         """The peripheral register window is backed and readable like RAM."""
         # Arrange -- U1MODE seeded to ON | BRGH = 0x8008 (u32 le)
         text = _exchange(dev, "MEM.R 0xBF806000 4")
-        assert text.splitlines() == ["BF806000: 08 80 00 00", "OK"], "the SFR window is backed like RAM"
+        assert text.splitlines() == ["BF806000: 08 80 00 00", "OK"], (
+            "the SFR window is backed like RAM"
+        )
 
     @pytest.mark.parametrize(
         "command, reason",
@@ -119,11 +121,12 @@ class TestMemRead:
             length = max(1, min(symbol.get("size", 0), 64))
             reply = parse_reply(_exchange(dev, f"MEM.R {symbol['addr']} {length}"))
             assert reply.error is None, f"{symbol['name']} at 0x{addr:X} must be in a window"
-            assert sum(len(data) for _, data in reply.rows) == length, f"{symbol['name']} read in full"
+            assert sum(len(data) for _, data in reply.rows) == length, (
+                f"{symbol['name']} read in full"
+            )
 
 
 class TestMemWrite:
-
     def test_write_persists_and_reads_back(self, dev):
         """A write answers a lone OK and its bytes read back afterward."""
         # Act
@@ -136,8 +139,12 @@ class TestMemWrite:
 
     def test_write_tolerates_spaced_hex(self, dev):
         """Space-separated byte pairs in a write payload are accepted like packed hex."""
-        assert _exchange(dev, "MEM.W 0x1000 2C 01").splitlines() == ["OK"], "space-separated pairs accepted"
-        assert _exchange(dev, "MEM.R 0x1000 2").splitlines()[0] == "00001000: 2C 01", "both bytes landed"
+        assert _exchange(dev, "MEM.W 0x1000 2C 01").splitlines() == ["OK"], (
+            "space-separated pairs accepted"
+        )
+        assert _exchange(dev, "MEM.R 0x1000 2").splitlines()[0] == "00001000: 2C 01", (
+            "both bytes landed"
+        )
 
     @pytest.mark.parametrize(
         "command, reason",
@@ -162,7 +169,9 @@ class TestMemWrite:
         _exchange(dev, "AT+RESET")
 
         # Assert
-        assert _exchange(dev, "MEM.R 0x1000 2").splitlines()[0] == "00001000: 1B 00", "RAM re-seeded on reset"
+        assert _exchange(dev, "MEM.R 0x1000 2").splitlines()[0] == "00001000: 1B 00", (
+            "RAM re-seeded on reset"
+        )
 
     def test_unknown_mem_verb(self, dev):
         """An unrecognized MEM.* verb answers ERR usage rather than being ignored."""
@@ -178,7 +187,9 @@ class TestMemModify:
         text = _exchange(dev, "MEM.M 0xBF806000 FFFF7FFF 00000000")
 
         # Assert
-        assert text.splitlines() == ["BF806000: 08 80 00 00", "OK"], "the PRE-modify word as one row"
+        assert text.splitlines() == ["BF806000: 08 80 00 00", "OK"], (
+            "the PRE-modify word as one row"
+        )
         assert _exchange(dev, "MEM.R 0xBF806000 4").splitlines()[0] == "BF806000: 08 00 00 00", (
             "bit 15 cleared in the LE word"
         )
@@ -190,7 +201,9 @@ class TestMemModify:
 
         # Assert
         assert text.splitlines() == ["00001000: 1B", "OK"], "one old byte"
-        assert _exchange(dev, "MEM.R 0x1000 1").splitlines()[0] == "00001000: 15", "(0x1B & 0xF0) | 0x05"
+        assert _exchange(dev, "MEM.R 0x1000 1").splitlines()[0] == "00001000: 15", (
+            "(0x1B & 0xF0) | 0x05"
+        )
 
     @pytest.mark.parametrize(
         "command, reason",
@@ -204,11 +217,12 @@ class TestMemModify:
     )
     def test_errors(self, dev, command, reason):
         """MEM.M rejects bad arity, mismatched digits, misalignment and unmapped addresses."""
-        assert _exchange(dev, command).splitlines() == [f"ERR {reason}"], "arity, digits, alignment, range"
+        assert _exchange(dev, command).splitlines() == [f"ERR {reason}"], (
+            "arity, digits, alignment, range"
+        )
 
 
 class TestBannerString:
-
     def test_seeded_nul_terminated(self, dev):
         """The seeded banner string ends in a NUL inside the window, as /mem.str expects."""
         # Act -- sBanner's bytes end in a NUL inside the window
@@ -233,7 +247,9 @@ class TestLegacyGrammar:
 
         # Assert -- 4-byte groups, ASCII column, no OK line
         line = text.splitlines()[0]
-        assert line.startswith("00001000:  1B 00 00 50  7D 44 3A 21  "), "grouped pairs after the address"
+        assert line.startswith("00001000:  1B 00 00 50  7D 44 3A 21  "), (
+            "grouped pairs after the address"
+        )
         assert line.endswith("|"), "ASCII column closed with |"
         assert "OK" not in text, "a monitor dump has no terminator"
 
@@ -241,12 +257,16 @@ class TestLegacyGrammar:
         """The legacy dump and MEM.R show the same bytes -- one RAM behind both."""
         legacy = _exchange(dev, "mem 0x1000 8").splitlines()[0]
         native = _exchange(dev, "MEM.R 0x1000 8").splitlines()[0]
-        assert legacy.split("|")[0].replace(" ", "") == native.replace(" ", ""), "one RAM behind both grammars"
+        assert legacy.split("|")[0].replace(" ", "") == native.replace(" ", ""), (
+            "one RAM behind both grammars"
+        )
 
     def test_short_last_row_is_space_padded(self, dev):
         """A short row pads the missing slots so the ASCII column stays aligned."""
         line = _exchange(dev, "mem 0x1000 4").splitlines()[0]
-        assert line == "00001000:  1B 00 00 50" + " " * 39 + "  |...P|", "missing slots keep the column layout"
+        assert line == "00001000:  1B 00 00 50" + " " * 39 + "  |...P|", (
+            "missing slots keep the column layout"
+        )
 
     def test_count_default_and_clamp(self, dev):
         """A bare mem dumps 16 bytes, and an oversize count is clamped to 256."""
@@ -263,12 +283,16 @@ class TestLegacyGrammar:
     )
     def test_write_width_by_digit_count(self, dev, command, expected):
         """A =val write is byte, half or word by digit count and reports old -> new."""
-        assert _exchange(dev, command).splitlines() == [expected], "old -> new, sized by the digits typed"
+        assert _exchange(dev, command).splitlines() == [expected], (
+            "old -> new, sized by the digits typed"
+        )
 
     def test_write_persists(self, dev):
         """A legacy =val write is visible through the native MEM.R spec."""
         _exchange(dev, "mem 0x1000 =2C")
-        assert _exchange(dev, "MEM.R 0x1000 1").splitlines()[0] == "00001000: 2C", "visible through the spec too"
+        assert _exchange(dev, "MEM.R 0x1000 1").splitlines()[0] == "00001000: 2C", (
+            "visible through the spec too"
+        )
 
     @pytest.mark.parametrize(
         "command, reason",

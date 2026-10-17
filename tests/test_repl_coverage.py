@@ -35,6 +35,7 @@ def engine(tmp_path):
     # model the OPERATOR, so grant filesystem_unconfined like a real host
     # (both the ctx field and the fs handle hold the CapabilitySet).
     from termapy.plugins import CapabilitySet
+
     caps = CapabilitySet(filesystem_unconfined=True)
     eng.ctx.capabilities = caps
     eng.ctx.fs.capabilities = caps
@@ -304,8 +305,9 @@ class TestDispatchSuggestion:
         """An unknown command's error carries a did-you-mean for a near miss."""
         # Arrange
         eng, output = engine
-        eng.register_hook("help", "", "Show help.", lambda ctx, args: CmdResult.ok(value=""),
-                          source="test")
+        eng.register_hook(
+            "help", "", "Show help.", lambda ctx, args: CmdResult.ok(value=""), source="test"
+        )
 
         # Act
         result = eng.dispatch("helm")
@@ -336,8 +338,7 @@ class TestDispatchNoneResult:
         """A handler returning None counts as success, not a dispatch failure."""
         # Arrange
         eng, output = engine
-        eng.register_hook("noop", "", "Returns None.",
-                          lambda ctx, args: None, source="test")
+        eng.register_hook("noop", "", "Returns None.", lambda ctx, args: None, source="test")
 
         # Act
         result = eng.dispatch("noop")
@@ -376,15 +377,17 @@ class TestDispatchDirectives:
         """A rewrite directive swaps the line for another command and runs it."""
         # Arrange
         eng, output = engine
-        eng.register_hook("ping", "", "Ping.",
-                          lambda ctx, args: CmdResult.ok(value="pong"),
-                          source="test")
+        eng.register_hook(
+            "ping", "", "Ping.", lambda ctx, args: CmdResult.ok(value="pong"), source="test"
+        )
 
         eng._directives = [
             DirectiveInfo(
-                name="test_rewrite", help="test",
-                handler=lambda cmd: DirectiveResult("rewrite", "ping")
-                if cmd == "trigger" else None,
+                name="test_rewrite",
+                help="test",
+                handler=lambda cmd: (
+                    DirectiveResult("rewrite", "ping") if cmd == "trigger" else None
+                ),
             )
         ]
 
@@ -410,7 +413,8 @@ class TestDispatchDirectives:
         status_msgs: list[str] = []
         eng._directives = [
             DirectiveInfo(
-                name="test_warn", help="test",
+                name="test_warn",
+                help="test",
                 handler=lambda cmd: DirectiveResult("warn", "watch out"),
             )
         ]
@@ -436,7 +440,8 @@ class TestDispatchDirectives:
         eng, output = engine
         eng._directives = [
             DirectiveInfo(
-                name="test_error", help="test",
+                name="test_error",
+                help="test",
                 handler=lambda cmd: DirectiveResult("error", "bad input"),
             )
         ]
@@ -487,8 +492,7 @@ class TestDispatchBarePrefix:
         # the contract is "do not crash".  Any returned CmdResult means
         # the dispatcher completed normally.
         assert result is not None, (
-            "dispatch of bare prefix returned a CmdResult instead of "
-            "raising IndexError"
+            "dispatch of bare prefix returned a CmdResult instead of raising IndexError"
         )
 
 
@@ -502,8 +506,9 @@ class TestRunScriptProfile:
         eng, output = engine
         script = tmp_path / "sub" / "run" / "test.run"
         script.write_text("/delay 10ms\n")
-        eng.register_hook("delay", "<dur>", "Wait.",
-                          lambda ctx, args: CmdResult.ok(value=""), source="test")
+        eng.register_hook(
+            "delay", "<dur>", "Wait.", lambda ctx, args: CmdResult.ok(value=""), source="test"
+        )
 
         # Act
         path, result = eng.start_script(str(script))
@@ -511,7 +516,9 @@ class TestRunScriptProfile:
             eng.run_script(
                 path,
                 write=lambda t, c=None: None,
-                dispatch=lambda cmd: eng.dispatch(cmd[1:]) if cmd.startswith("/") else CmdResult.ok(value=""),
+                dispatch=lambda cmd: (
+                    eng.dispatch(cmd[1:]) if cmd.startswith("/") else CmdResult.ok(value="")
+                ),
                 profile=True,
                 verbose=True,
             )

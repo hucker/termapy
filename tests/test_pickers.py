@@ -42,6 +42,7 @@ class _StubApp:
 def _quick_setup_env(tmp_path, monkeypatch):
     """Redirect cfg paths into tmp_path so on_quick_setup never
     touches the user's real termapy_cfg/."""
+
     def _fake_cfg_path_for_name(name: str) -> Path:
         d = tmp_path / name
         d.mkdir(parents=True, exist_ok=True)
@@ -63,9 +64,7 @@ def test_quick_setup_with_icon_dispatches_cfg_icon(_quick_setup_env):
 
     # Assert -- /cfg.icon must have been dispatched exactly once,
     # right after the cfg was loaded.
-    assert "/cfg.icon" in app.dispatched, (
-        "checkbox=True triggers /cfg.icon dispatch"
-    )
+    assert "/cfg.icon" in app.dispatched, "checkbox=True triggers /cfg.icon dispatch"
     assert app.config_results, "cfg was loaded before dispatch"
 
 
@@ -79,9 +78,7 @@ def test_quick_setup_without_icon_skips_dispatch(_quick_setup_env):
     pickers.on_quick_setup(app, result)
 
     # Assert
-    assert "/cfg.icon" not in app.dispatched, (
-        "no dispatch when checkbox was not ticked"
-    )
+    assert "/cfg.icon" not in app.dispatched, "no dispatch when checkbox was not ticked"
 
 
 def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
@@ -100,9 +97,7 @@ def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
     pickers.on_quick_setup(app, result)
 
     # Assert
-    assert "/cfg.icon" not in app.dispatched, (
-        "Advanced path never auto-dispatches /cfg.icon"
-    )
+    assert "/cfg.icon" not in app.dispatched, "Advanced path never auto-dispatches /cfg.icon"
     assert pushed, "Advanced path pushed the ConfigEditor"
 
 

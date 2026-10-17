@@ -62,11 +62,16 @@ def _expect(ctx: PluginContext, *, use_regex: bool) -> CmdResult:
 
 _PARAMS = [
     ParamSpec(
-        "timeout", "duration", default=5.0,
+        "timeout",
+        "duration",
+        default=5.0,
         help="how long to wait, e.g. 2s (default 5s)",
     ),
     ParamSpec(
-        "match", "str", required=True, rest=True,
+        "match",
+        "str",
+        required=True,
+        rest=True,
         help="text to find; runs to end of line, so it comes last",
     ),
 ]

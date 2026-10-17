@@ -211,4 +211,3 @@ def register_tui_hooks(app) -> None:
         source="app",
         needs=CapabilitySet.GUI_APPS,
     )
-

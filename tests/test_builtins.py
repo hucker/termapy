@@ -23,6 +23,7 @@ def repl_env(tmp_path, monkeypatch):
     intermittent failures while iterating on /term.request.
     """
     from termapy import variables as _var_mod
+
     monkeypatch.setattr(_var_mod, "_LAUNCH_VARS", dict(_var_mod._LAUNCH_VARS))
     _var_mod._LAUNCH_VARS.pop("FRONT_END", None)
 
@@ -56,6 +57,7 @@ def repl_env(tmp_path, monkeypatch):
         apply_cfg=engine._apply_cfg,
         dispatch=engine.dispatch,
     )
+
     def write_markup(text):
         output.append((text, "markup"))
 
@@ -154,7 +156,9 @@ class TestEcho:
 
         # Assert
         assert result.success is False, "invalid arg fails"
-        assert result.error == "Invalid value: 2 (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)", "clear msg"
+        assert (
+            result.error == "Invalid value: 2 (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        ), "clear msg"
         assert engine.ctx.ns("flags")["echo"] is True, "state unchanged"
 
     def test_echo_on_off_set(self, repl_env):
@@ -306,7 +310,9 @@ class TestRunDocstring:
         return scripts_dir
 
     def test_run_list_shows_summary_alongside_filename(
-        self, repl_env, tmp_path,
+        self,
+        repl_env,
+        tmp_path,
     ):
         """A header row labels the columns; undocumented scripts list with no trailing padding."""
         # Arrange -- two scripts, one with a docstring and one without.
@@ -315,9 +321,7 @@ class TestRunDocstring:
         (scripts_dir / "documented.run").write_text(
             "# Short summary of what this does.\n/echo hello\n"
         )
-        (scripts_dir / "undocumented.run").write_text(
-            "/echo plain command, no docstring\n"
-        )
+        (scripts_dir / "undocumented.run").write_text("/echo plain command, no docstring\n")
 
         # Act
         result = engine.dispatch("run.list")
@@ -330,13 +334,15 @@ class TestRunDocstring:
             text.strip().startswith("NAME") and text.rstrip().endswith("SUMMARY") for text in texts
         ), f"header row NAME ... SUMMARY above the listing, got: {texts}"
         # Documented script: summary appears after the filename.
-        assert any(
-            "documented.run" in text and "Short summary" in text for text in texts
-        ), f"summary should appear next to documented.run, got: {texts}"
+        assert any("documented.run" in text and "Short summary" in text for text in texts), (
+            f"summary should appear next to documented.run, got: {texts}"
+        )
         # Undocumented script: still listed, its line ends at the age column.
         assert any(
-            "undocumented.run" in text and text.rstrip().endswith("ago") or
-            "undocumented.run" in text and text.rstrip().endswith("just now")
+            "undocumented.run" in text
+            and text.rstrip().endswith("ago")
+            or "undocumented.run" in text
+            and text.rstrip().endswith("just now")
             for text in texts
         ), "undocumented script listed with no summary and no trailing padding"
 
@@ -487,16 +493,16 @@ class TestRunDocstring:
         )
 
     def test_run_help_script_prints_full_docstring(
-        self, repl_env, tmp_path,
+        self,
+        repl_env,
+        tmp_path,
     ):
         """/run.help takes a bare stem and returns the whole comment block, not just the summary."""
         # Arrange
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
         (scripts_dir / "doc.run").write_text(
-            "# First line summary.\n"
-            "# Second line of details.\n"
-            "/echo body\n"
+            "# First line summary.\n# Second line of details.\n/echo body\n"
         )
 
         # Act -- accept bare stem too (no .run suffix).
@@ -504,19 +510,19 @@ class TestRunDocstring:
 
         # Assert
         assert result.success, "/run.help <script> succeeds"
-        assert result.value == (
-            "First line summary.\nSecond line of details."
-        ), "value contains the full block"
-        texts = [text for text, _ in output]
-        assert any("First line summary" in text for text in texts), (
-            "summary printed to output"
+        assert result.value == ("First line summary.\nSecond line of details."), (
+            "value contains the full block"
         )
+        texts = [text for text, _ in output]
+        assert any("First line summary" in text for text in texts), "summary printed to output"
         assert any("Second line of details" in text for text in texts), (
             "full block printed, not just summary"
         )
 
     def test_run_help_undocumented_script_fails(
-        self, repl_env, tmp_path,
+        self,
+        repl_env,
+        tmp_path,
     ):
         """A script with no comment block fails loudly so the caller knows to read the file."""
         # Arrange
@@ -545,9 +551,7 @@ class TestRunDocstring:
 
         # Assert
         assert not result.success, "missing script fails"
-        assert "not found" in result.error.lower(), (
-            "error message mentions 'not found'"
-        )
+        assert "not found" in result.error.lower(), "error message mentions 'not found'"
 
 
 class TestVer:
@@ -584,7 +588,9 @@ class TestVer:
         )
 
     def test_ver_latest_returns_bare_pypi_version(
-        self, repl_env, monkeypatch,
+        self,
+        repl_env,
+        monkeypatch,
     ):
         """/app.ver.latest returns only the PyPI version string, with no prose around it."""
         # Arrange -- pin check_now() to a known value so the test
@@ -592,7 +598,9 @@ class TestVer:
         from termapy import update_check
 
         monkeypatch.setattr(
-            update_check, "check_now", lambda _v: ("0.99.0", True),
+            update_check,
+            "check_now",
+            lambda _v: ("0.99.0", True),
         )
 
         # Act
@@ -602,19 +610,21 @@ class TestVer:
         # Assert -- value is the bare version string, no prose,
         # symmetric with /ver returning installed.
         assert result.success, "/ver.latest succeeds with PyPI reachable"
-        assert result.value == "0.99.0", (
-            "/ver.latest returns just the version string, no extras"
-        )
+        assert result.value == "0.99.0", "/ver.latest returns just the version string, no extras"
 
     def test_ver_latest_fails_when_pypi_unreachable(
-        self, repl_env, monkeypatch,
+        self,
+        repl_env,
+        monkeypatch,
     ):
         """An unreachable PyPI is a loud failure on the interactive path, naming PyPI."""
         # Arrange
         from termapy import update_check
 
         monkeypatch.setattr(
-            update_check, "check_now", lambda _v: (None, False),
+            update_check,
+            "check_now",
+            lambda _v: (None, False),
         )
 
         # Act
@@ -627,7 +637,9 @@ class TestVer:
         assert "PyPI" in result.error, "error message mentions PyPI"
 
     def test_ver_info_reports_up_to_date_when_versions_match(
-        self, repl_env, monkeypatch,
+        self,
+        repl_env,
+        monkeypatch,
     ):
         """Matching versions succeed with 'up to date' and the PyPI version as the value."""
         # Arrange -- pin check_now to return same version, not outdated.
@@ -635,10 +647,14 @@ class TestVer:
         from termapy.builtins.commands import app as app_mod
 
         monkeypatch.setattr(
-            app_mod, "_installed_version", lambda: "0.66.0",
+            app_mod,
+            "_installed_version",
+            lambda: "0.66.0",
         )
         monkeypatch.setattr(
-            update_check, "check_now", lambda _v: ("0.66.0", False),
+            update_check,
+            "check_now",
+            lambda _v: ("0.66.0", False),
         )
 
         # Act
@@ -651,12 +667,12 @@ class TestVer:
             "scripting value is the latest PyPI version (per .info convention)"
         )
         texts = [text for text, _ in output]
-        assert any("up to date" in text for text in texts), (
-            "human-readable line says 'up to date'"
-        )
+        assert any("up to date" in text for text in texts), "human-readable line says 'up to date'"
 
     def test_ver_info_reports_update_available_when_outdated(
-        self, repl_env, monkeypatch,
+        self,
+        repl_env,
+        monkeypatch,
     ):
         """Being outdated is not a failure: both versions print and the value is the newer one."""
         # Arrange
@@ -664,10 +680,14 @@ class TestVer:
         from termapy.builtins.commands import app as app_mod
 
         monkeypatch.setattr(
-            app_mod, "_installed_version", lambda: "0.66.0",
+            app_mod,
+            "_installed_version",
+            lambda: "0.66.0",
         )
         monkeypatch.setattr(
-            update_check, "check_now", lambda _v: ("0.66.1", True),
+            update_check,
+            "check_now",
+            lambda _v: ("0.66.1", True),
         )
 
         # Act
@@ -686,7 +706,9 @@ class TestVer:
         )
 
     def test_ver_info_fails_when_pypi_unreachable(
-        self, repl_env, monkeypatch,
+        self,
+        repl_env,
+        monkeypatch,
     ):
         """With no PyPI answer, /app.ver.info fails and names PyPI instead of guessing."""
         # Arrange
@@ -694,10 +716,14 @@ class TestVer:
         from termapy.builtins.commands import app as app_mod
 
         monkeypatch.setattr(
-            app_mod, "_installed_version", lambda: "0.66.0",
+            app_mod,
+            "_installed_version",
+            lambda: "0.66.0",
         )
         monkeypatch.setattr(
-            update_check, "check_now", lambda _v: (None, False),
+            update_check,
+            "check_now",
+            lambda _v: (None, False),
         )
 
         # Act
@@ -709,7 +735,9 @@ class TestVer:
         assert "PyPI" in result.error, "error message mentions PyPI"
 
     def test_ver_info_fails_for_source_checkout(
-        self, repl_env, monkeypatch,
+        self,
+        repl_env,
+        monkeypatch,
     ):
         """A source checkout has no installed version to compare, so it fails and says why."""
         # Arrange -- 'unknown' is the installed-version sentinel for
@@ -717,7 +745,9 @@ class TestVer:
         from termapy.builtins.commands import app as app_mod
 
         monkeypatch.setattr(
-            app_mod, "_installed_version", lambda: "unknown",
+            app_mod,
+            "_installed_version",
+            lambda: "unknown",
         )
 
         # Act
@@ -727,9 +757,7 @@ class TestVer:
         # Assert -- comparison is meaningless without an installed
         # version; surface a clear error instead of silently failing.
         assert not result.success, "source-checkout cannot compare"
-        assert "source" in result.error.lower(), (
-            "error explains why (source checkout)"
-        )
+        assert "source" in result.error.lower(), "error explains why (source checkout)"
 
 
 # -- /seq -----------------------------------------------------------------
@@ -759,9 +787,7 @@ class TestSeq:
 
         # Assert
         assert result.data == {"seq1": 3, "seq2": 7}, "the counters as numbers, in counter order"
-        assert result.value == "seq1=3, seq2=7", (
-            "scripting captures one seqN=V line"
-        )
+        assert result.value == "seq1=3, seq2=7", "scripting captures one seqN=V line"
 
     def test_seq_reset(self, repl_env):
         """/seq.reset drops every numeric counter and returns the stable token 'reset'."""
@@ -795,6 +821,7 @@ class TestVarHandlerValues:
         # Arrange
         engine, _, _, _ = repl_env
         from termapy.variables import _VARS
+
         _VARS["MY_VAR"] = "hello"
 
         # Act
@@ -813,8 +840,7 @@ class TestVarHandlerValues:
 
         # Assert
         assert result.value == "", (
-            "undefined var still returns ok with empty value so "
-            "scripting doesn't hit None"
+            "undefined var still returns ok with empty value so scripting doesn't hit None"
         )
 
     def test_var_list_all_returns_joined_lines(self, repl_env):
@@ -822,6 +848,7 @@ class TestVarHandlerValues:
         # Arrange
         engine, _, _, _ = repl_env
         from termapy.variables import _VARS
+
         _VARS["A"] = "1"
         _VARS["B"] = "2"
 
@@ -838,6 +865,7 @@ class TestVarHandlerValues:
         # Arrange
         engine, _, _, _ = repl_env
         from termapy.variables import _VARS
+
         _VARS.clear()
 
         # Act
@@ -853,6 +881,7 @@ class TestVarHandlerValues:
         # Arrange
         engine, _, _, _ = repl_env
         from termapy.variables import _VARS
+
         _VARS["A"] = "1"
         _VARS["B"] = "2"
         _VARS["C"] = "3"
@@ -861,9 +890,7 @@ class TestVarHandlerValues:
         result = engine.dispatch("var.clear")
 
         # Assert
-        assert result.value == "3", (
-            "clear returns the count of vars removed for scripting"
-        )
+        assert result.value == "3", "clear returns the count of vars removed for scripting"
 
 
 # -- /stop ----------------------------------------------------------------
@@ -891,7 +918,6 @@ class TestStop:
 
 
 # -- /help ----------------------------------------------------------------
-
 
 
 def _plain(text: str) -> str:
@@ -949,11 +975,16 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="full_cmd", args="<arg>", help="Short help.",
-            long_help="Line one.\nLine two.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="full_cmd",
+                args="<arg>",
+                help="Short help.",
+                long_help="Line one.\nLine two.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         engine.dispatch("help full_cmd")
@@ -1042,9 +1073,7 @@ class TestHelp:
         # Assert
         texts = [_plain(t) for t, _ in output]
         joined = "\n".join(texts)
-        assert "MCP: no" in joined, (
-            "/grep needs interactive; MCP cell should be 'no'"
-        )
+        assert "MCP: no" in joined, "/grep needs interactive; MCP cell should be 'no'"
         assert "does not provide: interactive" in joined, (
             "the explanation should name the missing capability and "
             "phrase it from the environment's perspective"
@@ -1068,14 +1097,23 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="one.shiny", args="", help="First shiny thing.",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="two.shiny", args="", help="Second shiny thing.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="one.shiny",
+                args="",
+                help="First shiny thing.",
+                handler=lambda ctx, args: None,
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="two.shiny",
+                args="",
+                help="Second shiny thing.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         result = engine.dispatch("help shiny")
@@ -1094,14 +1132,23 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="foo", args="", help="Exact.",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="foobar", args="", help="Not exact.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="foo",
+                args="",
+                help="Exact.",
+                handler=lambda ctx, args: None,
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="foobar",
+                args="",
+                help="Not exact.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         engine.dispatch("help foo")
@@ -1118,10 +1165,15 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="widget_cmd", args="", help="Measures mumble_fritz devices.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="widget_cmd",
+                args="",
+                help="Measures mumble_fritz devices.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act - term appears only in help, not in name
         result = engine.dispatch("help mumble_fritz")
@@ -1136,20 +1188,32 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="group", args="", help="Group of things.",
-            handler=lambda ctx, args: None,
-            children=["group.one", "group.two"],
-        ))
-        engine.register_plugin(PluginInfo(
-            name="group.one", args="<really-long-arg-list>",
-            help="First child.",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="group.two", args="", help="Second child.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="group",
+                args="",
+                help="Group of things.",
+                handler=lambda ctx, args: None,
+                children=["group.one", "group.two"],
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="group.one",
+                args="<really-long-arg-list>",
+                help="First child.",
+                handler=lambda ctx, args: None,
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="group.two",
+                args="",
+                help="Second child.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         engine.dispatch("help group")
@@ -1168,16 +1232,25 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="grp", args="", help="Parent.",
-            handler=lambda ctx, args: None,
-            children=["grp.a", "grp.b", "grp.c"],
-        ))
-        for leaf in ("grp.a", "grp.b", "grp.c"):
-            engine.register_plugin(PluginInfo(
-                name=leaf, args="", help=f"Leaf {leaf}.",
+
+        engine.register_plugin(
+            PluginInfo(
+                name="grp",
+                args="",
+                help="Parent.",
                 handler=lambda ctx, args: None,
-            ))
+                children=["grp.a", "grp.b", "grp.c"],
+            )
+        )
+        for leaf in ("grp.a", "grp.b", "grp.c"):
+            engine.register_plugin(
+                PluginInfo(
+                    name=leaf,
+                    args="",
+                    help=f"Leaf {leaf}.",
+                    handler=lambda ctx, args: None,
+                )
+            )
 
         # Act
         engine.dispatch("help grp.a")
@@ -1196,10 +1269,15 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="lone_cmd", args="", help="Stands alone.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="lone_cmd",
+                args="",
+                help="Stands alone.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         engine.dispatch("help lone_cmd")
@@ -1215,10 +1293,15 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="briefcmd", args="", help="Just brief.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="briefcmd",
+                args="",
+                help="Just brief.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         engine.dispatch("help briefcmd")
@@ -1235,11 +1318,16 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="dyn_cmd", args="", help="Dynamic test.",
-            handler=lambda ctx, args: None,
-            long_help=lambda ctx: "dynamic text here",
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="dyn_cmd",
+                args="",
+                help="Dynamic test.",
+                handler=lambda ctx, args: None,
+                long_help=lambda ctx: "dynamic text here",
+            )
+        )
 
         # Act
         engine.dispatch("help dyn_cmd")
@@ -1247,8 +1335,9 @@ class TestHelp:
         # Assert
         texts = [text for text, _ in output]
         assert any("DESCRIPTION" in text for text in texts), "DESCRIPTION header emitted"
-        assert any("dynamic text here" in text for text in texts), \
+        assert any("dynamic text here" in text for text in texts), (
             "callable result appears in rendered output"
+        )
 
     def test_help_callable_long_help_receives_ctx(self, repl_env):
         """The callable gets the live PluginContext and can read ns/cfg."""
@@ -1260,11 +1349,15 @@ class TestHelp:
             items = ctx.ns("my_test")
             return f"count={len(items)}"
 
-        engine.register_plugin(PluginInfo(
-            name="ctx_cmd", args="", help="Reads ctx.ns.",
-            handler=lambda ctx, args: None,
-            long_help=dyn,
-        ))
+        engine.register_plugin(
+            PluginInfo(
+                name="ctx_cmd",
+                args="",
+                help="Reads ctx.ns.",
+                handler=lambda ctx, args: None,
+                long_help=dyn,
+            )
+        )
         # Seed the ns after registration -- the callable reads live state.
         engine.ctx.ns("my_test").update({"a": 1, "b": 2})
 
@@ -1273,8 +1366,9 @@ class TestHelp:
 
         # Assert - the two items are reflected live.
         texts = [text for text, _ in output]
-        assert any("count=2" in text for text in texts), \
+        assert any("count=2" in text for text in texts), (
             "callable receives live ctx and reads ns() correctly"
+        )
 
     def test_help_callable_long_help_exception_is_caught(self, repl_env):
         """A raising callable yields a fallback string; /help does not crash."""
@@ -1285,11 +1379,15 @@ class TestHelp:
         def boom(ctx):
             raise RuntimeError("boom")
 
-        engine.register_plugin(PluginInfo(
-            name="boom_cmd", args="", help="Broken help.",
-            handler=lambda ctx, args: None,
-            long_help=boom,
-        ))
+        engine.register_plugin(
+            PluginInfo(
+                name="boom_cmd",
+                args="",
+                help="Broken help.",
+                handler=lambda ctx, args: None,
+                long_help=boom,
+            )
+        )
 
         # Act - must not propagate
         result = engine.dispatch("help boom_cmd")
@@ -1297,8 +1395,7 @@ class TestHelp:
         # Assert - fallback present, command reports success
         texts = [text for text, _ in output]
         assert result.success is True, "rendering survives exception"
-        assert any("dynamic help failed" in text for text in texts), \
-            "fallback prefix appears"
+        assert any("dynamic help failed" in text for text in texts), "fallback prefix appears"
         assert any("boom" in text for text in texts), "exception message included"
 
     def test_help_callable_empty_result_omits_description(self, repl_env):
@@ -1306,38 +1403,48 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="silent_cmd", args="", help="No dynamic text.",
-            handler=lambda ctx, args: None,
-            long_help=lambda ctx: "",
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="silent_cmd",
+                args="",
+                help="No dynamic text.",
+                handler=lambda ctx, args: None,
+                long_help=lambda ctx: "",
+            )
+        )
 
         # Act
         engine.dispatch("help silent_cmd")
 
         # Assert
         texts = [text for text, _ in output]
-        assert not any("DESCRIPTION" in text for text in texts), \
+        assert not any("DESCRIPTION" in text for text in texts), (
             "empty callable result hides the DESCRIPTION section"
+        )
 
     def test_search_callable_long_help_is_indexed(self, repl_env):
         """/search invokes callable long_help so dynamic text is findable."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="unique_cmd", args="", help="Plain help.",
-            handler=lambda ctx, args: None,
-            long_help=lambda ctx: "__search_probe__ appears only in dynamic help",
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="unique_cmd",
+                args="",
+                help="Plain help.",
+                handler=lambda ctx, args: None,
+                long_help=lambda ctx: "__search_probe__ appears only in dynamic help",
+            )
+        )
 
         # Act
         result = engine.dispatch("search __search_probe__")
 
         # Assert - the command surfaces via its dynamic long_help text
         names = result.value.splitlines() if result.value else []
-        assert "unique_cmd" in names, \
-            "callable long_help contributes to /search index"
+        assert "unique_cmd" in names, "callable long_help contributes to /search index"
 
     def test_help_cfg_shows_active_cfg_line(self, repl_env):
         """/help cfg prepends the Active cfg line (dynamic help wired via cfg_status)."""
@@ -1352,10 +1459,12 @@ class TestHelp:
         # directory stem; with the test fixture that's the tmp_path's
         # pytest-generated name, so we just look for the prefix.
         texts = [text for text, _ in output]
-        assert any("Active cfg =" in text for text in texts), \
+        assert any("Active cfg =" in text for text in texts), (
             "Active cfg label appears in DESCRIPTION"
-        assert any("Three modes" in text for text in texts), \
+        )
+        assert any("Three modes" in text for text in texts), (
             "existing cfg prose still renders after dynamic line"
+        )
 
     def test_help_port_baud_rate_shows_current_value(self, repl_env):
         """/help port.baud_rate prints the single-value state line."""
@@ -1367,19 +1476,25 @@ class TestHelp:
 
         # Assert
         texts = [text for text, _ in output]
-        assert any("Current baud rate = 115200" in text for text in texts), \
+        assert any("Current baud rate = 115200" in text for text in texts), (
             "dynamic state line reflects cfg value"
+        )
 
     def test_help_renders_flags_section(self, repl_env):
         """/help <cmd> shows a FLAGS section for commands that declare flags."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="flag_cmd", args="<name>", help="Has flags.",
-            handler=lambda ctx, args: None,
-            flags={"--table": "Use 256-entry lookup table."},
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="flag_cmd",
+                args="<name>",
+                help="Has flags.",
+                handler=lambda ctx, args: None,
+                flags={"--table": "Use 256-entry lookup table."},
+            )
+        )
 
         # Act
         engine.dispatch("help flag_cmd")
@@ -1395,11 +1510,16 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="runner", args="<script>", help="Run a script.",
-            handler=lambda ctx, args: None,
-            flags={"--verbose": "Verbose mode.", "-v": "--verbose"},
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="runner",
+                args="<script>",
+                help="Run a script.",
+                handler=lambda ctx, args: None,
+                flags={"--verbose": "Verbose mode.", "-v": "--verbose"},
+            )
+        )
 
         # Act
         engine.dispatch("help runner")
@@ -1427,10 +1547,14 @@ class TestHelp:
                 args: Command arguments.
             """
 
-        engine.register_plugin(PluginInfo(
-            name="devtest", args="", help="A test command.",
-            handler=my_handler,
-        ))
+        engine.register_plugin(
+            PluginInfo(
+                name="devtest",
+                args="",
+                help="A test command.",
+                handler=my_handler,
+            )
+        )
 
         # Act
         engine.dispatch("help.dev devtest")
@@ -1452,19 +1576,23 @@ class TestHelp:
             Body text follows.
             """
 
-        engine.register_plugin(PluginInfo(
-            name="boldsummary", args="", help="Test.",
-            handler=handler_with_summary,
-        ))
+        engine.register_plugin(
+            PluginInfo(
+                name="boldsummary",
+                args="",
+                help="Test.",
+                handler=handler_with_summary,
+            )
+        )
 
         # Act
         engine.dispatch("help.dev boldsummary")
 
         # Assert
         markup_lines = [markup_line for markup_line, c in output if c == "markup"]
-        assert any(
-            "[bold]Summary line here.[/]" in markup_line for markup_line in markup_lines
-        ), "bold summary"
+        assert any("[bold]Summary line here.[/]" in markup_line for markup_line in markup_lines), (
+            "bold summary"
+        )
 
     def test_help_dev_section_headers_bold(self, repl_env):
         """/help.dev renders Google-style section headers (Args:, Returns:) bold."""
@@ -1482,22 +1610,26 @@ class TestHelp:
                 Nothing.
             """
 
-        engine.register_plugin(PluginInfo(
-            name="sections", args="", help="Test.",
-            handler=handler_with_sections,
-        ))
+        engine.register_plugin(
+            PluginInfo(
+                name="sections",
+                args="",
+                help="Test.",
+                handler=handler_with_sections,
+            )
+        )
 
         # Act
         engine.dispatch("help.dev sections")
 
         # Assert
         markup_lines = [markup_line for markup_line, c in output if c == "markup"]
-        assert any(
-            "[bold]Args:[/]" in markup_line for markup_line in markup_lines
-        ), "Args header bold"
-        assert any(
-            "[bold]Returns:[/]" in markup_line for markup_line in markup_lines
-        ), "Returns header bold"
+        assert any("[bold]Args:[/]" in markup_line for markup_line in markup_lines), (
+            "Args header bold"
+        )
+        assert any("[bold]Returns:[/]" in markup_line for markup_line in markup_lines), (
+            "Returns header bold"
+        )
 
     def test_help_dev_param_labels_bold(self, repl_env):
         """/help.dev renders 'param: description' with param: bold."""
@@ -1513,19 +1645,23 @@ class TestHelp:
                 args: Command arguments string.
             """
 
-        engine.register_plugin(PluginInfo(
-            name="params", args="", help="Test.",
-            handler=handler_with_params,
-        ))
+        engine.register_plugin(
+            PluginInfo(
+                name="params",
+                args="",
+                help="Test.",
+                handler=handler_with_params,
+            )
+        )
 
         # Act
         engine.dispatch("help.dev params")
 
         # Assert
         markup_lines = [markup_line for markup_line, c in output if c == "markup"]
-        assert any(
-            "[bold]ctx:[/] Plugin context" in markup_line for markup_line in markup_lines
-        ), "ctx: bold"
+        assert any("[bold]ctx:[/] Plugin context" in markup_line for markup_line in markup_lines), (
+            "ctx: bold"
+        )
         assert any(
             "[bold]args:[/] Command arguments" in markup_line for markup_line in markup_lines
         ), "args: bold"
@@ -1535,10 +1671,15 @@ class TestHelp:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="nodoc", args="", help="No doc.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="nodoc",
+                args="",
+                help="No doc.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         engine.dispatch("help.dev nodoc")
@@ -1556,11 +1697,15 @@ class TestHelp:
         def documented_handler(ctx, args):
             """Handler docstring here."""
 
-        engine.register_plugin(PluginInfo(
-            name="both", args="", help="Has both.",
-            long_help="This is the long help.",
-            handler=documented_handler,
-        ))
+        engine.register_plugin(
+            PluginInfo(
+                name="both",
+                args="",
+                help="Has both.",
+                long_help="This is the long help.",
+                handler=documented_handler,
+            )
+        )
 
         # Act
         engine.dispatch("help.dev both")
@@ -1586,14 +1731,23 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="widget_timer", args="", help="Sets a widget timeout.",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="unrelated", args="", help="Does other stuff.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="widget_timer",
+                args="",
+                help="Sets a widget timeout.",
+                handler=lambda ctx, args: None,
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="unrelated",
+                args="",
+                help="Does other stuff.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         result = engine.dispatch("search timeout")
@@ -1608,14 +1762,23 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="proto.foo", args="", help="Alpha.",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="other.proto", args="", help="Beta.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="proto.foo",
+                args="",
+                help="Alpha.",
+                handler=lambda ctx, args: None,
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="other.proto",
+                args="",
+                help="Beta.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act - anchor to names starting with "proto."
         result = engine.dispatch(r"search ^proto\.")
@@ -1659,10 +1822,14 @@ class TestSearch:
             """This handler mentions zebras in its docstring."""
             return None
 
-        engine.register_plugin(PluginInfo(
-            name="zebra_cmd", args="", help="Unrelated short help.",
-            handler=handler_with_secret,
-        ))
+        engine.register_plugin(
+            PluginInfo(
+                name="zebra_cmd",
+                args="",
+                help="Unrelated short help.",
+                handler=handler_with_secret,
+            )
+        )
 
         # Act - without --dev, docstring isn't searched
         result_plain = engine.dispatch("search zebras")
@@ -1680,11 +1847,16 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="gadget", args="", help="A gadget.",
-            handler=lambda ctx, args: None,
-            long_help="Pass --special_flag to enable the special mode.",
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="gadget",
+                args="",
+                help="A gadget.",
+                handler=lambda ctx, args: None,
+                long_help="Pass --special_flag to enable the special mode.",
+            )
+        )
 
         # Act
         result = engine.dispatch("search special_flag")
@@ -1698,10 +1870,15 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="widget", args="<unusual_param>", help="A widget.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="widget",
+                args="<unusual_param>",
+                help="A widget.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         result = engine.dispatch("search unusual_param")
@@ -1715,18 +1892,31 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="alpha_cmd", args="", help="table and crc stuff",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="table_only", args="", help="table only",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="crc_only", args="", help="crc only",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="alpha_cmd",
+                args="",
+                help="table and crc stuff",
+                handler=lambda ctx, args: None,
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="table_only",
+                args="",
+                help="table only",
+                handler=lambda ctx, args: None,
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="crc_only",
+                args="",
+                help="crc only",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         result = engine.dispatch("search table crc")
@@ -1742,14 +1932,23 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="keep", args="", help="banana stuff",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="drop", args="", help="banana and apricot",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="keep",
+                args="",
+                help="banana stuff",
+                handler=lambda ctx, args: None,
+            )
+        )
+        engine.register_plugin(
+            PluginInfo(
+                name="drop",
+                args="",
+                help="banana and apricot",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         result = engine.dispatch("search banana -apricot")
@@ -1764,11 +1963,16 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="boring_cmd", args="", help="Does nothing interesting.",
-            handler=lambda ctx, args: None,
-            flags={"--nitro": "Go faster."},
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="boring_cmd",
+                args="",
+                help="Does nothing interesting.",
+                handler=lambda ctx, args: None,
+                flags={"--nitro": "Go faster."},
+            )
+        )
 
         # Act - needle only appears in a flag name
         result = engine.dispatch("search nitro")
@@ -1782,11 +1986,16 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="rocket_cmd", args="", help="Launch something.",
-            handler=lambda ctx, args: None,
-            flags={"--fuel": "Use 256-entry combustion booster."},
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="rocket_cmd",
+                args="",
+                help="Launch something.",
+                handler=lambda ctx, args: None,
+                flags={"--fuel": "Use 256-entry combustion booster."},
+            )
+        )
 
         # Act
         result = engine.dispatch("search combustion")
@@ -1800,10 +2009,15 @@ class TestSearch:
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="alpha_cmd", args="", help="zzz unique-token-xyz zzz.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="alpha_cmd",
+                args="",
+                help="zzz unique-token-xyz zzz.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         result = engine.dispatch("search unique-token-xyz")
@@ -1821,10 +2035,15 @@ class TestSearch:
         # the adjacent string "foo bar" anywhere.
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="foo_cmd", args="<bar>", help="Separate terms command.",
-            handler=lambda ctx, args: None,
-        ))
+
+        engine.register_plugin(
+            PluginInfo(
+                name="foo_cmd",
+                args="<bar>",
+                help="Separate terms command.",
+                handler=lambda ctx, args: None,
+            )
+        )
 
         # Act
         result = engine.dispatch("search foo bar")
@@ -1910,6 +2129,7 @@ class TestOs:
         # package (no __init__.py), which trips dotted-path
         # monkeypatching.
         from termapy.builtins.commands import os_cmd
+
         engine, _, _, output = repl_env
         monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
 
@@ -1924,6 +2144,7 @@ class TestOs:
         """With the gate open, bare /os gets past the gate to the arg check and reports usage."""
         # Arrange
         from termapy.builtins.commands import os_cmd
+
         engine, _, _, output = repl_env
         monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
 
@@ -2166,9 +2387,7 @@ class TestCapArgParsing:
         from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
-        result = _extract_keyword_sections(
-            "data.csv fmt=Val:U1-2 records=50 cmd=AT+BINDUMP u16 50"
-        )
+        result = _extract_keyword_sections("data.csv fmt=Val:U1-2 records=50 cmd=AT+BINDUMP u16 50")
 
         # Assert
         assert result["_positional"].strip() == "data.csv"
@@ -2204,9 +2423,7 @@ class TestCapArgParsing:
         from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
-        result = _extract_keyword_sections(
-            "out.csv fmt=A:U1-2 B:F3-6 records=10"
-        )
+        result = _extract_keyword_sections("out.csv fmt=A:U1-2 B:F3-6 records=10")
 
         # Assert
         assert result["fmt"] == "A:U1-2 B:F3-6", "multi-word fmt preserved"
@@ -2287,12 +2504,12 @@ class TestCapWire:
         rx_callbacks: list = []
         tx_callbacks: list = []
         ctx.serial._add_rx_observer = rx_callbacks.append
-        ctx.serial._remove_rx_observer = (
-            lambda cb: rx_callbacks.remove(cb) if cb in rx_callbacks else None
+        ctx.serial._remove_rx_observer = lambda cb: (
+            rx_callbacks.remove(cb) if cb in rx_callbacks else None
         )
         ctx.serial._add_tx_observer = tx_callbacks.append
-        ctx.serial._remove_tx_observer = (
-            lambda cb: tx_callbacks.remove(cb) if cb in tx_callbacks else None
+        ctx.serial._remove_tx_observer = lambda cb: (
+            tx_callbacks.remove(cb) if cb in tx_callbacks else None
         )
         return rx_callbacks, tx_callbacks
 
@@ -2379,6 +2596,7 @@ class TestCapWire:
         ctx = engine.ctx
         self._wire_observers(ctx)
         from termapy.plugins import CmdResult
+
         ctx.dispatch = lambda cmd: CmdResult.ok(value="")
 
         # Act
@@ -2427,6 +2645,7 @@ class TestCapWire:
         ctx = engine.ctx
         rx_cbs, tx_cbs = self._wire_observers(ctx)
         from termapy.plugins import CmdResult
+
         ctx.dispatch = lambda cmd: CmdResult.ok(value="")
 
         # Act -- with wait_gap=0, total wall time should be well under
@@ -2439,9 +2658,7 @@ class TestCapWire:
 
         # Assert -- handler exited immediately; no 50ms settle penalty.
         assert result.success is True, "wait_gap=0 dispatches successfully"
-        assert elapsed_ms < 30, (
-            f"wait_gap=0 should skip the settle loop (took {elapsed_ms:.1f}ms)"
-        )
+        assert elapsed_ms < 30, f"wait_gap=0 should skip the settle loop (took {elapsed_ms:.1f}ms)"
 
     def test_wire_invalid_wait_gap_fails(self, repl_env):
         """An unparseable wait_gap= fails and the error names the argument."""
@@ -2455,6 +2672,7 @@ class TestCapWire:
         assert result.success is False, "invalid wait_gap rejected"
         assert "wait_gap" in result.error, "error names the bad arg"
 
+
 # -- /cap.text with mock start_capture ------------------------------------
 
 
@@ -2464,9 +2682,7 @@ class TestCapTextHandler:
         # Arrange
         engine, _, _, output = repl_env
         captures = []
-        engine.ctx.internal.start_capture = lambda **kw: (
-            captures.append(kw) or True
-        )
+        engine.ctx.internal.start_capture = lambda **kw: captures.append(kw) or True
 
         # Act
         engine.dispatch("cap.text log.txt timeout=3s")
@@ -2481,9 +2697,7 @@ class TestCapTextHandler:
         # Arrange
         engine, _, _, output = repl_env
         captures = []
-        engine.ctx.internal.start_capture = lambda **kw: (
-            captures.append(kw) or True
-        )
+        engine.ctx.internal.start_capture = lambda **kw: captures.append(kw) or True
 
         # Act
         engine.dispatch("cap.text log.txt timeout=5s mode=append")
@@ -2501,9 +2715,7 @@ class TestCapStructHandler:
         # Arrange
         engine, _, _, output = repl_env
         captures = []
-        engine.ctx.internal.start_capture = lambda **kw: (
-            captures.append(kw) or True
-        )
+        engine.ctx.internal.start_capture = lambda **kw: captures.append(kw) or True
 
         # Act
         engine.dispatch("cap.struct data.csv fmt=Val:U1-2 records=50")
@@ -2519,9 +2731,7 @@ class TestCapStructHandler:
         # Arrange -- one shared log so the order of the two calls is visible.
         engine, _, _, output = repl_env
         events = []
-        engine.ctx.internal.start_capture = lambda **kw: (
-            events.append(("capture", None)) or True
-        )
+        engine.ctx.internal.start_capture = lambda **kw: events.append(("capture", None)) or True
         engine.ctx.dispatch = lambda cmd: events.append(("dispatch", cmd))
         engine.ctx.serial.drain = lambda: None
 
@@ -2543,8 +2753,7 @@ class TestCapStructHandler:
         engine.dispatch("cap.struct data.csv fmt=INVALID records=50")
 
         # Assert
-        assert any("Invalid format" in t.lower() or "invalid" in t.lower()
-                    for t, _ in output)
+        assert any("Invalid format" in t.lower() or "invalid" in t.lower() for t, _ in output)
 
     def test_cap_struct_refuses_a_wildcard_column(self, repl_env):
         """fmt=D:H2-* fails at the command: a record has no variable-length column (it used to become one byte)."""
@@ -2592,9 +2801,7 @@ class TestCapStructHandler:
         # Arrange
         engine, _, _, output = repl_env
         captures = []
-        engine.ctx.internal.start_capture = lambda **kw: (
-            captures.append(kw) or True
-        )
+        engine.ctx.internal.start_capture = lambda **kw: captures.append(kw) or True
 
         # Act
         engine.dispatch("cap.struct data.csv fmt=ON:B.15 records=1")
@@ -2603,11 +2810,14 @@ class TestCapStructHandler:
         assert captures == [], "no capture is armed for a spec it cannot decode"
         assert any("no byte range" in text for text, _ in output), "the error names the problem"
 
-    @pytest.mark.parametrize("line", [
-        "cap.text log.txt timeout=1s cmd=AT",
-        "cap.bin data.bin bytes=4 cmd=AT",
-        "cap.struct data.csv fmt=Val:U1-2 records=1 cmd=AT",
-    ])
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "cap.text log.txt timeout=1s cmd=AT",
+            "cap.bin data.bin bytes=4 cmd=AT",
+            "cap.struct data.csv fmt=Val:U1-2 records=1 cmd=AT",
+        ],
+    )
     def test_capture_that_did_not_start_is_an_error(self, repl_env, line):
         """A refused start fails the command and never sends cmd= (it used to report success)."""
         # Arrange -- the frontend refuses (unopenable path, capture already active)
@@ -2689,7 +2899,7 @@ class TestConfirm:
         # Arrange
         engine, _, _, output = repl_env
         messages = []
-        engine.ctx.ui.confirm = lambda msg: (messages.append(msg) or True)
+        engine.ctx.ui.confirm = lambda msg: messages.append(msg) or True
 
         # Act
         engine.dispatch("confirm")
@@ -2702,7 +2912,7 @@ class TestConfirm:
         # Arrange
         engine, _, _, output = repl_env
         messages = []
-        engine.ctx.ui.confirm = lambda msg: (messages.append(msg) or True)
+        engine.ctx.ui.confirm = lambda msg: messages.append(msg) or True
 
         # Act
         engine.dispatch("confirm Deploy to production?")
@@ -2811,7 +3021,9 @@ class TestCfgRead:
 
         # Assert
         assert result.success is False, "a name is not /cfg.dump's grammar"
-        assert "cfg.file <name>" in result.error, f"the error names the command to use: {result.error}"
+        assert "cfg.file <name>" in result.error, (
+            f"the error names the command to use: {result.error}"
+        )
 
     def test_cfg_dump_shows_all(self, repl_env):
         """Bare /cfg.dump prints every key, since bare /cfg now opens the picker instead."""
@@ -2850,8 +3062,9 @@ class TestCfgRead:
 
         # Assert
         texts = [text for text, _ in output]
-        assert any("not found" in text.lower() or "unknown" in text.lower()
-                    for text in texts)  # error message
+        assert any(
+            "not found" in text.lower() or "unknown" in text.lower() for text in texts
+        )  # error message
 
     def test_cfg_info(self, repl_env):
         """/cfg.info runs on the minimal fixture and prints something -- a smoke check only."""
@@ -2879,9 +3092,7 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg port")
 
         # Assert
-        assert result.value == "COM4", (
-            "/cfg <key> returns the current value as a string"
-        )
+        assert result.value == "COM4", "/cfg <key> returns the current value as a string"
 
     def test_cfg_set_returns_new_value(self, repl_env):
         """/cfg.auto sets without confirmation and returns the new value as a string."""
@@ -2892,9 +3103,7 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg.auto baud_rate 9600")
 
         # Assert
-        assert result.value == "9600", (
-            "/cfg.auto returns the new value (mirrors echo/verbose)"
-        )
+        assert result.value == "9600", "/cfg.auto returns the new value (mirrors echo/verbose)"
 
     def test_cfg_set_unchanged_returns_existing_value(self, repl_env):
         """Setting a key to its current value still returns that value, not None."""
@@ -2919,24 +3128,22 @@ class TestCfgHandlerValues:
         empty.mkdir()
         monkeypatch.setattr(cfg_mod, "cfg_dir", lambda: empty)
 
-        cfg = {"port": "COM4", "baud_rate": 115200,
-                "echo": False, "eol": "\r"}
+        cfg = {"port": "COM4", "baud_rate": 115200, "echo": False, "eol": "\r"}
         config_path = tmp_path / "test.cfg"
         config_path.write_text(json.dumps(cfg))
         output = []
-        engine = ReplEngine(cfg, str(config_path),
-                            lambda t, c=None: output.append((t, c)))
+        engine = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
 
         # Act
         result = engine.dispatch("cfg.list")
 
         # Assert
-        assert result.value == "", (
-            "empty config dir returns empty string, not None"
-        )
+        assert result.value == "", "empty config dir returns empty string, not None"
 
     def test_cfg_list_populated_returns_joined_names(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Each config appears by name, the word /cfg.load takes, one per line in the value."""
         # Arrange
@@ -2949,13 +3156,11 @@ class TestCfgHandlerValues:
         (cfgs / "beta" / "beta.cfg").write_text("{}")
         monkeypatch.setattr(cfg_mod, "cfg_dir", lambda: cfgs)
 
-        cfg = {"port": "COM4", "baud_rate": 115200,
-                "echo": False, "eol": "\r"}
+        cfg = {"port": "COM4", "baud_rate": 115200, "echo": False, "eol": "\r"}
         config_path = tmp_path / "test.cfg"
         config_path.write_text(json.dumps(cfg))
         output = []
-        engine = ReplEngine(cfg, str(config_path),
-                            lambda t, c=None: output.append((t, c)))
+        engine = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
 
         # Act
         result = engine.dispatch("cfg.list")
@@ -2979,8 +3184,9 @@ class TestRepeat:
 
         # Assert - error about missing count
         actual = [t for t, _ in output]
-        assert any("missing required parameter 'count'" in t for t in actual), \
+        assert any("missing required parameter 'count'" in t for t in actual), (
             f"expected missing-count error, got: {actual}"
+        )
 
     def test_missing_cmd(self, repl_env):
         """cmd= is required; omitting it is a usage error."""
@@ -3040,7 +3246,9 @@ class TestRepeat:
 
         # Assert - error about invalid delay
         actual = [t for t, _ in output]
-        assert any("duration" in t.lower() or "invalid" in t.lower() for t in actual), f"expected duration/invalid error, got: {actual}"
+        assert any("duration" in t.lower() or "invalid" in t.lower() for t in actual), (
+            f"expected duration/invalid error, got: {actual}"
+        )
 
     def test_dispatches_n_times(self, repl_env):
         """cmd= is dispatched exactly count times, verbatim each time."""
@@ -3053,7 +3261,9 @@ class TestRepeat:
         engine.dispatch("repeat count=3 cmd=AT+TEMP")
 
         # Assert - command dispatched 3 times
-        assert dispatched == ["AT+TEMP", "AT+TEMP", "AT+TEMP"], f"expected 3 dispatches, got: {dispatched}"
+        assert dispatched == ["AT+TEMP", "AT+TEMP", "AT+TEMP"], (
+            f"expected 3 dispatches, got: {dispatched}"
+        )
 
     def test_sets_iteration_variable(self, repl_env):
         """REPEAT_N holds the 1-based iteration number while each command runs."""
@@ -3068,7 +3278,9 @@ class TestRepeat:
         engine.dispatch("repeat count=3 cmd=AT")
 
         # Assert - variable was 1, 2, 3 during iterations
-        assert seen_values == ["1", "2", "3"], f"expected iteration values ['1','2','3'], got: {seen_values}"
+        assert seen_values == ["1", "2", "3"], (
+            f"expected iteration values ['1','2','3'], got: {seen_values}"
+        )
 
     def test_custom_variable_name(self, repl_env):
         """var= renames the iteration variable; it still counts from 1."""
@@ -3097,7 +3309,9 @@ class TestRepeat:
         engine.dispatch("repeat count=2 cmd=AT")
 
         # Assert - variable removed after repeat
-        assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up, but _VARS contains: {_VARS}"
+        assert "REPEAT_N" not in _VARS, (
+            f"REPEAT_N should be cleaned up, but _VARS contains: {_VARS}"
+        )
 
     def test_variable_cleaned_up_on_error(self, repl_env):
         """The iteration variable is removed even when a dispatched command raises."""
@@ -3115,7 +3329,9 @@ class TestRepeat:
         engine.dispatch("repeat count=2 cmd=AT")
 
         # Assert - variable cleaned up even on error
-        assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up after error, but _VARS contains: {_VARS}"
+        assert "REPEAT_N" not in _VARS, (
+            f"REPEAT_N should be cleaned up after error, but _VARS contains: {_VARS}"
+        )
 
     def test_completes_silently(self, repl_env):
         """A finished loop prints no summary of its own; the commands speak for themselves."""
@@ -3128,7 +3344,9 @@ class TestRepeat:
 
         # Assert - no output from repeat itself (commands produce their own output)
         actual = [t for t, _ in output]
-        assert not any("Repeated" in t for t in actual), f"repeat should complete silently, got: {actual}"
+        assert not any("Repeated" in t for t in actual), (
+            f"repeat should complete silently, got: {actual}"
+        )
 
     def test_stoppable_via_event(self, repl_env):
         """Setting the script stop event ends the loop early and reports progress as 2/10."""
@@ -3201,8 +3419,9 @@ class TestPortChipList:
         # Spot-check one well-known chip makes it into the dump.
         assert any("FT232R" in text for text in texts), "FTDI FT232R present"
         # Return value is "Count=<N>" for script capture.
-        assert result.value.startswith("Count="), \
+        assert result.value.startswith("Count="), (
             f"value should be 'Count=<N>', got: {result.value!r}"
+        )
         count = int(result.value.split("=")[1])
         assert count > 20, f"expected many chip rows, got Count={count}"
 
@@ -3221,8 +3440,7 @@ class TestPortChipList:
         assert chip_rows, "at least one FTDI row rendered"
         # There are ~10 FTDI chips in the table.
         count = int(result.value.split("=")[1])
-        assert 5 <= count <= 25, \
-            f"expected roughly a dozen FTDI rows, got Count={count}"
+        assert 5 <= count <= 25, f"expected roughly a dozen FTDI rows, got Count={count}"
 
     def test_filter_is_case_insensitive(self, repl_env):
         """An uppercase filter still matches mixed-case vendor names like SparkFun."""
@@ -3247,13 +3465,11 @@ class TestPortChipList:
 
         # Assert
         assert result.success, "no-match still returns ok"
-        assert result.value == "Count=0", \
-            f"Count=0 on no matches, got: {result.value!r}"
+        assert result.value == "Count=0", f"Count=0 on no matches, got: {result.value!r}"
         texts_and_colors = [(t, c) for t, c in output]
-        assert any(
-            "No chips match" in t and c == "yellow"
-            for t, c in texts_and_colors
-        ), "no-match warning rendered in yellow"
+        assert any("No chips match" in t and c == "yellow" for t, c in texts_and_colors), (
+            "no-match warning rendered in yellow"
+        )
 
 
 class TestPortHandlerValues:
@@ -3289,9 +3505,7 @@ class TestPortHandlerValues:
         result = engine.dispatch("port.disconnect")
 
         # Assert
-        assert result.value == "COM4", (
-            "disconnect returns the port name in effect before the call"
-        )
+        assert result.value == "COM4", "disconnect returns the port name in effect before the call"
 
     def test_port_list_returns_joined_output(self, repl_env):
         """/port.list always yields a string value, whatever ports this machine has."""
@@ -3306,8 +3520,7 @@ class TestPortHandlerValues:
         # depends on the test machine's USB devices, but the value
         # must be a non-None string so scripting doesn't crash.
         assert result.value is not None, (
-            "scripting value must not be None -- this is the bug "
-            "fix/cmdresult-value-gaps targets"
+            "scripting value must not be None -- this is the bug fix/cmdresult-value-gaps targets"
         )
         assert isinstance(result.value, str), "value is a string"
 
@@ -3435,9 +3648,7 @@ class TestTermEol:
         assert actual == "\r\n", "crlf token sets line_ending to CRLF"
         assert show_result.value == "crlf", "subsequent query reports crlf"
 
-    @pytest.mark.parametrize(
-        "token,expected", [("cr", "\r"), ("lf", "\n"), ("none", "")]
-    )
+    @pytest.mark.parametrize("token,expected", [("cr", "\r"), ("lf", "\n"), ("none", "")])
     def test_token_maps_to_line_ending(self, repl_env, token, expected):
         """Each named token (cr, lf, none) stores its exact byte sequence in cfg eol."""
         # Arrange
@@ -3481,7 +3692,9 @@ class TestTermInfo:
         after = engine.dispatch("term.info").data
 
         # Assert
-        assert (before["hex"], after["hex"]) == (False, True), "hex is a boolean that follows /term.hex"
+        assert (before["hex"], after["hex"]) == (False, True), (
+            "hex is a boolean that follows /term.hex"
+        )
         assert before["eol"] == "crlf", "the line ending is its token, not the raw characters"
 
 

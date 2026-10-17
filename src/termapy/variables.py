@@ -245,12 +245,12 @@ def register_cfg_vars(
     set_context_var("CFG.CAP_DIR", lambda: str(_resolve_cfg().parent / "cap"))
     set_context_var("CFG.PROF_DIR", lambda: str(_resolve_cfg().parent / "prof"))
     set_context_var("CFG.VIZ_DIR", lambda: str(_resolve_cfg().parent / "viz"))
-    set_context_var("CFG.LOG_FILE", lambda: str(Path(get_log_path()).resolve()) if get_log_path() else "")
+    set_context_var(
+        "CFG.LOG_FILE", lambda: str(Path(get_log_path()).resolve()) if get_log_path() else ""
+    )
     # port / baud_rate live under cfg["serial"] post-v22.
     set_context_var("CFG.PORT", lambda: get_cfg().get("serial", {}).get("port", ""))
-    set_context_var(
-        "CFG.BAUD", lambda: str(get_cfg().get("serial", {}).get("baud_rate", ""))
-    )
+    set_context_var("CFG.BAUD", lambda: str(get_cfg().get("serial", {}).get("baud_rate", "")))
     set_context_var("CFG.PORT_CFG", lambda: connection_string(get_cfg(), "short"))
     set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
 
@@ -272,8 +272,7 @@ def snapshot() -> dict[str, dict[str, str]]:
         "user": dict(_VARS),
         "launch": dict(_LAUNCH_VARS),
         "datetime": {
-            name: resolve_datetime_var(name, None) or ""
-            for name, _tag in datetime_var_names()
+            name: resolve_datetime_var(name, None) or "" for name, _tag in datetime_var_names()
         },
         "context": {name: fn() for name, fn in _CONTEXT_VARS.items()},
     }

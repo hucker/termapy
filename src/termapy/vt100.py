@@ -206,10 +206,8 @@ def run_vt100_mode(args) -> str | None:
         # verbatim (no CR/LF rewriting); only Enter is translated to the cfg
         # line ending. Replaces miniterm's EOL transform -- see
         # _passthrough_transforms.
-        term.rx_transformations, term.tx_transformations = _passthrough_transforms(
-            settings["eol"]
-        )
-        term.exit_character = chr(0x1d)   # Ctrl-]  -> exit / back to the TUI
+        term.rx_transformations, term.tx_transformations = _passthrough_transforms(settings["eol"])
+        term.exit_character = chr(0x1D)  # Ctrl-]  -> exit / back to the TUI
         # Disable miniterm's Ctrl-T settings menu so nothing pyserial-flavored
         # leaks: set the menu key to a value the user won't type, so Ctrl-T
         # (and every other key) passes straight through to the device. Keeps
@@ -218,9 +216,7 @@ def run_vt100_mode(args) -> str | None:
 
         # Clean, termapy-branded banner on stderr (stdout is the device
         # stream); no mention of miniterm or its menu.
-        exit_hint = (
-            "Ctrl+] returns to termapy" if return_to == "tui" else "Ctrl+] to exit"
-        )
+        exit_hint = "Ctrl+] returns to termapy" if return_to == "tui" else "Ctrl+] to exit"
         sys.stderr.write(
             f"termapy VT100  |  {port.name} {port.baudrate} "
             f"{port.bytesize}{port.parity}{port.stopbits}  |  {exit_hint}\n"
@@ -231,13 +227,11 @@ def run_vt100_mode(args) -> str | None:
 
         term.start()
         try:
-            term.join(True)        # wait on the transmitter until Ctrl-]
+            term.join(True)  # wait on the transmitter until Ctrl-]
         except KeyboardInterrupt:
             pass
-        term.join()                # then drain/stop the receiver
-        sys.stderr.write(
-            "\nreturning to termapy...\n" if return_to == "tui" else "\nexit\n"
-        )
+        term.join()  # then drain/stop the receiver
+        sys.stderr.write("\nreturning to termapy...\n" if return_to == "tui" else "\nexit\n")
     finally:
         if term is not None:
             try:
@@ -245,8 +239,8 @@ def run_vt100_mode(args) -> str | None:
             except Exception:
                 # Teardown is best-effort; never crash on console restore.
                 pass
-            term.close()           # closes the serial port
+            term.close()  # closes the serial port
         else:
-            port.close()           # Miniterm never took ownership of the port
+            port.close()  # Miniterm never took ownership of the port
         sys.stdout, sys.stderr = saved_stdout, saved_stderr
     return return_to

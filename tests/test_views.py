@@ -159,14 +159,25 @@ def test_a_forwarded_table_prints_once():
     """A bare call that runs a table subcommand (bare_sub) prints the table once, not once per dispatch level."""
     # Arrange
     eng, output = _engine()
-    eng.register_plugin(PluginInfo(
-        name="rack", args="", help="h", handler=lambda ctx, args: CmdResult.ok(value=""),
-        bare_sub="boards",
-    ))
-    eng.register_plugin(PluginInfo(
-        name="rack.boards", args="", help="h",
-        handler=lambda ctx, args: CmdResult.table("Boards", "board", _COLUMNS, _RECORDS, value=""),
-    ))
+    eng.register_plugin(
+        PluginInfo(
+            name="rack",
+            args="",
+            help="h",
+            handler=lambda ctx, args: CmdResult.ok(value=""),
+            bare_sub="boards",
+        )
+    )
+    eng.register_plugin(
+        PluginInfo(
+            name="rack.boards",
+            args="",
+            help="h",
+            handler=lambda ctx, args: CmdResult.table(
+                "Boards", "board", _COLUMNS, _RECORDS, value=""
+            ),
+        )
+    )
 
     # Act
     eng.dispatch("rack")
@@ -185,8 +196,11 @@ def test_a_record_page_aligns_each_block_and_escapes_every_value():
     """record-one-format: title, cyan rows aligned per block, a blank line between blocks, notes; text is escaped."""
     # Arrange
     result = CmdResult.record(
-        _STATUS, _STATUS_ROWS, value="COM4",
-        title=(("Status", "bold"),), notes=(("hint [x]", "dim"),),
+        _STATUS,
+        _STATUS_ROWS,
+        value="COM4",
+        title=(("Status", "bold"),),
+        notes=(("hint [x]", "dim"),),
     )
 
     # Act
@@ -276,9 +290,13 @@ def _cfg(tmp_path, name: str, cfg: dict):
 
 def test_config_summary_reads_port_baud_and_title(tmp_path):
     """/cfg.list and the Cfg picker show one config's port, baud and title from config_summary."""
-    path = _cfg(tmp_path, "bench", {"title": "Bench board", "serial": {"port": "COM9", "baud_rate": 9600}})
+    path = _cfg(
+        tmp_path, "bench", {"title": "Bench board", "serial": {"port": "COM9", "baud_rate": 9600}}
+    )
     actual = config_summary(path)
-    assert actual == {"port": "COM9", "baud_rate": 9600, "title": "Bench board"}, "the listing facts"
+    assert actual == {"port": "COM9", "baud_rate": 9600, "title": "Bench board"}, (
+        "the listing facts"
+    )
 
 
 def test_config_summary_drops_a_title_that_repeats_the_name(tmp_path):
@@ -314,7 +332,9 @@ def test_config_summary_reads_a_pre_migration_layout(tmp_path):
     """An old flat cfg (port at the top level) is migrated in memory, so its port still shows."""
     path = _cfg(tmp_path, "flat", {"port": "COM6", "baud_rate": 57600})
     actual = config_summary(path)
-    assert (actual["port"], actual["baud_rate"]) == ("COM6", 57600), "migrated before reading, not after"
+    assert (actual["port"], actual["baud_rate"]) == ("COM6", 57600), (
+        "migrated before reading, not after"
+    )
 
 
 # -- every list command answers with records ----------------------------------
@@ -363,7 +383,9 @@ def _lists_without_records(eng: ReplEngine) -> list[str]:
             right_shape = isinstance(result.data, dict)
         else:
             records = result.data if isinstance(result.data, list) else None
-            right_shape = records is not None and all(isinstance(record, dict) for record in records)
+            right_shape = records is not None and all(
+                isinstance(record, dict) for record in records
+            )
         if not result.success or not right_shape:
             offenders.append(f"{name}: success={result.success} data={type(result.data).__name__}")
     return offenders
@@ -399,4 +421,6 @@ def test_list_guard_fires_on_a_probe(tmp_path):
     offenders = _lists_without_records(eng)
 
     # Assert
-    assert offenders == ["probe.list: success=True data=NoneType"], "the printing list is the one flagged"
+    assert offenders == ["probe.list: success=True data=NoneType"], (
+        "the printing list is the one flagged"
+    )

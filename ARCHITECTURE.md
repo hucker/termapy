@@ -229,11 +229,14 @@ COMMAND = Command(
     sub_commands={
         "auto": Command(args="<key> <value>", help="Set immediately.", handler=_handler_auto),
         "list": Command(help="List all config files.", handler=_handler_list),
-        "icon": Command(help="Create a desktop launcher.", handler=_handler_icon,
+        "icon": Command(
+            help="Create a desktop launcher.",
+            handler=_handler_icon,
             sub_commands={
                 "remove": Command(help="Delete the launcher.", handler=...),
                 "list": Command(help="List every launcher.", handler=...),
-            }),
+            },
+        ),
     },
 )
 ```
@@ -382,8 +385,10 @@ A linker map holds what the firmware defines, never the registers the silicon fi
 def _handler(ctx: PluginContext, args: str) -> None:
     ctx.io.result("Hello!")
 
+
 def on_app_start(ctx: PluginContext) -> None:
     ctx.ns("hello")["greeting"] = "Hello!"
+
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handler)
@@ -401,20 +406,26 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 from datetime import datetime
 from termapy.plugins import CmdResult, Command, TextLine
 
+
 def _now() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
+
 # --- lifecycle: set up / reset the shared state at session boundaries ---
 
-def on_app_start(ctx):                 # fires once, after plugins load
+
+def on_app_start(ctx):  # fires once, after plugins load
     ctx.ns("seq")["_start_time"] = _now()
 
-def on_script_start(ctx):              # fires at each OUTERMOST /run (not nested)
-    seq = ctx.ns("seq")                # the shared session dict
-    seq.clear()                        # fresh counters per top-level script run
+
+def on_script_start(ctx):  # fires at each OUTERMOST /run (not nested)
+    seq = ctx.ns("seq")  # the shared session dict
+    seq.clear()  # fresh counters per top-level script run
     seq["_start_time"] = _now()
 
+
 # --- command: read the shared state ---
+
 
 def _handler(ctx, args) -> CmdResult:
     numbered = sorted((key, value) for key, value in ctx.ns("seq").items() if isinstance(key, int))
@@ -424,6 +435,7 @@ def _handler(ctx, args) -> CmdResult:
     rows = [(name, str(count)) for name, count in counters.items()]
     line = ", ".join(f"{name}={count}" for name, count in counters.items())
     return CmdResult.record(counters, rows, value=line)
+
 
 COMMAND = Command(name="seq", help="Print sequence counters.", handler=_handler)
 ```

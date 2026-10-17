@@ -112,8 +112,7 @@ def _verbose_forwarder(ctx: PluginContext, args: str) -> CmdResult:
         warned["verbose"] = True
         p = ctx.prefix
         ctx.io.output(
-            f"  Note: {p}verbose is legacy; use {p}term.output "
-            f"(verbose|normal).",
+            f"  Note: {p}verbose is legacy; use {p}term.output (verbose|normal).",
             "yellow",
         )
     body = args.strip()
@@ -187,7 +186,7 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
     LegacyForwarder(
         "log.clear",
         "",
-        "Legacy alias for /log.delete (\"clear\" empties what you see; \"delete\" removes a file).",
+        'Legacy alias for /log.delete ("clear" empties what you see; "delete" removes a file).',
         make_forwarder("log.clear", "log.delete"),
         CapabilitySet.INTERACTIVE,
     ),
@@ -233,15 +232,7 @@ register_legacy_rewrite(r"^verbose\s+on\b", "term.output verbose")
 register_legacy_rewrite(r"^verbose\s+off\b", "term.output normal")
 register_legacy_rewrite(r"^term\.verbose\s+on\b", "term.output verbose")
 register_legacy_rewrite(r"^term\.verbose\s+off\b", "term.output normal")
-register_legacy_rewrite(
-    r"^term\.verbose\.silent\s+on\b", "term.output.silent verbose"
-)
-register_legacy_rewrite(
-    r"^term\.verbose\.silent\s+off\b", "term.output.silent normal"
-)
-register_legacy_rewrite(
-    r"^term\.verbose\.quiet\s+on\b", "term.output.silent verbose"
-)
-register_legacy_rewrite(
-    r"^term\.verbose\.quiet\s+off\b", "term.output.silent normal"
-)
+register_legacy_rewrite(r"^term\.verbose\.silent\s+on\b", "term.output.silent verbose")
+register_legacy_rewrite(r"^term\.verbose\.silent\s+off\b", "term.output.silent normal")
+register_legacy_rewrite(r"^term\.verbose\.quiet\s+on\b", "term.output.silent verbose")
+register_legacy_rewrite(r"^term\.verbose\.quiet\s+off\b", "term.output.silent normal")

@@ -46,7 +46,9 @@ from termapy import install_info
     ],
 )
 def test_upgrade_command_detects_install_layout(
-    exe_path, expected, monkeypatch,
+    exe_path,
+    expected,
+    monkeypatch,
 ):
     """uv tool, pipx and dev .venv interpreters, Windows or POSIX, each map to their own command."""
     # Arrange
@@ -56,9 +58,7 @@ def test_upgrade_command_detects_install_layout(
     actual = install_info.upgrade_command()
 
     # Assert
-    assert actual == expected, (
-        f"path {exe_path!r} should map to {expected!r}, got {actual!r}"
-    )
+    assert actual == expected, f"path {exe_path!r} should map to {expected!r}, got {actual!r}"
 
 
 def test_upgrade_command_falls_back_to_pip(monkeypatch):
@@ -67,7 +67,8 @@ def test_upgrade_command_falls_back_to_pip(monkeypatch):
     # layouts (typical of a plain pip install into a system
     # interpreter or a bare uv pip install).
     monkeypatch.setattr(
-        install_info.sys, "executable",
+        install_info.sys,
+        "executable",
         r"C:\Python313\python.exe",
     )
 
@@ -75,6 +76,4 @@ def test_upgrade_command_falls_back_to_pip(monkeypatch):
     actual = install_info.upgrade_command()
 
     # Assert -- pip is the broadly-correct last resort.
-    assert actual == "pip install -U termapy", (
-        "unrecognised layouts fall back to pip"
-    )
+    assert actual == "pip install -U termapy", "unrecognised layouts fall back to pip"

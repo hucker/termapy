@@ -158,6 +158,7 @@ def _highlighted_file(ol: OptionList) -> str | None:
     option_id = ol.get_option_at_index(ol.highlighted).id
     return str(option_id) if option_id is not None else None
 
+
 # Dismiss bindings shared by all modal dialogs.
 _DISMISS_BINDINGS = [
     ("ctrl+q", "dismiss_modal", "Close"),
@@ -166,7 +167,9 @@ _DISMISS_BINDINGS = [
 
 
 def _populate_port_option_list(
-    ol: OptionList, ports: list, row_width: int,
+    ol: OptionList,
+    ports: list,
+    row_width: int,
 ) -> None:
     """Fill an OptionList with a header, separator, and one row per port.
 
@@ -195,8 +198,7 @@ def _populate_port_option_list(
     # enrich=True: the picker DOES show location and driver; those come from
     # sysfs / the registry and open nothing, for single-digit ms per port.
     facts_list = [
-        port_control.gather_chip_facts(port.device, fast=True, enrich=True)
-        for port in ports
+        port_control.gather_chip_facts(port.device, fast=True, enrich=True) for port in ports
     ]
     facts_list = [fact for fact in facts_list if fact is not None]
     # Always offer the pyserial loopback as a selectable virtual port,

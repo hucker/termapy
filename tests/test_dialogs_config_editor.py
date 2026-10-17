@@ -55,9 +55,9 @@ def _plain(widget: Static) -> str:
 
 
 class TestWhatItShows:
-
     def test_editor_shows_the_disk_json_not_the_expanded_cfg(self, tmp_path):
         """The text area holds the file as written, so a $(env.NAME) template stays visible instead of its expansion."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path, title="$(env.NOPE_UNSET_123)")
             app = _Host()
@@ -71,6 +71,7 @@ class TestWhatItShows:
 
     def test_highlight_key_puts_the_cursor_on_that_line(self, tmp_path):
         """Opened for a key, the cursor sits on that key's line so the help describes it at once."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -84,9 +85,9 @@ class TestWhatItShows:
 
 
 class TestHelpLine:
-
     def test_help_describes_the_key_under_the_cursor(self, tmp_path):
         """Moving the cursor onto a known key shows its line number, description, and value."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -94,7 +95,9 @@ class TestHelpLine:
                 screen, _ = await _open(app, pilot, cfg, path)
                 editor = screen.query_one("#config-editor", TextArea)
                 row = next(
-                    r for r in range(editor.document.line_count) if '"eol"' in str(editor.get_line(r))
+                    r
+                    for r in range(editor.document.line_count)
+                    if '"eol"' in str(editor.get_line(r))
                 )
 
                 # Act
@@ -110,6 +113,7 @@ class TestHelpLine:
 
     def test_unknown_key_help_suggests_the_nearest(self, tmp_path):
         """A misspelled key is called out with the closest real key as a suggestion."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -131,6 +135,7 @@ class TestHelpLine:
 
     def test_preview_key_shows_its_preview(self, tmp_path):
         """A key with a preview callable (echo_fmt) renders the preview instead of an error."""
+
         async def scenario():
             # The default echo_fmt is a $(CFG) template, which takes the
             # unresolved-variable path; a literal format reaches the preview.
@@ -146,6 +151,7 @@ class TestHelpLine:
 
     def test_a_line_that_is_not_a_key_clears_the_help(self, tmp_path):
         """The opening brace has no key, so the help line goes blank there."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path, title="x")
             app = _Host()
@@ -183,6 +189,7 @@ class TestValueValidation:
     )
     def test_invalid_values_name_the_rule(self, tmp_path, key, raw, fragment):
         """Each typed rule (bool, enum, baud, int, eol) reports the rule the value broke."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -196,6 +203,7 @@ class TestValueValidation:
 
     def test_a_templated_bool_shows_what_it_reads_as(self, tmp_path, monkeypatch):
         """A $(env.X) in a boolean key is read with the vocabulary: yes shows green as true, maybe shows the Invalid message in red."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -214,6 +222,7 @@ class TestValueValidation:
 
     def test_non_standard_baud_is_a_warning_unless_custom(self, tmp_path):
         """A non-standard rate is yellow with a hint, green and marked custom once custom_baud is true in the editor."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -230,13 +239,16 @@ class TestValueValidation:
 
                 # Assert
                 assert "non-standard rate" in hint, "a hint, not an error"
-                assert "(custom)" in custom_status and custom_error == "", "custom_baud makes it green"
+                assert "(custom)" in custom_status and custom_error == "", (
+                    "custom_baud makes it green"
+                )
                 assert "custom baud requires >= 300" in low_error
 
         _run(scenario)
 
     def test_demo_port_is_the_simulated_port(self, tmp_path):
         """DEMO is accepted as the simulated port whatever the machine has plugged in."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -249,6 +261,7 @@ class TestValueValidation:
 
     def test_template_values_show_their_expansion(self, tmp_path):
         """An unset $(env.NAME) is flagged unresolved; a set one shows the template, an arrow, and the resolved value's status."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -257,15 +270,17 @@ class TestValueValidation:
                 _, unresolved = screen._validate_value("title", '"$(env.NOPE_UNSET_123)"')
                 resolved_status, resolved_error = screen._validate_value("title", '"$(env.PATH)"')
                 assert "variable - not resolved" in unresolved
-                assert "->" in resolved_status and resolved_error == "", "the resolved value is validated"
+                assert "->" in resolved_status and resolved_error == "", (
+                    "the resolved value is validated"
+                )
 
         _run(scenario)
 
 
 class TestLiveJsonCheck:
-
     def test_a_broken_edit_names_the_problem_and_the_line(self, tmp_path):
         """Typing past a missing comma shows the error line and a plain-words reason, then clears when fixed."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -289,9 +304,9 @@ class TestLiveJsonCheck:
 
 
 class TestSave:
-
     def test_save_refuses_invalid_json(self, tmp_path):
         """Save on broken JSON keeps the dialog open with the parse error shown."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -312,12 +327,15 @@ class TestSave:
 
     def test_save_refuses_a_config_with_warnings(self, tmp_path):
         """A config the validator warns about (an unknown key) is not written; the warnings are shown instead."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
             async with app.run_test() as pilot:
                 screen, results = await _open(app, pilot, cfg, path)
-                screen.query_one("#config-editor", TextArea).text = json.dumps({**cfg, "bogus_key": 1})
+                screen.query_one("#config-editor", TextArea).text = json.dumps(
+                    {**cfg, "bogus_key": 1}
+                )
                 await pilot.pause()
 
                 # Act
@@ -327,18 +345,23 @@ class TestSave:
                 # Assert
                 assert results == [], "not dismissed"
                 assert "bogus_key" in _plain(screen.query_one("#config-error", Static))
-                assert json.loads(path.read_text(encoding="utf-8"))["title"] == "Probe", "file untouched"
+                assert json.loads(path.read_text(encoding="utf-8"))["title"] == "Probe", (
+                    "file untouched"
+                )
 
         _run(scenario)
 
     def test_save_writes_the_file_and_dismisses_with_it(self, tmp_path):
         """A valid edit is written to the same path and the dialog dismisses with (cfg, path)."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
             async with app.run_test() as pilot:
                 screen, results = await _open(app, pilot, cfg, path)
-                screen.query_one("#config-editor", TextArea).text = json.dumps({**cfg, "title": "Renamed"})
+                screen.query_one("#config-editor", TextArea).text = json.dumps(
+                    {**cfg, "title": "Renamed"}
+                )
                 await pilot.pause()
 
                 # Act
@@ -355,6 +378,7 @@ class TestSave:
 
     def test_cancel_and_escape_dismiss_none(self, tmp_path):
         """Cancel and Escape both dismiss with None and leave the file alone."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -371,9 +395,9 @@ class TestSave:
 
 
 class TestSaveAs:
-
     def test_save_as_reveals_the_row_and_needs_a_name(self, tmp_path):
         """Save As swaps in the filename row; Save then acts as Save As and refuses an empty name."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -390,12 +414,16 @@ class TestSaveAs:
 
                 # Assert
                 assert (row_shown, button_hidden) == (True, True)
-                assert results == [] and _plain(screen.query_one("#config-error", Static)) == "Enter a filename"
+                assert (
+                    results == []
+                    and _plain(screen.query_one("#config-error", Static)) == "Enter a filename"
+                )
 
         _run(scenario)
 
     def test_save_as_rejects_a_non_cfg_extension(self, tmp_path):
         """A name with another extension is refused rather than silently renamed."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             app = _Host()
@@ -411,12 +439,16 @@ class TestSaveAs:
 
                 # Assert
                 assert results == []
-                assert _plain(screen.query_one("#config-error", Static)) == "File must have a .cfg extension"
+                assert (
+                    _plain(screen.query_one("#config-error", Static))
+                    == "File must have a .cfg extension"
+                )
 
         _run(scenario)
 
     def test_save_as_writes_the_named_file_and_retitles(self, tmp_path):
         """Enter in the name row writes <name>.cfg where the name points, appends the stem to the title, and dismisses with the new path."""
+
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
             target = tmp_path / "elsewhere" / "copy"
@@ -440,6 +472,8 @@ class TestSaveAs:
                 assert json.loads(written.read_text(encoding="utf-8"))["title"] == "Probe - copy"
                 assert len(results) == 1 and results[0] is not None, "dismissed once"
                 assert results[0][1] == str(written), "the new path comes back"
-                assert json.loads(path.read_text(encoding="utf-8"))["title"] == "Probe", "the original is untouched"
+                assert json.loads(path.read_text(encoding="utf-8"))["title"] == "Probe", (
+                    "the original is untouched"
+                )
 
         _run(scenario)

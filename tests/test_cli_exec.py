@@ -22,7 +22,8 @@ def _run(*extra_args: str, cfg_dir: str) -> subprocess.CompletedProcess:
     ``returncode``, ``stdout``, ``stderr``."""
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', '--cli', '--demo', '--no-color', "
             f"'--cfg-dir', {cfg_dir!r}, "
@@ -48,8 +49,7 @@ class TestCliExec:
         actual_code = result.returncode
         expected_code = 0
         assert actual_code == expected_code, (
-            f"--exec /help port should exit 0, got {actual_code}; "
-            f"stderr={result.stderr!r}"
+            f"--exec /help port should exit 0, got {actual_code}; stderr={result.stderr!r}"
         )
         assert "port" in result.stdout.lower(), (
             f"stdout should mention port help, got {result.stdout!r}"
@@ -74,15 +74,16 @@ class TestCliExec:
         # Arrange / Act -- argparse-level mutual exclusion enforced
         # in entry.py.  Should reject before doing anything.
         result = _run(
-            "--run", "any.run", "--exec", "AT+VER",
+            "--run",
+            "any.run",
+            "--exec",
+            "AT+VER",
             cfg_dir=str(tmp_path),
         )
 
         # Assert
         actual_code = result.returncode
-        assert actual_code != 0, (
-            f"--run + --exec must reject, got exit 0; stderr={result.stderr!r}"
-        )
+        assert actual_code != 0, f"--run + --exec must reject, got exit 0; stderr={result.stderr!r}"
         combined = (result.stdout + result.stderr).lower()
         assert "mutually exclusive" in combined, (
             f"error message should call out mutual exclusion, got "

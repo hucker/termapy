@@ -116,7 +116,6 @@ expect = '"x"'
 
 
 class TestHelpAndRoot:
-
     def test_proto_help_renders_the_page_and_lists_the_scripts(self, cli, capsys):
         """/proto.help is /help proto plus an AVAILABLE PROTO FILES tree of the proto folder."""
         _pro(_proto_folder(cli), "probe.pro", "@name x\n")
@@ -125,7 +124,9 @@ class TestHelpAndRoot:
         out = capsys.readouterr().out
         assert result.value == "proto", "the resolved name, so a script can confirm the match"
         assert "/proto.send" in out, "the page lists the subcommands"
-        assert "AVAILABLE PROTO FILES" in out and "probe.pro" in out, "the folder's scripts are appended"
+        assert "AVAILABLE PROTO FILES" in out and "probe.pro" in out, (
+            "the folder's scripts are appended"
+        )
 
     def test_bare_proto_lists_without_a_picker(self, cli):
         """bare-declared: a bare /proto runs /proto.list where no picker exists (the CLI); the TUI opens its picker."""
@@ -145,7 +146,6 @@ class TestHelpAndRoot:
 
 
 class TestHex:
-
     def test_bare_hex_queries_without_changing_the_flag(self, cli, capsys):
         """A bare /proto.hex reports the state and mutates nothing (setting commands query on a bare call)."""
         flags = cli.repl.ctx.ns("flags")
@@ -168,20 +168,26 @@ class TestHex:
         """A token outside the boolean vocabulary fails naming the twelve tokens and toggle, and nothing flips."""
         result = cli.repl.dispatch_full("/proto.hex maybe")
         assert result.success is False
-        assert result.error == "Invalid value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        assert (
+            result.error
+            == "Invalid value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        )
         assert cli.repl.ctx.ns("flags")["hex"] is False, "a refused token never flips the setting"
 
 
 class TestInfo:
-
     def test_info_reports_hex_mode_and_the_connection(self, cli, capsys):
         """/proto.info prints the hex flag and the connection, returns both as booleans in data and as one key=value string."""
         capsys.readouterr()
         result = cli.repl.dispatch_full("/proto.info")
         out = capsys.readouterr().out
         assert result.value == "hex=off, connected=yes"
-        assert result.data == {"hex": False, "connected": True}, "the record a script or agent reads"
-        assert "Hex mode : off" in out and "Connected: yes" in out, "the aligned rows a person reads"
+        assert result.data == {"hex": False, "connected": True}, (
+            "the record a script or agent reads"
+        )
+        assert "Hex mode : off" in out and "Connected: yes" in out, (
+            "the aligned rows a person reads"
+        )
 
     def test_info_tracks_the_flag_and_a_disconnect(self, cli):
         """The value follows /proto.hex and the port: on after hex on, no after a disconnect."""
@@ -194,7 +200,6 @@ class TestInfo:
 
 
 class TestSend:
-
     def test_bare_send_is_a_usage_error(self, cli):
         """/proto.send without data renders the registered synopsis."""
         result = cli.repl.dispatch_full("/proto.send")
@@ -298,7 +303,6 @@ class TestSend:
 
 
 class TestRun:
-
     def test_bare_run_is_a_usage_error(self, cli):
         """/proto.run without a file renders the registered synopsis."""
         result = cli.repl.dispatch_full("/proto.run")
@@ -311,7 +315,9 @@ class TestRun:
         result = cli.repl.dispatch_full("/proto.run nope")
         out = capsys.readouterr().out
         assert result.error == f"File not found: nope (also checked {proto_dir})"
-        assert out.count("File not found") == 1, "the message is the Error line, not a red line and then the Error line"
+        assert out.count("File not found") == 1, (
+            "the message is the Error line, not a red line and then the Error line"
+        )
 
     def test_a_stem_resolves_to_a_pro_file_in_the_proto_folder(self, cli):
         """A bare stem gets .pro appended and is looked up in the config's proto/ folder; the value is that path."""
@@ -338,15 +344,23 @@ class TestRun:
         out = capsys.readouterr().out
 
         # Assert
-        assert (result.success, result.error) == (False, "2 of 4 tests failed"), "a failed expect fails the run"
+        assert (result.success, result.error) == (False, "2 of 4 tests failed"), (
+            "a failed expect fails the run"
+        )
         assert Path(result.value) == script.resolve(), "the value is still the script that ran"
-        assert "Flat demo" in out and "every.pro - 13 steps" in out, "the banner: @name, then the step count"
-        assert "[PROTO] hello" in out and "PASS (4 bytes, " in out, "the text expect matched OK CR LF"
+        assert "Flat demo" in out and "every.pro - 13 steps" in out, (
+            "the banner: @name, then the step count"
+        )
+        assert "[PROTO] hello" in out and "PASS (4 bytes, " in out, (
+            "the text expect matched OK CR LF"
+        )
         assert "[PROTO] wrong answer" in out, "a labeled failing expect"
         assert "[PROTO] wildcard" in out, "the hex expect with ** wildcards"
         assert "(timeout after 50ms)" in out, "the unlabeled expect timed out"
         assert out.count("[PROTO]") == 3, "an unlabeled expect gets no step line"
-        assert out.count("CMD: AT") == 1 and "CMD: flushed 4 bytes" in out, "the quiet cmd is silent, the loud one is shown"
+        assert out.count("CMD: AT") == 1 and "CMD: flushed 4 bytes" in out, (
+            "the quiet cmd is silent, the loud one is shown"
+        )
         assert "Results: 2/4 PASS" in out
 
     def test_a_toml_script_runs_setup_teardown_and_reports_failures(self, cli, tmp_path, capsys):
@@ -360,9 +374,13 @@ class TestRun:
         out = capsys.readouterr().out
 
         # Assert
-        assert (result.success, result.error) == (False, "2 of 3 tests failed"), "a failed test fails the run"
+        assert (result.success, result.error) == (False, "2 of 3 tests failed"), (
+            "a failed test fails the run"
+        )
         assert out.count("CMD: AT") == 3, "script setup, the second test's setup, script teardown"
-        assert "[PROTO] silent" in out and "(timeout after 50ms)" in out, "an unanswered send is a timeout FAIL"
+        assert "[PROTO] silent" in out and "(timeout after 50ms)" in out, (
+            "an unanswered send is a timeout FAIL"
+        )
         assert "Results: 1/3 PASS" in out
 
     def test_a_failing_suite_answers_json_with_its_results(self, cli, tmp_path, capsys):
@@ -408,7 +426,6 @@ class TestRun:
 
 
 class TestDebug:
-
     def test_debug_is_refused_outside_the_tui(self, cli):
         """/proto.debug needs the TUI: the CLI refuses it by capability before the handler runs."""
         result = cli.repl.dispatch_full("/proto.debug anything")

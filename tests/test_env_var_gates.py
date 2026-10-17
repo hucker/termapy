@@ -39,7 +39,9 @@ from termapy.migration import (
 class TestGateReader:
     """Every env boolean goes through parse_bool: absence is the declared default, garbage is a startup error."""
 
-    @pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "on", "  on  ", "y", "t"])
+    @pytest.mark.parametrize(
+        "value", ["1", "true", "True", "TRUE", "yes", "on", "  on  ", "y", "t"]
+    )
     def test_truthy_values(self, value):
         """Any vocabulary token, in any case and with surrounding spaces, reads as enabled and records nothing."""
         errors: list[str] = []
@@ -48,7 +50,8 @@ class TestGateReader:
         assert errors == [], "a valid token is not a startup error"
 
     @pytest.mark.parametrize(
-        "environ", [{}, {"TERMAPY_X": ""}, {"TERMAPY_X": "   "}, {"TERMAPY_X": "off"}, {"TERMAPY_X": "0"}],
+        "environ",
+        [{}, {"TERMAPY_X": ""}, {"TERMAPY_X": "   "}, {"TERMAPY_X": "off"}, {"TERMAPY_X": "0"}],
     )
     def test_unset_blank_and_off_read_false(self, environ):
         """Unset, blank and the off tokens read as disabled without an error: absence is the gate's declared default."""
@@ -62,18 +65,30 @@ class TestGateReader:
         """A present token outside the vocabulary reads False AND records Invalid <VAR>: <value>; it used to mean off silently."""
         errors: list[str] = []
         actual = env_flags._read_gate(
-            "TERMAPY_OS_CMD_ENABLED", environ={"TERMAPY_OS_CMD_ENABLED": value}, errors=errors,
+            "TERMAPY_OS_CMD_ENABLED",
+            environ={"TERMAPY_OS_CMD_ENABLED": value},
+            errors=errors,
         )
         assert actual is False, "fail closed; the process is about to refuse to start"
-        expected = f"Invalid TERMAPY_OS_CMD_ENABLED: {value} (use on/off/true/false/yes/no/1/0/y/n/t/f)"
+        expected = (
+            f"Invalid TERMAPY_OS_CMD_ENABLED: {value} (use on/off/true/false/yes/no/1/0/y/n/t/f)"
+        )
         assert errors == [expected], "the variable is named so the user can fix it"
 
     def test_the_override_reads_none_when_unset_and_records_garbage(self):
         """TERMAPY_GUI is an override: unset means no override (None); garbage is a startup error naming it."""
         errors: list[str] = []
-        assert env_flags._read_override("TERMAPY_GUI", environ={}, errors=errors) is None, "no override"
-        assert env_flags._read_override("TERMAPY_GUI", environ={"TERMAPY_GUI": "no"}, errors=errors) is False
-        assert env_flags._read_override("TERMAPY_GUI", environ={"TERMAPY_GUI": "ture"}, errors=errors) is None
+        assert env_flags._read_override("TERMAPY_GUI", environ={}, errors=errors) is None, (
+            "no override"
+        )
+        assert (
+            env_flags._read_override("TERMAPY_GUI", environ={"TERMAPY_GUI": "no"}, errors=errors)
+            is False
+        )
+        assert (
+            env_flags._read_override("TERMAPY_GUI", environ={"TERMAPY_GUI": "ture"}, errors=errors)
+            is None
+        )
         assert errors == ["Invalid TERMAPY_GUI: ture (use on/off/true/false/yes/no/1/0/y/n/t/f)"]
 
 
@@ -83,7 +98,9 @@ class TestStartupRefusal:
     def test_main_exits_one_with_the_message(self, capsys, monkeypatch):
         """A recorded startup error makes main() print termapy: <error> to stderr and exit 1 before any flag runs."""
         # Arrange -- a seeded error list; --ports would otherwise enumerate
-        monkeypatch.setattr(env_flags, "STARTUP_ERRORS", ["Invalid TERMAPY_OS_CMD_ENABLED: ture (use on/off)"])
+        monkeypatch.setattr(
+            env_flags, "STARTUP_ERRORS", ["Invalid TERMAPY_OS_CMD_ENABLED: ture (use on/off)"]
+        )
         monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
         from termapy.entry import main
 
@@ -93,7 +110,10 @@ class TestStartupRefusal:
 
         # Assert
         assert exc.value.code == 1, "a refused start is exit 1"
-        assert capsys.readouterr().err == "termapy: Invalid TERMAPY_OS_CMD_ENABLED: ture (use on/off)\n"
+        assert (
+            capsys.readouterr().err
+            == "termapy: Invalid TERMAPY_OS_CMD_ENABLED: ture (use on/off)\n"
+        )
 
     @pytest.mark.slow  # fresh interpreter: the environment is read at import
     def test_a_bad_variable_stops_a_real_process(self):
@@ -108,7 +128,10 @@ class TestStartupRefusal:
         # Act
         result = subprocess.run(
             [sys.executable, "-m", "termapy", "--ports"],
-            env=env, capture_output=True, text=True, timeout=60,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
 
         # Assert
@@ -124,6 +147,7 @@ class TestOsCmdGate:
         """With the gate off /os refuses, and the error names TERMAPY_OS_CMD_ENABLED."""
         # Arrange
         from termapy.builtins.commands import os_cmd
+
         monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", False)
 
         captured: list[str] = []
@@ -148,6 +172,7 @@ class TestOsCmdGate:
         """With the gate on /os runs the child and streams its stdout through io.output."""
         # Arrange
         from termapy.builtins.commands import os_cmd
+
         monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
 
         captured: list[str] = []
@@ -176,10 +201,12 @@ class TestOsCmdGate:
         """
         # Arrange -- env says no, "cfg" says yes; env wins.
         from termapy.builtins.commands import os_cmd
+
         monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", False)
 
         class _IO:
-            def output(self, *_a, **_kw): pass
+            def output(self, *_a, **_kw):
+                pass
 
         class _Ctx:
             io = _IO()
@@ -243,9 +270,7 @@ class TestMigrationV18ToV19:
         # Arrange / Act
         hint = DEPRECATED_CFG.get("os_cmd_enabled", "")
         # Assert
-        assert "TERMAPY_OS_CMD_ENABLED" in hint, (
-            "deprecation message names the env var"
-        )
+        assert "TERMAPY_OS_CMD_ENABLED" in hint, "deprecation message names the env var"
 
 
 class TestStrictPluginMode:
@@ -277,7 +302,11 @@ class TestStrictPluginMode:
         )
         # Act
         result = subprocess.run(
-            [sys.executable, "-c", probe], env=env, capture_output=True, text=True, timeout=60,
+            [sys.executable, "-c", probe],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         # Assert
         assert result.returncode == 0, result.stderr
@@ -294,19 +323,18 @@ class TestCfgKeyRetired:
         """New configs are not seeded with the retired key, so it cannot creep back in."""
         # Arrange
         from termapy.defaults import DEFAULT_CFG
+
         # Act / Assert
-        assert "os_cmd_enabled" not in DEFAULT_CFG, (
-            "retired key must not return as a default field"
-        )
+        assert "os_cmd_enabled" not in DEFAULT_CFG, "retired key must not return as a default field"
 
     def test_not_in_cfg_help(self):
         """The cfg editor has no help text for the retired key, so it is never suggested."""
         # Arrange
         from termapy.defaults import CFG_HELP
+
         # Act / Assert
         assert "os_cmd_enabled" not in CFG_HELP, (
-            "help text for retired key must be removed so the editor "
-            "doesn't suggest it"
+            "help text for retired key must be removed so the editor doesn't suggest it"
         )
 
     def test_demo_cfg_does_not_carry_key(self):
@@ -314,7 +342,11 @@ class TestCfgKeyRetired:
         # Arrange
         demo_cfg = (
             Path(__file__).resolve().parent.parent
-            / "src" / "termapy" / "builtins" / "demo" / "demo.cfg"
+            / "src"
+            / "termapy"
+            / "builtins"
+            / "demo"
+            / "demo.cfg"
         )
         # Act
         data = json.loads(demo_cfg.read_text(encoding="utf-8"))

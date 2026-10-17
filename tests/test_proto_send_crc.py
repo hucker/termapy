@@ -15,6 +15,7 @@ def send_env():
     tx_bytes = []
 
     from termapy.plugins import IOHandle, SerialHandle
+
     ctx = PluginContext(
         internal=InternalHandle(),
         io=IOHandle(_write=lambda text, color=None: output.append((text, color))),
@@ -43,7 +44,8 @@ class TestParseSendAlgo:
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
-            "crc16-modbus", registry,
+            "crc16-modbus",
+            registry,
         )
 
         # Assert
@@ -56,7 +58,8 @@ class TestParseSendAlgo:
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
-            "crc16-modbus_be", registry,
+            "crc16-modbus_be",
+            registry,
         )
 
         # Assert
@@ -69,7 +72,8 @@ class TestParseSendAlgo:
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
-            "crc16-modbus_le", registry,
+            "crc16-modbus_le",
+            registry,
         )
 
         # Assert
@@ -82,7 +86,8 @@ class TestParseSendAlgo:
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
-            "crc16-modbus_ascii", registry,
+            "crc16-modbus_ascii",
+            registry,
         )
 
         # Assert
@@ -95,7 +100,8 @@ class TestParseSendAlgo:
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
-            "crc16-modbus_be_ascii", registry,
+            "crc16-modbus_be_ascii",
+            registry,
         )
 
         # Assert
@@ -108,7 +114,8 @@ class TestParseSendAlgo:
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, actual_ascii = _parse_send_algo(
-            "crc16-modbus_le_ascii", registry,
+            "crc16-modbus_le_ascii",
+            registry,
         )
 
         # Assert
@@ -130,7 +137,8 @@ class TestParseSendAlgo:
         # Act
         registry = get_crc_registry()
         actual_name, actual_be, _ = _parse_send_algo(
-            "CRC16-MODBUS_BE", registry,
+            "CRC16-MODBUS_BE",
+            registry,
         )
 
         # Assert
@@ -156,7 +164,7 @@ class TestSendCrcAppend:
 
         # Assert
         actual = tx_bytes[0]
-        expected = b"\x01\x03\x00\x00\x00\x01\x84\x0A"
+        expected = b"\x01\x03\x00\x00\x00\x01\x84\x0a"
         assert actual == expected, "data with LE CRC appended"
 
     def test_crc16_modbus_be(self, send_env):
@@ -170,7 +178,7 @@ class TestSendCrcAppend:
 
         # Assert
         actual = tx_bytes[0]
-        expected = b"\x01\x03\x00\x00\x00\x01\x0A\x84"
+        expected = b"\x01\x03\x00\x00\x00\x01\x0a\x84"
         assert actual == expected, "data with BE CRC appended"
 
     def test_crc16_modbus_ascii_le(self, send_env):
@@ -320,9 +328,7 @@ class TestSendCrcAlgorithms:
         ctx, output, tx_bytes = send_env
         registry = get_crc_registry()
         # Find a crc8 algo
-        crc8_name = next(
-            (n for n in registry if registry[n].width == 1), None
-        )
+        crc8_name = next((n for n in registry if registry[n].width == 1), None)
         if crc8_name is None:
             pytest.skip("No CRC-8 algorithm available")
         algo = registry[crc8_name]
@@ -346,8 +352,7 @@ class TestSendCrcAlgorithms:
         ctx, output, tx_bytes = send_env
         registry = get_crc_registry()
         crc32_name = next(
-            (n for n in registry
-             if registry[n].width == 4 and registry[n].refout),
+            (n for n in registry if registry[n].width == 4 and registry[n].refout),
             None,
         )
         if crc32_name is None:
@@ -397,12 +402,8 @@ class TestSendDryRun:
         actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
         assert actual_lines, "TX (dry-run) line printed"
         line = actual_lines[0]
-        assert "|" in line and "......" in line, (
-            f"dot-sidebar present; got: {line!r}"
-        )
-        assert '"' not in line, (
-            f"no quoted escape-text in default mode; got: {line!r}"
-        )
+        assert "|" in line and "......" in line, f"dot-sidebar present; got: {line!r}"
+        assert '"' not in line, f"no quoted escape-text in default mode; got: {line!r}"
         assert "\\0" not in line, "no escape rendering of null bytes"
 
     def test_dry_run_with_ascii_flag_uses_quoted_text(self, send_env):
@@ -418,9 +419,7 @@ class TestSendDryRun:
         actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
         assert actual_lines, "TX (dry-run) line printed"
         line = actual_lines[0]
-        assert '"AT\\r\\n"' in line, (
-            f"--ascii renders as quoted escape-text; got: {line!r}"
-        )
+        assert '"AT\\r\\n"' in line, f"--ascii renders as quoted escape-text; got: {line!r}"
 
     def test_dry_run_value_is_frame_hex(self, send_env):
         """Dry-run returns the assembled frame, CRC included, as uppercase hex in result.value."""
@@ -445,6 +444,7 @@ class TestSendDryRun:
         """--dry-run needs no connection, so frames can be previewed offline."""
         # Arrange -- is_connected returns False; --dry-run must still succeed.
         from termapy.plugins import IOHandle, SerialHandle
+
         output: list = []
         tx_bytes: list = []
         ctx = PluginContext(
@@ -470,6 +470,7 @@ class TestSendDryRun:
         """A real send while disconnected fails with the standard Not connected. message."""
         # Arrange -- no --dry-run, no connection: should refuse cleanly.
         from termapy.plugins import IOHandle, SerialHandle
+
         output: list = []
         tx_bytes: list = []
         ctx = PluginContext(

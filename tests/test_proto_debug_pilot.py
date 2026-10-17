@@ -105,9 +105,9 @@ async def _disabled_after(pilot, button: Button, seconds: float) -> bool:
 
 
 class TestRunButton:
-
     def test_run_starts_a_run_and_reports_the_summary(self, tmp_path):
         """Run on a freshly opened screen starts the run and ends with the PASS summary and Stop dark again."""
+
         async def scenario():
             app, script = _make_app(tmp_path, _ONE_AT_TEST)
             async with app.run_test() as pilot:
@@ -124,13 +124,14 @@ class TestRunButton:
                 # Assert
                 assert "1/1 PASS" in text, f"the run ran, got {text!r}"
                 assert stop_dark is True, "Stop goes dark when the run ends"
+
         _run(scenario)
 
 
 class TestArguments:
-
     def test_bad_arguments_are_refused_before_a_screen_opens(self, tmp_path):
         """/proto.debug refuses a missing file, a flat script and a TOML script without tests, each by its own message; bare opens the Proto picker, never the debug screen."""
+
         async def scenario():
             # Arrange -- the TUI rig, since the CLI refuses /proto.debug by capability
             app, script = _make_app(tmp_path, _ONE_AT_TEST)
@@ -152,19 +153,26 @@ class TestArguments:
 
                 # Assert
                 assert bare.success, f"bare /proto.debug opens the Proto picker: {bare.error}"
-                assert isinstance(pilot.app.screen, ProtoPicker), "bare offers the picker to choose a script"
+                assert isinstance(pilot.app.screen, ProtoPicker), (
+                    "bare offers the picker to choose a script"
+                )
                 assert missing.error.startswith("File not found: nope"), missing.error
-                assert not_toml.error.startswith("Script error: TOML parse error"), "the debug screen is TOML-only"
+                assert not_toml.error.startswith("Script error: TOML parse error"), (
+                    "the debug screen is TOML-only"
+                )
                 assert no_tests.error == "Script has no tests."
-                assert not isinstance(pilot.app.screen, ProtoDebugScreen), "no refusal opened the screen"
+                assert not isinstance(pilot.app.screen, ProtoDebugScreen), (
+                    "no refusal opened the screen"
+                )
+
         _run(scenario)
 
 
 class TestStopButton:
-
     @pytest.mark.slow
     def test_stop_ends_the_run_after_the_current_test(self, tmp_path):
         """Stop during a run of silent tests ends it after the test in flight, with 'stopped by user' in the summary."""
+
         async def scenario():
             app, script = _make_app(tmp_path, _SILENT_TESTS)
             async with app.run_test() as pilot:
@@ -179,7 +187,9 @@ class TestStopButton:
                 # The summary lands before the worker clears its run state;
                 # leaving run_test() in that gap tears the screen down under
                 # the worker's last widget call (WorkerFailed, 2026-10-13).
-                stop_dark = await _disabled_after(pilot, screen.query_one("#btn-dbg-stop", Button), 5.0)
+                stop_dark = await _disabled_after(
+                    pilot, screen.query_one("#btn-dbg-stop", Button), 5.0
+                )
 
                 # Assert
                 assert "Stopping" in stopping, "the press is acknowledged at once"
@@ -187,4 +197,5 @@ class TestStopButton:
                     f"one test ran, then the stop landed; got {text!r}"
                 )
                 assert stop_dark is True, "Stop goes dark once the stopped run has finished"
+
         _run(scenario)

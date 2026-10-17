@@ -45,16 +45,19 @@ def _run_cli(
     # cfg_overrides ({"port": "..."}), so we route those into the
     # sub-dict before serializing -- a flat top-level "port" would
     # be silently ignored by open_serial.
-    _serial_keys = frozenset({
-        "port", "baud_rate", "custom_baud", "byte_size",
-        "parity", "stop_bits", "flow_control",
-    })
-    serial_overrides = {
-        k: cfg_overrides[k] for k in cfg_overrides if k in _serial_keys
-    }
-    top_overrides = {
-        k: v for k, v in cfg_overrides.items() if k not in _serial_keys
-    }
+    _serial_keys = frozenset(
+        {
+            "port",
+            "baud_rate",
+            "custom_baud",
+            "byte_size",
+            "parity",
+            "stop_bits",
+            "flow_control",
+        }
+    )
+    serial_overrides = {k: cfg_overrides[k] for k in cfg_overrides if k in _serial_keys}
+    top_overrides = {k: v for k, v in cfg_overrides.items() if k not in _serial_keys}
     default_serial = DEFAULT_CFG["serial"]
     assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
     cfg = {
@@ -74,7 +77,8 @@ def _run_cli(
 
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', 'proj', '--cli', "
             f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -105,12 +109,10 @@ class TestCliResolvedFromBanner:
 
         # Assert
         assert result.returncode == 0, (
-            f"CLI exited cleanly, got {result.returncode}. "
-            f"stderr: {result.stderr!r}"
+            f"CLI exited cleanly, got {result.returncode}. stderr: {result.stderr!r}"
         )
         assert "Resolved UNKNOWN_SN|DEMO -> DEMO" in result.stdout, (
-            "banner should announce resolution to DEMO. "
-            f"stdout: {result.stdout!r}"
+            f"banner should announce resolution to DEMO. stdout: {result.stdout!r}"
         )
 
     def test_literal_port_no_resolved_line(self, tmp_path):
@@ -125,8 +127,7 @@ class TestCliResolvedFromBanner:
         # Assert -- no "Resolved" line appears because spec == actual.
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
         assert "Resolved " not in result.stdout, (
-            "no resolved-from line when spec matches actual device. "
-            f"stdout: {result.stdout!r}"
+            f"no resolved-from line when spec matches actual device. stdout: {result.stdout!r}"
         )
 
     def test_connected_line_shows_actual_device_not_spec(self, tmp_path):
@@ -145,16 +146,13 @@ class TestCliResolvedFromBanner:
         # raw spec leak into "Connected:" would be a regression.
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
         connected_lines = [
-            connected_line for connected_line in result.stdout.splitlines()
+            connected_line
+            for connected_line in result.stdout.splitlines()
             if connected_line.startswith("Connected:")
         ]
-        assert connected_lines, (
-            f"expected a Connected: line; stdout: {result.stdout!r}"
-        )
+        assert connected_lines, f"expected a Connected: line; stdout: {result.stdout!r}"
         line = connected_lines[0]
-        assert "DEMO" in line, (
-            f"Connected line should name the actual device; got {line!r}"
-        )
+        assert "DEMO" in line, f"Connected line should name the actual device; got {line!r}"
         assert "UNKNOWN_SN|DEMO" not in line, (
             f"Connected line must not contain the raw spec; got {line!r}"
         )
@@ -174,8 +172,7 @@ class TestCliResolvedFromBanner:
         # Assert
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
         assert "resolved from UNKNOWN_SN|DEMO" in result.stdout, (
-            "/port.info should show '(resolved from ...)' annotation. "
-            f"stdout: {result.stdout!r}"
+            f"/port.info should show '(resolved from ...)' annotation. stdout: {result.stdout!r}"
         )
 
 
@@ -206,19 +203,14 @@ class TestPortCommandStatusMessage:
         # Assert
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
         changed_lines = [
-            changed_line for changed_line in result.stdout.splitlines()
+            changed_line
+            for changed_line in result.stdout.splitlines()
             if "Port changed to" in changed_line
         ]
-        assert changed_lines, (
-            f"expected a 'Port changed to' line; stdout: {result.stdout!r}"
-        )
+        assert changed_lines, f"expected a 'Port changed to' line; stdout: {result.stdout!r}"
         line = changed_lines[0]
-        assert "DEMO" in line, (
-            f"status should name the actual device; got {line!r}"
-        )
-        assert "FAKE_SN|DEMO" not in line, (
-            f"status must not contain the raw spec; got {line!r}"
-        )
+        assert "DEMO" in line, f"status should name the actual device; got {line!r}"
+        assert "FAKE_SN|DEMO" not in line, f"status must not contain the raw spec; got {line!r}"
 
 
 class TestPortCommandDoesNotWriteDisk:
@@ -246,16 +238,13 @@ class TestPortCommandDoesNotWriteDisk:
         disk_before = cfg_file.read_text()
 
         script_path = tmp_path / "port_override.run"
-        script_path.write_text(
-            "/port.disconnect\n"
-            "/port A1B2C3D4\n"
-            "/cfg port\n"
-        )
+        script_path.write_text("/port.disconnect\n/port A1B2C3D4\n/cfg port\n")
 
         # Act
         result = subprocess.run(
             [
-                sys.executable, "-c",
+                sys.executable,
+                "-c",
                 "import sys; "
                 f"sys.argv = ['termapy', 'proj', '--cli', "
                 f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -271,9 +260,7 @@ class TestPortCommandDoesNotWriteDisk:
         # Assert -- the script ran and switched the in-memory port...
         assert result.returncode == 0, f"script run failed:\n{result.stdout}{result.stderr}"
         stdout_lines = [line.strip() for line in result.stdout.splitlines()]
-        assert "A1B2C3D4" in stdout_lines, (
-            "/cfg port reports the override, so /port really ran"
-        )
+        assert "A1B2C3D4" in stdout_lines, "/cfg port reports the override, so /port really ran"
         # ...and the disk file is byte-for-byte what it was.
         assert cfg_file.read_text() == disk_before, "/port wrote the on-disk cfg"
 
@@ -309,9 +296,7 @@ class TestAmbiguousSerialNumberViaEngine:
         assert actual is False, "connect should fail on ambiguity"
         err = engine.last_error
         assert "0001" in err, f"SN must appear in error; got {err!r}"
-        assert "COM3" in err and "COM7" in err, (
-            f"both colliding devices must appear; got {err!r}"
-        )
+        assert "COM3" in err and "COM7" in err, f"both colliding devices must appear; got {err!r}"
         assert "disambiguate" in err.lower() or "fallback" in err.lower(), (
             f"error should suggest next step; got {err!r}"
         )
@@ -332,16 +317,12 @@ class TestClassifySerialErrorWithSpec:
 
         # Act -- synthesize a FileNotFoundError-like error.
         exc = FileNotFoundError("no such port")
-        actual = _classify_serial_error(
-            exc, "BOGUS1|BOGUS2", source=_build_demo_fleet
-        )
+        actual = _classify_serial_error(exc, "BOGUS1|BOGUS2", source=_build_demo_fleet)
 
         # Assert
         assert "BOGUS1" in actual, f"first candidate named; got {actual!r}"
         assert "BOGUS2" in actual, f"second candidate named; got {actual!r}"
-        assert "not found" in actual.lower(), (
-            f"each should be marked not found; got {actual!r}"
-        )
+        assert "not found" in actual.lower(), f"each should be marked not found; got {actual!r}"
         # The roster is COM3, COM4, COM7 -- at least one should show
         # in the "Currently connected" list.
         assert "COM3" in actual or "COM4" in actual or "COM7" in actual, (
@@ -362,6 +343,4 @@ class TestClassifySerialErrorWithSpec:
         assert expected_substring in actual, (
             f"single-candidate spec keeps short message; got {actual!r}"
         )
-        assert "Tried each candidate" not in actual, (
-            "no candidate trace for single-candidate specs"
-        )
+        assert "Tried each candidate" not in actual, "no candidate trace for single-candidate specs"

@@ -19,20 +19,22 @@ from termapy.symbols import Address, Symbol, SymbolTable, parse_address, parse_n
 
 def _table() -> SymbolTable:
     """A table shaped like the demo file plus the grammar's edge cases."""
-    return SymbolTable([
-        Symbol("gTemp", 0x1000, 2, "bss", file="sensor.c", type="u16"),
-        Symbol("gFlags", 0x1008, 4, "data", file="main.c", type="u32"),
-        Symbol("count.12", 0x100C, 4, "bss", file="main.c", type="u32"),
-        Symbol("tick", 0x1010, 4, "bss", file="mon.c", type="u32"),
-        Symbol("tick", 0x1014, 4, "bss", file="adc.c", type="u32"),
-        Symbol("sState", 0x1030, 1, "bss", file="my-module.c"),
-        Symbol("__func__.3", 0x1040, 8, "rodata", file="main.c"),
-        Symbol("cafeh", 0x1050, 4, "bss", file="main.c"),
-        Symbol("dup", 0x1060, 4, "bss"),
-        Symbol("dup", 0x1064, 4, "bss"),
-        Symbol("main", 0x2000, 442, "text", file="main.c"),
-        Symbol("U1MODE", 0xBF806000, 4, "sfr", type="ON:B1-4.15 UEN:B1-4.8-9 BRGH:B1-4.3"),
-    ])
+    return SymbolTable(
+        [
+            Symbol("gTemp", 0x1000, 2, "bss", file="sensor.c", type="u16"),
+            Symbol("gFlags", 0x1008, 4, "data", file="main.c", type="u32"),
+            Symbol("count.12", 0x100C, 4, "bss", file="main.c", type="u32"),
+            Symbol("tick", 0x1010, 4, "bss", file="mon.c", type="u32"),
+            Symbol("tick", 0x1014, 4, "bss", file="adc.c", type="u32"),
+            Symbol("sState", 0x1030, 1, "bss", file="my-module.c"),
+            Symbol("__func__.3", 0x1040, 8, "rodata", file="main.c"),
+            Symbol("cafeh", 0x1050, 4, "bss", file="main.c"),
+            Symbol("dup", 0x1060, 4, "bss"),
+            Symbol("dup", 0x1064, 4, "bss"),
+            Symbol("main", 0x2000, 442, "text", file="main.c"),
+            Symbol("U1MODE", 0xBF806000, 4, "sfr", type="ON:B1-4.15 UEN:B1-4.8-9 BRGH:B1-4.3"),
+        ]
+    )
 
 
 @pytest.fixture
@@ -44,7 +46,6 @@ def table() -> SymbolTable:
 
 
 class TestParseNumber:
-
     @pytest.mark.parametrize(
         ("text", "expected"),
         [
@@ -66,9 +67,22 @@ class TestParseNumber:
             (" 0x10 ", 16),
         ],
         ids=[
-            "0x-upper", "0X-lower", "h-suffix", "FFFFh", "0FFFFh", "decimal-1000",
-            "decimal-12345", "decimal-8-digits", "decimal-100", "bare-hex-is-not-a-number",
-            "0x-alone", "empty", "negative", "garbage-digits", "word", "whitespace",
+            "0x-upper",
+            "0X-lower",
+            "h-suffix",
+            "FFFFh",
+            "0FFFFh",
+            "decimal-1000",
+            "decimal-12345",
+            "decimal-8-digits",
+            "decimal-100",
+            "bare-hex-is-not-a-number",
+            "0x-alone",
+            "empty",
+            "negative",
+            "garbage-digits",
+            "word",
+            "whitespace",
         ],
     )
     def test_parse_number(self, text, expected):
@@ -84,10 +98,15 @@ class TestParseNumber:
 
 
 class TestParseAddressLiterals:
-
     @pytest.mark.parametrize(
         ("text", "expected"),
-        [("0xFFFF", 0xFFFF), ("0X10FFA", 0x10FFA), ("FFFFh", 0xFFFF), ("4096", 4096), ("1000", 1000)],
+        [
+            ("0xFFFF", 0xFFFF),
+            ("0X10FFA", 0x10FFA),
+            ("FFFFh", 0xFFFF),
+            ("4096", 4096),
+            ("1000", 1000),
+        ],
         ids=["0x", "0X", "h", "decimal-4096", "decimal-1000"],
     )
     def test_literal_without_table(self, text, expected):
@@ -112,7 +131,9 @@ class TestParseAddressLiterals:
         actual = parse_address("0x1000-4", table)
 
         # Assert
-        assert actual == Address("0x1000-4", 0xFFC, None, -4), "a negative offset above zero is fine"
+        assert actual == Address("0x1000-4", 0xFFC, None, -4), (
+            "a negative offset above zero is fine"
+        )
 
     def test_whitespace_stripped(self):
         """Surrounding whitespace is dropped from both the parsed address and its echoed text."""
@@ -137,7 +158,6 @@ class TestParseAddressLiterals:
 
 
 class TestParseAddressSymbols:
-
     def test_name(self, table):
         """A plain name resolves to its address, carries its Symbol, and has no offset or suffix."""
         # Act
@@ -145,7 +165,9 @@ class TestParseAddressSymbols:
 
         # Assert
         assert actual.addr == 0x2000, "name resolves to its address"
-        assert actual.symbol is not None and actual.symbol.name == "main", "symbol is what was named"
+        assert actual.symbol is not None and actual.symbol.name == "main", (
+            "symbol is what was named"
+        )
         assert (actual.offset, actual.suffix) == (0, ""), "no offset, no suffix"
 
     @pytest.mark.parametrize("text", ["main+0x10", "main+16"], ids=["hex-offset", "decimal-offset"])
@@ -217,10 +239,12 @@ class TestParseAddressSymbols:
     def test_file_qualifier_by_path(self):
         """An @qualifier also matches the symbol's exact recorded file path."""
         # Arrange
-        table = SymbolTable([
-            Symbol("tick", 0x1010, 4, "bss", file="src/mon.c"),
-            Symbol("tick", 0x1014, 4, "bss", file="src/adc.c"),
-        ])
+        table = SymbolTable(
+            [
+                Symbol("tick", 0x1010, 4, "bss", file="src/mon.c"),
+                Symbol("tick", 0x1014, 4, "bss", file="src/adc.c"),
+            ]
+        )
 
         # Act
         actual = parse_address("tick@src/adc.c", table)
@@ -281,7 +305,9 @@ class TestParseAddressSymbols:
         actual = parse_address("cafeh+4", table)
 
         # Assert
-        assert (actual.addr, actual.offset) == (0x1054, 4), "cafeh+4 is the symbol plus 4, not 0xCAFE+4"
+        assert (actual.addr, actual.offset) == (0x1054, 4), (
+            "cafeh+4 is the symbol plus 4, not 0xCAFE+4"
+        )
         assert actual.symbol is not None and actual.symbol.name == "cafeh", "symbol is the base"
 
     def test_h_spelling_without_a_matching_symbol(self, table):
@@ -297,7 +323,6 @@ class TestParseAddressSymbols:
 
 
 class TestParseAddressSuffix:
-
     def test_dotted_symbol_exact_wins(self, table):
         """A dotted static like count.12 resolves whole rather than as bit 12."""
         # Act
@@ -384,7 +409,6 @@ class TestParseAddressSuffix:
 
 
 class TestParseAddressInvalid:
-
     @pytest.mark.parametrize(
         ("text", "expected"),
         [
@@ -401,8 +425,17 @@ class TestParseAddressInvalid:
             ("tick@", "Invalid address: tick@"),
         ],
         ids=[
-            "empty", "blank", "leading-dot", "trailing-dot", "bare-plus", "dangling-plus", "digits",
-            "symbol-underflow", "literal-underflow", "dangling-at", "dangling-at-ambiguous-name",
+            "empty",
+            "blank",
+            "leading-dot",
+            "trailing-dot",
+            "bare-plus",
+            "dangling-plus",
+            "digits",
+            "symbol-underflow",
+            "literal-underflow",
+            "dangling-at",
+            "dangling-at-ambiguous-name",
         ],
     )
     def test_invalid(self, table, text, expected):

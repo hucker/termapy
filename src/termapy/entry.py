@@ -51,6 +51,7 @@ class _OneCommand(argparse.Action):
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser.  No side effects; pure construction."""
     from importlib.metadata import PackageNotFoundError
+
     try:
         _version = _get_version("termapy")
     except PackageNotFoundError:
@@ -130,7 +131,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run a .run script and exit (CLI mode, implies --cli)",
     )
     parser.add_argument(
-        "-e", "--exec",
+        "-e",
+        "--exec",
         action=_OneCommand,
         default=None,
         metavar="COMMAND",
@@ -192,8 +194,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PORT",
         help="Show serial port chip info and exit (verbose per-port dump). "
-             "Optional PORT name (e.g. COM3, /dev/ttyUSB0); "
-             "omit for all connected ports.",
+        "Optional PORT name (e.g. COM3, /dev/ttyUSB0); "
+        "omit for all connected ports.",
     )
     parser.add_argument(
         "--ports",
@@ -202,19 +204,19 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PORT",
         help="List serial ports one line per port and exit.  "
-             "Optional PORT name filters to a single device.",
+        "Optional PORT name filters to a single device.",
     )
     parser.add_argument(
         "--watch",
         action="store_true",
         help="Monitor serial ports and print changes "
-             "(presence, in-use, serial number) as events.  Ctrl+C to exit.",
+        "(presence, in-use, serial number) as events.  Ctrl+C to exit.",
     )
     parser.add_argument(
         "--usb",
         action="store_true",
         help="Show the whole USB tree -- every hub, device and "
-             "interface -- with serial ports marked.  Windows and Linux.",
+        "interface -- with serial ports marked.  Windows and Linux.",
     )
     parser.add_argument(
         "--chips",
@@ -223,66 +225,63 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="FILTER",
         help="Dump the USB-serial chip lookup table and exit.  "
-             "Optional FILTER substring narrows to matching chip models.",
+        "Optional FILTER substring narrows to matching chip models.",
     )
     parser.add_argument(
         "--json",
         action="store_true",
         help="Emit JSON instead of a column-aligned table.  "
-             "Applies to --ports, --chips, and --usb.",
+        "Applies to --ports, --chips, and --usb.",
     )
     parser.add_argument(
         "--vid",
         default=None,
-        help="Filter --ports to USB devices matching this VID "
-             "(hex, with or without 0x).",
+        help="Filter --ports to USB devices matching this VID (hex, with or without 0x).",
     )
     parser.add_argument(
         "--pid",
         default=None,
-        help="Filter --ports to USB devices matching this PID "
-             "(hex, with or without 0x).",
+        help="Filter --ports to USB devices matching this PID (hex, with or without 0x).",
     )
     parser.add_argument(
         "--mfg",
         default=None,
         help="Filter --ports to devices whose manufacturer string contains "
-             "this substring (case-insensitive).",
+        "this substring (case-insensitive).",
     )
     parser.add_argument(
         "--sn",
         default=None,
-        help="Filter --ports to the device with this exact serial number "
-             "(case-insensitive).",
+        help="Filter --ports to the device with this exact serial number (case-insensitive).",
     )
     parser.add_argument(
         "--validate-profile",
         default=None,
         metavar="PATH",
         help="Validate a device profile (.json or .toml) against the schema "
-             "and exit.  Exit 0 if valid, 1 with errors otherwise.",
+        "and exit.  Exit 0 if valid, 1 with errors otherwise.",
     )
     parser.add_argument(
         "--strict",
         action="store_true",
         help="With --validate-profile: treat compatibility warnings "
-             "(unknown fields, non-canonical values) as errors and exit 1. "
-             "For CI and pre-commit hooks, where nobody reads warnings.",
+        "(unknown fields, non-canonical values) as errors and exit 1. "
+        "For CI and pre-commit hooks, where nobody reads warnings.",
     )
     parser.add_argument(
         "--mcp",
         action="store_true",
         help="Run as a stdio MCP (Model Context Protocol) server.  Stdout "
-             "is reserved for protocol frames; session log goes to "
-             "<cfg_dir>/mcp/session.log.  Requires the 'mcp' extra: "
-             "pip install termapy[mcp].",
+        "is reserved for protocol frames; session log goes to "
+        "<cfg_dir>/mcp/session.log.  Requires the 'mcp' extra: "
+        "pip install termapy[mcp].",
     )
     parser.add_argument(
         "--mcp-verbose",
         action="store_true",
         help="Dev observability for --mcp: tee log events to stderr in real "
-             "time.  Stderr is safe (only stdout is the MCP wire); production "
-             "users omit this flag for clean stdio.",
+        "time.  Stderr is safe (only stdout is the MCP wire); production "
+        "users omit this flag for clean stdio.",
     )
     return parser
 
@@ -314,8 +313,7 @@ def _run_validate_profile(path_str: str, strict: bool = False) -> None:
         print(f"  warning: {w}", file=sys.stderr)
     if result.ok and result.warnings and strict:
         print(
-            f"FAIL: {p} ({len(result.warnings)} warning(s) escalated by "
-            f"--strict)",
+            f"FAIL: {p} ({len(result.warnings)} warning(s) escalated by --strict)",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -349,18 +347,23 @@ def main() -> None:
     # of these calls sys.exit() internally, so control never returns.
     if args.info is not None:
         from termapy.cli_flags import run_info
+
         run_info(args)
     if args.ports is not None:
         from termapy.cli_flags import run_ports
+
         run_ports(args)
     if args.watch:
         from termapy.cli_flags import run_watch
+
         run_watch(args)
     if args.usb:
         from termapy.cli_flags import run_usb
+
         run_usb(args)
     if args.chips is not None:
         from termapy.cli_flags import run_chips
+
         run_chips(args)
     if args.validate_profile is not None:
         _run_validate_profile(args.validate_profile, strict=args.strict)
@@ -369,6 +372,7 @@ def main() -> None:
     # that might resolve configs.
     if args.cfg_dir:
         import termapy.config as _cfg_mod
+
         _cfg_mod.CFG_DIR = args.cfg_dir
 
     # Normalize positional arg by extension - infer intent.  This
@@ -383,6 +387,7 @@ def main() -> None:
                 # TUI mode: infer config, don't auto-run.  Lives in the
                 # Textual-free config_resolve module.
                 from termapy.config_resolve import infer_config_from_run_file
+
                 inferred = infer_config_from_run_file(args.run)
                 if inferred:
                     args.config = inferred
@@ -395,6 +400,7 @@ def main() -> None:
                     sys.exit(1)
         elif ext == ".pro" and not args.proto:
             from termapy.config_resolve import infer_config_from_run_file
+
             inferred = infer_config_from_run_file(args.config)
             if inferred:
                 args.proto = args.config
@@ -409,6 +415,7 @@ def main() -> None:
     # --check is TUI-free: dispatch to cli_flags.
     if args.check:
         from termapy.cli_flags import run_check
+
         run_check(args)
         return
 
@@ -416,6 +423,7 @@ def main() -> None:
     # config + plugin loading).  Stays in app.py for now.
     if args.proto is not None:
         from termapy.app import _run_proto_headless
+
         _run_proto_headless(args)
         return
 
@@ -423,6 +431,7 @@ def main() -> None:
     # server module loads, not Textual in this process.
     if args.web:
         from termapy.app import _run_web_mode
+
         _run_web_mode(args)
         return
 
@@ -430,6 +439,7 @@ def main() -> None:
     # (and pydantic) out of the import graph for normal termapy usage.
     if args.mcp:
         from termapy.mcp.server import run_mcp_stdio
+
         run_mcp_stdio(args)
         return
 

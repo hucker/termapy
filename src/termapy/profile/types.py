@@ -53,14 +53,16 @@ BUILTINS: frozenset[str] = frozenset({"int", "float", "bool", "hex", "str"})
 
 # Valid ``kind`` values for a user-defined type.  Mirrored from the
 # schema; ``schema_kinds()`` is the single source of truth for tests.
-_KINDS: frozenset[str] = frozenset({
-    "enum",
-    "int_range",
-    "float_range",
-    "str_length",
-    "pattern",
-    "format_spec",
-})
+_KINDS: frozenset[str] = frozenset(
+    {
+        "enum",
+        "int_range",
+        "float_range",
+        "str_length",
+        "pattern",
+        "format_spec",
+    }
+)
 
 
 def schema_kinds() -> tuple[str, ...]:
@@ -164,36 +166,44 @@ def _build_typedef(name: str, raw: dict) -> TypeDef:
     help_text = raw.get("help", "")
     if kind not in _KINDS:
         return TypeDef(
-            name=name, kind=kind or "?", help=help_text,
-            build_error=(
-                f"unknown kind {kind!r}; "
-                f"valid: {', '.join(schema_kinds())}"
-            ),
+            name=name,
+            kind=kind or "?",
+            help=help_text,
+            build_error=(f"unknown kind {kind!r}; valid: {', '.join(schema_kinds())}"),
         )
 
     if kind == "enum":
         values = raw.get("values", [])
         if not values:
             return TypeDef(
-                name=name, kind=kind, help=help_text,
+                name=name,
+                kind=kind,
+                help=help_text,
                 build_error="enum type requires non-empty 'values'",
             )
         # Stringify for uniform comparison — schema allows
         # str/number/bool members.
         return TypeDef(
-            name=name, kind=kind, help=help_text,
+            name=name,
+            kind=kind,
+            help=help_text,
             values=tuple(str(value) for value in values),
         )
 
     if kind in ("int_range", "float_range"):
         if "min" not in raw or "max" not in raw:
             return TypeDef(
-                name=name, kind=kind, help=help_text,
+                name=name,
+                kind=kind,
+                help=help_text,
                 build_error=f"{kind} requires both 'min' and 'max'",
             )
         return TypeDef(
-            name=name, kind=kind, help=help_text,
-            min=float(raw["min"]), max=float(raw["max"]),
+            name=name,
+            kind=kind,
+            help=help_text,
+            min=float(raw["min"]),
+            max=float(raw["max"]),
         )
 
     if kind == "str_length":
@@ -201,11 +211,15 @@ def _build_typedef(name: str, raw: dict) -> TypeDef:
         mx = raw.get("max_len")
         if mn is None and mx is None:
             return TypeDef(
-                name=name, kind=kind, help=help_text,
+                name=name,
+                kind=kind,
+                help=help_text,
                 build_error="str_length requires 'min_len' or 'max_len'",
             )
         return TypeDef(
-            name=name, kind=kind, help=help_text,
+            name=name,
+            kind=kind,
+            help=help_text,
             min_len=int(mn) if mn is not None else None,
             max_len=int(mx) if mx is not None else None,
         )
@@ -214,26 +228,36 @@ def _build_typedef(name: str, raw: dict) -> TypeDef:
         regex = raw.get("regex", "")
         if not regex:
             return TypeDef(
-                name=name, kind=kind, help=help_text,
+                name=name,
+                kind=kind,
+                help=help_text,
                 build_error="pattern requires 'regex'",
             )
         try:
             compiled = re.compile(regex)
         except re.error as exc:
             return TypeDef(
-                name=name, kind=kind, help=help_text, regex=regex,
+                name=name,
+                kind=kind,
+                help=help_text,
+                regex=regex,
                 build_error=f"invalid regex: {exc}",
             )
         return TypeDef(
-            name=name, kind=kind, help=help_text,
-            regex=regex, compiled_regex=compiled,
+            name=name,
+            kind=kind,
+            help=help_text,
+            regex=regex,
+            compiled_regex=compiled,
         )
 
     if kind == "format_spec":
         spec = raw.get("spec", "")
         if not spec:
             return TypeDef(
-                name=name, kind=kind, help=help_text,
+                name=name,
+                kind=kind,
+                help=help_text,
                 build_error="format_spec requires 'spec'",
             )
         # Parse via protocol.parse_format_spec once at build time so
@@ -242,22 +266,31 @@ def _build_typedef(name: str, raw: dict) -> TypeDef:
         # string.  Failure is captured non-fatally.
         try:
             from termapy.protocol import parse_format_spec
+
             columns = tuple(parse_format_spec(spec))
         except Exception as exc:  # noqa: BLE001 -- protocol boundary
             return TypeDef(
-                name=name, kind=kind, help=help_text, spec=spec,
+                name=name,
+                kind=kind,
+                help=help_text,
+                spec=spec,
                 build_error=f"invalid format_spec: {exc}",
             )
         return TypeDef(
-            name=name, kind=kind, help=help_text,
-            spec=spec, columns=columns,
+            name=name,
+            kind=kind,
+            help=help_text,
+            spec=spec,
+            columns=columns,
         )
 
     # Unreachable given the _KINDS membership check above; included to
     # quiet type-checkers and to catch future kinds added to the schema
     # without a handler here.
     return TypeDef(
-        name=name, kind=kind, help=help_text,
+        name=name,
+        kind=kind,
+        help=help_text,
         build_error=f"no validator for kind {kind!r}",
     )
 
@@ -302,11 +335,9 @@ class TypeRegistry:
                 # Ill-formed entry — store a build-error TypeDef so the
                 # author sees the problem when they try to use it.
                 built[name] = TypeDef(
-                    name=name, kind="?",
-                    build_error=(
-                        f"type definition must be an object, "
-                        f"got {type(raw).__name__}"
-                    ),
+                    name=name,
+                    kind="?",
+                    build_error=(f"type definition must be an object, got {type(raw).__name__}"),
                 )
                 continue
             built[name] = _build_typedef(name, raw)
@@ -348,14 +379,13 @@ class TypeRegistry:
             return ValidationOutcome(
                 ok=False,
                 error=f"unknown type {type_name!r}; "
-                      f"add it to the profile's 'types' block or use a "
-                      f"builtin ({', '.join(sorted(BUILTINS))})",
+                f"add it to the profile's 'types' block or use a "
+                f"builtin ({', '.join(sorted(BUILTINS))})",
             )
         if td.build_error:
             return ValidationOutcome(
                 ok=False,
-                error=f"type {type_name!r} has a definition error: "
-                      f"{td.build_error}",
+                error=f"type {type_name!r} has a definition error: {td.build_error}",
             )
         return self._validate_custom(td, raw)
 
@@ -409,8 +439,7 @@ class TypeRegistry:
             except (TypeError, ValueError):
                 return ValidationOutcome(
                     ok=False,
-                    error=f"got {raw!r}; expected int in "
-                          f"[{int(td.min or 0)}, {int(td.max or 0)}]",
+                    error=f"got {raw!r}; expected int in [{int(td.min or 0)}, {int(td.max or 0)}]",
                 )
             if td.min is not None and v < td.min:
                 return ValidationOutcome(
@@ -430,8 +459,7 @@ class TypeRegistry:
             except (TypeError, ValueError):
                 return ValidationOutcome(
                     ok=False,
-                    error=f"got {raw!r}; expected float in "
-                          f"[{td.min}, {td.max}]",
+                    error=f"got {raw!r}; expected float in [{td.min}, {td.max}]",
                 )
             if td.min is not None and v < td.min:
                 return ValidationOutcome(

@@ -60,6 +60,7 @@ class TestParseOutputLevel:
 def ctx_with_writes():
     """PluginContext that captures writes."""
     from termapy.plugins import IOHandle
+
     writes: list[tuple[str, str | None]] = []
     ctx = PluginContext(io=IOHandle(_write=lambda text, color=None: writes.append((text, color))))
     return ctx, writes
@@ -69,11 +70,14 @@ def ctx_with_writes():
 def ctx_with_markup_writes():
     """PluginContext that captures both _write and _write_markup, tagged."""
     from termapy.plugins import IOHandle
+
     writes: list[tuple[str, str, str | None]] = []
-    ctx = PluginContext(io=IOHandle(
-        _write=lambda text, color=None: writes.append(("text", text, color)),
-        _write_markup=lambda text: writes.append(("markup", text, None)),
-    ))
+    ctx = PluginContext(
+        io=IOHandle(
+            _write=lambda text, color=None: writes.append(("text", text, color)),
+            _write_markup=lambda text: writes.append(("markup", text, None)),
+        )
+    )
     return ctx, writes
 
 
@@ -89,8 +93,9 @@ class TestChannelGating:
             ("verbose", True, True, True),
         ],
     )
-    def test_channels_for_level(self, ctx_with_writes, level, result_shown,
-                                 output_shown, status_shown):
+    def test_channels_for_level(
+        self, ctx_with_writes, level, result_shown, output_shown, status_shown
+    ):
         """result, output and status each appear from their own level up, and not below."""
         # Arrange
         ctx, writes = ctx_with_writes
@@ -143,15 +148,19 @@ class TestMarkupChannelGating:
     @pytest.mark.parametrize(
         "level,result_shown,output_shown,status_shown",
         [
-            ("silent",  False, False, False),
-            ("quiet",   True,  False, False),
-            ("normal",  True,  True,  False),
-            ("verbose", True,  True,  True),
+            ("silent", False, False, False),
+            ("quiet", True, False, False),
+            ("normal", True, True, False),
+            ("verbose", True, True, True),
         ],
     )
     def test_markup_channels_for_level(
-        self, ctx_with_markup_writes, level,
-        result_shown, output_shown, status_shown,
+        self,
+        ctx_with_markup_writes,
+        level,
+        result_shown,
+        output_shown,
+        status_shown,
     ):
         """The _markup channels gate at the same levels as their plain twins."""
         # Arrange
@@ -242,9 +251,7 @@ def eng_with_test_command(tmp_path):
     for sub in ("plugin", "ss", "run"):
         (config_path.parent / sub).mkdir(exist_ok=True)
     writes: list[tuple[str, str | None]] = []
-    eng = ReplEngine(
-        cfg, str(config_path), lambda t, c=None: writes.append((t, c))
-    )
+    eng = ReplEngine(cfg, str(config_path), lambda t, c=None: writes.append((t, c)))
     eng.ctx.ns("flags")["output_level"] = "normal"  # default
 
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -374,7 +381,9 @@ class TestLevelFlagDispatch:
 def real_engine(tmp_path):
     """ReplEngine -- builtins are loaded automatically by its __init__."""
     cfg = {
-        "port": "DEMO", "baud_rate": 115200, "eol": "\r",
+        "port": "DEMO",
+        "baud_rate": 115200,
+        "eol": "\r",
         "echo": False,
     }
     config_path = tmp_path / "test.cfg"

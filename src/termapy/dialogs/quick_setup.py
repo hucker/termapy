@@ -51,8 +51,22 @@ class QuickSetup(ModalScreen[tuple | None]):
     """
 
     _COMMON_BAUDS = [
-        300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600,
-        115200, 230400, 460800, 921600, 1500000, 2000000, 3000000,
+        300,
+        600,
+        1200,
+        2400,
+        4800,
+        9600,
+        19200,
+        38400,
+        57600,
+        115200,
+        230400,
+        460800,
+        921600,
+        1500000,
+        2000000,
+        3000000,
     ]
 
     def __init__(self, title: str = "New Config") -> None:
@@ -82,7 +96,9 @@ class QuickSetup(ModalScreen[tuple | None]):
             # so wide terminals show wider columns (incl. Location).
             port_list = OptionList(id="qs-port-list")
             _populate_port_option_list(
-                port_list, self._ports, row_width=120,
+                port_list,
+                self._ports,
+                row_width=120,
             )
             if self._ports:
                 port_list.highlighted = 2  # skip header + separator rows
@@ -137,30 +153,22 @@ class QuickSetup(ModalScreen[tuple | None]):
         compose() because it flips dynamically when the user toggles
         between standard/custom baud entry; we don't touch it here.
         """
-        self.query_one("#qs-name", Input).tooltip = (
-            "Config name.  Becomes the folder name under termapy_cfg/."
-        )
-        self.query_one("#qs-port-list", OptionList).tooltip = (
-            "Connected serial ports.  Click a row to select."
-        )
-        self.query_one("#qs-baud-list", OptionList).tooltip = (
-            "Pick a standard baud rate."
-        )
-        self.query_one("#qs-baud-input", Input).tooltip = (
-            "Type a custom baud rate (>= 300)."
-        )
-        self.query_one("#qs-add-icon", StrongCheckbox).tooltip = (
-            "Also create a desktop / menu launcher for this config."
-        )
-        self.query_one("#qs-connect", Button).tooltip = (
-            "Save the config and connect immediately."
-        )
-        self.query_one("#qs-advanced", Button).tooltip = (
-            "Save the config and open the full Config Editor."
-        )
-        self.query_one("#qs-cancel", Button).tooltip = (
-            "Close without creating a config."
-        )
+        self.query_one(
+            "#qs-name", Input
+        ).tooltip = "Config name.  Becomes the folder name under termapy_cfg/."
+        self.query_one(
+            "#qs-port-list", OptionList
+        ).tooltip = "Connected serial ports.  Click a row to select."
+        self.query_one("#qs-baud-list", OptionList).tooltip = "Pick a standard baud rate."
+        self.query_one("#qs-baud-input", Input).tooltip = "Type a custom baud rate (>= 300)."
+        self.query_one(
+            "#qs-add-icon", StrongCheckbox
+        ).tooltip = "Also create a desktop / menu launcher for this config."
+        self.query_one("#qs-connect", Button).tooltip = "Save the config and connect immediately."
+        self.query_one(
+            "#qs-advanced", Button
+        ).tooltip = "Save the config and open the full Config Editor."
+        self.query_one("#qs-cancel", Button).tooltip = "Close without creating a config."
         self.call_after_refresh(self._render_port_list)
         # Poll comports once a second so the dialog reflects USB
         # plug / unplug events without the user re-opening it.
@@ -179,6 +187,7 @@ class QuickSetup(ModalScreen[tuple | None]):
         truth about whether clicking it will do anything.
         """
         from serial.tools.list_ports import comports
+
         fresh = sorted(comports(), key=lambda p: p.device)
         if [p.device for p in fresh] == [p.device for p in self._ports]:
             return

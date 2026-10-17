@@ -70,25 +70,25 @@ class FolderSpec:
 # for folders safe to wipe; add ``dumpable=False`` when contents are
 # binary / shouldn't be exported.
 FOLDERS = [
-    FolderSpec("run",    ".run"),
-    FolderSpec("proto",  ".pro"),
+    FolderSpec("run", ".run"),
+    FolderSpec("proto", ".pro"),
     FolderSpec("plugin", ".py"),
-    FolderSpec("ss",     "*",    clearable=True, dumpable=False),
-    FolderSpec("viz",    ".py"),
-    FolderSpec("cap",    "*",    clearable=True),
-    FolderSpec("prof",   ".csv", clearable=True),
+    FolderSpec("ss", "*", clearable=True, dumpable=False),
+    FolderSpec("viz", ".py"),
+    FolderSpec("cap", "*", clearable=True),
+    FolderSpec("prof", ".csv", clearable=True),
     # Symbol tables (*.symbols.json) and, later, user converter modules.
-    FolderSpec("sym",    "*"),
+    FolderSpec("sym", "*"),
     # Memory-mapped device register files (*.device.json).  Static chip
     # facts, not build output -- see termapy.devices.
-    FolderSpec("dev",    ".device.json"),
+    FolderSpec("dev", ".device.json"),
     # The device library: parts a config picks FROM (nothing here loads).
     # A nested vendor/type/family tree, so the top folder is the data
     # folder and the pattern sees only root-level files; listing is
     # termapy.devices.scan_library's job.  After "dev" so .device.json
     # keeps mapping to dev/ in EXT_TO_FOLDER.  Exists at the cfg root too,
     # like plugin/ and dev/ -- the per-config one wins a name clash.
-    FolderSpec("lib",    ".device.json"),
+    FolderSpec("lib", ".device.json"),
 ]
 
 # -- Derived from FOLDERS (do not edit manually) ------------------------------

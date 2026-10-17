@@ -89,8 +89,7 @@ def _drain(ser) -> None:
         ser.read(waiting)
 
 
-def _run_setup_cmds(ser, cmds: list[str], cfg: dict,
-                    frame_gap_ms: int) -> None:
+def _run_setup_cmds(ser, cmds: list[str], cfg: dict, frame_gap_ms: int) -> None:
     """Send setup/teardown commands and drain responses."""
     line_ending = cfg.get("eol", "\r")
     enc = cfg.get("encoding", "utf-8")
@@ -99,8 +98,9 @@ def _run_setup_cmds(ser, cmds: list[str], cfg: dict,
         _read_frame(ser, frame_gap_ms, 1000)  # drain response
 
 
-def build_test_result(tc: TestCase, response: bytes | None,
-                      elapsed_ms: float, passed: bool | None) -> dict:
+def build_test_result(
+    tc: TestCase, response: bytes | None, elapsed_ms: float, passed: bool | None
+) -> dict:
     """Build a JSON-serializable dict for a single test result."""
     result: dict = {
         "index": tc.index,
@@ -132,8 +132,7 @@ def build_test_result(tc: TestCase, response: bytes | None,
     return result
 
 
-def expand_result_template(template: str, proto_name: str,
-                           config_name: str = "") -> str:
+def expand_result_template(template: str, proto_name: str, config_name: str = "") -> str:
     """Expand a result filename template.
 
     Supported placeholders:
@@ -218,7 +217,11 @@ def build_results(
 
 
 def write_results(
-    results: dict, output_dir: Path, template: str, proto_name: str, config_name: str,
+    results: dict,
+    output_dir: Path,
+    template: str,
+    proto_name: str,
+    config_name: str,
 ) -> Path:
     """Write a results document under ``output_dir`` and return its path.
 
@@ -342,6 +345,7 @@ def run_proto_tests(
         # (device vanished) or OSError; nothing actionable at this
         # point, drop the handle either way.
         import serial as _serial
+
         try:
             ser.close()
         except (OSError, _serial.SerialException):
@@ -350,8 +354,15 @@ def run_proto_tests(
     total_elapsed = (time.monotonic() - t_start) * 1000
     config_name = Path(cfg.get("_config_path", "")).stem or ""
     results = build_results(
-        script, pro_path, text, cfg, config_name,
-        test_results, pass_count, fail_count, total_elapsed,
+        script,
+        pro_path,
+        text,
+        cfg,
+        config_name,
+        test_results,
+        pass_count,
+        fail_count,
+        total_elapsed,
     )
 
     # Write JSON file - script-level json_file overrides config template

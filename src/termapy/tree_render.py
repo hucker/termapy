@@ -106,20 +106,14 @@ class FileTree:
             if name.endswith("/"):
                 lines.append(self._dir_line(connector, name))
                 folder_path = (
-                    self.base_dir / name.rstrip("/")
-                    if self.base_dir is not None
-                    else None
+                    self.base_dir / name.rstrip("/") if self.base_dir is not None else None
                 )
                 for j, fname in enumerate(files):
                     child_conn = "└── " if j == len(files) - 1 else "├── "
                     fpath = folder_path / fname if folder_path is not None else None
-                    lines.append(
-                        self._file_line(child_indent + child_conn, fname, fpath)
-                    )
+                    lines.append(self._file_line(child_indent + child_conn, fname, fpath))
             else:
-                fpath = (
-                    self.base_dir / name if self.base_dir is not None else None
-                )
+                fpath = self.base_dir / name if self.base_dir is not None else None
                 lines.append(self._file_line(connector, name, fpath))
         return lines
 

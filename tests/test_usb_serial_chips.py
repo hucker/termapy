@@ -80,8 +80,7 @@ class TestChipLookup:
         # Act / Assert -- round-trip for a known entry
         actual_func = chip(0x0403, 0x6001)
         actual_dict = USB_SERIAL_CHIPS.get((0x0403, 0x6001))
-        assert actual_func is actual_dict, \
-            "chip() returns the same object the dict does"
+        assert actual_func is actual_dict, "chip() returns the same object the dict does"
 
 
 class TestChipTableStructure:
@@ -91,33 +90,34 @@ class TestChipTableStructure:
         """Every table value uses the ChipInfo dataclass."""
         # Act / Assert
         wrong_types = [
-            type(value).__name__ for value in USB_SERIAL_CHIPS.values()
+            type(value).__name__
+            for value in USB_SERIAL_CHIPS.values()
             if not isinstance(value, ChipInfo)
         ]
-        assert wrong_types == [], \
-            f"all values must be ChipInfo; got: {wrong_types}"
+        assert wrong_types == [], f"all values must be ChipInfo; got: {wrong_types}"
 
     def test_speed_values_are_full_or_high(self):
         """The ``speed`` field accepts only the two documented values."""
         # Act / Assert
-        bad = [(k, v.speed) for k, v in USB_SERIAL_CHIPS.items()
-               if v.speed not in ("full", "high")]
-        assert bad == [], \
-            f"speed must be 'full' or 'high'; violations: {bad}"
+        bad = [(k, v.speed) for k, v in USB_SERIAL_CHIPS.items() if v.speed not in ("full", "high")]
+        assert bad == [], f"speed must be 'full' or 'high'; violations: {bad}"
 
     def test_keys_are_2_tuples_of_ints(self):
         """Dict keys are ``(vid, pid)`` integer pairs."""
         # Act / Assert
         bad_keys = [
-            k for k in USB_SERIAL_CHIPS
-            if not (isinstance(k, tuple) and len(k) == 2
-                    and all(isinstance(x, int) for x in k))
+            k
+            for k in USB_SERIAL_CHIPS
+            if not (isinstance(k, tuple) and len(k) == 2 and all(isinstance(x, int) for x in k))
         ]
         assert bad_keys == [], f"bad keys: {bad_keys}"
 
     def test_max_baud_is_non_negative(self):
         """``max_baud`` is a non-negative int (0 means 'not a UART')."""
         # Act / Assert
-        bad = [(k, v.max_baud) for k, v in USB_SERIAL_CHIPS.items()
-               if not (isinstance(v.max_baud, int) and v.max_baud >= 0)]
+        bad = [
+            (k, v.max_baud)
+            for k, v in USB_SERIAL_CHIPS.items()
+            if not (isinstance(v.max_baud, int) and v.max_baud >= 0)
+        ]
         assert bad == [], f"max_baud must be >= 0 int; violations: {bad}"

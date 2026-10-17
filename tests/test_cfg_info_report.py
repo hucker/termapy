@@ -23,8 +23,13 @@ def _build(tmp_path: Path, *, interactive: bool = True, oneshot: bool = False):
     """Engine, config path and captured output over ``<tmp>/rig/rig.cfg``."""
     cfg = {
         "serial": {
-            "port": "", "baud_rate": 115200, "custom_baud": False, "byte_size": 8,
-            "parity": "N", "stop_bits": 1, "flow_control": "none",
+            "port": "",
+            "baud_rate": 115200,
+            "custom_baud": False,
+            "byte_size": 8,
+            "parity": "N",
+            "stop_bits": 1,
+            "flow_control": "none",
         },
         "echo": False,
         "eol": "\r",
@@ -78,7 +83,6 @@ def rig(tmp_path):
 
 
 class TestReportContents:
-
     def test_tails_the_log_and_history(self, rig):
         """The log and history sections keep exactly their newest 40 lines."""
         # Arrange -- more lines than the tail keeps, so the cut is visible
@@ -133,7 +137,6 @@ class TestReportContents:
 
 
 class TestExitHook:
-
     def test_on_app_stop_writes_the_report(self, rig):
         """Graceful shutdown rewrites the report, marked as written at exit."""
         # Arrange
@@ -187,7 +190,6 @@ class TestExitHook:
 
 
 class TestRename:
-
     def test_rename_carries_the_report(self, tmp_path):
         """Renaming a config moves the report to the new stem and leaves no stale copy."""
         # Arrange -- a report exists under the old name

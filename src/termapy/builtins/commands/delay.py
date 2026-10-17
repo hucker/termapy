@@ -95,7 +95,10 @@ COMMAND = Command(
     handler=_handler,
     params=[
         ParamSpec(
-            "duration", "duration", positional=True, required=True,
+            "duration",
+            "duration",
+            positional=True,
+            required=True,
             help="how long to wait, e.g. 500ms, 1.5s, 2m",
         ),
     ],

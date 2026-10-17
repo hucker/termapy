@@ -46,7 +46,6 @@ def _script(folder: Path, name: str, *lines: str) -> Path:
 
 
 class TestCaptureOwnsItsClaim:
-
     def test_scripted_stop_releases_the_claim(self, cli, tmp_path):
         """/cap.bin then /cap.stop inside one script leaves the port unclaimed."""
         # Arrange

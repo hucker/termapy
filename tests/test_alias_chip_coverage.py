@@ -25,23 +25,23 @@ class TestAliasCoverageOfChipTable:
     # When a new chip family lands in USB_SERIAL_CHIPS, add an entry
     # here so coverage stays visible.
     _EXPECTED = {
-        "FTDI":                      "FTDI",
+        "FTDI": "FTDI",
         "Future Technology Devices International": "FTDI",
-        "Silicon Labs":              "SiLabs",
-        "Silicon Laboratories":      "SiLabs",
-        "WCH.CN":                    "WCH",
-        "QinHeng Electronics":       "WCH",
-        "Prolific Technology Inc.":  "Prolific",
+        "Silicon Labs": "SiLabs",
+        "Silicon Laboratories": "SiLabs",
+        "WCH.CN": "WCH",
+        "QinHeng Electronics": "WCH",
+        "Prolific Technology Inc.": "Prolific",
         "Microchip Technology Inc.": "Microchip",
-        "STMicroelectronics":        "STM",
-        "ST-Link":                   "STM",
-        "Espressif Systems":         "Espressif",
-        "Arduino LLC":               "Arduino",
-        "SparkFun Electronics":      "SparkFun",
-        "Adafruit Industries":       "Adafruit",
-        "Adafruit Industries LLC":   "Adafruit",
-        "Teensyduino":               "Teensy",
-        "Raspberry Pi Foundation":   "RaspPi",
+        "STMicroelectronics": "STM",
+        "ST-Link": "STM",
+        "Espressif Systems": "Espressif",
+        "Arduino LLC": "Arduino",
+        "SparkFun Electronics": "SparkFun",
+        "Adafruit Industries": "Adafruit",
+        "Adafruit Industries LLC": "Adafruit",
+        "Teensyduino": "Teensy",
+        "Raspberry Pi Foundation": "RaspPi",
     }
 
     def test_every_chip_family_has_a_matching_alias(self):
@@ -52,6 +52,6 @@ class TestAliasCoverageOfChipTable:
             actual = mfg(raw)
             if actual != expected:
                 mismatches.append((raw, expected, actual))
-        assert mismatches == [], \
-            "mfg() must fold every known descriptor to its alias; " \
-            f"mismatches: {mismatches}"
+        assert mismatches == [], (
+            f"mfg() must fold every known descriptor to its alias; mismatches: {mismatches}"
+        )

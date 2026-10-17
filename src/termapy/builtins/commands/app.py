@@ -229,10 +229,7 @@ def _handler_ver_info(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Could not reach PyPI.")
 
     if outdated:
-        line = (
-            f"installed v{installed}  ->  latest v{latest}  "
-            f"(update available)"
-        )
+        line = f"installed v{installed}  ->  latest v{latest}  (update available)"
     else:
         line = f"installed v{installed}  (up to date; latest v{latest})"
     ctx.io.result(line)

@@ -111,8 +111,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     # current host's capabilities would surface.
     mcp_caps = ENVIRONMENTS["MCP"]
     cmd_count = sum(
-        1 for value in ctx.internal.plugins.values()
-        if not value.needs.missing_from(mcp_caps)
+        1 for value in ctx.internal.plugins.values() if not value.needs.missing_from(mcp_caps)
     )
 
     # Port state.
@@ -132,7 +131,8 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     profile = ctx.ns("active_profile") if hasattr(ctx, "ns") else {}
     profile_cmds = profile.get("commands", {}) if isinstance(profile, dict) else {}
     destructive_names = sorted(
-        name for name, spec in profile_cmds.items()
+        name
+        for name, spec in profile_cmds.items()
         if isinstance(spec, dict) and spec.get("safety") == "destructive"
     )
     # Enabled audit: when the profile contains any disabled entries the
@@ -141,8 +141,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     # remains to review.  Hide the row entirely when no profile is
     # loaded -- otherwise it's just noise saying "0 of 0".
     profile_enabled = sum(
-        1 for spec in profile_cmds.values()
-        if isinstance(spec, dict) and spec.get("enabled", True)
+        1 for spec in profile_cmds.values() if isinstance(spec, dict) and spec.get("enabled", True)
     )
     profile_total = len(profile_cmds)
     profile_disabled = profile_total - profile_enabled
@@ -177,12 +176,17 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("destructive", _format_destructive(destructive_names)),
     ]
     if profile_total:
-        rows.append((
-            "profile_enabled",
-            f"{profile_enabled} of {profile_total}"
-            + (f" ({profile_disabled} drafts pending review)"
-               if profile_disabled else " (all enabled)"),
-        ))
+        rows.append(
+            (
+                "profile_enabled",
+                f"{profile_enabled} of {profile_total}"
+                + (
+                    f" ({profile_disabled} drafts pending review)"
+                    if profile_disabled
+                    else " (all enabled)"
+                ),
+            )
+        )
     # Discoverability hint: many users will reach for /mcp.info first when
     # learning the MCP surface; point them at the human-readable view.
     hint = (

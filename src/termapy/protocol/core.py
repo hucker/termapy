@@ -661,11 +661,7 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
         elif key == "expect":
             exp_data, exp_mask = parse_pattern(val)
             is_binary = not val.strip().startswith('"')
-            timeout = (
-                current_timeout
-                if current_timeout is not None
-                else settings["timeout_ms"]
-            )
+            timeout = current_timeout if current_timeout is not None else settings["timeout_ms"]
             steps.append(
                 Step(
                     action="expect",
@@ -906,10 +902,9 @@ def _check_fmt(spec: str, where: str) -> None:
         raise ValueError(f"{where}: {e}") from None
 
 
-def load_proto_script(text: str) -> (
-    tuple[Literal["toml"], ProtoScript]
-    | tuple[Literal["flat"], tuple[dict, list[Step]]]
-):
+def load_proto_script(
+    text: str,
+) -> tuple[Literal["toml"], ProtoScript] | tuple[Literal["flat"], tuple[dict, list[Step]]]:
     """Auto-detect script format and parse accordingly.
 
     Text that parses as non-empty TOML is a TOML script, and its own
@@ -1328,7 +1323,9 @@ def parse_format_spec(spec: str, *, word: bool = False) -> list[ColumnSpec]:
 
 
 def resolve_word_columns(
-    columns: list[ColumnSpec], size: int, endian: str,
+    columns: list[ColumnSpec],
+    size: int,
+    endian: str,
 ) -> list[ColumnSpec]:
     """Bind word-relative bit columns (``NAME:B.<bits>``) to a register word.
 
@@ -1361,7 +1358,9 @@ def resolve_word_columns(
         if low + width > size * 8:
             raise ValueError(f"Invalid bit: {column.name} (the word is {size * 8} bits)")
         resolved.append(
-            ColumnSpec(name=column.name, type_code=column.type_code, byte_indices=word, bit=column.bit)
+            ColumnSpec(
+                name=column.name, type_code=column.type_code, byte_indices=word, bit=column.bit
+            )
         )
     return resolved
 
@@ -1621,7 +1620,9 @@ def inject_column_value(data: bytes, col: ColumnSpec, value: int) -> bytes:
         raise ValueError(f"Field {col.name} runs past {len(data)} bytes")
     low, width = _bit_slice(col)
     if not 0 <= value < (1 << width):
-        raise ValueError(f"Invalid value: {value} ({col.name} is {width} bit{'s' if width != 1 else ''})")
+        raise ValueError(
+            f"Invalid value: {value} ({col.name} is {width} bit{'s' if width != 1 else ''})"
+        )
     combined = int.from_bytes(bytes(data[index] for index in col.byte_indices), "big")
     combined &= ~(((1 << width) - 1) << low)
     combined |= value << low

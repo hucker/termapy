@@ -43,12 +43,19 @@ class _StdioClient:
         # not this machine's hardware.
         env["TERMAPY_DEMO_FLEET"] = "1"
         self.proc = subprocess.Popen(
-            [sys.executable, "-c",
-             "import sys; sys.argv = ['termapy', '--mcp', "
-             f"{str(cfg_file)!r}, '--cfg-dir', {str(cfg_dir)!r}]; "
-             "from termapy.entry import main; main()"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, encoding="utf-8", env=env,
+            [
+                sys.executable,
+                "-c",
+                "import sys; sys.argv = ['termapy', '--mcp', "
+                f"{str(cfg_file)!r}, '--cfg-dir', {str(cfg_dir)!r}]; "
+                "from termapy.entry import main; main()",
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            env=env,
         )
         self._lines: queue.Queue[str] = queue.Queue()
         self._id = 0
@@ -60,8 +67,14 @@ class _StdioClient:
         for line in stdout:
             self._lines.put(line)
 
-    def rpc(self, method: str, params: dict | None = None, *,
-            notify: bool = False, timeout: float = 20.0):
+    def rpc(
+        self,
+        method: str,
+        params: dict | None = None,
+        *,
+        notify: bool = False,
+        timeout: float = 20.0,
+    ):
         """Send one request (or notification) and return the response."""
         msg: dict = {"jsonrpc": "2.0", "method": method}
         if params is not None:
@@ -94,17 +107,27 @@ class _StdioClient:
 
 def _run_command(client: _StdioClient, command: str) -> dict:
     """tools/call run_command and parse the envelope out of the reply."""
-    reply = client.rpc("tools/call", {
-        "name": "run_command",
-        "arguments": {"command": command, "output": "normal", "timeout_s": 5},
-    })
+    reply = client.rpc(
+        "tools/call",
+        {
+            "name": "run_command",
+            "arguments": {"command": command, "output": "normal", "timeout_s": 5},
+        },
+    )
     content = reply["result"]["content"][0]["text"]
     return json.loads(content)
 
 
 ENVELOPE_KEYS = {
-    "cmd", "success", "error", "value", "data", "elapsed_s",
-    "output_lines", "captured_artifacts", "async_events",
+    "cmd",
+    "success",
+    "error",
+    "value",
+    "data",
+    "elapsed_s",
+    "output_lines",
+    "captured_artifacts",
+    "async_events",
 }
 
 
@@ -129,11 +152,14 @@ class TestMcpStdioEndToEnd:
             # Act / Assert -- one conversation, the way an agent has it.
 
             # 1. Handshake.
-            init = client.rpc("initialize", {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "pytest-stdio", "version": "0"},
-            })
+            init = client.rpc(
+                "initialize",
+                {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "pytest-stdio", "version": "0"},
+                },
+            )
             server_name = init["result"]["serverInfo"]["name"]
             assert server_name == "termapy", "server identifies itself"
             client.rpc("notifications/initialized", {}, notify=True)
@@ -145,9 +171,7 @@ class TestMcpStdioEndToEnd:
 
             # 3. A termapy command: structured records over the wire.
             envelope = _run_command(client, "/port.list")
-            assert set(envelope.keys()) == ENVELOPE_KEYS, (
-                "wire envelope is the fixed nine keys"
-            )
+            assert set(envelope.keys()) == ENVELOPE_KEYS, "wire envelope is the fixed nine keys"
             devices = [record["device"] for record in envelope["data"]]
             assert devices == ["COM3", "COM4", "COM7"], (
                 "demo fleet records in data (TERMAPY_DEMO_FLEET reached "
@@ -166,18 +190,13 @@ class TestMcpStdioEndToEnd:
             at = _run_command(client, "AT")
             assert at["success"] is True, "request/response exchange succeeds"
             assert at["value"] == "OK", (
-                "plain text device answers in value -- the agent now has "
-                "the reply"
+                "plain text device answers in value -- the agent now has the reply"
             )
             assert at["data"] is None, "text reply carries no structure"
 
             # 5. A resource read.
-            res = client.rpc(
-                "resources/read", {"uri": "termapy://device_state.json"}
-            )
+            res = client.rpc("resources/read", {"uri": "termapy://device_state.json"})
             state = json.loads(res["result"]["contents"][0]["text"])
-            assert state["last_command"]["cmd"] == "AT", (
-                "device_state tracks the conversation"
-            )
+            assert state["last_command"]["cmd"] == "AT", "device_state tracks the conversation"
         finally:
             client.close()

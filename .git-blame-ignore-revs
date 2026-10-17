@@ -1,0 +1,9 @@
+# Commits `git blame` skips: formatting-only changes that move every line
+# without changing what it does.  Enable once per clone (GitHub reads it
+# automatically):
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# 2026-10-17 style: ruff format the whole project (decision 2026-10-17)
+fbea71ad409e8058aed8fe758f3301400f9b89e4
+# 2026-10-17 style: second ruff format pass (two files settle)
+ddc1cfb1d9e66eae8f6e89c6fc7cdccf60c9b3a1

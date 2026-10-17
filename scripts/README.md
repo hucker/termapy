@@ -19,7 +19,7 @@ python scripts/release_prep.py 0.53.2
 
 This will:
 
-1. Sanity-check git state (on main, clean tree, in sync with origin, tag doesn't exist) and the gates: ruff and ty at zero, no undisciplined suppression added since the last tag
+1. Sanity-check git state (on main, clean tree, in sync with origin, tag doesn't exist) and the gates: ruff and ty at zero, nothing for `ruff format` to reformat, no undisciplined suppression added since the last tag
 2. Cut `release/v0.53.2` from main
 3. Bump version in `pyproject.toml` and `mkdocs.yml`; `uv lock --upgrade` so every dependency the manifest does not pin moves to its newest allowed version; re-run the ruff/ty gate against that environment
 4. Audit `uv.lock` for known vulnerabilities (`audit_lock.py`); a finding reviewed as unreachable is passed with `--ignore-vuln <ID>`

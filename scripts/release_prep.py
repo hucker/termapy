@@ -232,8 +232,27 @@ def count_ruff_issues() -> int:
     return 0  # unreachable, satisfies type checker
 
 
+def count_unformatted() -> int:
+    """Files `uv run ruff format --check` would reformat, over the whole project.
+
+    Code is formatted by ruff, always (decision 2026-10-17); the excludes in
+    [tool.ruff.format] say what is not.  A clean project prints ``N files
+    already formatted`` and exits 0.  ``--no-cache``: the cache records what
+    ``ruff format`` wrote as formatted, though a second pass can still move
+    it, so only an uncached check says what a fresh clone would see.
+    """
+    out = run_out(["uv", "run", "ruff", "format", "--check", "--no-cache"], check=False)
+    m = re.search(r"(\d+) files? would be reformatted", out)
+    if m:
+        return int(m.group(1))
+    if "already formatted" in out:
+        return 0
+    die("could not parse the file count from `ruff format --check` output")
+    return 0  # unreachable, satisfies type checker
+
+
 def assert_zero_lint() -> None:
-    """Hard-fail the release if ruff or ty has any issues.
+    """Hard-fail the release if ruff or ty has any issues, or a file is unformatted.
 
     The release process treats both at zero as a precondition, not a
     "nice to have."  Surfaces the count and aborts so the user fixes
@@ -253,12 +272,13 @@ def assert_zero_lint() -> None:
     run(["uv", "sync", "--all-extras"], capture=True)
     ruff = count_ruff_issues()
     ty = count_ty_issues()
-    if ruff or ty:
+    unformatted = count_unformatted()
+    if ruff or ty or unformatted:
         die(
             f"refusing to release with lint issues: "
-            f"ruff={ruff}, ty={ty}.  Fix on a chore branch first."
+            f"ruff={ruff}, ty={ty}, unformatted={unformatted}.  Fix on a chore branch first."
         )
-    ok("lint clean (ruff=0, ty=0)")
+    ok("lint clean (ruff=0, ty=0, unformatted=0)")
 
 
 def assert_no_bad_suppressions() -> None:

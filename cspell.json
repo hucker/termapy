@@ -127,6 +127,7 @@
     "mkdocs",
     "Mnotanumber",
     "Modbus",
+    "mojibake",
     "mongpio",
     "monkeypatch",
     "monkeypatching",

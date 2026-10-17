@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -2794,3 +2795,107 @@ def test_the_legacy_table_is_the_same_in_every_frontend(frontend_tables):
     assert added == [], (
         f"renames only a frontend's registration records; list them in legacy.py: {added}"
     )
+
+
+# ── Text files are UTF-8, never UTF-8 read back as cp1252 ─────────────────────
+#
+# Bug 2026-10-17: an edit in 72a671e round-tripped app.py through cp1252, so
+# each non-ASCII character was saved as the cp1252 reading of its UTF-8 bytes,
+# and the find bar's prev / next / close buttons showed gibberish for a month
+# with every test green.  That reading has one shape -- a lead letter
+# (U+00C2..U+00F4) and then the characters cp1252 shows for the continuation
+# bytes, which encode back to valid UTF-8 -- and real text almost never has
+# it, so the guard can be exact rather than a heuristic.
+MOJIBAKE_ROOTS = ("src/termapy", "tests", "docs", "scripts", "examples")
+TEXT_SUFFIXES = frozenset(
+    {".py", ".md", ".cfg", ".run", ".pro", ".json", ".toml", ".txt", ".tcss", ".html", ".expected"}
+)
+
+
+def _cp1252_char(byte: int) -> str:
+    """The character a cp1252 reading shows for ``byte``; latin-1 where cp1252 leaves it undefined."""
+    try:
+        return bytes([byte]).decode("cp1252")
+    except UnicodeDecodeError:
+        return chr(byte)
+
+
+_CP1252_BYTE = {_cp1252_char(byte): byte for byte in range(0x80, 0x100)}
+_CONTINUATION = "[" + "".join(re.escape(_cp1252_char(byte)) for byte in range(0x80, 0xC0)) + "]"
+_MOJIBAKE = re.compile(f"[Â-ß]{_CONTINUATION}|[à-ï]{_CONTINUATION}{{2}}|[ð-ô]{_CONTINUATION}{{3}}")
+
+
+def _restore(run: str) -> str:
+    """The character ``run`` is the cp1252 reading of; UnicodeDecodeError when it is none."""
+    return bytes(_CP1252_BYTE[char] for char in run).decode("utf-8")
+
+
+def _mojibake(text: str) -> list[str]:
+    """Each run in ``text`` that is one UTF-8 character read as cp1252, in order."""
+    runs: list[str] = []
+    for match in _MOJIBAKE.finditer(text):
+        try:
+            _restore(match.group())
+        except UnicodeDecodeError:
+            continue
+        runs.append(match.group())
+    return runs
+
+
+def _text_files() -> list[Path]:
+    """The repo-root Markdown and every text file under ``MOJIBAKE_ROOTS``."""
+    repo = SRC.parent.parent
+    files = list(repo.glob("*.md"))
+    for root in MOJIBAKE_ROOTS:
+        files.extend(
+            path
+            for path in (repo / root).rglob("*")
+            if path.suffix in TEXT_SUFFIXES and "__pycache__" not in path.parts
+        )
+    return sorted(files)
+
+
+def test_text_files_are_never_utf8_read_as_cp1252():
+    """no-mojibake: every text file is UTF-8 and holds no UTF-8 character read back as cp1252."""
+    # Arrange
+    repo = SRC.parent.parent
+    violations: list[str] = []
+
+    # Act
+    for path in _text_files():
+        rel = path.relative_to(repo).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as e:
+            violations.append(f"{rel}: not UTF-8 ({e.reason} at byte {e.start})")
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            if runs := dict.fromkeys(_mojibake(line)):
+                names = ", ".join(unicodedata.name(_restore(run), "?") for run in runs)
+                violations.append(f"{rel}:{number}: should be {names}")
+
+    # Assert
+    assert violations == [], (
+        "a tool read these files as cp1252 and wrote them back; restore each "
+        "garbled run to the character named:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_mojibake_guard_fires_on_a_probe():
+    """The guard flags 2-, 3- and 4-byte characters read as cp1252, and passes the real characters and Latin-1 prose."""
+    # Arrange -- garbled at run time, so this file never holds the shapes it hunts
+    close, up, rule, smile = (char.encode().decode("cp1252") for char in ("×", "▲", "─", "😀"))
+    source = (
+        f'close = Button("{close}")\n'
+        f'prev = Button("{up}")\n'
+        f"# {rule * 3} header\n"
+        f'face = "{smile}"\n'
+        'clean = "× ▲ ─ 😀 café naïve Ångström 25°C ±1"\n'
+    )
+
+    # Act
+    actual = _mojibake(source)
+
+    # Assert
+    expected = [close, up, rule, rule, rule, smile]
+    assert actual == expected, "each garbled character once; never the real ones or accented prose"

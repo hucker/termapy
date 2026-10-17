@@ -21,14 +21,18 @@ if ! uv run --no-sync ruff format --check --no-cache; then
     exit 1
 fi
 
-echo "pre-commit: ruff check src/termapy/ tests/"
-if ! uv run --no-sync ruff check src/termapy/ tests/; then
+# ruff and ty take no paths, the same as the format check: they cover the
+# whole project, and the excludes in pyproject.toml ([tool.ruff],
+# [tool.ty.src]) are the gate's scope.  Naming folders here left scripts/
+# and examples/ unchecked, and would do the same to the next new one.
+echo "pre-commit: ruff check"
+if ! uv run --no-sync ruff check; then
     echo "pre-commit: ruff found issues -- commit refused." >&2
     exit 1
 fi
 
-echo "pre-commit: ty check src/termapy/ tests/"
-if ! uv run --no-sync ty check src/termapy/ tests/; then
+echo "pre-commit: ty check"
+if ! uv run --no-sync ty check; then
     echo "pre-commit: ty found issues -- commit refused." >&2
     exit 1
 fi

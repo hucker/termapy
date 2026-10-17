@@ -227,6 +227,10 @@ extraPaths = ["src/termapy/vendor", "scripts"]
 exclude = ["src/termapy/vendor", "src/termapy/html"]
 
 [tool.ty.src]
+# The gate (.githooks/pre-commit, release_prep) runs `ty check` with no
+# paths, so this table is its scope: every first-party file is checked
+# unless it is excluded here.
+#
 # Don't type-check the vendored code itself.  pyserial uses Linux-only
 # modules (fcntl, termios, select.POLL*) in its platform shims, and ty
 # flags every reference as unresolved on Windows.  We still need the
@@ -237,6 +241,9 @@ exclude = ["src/termapy/vendor/**"]
 # 100 (not the black-default 88) buys room for inline suppression reasons
 # (`# noqa: CODE -- why`) and generally-descriptive names without wrapping.
 line-length = 100
+# The gate runs `ruff check` and `ruff format --check` with no paths, so
+# these excludes are its scope, as [tool.ty.src] is ty's.
+#
 # Vendored pyserial uses wildcard imports, lowercase l/I/O variable
 # names, and other patterns we don't own.  Skip lint entirely; same
 # reasoning as the ty exclude above.

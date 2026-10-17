@@ -178,14 +178,15 @@ def count_tests() -> int:
 
 
 def count_ty_issues() -> int:
-    """Total ty diagnostics from `uv run ty check src/termapy/ tests/`.
+    """Total ty diagnostics from `uv run ty check`, over the whole project.
 
-    Vendored code is excluded via [tool.ty.src] in pyproject.toml, so
-    the count reflects only first-party files.  tests/ is in scope, the
-    same as for ruff: before it was, typing mistakes accumulated there
-    unseen (a ``-> callable`` annotation, handlers that raised on every
-    run).  A clean project returns the literal string "All checks
-    passed!" and we report 0.
+    No paths, the same as the pre-commit hook: [tool.ty.src] in
+    pyproject.toml is the scope, and it excludes only the vendored code, so
+    the count covers every first-party file -- src/, tests/, scripts/ and
+    examples/.  Each was outside the gate once, and mistakes built up there
+    unseen (in tests/, a ``-> callable`` annotation and handlers that
+    raised on every run).  A clean project returns the literal string "All
+    checks passed!" and we report 0.
 
     ``ty check`` exits 1 when it finds diagnostics -- which is exactly
     the data we want to count, not crash on -- so we pass
@@ -196,7 +197,7 @@ def count_ty_issues() -> int:
     Since a non-zero count aborts the release, that made the gate's bar
     depend on the calendar.  ty is pinned in [dependency-groups] dev.
     """
-    out = run_out(["uv", "run", "ty", "check", "src/termapy/", "tests/"], check=False)
+    out = run_out(["uv", "run", "ty", "check"], check=False)
     if "All checks passed!" in out:
         return 0
     m = re.search(r"Found (\d+) diagnostics?", out)
@@ -207,11 +208,12 @@ def count_ty_issues() -> int:
 
 
 def count_ruff_issues() -> int:
-    """Total ruff issues from `uv run ruff check src/termapy/ tests/`.
+    """Total ruff issues from `uv run ruff check`, over the whole project.
 
-    ``ruff check`` exits 1 when it finds issues; pass ``check=False``
-    and parse the output regardless.  A clean project prints
-    ``All checks passed!``.
+    No paths, the same as the pre-commit hook: the excludes in [tool.ruff]
+    are the scope.  ``ruff check`` exits 1 when it finds issues; pass
+    ``check=False`` and parse the output regardless.  A clean project
+    prints ``All checks passed!``.
 
     ``uv run`` resolves ruff from the project venv, where it is pinned in
     [dependency-groups] dev.  Before that pin it fell through to whatever
@@ -219,10 +221,7 @@ def count_ruff_issues() -> int:
     happened to default to -- see the note on the pin for how far that
     drifted.
     """
-    out = run_out(
-        ["uv", "run", "ruff", "check", "src/termapy/", "tests/"],
-        check=False,
-    )
+    out = run_out(["uv", "run", "ruff", "check"], check=False)
     if "All checks passed!" in out:
         return 0
     m = re.search(r"Found (\d+) errors?", out)

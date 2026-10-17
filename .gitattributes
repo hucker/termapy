@@ -1,3 +1,9 @@
 # Git hooks run under sh, which chokes on CRLF; keep them LF on every
 # checkout regardless of core.autocrlf.
 .githooks/* text eol=lf
+scripts/*.sh text eol=lf
+
+# Python files can be diffed as ruff formats them (scripts/format_textconv.sh),
+# so a comparison across the 2026-10-17 formatting commit shows real changes
+# only.  Inert until a command opts in with -c diff.ruff-format.textconv=...
+*.py diff=ruff-format

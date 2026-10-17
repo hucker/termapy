@@ -99,6 +99,11 @@ because they share the stdlib-only / fail-loud convention.
   `uv run python scripts/sync_format_tables.py`;
   `test_format_tables_sync.py` fails on drift.
 
+- `format_textconv.sh` - git textconv driver that shows a `.py` file
+  as `ruff format` would, so `git fdiff <old> <new>` compares across the
+  2026-10-17 formatting commit without layout noise.  Inert unless a
+  command opts in; the one-time alias is in CLAUDE.md "Development".
+
 - `sync_architecture.py` - regenerate ARCHITECTURE.md's module tree
   and test table from the module and test docstrings (first
   paragraph each), keeping the line counts `release_prep` owns.

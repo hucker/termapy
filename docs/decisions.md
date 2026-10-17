@@ -360,3 +360,18 @@ the gate's scope (`scripts/`, `examples/`), then B, A, chosen RUF rules,
 small style families, and RUF100 last. S, ANN, D, PL, E501, TRY, T20, DTZ,
 BLE, SIM and PTH are not planned: they mostly flag the project's deliberate
 choices. `ruff format` is a separate decision.
+
+## 2026-10-17 — Code is formatted by ruff, always, with no exceptions
+
+Every Python file the project owns is formatted by `ruff format`, and nothing
+is hand-laid-out: no aligned columns, no wrapping to taste, no `# fmt: off`,
+not even for data tables. **Why:** code that always has the formatter's layout
+reads the same in every project, and layout stops being something to write,
+review or argue about. The one-time cost was one commit touching 288 files;
+it holds nothing but `ruff format` output, `.git-blame-ignore-revs` makes
+`git blame` skip it, the commit before it is tagged `pre-format`, and
+`git fdiff` (a textconv diff driver, `scripts/format_textconv.sh`) formats both
+sides so a branch older than it still diffs cleanly. Excluded: the vendored
+tree, the generated HTML, and the generated `usb/_vendors_full.py`. **Where:**
+`[tool.ruff.format]`; the pre-commit hook and `release_prep` run
+`ruff format --check` over the whole project.

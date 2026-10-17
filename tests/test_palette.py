@@ -132,7 +132,9 @@ class TestPromptThenDispatch:
 
         # Act -- call the real method bound to our stub.
         SerialTerminal._prompt_then_dispatch(
-            app, "Test prompt:", "/foo ",  # ty: ignore[invalid-argument-type]
+            app,  # ty: ignore[invalid-argument-type] -- a SimpleNamespace stands in for the app
+            "Test prompt:",
+            "/foo ",
         )
         # Simulate the modal returning the user's input.
         captured_callback[0]("bar baz")
@@ -159,12 +161,16 @@ class TestPromptThenDispatch:
         # Act -- the user canceled (None) and the user submitted
         # empty (""); both should be silent.
         SerialTerminal._prompt_then_dispatch(
-            app, "Test:", "/foo ",  # ty: ignore[invalid-argument-type]
+            app,  # ty: ignore[invalid-argument-type] -- a SimpleNamespace stands in for the app
+            "Test:",
+            "/foo ",
         )
         captured_callback[0](None)
 
         SerialTerminal._prompt_then_dispatch(
-            app, "Test:", "/foo ",  # ty: ignore[invalid-argument-type]
+            app,  # ty: ignore[invalid-argument-type] -- a SimpleNamespace stands in for the app
+            "Test:",
+            "/foo ",
         )
         captured_callback[1]("")
 

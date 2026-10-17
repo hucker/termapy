@@ -252,8 +252,34 @@ for any multi-arg command.
 uv run pytest              # run tests
 uv run termapy             # run the app
 uv run termapy --cfg-dir . # use cwd for configs
-git config core.hooksPath .githooks  # once per clone: ruff + ty gate every commit
+uv run ruff check --fix src/termapy/ tests/ && uv run ruff format && uv run ty check --fix src/termapy/ tests/  # before every commit: autofix, then format
+git config core.hooksPath .githooks  # once per clone: format + ruff + ty gate every commit
+git config blame.ignoreRevsFile .git-blame-ignore-revs  # once per clone: blame skips the format commit
+git config alias.fdiff '!git -c diff.ruff-format.textconv="sh scripts/format_textconv.sh" diff'  # once per clone
 ```
+
+`git fdiff <old> <new>` diffs Python files as ruff formats both sides, so a
+comparison with a branch older than the 2026-10-17 formatting commit shows
+real changes, not layout (`scripts/format_textconv.sh`; the last commit
+before formatting is tagged `pre-format`).
+
+VS Code formats on save. `.vscode/` is gitignored (it holds personal
+settings), so a new machine installs the ruff and ty extensions
+(`charliermarsh.ruff`, `astral-sh.ty`) and adds to `.vscode/settings.json`:
+
+```json
+"[python]": {
+  "editor.defaultFormatter": "charliermarsh.ruff",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.ruff": "explicit",
+    "source.organizeImports.ruff": "explicit"
+  }
+}
+```
+
+Never `ty check --add-ignore` or `ruff check --add-noqa`: they suppress in
+bulk, and a suppression needs its rule code and a reason.
 
 ## Testing
 
@@ -292,6 +318,15 @@ git config core.hooksPath .githooks  # once per clone: ruff + ty gate every comm
 
 ## Code Style
 
+- **Code is formatted by `ruff format`, always, with no exceptions**
+  (decision 2026-10-17). Never hand-format, align columns, or wrap lines to
+  taste, and never add `# fmt: off` / `# fmt: skip`: the formatter owns
+  layout so code reads the same across projects. Run `uv run ruff format`
+  before committing; the pre-commit hook and `release_prep` refuse
+  unformatted code. Only the generated `usb/_vendors_full.py`, the vendored
+  tree and the generated HTML are excluded (`[tool.ruff.format]`). A
+  suppression comment the formatter would move goes on the line the tool
+  reports, with a trailing comma keeping the call exploded.
 - If code manages state, use a class — not functions with closures over shared variables
 - Pure functions are fine and preferred when there's no state (e.g. `scripting.py`)
 - `scripting.py` — pure functions, no state, no I/O

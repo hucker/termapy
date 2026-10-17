@@ -1,9 +1,9 @@
 # CLI gold-standard test - deterministic commands only
 # Exercises device commands, REPL commands, variables, config, port control,
 # protocol CRC, environment variables, and error handling.
-# Skip: /delay, /confirm, /grep, /ss, /cls, /cap, /os, /run (nested)
-# Skip: AT+TEMP, AT+INFO, AT+STATUS, AT+RESET, NMEA (nondeterministic)
-# Skip: /port.list (hardware-dependent)
+# Every command family is here, or NOT_IN_GOLD in tests/test_architecture.py
+# says why it cannot be (registry command-in-gold).
+# Skip: AT+TEMP, AT+INFO, AT+STATUS, AT+RESET, NMEA (nondeterministic device replies)
 
 # ── Device commands ──────────────────────────────────────────────────────────
 /print === section: device commands ===
@@ -305,3 +305,73 @@ AT+PROD-ID
 # A bare device line with --json is one request/response (per-call form of the dial)
 MEM.R 0x1000 2 --json
 /print prose is back
+
+# ── Coverage: one family per line that the sections above do not reach ─────
+# State here: DEMO connected, symbol table loaded, no profile, no capture,
+# prose mode.  Deterministic lines only: no absolute path, no pid, no reply
+# that arrives on its own time.  A command that cannot be here is listed with
+# why in tests/test_architecture.py (registry command-in-gold).
+/print === section: coverage: terminal settings ===
+/term.echo
+/term.encoding
+/term.eol
+/term.eol.markers
+/term.eol.rx
+/term.hex
+/proto.hex
+/term.json
+/term.output
+/term.send_bare_enter
+/term.timestamps
+/term.color
+/term.info
+/term.log a line for the session log, not the screen
+/port.mode
+# /raw sends no line ending; the device line after it completes the command
+/raw AT
++PROD-ID
+/print === section: coverage: folders ===
+/run.help at_demo
+/run.legacy at_demo
+/edit.run.list
+/run.dump status_check
+/proto
+/proto.info
+/cfg.file demo_legacy.profile.json
+/dev.list
+/dev.lib
+/dev.use nosuch
+/cap.stop
+/print === section: coverage: protocol ===
+/proto.send --dry-run "AT\r"
+/proto.crc.verify crc16-modbus endian=le 01 03 00 00 00 01 84 0A
+/proto.debug demo.pro
+/print === section: coverage: profile and help ===
+/profile.validate demo_legacy.profile.json
+/profile.load demo_legacy.profile.json
+/help.target
+/profile.unload
+/help.dev print
+/search fingerprint
+/print === section: coverage: memory and variables ===
+/mem.and gFlags 0xFFFFFF00
+/mem.dump gFlags 4
+/var.capture NAME AT+NAME?
+/var NAME
+/print.r [bold]plain in the gold[/]
+/print === section: coverage: answered by the CLI's capabilities ===
+/log.dump
+/log.delete
+/log.fingerprint
+/grep OK
+/find OK
+/find.next
+/find.prev
+/find.clear
+/find.max_count
+/print === section: coverage: files, timing, recording ===
+/run.rename status_check status_probe
+/run.rename status_probe status_check
+/delay 1ms
+/run.record
+/cap.clear

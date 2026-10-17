@@ -317,7 +317,13 @@ bulk, and a suppression needs its rule code and a reason.
 
 ## CLI Gold Test
 
-- `tests/cli_gold/cli_test.run` — deterministic script exercising ~100 commands
+- `tests/cli_gold/cli_test.run` — deterministic script exercising most command families
+- **Every command family runs in the gold script, or `NOT_IN_GOLD` (tests/test_architecture.py) says why it
+  cannot** (registry `command-in-gold`): an app, hardware or the network, an absolute path, timing,
+  crcglot's output, or a command that ends or reloads the run. A user-visible change the CLI can show
+  deterministically adds its gold lines in the same branch, not when someone asks. Splice only the new
+  lines into `cli_test.expected` (normalize both sides as the harness does; run the script twice to prove
+  the new lines are deterministic); `uv run pytest tests/test_cli_gold.py -n 0 --no-cov` takes ~15 s.
 - `tests/cli_gold/cli_test.expected` — gold standard output (~780 lines; grows as commands are added, so this is approximate)
 - Deliberately does NOT exercise `/help proto.crc`: its SUBCOMMANDS block is generated from `crcglot.LANGUAGES`, so a crcglot language addition would redden the gold with no termapy change. Stable proto.crc coverage (`/proto.crc.info`, `.calc`) stays; the help renderer is covered by the other `/help <cmd>` pages.
 - Regenerating the gold file requires manual review — the expected output is the source of truth for CLI regression testing

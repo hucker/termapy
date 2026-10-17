@@ -442,6 +442,33 @@ class TestTuiWritersCreateTheirFolder:
 
         _run(scenario)
 
+    def test_ss_and_captures_shortcuts_with_no_config_open_nothing(self, tmp_path):
+        """test-messages-through-owner: with no config the shortcuts open nothing and say the gate's answer, as the buttons do."""
+        async def scenario():
+            from termapy.app import SerialTerminal
+            from termapy.plugins.capabilities import STATE_MESSAGES
+
+            # Arrange
+            cfg, config_path = _write_cfg(tmp_path)
+            app = SerialTerminal(cfg, str(config_path))
+            app.repl.global_root = tmp_path
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                opened = _grant_gui_apps(app.repl.ctx)
+                app.config_path = ""
+
+                # Act
+                app.action_open_screenshot()
+                app._open_captures_dir()
+                await pilot.pause()
+
+                # Assert
+                assert opened == [], "no folder is opened without a config"
+                text = app._get_screen_text()
+                assert text.count(STATE_MESSAGES["config_loaded"]) == 2, "each shortcut says why, once"
+
+        _run(scenario)
+
     def test_script_editor_save_creates_run(self, tmp_path):
         """Saving in ScriptEditor creates a missing run/ and returns the new script path."""
         async def scenario():

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from termapy.plugins import CapabilitySet, PluginContext, PluginInfo, TransformInfo
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.repl import ReplEngine, _parse_flags, _resolve_flag
 
 
@@ -1407,6 +1408,17 @@ class TestDispatchCapabilities:
             )
         )
 
+    def test_the_gates_answers_read_exactly_so(self):
+        """state-answered-by-gate: the one place the answers' text is pinned; scripts and agents match on it.
+
+        Every other test compares against ``STATE_MESSAGES``, so changing
+        what a user reads is this one deliberate edit, not a sweep.
+        """
+        assert STATE_MESSAGES == {
+            "config_loaded": "No config loaded.",
+            "serial_connected": "Not connected.",
+        }
+
     def test_no_config_answers_no_config_loaded(self, cap_env):
         """state-answered-by-gate: a command that needs a config answers No config loaded. before its handler runs."""
         # Arrange -- the session has no config
@@ -1419,7 +1431,7 @@ class TestDispatchCapabilities:
         result = eng.dispatch("lister")
 
         # Assert
-        assert (result.success, result.error) == (False, "No config loaded."), "the state, not the environment"
+        assert (result.success, result.error) == (False, STATE_MESSAGES["config_loaded"]), "the state, not the environment"
         assert called == [], "handler never invoked"
 
     def test_no_config_and_no_port_answers_the_config_first(self, cap_env):
@@ -1433,7 +1445,7 @@ class TestDispatchCapabilities:
         result = eng.dispatch("lister")
 
         # Assert
-        assert result.error == "No config loaded.", "the config before the port"
+        assert result.error == STATE_MESSAGES["config_loaded"], "the config before the port"
 
     def test_loading_a_config_opens_the_gate(self, cap_env):
         """config_loaded is read per dispatch: the command refused without a config runs once one is loaded."""
@@ -1450,7 +1462,7 @@ class TestDispatchCapabilities:
         ran = eng.dispatch("lister")
 
         # Assert
-        assert refused.error == "No config loaded.", "refused while no config is loaded"
+        assert refused.error == STATE_MESSAGES["config_loaded"], "refused while no config is loaded"
         assert ran.success, f"runs once the config is back: {ran.error}"
         assert called == [True], "the handler ran once, for the second dispatch"
 

@@ -211,38 +211,36 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """Print the config as JSON, or a cfg-folder file, to the terminal.
+    """Print the config in memory as JSON; it needs no config file.
 
-    Bare ``/cfg.dump`` prints the loaded config (unchanged behavior).
-    With a name, prints that file from the active config folder --
-    following the folder-verb vocabulary where ``.dump`` means
-    "print to terminal" (``.show`` means system viewer).
+    Lets `.quiet` mode capture the output for scripting
+    (e.g. ``$(JSON) <- /cfg.dump.quiet``).  A file from the config
+    folder is ``/cfg.file <name>``: until 2026-10-16 it was this command
+    with a name, which needed a config where the bare form did not, so
+    the handler had to check for one itself.
+    """
+    if args.strip():
+        raise UsageError(f"For a file in the config folder use {ctx.prefix}cfg.file <name>")
+    text = json.dumps(dict(ctx.cfg), indent=4)
+    ctx.io.output(text)
+    return CmdResult.ok(value=text)
+
+
+def _handler_file(ctx: PluginContext, args: str) -> CmdResult:
+    """Print a file from the active config folder to the terminal.
 
     Names resolve RELATIVE TO THE CFG ROOT ONLY (subfolders allowed):
     absolute paths and ``..`` traversal are refused for every frontend,
     so this can never read outside the config folder.
-
-    Lets `.quiet` mode capture the output for scripting
-    (e.g. ``$(JSON) <- /cfg.dump.quiet``).
     """
-    name = args.strip()
-    if not name:
-        text = json.dumps(dict(ctx.cfg), indent=4)
-        ctx.io.output(text)
-        return CmdResult.ok(value=text)
-    if not ctx.config_path:
-        return CmdResult.fail(msg="No config loaded.")
+    name = ctx.arg("name")
     root = Path(ctx.config_path).parent.resolve()
     rel = Path(name)
-    if rel.is_absolute() or ".." in rel.parts:
-        return CmdResult.fail(
-            msg=f"Path must be relative to the config folder: {name}"
-        )
     path = (root / rel).resolve()
-    if not path.is_relative_to(root):  # symlink-escape belt
-        return CmdResult.fail(
-            msg=f"Path must be relative to the config folder: {name}"
-        )
+    # One refusal for every way out: an absolute name, any "..", and a
+    # symlink that resolves outside the folder.
+    if rel.is_absolute() or ".." in rel.parts or not path.is_relative_to(root):
+        return CmdResult.fail(msg=f"Path must be relative to the config folder: {name}")
     if not path.is_file():
         return CmdResult.fail(msg=f"File not found: {name}")
     try:
@@ -603,9 +601,19 @@ COMMAND = Command(
         ),
         "edit": edit_cfg_command(),
         "dump": Command(
-            args="{name}",
-            help="Print the config (JSON) or a cfg-folder file to the terminal.",
+            help="Print the config in memory as JSON to the terminal.",
             handler=_handler_dump,
+        ),
+        "file": Command(
+            help="Print a file from the config folder to the terminal.",
+            handler=_handler_file,
+            needs=CapabilitySet.CONFIG_LOADED,
+            params=[
+                ParamSpec(
+                    "name", "path", positional=True, required=True, rest=True,
+                    help="file relative to the config folder (subfolders allowed)",
+                ),
+            ],
         ),
         "show": Command(
             help="Open the current config file in the system viewer.",

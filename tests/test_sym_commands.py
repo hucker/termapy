@@ -17,6 +17,7 @@ import pytest
 from termapy.devices import library_layers
 from termapy.folders import LIB, SYMBOLS_SUFFIX
 from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.command import LifecycleHook
 from termapy.repl import ReplEngine
 from termapy.symbols import SYMBOLS_NS, get_table, reload_devices
@@ -365,7 +366,7 @@ class TestSymImport:
         result = engine.dispatch(f"sym.import {XC32_MAP}")
 
         # Assert
-        assert result.error == "No config loaded."
+        assert result.error == STATE_MESSAGES["config_loaded"]
 
     def test_second_import_overwrites(self, sym_env, tmp_path):
         # Arrange
@@ -1141,6 +1142,24 @@ class TestSymLoadUnload:
         # Assert
         expected = f"Symbols not found: {config_path.parent / 'sym' / ('rig' + SYMBOLS_SUFFIX)}"
         assert result.error == expected
+
+    @pytest.mark.parametrize("line", ["sym.load", f"sym.load {DEMO_SYMBOLS}"])
+    def test_without_a_config_both_forms_are_the_gates_answer(self, sym_env, line):
+        """state-answered-by-gate: /sym.load declares config_loaded, so bare and explicit forms both need one.
+
+        Until 2026-10-16 an explicit path loaded with no config, and the bare
+        form answered "No config loaded." itself, inferred from sidecar_path
+        returning None.
+        """
+        # Arrange
+        engine, _, _ = sym_env
+        engine.ctx.config_path = ""
+
+        # Act
+        result = engine.dispatch(line)
+
+        # Assert
+        assert (result.success, result.error) == (False, STATE_MESSAGES["config_loaded"])
 
     def test_explicit_path(self, sym_env):
         # Arrange

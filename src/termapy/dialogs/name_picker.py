@@ -1,4 +1,4 @@
-"""Modal dialog: NamePicker.
+"""Modal dialog: NamePicker -- a name prompt for a new config.
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

@@ -1,4 +1,4 @@
-"""Tests for the DEMO_JSON NDJSON simulator (Phase 5).
+"""Tests for the DEMO_JSON NDJSON simulator.
 
 Two layers:
 - Direct simulator tests (FakeSerialNDJSON byte-level round-trips).

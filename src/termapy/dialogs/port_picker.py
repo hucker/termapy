@@ -1,4 +1,4 @@
-"""Modal dialog: PortPicker.
+"""Modal dialog: PortPicker -- pick a serial port from a list that follows USB plug and unplug.
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

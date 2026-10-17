@@ -1,4 +1,4 @@
-"""Modal dialog: WelcomeDialog.
+"""Modal dialog: WelcomeDialog -- a one-button welcome message.
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

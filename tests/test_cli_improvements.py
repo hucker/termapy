@@ -1,4 +1,4 @@
-"""Tests for the CLI-improvements branch.
+"""The print-and-exit port flags: --ports / --chips JSON, the VID/PID/mfg/SN filters, and the driver column.
 
 Covers:
 

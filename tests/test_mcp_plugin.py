@@ -1,4 +1,4 @@
-"""Tests for the /mcp.* REPL plugin (Phase 4).
+"""Tests for the /mcp.* REPL plugin.
 
 Subcommands:
 - /mcp.catalog -- prints JSON; byte-equivalent to termapy://commands.json

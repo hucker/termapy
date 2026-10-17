@@ -1,4 +1,4 @@
-"""Tests for /profile.load and /profile.info (Phase 4).
+"""Tests for /profile.load and /profile.info.
 
 Phase 0 added /profile.validate; Phase 4 added /profile.load (sets
 the active_profile namespace) and /profile.info (displays the

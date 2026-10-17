@@ -1,4 +1,4 @@
-"""Tests for the Phase 3 MCP server core: MCPHost + run_command + resources.
+"""Tests for the MCP server core: MCPHost + run_command + resources.
 
 We test the host's async run_command method and the catalog helpers
 directly rather than spinning up a stdio subprocess.  Direct tests are

@@ -1,4 +1,4 @@
-"""Modal dialog: UpdateAvailableDialog.
+"""Modal dialog: UpdateAvailableDialog -- reports a newer termapy on PyPI (Info / OK).
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

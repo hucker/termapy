@@ -362,8 +362,16 @@ The narrative — the thread diagram, the two hand-off mechanisms and why each r
   the real parser). Edit the table, then `uv run python
   scripts/sync_format_tables.py`; `tests/test_format_tables_sync.py` fails on
   a hand-edited table.
+- **ARCHITECTURE.md's module tree and test table are generated from the
+  docstrings** (registry `architecture-generated`): one row per module of
+  `src/termapy` and per `tests/test_*.py`, described by the first paragraph
+  of its docstring. After adding a module or test file, or rewording a
+  docstring's first paragraph, run `uv run python
+  scripts/sync_architecture.py`; `tests/test_architecture_sync.py` fails on a
+  stale or hand-edited block. A weak row is fixed in the docstring, never
+  in the doc; a non-Python entry's text is `NOTES` in the script.
 - Update README.md and help/*.md
-- Update ARCHITECTURE.md if modules, plugins, or structure changed
+- Update ARCHITECTURE.md's prose if modules, plugins, or structure changed
 - **Do NOT hand-update the test/ty counts or badges on feature
   builds.** The test count, ty diagnostic count, and the
   per-module line counts in README.md and ARCHITECTURE.md are refreshed

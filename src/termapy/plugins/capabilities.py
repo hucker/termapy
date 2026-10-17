@@ -1,4 +1,4 @@
-"""Capability model for the plugin system.
+"""Capability model: what a command needs and what a frontend provides, checked before dispatch.
 
 Every command declares *what the environment must provide* for its handler
 to run.  That declaration is a ``CapabilitySet`` on the ``Command`` (and

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from termapy import port_control
 from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.legacy import make_forwarder
-from termapy.plugins import CmdResult, Column, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo
 
 if TYPE_CHECKING:
@@ -587,37 +587,44 @@ COMMAND = Command(
             help="Show or set DTR line (hardware only).",
             long_help=_port_hw_line_long_help("dtr", "out"),
             handler=_make_hw_handler("dtr"),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "rts": Command(
             args="{on|off}",
             help="Show or set RTS line (hardware only).",
             long_help=_port_hw_line_long_help("rts", "out"),
             handler=_make_hw_handler("rts"),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "cts": Command(
             help="Show CTS state (read-only).",
             long_help=_port_hw_line_long_help("cts", "in"),
             handler=_make_signal_handler("cts"),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "dsr": Command(
             help="Show DSR state (read-only).",
             long_help=_port_hw_line_long_help("dsr", "in"),
             handler=_make_signal_handler("dsr"),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "ri": Command(
             help="Show Ring Indicator state (read-only).",
             long_help=_port_hw_line_long_help("ri", "in"),
             handler=_make_signal_handler("ri"),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "cd": Command(
             help="Show Carrier Detect state (read-only).",
             long_help=_port_hw_line_long_help("cd", "in"),
             handler=_make_signal_handler("cd"),
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "break": Command(
             args="{duration_ms}",
             help="Send a break signal (default 250ms).",
             handler=_handler_break,
+            needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "chip": Command(
             args="{name|*}",

@@ -1499,15 +1499,19 @@ class ReplEngine:
         # 1. /raw: the text exactly as typed goes to the /raw handler, the
         #    one /raw in every frontend.  Not through dispatch(), which
         #    would strip leading spaces and --flags and expand {seq}
-        #    templates in it.  A bare "/raw " falls through, so dispatch
-        #    renders the usage line.
+        #    templates in it; through the capability gate all the same.
+        #    A bare "/raw " falls through, so dispatch renders the usage line.
         raw_text = cmd[len(prefix) + 4 :] if cmd.startswith(prefix + "raw ") else ""
         raw_plugin = self._plugins.get("raw")
         if raw_text and raw_plugin is not None:
             _log(">", cmd)
             if echo_repl_on:
                 _echo(self.format_echo_markup(cmd))
-            result = raw_plugin.handler(self.ctx, raw_text)
+            refusal = self._capability_refusal(raw_plugin, "raw")
+            result = (
+                CmdResult.fail(msg=refusal) if refusal is not None
+                else raw_plugin.handler(self.ctx, raw_text)
+            )
             if report and not result.success:
                 self.write(result.err_msg, "red")
             return result
@@ -1824,23 +1828,9 @@ class ReplEngine:
             return self._render_view(result, call_level)
 
         if plugin:
-            # Capability gate: every command declares the environment
-            # capabilities its handler relies on via Command.needs.  Before
-            # doing any work, verify the current context provides them.
-            # A mismatch fails with a clear message naming what's missing,
-            # rather than letting the handler hit a no-op lambda or crash.
-            missing = plugin.needs.missing_from(self._effective_capabilities())
-            if missing and set(missing) <= STATE_MESSAGES.keys():
-                # No config or a closed port is session state the user can
-                # change, not an environment limit: answer with the state,
-                # config first (registry ``state-answered-by-gate``).
-                state = next(need for need in STATE_MESSAGES if need in missing)
-                return _finish(CmdResult.fail(msg=STATE_MESSAGES[state]))
-            if missing:
-                return _finish(CmdResult.fail(
-                    msg=f"{self.prefix}{name} requires: {', '.join(missing)} "
-                    f"(not available in this environment)"
-                ))
+            refusal = self._capability_refusal(plugin, name)
+            if refusal is not None:
+                return _finish(CmdResult.fail(msg=refusal))
             # Universal level-flag pre-pass: strip --silent/--quiet/--normal/
             # --verbose before per-command flag parsing so every command
             # accepts them without declaring them.  Suffix and flag must
@@ -2432,6 +2422,31 @@ class ReplEngine:
     @property
     def in_script(self) -> bool:
         return self._script_depth > 0
+
+    def _capability_refusal(self, plugin: PluginInfo, name: str) -> str | None:
+        """Why ``plugin`` cannot run right now, or None when it can.
+
+        The capability gate: every command declares what its handler relies
+        on (``Command.needs``), and nothing runs until the current context
+        provides it, rather than letting the handler hit a no-op lambda or
+        crash.  No config or a closed port is session state the user can
+        change, not an environment limit, so when that is all that is
+        missing the answer is the state, config first (registry
+        ``state-answered-by-gate``).
+
+        Args:
+            plugin: The command about to run.
+            name: Its dotted name, for the message.
+        """
+        missing = plugin.needs.missing_from(self._effective_capabilities())
+        if missing and set(missing) <= STATE_MESSAGES.keys():
+            return STATE_MESSAGES[next(need for need in STATE_MESSAGES if need in missing)]
+        if missing:
+            return (
+                f"{self.prefix}{name} requires: {', '.join(missing)} "
+                f"(not available in this environment)"
+            )
+        return None
 
     def _effective_capabilities(self) -> CapabilitySet:
         """Return the context's capabilities augmented with dynamic ones.

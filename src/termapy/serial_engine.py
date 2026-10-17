@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from termapy.capture import CaptureEngine
 from termapy.plugins import BoundaryException
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_port import SerialPort, SerialReader
 
 if TYPE_CHECKING:
@@ -679,7 +680,7 @@ class SerialEngine:
             OSError: If the port operation fails.
         """
         if not self._port_obj:
-            raise OSError("Not connected")
+            raise OSError(STATE_MESSAGES["serial_connected"])
         self._port_obj.dtr = not self._port_obj.dtr
         return self._port_obj.dtr
 
@@ -690,7 +691,7 @@ class SerialEngine:
             OSError: If the port operation fails.
         """
         if not self._port_obj:
-            raise OSError("Not connected")
+            raise OSError(STATE_MESSAGES["serial_connected"])
         self._port_obj.rts = not self._port_obj.rts
         return self._port_obj.rts
 
@@ -701,7 +702,7 @@ class SerialEngine:
             OSError: If the port operation fails.
         """
         if not self._port_obj:
-            raise OSError("Not connected")
+            raise OSError(STATE_MESSAGES["serial_connected"])
         self._port_obj.send_break(duration=duration)
 
     def get_hw_state(self) -> tuple[bool, bool]:
@@ -711,7 +712,7 @@ class SerialEngine:
             OSError: If the port operation fails.
         """
         if not self._port_obj:
-            raise OSError("Not connected")
+            raise OSError(STATE_MESSAGES["serial_connected"])
         return self._port_obj.dtr, self._port_obj.rts
 
     # -- Reconnection ----------------------------------------------------------

@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from termapy.defaults import DEFAULT_CFG
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 # Skip the entire module when the optional mcp extra isn't installed.
 pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] extra")
@@ -465,7 +466,7 @@ class TestRunCommandErrors:
         )
         # Assert
         assert result["success"] is False, "no port = no send"
-        assert "Not connected" in result["error"], "error says disconnected"
+        assert STATE_MESSAGES["serial_connected"] in result["error"], "error says disconnected"
 
     def test_timeout_returns_failure(self, host):
         """No longer slow: the timeout used to be followed by a join.

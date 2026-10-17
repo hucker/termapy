@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +12,7 @@ from serial import SerialException
 
 from termapy.capture import CaptureEngine
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
@@ -360,7 +362,7 @@ class TestSerialIO:
         host.engine.serial_port = None
 
         # Act / Assert
-        with pytest.raises(SerialException, match="Not connected"):
+        with pytest.raises(SerialException, match=re.escape(STATE_MESSAGES["serial_connected"])):
             host._serial_write(b"hello")
         host.engine.notify_tx.assert_not_called()
 

@@ -1,5 +1,6 @@
 """Tests for SerialEngine - connection lifecycle and reader loop."""
 
+import re
 import threading
 import time
 
@@ -7,6 +8,7 @@ import pytest
 
 from termapy.capture import CaptureEngine
 from termapy.demo import FakeSerial
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_engine import RX_QUEUE_MAX_CHUNKS, SerialEngine
 
 
@@ -715,7 +717,7 @@ class TestHardwareSignals:
         engine, _, _ = _make_engine()
 
         # Act / Assert
-        with pytest.raises(OSError, match="Not connected"):
+        with pytest.raises(OSError, match=re.escape(STATE_MESSAGES["serial_connected"])):
             engine.toggle_dtr()
 
     def test_toggle_rts_when_disconnected(self):
@@ -724,7 +726,7 @@ class TestHardwareSignals:
         engine, _, _ = _make_engine()
 
         # Act / Assert
-        with pytest.raises(OSError, match="Not connected"):
+        with pytest.raises(OSError, match=re.escape(STATE_MESSAGES["serial_connected"])):
             engine.toggle_rts()
 
     def test_send_break_when_disconnected(self):
@@ -733,7 +735,7 @@ class TestHardwareSignals:
         engine, _, _ = _make_engine()
 
         # Act / Assert
-        with pytest.raises(OSError, match="Not connected"):
+        with pytest.raises(OSError, match=re.escape(STATE_MESSAGES["serial_connected"])):
             engine.send_break()
 
     def test_get_hw_state_when_disconnected(self):
@@ -742,7 +744,7 @@ class TestHardwareSignals:
         engine, _, _ = _make_engine()
 
         # Act / Assert
-        with pytest.raises(OSError, match="Not connected"):
+        with pytest.raises(OSError, match=re.escape(STATE_MESSAGES["serial_connected"])):
             engine.get_hw_state()
 
 

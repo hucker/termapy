@@ -469,7 +469,7 @@ output is green-on-default and uniform across every command.
 from termapy.help_dynamic import (
     state_line,   # "Current <label> = <value>" in green
     folder_line,  # "<N> files in <folder>/" in green
-    port_status,  # "Connected: COM3 @ 115200 8N1" or "Not connected"
+    port_status,  # "Connected: COM3 @ 115200 8N1" or "Not connected."
     cfg_status,   # "Active cfg = demo (2 configs available)"
     ns_count,     # len(ctx.ns(name)), guards a missing ns
     compose,      # join non-empty parts with a blank line between
@@ -501,9 +501,6 @@ Most plugins follow this pattern: send a command, read the response, do somethin
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    if not ctx.serial.is_connected():
-        return CmdResult.fail(msg="Not connected.")
-
     encoding = ctx.cfg.get("encoding", "utf-8")
     eol = ctx.cfg.get("eol", "\r")
 
@@ -524,8 +521,9 @@ Key points:
 - `ctx.serial.write()` sends raw bytes; you add the line ending
 - `ctx.serial.read_raw()` waits for a complete response (timeout-based framing)
 
-Even cleaner: declare the connection requirement on `Command` and let
-the dispatcher gate the call:
+The handler never checks for an open port.  The command declares that
+it needs one, and the dispatcher answers `Not connected.` before the
+handler runs when the port is down:
 
 ```python
 COMMAND = Command(
@@ -543,11 +541,9 @@ one in your editor for exactly what it gates.
 Spell out an unusual combination inline, as the `confirm_dialog` example
 above does.
 
-The handler then doesn't need to check `is_connected` -- the dispatcher
-returns `Not connected.` automatically when the port is down.  A command
-that works in the config's folder declares `CapabilitySet.CONFIG_LOADED`
-the same way, and the dispatcher answers `No config loaded.` when there
-is none.
+A command that works in the config's folder declares
+`CapabilitySet.CONFIG_LOADED` the same way, and the dispatcher answers
+`No config loaded.` when there is none.
 
 ## Bytes and hex
 

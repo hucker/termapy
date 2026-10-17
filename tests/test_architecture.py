@@ -1955,9 +1955,11 @@ def test_failure_printers_has_no_stale_entries():
 # "No config loaded." themselves.  A command that needs a loaded config or an
 # open port declares it (``CapabilitySet.CONFIG_LOADED`` / ``.SERIAL_CONNECTED``)
 # and the dispatch gate answers from ``capabilities.STATE_MESSAGES``, so no
-# handler spells the answer.  A handler checks the state itself only where one
-# branch needs it and the rest of the command does not; each such site is
-# listed here with its branch.
+# handler checks the state.  A handler checks it itself only where one branch
+# needs it and the rest of the command does not, and answers in the table's
+# words; each such site is listed here with its branch.  (The ``/port.*``
+# setters refuse a set the same way, their query needing no port, through
+# ``port_control._not_connected``, which returns lines rather than a failure.)
 
 # (module, function): the branch that needs the state, or why the gate cannot.
 STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
@@ -1966,26 +1968,40 @@ STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
     ("builtins/commands/proto.py", "_handler_crc_reverse"): "only cmd= mode talks to the device",
     ("builtins/commands/var.py", "_handler_capture"): "only a device-command capture sends; a slash command does not",
     ("builtins/commands/profile.py", "_load_from_device"): "only cmd= reads the profile from the device",
-    ("builtins/commands/raw.py", "_handler"): "typed /raw reaches the handler from dispatch_full, past the gate, so the text stays as typed",
+    ("repl.py", "ReplEngine.dispatch_full"): "a bare device line is no command, so it has no needs= to declare",
 }
 
 
+def _is_state_answer(node: ast.expr | None) -> bool:
+    """True for a ``STATE_MESSAGES`` answer, spelled or read from the table."""
+    if isinstance(node, ast.Constant):
+        return node.value in STATE_MESSAGES.values()
+    return (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "STATE_MESSAGES"
+    )
+
+
 def _state_answers(tree: ast.Module) -> list[tuple[str, int]]:
-    """``(qualname, line)`` of every failure that spells a ``STATE_MESSAGES`` answer."""
-    answers = set(STATE_MESSAGES.values())
-    sites: list[tuple[str, int]] = []
-    for qualname, node in _scoped_nodes(tree):
-        if isinstance(node, ast.Call) and _is_fail_call(node):
-            message = _fail_message(node)
-            if isinstance(message, ast.Constant) and message.value in answers:
-                sites.append((qualname, node.lineno))
-    return sites
+    """``(qualname, line)`` of every failure that answers with a ``STATE_MESSAGES`` state."""
+    return [
+        (qualname, node.lineno)
+        for qualname, node in _scoped_nodes(tree)
+        if isinstance(node, ast.Call) and _is_fail_call(node) and _is_state_answer(_fail_message(node))
+    ]
 
 
 def test_a_missing_config_or_port_is_answered_by_the_gate():
-    """state-answered-by-gate: no handler spells "No config loaded." or "Not connected."; its command declares the need."""
-    # Arrange / Act
+    """state-answered-by-gate: no handler answers "No config loaded." or "Not connected."; its command declares the need."""
+    # Arrange / Act -- the examples too: they are what a plugin author copies
     violations, _ = _unallowed(_state_answers, STATE_CHECKED_IN_A_BRANCH)
+    examples = SRC.parent.parent / "examples" / "plugins"
+    violations += [
+        f"examples/plugins/{path.name}:{line} in {qualname}"
+        for path in sorted(examples.glob("*.py"))
+        for qualname, line in _state_answers(ast.parse(path.read_text(encoding="utf-8")))
+    ]
 
     # Assert
     assert violations == [], (
@@ -1995,7 +2011,7 @@ def test_a_missing_config_or_port_is_answered_by_the_gate():
 
 
 def test_state_answer_guard_fires_on_a_probe():
-    """The guard flags each spelled answer, positional or msg=, and passes other states and the table."""
+    """The guard flags each state answer, spelled or read from the table, positional or msg=, and passes other states."""
     # Arrange
     source = '''
 def handler(ctx, args):
@@ -2005,14 +2021,16 @@ def handler(ctx, args):
         return CmdResult.fail("Not connected.")
     if a:
         return CmdResult.fail(msg="No log file.")
-    return CmdResult.fail(msg=STATE_MESSAGES["config_loaded"])
+    if b:
+        return CmdResult.fail(msg=refusal)
+    return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
 '''
 
     # Act
     lines = [line for _, line in _state_answers(ast.parse(source))]
 
     # Assert
-    assert lines == [4, 6], "both spelled answers; not another state, not the table's own"
+    assert lines == [4, 6, 11], "spelled or read from the table; not another state, not a variable"
 
 
 def test_state_checked_in_a_branch_has_no_stale_entries():
@@ -2023,6 +2041,63 @@ def test_state_checked_in_a_branch_has_no_stale_entries():
     # Assert
     stale = sorted(set(STATE_CHECKED_IN_A_BRANCH) - used)
     assert stale == [], f"listed but no longer checking the state; drop them: {stale}"
+
+
+# ── The state answers are spelled once ──────────────────────────────────────
+#
+# 2026-10-16: "Not connected." was spelled by port_control (seven times), the
+# serial engine (four, without the period), TerminalHost (twice) and /help's
+# port line, besides the gate's table.  Everything that says it reads
+# ``capabilities.STATE_MESSAGES``; a copy, even one that drops the period, fails.
+STATE_MESSAGES_OWNER = "plugins/capabilities.py"
+
+
+def _state_answer_copies(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every string that is a ``STATE_MESSAGES`` answer, with or without its period."""
+    answers = {answer.rstrip(".") for answer in STATE_MESSAGES.values()}
+    return [
+        (qualname, node.lineno)
+        for qualname, node in _scoped_nodes(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        and node.value.rstrip(".") in answers
+    ]
+
+
+def test_the_state_answers_are_spelled_only_in_their_table():
+    """state-messages-one-owner: "No config loaded." and "Not connected." are spelled only in STATE_MESSAGES."""
+    # Arrange / Act
+    violations = [
+        f"{rel}:{line} in {qualname}"
+        for rel, tree in _source_modules()
+        if rel != STATE_MESSAGES_OWNER
+        for qualname, line in _state_answer_copies(tree)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "read the answer from capabilities.STATE_MESSAGES instead of spelling it:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_state_answer_copy_guard_fires_on_a_probe():
+    """The guard flags a copy in any call, period or not, and passes the table read and prose that mentions it."""
+    # Arrange
+    source = '''
+def toggle(port):
+    """Raises OSError ("Not connected.") with no port."""
+    if port is None:
+        raise OSError("Not connected")
+    status("No config loaded.", "yellow")
+    status("Not connected yet, retrying")
+    return STATE_MESSAGES["serial_connected"]
+'''
+
+    # Act
+    lines = [line for _, line in _state_answer_copies(ast.parse(source))]
+
+    # Assert
+    assert lines == [5, 6], "both copies; not the docstring, a longer sentence or the table read"
 
 
 # ── The session log has one owner per frontend ────────────────────────────────

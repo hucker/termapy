@@ -26,6 +26,7 @@ import serial
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.folders import SYMBOLS_SUFFIX
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.command import CmdResult, LifecycleHook
 
 DEMO_SYMBOLS = (
@@ -1130,7 +1131,7 @@ class TestSharedStateRaces:
                 await pilot.pause()
 
                 # Assert
-                assert result.error == "Send error: Not connected.", (
+                assert result.error == f"Send error: {STATE_MESSAGES['serial_connected']}", (
                     "a send with no port is a failed command, not a silent drop"
                 )
                 logged = Path(app.session_log_path()).read_text(encoding="utf-8")

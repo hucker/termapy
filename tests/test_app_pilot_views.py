@@ -19,6 +19,7 @@ from textual.widgets import Input, OptionList, Static
 from termapy import info_views
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import PortPicker
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 # Wide enough that a temp-folder path renders on one line; at the 80x24
 # headless default the info view wraps them and the text is unmatchable.
@@ -145,7 +146,7 @@ class TestCaptureOverlay:
         _run(scenario)
 
     def test_a_second_capture_is_refused_while_one_runs(self, app_factory):
-        """Starting a capture over an active one fails the command and says so."""
+        """state-answered-by-gate: a second capture is refused with the reason, and allowed once the first stops."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -161,8 +162,16 @@ class TestCaptureOverlay:
 
                 # Assert
                 assert first.success is True, first.error
-                assert second.success is False and second.error == "Capture not started."
-                assert "Capture already active" in app._get_screen_text()
+                assert (second.success, second.error) == (False, STATE_MESSAGES["capture_idle"]), (
+                    "the gate's reason is the one failure, not 'Capture not started.'"
+                )
+                app._dispatch_single("/cap.stop")
+                await pilot.pause()
+                third = app._dispatch_single("/cap.text c.txt timeout=5s")
+                await pilot.pause()
+                assert third.success is True, (
+                    f"a stopped capture frees the next start: {third.error}"
+                )
                 app._dispatch_single("/cap.stop")
                 await pilot.pause()
 

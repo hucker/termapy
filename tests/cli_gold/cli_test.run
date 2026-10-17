@@ -225,6 +225,14 @@ MEM.M 0x1000 F0 05 --json
 /help sym
 /help mem
 /help run
+# REQUIRED CAPABILITIES with live status.  Here the port is open, the symbol
+# table loaded, and there is no profile and no capture: one row is (missing),
+# the rest are met, and the gated command answers with the state.
+/print === section: help required capabilities ===
+/help profile.save
+/help sym.search
+/help cap.text
+/profile.save
 /print === section: help.run ===
 /help.run
 /print === section: help.plugin ===

@@ -2107,6 +2107,10 @@ STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
         "_load_from_device",
     ): "only cmd= reads the profile from the device",
     (
+        "builtins/commands/profile.py",
+        "_handler_load",
+    ): "only a bare reload needs a loaded profile; a path or cmd= loads one",
+    (
         "repl.py",
         "ReplEngine.dispatch_full",
     ): "a bare device line is no command, so it has no needs= to declare",
@@ -2114,9 +2118,14 @@ STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
 
 
 def _is_state_answer(node: ast.expr | None) -> bool:
-    """True for a ``STATE_MESSAGES`` answer, spelled or read from the table."""
+    """True for a ``STATE_MESSAGES`` answer, spelled, read from the table, or built on it in an f-string."""
     if isinstance(node, ast.Constant):
         return node.value in STATE_MESSAGES.values()
+    if isinstance(node, ast.JoinedStr):
+        return any(
+            isinstance(part, ast.FormattedValue) and _is_state_answer(part.value)
+            for part in node.values
+        )
     return (
         isinstance(node, ast.Subscript)
         and isinstance(node.value, ast.Name)
@@ -2154,7 +2163,7 @@ def test_a_missing_config_or_port_is_answered_by_the_gate():
 
 
 def test_state_answer_guard_fires_on_a_probe():
-    """The guard flags each state answer, spelled or read from the table, positional or msg=, and passes other states."""
+    """The guard flags each state answer, spelled, read or built on in an f-string, and passes other states."""
     # Arrange
     source = """
 def handler(ctx, args):
@@ -2166,6 +2175,10 @@ def handler(ctx, args):
         return CmdResult.fail(msg="No log file.")
     if b:
         return CmdResult.fail(msg=refusal)
+    if c:
+        return CmdResult.fail(msg=f"{STATE_MESSAGES['profile_loaded']}  Nothing to reload.")
+    if d:
+        return CmdResult.fail(msg=f"Unknown symbol: {name}")
     return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
 """
 
@@ -2173,7 +2186,9 @@ def handler(ctx, args):
     lines = [line for _, line in _state_answers(ast.parse(source))]
 
     # Assert
-    assert lines == [4, 6, 11], "spelled or read from the table; not another state, not a variable"
+    assert lines == [4, 6, 12, 15], (
+        "spelled, read, or built on; not another state, a variable or another f-string"
+    )
 
 
 def test_state_checked_in_a_branch_has_no_stale_entries():

@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.folders import PROFILE_SUFFIX
-from termapy.plugins import CmdResult, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.params import ParamSpec
 from termapy.profile import (
@@ -208,7 +208,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
                 _DEFAULT_FETCH_TIMEOUT_MS,
             )
         return CmdResult.fail(
-            msg=("No profile loaded; nothing to reload.  Pass a path or cmd=<command>."),
+            msg=f"{STATE_MESSAGES['profile_loaded']}  Nothing to reload: pass a path or cmd=<command>.",
         )
 
     # cmd= form -> device fetch.  Anything containing = needs the
@@ -296,9 +296,8 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
     audited each entry) -- saving is fine, but it's a useful nudge
     that the audit is pending.
     """
+    # needs=profile_loaded: the gate answered a missing profile already.
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
-    if not ns:
-        return CmdResult.fail(msg="No profile loaded.")
     args = args.strip()
     if args:
         # Contain to the config sandbox under MCP; the default path below
@@ -339,7 +338,7 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
     """Clear the active profile, leaving the session unattached."""
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
     if not ns:
-        ctx.io.result("No profile loaded.", "yellow")
+        ctx.io.result(STATE_MESSAGES["profile_loaded"], "yellow")
         return CmdResult.ok(value="0")
     n = len(ns.get("commands") or {})
     ns.clear()
@@ -356,7 +355,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
     if not ns:
         ctx.io.result(
-            "No profile loaded.  /profile.load <path> to load one.",
+            f"{STATE_MESSAGES['profile_loaded']}  /profile.load <path> to load one.",
             "yellow",
         )
         return CmdResult.ok(value="")
@@ -480,6 +479,7 @@ COMMAND = Command(
                 "-- saving is fine, just a nudge that audit is pending."
             ),
             handler=_handler_save,
+            needs=CapabilitySet(profile_loaded=True),
         ),
         "unload": Command(
             help="Clear the active profile.",

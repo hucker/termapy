@@ -1262,7 +1262,7 @@ class TestSymLoadUnload:
         assert get_table(engine.ctx) is None, "namespace cleared"
         assert second.success, second.error
         assert second.value == "0", "a second unload is a no-op, not an error"
-        assert ("No symbols loaded.", "yellow") in output
+        assert (STATE_MESSAGES["symbols_loaded"], "yellow") in output
         assert (config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}").exists(), (
             "the file is untouched"
         )
@@ -1399,7 +1399,7 @@ class TestSymRoot:
         engine, _, _ = sym_env
 
         # Act / Assert
-        assert engine.dispatch("sym gTemp").error == "No symbols loaded."
+        assert engine.dispatch("sym gTemp").error == STATE_MESSAGES["symbols_loaded"]
 
     def test_literal_without_table(self, sym_env):
         # Arrange
@@ -1492,14 +1492,26 @@ class TestSymSearch:
         engine, _, _ = sym_env
 
         # Act / Assert
-        assert engine.dispatch("sym.search main").error == "No symbols loaded."
+        assert engine.dispatch("sym.search main").error == STATE_MESSAGES["symbols_loaded"]
 
     def test_bare_is_usage(self, sym_env):
+        """With a table loaded, a bare search is a usage error."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _load(engine, config_path)
+
+        # Act / Assert
+        assert engine.dispatch("sym.search").error == "Usage: /sym.search <pattern>"
+
+    def test_no_table_is_the_gates_answer_before_the_arguments(self, sym_env):
+        """state-answered-by-gate: with no table the gate answers, before a bare search's usage error."""
         # Arrange
         engine, _, _ = sym_env
 
         # Act / Assert
-        assert engine.dispatch("sym.search").error == "Usage: /sym.search <pattern>"
+        assert engine.dispatch("sym.search").error == STATE_MESSAGES["symbols_loaded"], (
+            "the missing state first, as config and port do"
+        )
 
 
 class TestSymInfo:
@@ -1531,7 +1543,7 @@ class TestSymInfo:
         assert result.success, result.error
         assert result.value == "", "no table = empty value, not an error"
         assert (
-            "No symbols loaded.  /sym.import <map> or /sym.load {path} to load one.",
+            f"{STATE_MESSAGES['symbols_loaded']}  /sym.import <map> or /sym.load {{path}} to load one.",
             "yellow",
         ) in output
 

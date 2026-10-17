@@ -225,6 +225,38 @@ class CapabilitySet:
         attainable=True,
     )
 
+    # What:  A device profile is loaded (``ctx.ns("active_profile")``).
+    # Where: Dynamic -- evaluated per dispatch.  Commands that act on the
+    #        loaded profile (/profile.save) declare it; the ones that report
+    #        on it (/profile.info, /profile.unload) answer either way.
+    profile_loaded: bool = _restricted(
+        "a loaded device profile",
+        state="No profile loaded.",
+        attainable=True,
+    )
+
+    # What:  A symbol table with entries is loaded (``symbols.get_table``).
+    # Where: Dynamic -- evaluated per dispatch.  Commands that look symbols up
+    #        (/sym.search) declare it; an address may be a number and need
+    #        none, so address parsing checks only for a name.
+    symbols_loaded: bool = _restricted(
+        "a loaded symbol table",
+        state="No symbols loaded.",
+        attainable=True,
+    )
+
+    # What:  No capture is running (``ctx.internal.capture_active()`` is
+    #        false), so a new one may start.
+    # Where: Dynamic -- evaluated per dispatch.  The commands that start a
+    #        capture (/cap.text, .bin, .struct, .hex) declare it, so starting
+    #        a second fails with the reason instead of a status line beside a
+    #        generic "Capture not started.".
+    capture_idle: bool = _restricted(
+        "no capture already running",
+        state="Capture already active - use /cap.stop first.",
+        attainable=True,
+    )
+
     # What:  An interactive session -- a human at a terminal with
     #        persistent scrollback, modal dialog support, or in-band UI
     #        chrome (mode switch, screen clear, line numbers).  Also
@@ -367,6 +399,13 @@ class CapabilitySet:
     ``.show`` commands: a folder or file of the config, opened in the
     file explorer or the system viewer."""
 
+    CAPTURE_START: ClassVar[CapabilitySet]
+    """Starts a capture: needs an open port and no capture already running.
+
+    ``serial_connected=True, capture_idle=True`` -- /cap.text, .bin, .struct
+    and .hex.  The gate answers "Not connected." first, then "Capture already
+    active - use /cap.stop first."."""
+
     def satisfied_by(self, provided: CapabilitySet) -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(not getattr(self, f.name) or getattr(provided, f.name) for f in fields(self))
@@ -405,6 +444,7 @@ CapabilitySet.TUI_MODE = CapabilitySet(tui_mode=True)
 CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
 CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interactive=True)
 CapabilitySet.CONFIG_GUI_APPS = CapabilitySet(config_loaded=True, gui_apps=True)
+CapabilitySet.CAPTURE_START = CapabilitySet(serial_connected=True, capture_idle=True)
 
 
 # ── Views of the fields ──────────────────────────────────────────────────────

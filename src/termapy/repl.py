@@ -2460,6 +2460,17 @@ class ReplEngine:
         # ctx.config_path is what every handler reads; "" means none loaded.
         if self.ctx.config_path:
             dynamic_fields["config_loaded"] = True
+        # The loaded profile, the loaded symbol table and a running capture
+        # are session state like the port: a command needing one declares
+        # it, and the gate answers when it is missing.
+        if self.ctx.ns("active_profile"):
+            dynamic_fields["profile_loaded"] = True
+        table = symbols_session.get_table(self.ctx)
+        if table is not None and len(table):
+            dynamic_fields["symbols_loaded"] = True
+        capture_active = getattr(getattr(self.ctx, "internal", None), "capture_active", None)
+        if capture_active is None or not capture_active():
+            dynamic_fields["capture_idle"] = True
         # replace, not union: a fresh CapabilitySet has every baseline True,
         # so a union re-granted any baseline a sandbox had turned off the
         # moment a port opened or a script ran.

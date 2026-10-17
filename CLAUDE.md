@@ -163,11 +163,15 @@ All other paths relative to `src/termapy/`.
 - `needs=`: use the named `CapabilitySet` profiles (`.SERIAL_CONNECTED`,
   `.CONFIG_LOADED`, `.INTERACTIVE`, `.GUI_APPS`, `.FILE_EDITOR`,
   `.SESSION_LOG`, `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`,
-  `.SERIAL_INTERACTIVE`, `.CONFIG_GUI_APPS`) for the recurring needs — one
+  `.SERIAL_INTERACTIVE`, `.CONFIG_GUI_APPS`, `.CAPTURE_START`) for the recurring needs — one
   frozen shared instance each, docstring on hover; spell out unusual
   combinations inline; never a module-local `_NEEDS` constant.
-  A missing config or port is the gate's answer (`No config loaded.`,
-  `Not connected.`), never a handler's: declare the need and drop the
+  Missing session state is the gate's answer, never a handler's: a
+  config, an open port, a device profile, a symbol table, or no capture
+  already running (`No config loaded.`, `Not connected.`, `No profile
+  loaded.`, `No symbols loaded.`, `Capture already active - use /cap.stop
+  first.`). A command that only reports the state (`/profile.info`,
+  `/sym.info`) is not gated: declare the need and drop the
   check (registry `state-answered-by-gate`); code that must say it anyway
   reads `capabilities.STATE_MESSAGES`, the view of the capability field
   that declares it (registry `state-messages-one-owner`). Everything about

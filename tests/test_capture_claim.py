@@ -20,6 +20,7 @@ import pytest
 
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 
 @pytest.fixture
@@ -43,6 +44,28 @@ def _script(folder: Path, name: str, *lines: str) -> Path:
     path = folder / name
     path.write_text("".join(line + "\n" for line in lines))
     return path
+
+
+class TestOneCaptureAtATime:
+    def test_a_second_start_is_refused_until_the_first_stops(self, cli):
+        """state-answered-by-gate: while a capture runs, the next start is the gate's refusal; after a stop it starts."""
+        # Arrange
+        first = cli.repl.dispatch("cap.bin a.bin bytes=1000")
+
+        # Act
+        second = cli.repl.dispatch("cap.bin b.bin bytes=1000")
+        third = cli.repl.dispatch("cap.text c.txt timeout=5s")
+        cli.repl.dispatch("cap.stop")
+        fourth = cli.repl.dispatch("cap.bin d.bin bytes=1000")
+        cli.repl.dispatch("cap.stop")
+
+        # Assert
+        assert first.success is True, first.error
+        refused = [(result.success, result.error) for result in (second, third)]
+        assert refused == [(False, STATE_MESSAGES["capture_idle"])] * 2, (
+            "refused twice in a row, each kind"
+        )
+        assert fourth.success is True, f"the stop frees the next start: {fourth.error}"
 
 
 class TestCaptureOwnsItsClaim:

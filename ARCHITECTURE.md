@@ -530,6 +530,56 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 └──────────────────────────────────────────────────┘
 ```
 
+## Import cost: each path loads only what it shows
+
+termapy is one package with several front doors: the TUI, the plain-text
+CLI, the MCP server, VT100 passthrough, and the print-and-exit flags
+(`--ports`, `--usb`, `--chips`, `--check`, `--version`). A process pays for
+every module it imports before it does any work, and imports are
+transitive: one top-level `import` in a widely shared module is paid by
+every door that reaches it. So each path loads only what it shows (registry
+`flag-paths-light`, decision 2026-10-17).
+
+Three techniques, in order of preference:
+
+1. **Import where used.** A library a module needs in one function is
+   imported inside that function. `markup.py` imports Rich inside
+   `escape_markup`, `markup_to_plain` and `json_markup`; `update_check`
+   imports `urllib` inside the background fetch; `entry.py` reads
+   `importlib.metadata` only in the `--version` action, not every time it
+   builds the parser.
+2. **Build on first use.** A module-level table built from a library is
+   built by a `functools.cache` function on its first call instead, so
+   importing the module does not import the library: `scripting`'s age and
+   duration tiers from `frist`.
+3. **Split the module.** When the library is needed to define classes
+   (subclasses of prompt_toolkit's `History` and `Completer`), they move to
+   their own module, imported only on the path that uses them.
+   `cli_prompt.py` is the CLI's interactive prompt; `cli.py` imports it only
+   when it builds a prompt, so `-e` and `--run` one-shots never load
+   prompt_toolkit.
+
+The usual trap is a package `__init__`. Importing
+`termapy.plugins.capabilities` runs `termapy/plugins/__init__.py` first,
+which imports the whole plugin API; that is how Rich reached `--ports`
+(`port_control` → `plugins` → `markup` → Rich) though no flag code names
+Rich.
+
+What it bought: the print-and-exit flags start in half the time or less, a
+CLI one-shot loads about a third fewer modules, and the TUI imports
+noticeably faster. The measurements are in the decision entry.
+
+**Enforced by `tests/test_cli.py::TestPathsStayLight`**: each path runs in
+a subprocess and the test reads `sys.modules` afterwards, so a transitive
+import is caught as surely as a direct one. The static complement is
+`ui-layer-textual`, which pins the modules allowed to import Textual. Two
+known exceptions: `--info` loads Rich, because it flattens the shared
+`/port.chip` page to plain text with Rich's parser, and the TUI reads
+`importlib.metadata` for the version it shows. To find a new cost, run
+`python -X importtime -c "import termapy.app" 2> importtime.txt` and sort
+by the cumulative column; the indentation shows which module pulled each
+one in.
+
 ## CLI mode (`cli.py`)
 
 `termapy --cli` runs a plain-text terminal without Textual. It shares the same `ReplEngine`, `SerialEngine`, `PluginContext`, and all built-in plugins. The difference is how the frontend wires `PluginContext` callbacks:

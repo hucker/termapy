@@ -66,10 +66,11 @@ LongHelp = str | Callable[["PluginContext"], str]
 
 
 # The pickers a host's ``ctx.internal.open_picker`` opens -- each one the
-# dialog behind a title-bar button (Cfg, Run, Proto; the port name for
-# ``port``).  The vocabulary of ``Command.picker``; the TUI opening every
-# one of them is pinned by a Pilot test.
-PICKERS: tuple[str, ...] = ("cfg", "port", "proto", "run")
+# dialog behind a button (Cfg, Run, Proto; the port name for ``port``; the
+# config picker's New, the Quick Setup wizard, for ``setup``).  The
+# vocabulary of ``Command.picker``; the TUI opening every one of them is
+# pinned by a Pilot test.
+PICKERS: tuple[str, ...] = ("cfg", "port", "proto", "run", "setup")
 
 
 # Alias for ``Exception``, used at call sites where we deliberately

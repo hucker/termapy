@@ -252,6 +252,7 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 | `--check`         | Validate your config, print JSON status, exit.                |
 | `--version`       | Print the installed version and exit.                         |
 | `--demo`          | Set up (if needed) and start the demo device config.          |
+| `--new NAME PORT [SETTING ...]` | Create config NAME for PORT and start it connected (see [Quick setup](getting-started.md#quick-setup)). |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
 | `--no-color`      | Plain output without ANSI color (implied by `-e`).            |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |

@@ -21,7 +21,6 @@ from textual.widgets import Input, OptionList, Static
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog
 from termapy.dialogs.config_editor import ConfigEditor
-from termapy.dialogs.config_picker import ConfigPicker
 from termapy.dialogs.quick_setup import QuickSetup
 
 
@@ -393,46 +392,65 @@ class TestConfigPicked:
 
         _run(scenario)
 
-    def test_delete_asks_first_and_deletes_on_yes(self, app_factory, tmp_path):
-        """A delete result confirms; No keeps the file, Yes removes it and reports."""
+    def test_delete_asks_first_and_deletes_the_folder_on_yes(self, app_factory, tmp_path):
+        """config-deleted-once: the picker's Delete is /cfg.delete; No keeps the config, Yes removes its folder."""
 
         async def scenario():
             app, _, _ = app_factory()
             _, other = _write_cfg(tmp_path, name="other")
+            (Path(other).parent / "run").mkdir()
+            (Path(other).parent / "run" / "x.run").write_text("/print hi\n", encoding="utf-8")
+
+            def _asking() -> bool:
+                # The dialog is pushed from the command's worker; its buttons
+                # mount a beat later.
+                return isinstance(app.screen, ConfirmDialog) and bool(
+                    app.screen.query("#confirm-yes")
+                )
+
             async with app.run_test() as pilot:
                 await pilot.pause()
 
                 # Act / Assert -- No first
                 app._on_config_picked(("delete", other))
-                await pilot.pause()
-                assert isinstance(app.screen, ConfirmDialog)
+                asked = await until(pilot, _asking)
+                assert asked, "the delete question is asked"
                 await pilot.click("#confirm-no")
                 await pilot.pause()
-                assert Path(other).exists(), "No keeps the file"
+                assert Path(other).exists(), "No keeps the config"
 
                 # Act / Assert -- then Yes
                 app._on_config_picked(("delete", other))
-                await pilot.pause()
+                await until(pilot, _asking)
                 await pilot.click("#confirm-yes")
-                await pilot.pause()
-                assert not Path(other).exists(), "Yes deletes it"
-                assert "Deleted config: other.cfg" in app._get_screen_text()
+                gone = await until(pilot, lambda: not Path(other).parent.exists())
+                assert gone, "Yes deletes the whole folder, run script and all"
+                reported = await until(
+                    pilot, lambda: "Deleted config other (2 files)." in app._get_screen_text()
+                )
+                assert reported, "the deletion is reported"
 
         _run(scenario)
 
-    def test_deleting_the_active_config_reopens_the_picker(self, app_factory):
-        """Deleting the config in use clears the active path and reopens the picker to choose another."""
+    def test_deleting_the_active_config_is_refused(self, app_factory):
+        """config-deleted-once: the active config's folder holds the session's log, so Delete refuses it."""
 
         async def scenario():
             app, _, path = app_factory()
             async with app.run_test() as pilot:
                 await pilot.pause()
+
+                # Act
                 app._on_config_picked(("delete", path))
-                await pilot.pause()
-                await pilot.click("#confirm-yes")
-                await pilot.pause()
-                assert app.config_path == "", "nothing is active"
-                assert isinstance(app.screen, ConfigPicker), "pick another"
+                refused = await until(
+                    pilot,
+                    lambda: "Cannot delete the active config: proj" in app._get_screen_text(),
+                )
+
+                # Assert
+                assert refused, "the refusal is reported"
+                assert Path(path).exists(), "the active config is untouched"
+                assert app.config_path == path, "the session keeps its config"
 
         _run(scenario)
 

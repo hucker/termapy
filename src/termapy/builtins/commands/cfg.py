@@ -13,16 +13,25 @@ from termapy.builtins.commands._cfg_icon import (
     _handler as _handler_icon,
     _handler_list as _handler_icon_list,
     _handler_remove as _handler_icon_remove,
+    retire_launcher,
 )
 from termapy.builtins.commands.edit import edit_cfg_command
 from termapy.config import (
+    ConfigExistsError,
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
+    cfg_path_for_name,
     config_summary,
+    create_config,
+    delete_config,
+    delete_config_question,
     global_plugins_dir,
+    new_config_from_args,
     open_with_system,
+    rename_config,
 )
+from termapy.config_resolve import resolve_config
 from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
 from termapy.folders import FOLDERS, INFO_REPORT_SUFFIX
 from termapy.help_dynamic import cfg_status, compose
@@ -205,6 +214,123 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     # under the MCP sandbox.
     ctx.fs.guard_external_path(name, "Config")
     return ctx.internal.load_config(name)
+
+
+def _handler_new(ctx: PluginContext, args: str) -> CmdResult:
+    """Create config NAME for PORT where ``/cfg.list`` looks; ``/cfg.load`` switches to it.
+
+    Read and written exactly as ``termapy --new`` is
+    (``config.new_config_from_args``, ``config.create_config``), so the
+    command, the flag and the New Config wizard make the same files.  It
+    creates and does not load: loading is ``/cfg.load``'s job, and a
+    script that keeps running after it keeps its state.  A config already
+    there is replaced only on a yes to the shared question, and then only
+    its ``.cfg``; a host with no one to ask (MCP) refuses instead.  Bare,
+    the TUI opens the New Config wizard (``picker="setup"``).
+
+    Args:
+        ctx: Plugin context.
+        args: ``NAME PORT [SETTING ...]``.
+    """
+    # Hand-rolled (CLAUDE.md "Declarative Command Parameters"): the
+    # settings are /port.connect's grammar, read by its own reader.
+    name, _, settings = args.strip().partition(" ")
+    if not name:
+        raise UsageError()
+    try:
+        cfg = new_config_from_args(name, settings)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
+    path = cfg_path_for_name(name)
+    overwritten = False
+    try:
+        try:
+            create_config(path, cfg)
+        except ConfigExistsError as e:
+            if not ctx.capabilities.confirm_dialog:
+                return CmdResult.fail(msg=str(e))
+            if not ctx.ui.confirm(e.question):
+                return CmdResult.fail(msg=f"Config not changed: {name}")
+            create_config(path, cfg, overwrite=True)
+            overwritten = True
+    except (ValueError, RuntimeError, OSError) as e:
+        return CmdResult.fail(msg=str(e))
+    if overwritten:
+        ctx.io.result(f"Replaced {path.name}; the other files in {name}/ are kept.", "green")
+    else:
+        ctx.io.result(f"Created config {name}.", "green")
+    return CmdResult.ok(
+        value=str(path),
+        data={"name": name, "path": str(path), "overwritten": overwritten},
+    )
+
+
+def _other_config(ctx: PluginContext, arg: str, verb: str) -> Path | CmdResult:
+    """The ``.cfg`` that ``arg`` names, or the failure: not found, or the active one.
+
+    Resolved as ``/cfg.load`` resolves (a name, a relative path, or -- outside
+    the MCP sandbox -- an absolute one).  The active config is refused: its
+    folder holds the session's open log and history, so it cannot be moved
+    or removed under the running session.
+    """
+    ctx.fs.guard_external_path(arg, "Config")
+    found = resolve_config(arg)
+    if found is None or Path(found).suffix != ".cfg":
+        return CmdResult.fail(msg=f"Config not found: {arg}")
+    path = Path(found)
+    if ctx.config_path and Path(ctx.config_path).resolve() == path.resolve():
+        return CmdResult.fail(msg=f"Cannot {verb} the active config: {path.stem}")
+    return path
+
+
+def _handler_delete(ctx: PluginContext, args: str) -> CmdResult:
+    """Delete a config and its folder, after a yes (``config.delete_config``).
+
+    The one delete in every frontend: the config picker's Delete button
+    dispatches this command.  The TUI and CLI ask the shared question; MCP
+    asks through its destructive gate (``confirm=true``) instead, since it
+    has no prompt of its own.
+    """
+    arg = args.strip()
+    if not arg:
+        raise UsageError()
+    path = _other_config(ctx, arg, "delete")
+    if isinstance(path, CmdResult):
+        return path
+    if ctx.capabilities.confirm_dialog and not ctx.ui.confirm(delete_config_question(path)):
+        return CmdResult.fail(msg=f"Config not deleted: {path.stem}")
+    try:
+        count = delete_config(path)
+    except (OSError, RuntimeError) as e:
+        return CmdResult.fail(msg=f"Delete failed: {e}")
+    noun = "file" if count == 1 else "files"
+    ctx.io.result(f"Deleted config {path.stem} ({count} {noun}).", "green")
+    # A launcher pointing at a deleted config is a dead link.
+    retired = retire_launcher(path)
+    if retired is not None:
+        ctx.io.result(*retired)
+    return CmdResult.ok(value=str(path), data={"name": path.stem, "files": count})
+
+
+def _handler_rename(ctx: PluginContext, args: str) -> CmdResult:
+    """Rename a config, folder and file together (``config.rename_config``)."""
+    parts = args.strip().rsplit(maxsplit=1)
+    if len(parts) != 2:
+        raise UsageError()
+    arg, new_name = parts
+    path = _other_config(ctx, arg, "rename")
+    if isinstance(path, CmdResult):
+        return path
+    try:
+        new_path = rename_config(str(path), new_name)
+    except (ValueError, OSError) as e:
+        return CmdResult.fail(msg=f"Rename failed: {e}")
+    ctx.io.result(f"Renamed config: {path.stem} -> {Path(new_path).stem}", "green")
+    # The launcher embeds the old path, so it is a dead link now.
+    retired = retire_launcher(path)
+    if retired is not None:
+        ctx.io.result(*retired)
+    return CmdResult.ok(value=new_path)
 
 
 # ── /cfg.explore handler ──────────────────────────────────────────────────────
@@ -597,6 +723,53 @@ COMMAND = Command(
             args="<name>",
             help="Load a different config in this session (hot-swap).",
             handler=_handler_load,
+        ),
+        "new": Command(
+            args="<name> <port> {baud} {mode}",
+            help="Create a config for a port; {prefix}cfg.load <name> switches to it.",
+            long_help=(
+                "Create config <name> (title <name>) for <port>, where "
+                "{prefix}cfg.list looks, set to connect when it loads.  The "
+                "settings after the port are {prefix}port.connect's: baud, "
+                "frame (8N1 or N81), cr|lf|crlf, echo|noecho; unset ones are "
+                "115200 8N1.  It creates and does not load: {prefix}cfg.load "
+                "<name> switches to it.\n"
+                "\n"
+                "A config already there is replaced only after you say yes, "
+                "and then only its .cfg; the scripts and data in its folder "
+                "stay.  MCP has no one to ask, so it refuses.  termapy --new "
+                "NAME PORT [SETTING ...] does the same from the command line "
+                "and starts the new config."
+            ),
+            handler=_handler_new,
+            picker="setup",
+        ),
+        "delete": Command(
+            args="<name>",
+            help="Delete a config and its whole folder (asks first).",
+            long_help=(
+                "Delete config <name> and everything in its folder: the .cfg, "
+                "run scripts, profile, logs and captures.  Asks first in the "
+                "TUI and CLI; MCP needs confirm=true.  The active config "
+                "cannot be deleted -- load another first.  A config that "
+                "another program holds open is refused with nothing removed.  "
+                "Its desktop launcher, if any, goes too."
+            ),
+            handler=_handler_delete,
+            safety="destructive",
+        ),
+        "rename": Command(
+            args="<name> <new>",
+            help="Rename a config, folder and file together.",
+            long_help=(
+                "Rename config <name> to <new>: its folder, its .cfg and every "
+                "stem-named file (history, log, profile, symbols) move "
+                "together.  Nothing is overwritten.  The active config cannot "
+                "be renamed here (the TUI's Rename button can, and reloads "
+                "it); its desktop launcher, if any, is removed -- "
+                "{prefix}cfg.icon makes a new one."
+            ),
+            handler=_handler_rename,
         ),
         "info": Command(
             args="",

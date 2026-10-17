@@ -1352,6 +1352,7 @@ class TestHelpFlag:
             "--version",
             "--cfg-dir",
             "--demo",
+            "--new",
             "--cli",
             "--run",
             "--exec",
@@ -2080,3 +2081,300 @@ class TestWatchPortWidth:
         assert grown_offsets.pop() > baseline_offset, (
             "the seam: post-growth offset exceeds the baseline's"
         )
+
+
+class TestNewFlag:
+    """``termapy --new NAME PORT [SETTING ...]`` end to end, through main() in a subprocess.
+
+    The process runs in ``tmp_path`` with no ``TERMAPY_CFG_DIR``, so the
+    config lands where a user's would: a new ``./termapy_cfg`` in the
+    current folder.  ``--check`` stands in for the frontend: it loads the
+    new config and exits, which no TUI can do in a test.
+    """
+
+    @staticmethod
+    def _run(cwd: Path, *argv: str, env_cfg_dir: Path | None = None):
+        """Run ``termapy <argv>`` in ``cwd`` with stdin a pipe, not a terminal."""
+        import os
+        import subprocess
+        import sys as _sys
+
+        env = {key: value for key, value in os.environ.items() if key != "TERMAPY_CFG_DIR"}
+        if env_cfg_dir is not None:
+            env["TERMAPY_CFG_DIR"] = str(env_cfg_dir)
+        return subprocess.run(
+            [
+                _sys.executable,
+                "-c",
+                f"import sys; sys.argv = ['termapy', *{list(argv)!r}]; "
+                "from termapy.entry import main; main()",
+            ],
+            cwd=cwd,
+            env=env,
+            input="",
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    def test_new_creates_a_project_config_that_loads(self, tmp_path):
+        """--new makes ./termapy_cfg/NAME/NAME.cfg from the settings, and the config passes --check."""
+        # Act
+        result = self._run(tmp_path, "--new", "mydev", "COM9", "9600", "E71", "--check")
+
+        # Assert
+        cfg_path = tmp_path / "termapy_cfg" / "mydev" / "mydev.cfg"
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout) == {"status": "ok"}, "stdout stays --check's JSON"
+        assert data["title"] == "mydev"
+        assert data["serial"]["port"] == "COM9"
+        assert data["serial"]["baud_rate"] == 9600
+        assert (data["serial"]["parity"], data["serial"]["byte_size"]) == ("E", 7)
+        assert data["auto_connect"] is True, "--new starts connected"
+        assert (cfg_path.parent / ".gitignore").is_file(), "the folder is set up like any config"
+
+    def test_new_with_only_a_port_takes_the_defaults(self, tmp_path):
+        """Baud and frame left off are 115200 8N1."""
+        # Act
+        result = self._run(tmp_path, "--new", "mydev", "COM9", "--check")
+
+        # Assert
+        cfg_path = tmp_path / "termapy_cfg" / "mydev" / "mydev.cfg"
+        serial_cfg = json.loads(cfg_path.read_text(encoding="utf-8"))["serial"]
+        assert result.returncode == 0, result.stderr
+        assert (serial_cfg["baud_rate"], serial_cfg["parity"], serial_cfg["byte_size"]) == (
+            115200,
+            "N",
+            8,
+        )
+
+    def test_existing_config_without_a_terminal_is_not_changed(self, tmp_path):
+        """With stdin a pipe there is no one to ask, so the answer is no: exit 1, nothing changed."""
+        # Arrange
+        self._run(tmp_path, "--new", "mydev", "COM9", "--check")
+        cfg_path = tmp_path / "termapy_cfg" / "mydev" / "mydev.cfg"
+        before = cfg_path.read_text(encoding="utf-8")
+
+        # Act
+        result = self._run(tmp_path, "--new", "mydev", "COM4", "--check")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Overwrite mydev.cfg?" in result.stderr, "the question is shown, with its answer"
+        assert cfg_path.read_text(encoding="utf-8") == before, "the config is untouched"
+
+    def test_new_without_a_port_is_a_usage_error(self, tmp_path):
+        """Settings with no port exit 2 and create nothing."""
+        # Act
+        result = self._run(tmp_path, "--new", "mydev", "115200", "8N1")
+
+        # Assert
+        assert result.returncode == 2
+        assert "A port is required" in result.stderr
+        assert not (tmp_path / "termapy_cfg").exists(), "nothing is created"
+
+    def test_new_with_a_positional_config_is_a_usage_error(self, tmp_path):
+        """--new names its own config, so a second one on the line exits 2."""
+        # Act
+        result = self._run(tmp_path, "other.cfg", "--new", "mydev", "COM9")
+
+        # Assert
+        assert result.returncode == 2
+        assert "--new cannot be combined" in result.stderr
+
+    def test_cfg_dir_from_the_environment_wins(self, tmp_path):
+        """TERMAPY_CFG_DIR is where the config goes when it is set, as for any config."""
+        # Arrange
+        cfg_root = tmp_path / "configs"
+        cfg_root.mkdir()
+
+        # Act
+        result = self._run(tmp_path, "--new", "mydev", "COM9", "--check", env_cfg_dir=cfg_root)
+
+        # Assert
+        assert result.returncode == 0, result.stderr
+        assert (cfg_root / "mydev" / "mydev.cfg").is_file(), "created under TERMAPY_CFG_DIR"
+        assert not (tmp_path / "termapy_cfg").exists(), "no ./termapy_cfg when an override is set"
+
+
+class TestCfgNewCommand:
+    """``/cfg.new NAME PORT [SETTING ...]`` in the CLI: creates where /cfg.list looks, asks on stdin.
+
+    Driven through ``--cli -e`` in a subprocess so the overwrite question
+    is answered on a real stdin, as the /confirm tests do.
+    """
+
+    @staticmethod
+    def _run(cfg_root: Path, command: str, answer: str = ""):
+        """Run one command in a ``--demo`` session over ``cfg_root``, feeding ``answer`` on stdin.
+
+        ``--demo`` gives the session a config that connects, so the one-shot
+        reaches the command whatever else is in the folder.
+        """
+        import subprocess
+        import sys as _sys
+
+        return subprocess.run(
+            [
+                _sys.executable,
+                "-c",
+                "import sys; "
+                f"sys.argv = ['termapy', '--cli', '--demo', '--cfg-dir', {str(cfg_root)!r}, "
+                f"'-e', {command!r}]; "
+                "from termapy.entry import main; main()",
+            ],
+            input=answer,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    @staticmethod
+    def _existing(cfg_root: Path) -> tuple[Path, Path]:
+        """A config ``mydev`` with a run script beside its .cfg."""
+        cfg_path = cfg_root / "mydev" / "mydev.cfg"
+        (cfg_path.parent / "run").mkdir(parents=True)
+        cfg_path.write_text(json.dumps({"title": "old"}), encoding="utf-8")
+        script = cfg_path.parent / "run" / "x.run"
+        script.write_text("/print hi\n", encoding="utf-8")
+        return cfg_path, script
+
+    def test_cfg_new_creates_the_config_and_does_not_load_it(self, tmp_path):
+        """/cfg.new writes NAME/NAME.cfg from /port.connect's settings and reports it."""
+        # Act
+        result = self._run(tmp_path, "/cfg.new mydev COM9 9600 E71")
+
+        # Assert
+        data = json.loads((tmp_path / "mydev" / "mydev.cfg").read_text(encoding="utf-8"))
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Created config mydev." in result.stdout
+        assert data["title"] == "mydev"
+        assert (data["serial"]["port"], data["serial"]["baud_rate"]) == ("COM9", 9600)
+        assert data["auto_connect"] is True, "a named port connects on load"
+
+    def test_cfg_new_yes_replaces_the_cfg_and_keeps_the_scripts(self, tmp_path):
+        """config-created-once: a y to the question replaces mydev.cfg; the run script stays."""
+        # Arrange
+        cfg_path, script = self._existing(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.new mydev COM9", answer="y\n")
+
+        # Assert
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Overwrite mydev.cfg? Other files are kept." in result.stdout, "the shared question"
+        assert json.loads(cfg_path.read_text(encoding="utf-8"))["title"] == "mydev"
+        assert script.is_file(), "the run script is kept"
+
+    def test_cfg_new_no_changes_nothing_and_fails(self, tmp_path):
+        """config-created-once: an n leaves the config as it was and the command fails."""
+        # Arrange
+        cfg_path, _ = self._existing(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.new mydev COM9", answer="n\n")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Config not changed: mydev" in result.stdout
+        assert json.loads(cfg_path.read_text(encoding="utf-8"))["title"] == "old"
+
+    def test_cfg_new_without_a_port_fails(self, tmp_path):
+        """Settings with no port are refused and nothing is created."""
+        # Act
+        result = self._run(tmp_path, "/cfg.new mydev 115200 8N1")
+
+        # Assert
+        assert result.returncode == 1
+        assert "A port is required" in result.stdout
+        assert not (tmp_path / "mydev").exists(), "nothing is created"
+
+
+class TestCfgDeleteAndRename:
+    """``/cfg.delete`` and ``/cfg.rename`` in a CLI ``--demo`` session, where demo is the active config."""
+
+    _run = staticmethod(TestCfgNewCommand._run)
+
+    @staticmethod
+    def _other(cfg_root: Path) -> Path:
+        """A second config, ``other``, with a run script."""
+        cfg_path = cfg_root / "other" / "other.cfg"
+        (cfg_path.parent / "run").mkdir(parents=True)
+        cfg_path.write_text(json.dumps({"title": "other"}), encoding="utf-8")
+        (cfg_path.parent / "run" / "x.run").write_text("/print hi\n", encoding="utf-8")
+        return cfg_path
+
+    def test_cfg_delete_yes_removes_the_whole_folder(self, tmp_path):
+        """config-deleted-once: a y deletes other/ with its run script, and says how much went."""
+        # Arrange
+        cfg_path = self._other(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.delete other", answer="y\n")
+
+        # Assert
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Delete config 'other' and its folder" in result.stdout, "the shared question"
+        assert "Deleted config other (2 files)." in result.stdout
+        assert not cfg_path.parent.exists(), "the folder is gone"
+
+    def test_cfg_delete_no_keeps_the_config(self, tmp_path):
+        """config-deleted-once: an n keeps everything and the command fails."""
+        # Arrange
+        cfg_path = self._other(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.delete other", answer="n\n")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Config not deleted: other" in result.stdout
+        assert cfg_path.is_file(), "the config is kept"
+
+    def test_cfg_delete_refuses_the_active_config(self, tmp_path):
+        """config-deleted-once: the session's own config is refused without asking."""
+        # Act
+        result = self._run(tmp_path, "/cfg.delete demo", answer="y\n")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Cannot delete the active config: demo" in result.stdout
+        assert (tmp_path / "demo" / "demo.cfg").is_file(), "demo is untouched"
+
+    def test_cfg_rename_moves_folder_and_file(self, tmp_path):
+        """/cfg.rename takes other/other.cfg to renamed/renamed.cfg, run script included."""
+        # Arrange
+        self._other(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.rename other renamed")
+
+        # Assert
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Renamed config: other -> renamed" in result.stdout
+        assert (tmp_path / "renamed" / "renamed.cfg").is_file()
+        assert (tmp_path / "renamed" / "run" / "x.run").is_file(), "the folder moved whole"
+        assert not (tmp_path / "other").exists()
+
+    def test_cfg_rename_never_overwrites(self, tmp_path):
+        """Renaming onto an existing config fails and both stay as they were."""
+        # Arrange
+        cfg_path = self._other(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.rename other demo")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Rename failed: Config already exists: demo" in result.stdout
+        assert cfg_path.is_file(), "other is untouched"
+
+    def test_cfg_rename_refuses_the_active_config(self, tmp_path):
+        """The session's own config cannot be renamed by command."""
+        # Act
+        result = self._run(tmp_path, "/cfg.rename demo other")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Cannot rename the active config: demo" in result.stdout

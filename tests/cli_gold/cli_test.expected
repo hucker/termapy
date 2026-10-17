@@ -239,6 +239,22 @@ demo> /cfg.dump
       ]
   }
   [50/219] /cfg.dump (2.1ms)
+demo> /print === section: config new ===
+  === section: config new ===
+demo> /cfg.new gold_new loop:// 9600 E71
+  Created config gold_new.
+demo> /cfg.new gold_bad 115200 8N1
+  Error: A port is required
+demo> /cfg.new
+  Error: Usage: /cfg.new <name> <port> {baud} {mode}
+demo> /cfg.rename gold_new gold_renamed
+  Renamed config: gold_new -> gold_renamed
+demo> /cfg.rename demo gold_other
+  Error: Cannot rename the active config: demo
+demo> /cfg.delete demo
+  Error: Cannot delete the active config: demo
+demo> /cfg.delete nosuch
+  Error: Config not found: nosuch
 demo> /print === section: config folders ===
   === section: config folders ===
   [51/219] /print === section: config folders === (115us)
@@ -778,7 +794,7 @@ SYNOPSIS
   /cfg -- bare: opens the Cfg picker in the TUI; elsewhere runs /cfg.list
 
 DESCRIPTION
-  Active cfg = demo (1 config available)
+  Active cfg = demo (2 configs available)
   
   Three modes:
     /cfg                  - TUI: open Cfg picker.  CLI: list configs.
@@ -797,6 +813,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /cfg.auto       Set immediately (no confirmation).
+  /cfg.delete     Delete a config and its whole folder (asks first).
   /cfg.dump       Print the config in memory as JSON to the terminal.
   /cfg.edit       Edit the current config file.
   /cfg.explore    Open config directory in file explorer.
@@ -806,6 +823,8 @@ SUBCOMMANDS
   /cfg.info       Print project summary (tree + config + buttons).
   /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (hot-swap).
+  /cfg.new        Create a config for a port; /cfg.load <name> switches to it.
+  /cfg.rename     Rename a config, folder and file together.
   /cfg.show       Open the current config file in the system viewer.
   [167/219] /help cfg (6.35ms)
 demo> /help var

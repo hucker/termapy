@@ -327,3 +327,71 @@ class TestCfgLoadFiresOnConnected:
         assert "$ /ver  (on_connect_cmd)" in log, (
             f"on_connect_cmd fired on cfg.load reconnect, log was:\n{log}"
         )
+
+
+class TestMcpCfgNew:
+    """/cfg.new under MCP: an agent can create a config, but never overwrite one."""
+
+    def test_cfg_new_creates_a_config_an_agent_can_load(self, host, two_cfgs):
+        """config-created-once: /cfg.new writes NAME/NAME.cfg beside the others and returns its path."""
+        # Arrange
+        cfg_a, _ = two_cfgs
+        expected_path = cfg_a.parent.parent / "gamma" / "gamma.cfg"
+
+        # Act
+        result = host.repl.dispatch("cfg.new gamma COM9 9600 E71")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == str(expected_path), "the new path is the value"
+        assert result.data == {"name": "gamma", "path": str(expected_path), "overwritten": False}
+        assert json.loads(expected_path.read_text(encoding="utf-8"))["title"] == "gamma"
+
+    def test_cfg_new_over_an_existing_config_is_refused(self, host, two_cfgs):
+        """config-created-once: with no one to ask, an existing config is left alone and the call fails."""
+        # Arrange
+        _, cfg_b = two_cfgs
+        before = cfg_b.read_text(encoding="utf-8")
+
+        # Act
+        result = host.repl.dispatch("cfg.new beta COM9")
+
+        # Assert
+        assert not result.success, "MCP cannot answer the overwrite question"
+        assert result.error == "Config already exists: beta"
+        assert cfg_b.read_text(encoding="utf-8") == before, "beta is untouched"
+
+
+def _run_mcp(host, line: str, *, confirm: bool = False) -> dict:
+    """One MCP tool call, gate included, as an agent makes it."""
+    import asyncio
+
+    return asyncio.run(host.run_command_async(line, "normal", 5.0, confirm=confirm))
+
+
+class TestMcpCfgDelete:
+    """/cfg.delete under MCP: destructive, so it runs only with confirm=true."""
+
+    def test_cfg_delete_without_confirm_is_refused(self, host, two_cfgs):
+        """config-deleted-once: no confirm, nothing deleted, and the marker an agent asks the user on."""
+        # Arrange
+        _, cfg_b = two_cfgs
+
+        # Act
+        result = _run_mcp(host, "/cfg.delete beta")
+
+        # Assert
+        assert result["value"]["needs_confirmation"] is True, "the destructive gate"
+        assert cfg_b.exists(), "beta is untouched"
+
+    def test_cfg_delete_with_confirm_removes_the_folder(self, host, two_cfgs):
+        """config-deleted-once: with confirm=true the whole beta folder goes."""
+        # Arrange
+        _, cfg_b = two_cfgs
+
+        # Act
+        result = _run_mcp(host, "/cfg.delete beta", confirm=True)
+
+        # Assert
+        assert result["success"] is True, result["error"]
+        assert not cfg_b.parent.exists(), "beta's folder, subfolders and all, is gone"

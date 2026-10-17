@@ -60,6 +60,9 @@ def _build_parser() -> argparse.ArgumentParser:
         _version = "unknown"
 
     parser = argparse.ArgumentParser(
+        # Without it argparse names the program after sys.argv[0], which
+        # on Windows is the venv launcher: "python.exe ...\Scripts\termapy".
+        prog="termapy",
         description="TUI serial terminal with ANSI color support",
         # No prefix abbreviation: without it, argparse silently expands
         # `--port COM3` to `--ports COM3` (a print-and-exit flag), so a
@@ -95,6 +98,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--demo",
         action="store_true",
         help="Start with simulated demo device (no hardware needed)",
+    )
+    parser.add_argument(
+        "--new",
+        nargs="+",
+        default=None,
+        # Two metavars render as "NAME PORT [SETTING ...]"; run_new
+        # requires the port.
+        metavar=("NAME PORT", "SETTING"),
+        help="Create config NAME (title NAME) in ./termapy_cfg/NAME/ and "
+        "start it connected.  The settings are /port.connect's: PORT, then "
+        "baud, frame (8N1 or N81), cr|lf|crlf, echo|noecho; unset ones "
+        "default to 115200 8N1.  An existing config asks before its .cfg "
+        "is overwritten; its other files are kept.",
     )
     parser.add_argument(
         "--proto",
@@ -328,6 +344,12 @@ def _run_validate_profile(path_str: str, strict: bool = False) -> None:
     sys.exit(1)
 
 
+def _no_terminal_to_confirm(question: str) -> bool:
+    """``--new``'s overwrite answer when stdin is not a terminal: always No."""
+    print(f"termapy: {question} No terminal to answer on, so no.", file=sys.stderr)
+    return False
+
+
 def main() -> None:
     """Argparse + dispatch.  Print-and-exit flags run Textual-free."""
     parser = _build_parser()
@@ -374,6 +396,18 @@ def main() -> None:
         import termapy.config as _cfg_mod
 
         _cfg_mod.CFG_DIR = args.cfg_dir
+
+    # --new writes a config, then hands it on as the positional config, so
+    # every frontend below starts from it.  The overwrite question needs a
+    # person: a piped stdin (or --mcp's protocol) answers No rather than
+    # losing a line to the prompt.
+    if args.new is not None:
+        if args.config or args.demo:
+            parser.error("--new cannot be combined with a config or --demo")
+        from termapy.cli_flags import confirm_on_stdin, run_new
+
+        confirm = confirm_on_stdin if sys.stdin.isatty() else _no_terminal_to_confirm
+        args.config = str(run_new(args.new, confirm=confirm, usage_error=parser.error))
 
     # Normalize positional arg by extension - infer intent.  This
     # matters for --run and --proto; done here so both TUI and CLI

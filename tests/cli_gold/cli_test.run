@@ -70,6 +70,16 @@ $(BAUD) <- /port.baud_rate
 /print === section: config dump ===
 /cfg.dump
 
+# ── REPL: config new / rename / delete (never the active config) ────────────
+/print === section: config new ===
+/cfg.new gold_new loop:// 9600 E71
+/cfg.new gold_bad 115200 8N1
+/cfg.new
+/cfg.rename gold_new gold_renamed
+/cfg.rename demo gold_other
+/cfg.delete demo
+/cfg.delete nosuch
+
 # ── REPL: config folder listings ────────────────────────────────────────────
 /print === section: config folders ===
 /run.list

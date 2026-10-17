@@ -217,9 +217,9 @@ The picker's actions:
 
 - **Load:** switch to the highlighted config. If the configured port is not available, a port picker is shown.
 - **Edit:** open the highlighted config in the JSON editor
-- **New:** create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.
-- **Rename:** rename the highlighted config. The `termapy_cfg/<name>/` folder and the `<name>.cfg` inside it move together (with the command history); renaming the active config reloads it.
-- **Delete:** delete the highlighted config file (asks for confirmation)
+- **New:** create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor. A name that already exists asks before its `.cfg` is replaced; the rest of its folder is kept. `/cfg.new <name> <port>` does the same from the command line.
+- **Rename:** rename the highlighted config. The `termapy_cfg/<name>/` folder and the `<name>.cfg` inside it move together (with the command history); renaming the active config reloads it. `/cfg.rename <name> <new>` renames any other config.
+- **Delete:** delete the highlighted config and its whole folder -- run scripts, profile, logs and captures -- after asking. It is `/cfg.delete <name>`, so it refuses the active config (load another first), and a config another program holds open is refused with nothing removed.
 - **Cancel:** close the picker
 
 The JSON editor provides:

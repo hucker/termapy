@@ -44,9 +44,9 @@ def _quick_setup_env(tmp_path, monkeypatch):
     touches the user's real termapy_cfg/."""
 
     def _fake_cfg_path_for_name(name: str) -> Path:
-        d = tmp_path / name
-        d.mkdir(parents=True, exist_ok=True)
-        return d / f"{name}.cfg"
+        # A path only: creating the folder is create_config's job, and a
+        # folder already there is a config already there.
+        return tmp_path / name / f"{name}.cfg"
 
     monkeypatch.setattr(pickers, "cfg_path_for_name", _fake_cfg_path_for_name)
     return tmp_path
@@ -133,3 +133,95 @@ def test_quick_setup_writes_cfg_file_with_expected_contents(
     assert data["serial"]["port"] == "COM1", "serial.port carries the selection (post-v22)"
     assert data["serial"]["baud_rate"] == 115200, "serial.baud_rate written (post-v22)"
     assert app.connect_calls == 1, "auto-connect fired (port present)"
+
+
+class _AskingStubApp(_StubApp):
+    """A _StubApp that records pushed screens and reports status lines."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.pushed: list[tuple] = []
+        self.statuses: list[str] = []
+
+    def push_screen(self, screen, callback=None) -> None:
+        self.pushed.append((screen, callback))
+
+    def _status(self, text: str, color: str = "dim") -> None:
+        self.statuses.append(text)
+
+
+def _existing_config(root: Path, name: str) -> tuple[Path, Path]:
+    """A config folder with its .cfg and a run script, as a user leaves it."""
+    folder = root / name
+    (folder / "run").mkdir(parents=True)
+    cfg_path = folder / f"{name}.cfg"
+    cfg_path.write_text('{"title": "old"}', encoding="utf-8")
+    script = folder / "run" / "x.run"
+    script.write_text("/print hi\n", encoding="utf-8")
+    return cfg_path, script
+
+
+def test_quick_setup_existing_name_asks_before_overwriting(_quick_setup_env):
+    """config-created-once: the wizard on an existing name asks the overwrite question and writes nothing yet."""
+    # Arrange
+    cfg_path, _ = _existing_config(_quick_setup_env, "demo")
+    app = _AskingStubApp()
+
+    # Act
+    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))
+
+    # Assert
+    actual_message = app.pushed[0][0].message
+    assert "Overwrite demo.cfg? Other files are kept." in actual_message, "the shared question"
+    assert json.loads(cfg_path.read_text(encoding="utf-8"))["title"] == "old", (
+        "nothing is written before the answer"
+    )
+    assert not app.config_results, "no config is loaded before the answer"
+
+
+def test_quick_setup_overwrite_yes_replaces_cfg_and_keeps_scripts(_quick_setup_env):
+    """config-created-once: yes replaces only the .cfg; the folder's other files stay."""
+    # Arrange
+    cfg_path, script = _existing_config(_quick_setup_env, "demo")
+    app = _AskingStubApp()
+    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))
+    _, callback = app.pushed[0]
+
+    # Act
+    callback(True)
+
+    # Assert
+    actual_title = json.loads(cfg_path.read_text(encoding="utf-8"))["title"]
+    assert actual_title == "demo", "the new config replaced the old .cfg"
+    assert script.read_text(encoding="utf-8") == "/print hi\n", "the run script is kept"
+    assert app.config_results, "the new config is loaded"
+
+
+def test_quick_setup_overwrite_no_changes_nothing(_quick_setup_env):
+    """config-created-once: no leaves the existing config as it was and loads nothing."""
+    # Arrange
+    cfg_path, _ = _existing_config(_quick_setup_env, "demo")
+    app = _AskingStubApp()
+    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))
+    _, callback = app.pushed[0]
+
+    # Act
+    callback(False)
+
+    # Assert
+    actual_title = json.loads(cfg_path.read_text(encoding="utf-8"))["title"]
+    assert actual_title == "old", "the existing .cfg is untouched"
+    assert not app.config_results, "nothing is loaded"
+
+
+def test_quick_setup_bad_name_reports_and_writes_nothing(_quick_setup_env):
+    """A name with a space is refused through the status line; no folder appears."""
+    # Arrange
+    app = _AskingStubApp()
+
+    # Act
+    pickers.on_quick_setup(app, ("connect", "my dev", "COM1", 115200, False, False))
+
+    # Assert
+    assert app.statuses == ["New config failed: Name may not contain spaces: my dev"]
+    assert not (_quick_setup_env / "my dev").exists(), "no folder is created"

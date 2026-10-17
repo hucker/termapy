@@ -65,6 +65,7 @@
     "EEPROM",
     "EIGHTBITS",
     "endians",
+    "Espressif",
     "EVENPARITY",
     "FDTI",
     "fieldbus",

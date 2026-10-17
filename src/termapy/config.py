@@ -8,6 +8,7 @@ import copy
 import json
 import os
 import re
+import shutil
 import sys
 import threading
 from collections.abc import Mapping
@@ -25,6 +26,7 @@ from termapy.defaults import (
     VALID_PARITIES,
     VALID_STOP_BITS,
     cmd_prefix,
+    default_cfg,
 )
 from termapy.folders import (
     DEV,
@@ -272,6 +274,179 @@ def validate_file_stem(name: str) -> str | None:
     return None
 
 
+def new_cfg_root() -> Path:
+    """Where ``termapy --new`` puts a config: the config directory, or a new ``./termapy_cfg``.
+
+    ``--cfg-dir``, ``TERMAPY_CFG_DIR`` and an existing ``./termapy_cfg``
+    win exactly as in ``cfg_dir``.  Otherwise a new config starts a project
+    in the current folder instead of landing in the OS config directory.
+    A read: nothing is created here; ``create_config`` makes the folder
+    when it writes.
+    """
+    if CFG_DIR is not None or os.environ.get("TERMAPY_CFG_DIR") or Path(_LOCAL_DIR_NAME).is_dir():
+        return cfg_dir()
+    return Path(_LOCAL_DIR_NAME)
+
+
+def new_config(
+    name: str,
+    *,
+    port: str = "",
+    baud: int | None = None,
+    custom_baud: bool | None = None,
+    mode: tuple[str, int, float] | None = None,
+    eol: str | None = None,
+    echo: bool | None = None,
+    auto_connect: bool = False,
+) -> dict:
+    """A fresh config for ``name``: the defaults, titled ``name``, with these settings.
+
+    The cfg half of making a config; ``create_config`` writes it.  Every
+    creator builds through here -- the QuickSetup wizard and ``termapy
+    --new`` -- so a new config is the same whichever frontend made it.  A
+    setting left ``None`` keeps its default.
+
+    Args:
+        name: The config name, which is also its title.
+        port: Port name, serial number or URL; ``""`` leaves it unset.
+        baud: Baud rate.
+        custom_baud: Whether ``baud`` is deliberately non-standard; ``None``
+            derives it (a rate outside ``STANDARD_BAUD_RATES``).
+        mode: ``(parity, byte_size, stop_bits)`` as ``port_control.parse_mode``
+            returns it.
+        eol: Line ending sent after each command.
+        echo: Echo sent commands locally.
+        auto_connect: Open the port when the config loads.
+
+    Returns:
+        The new cfg dict.
+    """
+    cfg = default_cfg()
+    cfg["title"] = name
+    serial_cfg = cfg["serial"]
+    if port:
+        serial_cfg["port"] = port
+    if baud is not None:
+        serial_cfg["baud_rate"] = baud
+        serial_cfg["custom_baud"] = (
+            baud not in STANDARD_BAUD_RATES if custom_baud is None else custom_baud
+        )
+    if mode is not None:
+        serial_cfg["parity"], serial_cfg["byte_size"], serial_cfg["stop_bits"] = mode
+    if eol is not None:
+        cfg["eol"] = eol
+    if echo is not None:
+        cfg["echo"] = echo
+    cfg["auto_connect"] = auto_connect
+    return cfg
+
+
+def new_config_from_args(name: str, settings: str) -> dict:
+    """``NAME PORT [SETTING ...]`` as a new config: what ``--new`` and ``/cfg.new`` read.
+
+    One reading for the flag and the command.  The settings are
+    ``/port.connect``'s grammar, read by its reader
+    (``port_control.parse_open_args``): the port, which is required, then
+    baud, frame, line ending and echo in any order.  The config connects
+    when it loads -- a port was named, so connecting is the point.
+
+    Args:
+        name: The config name.
+        settings: The settings text after the name.
+
+    Returns:
+        The new cfg, from ``new_config``.
+
+    Raises:
+        ValueError: The name fails ``validate_file_stem``, a setting is not
+            ``/port.connect``'s, or there is no port.
+    """
+    from termapy.port_control import parse_open_args
+
+    reason = validate_file_stem(name)
+    if reason:
+        raise ValueError(reason)
+    port, baud, mode, line_ending, echo, error = parse_open_args(settings)
+    if error:
+        raise ValueError(error)
+    if not port:
+        raise ValueError("A port is required")
+    return new_config(
+        name,
+        port=port,
+        baud=baud,
+        mode=mode,
+        eol=line_ending,
+        echo=echo,
+        auto_connect=True,
+    )
+
+
+class ConfigExistsError(ValueError):
+    """A new config's place is taken; overwriting its ``.cfg`` needs a yes.
+
+    Every frontend asks ``question`` and, on yes, calls ``create_config``
+    again with ``overwrite=True``.  Only the ``.cfg`` is replaced: the run
+    scripts, profile, plugins, logs and captures beside it stay.
+
+    Attributes:
+        path: The ``.cfg`` that would be written.
+        file_count: Files already in the config's folder.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.file_count = sum(1 for entry in path.parent.rglob("*") if entry.is_file())
+        super().__init__(f"Config already exists: {path.stem}")
+
+    @property
+    def question(self) -> str:
+        """The overwrite question, the same words in every frontend."""
+        noun = "file" if self.file_count == 1 else "files"
+        return (
+            f"Config '{self.path.stem}' already exists ({self.path.parent}, "
+            f"{self.file_count} {noun}). Overwrite {self.path.name}? Other files are kept."
+        )
+
+
+def create_config(config_path: str | Path, cfg: dict, *, overwrite: bool = False) -> Path:
+    """Write a new config -- the one way a ``.cfg`` comes into being.
+
+    The place is taken when the ``.cfg`` exists, or when its own folder
+    (``<name>/<name>.cfg``) does: the folder may hold another setup's
+    scripts and profile.  Then it refuses unless ``overwrite`` is set,
+    and an overwrite replaces only the ``.cfg``.  ``prepare_cfg_folder``
+    sets the folder up, so a new config has the same folder and
+    ``.gitignore`` in every frontend.
+
+    Args:
+        config_path: The ``.cfg`` to write, normally
+            ``<cfg dir>/<name>/<name>.cfg``.
+        cfg: The config, usually from ``new_config``.
+        overwrite: Replace the ``.cfg`` of a config that already exists.
+
+    Returns:
+        The path written.
+
+    Raises:
+        ValueError: The name fails ``validate_file_stem``.
+        ConfigExistsError: The place is taken and ``overwrite`` is False.
+        RuntimeError: The path is inside the bundled package.
+        OSError: The folder or the file could not be written.
+    """
+    path = Path(config_path)
+    reason = validate_file_stem(path.stem)
+    if reason:
+        raise ValueError(reason)
+    own_folder = path.parent.name == path.stem and path.parent.is_dir()
+    if (path.exists() or own_folder) and not overwrite:
+        raise ConfigExistsError(path)
+    prepare_cfg_folder(str(path))
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=4)
+    return path
+
+
 def rename_config(config_path: str, new_name: str) -> str:
     """Rename a config -- folder and ``.cfg`` together -- and return the new path.
 
@@ -336,6 +511,85 @@ def rename_config(config_path: str, new_name: str) -> str:
     if standard_layout:
         folder.rename(new_folder)
     return str(new_path)
+
+
+def _deletion(config_path: Path) -> tuple[Path | None, list[Path]]:
+    """What ``delete_config`` removes: ``(folder, files)``.
+
+    The standard layout (a folder named after the config) goes whole, so
+    ``folder`` is set and ``files`` is everything in it.  A config in a
+    folder of another name (a Save As to a path) shares it, so ``folder``
+    is None and ``files`` is the ``.cfg`` and its stem-named sidecars
+    (``folders.SIDECARS``), the same set ``rename_config`` moves.
+    """
+    folder = config_path.parent
+    if folder.name == config_path.stem:
+        return folder, [entry for entry in folder.rglob("*") if entry.is_file()]
+    files = [config_path]
+    for suffix, sub in SIDECARS:
+        home = folder / sub if sub else folder
+        sidecar = home / f"{config_path.stem}{suffix}"
+        if sidecar.is_file():
+            files.append(sidecar)
+    return None, files
+
+
+def delete_config_question(config_path: str | Path) -> str:
+    """The question every frontend asks before ``delete_config``, the same words in each."""
+    path = Path(config_path)
+    folder, files = _deletion(path)
+    noun = "file" if len(files) == 1 else "files"
+    if folder is not None:
+        return (
+            f"Delete config '{path.stem}' and its folder {folder} ({len(files)} {noun}: "
+            "scripts, logs, captures)? This cannot be undone."
+        )
+    return (
+        f"Delete config '{path.stem}' ({len(files)} {noun} in {path.parent})? "
+        "This cannot be undone."
+    )
+
+
+def delete_config(config_path: str | Path) -> int:
+    """Delete a config -- the one way a config goes, in every frontend.
+
+    The standard layout loses its whole folder: the ``.cfg``, run scripts,
+    profile, logs and captures.  A config sharing a folder loses only its
+    ``.cfg`` and stem-named sidecars.  The folder is first renamed aside,
+    so a config another program holds open (Windows refuses to move a
+    folder with an open file) is refused before anything is removed,
+    never left half-deleted.
+
+    Args:
+        config_path: The config's ``.cfg``.
+
+    Returns:
+        How many files were removed.
+
+    Raises:
+        FileNotFoundError: There is no such ``.cfg``.
+        RuntimeError: The path is the bundled read-only template.
+        OSError: The config is in use, or a file could not be removed.
+    """
+    path = Path(config_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Config not found: {path.stem}")
+    cfg_data_dir(str(path))  # refuses the bundled template
+    folder, files = _deletion(path)
+    if folder is None:
+        for file in files:
+            file.unlink()
+        return len(files)
+    aside = folder.with_name(f".{folder.name}.deleting")
+    if aside.exists():
+        # A delete that failed partway left this; nothing in it is a config.
+        shutil.rmtree(aside)
+    try:
+        folder.rename(aside)
+    except OSError as e:
+        raise OSError(f"Config in use, nothing deleted: {path.stem} ({e})") from e
+    shutil.rmtree(aside)
+    return len(files)
 
 
 def connection_string(cfg: dict, level: str = "medium", actual_port: str = "") -> str:

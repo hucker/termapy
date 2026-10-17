@@ -18,6 +18,7 @@ Available flags:
     --watch            poll 2 Hz, print events on presence/in-use/SN change
     --chips [FILTER]   dump the USB_SERIAL_CHIPS lookup table
     --check            validate config, print JSON status
+    --new NAME PORT .. create a config, then hand it back to main()
 
 Signatures are intentionally uniform: ``_run_*(args) -> None`` where
 ``args`` is the ``argparse.Namespace``.  Each calls ``sys.exit(...)``
@@ -42,6 +43,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Callable
+    from pathlib import Path
+    from typing import NoReturn
 
     from termapy.port_control import ChipFacts, PortSource
 
@@ -630,3 +634,86 @@ def run_check(args: argparse.Namespace) -> None:
         result = {"status": "ok"}
     print(json.dumps(result, indent=2))
     sys.exit(0)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# --new: create a config from one line, then run it
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def confirm_on_stdin(message: str) -> bool:
+    """Ask ``message`` on stdin with a ``[y/N]`` default of No.
+
+    The CLI's one yes/no prompt: ``--new``'s overwrite question and the
+    REPL's ``CLITerminal._confirm`` both ask through it.  A confirmation
+    prompt tests for yes; it does not parse a boolean (the exemption named
+    in bool-one-vocabulary).  Any vocabulary yes confirms; a bare Enter, an
+    unrecognized word, end of input and Ctrl+C all keep the default of No.
+    """
+    from termapy.scripting import parse_bool
+
+    try:
+        answer = input(f"  {message} [y/N] ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return False
+    try:
+        return parse_bool(answer, default=False)
+    except ValueError:
+        return False
+
+
+def run_new(
+    tokens: list[str],
+    *,
+    confirm: Callable[[str], bool],
+    usage_error: Callable[[str], NoReturn],
+) -> Path:
+    """Create the config ``--new NAME PORT [SETTING ...]`` describes; return its path.
+
+    The one flag here that does not exit on success: ``main()`` goes on to
+    load the new config in whichever frontend was asked for, so the CLI,
+    TUI, VT100, web and MCP modes all start from it.  The arguments are read
+    as ``/cfg.new`` reads them (``config.new_config_from_args``: the port is
+    required and the config connects on load) and written by the same core
+    as the TUI's New Config wizard (``config.create_config``).  Unlike
+    ``/cfg.new``, which writes where ``/cfg.list`` looks, ``--new`` starts a
+    project: a new ``./termapy_cfg`` when no config directory is set
+    (``config.new_cfg_root``).  Status lines go to stderr, because stdout
+    may be ``--check``'s JSON or ``--mcp``'s protocol.
+
+    Args:
+        tokens: ``NAME`` then the settings, as argparse collected them.
+        confirm: Asks the overwrite question; True overwrites the ``.cfg``.
+        usage_error: Reports a bad argument and exits 2 (``parser.error``).
+
+    Returns:
+        The new ``.cfg`` path.
+    """
+    from termapy.config import (
+        ConfigExistsError,
+        create_config,
+        new_cfg_root,
+        new_config_from_args,
+    )
+
+    name, *settings = tokens
+    try:
+        cfg = new_config_from_args(name, " ".join(settings))
+    except ValueError as e:
+        usage_error(f"--new: {e}")
+    path = new_cfg_root() / name / f"{name}.cfg"
+    try:
+        try:
+            create_config(path, cfg)
+            verb = "Created"
+        except ConfigExistsError as e:
+            if not confirm(e.question):
+                print(f"termapy: not changed: {e.path}", file=sys.stderr)
+                sys.exit(1)
+            create_config(path, cfg, overwrite=True)
+            verb = "Overwrote"
+    except (ValueError, RuntimeError, OSError) as e:
+        print(f"termapy: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"termapy: {verb} {path}", file=sys.stderr)
+    return path

@@ -18,6 +18,7 @@ from textual.widgets import Button, Input, Static, TextArea
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs.config_editor import ConfigEditor
+from termapy.dialogs.confirm_dialog import ConfirmDialog
 
 
 class _Host(App):
@@ -475,5 +476,102 @@ class TestSaveAs:
                 assert json.loads(path.read_text(encoding="utf-8"))["title"] == "Probe", (
                     "the original is untouched"
                 )
+
+        _run(scenario)
+
+
+def _existing_target(tmp_path: Path) -> tuple[Path, Path]:
+    """Another config already on disk, with a run script beside its .cfg."""
+    target = tmp_path / "other" / "other.cfg"
+    (target.parent / "run").mkdir(parents=True)
+    target.write_text(json.dumps({"title": "old"}), encoding="utf-8")
+    script = target.parent / "run" / "x.run"
+    script.write_text("/print hi\n", encoding="utf-8")
+    return target, script
+
+
+async def _save_as(pilot, screen: ConfigEditor, target: Path) -> None:
+    """Open the Save As row, type ``target`` and press Enter."""
+    await pilot.click("#cfg-save-as")
+    await pilot.pause()
+    name_input = screen.query_one("#save-as-input", Input)
+    name_input.value = str(target)
+    name_input.focus()
+    await pilot.pause()
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+class TestCreatingOverAConfig:
+    """config-created-once: Save As (and Save of a new config) asks before replacing a config."""
+
+    def test_save_as_onto_a_config_asks_and_yes_replaces_only_the_cfg(self, tmp_path):
+        """The overwrite question appears; Yes writes the .cfg, keeps the run script and dismisses."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            target, script = _existing_target(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, results = await _open(app, pilot, cfg, path)
+                await _save_as(pilot, screen, target)
+                asked = isinstance(app.screen, ConfirmDialog)
+
+                # Act
+                await pilot.click("#confirm-yes")
+                await pilot.pause()
+
+                # Assert
+                assert asked, "the overwrite question was asked"
+                assert json.loads(target.read_text(encoding="utf-8"))["title"] == "Probe - other"
+                assert script.is_file(), "the run script is kept"
+                assert results == [(json.loads(target.read_text(encoding="utf-8")), str(target))]
+
+        _run(scenario)
+
+    def test_save_as_onto_a_config_cancel_changes_nothing(self, tmp_path):
+        """Cancel on the question leaves the other config as it was and the editor open."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            target, _ = _existing_target(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, results = await _open(app, pilot, cfg, path)
+                await _save_as(pilot, screen, target)
+
+                # Act
+                await pilot.click("#confirm-no")
+                await pilot.pause()
+
+                # Assert
+                assert json.loads(target.read_text(encoding="utf-8"))["title"] == "old"
+                assert results == [], "the editor did not dismiss"
+                assert app.screen is screen, "the editor is still open"
+
+        _run(scenario)
+
+    def test_save_of_a_new_config_over_an_existing_one_asks(self, tmp_path):
+        """The wizard's Advanced editor (is_new) shows the new cfg and asks before its Save replaces a config."""
+
+        async def scenario():
+            target, _ = _existing_target(tmp_path)
+            serial = DEFAULT_CFG["serial"]
+            assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
+            cfg = {**DEFAULT_CFG, "serial": {**serial, "port": "DEMO"}, "title": "other"}
+            app = _Host()
+            async with app.run_test() as pilot:
+                app.push_screen(ConfigEditor(cfg, str(target), is_new=True))
+                await pilot.pause()
+                shown = app.screen.query_one("#config-editor", TextArea).text
+
+                # Act
+                await pilot.click("#cfg-save")
+                await pilot.pause()
+
+                # Assert
+                assert '"title": "other"' in shown, "the editor shows the new cfg, not the file"
+                assert isinstance(app.screen, ConfirmDialog), "Save asks before replacing"
+                assert json.loads(target.read_text(encoding="utf-8"))["title"] == "old"
 
         _run(scenario)

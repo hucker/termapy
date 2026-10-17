@@ -1,18 +1,25 @@
-"""Tests for ``config.rename_config`` and ``config.validate_file_stem``.
+"""Tests for ``config.rename_config``, ``config.delete_config`` and ``config.validate_file_stem``.
 
 A config is ``termapy_cfg/<name>/<name>.cfg``: the folder carries the
 run/, proto/, cap/ ... data, so renaming must move the folder and the
-file together, with every stem-named sidecar, and never overwrite.
+file together, with every stem-named sidecar, and never overwrite; deleting
+removes the folder whole, and refuses before anything goes when it cannot.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
-from termapy.config import rename_config, validate_file_stem
+from termapy.config import (
+    delete_config,
+    delete_config_question,
+    rename_config,
+    validate_file_stem,
+)
 
 
 def _make_cfg(root: Path, name: str, *, folder: str | None = None, history: bool = False):
@@ -150,3 +157,86 @@ class TestRenameCarriesEverySidecar:
         )
         left = sorted(path.name for path in lab.rglob("bench*"))
         assert left == [], f"nothing keeps the old name: {left}"
+
+
+class TestDeleteConfig:
+    """config-deleted-once: ``delete_config`` removes a config's whole folder, or only its own files."""
+
+    def test_the_standard_layout_loses_its_whole_folder(self, tmp_path):
+        """The folder named after the config goes with the .cfg, run script and all."""
+        # Arrange
+        path = _make_cfg(tmp_path, "mydev", history=True)
+
+        # Act
+        actual_count = delete_config(path)
+
+        # Assert
+        assert actual_count == 3, "the .cfg, its history and the run script"
+        assert not path.parent.exists(), "the folder is gone"
+        assert list(tmp_path.iterdir()) == [], "nothing is left aside"
+
+    def test_twice_in_a_row_the_second_is_not_found(self, tmp_path):
+        """A deleted config is gone: deleting it again names it as not found."""
+        # Arrange
+        path = _make_cfg(tmp_path, "mydev")
+        delete_config(path)
+
+        # Act / Assert
+        with pytest.raises(FileNotFoundError, match="Config not found: mydev"):
+            delete_config(path)
+
+    def test_a_shared_folder_keeps_everything_but_the_config(self, tmp_path):
+        """A config in a folder of another name takes only its .cfg and stem-named sidecars."""
+        # Arrange
+        path = _make_cfg(tmp_path, "mydev", folder="shared", history=True)
+
+        # Act
+        actual_count = delete_config(path)
+
+        # Assert
+        assert actual_count == 2, "the .cfg and its history"
+        assert (tmp_path / "shared" / "run" / "hello.run").is_file(), "the folder's script stays"
+
+    def test_a_folder_left_aside_by_a_failed_delete_is_cleared(self, tmp_path):
+        """A .<name>.deleting leftover is removed, not mistaken for an obstacle."""
+        # Arrange
+        path = _make_cfg(tmp_path, "mydev")
+        leftover = tmp_path / ".mydev.deleting"
+        leftover.mkdir()
+        (leftover / "stale.txt").write_text("x", encoding="utf-8")
+
+        # Act
+        delete_config(path)
+
+        # Assert
+        assert list(tmp_path.iterdir()) == [], "the config and the leftover are both gone"
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="only Windows refuses to move an open file")
+    def test_a_config_held_open_is_refused_with_nothing_removed(self, tmp_path):
+        """A file another program holds open blocks the rename aside, so nothing is deleted."""
+        # Arrange
+        path = _make_cfg(tmp_path, "mydev")
+        held = path.parent / "mydev.log"
+
+        # Act
+        with open(held, "w", encoding="utf-8"), pytest.raises(OSError, match="nothing deleted"):
+            delete_config(path)
+
+        # Assert
+        assert path.is_file(), "the .cfg is still there"
+        assert (path.parent / "run" / "hello.run").is_file(), "so is the run script"
+
+    def test_the_question_counts_what_goes(self, tmp_path):
+        """The one delete question, word for word, as every frontend shows it."""
+        # Arrange
+        path = _make_cfg(tmp_path, "mydev")
+        expected = (
+            f"Delete config 'mydev' and its folder {path.parent} (2 files: "
+            "scripts, logs, captures)? This cannot be undone."
+        )
+
+        # Act
+        actual = delete_config_question(path)
+
+        # Assert
+        assert actual == expected

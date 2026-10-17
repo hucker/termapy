@@ -1,7 +1,9 @@
 # Commits `git blame` skips: formatting-only changes that move every line
-# without changing what it does.  Enable once per clone (GitHub reads it
-# automatically):
-#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# without changing what it does.  GitHub reads this file automatically;
+# locally, once per clone:
+#   git config alias.fblame 'blame --ignore-revs-file .git-blame-ignore-revs'
+# then `git fblame <file>`.  Not `git config blame.ignoreRevsFile`: git 2.43
+# makes blame fatal when the file is missing, as it is on older checkouts.
 
 # 2026-10-17 style: ruff format the whole project (decision 2026-10-17)
 fbea71ad409e8058aed8fe758f3301400f9b89e4

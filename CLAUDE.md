@@ -254,14 +254,18 @@ uv run termapy             # run the app
 uv run termapy --cfg-dir . # use cwd for configs
 uv run ruff check --fix src/termapy/ tests/ && uv run ruff format && uv run ty check --fix src/termapy/ tests/  # before every commit: autofix, then format
 git config core.hooksPath .githooks  # once per clone: format + ruff + ty gate every commit
-git config blame.ignoreRevsFile .git-blame-ignore-revs  # once per clone: blame skips the format commit
+git config alias.fblame 'blame --ignore-revs-file .git-blame-ignore-revs'  # once per clone: blame skipping format commits
 git config alias.fdiff '!git -c diff.ruff-format.textconv="sh scripts/format_textconv.sh" diff'  # once per clone
 ```
 
 `git fdiff <old> <new>` diffs Python files as ruff formats both sides, so a
 comparison with a branch older than the 2026-10-17 formatting commit shows
 real changes, not layout (`scripts/format_textconv.sh`; the last commit
-before formatting is tagged `pre-format`).
+before formatting is tagged `pre-format`). Run it from a checkout that has
+the script (main); it compares any two commits by name. `git fblame` is
+`git blame` skipping the formatting commits. It is an alias rather than
+`blame.ignoreRevsFile` on purpose: git 2.43 makes blame fatal when that
+file is missing, as it is on every checkout older than it.
 
 VS Code formats on save. `.vscode/` is gitignored (it holds personal
 settings), so a new machine installs the ruff and ty extensions

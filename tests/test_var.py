@@ -12,12 +12,14 @@ from termapy.builtins.commands.var import (
 from termapy.plugins import DirectiveInfo, DirectiveResult
 from termapy.repl import ReplEngine
 from termapy.variables import (
+    _CONTEXT_VARS,
     _FROZEN_MOMENTS,
     _VAR_REF_RE,
     _VARS,
     clear_vars,
     deref_ref,
     expand_vars,
+    register_cfg_vars,
     resolve_one,
     set_start_time_vars,
 )
@@ -25,10 +27,7 @@ from termapy.variables import (
 
 @pytest.fixture(autouse=True)
 def _clean_vars():
-    """Clear variables (and the SESSION frozen moment) before and after each test."""
-    _VARS.clear()
-    _FROZEN_MOMENTS.pop("SESSION", None)
-    yield
+    """Start each test with no variables and no SESSION moment; conftest restores the stores afterward."""
     _VARS.clear()
     _FROZEN_MOMENTS.pop("SESSION", None)
 
@@ -874,39 +873,27 @@ class TestDirectiveIntegration:
 class TestCfgContextVars:
     """CFG.PORT / CFG.BAUD read the v22-nested serial keys, not flat."""
 
-    @pytest.fixture
-    def _restore_context_vars(self):
-        # register_cfg_vars mutates the module-global _CONTEXT_VARS; snapshot
-        # and restore so we don't leak our stub get_cfg into other tests.
-        import termapy.variables as var_mod
-        saved = dict(var_mod._CONTEXT_VARS)
-        yield var_mod
-        var_mod._CONTEXT_VARS.clear()
-        var_mod._CONTEXT_VARS.update(saved)
-
-    def test_cfg_port_and_baud_read_nested_serial(self, _restore_context_vars):
+    def test_cfg_port_and_baud_read_nested_serial(self):
         """Port and baud come from the serial section; the integer baud becomes text."""
         # Arrange -- v22 cfg: port/baud_rate live under cfg["serial"].
-        var_mod = _restore_context_vars
         cfg = {"serial": {"port": "COM4", "baud_rate": 115200}}
-        var_mod.register_cfg_vars(lambda: "", lambda: cfg, lambda: "")
+        register_cfg_vars(lambda: "", lambda: cfg, lambda: "")
 
         # Act
-        actual_port = var_mod._CONTEXT_VARS["CFG.PORT"]()
-        actual_baud = var_mod._CONTEXT_VARS["CFG.BAUD"]()
+        actual_port = _CONTEXT_VARS["CFG.PORT"]()
+        actual_baud = _CONTEXT_VARS["CFG.BAUD"]()
 
         # Assert -- not the empty string a flat get("port") would yield
         assert actual_port == "COM4", "CFG.PORT reads cfg['serial']['port']"
         assert actual_baud == "115200", "CFG.BAUD reads cfg['serial']['baud_rate']"
 
-    def test_cfg_port_empty_when_no_serial_section(self, _restore_context_vars):
+    def test_cfg_port_empty_when_no_serial_section(self):
         """A cfg with no serial section gives an empty CFG.PORT, not a KeyError."""
         # Arrange -- defensive: a cfg missing the serial section.
-        var_mod = _restore_context_vars
-        var_mod.register_cfg_vars(lambda: "", lambda: {}, lambda: "")
+        register_cfg_vars(lambda: "", lambda: {}, lambda: "")
 
         # Act / Assert -- empty string, no KeyError
-        actual = var_mod._CONTEXT_VARS["CFG.PORT"]()
+        actual = _CONTEXT_VARS["CFG.PORT"]()
         assert actual == "", "no serial section -> empty, not a crash"
 
 

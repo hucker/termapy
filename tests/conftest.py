@@ -71,6 +71,38 @@ def _fix_msys2_path_on_windows() -> None:
 _fix_msys2_path_on_windows()
 
 
+from typing import Any  # noqa: E402 -- after the PATH fix, like every import below it
+
+import pytest  # noqa: E402
+
+
+def _restore_store(store: dict[str, Any], saved: dict[str, Any]) -> None:
+    """Put one store back to its saved contents in place; the module holds the dict, not a name to rebind."""
+    store.clear()
+    store.update(saved)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_variables():
+    """Hand every test the ``$(NAME)`` stores as they were before it ran (registry ``variables-isolated``).
+
+    ``termapy.variables`` keeps the namespace in four module-level stores, and
+    a frontend registers ``$(CFG)`` and the launch vars into them when it is
+    built.  Shared by every test in a worker, they carried one test's state
+    into the next: the echo test passed only after some earlier test had built
+    a CLI on a config named ``rig.cfg``, and ``/var.clear`` counted variables
+    other tests had set.  Restoring rather than clearing keeps whatever import
+    or a wider-scoped fixture put there.
+    """
+    from termapy import variables
+
+    stores = (variables._VARS, variables._LAUNCH_VARS, variables._CONTEXT_VARS, variables._FROZEN_MOMENTS)
+    saved = [dict(store) for store in stores]
+    yield
+    for store, before in zip(stores, saved):
+        _restore_store(store, before)
+
+
 def pytest_addoption(parser) -> None:
     """Add ``--run-hw-loopback`` (see ``tests/test_hw_loopback.py``)."""
     parser.addoption(

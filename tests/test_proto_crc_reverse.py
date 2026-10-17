@@ -217,7 +217,6 @@ class TestReverseDeref:
         assert actual == expected, (
             "dereferenced packets must reduce to exactly the literal packets"
         )
-        var._VARS.clear()
 
     def test_value_with_spaces_stays_one_packet(self):
         """A spaced hex value behind $(*NAME) binds as one packet, not one packet per byte."""
@@ -246,7 +245,6 @@ class TestReverseDeref:
         assert actual == expected, (
             "a dereferenced value containing spaces must bind as ONE packet"
         )
-        var._VARS.clear()
 
     def test_unknown_reference_errors(self):
         """An undefined $(*NAME) fails naming the variable, not later as a hex parse error."""

@@ -27,7 +27,7 @@ from termapy.plugins import (
     resolve_long_help,
 )
 from termapy.repl import ReplEngine
-from termapy.variables import unset_user_var
+from termapy.variables import set_context_var, unset_user_var
 
 # Each bites a different way: a lowercase tag, a TOML table header, a stray
 # close tag, a Windows path whose trailing backslash would escape the close
@@ -174,6 +174,8 @@ def test_the_echo_line_expands_vars_marks_the_eol_and_escapes_the_command(tmp_pa
     cfg = {"echo_fmt": "[purple]$(CFG)> {cmd}[/]", "eol_markers": True, "eol": "\r"}
     config_path.write_text(json.dumps(cfg), encoding="utf-8")
     engine = ReplEngine(cfg, str(config_path), lambda *a, **k: None, global_root=tmp_path)
+    # $(CFG) is a frontend's to register (cli.py, app.py, mcp/server.py); a bare engine has none.
+    set_context_var("CFG", lambda: config_path.stem)
 
     # Act
     slash = Text.from_markup(engine.format_echo_markup("/print [ok]")).plain

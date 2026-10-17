@@ -925,6 +925,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_usb_vendor.py                  | Tests for usb_vendor lookup + scripts/refresh_usb_ids.py transformer                                                                               |
 | test_value_capture_e2e.py           | End-to-end check that handlers populate `CmdResult.value`                                                                                          |
 | test_var.py                         | Tests for the user-defined variables plugin (var.py)                                                                                               |
+| test_variable_isolation.py          | variables-isolated: a test cannot see the `$(NAME)` state an earlier test left behind                                                              |
 | test_vfs.py                         | Tests for FakeSerial virtual filesystem - AT+FS commands and VFS state                                                                             |
 | test_views.py                       | list-one-format: a list answer is records plus a view, and dispatch renders the view once                                                          |
 | test_vt100.py                       | Tests for vt100.py - settings/transform mappings, config resolution, streams                                                                       |

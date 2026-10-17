@@ -145,6 +145,7 @@ src/termapy/
 ├── capture_view.py         #              TUI capture-progress view: start/stop, status bar, and progress widget
 ├── cli.py                  # (1109 lines) CLI serial terminal - no Textual dependency
 ├── cli_flags.py            #              Print-and-exit handlers for termapy's CLI flags
+├── cli_prompt.py           #              The CLI's interactive prompt: prompt_toolkit history, completion and session
 ├── config.py               # (1270 lines) Config file management - paths, defaults, loading, and serial port setup
 ├── config_resolve.py       #              Config-path resolution helpers
 ├── converters.py           #              Converter registries -- vendor text in, termapy data out, one record type
@@ -541,7 +542,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 | `ctx.internal.port`  | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |
 | `delay_progress`     | bottom bar / script overlay  | bar at the prompt only        |
 
-CLI-specific features: prompt_toolkit tab completion, shared command history, `/term.color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer); `/edit.cfg` opens the system editor instead of the built-in modal editor.
+CLI-specific features: prompt_toolkit tab completion and shared command history (`cli_prompt.py`, imported only when an interactive prompt is built, so `-e` and `--run` one-shots never load prompt_toolkit), `/term.color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer); `/edit.cfg` opens the system editor instead of the built-in modal editor.
 
 ## MCP mode (`mcp/server.py`)
 

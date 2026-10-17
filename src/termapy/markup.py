@@ -20,9 +20,10 @@ escaped string (registry ``widget-text-literal``).
 
 from __future__ import annotations
 
-from rich.errors import MarkupError
-from rich.markup import escape as _rich_escape
-from rich.text import Text
+# Rich is imported inside each function: ``termapy.plugins`` imports this
+# module, and the print-and-exit flags (``--ports``) reach ``plugins``
+# through ``port_control`` -- they must load no UI framework, Rich included
+# (``cli_flags``' contract), and only these functions ever need it.
 
 
 def escape_markup(value: object) -> str:
@@ -46,10 +47,12 @@ def escape_markup(value: object) -> str:
     Returns:
         The escaped markup.
     """
+    from rich.markup import escape
+
     text = str(value)
     body = text.rstrip("\\")
     trailing = len(text) - len(body)
-    escaped = _rich_escape(body)
+    escaped = escape(body)
     if trailing:
         escaped += "\\" * (2 * trailing) + "[none][/none]"
     return escaped
@@ -89,6 +92,9 @@ def markup_to_plain(markup: str) -> str:
     Returns:
         The rendered text without style.
     """
+    from rich.errors import MarkupError
+    from rich.text import Text
+
     try:
         return Text.from_markup(markup).plain
     except MarkupError:

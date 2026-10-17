@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from termapy.cli import CLITerminal, PlainFileHistory
+from termapy.cli import CLITerminal
+from termapy.cli_prompt import PlainFileHistory
 from termapy.defaults import DEFAULT_CFG
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.plugins.capabilities import STATE_MESSAGES
@@ -908,7 +909,7 @@ class TestHistory:
 
     def test_build_session_creates_completer(self, cli):
         """Completer class is wired with repl and prefix."""
-        from termapy.cli import _TermapyCompleter
+        from termapy.cli_prompt import _TermapyCompleter
 
         # Act
         completer = _TermapyCompleter(cli.repl, cli.prefix)
@@ -925,7 +926,7 @@ class TestFileCompletion:
         """/proto.run Tab-completes .pro names, so the completer is not wired to run/ alone."""
         from prompt_toolkit.document import Document
 
-        from termapy.cli import _TermapyCompleter
+        from termapy.cli_prompt import _TermapyCompleter
 
         # Arrange
         proto_dir = Path(cli.config_path).parent / "proto"
@@ -1859,6 +1860,103 @@ class TestCliFreeOfTextual:
             f"importing termapy.port_format loaded textual.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
+
+# The heavy imports a path must not pay for, and what each costs (measured
+# 2026-10-17): a UI framework it never shows, or a library only another
+# path needs.
+_HEAVY = ("textual", "prompt_toolkit", "rich", "importlib.metadata", "frist")
+
+
+def _loaded_after(*argv: str, cwd: Path) -> set[str]:
+    """Run ``termapy <argv>`` in a subprocess; return which ``_HEAVY`` families it loaded."""
+    import os
+    import subprocess
+    import sys as _sys
+
+    code = (
+        "import json, sys\n"
+        "sys.argv = ['termapy', *json.loads(sys.argv[1])]\n"
+        "from termapy.entry import main\n"
+        "try:\n"
+        "    main()\n"
+        "except SystemExit:\n"
+        "    pass\n"
+        f"heavy = {_HEAVY!r}\n"
+        "loaded = [family for family in heavy if any("
+        "name == family or name.startswith(family + '.') for name in sys.modules)]\n"
+        "sys.__stdout__.write('\\nLOADED=' + json.dumps(loaded) + '\\n')\n"
+    )
+    env = {**os.environ, "TERMAPY_DEMO_FLEET": "1"}
+    result = subprocess.run(
+        [_sys.executable, "-c", code, json.dumps(list(argv))],
+        cwd=cwd,
+        env=env,
+        input="",
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    marker = [line for line in result.stdout.splitlines() if line.startswith("LOADED=")]
+    assert marker, f"the probe did not finish:\n{result.stdout}\n{result.stderr}"
+    return set(json.loads(marker[-1][len("LOADED=") :]))
+
+
+class TestPathsStayLight:
+    """flag-paths-light: each path loads only what it shows.
+
+    The print-and-exit flags load no UI framework (``cli_flags``' contract)
+    and neither ``importlib.metadata`` (only ``--version`` needs it) nor
+    ``frist`` (only file ages need it); a CLI one-shot never builds a
+    prompt, so it loads no prompt_toolkit.  Each was found loaded on
+    2026-10-17, through a transitive import: Rich via ``termapy.markup``,
+    frist via ``scripting``'s tables, metadata via ``entry``'s parser.
+    """
+
+    @pytest.mark.parametrize("flag", ["--ports", "--chips", "--usb"])
+    def test_print_and_exit_flags_load_nothing_heavy(self, tmp_path, flag):
+        """--ports, --chips and --usb load no UI framework, no metadata and no frist."""
+        # Act
+        actual = _loaded_after(flag, cwd=tmp_path)
+
+        # Assert
+        assert actual == set(), f"{flag} loaded {sorted(actual)}"
+
+    def test_check_loads_nothing_heavy(self, tmp_path):
+        """--check validates a config without any of the heavy imports."""
+        # Arrange
+        cfg_path = tmp_path / "probe" / "probe.cfg"
+        cfg_path.parent.mkdir()
+        cfg_path.write_text("{}", encoding="utf-8")
+
+        # Act
+        actual = _loaded_after("--check", str(cfg_path), cwd=tmp_path)
+
+        # Assert
+        assert actual == set(), f"--check loaded {sorted(actual)}"
+
+    def test_version_loads_only_metadata(self, tmp_path):
+        """--version is the one flag that needs importlib.metadata, and it loads nothing else heavy."""
+        # Act
+        actual = _loaded_after("--version", cwd=tmp_path)
+
+        # Assert
+        assert actual == {"importlib.metadata"}
+
+    def test_cli_one_shot_loads_no_prompt(self, tmp_path):
+        """A --cli -e one-shot never shows a prompt, so prompt_toolkit (and Textual) stay out."""
+        # Arrange
+        cfg_root = tmp_path / "cfg"
+        cfg_root.mkdir()
+
+        # Act
+        actual = _loaded_after(
+            "--cli", "--demo", "--cfg-dir", str(cfg_root), "-e", "/print hi", cwd=tmp_path
+        )
+
+        # Assert
+        assert "prompt_toolkit" not in actual, "no prompt is built for -e"
+        assert "textual" not in actual, "and the CLI never loads Textual"
 
 
 class TestPlainFileHistory:

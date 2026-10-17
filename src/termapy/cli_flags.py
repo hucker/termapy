@@ -9,7 +9,11 @@ Architectural constraint: **this module must not import Textual, Rich,
 prompt-toolkit, or any other UI framework.**  The entry point
 (``termapy.entry``) dispatches to these helpers *before* any TUI-or-
 REPL imports fire, so ``termapy --ports`` stays fast and small even on
-a machine where importing Textual costs ~300 ms.
+a machine where importing Textual costs ~300 ms.  The flags load neither
+``importlib.metadata`` (``--version`` alone) nor ``frist``; ``--info``
+alone loads Rich, to flatten the ``/port.chip`` page to plain text.
+**Enforced by ``tests/test_cli.py::TestPathsStayLight`` (registry
+``flag-paths-light``)**, which runs each flag and checks what loaded.
 
 Available flags:
 

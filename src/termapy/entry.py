@@ -22,8 +22,31 @@ from __future__ import annotations
 
 import argparse
 import sys
-from importlib.metadata import version as _get_version
 from pathlib import Path
+
+
+class _Version(argparse.Action):
+    """``--version``: looks the installed version up only when asked.
+
+    ``importlib.metadata`` costs ~50 ms to import, and every invocation
+    builds the parser, so an eager lookup charged ``--ports``, the CLI and
+    the MCP server for a string only ``--version`` prints.
+    """
+
+    def __init__(self, option_strings, dest=argparse.SUPPRESS, **kwargs) -> None:
+        super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            installed = version("termapy")
+        except PackageNotFoundError:
+            # Running from a git clone without `pip install .` -- version
+            # metadata isn't available.  Anything else is a real bug.
+            installed = "unknown"
+        print(f"termapy {installed}")
+        parser.exit()
 
 
 class _OneCommand(argparse.Action):
@@ -50,15 +73,6 @@ class _OneCommand(argparse.Action):
 
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser.  No side effects; pure construction."""
-    from importlib.metadata import PackageNotFoundError
-
-    try:
-        _version = _get_version("termapy")
-    except PackageNotFoundError:
-        # Running from a git clone without `pip install .` -- version
-        # metadata isn't available.  Anything else is a real bug.
-        _version = "unknown"
-
     parser = argparse.ArgumentParser(
         # Without it argparse names the program after sys.argv[0], which
         # on Windows is the venv launcher: "python.exe ...\Scripts\termapy".
@@ -80,8 +94,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--version",
-        action="version",
-        version=f"termapy {_version}",
+        action=_Version,
+        help="show program's version number and exit",
     )
     parser.add_argument(
         "config",

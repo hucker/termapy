@@ -22,6 +22,7 @@ from termapy.plugins import (
     UsageError,
     escape_markup,
 )
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.variables import (
     clear_vars,
     context_vars,
@@ -237,7 +238,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
     else:
         # Device command: send to serial and capture response
         if not ctx.serial.is_connected():
-            return CmdResult.fail(msg="Not connected.")
+            return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
         encoding = ctx.cfg.get("encoding", "utf-8")
         with ctx.serial.io():
             ctx.serial.drain()

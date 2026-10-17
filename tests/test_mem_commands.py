@@ -19,6 +19,7 @@ import pytest
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 from termapy.folders import SYMBOLS_SUFFIX
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 DEMO_DIR = Path(__file__).parent.parent / "src" / "termapy" / "builtins" / "demo"
 DEMO_SYMBOLS = DEMO_DIR / f"demo{SYMBOLS_SUFFIX}"
@@ -652,8 +653,8 @@ class TestSpaceForm:
         out = capsys.readouterr().out
 
         # Assert
-        assert (result.success, result.error) == (False, "Not connected."), "the subcommand's failure is the answer"
-        assert out.count("Not connected.") == 1, "printed once, at the redirect's exit"
+        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), "the subcommand's failure is the answer"
+        assert out.count(STATE_MESSAGES["serial_connected"]) == 1, "printed once, at the redirect's exit"
 
     def test_unknown_subcommand_names_the_choices(self, cli):
         """An unknown word after /mem is an error that lists the real subcommands."""

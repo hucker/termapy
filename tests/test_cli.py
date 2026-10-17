@@ -11,6 +11,7 @@ import pytest
 from termapy.cli import CLITerminal, PlainFileHistory
 from termapy.defaults import DEFAULT_CFG
 from termapy.plugins import CapabilitySet, CmdResult
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 pytestmark = pytest.mark.slow  # subprocess-spawning + CLITerminal end-to-end
 
@@ -269,15 +270,24 @@ class TestTermHex:
 
 
 class TestRaw:
-    def test_raw_not_connected(self, cli):
-        """/raw refuses to send when no port is open."""
+    @pytest.mark.parametrize(
+        "route",
+        [
+            pytest.param(lambda cli: cli._dispatch("/raw hello"), id="typed"),
+            pytest.param(lambda cli: cli.repl.dispatch("raw hello"), id="dispatched"),
+        ],
+    )
+    def test_raw_not_connected(self, cli, route):
+        """state-answered-by-gate: /raw with no open port is the gate's answer by either route, typed text included."""
         # Arrange -- fixture is disconnected by default.
         # Act
-        result = cli._dispatch("/raw hello")
+        result = route(cli)
 
         # Assert
         assert not result.success, "fails when disconnected"
-        assert result.error == "Not connected.", "the standard state phrase"
+        assert result.error == STATE_MESSAGES["serial_connected"], (
+            "the gate answered; a typed /raw past it would reach the write and say 'Send error: ...'"
+        )
 
     def test_raw_no_args(self, cli):
         """/raw with no payload renders the usage line instead of sending."""
@@ -704,7 +714,7 @@ class TestConnect:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Not connected" in actual, "warns not connected"
+        assert STATE_MESSAGES["serial_connected"] in actual, "warns not connected"
 
     def test_disconnect_success(self, cli, capsys):
         """Disconnect closes the engine and announces it."""
@@ -733,7 +743,7 @@ class TestTypedLine:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Not connected" in actual, "warns not connected"
+        assert STATE_MESSAGES["serial_connected"] in actual, "warns not connected"
 
     def test_sends_with_line_ending(self, cli, capsys):
         """Typed lines get the cfg eol appended, proven by DEMO answering OK."""

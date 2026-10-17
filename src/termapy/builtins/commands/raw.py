@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -15,8 +15,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     The one ``/raw`` in every frontend.  A typed ``/raw <text>`` reaches
     this handler from ``ReplEngine.dispatch_full`` with the text exactly
-    as typed (no directives, transforms or flag stripping); ``raw_args``
-    keeps the ``$(VAR)`` transform off on any other route here.
+    as typed (no directives, transforms or flag stripping) but through
+    the same capability gate; ``raw_args`` keeps the ``$(VAR)`` transform
+    off on any other route here.
 
     Args:
         ctx: Plugin context.
@@ -24,8 +25,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """
     if not args:
         raise UsageError()
-    if not ctx.serial.is_connected():
-        return CmdResult.fail(msg="Not connected.")
     try:
         ctx.serial.write(args.encode(ctx.cfg.get("encoding", "utf-8")))
     # OSError covers pyserial's SerialException; the encode can fail on a
@@ -50,5 +49,6 @@ COMMAND = Command(
         "{prefix}term.send."
     ),
     handler=_handler,
+    needs=CapabilitySet.SERIAL_CONNECTED,
     raw_args=True,
 )

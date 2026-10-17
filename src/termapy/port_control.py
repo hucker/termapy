@@ -28,6 +28,7 @@ from termapy.defaults import (
     VALID_PARITIES,
     VALID_STOP_BITS,
 )
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.views import Item, TextLine
 from termapy.scripting import format_duration, parse_bool
 from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
@@ -260,7 +261,7 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
         return _result([_msg("Nothing to set.", "yellow")])
 
     if ser is None:
-        return _result([_msg("Not connected.", "yellow")])
+        return _not_connected()
 
     cfg_update: dict[str, Any] = {}
     msgs: list[Msg] = []
@@ -298,6 +299,11 @@ def _msg(text: str, color: str | None = None) -> Msg:
 
 def _result(msgs: list[Msg], **side_effects: Any) -> Result:
     return msgs, side_effects
+
+
+def _not_connected() -> Result:
+    """The refusal for a port operation with no open port, in the gate's words."""
+    return _result([_msg(STATE_MESSAGES["serial_connected"], "yellow")])
 
 
 def problem(result: Result) -> str | None:
@@ -1927,7 +1933,7 @@ def get_set_prop(
         except OSError as e:
             return _result([_msg(f"{desc} read error: {e}", "red")])
     if not connected:
-        return _result([_msg("Not connected.", "yellow")])
+        return _not_connected()
     try:
         if key == "parity":
             val = val.upper()
@@ -1961,7 +1967,7 @@ def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
         suffix = " (disconnected)" if ser is None else ""
         return _result([_msg(f"{fc}{suffix}")])
     if ser is None:
-        return _result([_msg("Not connected.", "yellow")])
+        return _not_connected()
     if val not in VALID_FLOW_CONTROLS:
         return _result(
             [
@@ -1997,13 +2003,13 @@ def get_set_hw_line(ser: Any | None, line: str, args: str) -> Result:
     connected = ser is not None
     if not val:
         if not connected:
-            return _result([_msg("Not connected.", "yellow")])
+            return _not_connected()
         try:
             return _result([_msg(f"{int(getattr(ser, line))}")])
         except OSError as e:
             return _result([_msg(f"{label} read error: {e}", "red")])
     if not connected:
-        return _result([_msg("Not connected.", "yellow")])
+        return _not_connected()
     try:
         state = parse_bool(args, what=f"{label} value")
     except ValueError as e:
@@ -2030,7 +2036,7 @@ def read_signal(ser: Any | None, signal: str, args: str) -> Result:
     if args.strip():
         return _result([_msg(f"{label} is read-only", "yellow")])
     if ser is None:
-        return _result([_msg("Not connected.", "yellow")])
+        return _not_connected()
     try:
         return _result([_msg(f"{int(getattr(ser, signal))}")])
     except OSError as e:
@@ -2045,7 +2051,7 @@ def send_break(ser: Any | None, args: str) -> Result:
         args: Duration in milliseconds, or empty for default (250ms).
     """
     if ser is None:
-        return _result([_msg("Not connected.", "yellow")])
+        return _not_connected()
     val = args.strip()
     duration = 0.25
     if val:

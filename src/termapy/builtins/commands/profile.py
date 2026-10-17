@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 
 from termapy.folders import PROFILE_SUFFIX
 from termapy.plugins import CmdResult, Command, UsageError
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.params import ParamSpec
 from termapy.profile import (
     load_profile,
@@ -268,7 +269,7 @@ def _load_from_device(
 ) -> CmdResult:
     """Send ``cmd`` to the device, read JSON back, install as profile."""
     if not ctx.serial.is_connected():
-        return CmdResult.fail(msg="Not connected.")
+        return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
 
     with ctx.serial.io():
         ctx.serial.drain()

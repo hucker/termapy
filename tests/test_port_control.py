@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.port_control import (
     PORT_PROPS,
     SERIAL_KEYS,
@@ -172,7 +173,7 @@ class TestGetSetProp:
         msgs, effects = get_set_prop(None, _cfg(), "baud_rate", "9600")
 
         # Assert - not connected warning
-        assert any("Not connected" in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
 
 
 # ── get_set_flow ─────────────────────────────────────────────────────────────
@@ -266,7 +267,7 @@ class TestGetSetHwLine:
         msgs, _ = get_set_hw_line(None, "dtr", "1")
 
         # Assert
-        assert any("Not connected" in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
 
 
 # ── read_signal ──────────────────────────────────────────────────────────────
@@ -302,7 +303,7 @@ class TestReadSignal:
         msgs, _ = read_signal(None, "cts", "")
 
         # Assert
-        assert any("Not connected" in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
 
 
 # ── send_break ───────────────────────────────────────────────────────────────
@@ -362,7 +363,7 @@ class TestSendBreak:
         msgs, _ = send_break(None, "")
 
         # Assert
-        assert any("Not connected" in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
 
 
 # ── parse_mode ──────────────────────────────────────────────────────────────
@@ -811,7 +812,7 @@ class TestSetMode:
         msgs, _ = set_mode(None, _cfg(), "9600 N81")
 
         # Assert
-        assert any("Not connected" in t for t, _ in msgs), "should warn not connected"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), "should warn not connected"
 
     def test_invalid_token(self):
         """A token that is neither baud nor frame is reported as an error."""

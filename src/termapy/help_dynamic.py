@@ -7,7 +7,7 @@ shapes those callables take:
 
     - one green state line ("Current = 8")
     - file counts in per-config folders ("42 files in ss/")
-    - port status ("COM3 @ 115200" or "Not connected")
+    - port status ("COM3 @ 115200" or "Not connected.")
     - active cfg name + count across termapy_cfg/
 
 Everything here is:
@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 
 from termapy.folders import FOLDER_PATTERNS
 from termapy.markup import escape_markup
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext  # noqa: F401 -- referenced in docstrings
@@ -202,17 +203,18 @@ def port_setting(ctx: _Ctx, attr: str) -> Any:
 def port_status(ctx: _Ctx) -> str:
     """Green status line summarizing the current port.
 
-    "Connected: COM3 @ 115200 8N1" when open, "Not connected" otherwise.
+    "Connected: COM3 @ 115200 8N1" when open, otherwise the dispatch gate's
+    answer for a closed port (``STATE_MESSAGES``, "Not connected.").
     Intended as the top-of-DESCRIPTION line for ``/port`` and any
     subcommand whose value only has meaning while connected.
     """
     is_connected = _serial_attr(ctx, "is_connected")
     if is_connected is None or not is_connected():
-        return green("Not connected")
+        return green(STATE_MESSAGES["serial_connected"])
     port_fn = _internal_attr(ctx, "port")
     p = port_fn() if port_fn else None
     if p is None:
-        return green("Not connected")
+        return green(STATE_MESSAGES["serial_connected"])
     name = getattr(p, "port", "?") or "?"
     baud = getattr(p, "baudrate", "?")
     byte = getattr(p, "bytesize", "?")

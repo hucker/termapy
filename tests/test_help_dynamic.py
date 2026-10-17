@@ -32,6 +32,7 @@ from termapy.help_dynamic import (
     port_status,
     state_line,
 )
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 # ─── Fixtures / tiny fakes ───────────────────────────────────────────────────
 
@@ -226,7 +227,7 @@ class TestPortHelpers:
         assert actual == 9600, "reads live pyserial attribute"
 
     def test_port_status_not_connected_when_closed(self, tmp_path):
-        """A disconnected session reports 'Not connected' in the shared green style."""
+        """A disconnected session reports the gate's closed-port answer in the shared green style."""
         # Arrange
         ctx, _ = _fake_ctx(tmp_path, connected=False)
 
@@ -234,7 +235,7 @@ class TestPortHelpers:
         actual = port_status(ctx)
 
         # Assert
-        assert actual == "[green]Not connected[/]", "closed port -> canned text"
+        assert actual == f"[green]{STATE_MESSAGES['serial_connected']}[/]", "closed port -> the gate's answer"
 
     def test_port_status_summary_when_open(self, tmp_path):
         """An open port reads 'Connected: <port> @ <baud> 8N1', built from its live attributes."""

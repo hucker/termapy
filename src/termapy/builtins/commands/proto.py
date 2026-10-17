@@ -16,6 +16,7 @@ from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import default_file_name
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.protocol import (
     CRC_CATALOGUE,
     ProtoScript,
@@ -604,7 +605,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value=all_data.hex().upper())
 
     if not ctx.serial.is_connected():
-        return CmdResult.fail(msg="Not connected.")
+        return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
 
     with ctx.serial.io():
         ctx.serial.drain()
@@ -1658,7 +1659,7 @@ def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
                 "decode the captured response with form= via bin= afterwards)"
             )
         if not ctx.serial.is_connected():
-            return CmdResult.fail(msg="Not connected.")
+            return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
         send = kw["payload"]
         if not send:
             return CmdResult.fail(msg="Empty cmd= payload")
@@ -1907,7 +1908,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
                 )
             )
         if not ctx.serial.is_connected():
-            return CmdResult.fail(msg="Not connected.")
+            return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
         segments = [_encode_device_cmd(ctx, cmd_payload)]
         for _ in range(count):
             captured = _send_and_capture(ctx, segments)

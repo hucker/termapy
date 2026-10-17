@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_port import eol_label
 
 if TYPE_CHECKING:
@@ -268,7 +269,7 @@ class TerminalHost:
         ``_on_disconnected()`` for UI updates.
         """
         if not self.engine.is_connected:
-            self.status("Not connected.", "yellow")
+            self.status(STATE_MESSAGES["serial_connected"], "yellow")
             return
         # Capture the resolved port name BEFORE disconnect so the
         # banner mirrors "Connected: COM4 ...".  After disconnect()
@@ -610,7 +611,7 @@ class TerminalHost:
         if port is None:
             from serial import SerialException
 
-            raise SerialException("Not connected.")
+            raise SerialException(STATE_MESSAGES["serial_connected"])
         port.write(data)
         self.engine.notify_tx(data)
 

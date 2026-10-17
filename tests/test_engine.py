@@ -793,7 +793,7 @@ class TestDispatchFull:
 
         # Assert
         assert len(writes) == 0, "nothing sent"
-        assert any("Not connected" in t for t, _ in statuses), "error shown"
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in statuses), "error shown"
 
     def test_serial_write_error(self, dispatch_env):
         """An OSError from the writer surfaces as a Send error, not an exception."""
@@ -1371,7 +1371,7 @@ class TestDispatchCapabilities:
         result = eng.dispatch("sender")
 
         # Assert
-        assert (result.success, result.error) == (False, "Not connected."), "the state, not the environment"
+        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), "the state, not the environment"
         assert called == [], "handler never invoked"
 
     def test_a_closed_port_with_another_gap_names_the_environment(self, cap_env):

@@ -4,6 +4,7 @@ import pytest
 
 from termapy.builtins.commands.proto import _handler_send, _parse_send_algo
 from termapy.plugins import InternalHandle, PluginContext, UsageError
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.protocol import get_crc_registry
 
 
@@ -486,7 +487,7 @@ class TestSendDryRun:
 
         # Assert
         actual = result.error
-        expected = "Not connected."
+        expected = STATE_MESSAGES["serial_connected"]
         assert tx_bytes == [], "no bytes written"
         assert not result.success, "handler reports failure"
-        assert actual == expected, "error matches the standard 'Not connected.' message"
+        assert actual == expected, "the gate's answer for a closed port"

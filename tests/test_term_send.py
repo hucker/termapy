@@ -19,6 +19,7 @@ import json
 import pytest
 
 from termapy.plugins import PluginContext
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.repl import ReplEngine
 
 # ── Shared fixture (slimmed-down dispatch_env from test_engine.py) ──────────
@@ -160,7 +161,7 @@ class TestTermSendErrors:
         result = eng2.dispatch("term.send AT+VER")
         # Assert
         assert result.success is False, "disconnect blocks send"
-        assert result.error == "Not connected.", "preserves legacy message"
+        assert result.error == STATE_MESSAGES["serial_connected"], "the gate's answer for a closed port"
         assert writes == [], "nothing sent when not connected"
 
     def test_serial_write_raises_returns_send_error(self, env):

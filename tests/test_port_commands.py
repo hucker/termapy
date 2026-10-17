@@ -24,6 +24,7 @@ import pytest
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 from termapy.demo import FakeSerial
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 
 @pytest.fixture
@@ -96,8 +97,8 @@ class TestSignals:
         cli._disconnect()
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.cd")
-        assert "Not connected." in capsys.readouterr().out
-        assert (result.success, result.error) == (False, "Not connected."), "no port, no level"
+        assert STATE_MESSAGES["serial_connected"] in capsys.readouterr().out
+        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), "no port, no level"
         assert result.value == ""
 
 
@@ -137,7 +138,7 @@ class TestHardwareLines:
         cli._disconnect()
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.dtr 1")
-        assert "Not connected." in capsys.readouterr().out
+        assert STATE_MESSAGES["serial_connected"] in capsys.readouterr().out
         assert result.success is False, "nothing was set"
 
 
@@ -258,7 +259,7 @@ class TestMode:
         cli._disconnect()
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.mode 9600")
-        assert "Not connected." in capsys.readouterr().out
+        assert STATE_MESSAGES["serial_connected"] in capsys.readouterr().out
         assert result.success is False, "nothing was set"
         assert cli.cfg["serial"]["baud_rate"] == 115200, "the cfg did not move without a port"
 
@@ -332,7 +333,7 @@ class TestBreak:
         cli._disconnect()
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.break")
-        assert "Not connected." in capsys.readouterr().out
+        assert STATE_MESSAGES["serial_connected"] in capsys.readouterr().out
         assert result.success is False, "no break was sent"
 
 

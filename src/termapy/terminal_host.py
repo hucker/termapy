@@ -358,6 +358,7 @@ class TerminalHost:
             open_proto_debug=lambda path, script: None,
             start_capture=lambda **kw: self._start_capture(**kw),
             stop_capture=lambda: self._stop_capture(),
+            capture_active=lambda: self.capture.active,
             load_config=lambda name: self._load_config(name),
             xfer_cancel=getattr(self, "_xfer_cancel", None),
             script_stop_event=self.repl._script_stop,
@@ -752,7 +753,7 @@ class TerminalHost:
         Subclasses may override to add UI (timer, progress).
         """
         if self.capture.active:
-            self.status("Capture already active - use /cap.stop")
+            self.status(STATE_MESSAGES["capture_idle"])
             return False
         started = self.capture.start(**kwargs)
         if not started:

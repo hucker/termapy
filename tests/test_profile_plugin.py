@@ -19,6 +19,7 @@ pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] ext
 
 from termapy.defaults import DEFAULT_CFG  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
+from termapy.plugins.capabilities import STATE_MESSAGES  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures" / "profiles"
 
@@ -251,13 +252,25 @@ class TestProfileReload:
         result = eng.dispatch("profile.load")
         # Assert
         assert result.success is False, "no source -> fail"
-        assert "nothing to reload" in result.error, "error explains the no-source case"
+        assert result.error.startswith(STATE_MESSAGES["profile_loaded"]), (
+            "the state first, in the gate's words"
+        )
+        assert "Nothing to reload" in result.error, "then why: no previous source to reload"
 
 
 # ── /profile.save ──────────────────────────────────────────────────────────
 
 
 class TestProfileSave:
+    def test_no_profile_is_the_gates_answer(self, env):
+        """state-answered-by-gate: /profile.save with nothing loaded is refused by the gate, not the handler."""
+        # Arrange / Act -- nothing loaded yet.
+        eng, _ctx, _output = env
+        result = eng.dispatch("profile.save")
+
+        # Assert
+        assert (result.success, result.error) == (False, STATE_MESSAGES["profile_loaded"])
+
     def test_save_to_explicit_path(self, env, tmp_path):
         """A saved profile round-trips its revision and drops internal __source_path."""
         # Arrange -- load a profile, save it elsewhere.

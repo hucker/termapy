@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass, replace
 from typing import Final
 
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.symbols.table import Symbol, SymbolTable, hex_digits
 
 
@@ -159,7 +160,7 @@ def _resolve_base(text: str, table: SymbolTable | None) -> Address:
     if not _NAME_RE.match(name):
         raise ValueError(f"Invalid address: {text}")
     if table is None or not len(table):
-        raise ValueError("No symbols loaded.")
+        raise ValueError(STATE_MESSAGES["symbols_loaded"])
     raise ValueError(f"Unknown symbol: {text}")
 
 

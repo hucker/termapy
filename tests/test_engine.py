@@ -1420,6 +1420,9 @@ class TestDispatchCapabilities:
         assert STATE_MESSAGES == {
             "config_loaded": "No config loaded.",
             "serial_connected": "Not connected.",
+            "profile_loaded": "No profile loaded.",
+            "symbols_loaded": "No symbols loaded.",
+            "capture_idle": "Capture already active - use /cap.stop first.",
         }
 
     def test_no_config_answers_no_config_loaded(self, cap_env):

@@ -36,6 +36,7 @@ from termapy.plugins import (
     Command,
     UsageError,
 )
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.params import ParamSpec
 from termapy.symbols import (
     Symbol,
@@ -309,7 +310,7 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
     """
     build = get_build_table(ctx)
     if build is None:
-        ctx.io.result("No symbols loaded.", "yellow")
+        ctx.io.result(STATE_MESSAGES["symbols_loaded"], "yellow")
         return CmdResult.ok(value="0")
     n = len(build)
     remaining = install_build(ctx, None)
@@ -330,11 +331,10 @@ def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
     pattern = args.strip()
     if not pattern:
         raise UsageError()
+    # needs=symbols_loaded: the gate answered a missing table already.
     table = get_table(ctx)
-    if table is None:
-        return CmdResult.fail(msg="No symbols loaded.")
-    matches = table.search(pattern)
-    if not matches:
+    matches = table.search(pattern) if table is not None else []
+    if table is None or not matches:
         ctx.io.output(f"No symbols matching '{pattern}'", "yellow")
         return CmdResult.ok(value="", data=[])
     bits = table.address_bits
@@ -357,7 +357,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     table = get_table(ctx)
     if table is None:
         ctx.io.result(
-            "No symbols loaded.  /sym.import <map> or /sym.load {path} to load one.",
+            f"{STATE_MESSAGES['symbols_loaded']}  /sym.import <map> or /sym.load {{path}} to load one.",
             "yellow",
         )
         return CmdResult.ok(value="")
@@ -464,6 +464,7 @@ COMMAND = Command(
             args="<pattern>",
             help="Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.",
             handler=_handler_search,
+            needs=CapabilitySet(symbols_loaded=True),
         ),
         "info": Command(
             help="Show the loaded symbol table: file, source, counts by section, address range.",

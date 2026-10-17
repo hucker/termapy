@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 from textual.css.query import NoMatches
 from textual.widgets import Button, Input, Static
 
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.scripting import format_duration, format_size
 
 # Mirror of the SHUTDOWN_RACE tuple in app.py.  Used by widget-touching
@@ -54,7 +55,7 @@ def _cap_start(
 ) -> bool:
     """Start a file capture session (delegates to CaptureEngine)."""
     if app._capture.active:
-        app._status("Capture already active - use .stop first.", "yellow")
+        app._status(STATE_MESSAGES["capture_idle"], "yellow")
         return False
 
     started = app._capture.start(

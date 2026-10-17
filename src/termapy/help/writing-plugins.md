@@ -429,6 +429,9 @@ the `PluginContext` and returns a string. It's invoked at render time,
 so whatever it reads from `ctx.ns(...)` or `ctx.cfg` is live.
 
 ```python
+from termapy.plugins.capabilities import STATE_MESSAGES
+
+
 def _dynamic_long_help(ctx):
     profile = ctx.ns("active_profile") or {}
     commands = profile.get("commands") or {}
@@ -436,7 +439,7 @@ def _dynamic_long_help(ctx):
         rev = profile.get("profile_revision") or "(none)"
         state = f"Active profile: {len(commands)} device command(s) (rev {rev})."
     else:
-        state = "No profile loaded."
+        state = STATE_MESSAGES["profile_loaded"]  # the gate's own words
     return f"""{state}
 
 Load a device profile with /profile.load <path>, or fetch one from
@@ -545,7 +548,7 @@ COMMAND = Command(
 The recurring needs have **named profiles** -- `CapabilitySet.SERIAL_CONNECTED`,
 `.CONFIG_LOADED`, `.INTERACTIVE`, `.GUI_APPS`, `.FILE_EDITOR`, `.SESSION_LOG`,
 `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`, `.SERIAL_INTERACTIVE`,
-`.CONFIG_GUI_APPS` -- hover
+`.CONFIG_GUI_APPS`, `.CAPTURE_START` -- hover
 one in your editor for exactly what it gates.
 Spell out an unusual combination inline, as the `confirm_dialog` example
 above does.

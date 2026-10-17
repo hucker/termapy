@@ -139,6 +139,8 @@ class InternalHandle:
 
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None
+    # Whether a capture is running: the dispatch gate's ``capture_idle``.
+    capture_active: Callable[[], bool] = lambda: False
     open_proto_debug: Callable = lambda path, script: None  # TUI: ProtoDebugScreen
 
     run_script: Callable | None = None  # (path, profile, verbose); TUI via @work

@@ -1137,6 +1137,76 @@ SUBCOMMANDS
   /run.rename     Rename a file in run/ (extension kept; never overwrites).
   /run.show       Open the newest file in run/ with the system viewer.
   [175/219] /help run (3.13ms)
+demo> /print === section: help required capabilities ===
+  === section: help required capabilities ===
+demo> /help profile.save
+NAME
+  /profile.save - Write the active profile to a file (default: <cfg_dir>/<cfg_stem>.profile.json).
+
+SYNOPSIS
+  /profile.save {path}
+
+DESCRIPTION
+  Saves the active profile dict to disk so the next connect auto-loads it via the profile_path/file-existence path.
+
+  Default path is <cfg_dir>/<cfg_stem>.profile.json so the saved file co-locates with the cfg that drove the session and gets picked up automatically on reconnect.
+
+  Warns if every command in the profile has enabled=false (typical for a freshly-fetched device dump before audit) -- saving is fine, just a nudge that audit is pending.
+
+REQUIRED CAPABILITIES
+  profile_loaded - a loaded device profile (missing)
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /profile.info, /profile.load, /profile.unload, /profile.validate, /profile
+demo> /help sym.search
+NAME
+  /sym.search - Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.
+
+SYNOPSIS
+  /sym.search <pattern>
+
+REQUIRED CAPABILITIES
+  symbols_loaded - a loaded symbol table
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /sym.import, /sym.info, /sym.load, /sym.unload, /sym
+demo> /help cap.text
+NAME
+  /cap.text - Capture serial text to a file for a timed duration.
+
+SYNOPSIS
+  /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=<command>}
+
+DESCRIPTION
+  0 files in cap/
+
+  Passively captures all text arriving from the device for a
+  fixed duration.  Use /cap.stop to end early.
+
+PARAMETERS
+  <file>           output filename (relative to cap/ dir) (required)
+  timeout=<dur>    how long to capture, e.g. 3s, 500ms (required)
+  mode=new|append  file mode (default: new)
+  echo=on|off      also print captured text to the terminal (default: off)
+  cmd=<command>    command to send after capture starts (must be last, default: )
+
+REQUIRED CAPABILITIES
+  serial_connected - an open serial port
+  capture_idle - no capture already running
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /cap.bin, /cap.clear, /cap.dump, /cap.explore, /cap.hex, /cap.list, /cap.poll, /cap.rename, /cap.show, /cap.stop, /cap.struct, /cap.wire, /cap
+demo> /profile.save
+  Error: No profile loaded.
 demo> /print === section: help.run ===
   === section: help.run ===
   [176/219] /print === section: help.run === (156us)

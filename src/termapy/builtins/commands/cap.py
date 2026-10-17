@@ -801,7 +801,7 @@ COMMAND = Command(
             help="Capture serial text to a file for a timed duration.",
             long_help=_cap_long_help_with_prose(_CAP_TEXT_PROSE),
             handler=_handler_text,
-            needs=CapabilitySet.SERIAL_CONNECTED,
+            needs=CapabilitySet.CAPTURE_START,
             params=[
                 ParamSpec(
                     "file",
@@ -830,7 +830,7 @@ COMMAND = Command(
             help="Capture raw binary bytes.",
             long_help=_cap_long_help_with_prose(_CAP_BIN_PROSE),
             handler=_handler_bin,
-            needs=CapabilitySet.SERIAL_CONNECTED,
+            needs=CapabilitySet.CAPTURE_START,
             params=[
                 ParamSpec(
                     "file",
@@ -861,14 +861,14 @@ COMMAND = Command(
             help="Capture raw bytes, decode with format spec to CSV.",
             long_help=_cap_long_help_with_prose(_CAP_STRUCT_PROSE),
             handler=_handler_struct,
-            needs=CapabilitySet.SERIAL_CONNECTED,
+            needs=CapabilitySet.CAPTURE_START,
         ),
         "hex": Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=comma|tab|space} {echo=on|off} {timeout=<dur>} {cmd=<command>}",
             help="Capture hex text lines, decode with format spec to CSV.",
             long_help=_cap_long_help_with_prose(_CAP_HEX_PROSE),
             handler=_handler_hex,
-            needs=CapabilitySet.SERIAL_CONNECTED,
+            needs=CapabilitySet.CAPTURE_START,
         ),
         "poll": Command(
             flags={

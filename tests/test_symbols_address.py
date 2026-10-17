@@ -12,8 +12,11 @@ contract a ``/sym`` caller sees.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.symbols import Address, Symbol, SymbolTable, parse_address, parse_number
 
 
@@ -281,13 +284,13 @@ class TestParseAddressSymbols:
     def test_name_without_table(self):
         """A name with no table at all reports No symbols loaded. rather than unknown."""
         # Act / Assert
-        with pytest.raises(ValueError, match=r"^No symbols loaded\.$"):
+        with pytest.raises(ValueError, match=f"^{re.escape(STATE_MESSAGES['symbols_loaded'])}$"):
             parse_address("CAFE")
 
     def test_name_with_empty_table(self):
         """An empty table is treated as no table, giving No symbols loaded."""
         # Act / Assert
-        with pytest.raises(ValueError, match=r"^No symbols loaded\.$"):
+        with pytest.raises(ValueError, match=f"^{re.escape(STATE_MESSAGES['symbols_loaded'])}$"):
             parse_address("main", SymbolTable([]))
 
     def test_exact_name_beats_number_rule(self, table):

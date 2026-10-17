@@ -862,7 +862,7 @@ class SerialTerminal(TerminalHost, App):
                     find_status.display = False
                     yield find_status
                     prev_btn = Button(
-                        "â–²",
+                        "▲",
                         id="btn-find-prev",
                         variant="default",
                     )
@@ -870,7 +870,7 @@ class SerialTerminal(TerminalHost, App):
                     prev_btn.display = False
                     yield prev_btn
                     next_btn = Button(
-                        "â–¼",
+                        "▼",
                         id="btn-find-next",
                         variant="default",
                     )
@@ -878,7 +878,7 @@ class SerialTerminal(TerminalHost, App):
                     next_btn.display = False
                     yield next_btn
                     close_btn = Button(
-                        "Ã—",
+                        "×",
                         id="btn-find-close",
                         variant="default",
                     )
@@ -2839,7 +2839,7 @@ class SerialTerminal(TerminalHost, App):
             return ""
         return "\n".join(strip.text for strip in log.lines)
 
-    # â”€â”€ File capture engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── File capture engine ──────────────────────────────────────────────────
 
     def _cap_start(self, *args, **kwargs):
         """Start a capture.  Implementation in ``capture_view``.

@@ -162,8 +162,8 @@ All other paths relative to `src/termapy/`.
 - Toggles/values = args (`echo on`, `cfg baudrate 9600`)
 - `needs=`: use the named `CapabilitySet` profiles (`.SERIAL_CONNECTED`,
   `.CONFIG_LOADED`, `.INTERACTIVE`, `.GUI_APPS`, `.FILE_EDITOR`,
-  `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`, `.SERIAL_INTERACTIVE`,
-  `.CONFIG_GUI_APPS`) for the recurring needs — one
+  `.SESSION_LOG`, `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`,
+  `.SERIAL_INTERACTIVE`, `.CONFIG_GUI_APPS`) for the recurring needs — one
   frozen shared instance each, docstring on hover; spell out unusual
   combinations inline; never a module-local `_NEEDS` constant.
   A missing config or port is the gate's answer (`No config loaded.`,

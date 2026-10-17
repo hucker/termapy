@@ -78,6 +78,7 @@ def repl_env(tmp_path, monkeypatch):
             serial_connected=True,
             interactive=True,
             gui_apps=True,
+            session_log=True,
         ),
         # Wire ctx.dispatch so handlers that forward to other commands
         # (legacy aliases like /echo -> /term.echo) actually reach the

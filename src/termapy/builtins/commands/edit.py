@@ -85,8 +85,7 @@ def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     path = ctx.internal.session_log_path()
-    if path is None:
-        return CmdResult.fail(msg="No log file.")
+    assert path is not None, "/edit.log declares session_log"
     ctx.internal.edit_file(path)
     return CmdResult.ok(value=path)
 
@@ -259,7 +258,7 @@ COMMAND = Command(
         "log": Command(
             help="Open the session log in the system viewer.",
             handler=_handler_log,
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet(session_log=True, config_loaded=True, gui_apps=True),
         ),
         "info": Command(
             help="Open the info report in the system viewer.",

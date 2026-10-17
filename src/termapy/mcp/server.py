@@ -470,6 +470,8 @@ class MCPHost(TerminalHost):
 
         self.ctx.capabilities = CapabilitySet(
             block_until=True,
+            # mcp/session.log, the agent's own (config.mcp_log_path).
+            session_log=True,
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
         )

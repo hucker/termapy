@@ -69,8 +69,7 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     """Print the session log: all, last N (N>0), or first N (N<0) lines."""
     p = ctx.internal.session_log_path()
-    if p is None:
-        return CmdResult.fail(msg="No log file.")
+    assert p is not None, "/log.dump declares session_log"
     # Sandbox: cfg["log_file"] can be pointed at any file (via /cfg.auto),
     # turning /log.dump into an arbitrary-file read.  Under the MCP host,
     # refuse a log path outside the config directory.  Reading the cfg's
@@ -321,8 +320,7 @@ _FINGERPRINT_FLAGS = {"--show": "Also echo the fingerprint to the terminal outpu
 def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     """Open the session log in the system viewer."""
     path = ctx.internal.session_log_path()
-    if path is None:
-        return CmdResult.fail(msg="No log file.")
+    assert path is not None, "/log.show declares session_log"
     if not path.exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
     open_with_system(str(path))
@@ -344,8 +342,9 @@ _SHOW_LONG_HELP = (
 def _handler_delete(ctx: PluginContext, args: str) -> CmdResult:
     """Delete the session log file; the frontend lets go of it first."""
     path = ctx.internal.session_log_path()
-    if path is None or not path.exists():
-        return CmdResult.fail(msg="No log file.")
+    assert path is not None, "/log.delete declares session_log"
+    if not path.exists():
+        return CmdResult.fail(msg=f"Log file not found: {path}")
     ctx.internal.close_session_log()
     try:
         path.unlink()
@@ -360,7 +359,7 @@ _DELETE_HELP = "Delete the session log file."
 _DELETE_LONG_HELP = (
     "Removes the session log from disk (the TUI closes it first).  Not\n"
     "over MCP: an agent cannot erase the log of what it did.  The CLI\n"
-    "keeps no session log, so there it answers No log file."
+    "keeps no session log, so it has no /log commands."
 )
 
 
@@ -381,13 +380,14 @@ COMMAND = Command(
             help=_DELETE_HELP,
             long_help=_DELETE_LONG_HELP,
             handler=_handler_delete,
-            needs=CapabilitySet.INTERACTIVE,
+            needs=CapabilitySet(session_log=True, config_loaded=True, interactive=True),
         ),
         "dump": Command(
             args="{N}",
             help=_DUMP_HELP,
             long_help=_DUMP_LONG_HELP,
             handler=_handler_dump,
+            needs=CapabilitySet.SESSION_LOG,
         ),
         "fingerprint": Command(
             args="{--show}",
@@ -395,13 +395,16 @@ COMMAND = Command(
             long_help=_FINGERPRINT_LONG_HELP,
             handler=_handler_fingerprint,
             flags=_FINGERPRINT_FLAGS,
+            # It writes to the session log: in the CLI, which keeps none, it
+            # said "written to log" and wrote nowhere.
+            needs=CapabilitySet.SESSION_LOG,
         ),
         "show": Command(
             args="",
             help=_SHOW_HELP,
             long_help=_SHOW_LONG_HELP,
             handler=_handler_show,
-            needs=CapabilitySet.GUI_APPS,
+            needs=CapabilitySet(session_log=True, config_loaded=True, gui_apps=True),
         ),
     },
 )

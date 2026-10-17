@@ -104,6 +104,7 @@ from termapy.protocol.core import (
     parse_pattern,
     parse_proto_script,
     parse_toml_script,
+    script_name,
     strip_ansi,
 )
 from termapy.protocol.crc import (
@@ -165,6 +166,7 @@ __all__ = [
     "parse_pattern",
     "parse_proto_script",
     "parse_toml_script",
+    "script_name",
     "strip_ansi",
     # crc
     "CRC_CATALOGUE",

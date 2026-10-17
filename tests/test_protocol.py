@@ -32,6 +32,7 @@ from termapy.protocol import (
     parse_proto_script,
     parse_toml_script,
     reset_crc_registry,
+    script_name,
 )
 from termapy.protocol.core import (
     _format_column_value,
@@ -1050,6 +1051,43 @@ expect = "04"
 
 
 # ── load_proto_script (format detection) ─────────────────────────────────
+
+
+class TestScriptName:
+    """``script_name``: the name a .pro file declares, as the picker and /proto.list show it."""
+
+    def test_toml_name(self, tmp_path):
+        """A TOML script's top-level name is its title."""
+        # Arrange
+        path = tmp_path / "a.pro"
+        path.write_text(
+            'name = "Modbus read"\n[[test]]\nsend = "01"\nexpect = "02"\n', encoding="utf-8"
+        )
+
+        # Act / Assert
+        assert script_name(path) == "Modbus read"
+
+    def test_flat_name(self, tmp_path):
+        """A flat script's @name directive is its title."""
+        # Arrange
+        path = tmp_path / "a.pro"
+        path.write_text("@name AT smoke\nsend: 01\n", encoding="utf-8")
+
+        # Act / Assert
+        assert script_name(path) == "AT smoke"
+
+    def test_no_name_and_no_parse_are_both_empty(self, tmp_path):
+        """A script without a name, and one that does not parse, list with an empty title."""
+        # Arrange
+        unnamed = tmp_path / "unnamed.pro"
+        unnamed.write_text('[[test]]\nsend = "01"\nexpect = "02"\n', encoding="utf-8")
+        broken = tmp_path / "broken.pro"
+        broken.write_text('name = "x"\n', encoding="utf-8")  # no [[test]]: does not load
+
+        # Act / Assert
+        assert script_name(unnamed) == "", "no name declared"
+        assert script_name(broken) == "", "a listing still shows a script that does not load"
+        assert script_name(tmp_path / "gone.pro") == "", "nor does a missing file raise"
 
 
 class TestLoadProtoScript:

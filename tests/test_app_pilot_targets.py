@@ -403,10 +403,12 @@ class TestConfigPicked:
 
             def _asking() -> bool:
                 # The dialog is pushed from the command's worker; its buttons
-                # mount a beat later.
-                return isinstance(app.screen, ConfirmDialog) and bool(
-                    app.screen.query("#confirm-yes")
-                )
+                # mount a beat later and get a place on screen later still,
+                # and a click before layout misses (seen under suite load).
+                if not isinstance(app.screen, ConfirmDialog):
+                    return False
+                buttons = app.screen.query("#confirm-yes, #confirm-no")
+                return len(buttons) == 2 and all(button.region.width > 0 for button in buttons)
 
             async with app.run_test() as pilot:
                 await pilot.pause()
@@ -416,7 +418,17 @@ class TestConfigPicked:
                 asked = await until(pilot, _asking)
                 assert asked, "the delete question is asked"
                 await pilot.click("#confirm-no")
-                await pilot.pause()
+                # Wait for the first round to finish -- its dialog gone and
+                # its refusal reported -- or the second round's wait below
+                # can see this dialog still closing and click into it.
+                declined = await until(
+                    pilot,
+                    lambda: (
+                        not isinstance(app.screen, ConfirmDialog)
+                        and "Config not deleted: other" in app._get_screen_text()
+                    ),
+                )
+                assert declined, "No is reported and the dialog closes"
                 assert Path(other).exists(), "No keeps the config"
 
                 # Act / Assert -- then Yes

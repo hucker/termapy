@@ -22,6 +22,7 @@ from termapy.config import (
     on_connect_commands,
     open_serial,
     prepare_cfg_folder,
+    reveal_command,
     validate_config,
 )
 from termapy.defaults import DEFAULT_CFG, SCRIPT_TEMPLATE
@@ -1345,6 +1346,37 @@ class TestFileManagerName:
         # Act / Assert -- Linux users know their file manager as a menu entry,
         # not a project name, so no desktop detection: one generic label
         assert file_manager_name(platform) == "Files"
+
+
+class TestRevealCommand:
+    """The pickers' path link shows a file in the file manager with it selected."""
+
+    def test_windows_selects_the_file_in_explorer(self, tmp_path):
+        """Windows gets one explorer command line, the quotes after /select, so a space survives."""
+        # Arrange
+        target = tmp_path / "my scripts" / "a.run"
+
+        # Act
+        actual = reveal_command(target, "win32")
+
+        # Assert
+        assert actual == f'explorer /select,"{target.resolve()}"'
+
+    def test_macos_reveals_the_file_in_finder(self, tmp_path):
+        """macOS uses open -R on the absolute file."""
+        # Arrange
+        target = tmp_path / "my scripts" / "a.run"
+
+        # Act / Assert
+        assert reveal_command(target, "darwin") == ["open", "-R", str(target.resolve())]
+
+    def test_linux_opens_the_folder(self, tmp_path):
+        """Linux has no standard select-this-file call, so the folder opens."""
+        # Arrange
+        target = tmp_path / "my scripts" / "a.run"
+
+        # Act / Assert
+        assert reveal_command(target, "linux") == ["xdg-open", str(target.resolve().parent)]
 
 
 # -- On-connect: one command per field, chains migrated to run files ----------

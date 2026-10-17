@@ -1308,15 +1308,22 @@ def open_with_system(path: str) -> None:
       zombies over a long session.  The thread is ``daemon=True`` so
       an orphan launcher never keeps termapy alive.
     """
-    import subprocess
-
     if sys.platform == "win32":
         import os
 
         os.startfile(path)
         return
+    _launch(["open", path] if sys.platform == "darwin" else ["xdg-open", path])
 
-    cmd = ["open", path] if sys.platform == "darwin" else ["xdg-open", path]
+
+def _launch(cmd: list[str] | str) -> None:
+    """Run a short-lived desktop launcher on a daemon thread, which reaps it.
+
+    The one launcher behind ``open_with_system`` and
+    ``reveal_in_file_manager``; why a thread rather than ``run`` or a bare
+    ``Popen`` is in ``open_with_system``'s docstring.
+    """
+    import subprocess
 
     def _launch_and_reap() -> None:
         try:
@@ -1325,6 +1332,32 @@ def open_with_system(path: str) -> None:
             pass  # launcher hung or missing -- best effort
 
     threading.Thread(target=_launch_and_reap, daemon=True).start()
+
+
+def reveal_command(path: Path, platform: str = sys.platform) -> list[str] | str:
+    """The command that shows ``path`` in the file manager with it selected.
+
+    Windows takes ``explorer /select,"<path>"`` as ONE command line: the
+    quotes must follow the comma, and an argument list would quote the
+    whole ``/select,...`` token instead.  macOS has ``open -R``.  Linux has
+    no standard "select this file" call, so the folder opens.
+
+    Args:
+        path: The file to show.
+        platform: ``sys.platform``; a parameter so each form is testable
+            anywhere.
+    """
+    target = path.resolve()
+    if platform == "win32":
+        return f'explorer /select,"{target}"'
+    if platform == "darwin":
+        return ["open", "-R", str(target)]
+    return ["xdg-open", str(target.parent)]
+
+
+def reveal_in_file_manager(path: str) -> None:
+    """Show a file in the OS file manager with it selected (``reveal_command``)."""
+    _launch(reveal_command(Path(path)))
 
 
 def request_rx_buffer(port: Any) -> bool:

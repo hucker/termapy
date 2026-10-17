@@ -12,7 +12,7 @@ from crcglot import DetectMatch, DetectResult, detect
 
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.builtins.commands.edit import edit_command
-from termapy.folder_ops import build_folder_subcommands
+from termapy.folder_ops import build_folder_subcommands, file_table, list_entries
 from termapy.folders import default_file_name
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
@@ -33,6 +33,7 @@ from termapy.protocol import (
     parse_data_segments,
     parse_hex,
     parse_toml_script,
+    script_name,
     strip_ansi,
     write_results,
 )
@@ -238,9 +239,9 @@ def _run_toml_script(
     with ctx.serial.io():
         ctx.serial.drain()
 
-        script_name = script.name or path.name
+        heading = script.name or path.name
         say(f"{'─' * 40}")
-        say(f"  {script_name}", "bold underline bright_white")
+        say(f"  {heading}", "bold underline bright_white")
         say(f"  {path.name} - {len(script.tests)} tests")
         say(f"{'─' * 40}")
 
@@ -355,9 +356,9 @@ def _run_flat_script(
     with ctx.serial.io():
         ctx.serial.drain()
 
-        script_name = settings.get("name") or path.name
+        heading = settings.get("name") or path.name
         ctx.io.output(f"{'─' * 40}")
-        ctx.io.output(f"  {script_name}", "bold underline bright_white")
+        ctx.io.output(f"  {heading}", "bold underline bright_white")
         ctx.io.output(f"  {path.name} - {len(steps)} steps")
         ctx.io.output(f"{'─' * 40}")
 
@@ -790,6 +791,19 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     ctx.io.output(f"Hex display mode {state}.", "bright_green")
     # Mirror the echo/verbose convention: return the new state.
     return CmdResult.ok(value="on" if flags["hex"] else "off")
+
+
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
+    """``/proto.list`` -- list .pro scripts with the name each declares.
+
+    The generic folder listing plus a TITLE column (and a ``title`` key in
+    each data record), what the Proto picker shows: ``protocol.script_name``
+    for both.  A script without a name, or one that does not parse, still
+    appears with an empty title.
+    """
+    files = list_entries(ctx.fs.proto_dir, "*.pro")
+    title = Column("TITLE", lambda record: record["title"])
+    return file_table("proto/", "script", files, extra=((title, script_name, "title"),))
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
@@ -2384,6 +2398,15 @@ def _build_crc_lang_commands() -> dict[str, Command]:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
+_FOLDER_SUBS = build_folder_subcommands("proto", noun="script")
+# Override .list with the title-aware version, as /run.list adds the
+# docstring summary; the other folder subs keep the generic behavior.
+_FOLDER_SUBS["list"] = Command(
+    args="",
+    help="List .pro scripts, newest first, with size, age, and the name each declares.",
+    handler=_handler_list,
+    needs=CapabilitySet.CONFIG_LOADED,
+)
 COMMAND = Command(
     name="proto",
     help="Binary protocol tools: send, run, debug, hex, crc, info.",
@@ -2593,6 +2616,6 @@ COMMAND = Command(
             handler=_handler_info,
         ),
         "edit": edit_command("proto"),
-        **build_folder_subcommands("proto", noun="script"),
+        **_FOLDER_SUBS,
     },
 )

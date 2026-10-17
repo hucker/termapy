@@ -2094,7 +2094,12 @@ class SerialTerminal(TerminalHost, App):
         if not self._require_config():
             return
         self.push_screen(
-            ScriptPicker(self.repl.scripts_dir, read_only=self.cfg.get("config_read_only", False)),
+            ScriptPicker(
+                self.repl.scripts_dir,
+                read_only=self.cfg.get("config_read_only", False),
+                gui_apps=self.repl.ctx.capabilities.gui_apps,
+                web=self.is_web,
+            ),
             callback=self._on_script_picked,
         )
 
@@ -2102,7 +2107,12 @@ class SerialTerminal(TerminalHost, App):
         if not self._require_config():
             return
         self.push_screen(
-            ProtoPicker(self.repl.proto_dir, read_only=self.cfg.get("config_read_only", False)),
+            ProtoPicker(
+                self.repl.proto_dir,
+                read_only=self.cfg.get("config_read_only", False),
+                gui_apps=self.repl.ctx.capabilities.gui_apps,
+                web=self.is_web,
+            ),
             callback=self._on_proto_picked,
         )
 

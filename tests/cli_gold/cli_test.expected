@@ -274,12 +274,15 @@ demo> /run.list
   [52/220] /run.list (20.9ms)
 demo> /proto.list
   proto/ - 3 scripts
-  NAME                 SIZE    UPDATED
-  -------------------  ------  --------
-  modbus_inline.pro    2.2 KB  just now
-  at_test.pro           829 B  just now
-  bitfield_inline.pro  2.7 KB  just now
-  [53/220] /proto.list (1.34ms)
+  NAME                 SIZE    UPDATED   TITLE
+  -------------------  ------  --------  ---------------------------
+  bitfield_inline.pro  2.7 KB  just now  Demo Bitfield Inline Format
+  modbus_inline.pro    2.2 KB  just now  Demo Modbus Inline Format
+  at_test.pro           829 B  just now  Demo AT Command Test
+  [61/296] /proto.list (5.61ms)
+demo> /cap.list
+  cap/ - empty
+  [62/297] /cap.list (62us)
 demo> /print === section: port read ===
   === section: port read ===
   [54/219] /print === section: port read === (146us)
@@ -1009,7 +1012,7 @@ SUBCOMMANDS
   /proto.help       Show /proto help.
   /proto.hex        Toggle hex display of incoming bytes (same flag as /term.hex).
   /proto.info       Print current protocol state.
-  /proto.list       List files in proto/, newest first, with size and age.
+  /proto.list       List .pro scripts, newest first, with size, age, and the name each declares.
   /proto.rename     Rename a file in proto/ (extension kept; never overwrites).
   /proto.run        Run a protocol test script.
   /proto.send       Send raw bytes (with optional CRC), show response.
@@ -1516,11 +1519,12 @@ demo> /run.dump status_check
   /delay 300ms
 demo> /proto
   proto/ - 3 scripts
-  NAME SIZE UPDATED
-  -- -- --
-  at_test.pro  <SIZE>  just now
-  bitfield_inline.pro  <SIZE>  just now
-  modbus_inline.pro  <SIZE>  just now
+  NAME                 SIZE    UPDATED   TITLE
+  -------------------  ------  --------  ---------------------------
+  bitfield_inline.pro  2.7 KB  just now  Demo Bitfield Inline Format
+  modbus_inline.pro    2.2 KB  just now  Demo Modbus Inline Format
+  at_test.pro           829 B  just now  Demo AT Command Test
+  [257/296] /proto (3.09ms)
 demo> /proto.info
   Hex mode : off
   Connected: yes

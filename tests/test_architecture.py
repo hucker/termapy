@@ -1961,8 +1961,6 @@ def test_failure_printers_has_no_stale_entries():
 
 # (module, function): the branch that needs the state, or why the gate cannot.
 STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
-    ("builtins/commands/cfg.py", "_handler_dump"): "bare prints the in-memory cfg; only a named file needs the config's folder",
-    ("builtins/commands/sym.py", "_handler_load"): "an explicit path loads without a config; only bare reads the sidecar",
     ("builtins/commands/proto.py", "_handler_send"): "--dry-run sends nothing",
     ("builtins/commands/proto.py", "_handler_crc_find"): "only cmd= mode talks to the device",
     ("builtins/commands/proto.py", "_handler_crc_reverse"): "only cmd= mode talks to the device",

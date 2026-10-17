@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from termapy.plugins import CapabilitySet, InternalHandle, PluginContext
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.repl import ReplEngine
 
 
@@ -2722,7 +2723,7 @@ class TestConfirm:
 
 
 class TestCfgRead:
-    def test_cfg_dump_named_root_file(self, repl_env):
+    def test_cfg_file_root_file(self, repl_env):
         """A name in the cfg folder root prints its lines and returns the file text as value."""
         # Arrange -- a file in the cfg folder root
         engine, _, config_path, output = repl_env
@@ -2730,14 +2731,14 @@ class TestCfgRead:
         root_file.write_text("ping\nport.list", encoding="utf-8")
 
         # Act
-        result = engine.dispatch("cfg.dump dev.history")
+        result = engine.dispatch("cfg.file dev.history")
 
         # Assert
         texts = [text for text, _ in output]
         assert any("port.list" in text for text in texts), "file lines printed"
         assert result.value == "ping\nport.list", "value carries file text"
 
-    def test_cfg_dump_named_subfolder_file(self, repl_env):
+    def test_cfg_file_subfolder_file(self, repl_env):
         """Names resolve relative to the cfg folder, so run/x.run reaches a subfolder file."""
         # Arrange -- names resolve relative to the root; subfolders allowed
         engine, _, config_path, output = repl_env
@@ -2746,24 +2747,24 @@ class TestCfgRead:
         (sub / "x.run").write_text("/ping", encoding="utf-8")
 
         # Act
-        result = engine.dispatch("cfg.dump run/x.run")
+        result = engine.dispatch("cfg.file run/x.run")
 
         # Assert
         assert result.value == "/ping", "subfolder file printed via root-relative name"
 
-    def test_cfg_dump_refuses_traversal(self, repl_env):
+    def test_cfg_file_refuses_traversal(self, repl_env):
         """A '..' path is refused for every frontend; the cfg folder is a root jail."""
         # Arrange
         engine, _, _, output = repl_env
 
         # Act -- .. must be refused for EVERY frontend (root-jail)
-        result = engine.dispatch("cfg.dump ../secrets.txt")
+        result = engine.dispatch("cfg.file ../secrets.txt")
 
         # Assert
         assert result.success is False, "traversal refused"
         assert "relative to the config folder" in result.error, "clear refusal"
 
-    def test_cfg_dump_refuses_absolute(self, repl_env):
+    def test_cfg_file_refuses_absolute(self, repl_env):
         """A path absolute on the running platform is refused by the same root jail."""
         # Arrange -- "absolute" is platform-dependent: "C:/Windows/win.ini" is
         # absolute on Windows but an ordinary relative name on POSIX, where the
@@ -2774,23 +2775,51 @@ class TestCfgRead:
         absolute = Path(Path.cwd().anchor) / "Windows" / "win.ini"
 
         # Act
-        result = engine.dispatch(f"cfg.dump {absolute}")
+        result = engine.dispatch(f"cfg.file {absolute}")
 
         # Assert
         assert result.success is False, "absolute path refused"
         assert "relative to the config folder" in result.error, "clear refusal"
 
-    def test_cfg_dump_named_missing_file(self, repl_env):
+    def test_cfg_file_missing_file(self, repl_env):
         """A missing name fails with the standard 'File not found: <name>' phrasing."""
         # Arrange
         engine, _, _, output = repl_env
 
         # Act
-        result = engine.dispatch("cfg.dump nope.txt")
+        result = engine.dispatch("cfg.file nope.txt")
 
         # Assert
         assert result.success is False, "missing file fails"
         assert result.error == "File not found: nope.txt", "standard phrasing"
+
+    def test_cfg_file_without_a_config_is_the_gates_answer(self, repl_env):
+        """state-answered-by-gate: /cfg.file declares config_loaded, so with none the gate answers, not the handler."""
+        # Arrange
+        engine, _, _, _ = repl_env
+        engine.ctx.config_path = ""
+
+        # Act
+        result = engine.dispatch("cfg.file dev.history")
+
+        # Assert
+        assert (result.success, result.error) == (False, STATE_MESSAGES["config_loaded"])
+
+    def test_cfg_dump_with_a_name_points_at_cfg_file(self, repl_env):
+        """/cfg.dump prints the config in memory only; a name is a usage error naming /cfg.file.
+
+        Until 2026-10-16 a name printed a file from the config folder, the
+        one form of /cfg.dump that needed a config.
+        """
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("cfg.dump dev.history")
+
+        # Assert
+        assert result.success is False, "a name is not /cfg.dump's grammar"
+        assert "cfg.file <name>" in result.error, f"the error names the command to use: {result.error}"
 
     def test_cfg_dump_shows_all(self, repl_env):
         """Bare /cfg.dump prints every key, since bare /cfg now opens the picker instead."""

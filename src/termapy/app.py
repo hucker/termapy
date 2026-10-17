@@ -85,6 +85,7 @@ from termapy.plugins import (
     CapabilitySet,
     CmdResult,
 )
+from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
@@ -2082,7 +2083,7 @@ class SerialTerminal(TerminalHost, App):
         """
         if self.config_path:
             return True
-        self._status("No config loaded.", "yellow")
+        self._status(STATE_MESSAGES["config_loaded"], "yellow")
         return False
 
     def _btn_scripts(self) -> None:
@@ -3274,14 +3275,12 @@ class SerialTerminal(TerminalHost, App):
         self._sync_ss_button()
 
     def action_open_screenshot(self) -> None:
-        if not self.config_path:
-            self.notify("No config loaded", severity="warning")
+        if not self._require_config():
             return
         self._open_data_folder(self.repl.ss_dir)
 
     def _open_captures_dir(self) -> None:
-        if not self.config_path:
-            self.notify("No config loaded", severity="warning")
+        if not self._require_config():
             return
         self._open_data_folder(self.repl.cap_dir)
 

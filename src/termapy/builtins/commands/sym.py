@@ -260,15 +260,20 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         "green",
     )
     counts = Counter(symbol.name for symbol in table.symbols)
-    dups = sorted(name for name, count in counts.items() if count > 1)
-    if dups:
-        ctx.io.output(f"  duplicate names need name@file: {', '.join(dups[:8])}")
+    duplicates = sorted(name for name, count in counts.items() if count > 1)
+    if duplicates:
+        ctx.io.output(f"  duplicate names need name@file: {', '.join(duplicates[:8])}")
     data = table_record(table, file=str(dest)) | {"format": spec.format}
     return CmdResult.ok(value=str(len(table)), data=data)
 
 
 def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
-    """Load the cfg sidecar (bare) or an explicit symbols file."""
+    """Load the cfg sidecar (bare) or an explicit symbols file.
+
+    Both forms need a config, which the command declares: until 2026-10-16
+    an explicit path loaded without one and only the bare form checked,
+    inferring "no config" from ``sidecar_path`` returning None.
+    """
     raw = ctx.arg("path") or ""
     if raw:
         ctx.fs.guard_external_path(raw, "Symbols path")
@@ -277,14 +282,13 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
         # and a hand-written table belongs; anything with a separator is
         # taken as given (config-relative).  The .symbols.json is optional
         # either way (registry ``file-name-default-ext``).
-        if ctx.config_path and Path(raw).name == raw and not path.is_file():
+        if Path(raw).name == raw and not path.is_file():
             in_sym = default_file_name(Path(ctx.config_path).parent / SYM / raw, SYMBOLS_SUFFIX)
             if in_sym.is_file():
                 path = in_sym
     else:
         default = sidecar_path(ctx.config_path)
-        if default is None:
-            return CmdResult.fail(msg="No config loaded.")
+        assert default is not None, "/sym.load declares config_loaded"
         path = default
     if not path.is_file():
         return CmdResult.fail(msg=f"Symbols not found: {raw or path}")
@@ -447,6 +451,7 @@ COMMAND = Command(
             help="Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).",
             handler=_handler_load,
             files="sym",
+            needs=CapabilitySet.CONFIG_LOADED,
         ),
         "unload": Command(
             help="Clear the loaded symbol table.",

@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pilot_wait import until
 from textual.widgets import Input, OptionList, Static
 
 from termapy import info_views
@@ -69,15 +70,6 @@ async def _submit(pilot, text: str) -> None:
     await pilot.pause()
 
 
-async def _until(pilot, predicate, seconds: float = 5.0) -> bool:
-    """Poll ``predicate`` every 20 ms until true or ``seconds`` pass."""
-    for _ in range(int(seconds * 50)):
-        if predicate():
-            return True
-        await pilot.pause(0.02)
-    return predicate()
-
-
 def _log_text(app) -> str:
     """The session log as written so far."""
     return Path(app.session_log_path()).read_text(encoding="utf-8")
@@ -105,15 +97,15 @@ class TestCaptureOverlay:
 
                 # Act
                 await _submit(pilot, "/cap.text t.txt timeout=1s")
-                assert await _until(pilot, lambda: bool(bar.query("#cap-stop"))), "overlay mounted"
+                assert await until(pilot, lambda: bool(bar.query("#cap-stop"))), "overlay mounted"
                 prompt_disabled_during = inp.disabled
-                labelled = await _until(
+                labelled = await until(
                     pilot,
                     lambda: (
                         "Capturing -> t.txt" in str(bar.query_one("#cap-label", Static).render())
                     ),
                 )
-                gone = await _until(pilot, lambda: not bar.query("#cap-stop"), seconds=4.0)
+                gone = await until(pilot, lambda: not bar.query("#cap-stop"), seconds=4.0)
 
                 # Assert
                 assert (prompt_disabled_during, labelled, gone) == (True, True, True)
@@ -136,14 +128,14 @@ class TestCaptureOverlay:
 
                 # Act
                 await _submit(pilot, "/cap.bin t.bin bytes=100000")
-                assert await _until(pilot, lambda: bool(bar.query("#cap-stop"))), "overlay mounted"
+                assert await until(pilot, lambda: bool(bar.query("#cap-stop"))), "overlay mounted"
                 claimed_during = app._engine.serial_claimed
-                labelled = await _until(
+                labelled = await until(
                     pilot,
                     lambda: "/ 97.7 KB" in str(bar.query_one("#cap-label", Static).render()),
                 )
                 await pilot.click("#cap-stop")
-                gone = await _until(pilot, lambda: not bar.query("#cap-stop"), seconds=2.0)
+                gone = await until(pilot, lambda: not bar.query("#cap-stop"), seconds=2.0)
 
                 # Assert
                 assert (claimed_during, labelled, gone) == (True, True, True)
@@ -196,7 +188,7 @@ class TestCaptureOverlay:
 
                 # Act
                 await _submit(pilot, "/run cap")
-                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), (
+                assert await until(pilot, lambda: bool(bar.query("#script-stop"))), (
                     "script overlay mounted"
                 )
                 for _ in range(250):
@@ -236,15 +228,15 @@ class TestDelayBar:
 
                 # Act
                 await _submit(pilot, "/run slow")
-                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), (
+                assert await until(pilot, lambda: bool(bar.query("#script-stop"))), (
                     "overlay mounted"
                 )
-                barred = await _until(
+                barred = await until(
                     pilot,
                     lambda: "0s/3s" in str(bar.query_one("#script-label", Static).render()),
                 )
                 await pilot.click("#script-stop")
-                gone = await _until(pilot, lambda: not bar.query("#script-stop"), seconds=2.0)
+                gone = await until(pilot, lambda: not bar.query("#script-stop"), seconds=2.0)
 
                 # Assert
                 assert barred is True, "the delay bar rides the script label"
@@ -265,7 +257,7 @@ class TestDelayBar:
                 await _submit(pilot, "/delay 3s")
                 await pilot.pause(0.3)  # one tick of the bar
                 await pilot.press("escape")
-                reported = await _until(
+                reported = await until(
                     pilot,
                     lambda: "Delay 3s canceled." in app._get_screen_text(),
                     seconds=2.0,

@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pilot_wait import until
 from textual.widgets import Input, OptionList, Static
 
 from termapy.defaults import DEFAULT_CFG
@@ -67,15 +68,6 @@ async def _submit(pilot, text: str) -> None:
     await pilot.pause()
     await pilot.press("enter")
     await pilot.pause()
-
-
-async def _until(pilot, predicate, seconds: float = 5.0) -> bool:
-    """Poll ``predicate`` every 20 ms until true or ``seconds`` pass."""
-    for _ in range(int(seconds * 50)):
-        if predicate():
-            return True
-        await pilot.pause(0.02)
-    return predicate()
 
 
 # ── on_key ──────────────────────────────────────────────────────────────────
@@ -251,7 +243,7 @@ class TestScriptOverlay:
 
                 # Act -- type the run, then watch the overlay until it is gone
                 await _submit(pilot, "/run outer")
-                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), (
+                assert await until(pilot, lambda: bool(bar.query("#script-stop"))), (
                     "overlay mounted"
                 )
                 for _ in range(250):
@@ -260,9 +252,7 @@ class TestScriptOverlay:
                     labels.add(str(bar.query_one("#script-label", Static).render()))
                     prompt_disabled_during = prompt_disabled_during or inp.disabled
                     await pilot.pause(0.02)
-                assert await _until(pilot, lambda: app.focused is inp), (
-                    "focus returns to the prompt"
-                )
+                assert await until(pilot, lambda: app.focused is inp), "focus returns to the prompt"
 
                 # Assert
                 assert any("outer.run" in label and "inner.run" not in label for label in labels), (
@@ -294,11 +284,11 @@ class TestScriptOverlay:
 
                 # Act
                 await _submit(pilot, "/run slow")
-                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), (
+                assert await until(pilot, lambda: bool(bar.query("#script-stop"))), (
                     "overlay mounted"
                 )
                 await pilot.click("#script-stop")
-                gone = await _until(pilot, lambda: not bar.query("#script-stop"), seconds=2.0)
+                gone = await until(pilot, lambda: not bar.query("#script-stop"), seconds=2.0)
 
                 # Assert
                 assert gone is True, "the script ended on Stop, not after five seconds"

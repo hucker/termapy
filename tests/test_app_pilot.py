@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 import serial
+from pilot_wait import until
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.folders import SYMBOLS_SUFFIX
@@ -795,12 +796,13 @@ class TestFindBar:
                         line_no=2,
                     )
                 )
-                await pilot.pause()
+                # A RichLog renders only once layout has sized it, which one
+                # pause does not always cover under a loaded full suite.
+                find_log = app.query_one("#output-find", RichLog)
+                await until(pilot, lambda: find_log.lines)
 
                 # Assert
-                shown = [
-                    strip.text.rstrip() for strip in app.query_one("#output-find", RichLog).lines
-                ]
+                shown = [strip.text.rstrip() for strip in find_log.lines]
                 assert "[ok] boot done" in shown, (
                     f"the unmatched line is shown as written, got {shown!r}"
                 )

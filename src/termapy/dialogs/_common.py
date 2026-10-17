@@ -7,7 +7,7 @@ Underscore prefix marks this as package-private; consumers go through
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from rich.text import Text
@@ -38,6 +38,12 @@ _FILE_PICKER_CHROME = 12
 # What a row may use before layout has measured the list.
 _FILE_PICKER_ROW_WIDTH = _FILE_PICKER_WIDTH - _FILE_PICKER_CHROME
 _ELLIPSIS = "..."
+# Columns the dialog spends around its title row: border 2 + padding 4.
+_TITLE_ROW_CHROME = 6
+# Room kept between a picker's title and its path when the dialog sizes
+# itself to show both (``_title_row_width``).  PathLink's left margin is
+# the floor when the terminal caps the width instead.
+_TITLE_PATH_GAP = 4
 
 
 class FileOptionList(OptionList):
@@ -282,7 +288,7 @@ class PathLink(Static):
 
     DEFAULT_CSS = """
     PathLink {
-        width: 1fr; text-align: right; color: $text-muted;
+        width: 1fr; margin-left: 2; text-align: right; color: $text-muted;
         text-style: underline; text-overflow: ellipsis;
     }
     PathLink:hover { color: $accent; }
@@ -343,3 +349,15 @@ def _path_link_tooltip(*, live: bool, gui_apps: bool, action: str) -> str | None
     if live:
         return action
     return None if gui_apps else _NO_DISPLAY_TIP
+
+
+def _title_row_width(title: str, paths: Iterable[Path]) -> int:
+    """The picker width that shows ``title`` and the longest of ``paths`` whole.
+
+    A picker takes the larger of this and ``FileOptionList.dialog_width``,
+    so a long path widens the dialog instead of crowding the title, as a
+    long summary widens it for the rows.  The CSS ``max-width`` still caps
+    it at the terminal, where ``PathLink`` front-shortens the path.
+    """
+    longest = max((len(str(path)) for path in paths), default=0)
+    return len(title) + _TITLE_PATH_GAP + longest + _TITLE_ROW_CHROME

@@ -21,7 +21,7 @@ from textual.widgets import Button, Input, OptionList, Static
 from termapy.config import file_manager_name
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog, ScriptPicker
-from termapy.dialogs._common import _NO_DISPLAY_TIP, PathLink, _fit_path
+from termapy.dialogs._common import _NO_DISPLAY_TIP, PathLink, _fit_path, _title_row_width
 from termapy.dialogs.config_picker import ConfigPicker, _config_details
 
 
@@ -267,6 +267,31 @@ class TestScriptPicker:
                 assert link.path == older.resolve(), "the path follows the highlight"
                 assert str(link.render()).endswith("older.run"), "and is what the row shows"
                 assert opened == [str(older.resolve())], "a click reveals the highlighted file"
+
+        _run(scenario)
+
+    def test_a_long_path_widens_the_dialog_instead_of_crowding_the_title(self, tmp_path):
+        """A folder whose path is longer than the rows need sizes the dialog to show title, gap and path whole."""
+
+        async def scenario():
+            # Arrange -- short rows, a deep folder
+            run_dir = tmp_path / ("deep_folder_name_" * 4) / "run"
+            run_dir.mkdir(parents=True)
+            script = run_dir / "a.run"
+            script.write_bytes(b"/echo x\n")
+            expected = _title_row_width("Select Run File", [script.resolve()])
+            app = _Host()
+            async with app.run_test(size=(300, 40)) as pilot:
+                # Act
+                app.push_screen(ScriptPicker(run_dir, opener=lambda path: None))
+                await pilot.pause()
+
+                # Assert
+                actual = app.screen.query_one("#script-dialog").outer_size.width
+                assert expected > 104, "the path, not the rows, decides this width"
+                assert actual == expected, "title + gap + the whole path + border"
+                shown = str(app.screen.query_one("#script-path", PathLink).render())
+                assert shown == str(script.resolve()), "the path shows whole, unshortened"
 
         _run(scenario)
 

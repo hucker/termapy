@@ -26,6 +26,7 @@ from termapy.dialogs._common import (
     _highlighted_file,
     _option_path,
     _path_link_tooltip,
+    _title_row_width,
 )
 from termapy.folder_ops import list_entries
 from termapy.protocol import script_name
@@ -111,13 +112,17 @@ class ProtoPicker(ModalScreen[tuple | None]):
         from textual.widgets import Static
 
         protos = list_entries(self.proto_dir, "*.pro")  # newest first
+        # Every path the title row can show; the first is shown on open.
+        paths = [_option_path(str(proto), self.proto_dir) for proto in protos] or [
+            self.proto_dir.resolve()
+        ]
         with Vertical(id="proto-dialog") as dialog:
             with Horizontal(id="proto-header"):
                 yield Static(_TITLE, id="proto-title")
                 # The highlighted script's path; it follows the highlight.
                 yield PathLink(
-                    _option_path(str(protos[0]) if protos else None, self.proto_dir),
-                    _FILE_PICKER_WIDTH - len(_TITLE) - 6,
+                    paths[0],
+                    max(len(str(path)) for path in paths),
                     link_id="proto-path",
                     opener=self._opener if self._live_link else None,
                 )
@@ -131,7 +136,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
             )
             if protos:
                 ol.highlighted = ol.first_file
-            dialog.styles.width = ol.dialog_width()
+            dialog.styles.width = max(ol.dialog_width(), _title_row_width(_TITLE, paths))
             yield ol
             has_protos = bool(protos)
             with Horizontal(id="proto-buttons"):

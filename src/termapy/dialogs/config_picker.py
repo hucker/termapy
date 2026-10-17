@@ -32,6 +32,7 @@ from termapy.dialogs._common import (
     PathLink,
     _highlighted_file,
     _path_link_tooltip,
+    _title_row_width,
 )
 from termapy.folder_ops import list_entries
 
@@ -176,7 +177,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 # Explore button's rule.
                 yield PathLink(
                     d.resolve(),
-                    _FILE_PICKER_WIDTH - len(_TITLE) - 6,
+                    len(str(d.resolve())),
                     link_id="picker-cfgdir",
                     opener=self._opener if self.gui_apps and not self.web else None,
                 )
@@ -194,7 +195,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 0,
             )
             ol.highlighted = ol.first_file + current_idx
-            dialog.styles.width = ol.dialog_width()
+            dialog.styles.width = max(ol.dialog_width(), _title_row_width(_TITLE, [d.resolve()]))
             yield ol
             has_configs = bool(json_files)
             with Horizontal(id="picker-buttons"):

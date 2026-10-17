@@ -26,6 +26,7 @@ from termapy.dialogs._common import (
     _highlighted_file,
     _option_path,
     _path_link_tooltip,
+    _title_row_width,
 )
 from termapy.folder_ops import list_entries
 from termapy.folders import FOLDER_PATTERNS, RUN
@@ -120,13 +121,17 @@ class ScriptPicker(ModalScreen[tuple | None]):
         # Only .run files: the folder can hold editor backups, notes, or --
         # with no config loaded -- be the current directory.
         scripts = list_entries(self.scripts_dir, FOLDER_PATTERNS[RUN])
+        # Every path the title row can show; the first is shown on open.
+        paths = [_option_path(str(script), self.scripts_dir) for script in scripts] or [
+            self.scripts_dir.resolve()
+        ]
         with Vertical(id="script-dialog") as dialog:
             with Horizontal(id="script-header"):
                 yield Static(_TITLE, id="script-title")
                 # The highlighted script's path; it follows the highlight.
                 yield PathLink(
-                    _option_path(str(scripts[0]) if scripts else None, self.scripts_dir),
-                    _FILE_PICKER_WIDTH - len(_TITLE) - 6,
+                    paths[0],
+                    max(len(str(path)) for path in paths),
                     link_id="script-path",
                     opener=self._opener if self._live_link else None,
                 )
@@ -138,7 +143,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
             )
             if scripts:
                 ol.highlighted = ol.first_file
-            dialog.styles.width = ol.dialog_width()
+            dialog.styles.width = max(ol.dialog_width(), _title_row_width(_TITLE, paths))
             yield ol
             has_scripts = bool(scripts)
             with Horizontal(id="script-buttons"):

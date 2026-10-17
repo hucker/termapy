@@ -158,7 +158,6 @@ class TestCrcDetectVariableForms:
             "a $(NAME) splice must still expand for detect -- guards against "
             "raw_args=True disabling the blanket transform"
         )
-        var._VARS.clear()
 
     def test_splice_and_deref_agree_on_a_clean_value(self):
         """On a value with no spaces, $(NAME) and $(*NAME) give the same answer."""
@@ -175,7 +174,6 @@ class TestCrcDetectVariableForms:
         assert spliced.value == dereffed.value, (
             "on a whitespace-free value the two forms are interchangeable"
         )
-        var._VARS.clear()
 
     def test_deref_binds_one_frame_per_reference(self):
         """Each $(*NAME) token binds as one entry in the variadic frame list."""
@@ -188,7 +186,6 @@ class TestCrcDetectVariableForms:
 
         # Assert
         assert "crc16-modbus" in result.value, "three dereferenced frames identify modbus"
-        var._VARS.clear()
 
     def test_deref_value_with_spaces_stays_one_frame(self):
         """A dereferenced value containing spaces binds as one frame, not eight."""
@@ -204,7 +201,6 @@ class TestCrcDetectVariableForms:
         assert "crc16-modbus" in result.value, (
             "a dereferenced value containing spaces binds as ONE frame"
         )
-        var._VARS.clear()
 
     def test_mixed_literal_and_reference(self):
         """Literal frames and $(*NAME) references can mix within one frame list."""
@@ -217,7 +213,6 @@ class TestCrcDetectVariableForms:
 
         # Assert
         assert "crc16-modbus" in result.value, "literal and reference tokens mix"
-        var._VARS.clear()
 
     def test_unknown_reference_errors(self):
         """A $(*NAME) typo fails naming the variable instead of reaching crcglot as text."""

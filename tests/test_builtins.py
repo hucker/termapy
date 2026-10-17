@@ -803,9 +803,6 @@ class TestVarHandlerValues:
         # Assert
         assert result.value == "hello", "lookup returns the variable value"
 
-        # Cleanup -- _VARS is module state shared across tests
-        _VARS.clear()
-
     def test_var_lookup_returns_empty_when_undefined(self, repl_env):
         """An undefined name still succeeds, with '' as the value instead of None."""
         # Arrange
@@ -836,9 +833,6 @@ class TestVarHandlerValues:
         assert "A=1" in lines, "first variable in scripting value"
         assert "B=2" in lines, "second variable in scripting value"
 
-        # Cleanup
-        _VARS.clear()
-
     def test_var_set_returns_new_value(self, repl_env):
         """/var.set returns the value just assigned, like other setter commands."""
         # Arrange
@@ -853,9 +847,6 @@ class TestVarHandlerValues:
         assert result.value == "fresh_value", (
             "setter returns the new value (mirrors echo/verbose convention)"
         )
-
-        # Cleanup
-        _VARS.clear()
 
     def test_var_clear_returns_count_cleared(self, repl_env):
         """/var.clear returns how many variables it removed, as a string."""

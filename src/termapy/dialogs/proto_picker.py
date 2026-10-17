@@ -47,9 +47,9 @@ class ProtoPicker(ModalScreen[tuple | None]):
         self.dismiss(None)
 
     def on_mount(self) -> None:
-        self.query_one("#proto-list", OptionList).tooltip = (
-            "Protocol scripts (.pro) in this config's proto/ folder.  Press Enter to run."
-        )
+        self.query_one(
+            "#proto-list", OptionList
+        ).tooltip = "Protocol scripts (.pro) in this config's proto/ folder.  Press Enter to run."
         self.query_one("#proto-run", Button).tooltip = "Run the selected protocol script."
         self.query_one(
             "#proto-debug", Button

@@ -19,9 +19,10 @@ lookup, so ``/edit foo.py`` worked in the CLI and failed in the TUI
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from termapy.folders import EXT_TO_FOLDER, FOLDERS, default_file_name, ensure_folder
 from termapy.help_dynamic import compose, folder_line

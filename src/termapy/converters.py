@@ -28,8 +28,9 @@ keys them by ``(kind, format)``.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, Final, Iterable
+from typing import Any, Final
 
 SYMBOLS: Final[str] = "symbols"
 DEVICE: Final[str] = "device"

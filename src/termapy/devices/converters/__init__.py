@@ -15,7 +15,8 @@ without a PR.
 
 from __future__ import annotations
 
-from typing import Final, Iterable
+from collections.abc import Iterable
+from typing import Final
 
 from termapy.converters import DEVICE, ConverterSpec, find_converter as _find_converter
 from termapy.devices.converters import svd

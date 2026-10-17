@@ -30,8 +30,8 @@ import os
 import re
 import sys
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 # ── Records ───────────────────────────────────────────────────────────────
 

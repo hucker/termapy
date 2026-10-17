@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from termapy.converters import converter_from_module
 from termapy.plugins.command import (

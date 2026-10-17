@@ -18,7 +18,8 @@ See ``project_crcglot_verbs_integration`` and ``docs/param-spec-implementation.m
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import crcglot
 

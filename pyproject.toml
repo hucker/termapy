@@ -35,10 +35,10 @@ dependencies = [
     # currently-tested release; pre-1.0 tree-sitter libraries routinely
     # break their API between minor versions.  Bump the caps manually
     # after smoke-testing a new release locally.
-    "tree-sitter>=0.25.0,<0.27; python_version >= '3.10'",
-    "tree-sitter-json>=0.24.0,<0.25; python_version >= '3.10'",
-    "tree-sitter-toml>=0.6.0,<0.8; python_version >= '3.10'",
-    "tree-sitter-bash>=0.23.0,<0.26; python_version >= '3.10'",
+    "tree-sitter>=0.25.0,<0.27",
+    "tree-sitter-json>=0.24.0,<0.25",
+    "tree-sitter-toml>=0.6.0,<0.8",
+    "tree-sitter-bash>=0.23.0,<0.26",
     # PEP 440 version parsing for the update_check module (release-notification
     # path).  Used to compare an installed termapy version against the latest
     # PyPI release.
@@ -249,11 +249,13 @@ exclude = ["src/termapy/vendor", "src/termapy/html"]
 #
 # E4/E7/E9 + F are the classic defaults this gate has always effectively
 # enforced.  I (import sorting) is the one addition -- deterministic import
-# blocks, and every finding is auto-fixable.
+# blocks, and every finding is auto-fixable.  UP (pyupgrade) holds the code
+# to the Python floor ruff infers from requires-python: added 2026-10-17
+# when 3.10 was dropped, and it flags the next set when the floor moves.
 #
 # Adding a rule family is a deliberate change: select it here, fix the
 # findings, and land it on its own branch.
-select = ["E4", "E7", "E9", "F", "I"]
+select = ["E4", "E7", "E9", "F", "I", "UP"]
 
 [tool.ruff.lint.isort]
 # Keep aliased members in the SAME statement as their siblings.  isort's

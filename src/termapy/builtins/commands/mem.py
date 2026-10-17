@@ -31,7 +31,8 @@ and dropped on connect / config load.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Callable, Final, Literal
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 from termapy.devices import distinct_spans, registers_in_range, span_groups
 from termapy.memory import (

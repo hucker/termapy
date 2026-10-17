@@ -559,8 +559,8 @@ class SerialTerminal(TerminalHost, App):
             open_fn=open_serial,
             log=self._log_line,
         )
-        self._cap_timer: "Timer | None" = None
-        self._cap_progress_timer: "Timer | None" = None
+        self._cap_timer: Timer | None = None
+        self._cap_progress_timer: Timer | None = None
         # The running auto-reconnect's cancel token; a fresh one per run, so
         # an old loop that is still winding down can never act or block the
         # next.  SET means no reconnect is running (see ``_reconnecting``).

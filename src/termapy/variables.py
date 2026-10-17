@@ -30,8 +30,8 @@ pyserial, or anything under ``builtins/``.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
 
 # Match $(NAME) or $(NAME.SUB), with an optional :strftime format on
 # datetime-valued vars -- e.g. $(DATETIME:%Y%m%d_%H%M%S).  The format runs

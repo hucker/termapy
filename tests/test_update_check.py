@@ -8,7 +8,7 @@ potentially-updated state file.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -28,7 +28,7 @@ def pin_state_dir(monkeypatch, tmp_path):
 @pytest.fixture
 def freeze_time(monkeypatch):
     """Freeze update_check._now() to a settable datetime."""
-    holder = {"now": datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)}
+    holder = {"now": datetime(2026, 6, 1, 12, 0, tzinfo=UTC)}
     monkeypatch.setattr(update_check, "_now", lambda: holder["now"])
     return holder
 
@@ -298,6 +298,27 @@ class TestNeverRaises:
         # Act / Assert - must not raise
         actual = update_check.check(current_version="0.60.0")
         assert actual is None, "unexpected exception swallowed, returns None"
+
+
+# -- _parse_iso: the state file's timestamps ---------------------------------
+
+
+class TestParseIso:
+    @pytest.mark.parametrize("text", ["2026-06-01T12:00:00Z", "2026-06-01T12:00:00+00:00"])
+    def test_a_utc_suffix_parses_either_way(self, text):
+        """A trailing Z and +00:00 both read as the same UTC moment."""
+        actual = update_check._parse_iso(text)
+        assert actual == datetime(2026, 6, 1, 12, 0, tzinfo=UTC), "Z is UTC, as fromisoformat reads it"
+
+    def test_a_naive_time_is_taken_as_utc(self):
+        """A timestamp with no zone is UTC, so it compares with _now()."""
+        actual = update_check._parse_iso("2026-06-01T12:00:00")
+        assert actual == datetime(2026, 6, 1, 12, 0, tzinfo=UTC), "no zone means UTC"
+
+    @pytest.mark.parametrize("value", ["yesterday", "", None, 12])
+    def test_anything_else_is_none(self, value):
+        """Text that is not a timestamp, or not text at all, is None rather than an exception."""
+        assert update_check._parse_iso(value) is None, "a bad state value never raises"
 
 
 # -- check_now: on-demand path used by /ver.latest and /ver.info ------------

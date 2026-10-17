@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 # Adapt crcglot's public API to the shapes termapy's internal callers
 # (get_crc_registry, proto.py) have historically consumed:

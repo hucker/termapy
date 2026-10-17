@@ -284,7 +284,7 @@ class TypeRegistry:
         self._types = dict(types)
 
     @classmethod
-    def from_profile(cls, profile: dict | None) -> "TypeRegistry":
+    def from_profile(cls, profile: dict | None) -> TypeRegistry:
         """Build a registry from a profile dict (or empty if None / no block).
 
         Profiles without a ``types`` block produce an empty registry;

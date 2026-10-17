@@ -10,9 +10,10 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, Any, Callable
+from typing import IO, Any
 
 from termapy.folders import ensure_folder
 from termapy.protocol import apply_format, parse_hex

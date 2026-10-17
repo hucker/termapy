@@ -10,8 +10,9 @@ import re
 import struct
 import time
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Literal
+from typing import Literal
 
 from termapy.markup import escape_markup
 from termapy.protocol.crc import get_crc_registry

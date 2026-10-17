@@ -19,9 +19,10 @@ gates them at call time.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Callable, Generator
+from typing import Any
 
 
 @dataclass

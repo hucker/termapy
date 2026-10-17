@@ -17,10 +17,11 @@ The output-level vocabulary (``OUTPUT_LEVELS``, ``LEVEL_FLAGS``,
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable
+from typing import Any
 
 from termapy.defaults import cmd_prefix
 from termapy.folders import PLUGIN, ensure_folder

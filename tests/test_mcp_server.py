@@ -526,8 +526,8 @@ class TestRunCommandErrors:
         possible = elapsed / 0.05
         assert result["success"] is False, "the call still times out"
         assert ticks >= possible * 0.5, (
-            "the loop must stay live for the WHOLE call; got {} ticks in "
-            "{:.2f}s, which allows about {:.0f}".format(ticks, elapsed, possible)
+            f"the loop must stay live for the WHOLE call; got {ticks} ticks in "
+            f"{elapsed:.2f}s, which allows about {possible:.0f}"
         )
 
 

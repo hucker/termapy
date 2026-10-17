@@ -12,8 +12,9 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from threading import Event
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from termapy.capture import CaptureEngine
 from termapy.plugins import BoundaryException
@@ -258,7 +259,7 @@ class SerialEngine:
         self._stop_event = Event()
         # The reader thread this engine owns, so teardown can join it rather
         # than wait on an Event and proceed regardless.
-        self._reader_thread: "threading.Thread | None" = None
+        self._reader_thread: threading.Thread | None = None
         # Monotonic stamp of the last chunk the reader actually received.
         # ``SerialPort.wait_for_idle`` keys off this rather than the port's
         # ``in_waiting``, which the reader keeps drained to zero.

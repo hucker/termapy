@@ -19,8 +19,9 @@ import functools
 import os
 import re
 import sys
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from termapy.defaults import (
     VALID_BYTE_SIZES,

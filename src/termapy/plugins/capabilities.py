@@ -291,27 +291,27 @@ class CapabilitySet:
     # frozen).  Use these for the common cases; spell out an unusual
     # combination inline.  Editors show each docstring on hover.
 
-    SERIAL_CONNECTED: ClassVar["CapabilitySet"]
+    SERIAL_CONNECTED: ClassVar[CapabilitySet]
     """Needs an OPEN serial port (``serial_connected=True``).
 
     The command sends or reads bytes; dispatch answers ``Not connected.``
     before the handler runs instead of every handler re-checking."""
 
-    CONFIG_LOADED: ClassVar["CapabilitySet"]
+    CONFIG_LOADED: ClassVar[CapabilitySet]
     """Needs a LOADED config (``config_loaded=True``).
 
     The command works in the config's folder (its data folders, sidecars,
     report); dispatch answers ``No config loaded.`` before the handler
     runs instead of every handler re-checking."""
 
-    INTERACTIVE: ClassVar["CapabilitySet"]
+    INTERACTIVE: ClassVar[CapabilitySet]
     """Needs a human at an interactive session (``interactive=True``).
 
     Persistent scrollback, modal dialogs, in-band UI chrome.  TUI and CLI
     (local or over SSH) provide it; MCP does not -- an LLM client has no
     interactive session."""
 
-    GUI_APPS: ClassVar["CapabilitySet"]
+    GUI_APPS: ClassVar[CapabilitySet]
     """Can launch desktop apps the user can SEE (``gui_apps=True``).
 
     System editor, file viewer, browser.  Distinct from INTERACTIVE: an
@@ -319,57 +319,57 @@ class CapabilitySet:
     ``webbrowser.open()`` would "succeed" invisibly on the remote box.
     Detected at startup; ``TERMAPY_GUI=1/0`` overrides."""
 
-    FILE_EDITOR: ClassVar["CapabilitySet"]
+    FILE_EDITOR: ClassVar[CapabilitySet]
     """Can open a project file for editing (``file_editor=True``).
 
     The TUI's own config and script editors, or a desktop's system
     editor.  The TUI has it over SSH too; the CLI only with a desktop."""
 
-    SESSION_LOG: ClassVar["CapabilitySet"]
+    SESSION_LOG: ClassVar[CapabilitySet]
     """This frontend's session log, which needs a config (``session_log`` + ``config_loaded``).
 
     The TUI and the MCP server keep one per config; the CLI keeps none,
     so the /log commands are unavailable there."""
 
-    SCREEN_CAPTURE: ClassVar["CapabilitySet"]
+    SCREEN_CAPTURE: ClassVar[CapabilitySet]
     """Can capture the rendered screen (``screen_capture=True``).
 
     Screenshots and screen text need a graphical render surface -- TUI
     only; the CLI has no serialized screen state."""
 
-    TUI_MODE: ClassVar["CapabilitySet"]
+    TUI_MODE: ClassVar[CapabilitySet]
     """Uses TUI-only runtime features (``tui_mode=True``).
 
     Line numbers, scrollback rendering, modal screens.  Distinct from
     SCREEN_CAPTURE: that reads the render surface, this drives it."""
 
-    BLOCK_UNTIL: ClassVar["CapabilitySet"]
+    BLOCK_UNTIL: ClassVar[CapabilitySet]
     """May block its thread waiting on the device (``block_until=True``).
 
     Script runner only: it already executes on a background worker that
     is safe to block; blocking at the REPL would freeze the TUI's event
     loop."""
 
-    SERIAL_INTERACTIVE: ClassVar["CapabilitySet"]
+    SERIAL_INTERACTIVE: ClassVar[CapabilitySet]
     """Needs an open port AND a human present (file transfers).
 
     ``serial_connected=True, interactive=True`` -- an XMODEM/YMODEM run
     holds the port and needs someone watching the progress."""
 
-    CONFIG_GUI_APPS: ClassVar["CapabilitySet"]
+    CONFIG_GUI_APPS: ClassVar[CapabilitySet]
     """Opens the loaded config's files in a desktop app the user SEES.
 
     ``config_loaded=True, gui_apps=True`` -- the ``.explore`` and
     ``.show`` commands: a folder or file of the config, opened in the
     file explorer or the system viewer."""
 
-    def satisfied_by(self, provided: "CapabilitySet") -> bool:
+    def satisfied_by(self, provided: CapabilitySet) -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(
             not getattr(self, f.name) or getattr(provided, f.name) for f in fields(self)
         )
 
-    def missing_from(self, provided: "CapabilitySet") -> list[str]:
+    def missing_from(self, provided: CapabilitySet) -> list[str]:
         """Return field names required by ``self`` that ``provided`` lacks.
 
         Order matches declaration order above, which is a stable, reviewable
@@ -381,7 +381,7 @@ class CapabilitySet:
             if getattr(self, f.name) and not getattr(provided, f.name)
         ]
 
-    def union(self, other: "CapabilitySet") -> "CapabilitySet":
+    def union(self, other: CapabilitySet) -> CapabilitySet:
         """Return a new set that has every capability provided by either side.
 
         Useful when deriving one environment from another, e.g. the script
@@ -500,7 +500,7 @@ def detect_gui_apps() -> bool:
     return False
 
 
-def _build_environments() -> dict[str, "CapabilitySet"]:
+def _build_environments() -> dict[str, CapabilitySet]:
     """Build the per-environment capability sets used by ``/help`` rendering.
 
     The single source of truth for "where can this command run."  The
@@ -557,4 +557,4 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
     return {name: attainable(caps) for name, caps in environments.items()}
 
 
-ENVIRONMENTS: dict[str, "CapabilitySet"] = _build_environments()
+ENVIRONMENTS: dict[str, CapabilitySet] = _build_environments()

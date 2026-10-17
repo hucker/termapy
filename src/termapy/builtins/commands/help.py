@@ -161,8 +161,9 @@ def _required_capability_rows(needs) -> list[tuple[str, str]]:
     declares. Baseline capabilities are skipped -- a command that uses
     terminal output doesn't need a line saying so.
 
-    Hints live in ``termapy.plugins.capabilities.REQUIREMENT_HINTS``,
-    beside the fields they describe.  Indexing is deliberately direct
+    Hints are declared on the fields they describe (``_restricted`` in
+    ``termapy.plugins.capabilities``); ``REQUIREMENT_HINTS`` is computed
+    from them.  Indexing is deliberately direct
     (no membership filter): a missing entry is a test failure, not a
     silently dropped row -- the old silent skip hid every interactive /
     gui_apps declaration from /help.

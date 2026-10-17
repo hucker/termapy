@@ -2047,8 +2047,10 @@ def test_state_checked_in_a_branch_has_no_stale_entries():
 #
 # 2026-10-16: "Not connected." was spelled by port_control (seven times), the
 # serial engine (four, without the period), TerminalHost (twice) and /help's
-# port line, besides the gate's table.  Everything that says it reads
-# ``capabilities.STATE_MESSAGES``; a copy, even one that drops the period, fails.
+# port line, besides the gate's table.  Each answer is written once, on the
+# capability field that declares it (``_restricted(..., state=)``), and
+# everything that says it reads ``capabilities.STATE_MESSAGES``, the view of
+# those fields; a copy, even one that drops the period, fails.
 STATE_MESSAGES_OWNER = "plugins/capabilities.py"
 
 
@@ -2063,8 +2065,8 @@ def _state_answer_copies(tree: ast.Module) -> list[tuple[str, int]]:
     ]
 
 
-def test_the_state_answers_are_spelled_only_in_their_table():
-    """state-messages-one-owner: "No config loaded." and "Not connected." are spelled only in STATE_MESSAGES."""
+def test_the_state_answers_are_spelled_only_on_their_fields():
+    """state-messages-one-owner: "No config loaded." and "Not connected." are spelled only on their capability fields."""
     # Arrange / Act
     violations = [
         f"{rel}:{line} in {qualname}"

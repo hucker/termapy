@@ -26,8 +26,11 @@ Why a closed dataclass of booleans rather than a free-form set of strings?
 
 Add a capability by:
 
-  1. Add a new field here with a ``bool = False`` default and a comment
-     explaining *what* it means and *where* it's provided.
+  1. Add a new field here declared with ``_restricted("<hint>")`` -- the
+     hint is what /help prints after "requires" -- and a comment
+     explaining *what* it means and *where* it's provided.  Session
+     state the user can change adds ``state=`` (the gate's answer) and
+     ``attainable=True``.
   2. The environments that provide it set the field to True when they
      build ``ctx.capabilities`` (typically in ``app.py`` / ``cli.py`` /
      the script runner in ``repl.py``).
@@ -38,7 +41,7 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import ClassVar
 
 
@@ -58,6 +61,28 @@ class MissingCapability(Exception):
     Caught at the dispatcher's boundary-exception handler and converted to
     ``CmdResult.fail``, so a misbehaving plugin can't crash the host.
     """
+
+
+def _restricted(hint: str, *, state: str | None = None, attainable: bool = False) -> bool:
+    """A restrictive capability: off by default, with what /help says it requires.
+
+    Everything termapy says about a capability lives on its field; the
+    module tables below (``REQUIREMENT_HINTS``, ``STATE_MESSAGES``,
+    ``ATTAINABLE``) are computed from it (registry ``capability-declared-once``).
+
+    Args:
+        hint: /help's REQUIRED CAPABILITIES row: a noun phrase completing
+            "requires ...", never a sentence, a "when" clause or a bare
+            location, and no period.
+        state: The dispatch gate's answer when this session state is all a
+            command lacks (``No config loaded.``), instead of "not available
+            in this environment".
+        attainable: Any frontend can reach it during a session (load a
+            config, open a port, run a script), so "can this command ever
+            run here" (/help AVAILABLE, the MCP catalog) counts it as yes; a
+            fixed property of the frontend (a desktop, the TUI itself) is not.
+    """
+    return field(default=False, metadata={"hint": hint, "state": state, "attainable": attainable})
 
 
 @dataclass(frozen=True)
@@ -90,7 +115,8 @@ class CapabilitySet:
         advertises availability the same way.
 
     **Adding a capability** is adding a field below with a ``# What:`` /
-    ``# Where:`` comment block.  Choose the default based on whether
+    ``# Where:`` comment block, declared with ``_restricted`` unless every
+    environment provides it.  Choose the default based on whether
     every termapy environment can provide it or not.
     """
 
@@ -128,7 +154,8 @@ class CapabilitySet:
     # ── Restrictive (default False) ──────────────────────────────────────
     # Only some environments provide these.  Commands opt in by setting
     # ``needs=CapabilitySet(<name>=True)``; environments opt in by
-    # setting the same field in their ``ctx.capabilities``.
+    # setting the same field in their ``ctx.capabilities``.  Each is
+    # declared with ``_restricted``, which carries its /help hint.
 
     # What:  Handler can block the calling thread waiting for serial input
     #        or a user response (e.g. /expect, /confirm).
@@ -136,30 +163,30 @@ class CapabilitySet:
     #        TUI's event loop; blocking in the CLI event path would hang
     #        stdin echo.  The script runner already executes on a
     #        background worker thread that it's safe to block.
-    block_until: bool = False
+    block_until: bool = _restricted("a thread that may block (.run scripts only)", attainable=True)
 
     # What:  ``ctx.ui.confirm(message)`` asks Yes/Cancel and returns the
     #        user's answer synchronously.
     # Where: TUI (a dialog) and CLI (a y/n prompt on stdin; a piped run
     #        reads No).  Not MCP.  Implies block_until (the handler stops
     #        until the user answers).
-    confirm_dialog: bool = False
+    confirm_dialog: bool = _restricted("a Yes/Cancel prompt (the TUI's dialog, the CLI's y/n)")
 
     # What:  ``ctx.notify(text)`` shows a transient toast-style message
     #        that does not pollute the main output stream.
     # Where: TUI only.
-    ui_notify: bool = False
+    ui_notify: bool = _restricted("the TUI's toast notifications")
 
     # What:  ``ctx.status_bar(text, timeout)`` updates the bottom-of-screen
     #        status line.  No-op elsewhere.
     # Where: TUI only.
-    status_bar: bool = False
+    status_bar: bool = _restricted("the TUI's status line")
 
     # What:  Can capture the rendered screen (``save_screenshot``,
     #        ``get_screen_text``).  Requires a graphical render surface.
     # Where: TUI only.  CLI renders to a plain terminal; there is no
     #        serialized screen state to capture.
-    screen_capture: bool = False
+    screen_capture: bool = _restricted("the TUI's render surface (screenshots, screen text)")
 
     # What:  Running inside the TUI (Textual) rather than the CLI.
     #        Commands that tweak TUI-specific display settings (line
@@ -167,7 +194,7 @@ class CapabilitySet:
     # Where: TUI only.  Distinct from ``screen_capture`` -- that's about
     #        *reading* the render surface; this is about *using* TUI-only
     #        features at runtime.
-    tui_mode: bool = False
+    tui_mode: bool = _restricted("the TUI (switch with /tui)")
 
     # What:  A config is loaded: ``ctx.config_path`` names its file, so
     #        the config's folder and the data folders under it are
@@ -179,7 +206,9 @@ class CapabilitySet:
     #        /cfg.info, /sym.import, ...) declare this need so dispatch
     #        answers "No config loaded." instead of each handler
     #        re-implementing the check.
-    config_loaded: bool = False
+    config_loaded: bool = _restricted(
+        "a loaded config", state="No config loaded.", attainable=True,
+    )
 
     # What:  A serial port is currently open and transmitting.
     # Where: Dynamic -- evaluated per dispatch by checking
@@ -188,7 +217,9 @@ class CapabilitySet:
     #        bytes (/proto.send, /xfer.xmodem.send, ...) declare this need
     #        so dispatch gives a clear "not connected" error instead of
     #        each handler re-implementing the check.
-    serial_connected: bool = False
+    serial_connected: bool = _restricted(
+        "an open serial port", state="Not connected.", attainable=True,
+    )
 
     # What:  An interactive session -- a human at a terminal with
     #        persistent scrollback, modal dialog support, or in-band UI
@@ -197,7 +228,7 @@ class CapabilitySet:
     #        convenience (``/echo`` -> ``/term.echo``).
     # Where: TUI, CLI (whether running locally or over SSH).  Not MCP --
     #        an LLM client has no interactive session.
-    interactive: bool = False
+    interactive: bool = _restricted("an interactive session (a human at a terminal; not MCP)")
 
     # What:  Host can launch external desktop apps the user must visually
     #        see -- system editor, file viewer, browser, file explorer.
@@ -208,7 +239,7 @@ class CapabilitySet:
     # Where: TUI / CLI when running locally on a graphical desktop.
     #        Detected at host startup via env vars; users can override
     #        with ``TERMAPY_GUI=1`` / ``TERMAPY_GUI=0``.  Not MCP.
-    gui_apps: bool = False
+    gui_apps: bool = _restricted("a local desktop that can open apps the user sees")
 
     # What:  Can open a project file for editing (``ctx.internal.edit_file``).
     #        The TUI opens its own editors for a config, a .run or a .pro
@@ -217,7 +248,7 @@ class CapabilitySet:
     #        (review 2026-10-15, D5): the frontend decides how to open.
     # Where: TUI always (its editors work over SSH); CLI when ``gui_apps``.
     #        Not MCP.
-    file_editor: bool = False
+    file_editor: bool = _restricted("an editor for project files (the TUI's own, or a desktop's)")
 
     # What:  The frontend keeps a session log of its own
     #        (``ctx.internal.session_log_path``): the TUI's ``<cfg>.log``
@@ -227,7 +258,9 @@ class CapabilitySet:
     #        that answered "No log file." in the CLI, where /help said the
     #        /log commands were available (2026-10-16).
     # Where: TUI, MCP.  Not the CLI, which keeps none (review 2026-10-15, D3).
-    session_log: bool = False
+    session_log: bool = _restricted(
+        "a session log (the TUI's or the MCP server's; the CLI keeps none)",
+    )
 
     # What:  Handler may resolve a caller-supplied path OUTSIDE the
     #        per-config sandbox -- an absolute path or ``..`` traversal
@@ -238,7 +271,9 @@ class CapabilitySet:
     #        sandbox without touching device control.
     # Where: CLI, TUI (the operator IS the caller, on their own machine).
     #        MCP only when ``TERMAPY_MCP_FS_UNCONFINED`` is set.
-    filesystem_unconfined: bool = False
+    filesystem_unconfined: bool = _restricted(
+        "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)",
+    )
 
     # What:  Handler may open a NETWORK connection -- pyserial
     #        serial-over-URL "ports" (``socket://``, ``rfc2217://``) via
@@ -246,7 +281,9 @@ class CapabilitySet:
     #        automated peer can't open arbitrary outbound TCP and send data
     #        off the machine; physical device ports are unaffected.
     # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_NET_EGRESS`` is set.
-    network_egress: bool = False
+    network_egress: bool = _restricted(
+        "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
+    )
 
     # ── Named profiles ──────────────────────────────────────────────────
     # The recurring ``needs=`` declarations, one frozen shared instance
@@ -373,56 +410,38 @@ CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interact
 CapabilitySet.CONFIG_GUI_APPS = CapabilitySet(config_loaded=True, gui_apps=True)
 
 
-# ── Requirement hints ────────────────────────────────────────────────────────
-# One hint per RESTRICTIVE field above, rendered by /help's REQUIRED
-# CAPABILITIES section.  The stem contract: every value is a noun phrase
-# completing "requires ..." -- never a sentence, a "when" clause, or a bare
-# location.  Baseline fields are intentionally absent (every environment
-# provides them; they'd be noise in a requirements listing).  Completeness
-# is enforced both ways by tests/test_plugins.py (TestRequirementHints):
-# a new restrictive field fails the suite until it gets a hint here, and a
-# stale key fails it too.
+# ── Views of the fields ──────────────────────────────────────────────────────
+# Computed from the ``_restricted`` declarations above, the one place each
+# fact is written (registry ``capability-declared-once``).  Baseline fields
+# carry none of them: every environment provides those, so they would be
+# noise in a requirements listing.
+
+# /help's REQUIRED CAPABILITIES rows: one noun phrase per restrictive field,
+# completing "requires ...".
 REQUIREMENT_HINTS: dict[str, str] = {
-    "block_until": "a thread that may block (.run scripts only)",
-    "confirm_dialog": "a Yes/Cancel prompt (the TUI's dialog, the CLI's y/n)",
-    "ui_notify": "the TUI's toast notifications",
-    "status_bar": "the TUI's status line",
-    "screen_capture": "the TUI's render surface (screenshots, screen text)",
-    "tui_mode": "the TUI (switch with /tui)",
-    "config_loaded": "a loaded config",
-    "serial_connected": "an open serial port",
-    "interactive": "an interactive session (a human at a terminal; not MCP)",
-    "gui_apps": "a local desktop that can open apps the user sees",
-    "file_editor": "an editor for project files (the TUI's own, or a desktop's)",
-    "session_log": "a session log (the TUI's or the MCP server's; the CLI keeps none)",
-    "filesystem_unconfined": "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)",
-    "network_egress": "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
+    spec.name: spec.metadata["hint"] for spec in fields(CapabilitySet) if "hint" in spec.metadata
 }
 
-
-# ── Session-state answers ────────────────────────────────────────────────────
 # The dynamic fields that are session STATE the user can change, not limits
 # of the environment.  When they are all a command lacks, dispatch answers
 # with the state rather than "requires: ... (not available in this
-# environment)".  In order: with neither, load a config first (it may open
-# the port too).  The one place these answers are spelled (registry
-# ``state-answered-by-gate``).
+# environment)".  Declaration order is the gate's order: with neither, load a
+# config first (it may open the port too), so ``config_loaded`` is declared
+# before ``serial_connected``.  Registries ``state-answered-by-gate`` and
+# ``state-messages-one-owner``.
 STATE_MESSAGES: dict[str, str] = {
-    "config_loaded": "No config loaded.",
-    "serial_connected": "Not connected.",
+    spec.name: spec.metadata["state"] for spec in fields(CapabilitySet) if spec.metadata.get("state")
 }
 
-
-# ── Attainable capabilities ──────────────────────────────────────────────────
-# The dynamic fields are ATTAINABLE in every environment rather than
-# properties of one: any host can load a config (``config_loaded`` via
-# /cfg.load), open a port (``serial_connected`` via /port.connect) and reach
-# a blocking-safe thread (``block_until``: .run scripts under TUI/CLI; the
-# MCP host grants it outright).  The dispatch gate reads them live
+# The fields any frontend can reach during a session: a config (/cfg.load),
+# a port (/port.connect), a blocking-safe thread (.run scripts under TUI/CLI;
+# the MCP host grants it outright).  The dispatch gate reads them live
 # (``ReplEngine._effective_capabilities``); whatever answers "can this
 # command EVER run here" -- /help's AVAILABLE row, ``/help --mcp``, the MCP
 # catalog -- grants them through ``attainable``.
-ATTAINABLE: tuple[str, ...] = ("config_loaded", "serial_connected", "block_until")
+ATTAINABLE: tuple[str, ...] = tuple(
+    spec.name for spec in fields(CapabilitySet) if spec.metadata.get("attainable")
+)
 
 
 def attainable(caps: CapabilitySet) -> CapabilitySet:

@@ -27,7 +27,6 @@ from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.config_picker import ConfigPicker
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.dialogs.filename_dialog import FilenameDialog
-from termapy.dialogs.name_picker import NamePicker
 from termapy.dialogs.port_picker import PortPicker
 from termapy.dialogs.proto_editor import ProtoEditor
 from termapy.dialogs.proto_picker import ProtoPicker
@@ -36,7 +35,6 @@ from termapy.dialogs.script_editor import ScriptEditor
 from termapy.dialogs.script_picker import ScriptPicker
 from termapy.dialogs.set_var_dialog import SetVarDialog
 from termapy.dialogs.update_available import UpdateAvailableDialog
-from termapy.dialogs.welcome_dialog import WelcomeDialog
 
 __all__ = [
     "CfgConfirm",
@@ -44,7 +42,6 @@ __all__ = [
     "ConfigPicker",
     "ConfirmDialog",
     "FilenameDialog",
-    "NamePicker",
     "PortPicker",
     "ProtoEditor",
     "ProtoPicker",
@@ -53,5 +50,4 @@ __all__ = [
     "ScriptPicker",
     "SetVarDialog",
     "UpdateAvailableDialog",
-    "WelcomeDialog",
 ]

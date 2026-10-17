@@ -4,10 +4,6 @@ Used by the TUI Record button to collect a filename before
 dispatching ``/run.record <name>``.  Returns the raw user input
 on submit (no path resolution, no suffix manipulation -- the
 recorder handles all of that).  Returns ``None`` on cancel.
-
-Modeled on the existing ``NamePicker`` shape; kept separate to
-avoid coupling Record's UX to that dialog's stem-stripping
-behavior.
 """
 
 from __future__ import annotations

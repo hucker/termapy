@@ -1,4 +1,4 @@
-"""The nine small dialogs: what each shows and what it dismisses with.
+"""The seven small dialogs: what each shows and what it dismisses with.
 
 Pushed into a bare host app and driven with Pilot (the
 ``tests/test_dialogs.py`` pattern).  The two file editors share one
@@ -21,14 +21,12 @@ from textual.widgets import Button, Input, OptionList, Static, TextArea
 from termapy.defaults import PROTO_TEMPLATE, SCRIPT_TEMPLATE
 from termapy.dialogs import (
     CfgConfirm,
-    NamePicker,
     PortPicker,
     ProtoEditor,
     ProtoPicker,
     ScriptEditor,
     SetVarDialog,
     UpdateAvailableDialog,
-    WelcomeDialog,
 )
 
 
@@ -317,76 +315,6 @@ class TestCfgConfirm:
                 await pilot.press("escape")
                 await pilot.pause()
                 assert (results, results_escape) == ([False], [False])
-
-        _run(scenario)
-
-
-# ── NamePicker ───────────────────────────────────────────────────────────────
-
-
-class TestNamePicker:
-    def test_enter_returns_the_stem(self, tmp_path):
-        """A name typed with an extension comes back as its stem."""
-
-        async def scenario():
-            app = _Host()
-            async with app.run_test(size=_SIZE) as pilot:
-                results = await _push(app, pilot, NamePicker())
-                await _submit(pilot, app.screen.query_one("#name-input", Input), " my_dev.cfg ")
-                assert results == ["my_dev"]
-
-        _run(scenario)
-
-    def test_empty_enter_keeps_the_dialog_open(self, tmp_path):
-        """Enter on an empty name neither dismisses nor closes the dialog."""
-
-        async def scenario():
-            app = _Host()
-            async with app.run_test(size=_SIZE) as pilot:
-                results = await _push(app, pilot, NamePicker())
-                screen = app.screen
-                await _submit(pilot, screen.query_one("#name-input", Input), "  ")
-                assert results == [] and app.screen is screen
-
-        _run(scenario)
-
-    def test_cancel_and_escape_dismiss_none(self, tmp_path):
-        """Cancel and Escape both dismiss with None."""
-
-        async def scenario():
-            app = _Host()
-            async with app.run_test(size=_SIZE) as pilot:
-                results = await _push(app, pilot, NamePicker())
-                await pilot.click("#name-cancel")
-                await pilot.pause()
-                results_escape = await _push(app, pilot, NamePicker())
-                await pilot.press("escape")
-                await pilot.pause()
-                assert (results, results_escape) == ([None], [None])
-
-        _run(scenario)
-
-
-# ── WelcomeDialog ────────────────────────────────────────────────────────────
-
-
-class TestWelcomeDialog:
-    def test_shows_title_and_message_and_ok_closes(self, tmp_path):
-        """The title and message render as given; OK and Escape both close with None."""
-
-        async def scenario():
-            app = _Host()
-            async with app.run_test(size=_SIZE) as pilot:
-                results = await _push(app, pilot, WelcomeDialog("Hello", "Welcome to the demo."))
-                title = _plain(app.screen.query_one("#welcome-title", Static))
-                message = _plain(app.screen.query_one("#welcome-msg", Static))
-                await pilot.click("#welcome-ok")
-                await pilot.pause()
-                results_escape = await _push(app, pilot, WelcomeDialog("Hello", "Again."))
-                await pilot.press("escape")
-                await pilot.pause()
-                assert (title, message) == ("Hello", "Welcome to the demo.")
-                assert (results, results_escape) == ([None], [None])
 
         _run(scenario)
 

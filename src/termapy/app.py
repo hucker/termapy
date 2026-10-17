@@ -1888,25 +1888,9 @@ class SerialTerminal(TerminalHost, App):
         elif action == "rename":
             self._rename_config(result[1])
         elif action == "delete":
-            is_active = result[1] == self.config_path
-            cfg_path_str = result[1]
-
-            def _after_delete():
-                # A launcher pointing at a deleted cfg is a dead link;
-                # retire it (best-effort, see retire_launcher).
-                from termapy.builtins.commands._cfg_icon import retire_launcher
-
-                retired = retire_launcher(Path(cfg_path_str))
-                if retired is not None:
-                    self._status(*retired)
-                if is_active:
-                    self.config_path = ""
-                    self.push_screen(
-                        self._config_picker("", read_only=False),
-                        callback=self._on_config_picked,
-                    )
-
-            self._confirm_delete(result[1], "config", on_deleted=_after_delete)
+            # The button is the command: /cfg.delete asks, deletes the
+            # folder, retires the launcher, and refuses the active config.
+            self._dispatch_on_thread(f"{cmd_prefix(self.cfg)}cfg.delete {result[1]}")
 
     def _rename_config(self, path: str) -> None:
         """Prompt for a new name, then rename the config's folder and file together.

@@ -97,9 +97,9 @@ checkbox.
   (no cfg needs to be loaded)
 
 The launcher embeds the absolute path to the cfg file, so rerun
-`/cfg.icon` if you move the project.  Deleting a cfg via
-**Cfg picker → Delete** also auto-removes any matching launcher,
-so no orphan icons are left behind.
+`/cfg.icon` if you move the project.  Deleting a cfg (**Cfg picker →
+Delete** or `/cfg.delete`) or renaming one also removes any matching
+launcher, so no orphan icons are left behind.
 
 ### Quick demo (no hardware needed)
 

@@ -2289,3 +2289,92 @@ class TestCfgNewCommand:
         assert result.returncode == 1
         assert "A port is required" in result.stdout
         assert not (tmp_path / "mydev").exists(), "nothing is created"
+
+
+class TestCfgDeleteAndRename:
+    """``/cfg.delete`` and ``/cfg.rename`` in a CLI ``--demo`` session, where demo is the active config."""
+
+    _run = staticmethod(TestCfgNewCommand._run)
+
+    @staticmethod
+    def _other(cfg_root: Path) -> Path:
+        """A second config, ``other``, with a run script."""
+        cfg_path = cfg_root / "other" / "other.cfg"
+        (cfg_path.parent / "run").mkdir(parents=True)
+        cfg_path.write_text(json.dumps({"title": "other"}), encoding="utf-8")
+        (cfg_path.parent / "run" / "x.run").write_text("/print hi\n", encoding="utf-8")
+        return cfg_path
+
+    def test_cfg_delete_yes_removes_the_whole_folder(self, tmp_path):
+        """config-deleted-once: a y deletes other/ with its run script, and says how much went."""
+        # Arrange
+        cfg_path = self._other(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.delete other", answer="y\n")
+
+        # Assert
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Delete config 'other' and its folder" in result.stdout, "the shared question"
+        assert "Deleted config other (2 files)." in result.stdout
+        assert not cfg_path.parent.exists(), "the folder is gone"
+
+    def test_cfg_delete_no_keeps_the_config(self, tmp_path):
+        """config-deleted-once: an n keeps everything and the command fails."""
+        # Arrange
+        cfg_path = self._other(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.delete other", answer="n\n")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Config not deleted: other" in result.stdout
+        assert cfg_path.is_file(), "the config is kept"
+
+    def test_cfg_delete_refuses_the_active_config(self, tmp_path):
+        """config-deleted-once: the session's own config is refused without asking."""
+        # Act
+        result = self._run(tmp_path, "/cfg.delete demo", answer="y\n")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Cannot delete the active config: demo" in result.stdout
+        assert (tmp_path / "demo" / "demo.cfg").is_file(), "demo is untouched"
+
+    def test_cfg_rename_moves_folder_and_file(self, tmp_path):
+        """/cfg.rename takes other/other.cfg to renamed/renamed.cfg, run script included."""
+        # Arrange
+        self._other(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.rename other renamed")
+
+        # Assert
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Renamed config: other -> renamed" in result.stdout
+        assert (tmp_path / "renamed" / "renamed.cfg").is_file()
+        assert (tmp_path / "renamed" / "run" / "x.run").is_file(), "the folder moved whole"
+        assert not (tmp_path / "other").exists()
+
+    def test_cfg_rename_never_overwrites(self, tmp_path):
+        """Renaming onto an existing config fails and both stay as they were."""
+        # Arrange
+        cfg_path = self._other(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.rename other demo")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Rename failed: Config already exists: demo" in result.stdout
+        assert cfg_path.is_file(), "other is untouched"
+
+    def test_cfg_rename_refuses_the_active_config(self, tmp_path):
+        """The session's own config cannot be renamed by command."""
+        # Act
+        result = self._run(tmp_path, "/cfg.rename demo other")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Cannot rename the active config: demo" in result.stdout

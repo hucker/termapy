@@ -50,6 +50,7 @@ because its folders hold different types of file.
 | `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |
 | `/cfg {key {value}}`      | TUI bare: open the Cfg picker. CLI bare: list configs. With args: get/set.  |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
+| `/cfg.delete <name>`      | Delete a config and its whole folder after asking (MCP: `confirm=true`); never the active one |
 | `/cfg.dump`               | Print the config in memory as JSON                                          |
 | `/cfg.edit`               | Edit the current config file (same as `/edit.cfg`)                          |
 | `/cfg.file <name>`        | Print a file from the config folder (subfolders allowed)                    |
@@ -58,6 +59,7 @@ because its folders hold different types of file.
 | `/cfg.info {--display}`   | Write and show the project report (tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
 | `/cfg.new <name> <port> {baud} {mode}` | Create a config for a port (settings as `/port.connect`); asks before replacing one; TUI bare: the New Config wizard. `/cfg.load <name>` switches to it |
+| `/cfg.rename <name> <new>` | Rename a config, folder and file together; never the active one           |
 | `/cfg.show`               | Open the current config file in the system viewer                           |
 | `/cls`                    | Clear the terminal                                                          |
 | `/confirm {message}`      | Ask Yes/Cancel (TUI dialog, CLI y/n); Cancel stops a script                 |

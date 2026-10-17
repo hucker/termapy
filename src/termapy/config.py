@@ -8,6 +8,7 @@ import copy
 import json
 import os
 import re
+import shutil
 import sys
 import threading
 from collections.abc import Mapping
@@ -510,6 +511,85 @@ def rename_config(config_path: str, new_name: str) -> str:
     if standard_layout:
         folder.rename(new_folder)
     return str(new_path)
+
+
+def _deletion(config_path: Path) -> tuple[Path | None, list[Path]]:
+    """What ``delete_config`` removes: ``(folder, files)``.
+
+    The standard layout (a folder named after the config) goes whole, so
+    ``folder`` is set and ``files`` is everything in it.  A config in a
+    folder of another name (a Save As to a path) shares it, so ``folder``
+    is None and ``files`` is the ``.cfg`` and its stem-named sidecars
+    (``folders.SIDECARS``), the same set ``rename_config`` moves.
+    """
+    folder = config_path.parent
+    if folder.name == config_path.stem:
+        return folder, [entry for entry in folder.rglob("*") if entry.is_file()]
+    files = [config_path]
+    for suffix, sub in SIDECARS:
+        home = folder / sub if sub else folder
+        sidecar = home / f"{config_path.stem}{suffix}"
+        if sidecar.is_file():
+            files.append(sidecar)
+    return None, files
+
+
+def delete_config_question(config_path: str | Path) -> str:
+    """The question every frontend asks before ``delete_config``, the same words in each."""
+    path = Path(config_path)
+    folder, files = _deletion(path)
+    noun = "file" if len(files) == 1 else "files"
+    if folder is not None:
+        return (
+            f"Delete config '{path.stem}' and its folder {folder} ({len(files)} {noun}: "
+            "scripts, logs, captures)? This cannot be undone."
+        )
+    return (
+        f"Delete config '{path.stem}' ({len(files)} {noun} in {path.parent})? "
+        "This cannot be undone."
+    )
+
+
+def delete_config(config_path: str | Path) -> int:
+    """Delete a config -- the one way a config goes, in every frontend.
+
+    The standard layout loses its whole folder: the ``.cfg``, run scripts,
+    profile, logs and captures.  A config sharing a folder loses only its
+    ``.cfg`` and stem-named sidecars.  The folder is first renamed aside,
+    so a config another program holds open (Windows refuses to move a
+    folder with an open file) is refused before anything is removed,
+    never left half-deleted.
+
+    Args:
+        config_path: The config's ``.cfg``.
+
+    Returns:
+        How many files were removed.
+
+    Raises:
+        FileNotFoundError: There is no such ``.cfg``.
+        RuntimeError: The path is the bundled read-only template.
+        OSError: The config is in use, or a file could not be removed.
+    """
+    path = Path(config_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Config not found: {path.stem}")
+    cfg_data_dir(str(path))  # refuses the bundled template
+    folder, files = _deletion(path)
+    if folder is None:
+        for file in files:
+            file.unlink()
+        return len(files)
+    aside = folder.with_name(f".{folder.name}.deleting")
+    if aside.exists():
+        # A delete that failed partway left this; nothing in it is a config.
+        shutil.rmtree(aside)
+    try:
+        folder.rename(aside)
+    except OSError as e:
+        raise OSError(f"Config in use, nothing deleted: {path.stem} ({e})") from e
+    shutil.rmtree(aside)
+    return len(files)
 
 
 def connection_string(cfg: dict, level: str = "medium", actual_port: str = "") -> str:

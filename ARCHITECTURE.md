@@ -801,7 +801,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_commands_doc_sync.py           | Freshness guard: every command listed in help/commands.md must exist                                                                               |
 | test_config_create.py               | Tests for creating a config: `config.new_config`, `config.create_config` and `--new`                                                               |
 | test_config_reference_sync.py       | Guard the config field-reference table against drift                                                                                               |
-| test_config_rename.py               | Tests for `config.rename_config` and `config.validate_file_stem`                                                                                   |
+| test_config_rename.py               | Tests for `config.rename_config`, `config.delete_config` and `config.validate_file_stem`                                                           |
 | test_crc_builtins.py                | Tests for built-in CRC checksum modules (sum8, sum16)                                                                                              |
 | test_crcglot_abi.py                 | Does crcglot's compiled extension run on THIS interpreter?                                                                                         |
 | test_credits_data.py                | The dependency registry must agree with pyproject.toml, the vendored tree, and the surfaces that render it                                         |

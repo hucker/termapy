@@ -1,4 +1,4 @@
-"""Modal dialog: ConfigEditor.
+"""Modal dialog: ConfigEditor -- edit a config's JSON, validated before it is saved.
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

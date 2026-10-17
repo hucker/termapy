@@ -1,4 +1,4 @@
-"""Base class for serial terminal frontends.
+"""Base class for the TUI, CLI and MCP frontends: builds the PluginContext, owns the one TX path.
 
 Owns the shared serial-I/O, dispatch, capture, help-server, and
 hook-handler logic that both the Textual TUI (``app.py``) and the

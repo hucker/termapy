@@ -1,4 +1,4 @@
-"""Tests for termapy.profile and termapy.response_parsers (Phase 0).
+"""Tests for termapy.profile and termapy.response_parsers.
 
 Covers schema validation, profile load/save, precedence comparator,
 and parse_response across all five formats.  No serial or Textual.

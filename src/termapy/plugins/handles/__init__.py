@@ -1,4 +1,4 @@
-"""Handles attached to ``PluginContext``.
+"""The handles a PluginContext carries: io, serial, fs, ui, and the internal escape hatch.
 
 Four modules own a capability-domain handle -- ``ctx.io``,
 ``ctx.serial``, ``ctx.fs``, ``ctx.ui`` -- each a focused public

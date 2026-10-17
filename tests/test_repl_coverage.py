@@ -1,4 +1,4 @@
-"""Additional tests for repl.py - covering suggest_command, edit_distance,
+"""repl.py corners the engine tests miss -- covering suggest_command, edit_distance,
 ScriptCtx, directive dispatch paths, and script special commands."""
 
 from __future__ import annotations

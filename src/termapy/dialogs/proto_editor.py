@@ -1,4 +1,4 @@
-"""Modal dialog: ProtoEditor.
+"""Modal dialog: ProtoEditor -- the .pro protocol-script editor, with TOML highlighting.
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

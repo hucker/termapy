@@ -59,6 +59,36 @@ from release_common import (  # noqa: E402
     warn,
 )
 
+# Files / packages whose line counts ARCHITECTURE.md's module tree carries,
+# refreshed here at every release and nowhere else.  scripts/sync_architecture.py
+# writes the tree and gives exactly these rows a ``(N lines)`` field.
+# Directory entries are walked recursively by count_lines() and rendered with
+# a trailing slash in the tree (e.g. ``├── dialogs/  # (1965 lines)``).
+ARCHITECTURE_LINE_COUNTS: tuple[str, ...] = (
+    "src/termapy/app.py",
+    "src/termapy/cli.py",
+    "src/termapy/serial_engine.py",
+    "src/termapy/serial_port.py",
+    "src/termapy/capture.py",
+    "src/termapy/dialogs",      # package (was dialogs.py)
+    "src/termapy/proto_debug.py",
+    "src/termapy/protocol",     # package (was protocol.py + friends)
+    "src/termapy/demo.py",
+    "src/termapy/repl.py",
+    "src/termapy/plugins",      # package (was plugins.py)
+    "src/termapy/config.py",
+    "src/termapy/port_control.py",
+    "src/termapy/scripting.py",
+    "src/termapy/migration.py",
+    "src/termapy/defaults.py",
+    "src/termapy/mcp",          # package
+    "src/termapy/profile",      # package
+    "src/termapy/usb",          # package
+    "src/termapy/symbols",      # package
+    "src/termapy/memory.py",
+    "src/termapy/memory_views.py",
+)
+
 # ── version bumping ──────────────────────────────────────────────────────────
 
 
@@ -312,36 +342,8 @@ def update_architecture_md() -> None:
     path = REPO_ROOT / "ARCHITECTURE.md"
     text = path.read_text(encoding="utf-8")
 
-    # Files / packages whose line counts ARCHITECTURE.md tracks.  Keep
-    # in sync with the tree diagram block.  Directory entries are
-    # walked recursively by count_lines() and rendered with a trailing
-    # slash in ARCHITECTURE.md (e.g. ``├── dialogs/  # (1965 lines)``).
-    tracked = [
-        "src/termapy/app.py",
-        "src/termapy/cli.py",
-        "src/termapy/serial_engine.py",
-        "src/termapy/serial_port.py",
-        "src/termapy/capture.py",
-        "src/termapy/dialogs",      # package (was dialogs.py)
-        "src/termapy/proto_debug.py",
-        "src/termapy/protocol",     # package (was protocol.py + friends)
-        "src/termapy/demo.py",
-        "src/termapy/repl.py",
-        "src/termapy/plugins",      # package (was plugins.py)
-        "src/termapy/config.py",
-        "src/termapy/port_control.py",
-        "src/termapy/scripting.py",
-        "src/termapy/migration.py",
-        "src/termapy/defaults.py",
-        "src/termapy/mcp",          # package
-        "src/termapy/profile",      # package
-        "src/termapy/usb",          # package
-        "src/termapy/symbols",      # package
-        "src/termapy/memory.py",
-        "src/termapy/memory_views.py",
-    ]
     missing: list[str] = []
-    for rel in tracked:
+    for rel in ARCHITECTURE_LINE_COUNTS:
         basename = Path(rel).name
         actual = count_lines(rel)
         # Match either a file (``├── app.py    # (N lines)``) or a
@@ -364,11 +366,12 @@ def update_architecture_md() -> None:
     if missing:
         die(
             "ARCHITECTURE.md tree rows missing for tracked entries "
-            f"(reword the tree or the `tracked` list): {', '.join(missing)}"
+            "(run scripts/sync_architecture.py, or edit ARCHITECTURE_LINE_COUNTS): "
+            f"{', '.join(missing)}"
         )
 
     path.write_text(text, encoding="utf-8")
-    ok(f"ARCHITECTURE.md updated ({len(tracked)} line counts)")
+    ok(f"ARCHITECTURE.md updated ({len(ARCHITECTURE_LINE_COUNTS)} line counts)")
 
 
 def update_readme_md(test_count: int, ty_count: int) -> None:

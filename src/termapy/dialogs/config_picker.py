@@ -1,4 +1,4 @@
-"""Modal dialog: ConfigPicker.
+"""Modal dialog: ConfigPicker -- pick a config to load or edit, or create a new one.
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

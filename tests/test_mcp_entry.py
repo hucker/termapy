@@ -1,4 +1,4 @@
-"""Tests for the --mcp / --mcp-verbose entry-point wiring (Phase 1).
+"""Tests for the --mcp / --mcp-verbose entry-point wiring.
 
 The MCP server itself isn't built yet; these tests verify the entry
 flag plumbing: parser accepts the flags, dispatch reaches the stub,

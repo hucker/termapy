@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""
+"""Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines.
+
 Usage:
     uv run termapy [config.json]
 

@@ -1,4 +1,4 @@
-"""Vendored third-party packages.
+"""Vendored, unmaintained dependencies: pyserial, xmodem, ymodem (licenses in LICENSES.md).
 
 Why vendor?
     Termapy bundles xmodem, ymodem, and pyserial to reduce the number

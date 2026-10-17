@@ -1,4 +1,4 @@
-"""Modal dialog: ScriptPicker.
+"""Modal dialog: ScriptPicker -- pick a .run script to run or edit, or create one.
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

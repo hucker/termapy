@@ -1,4 +1,4 @@
-"""Tests for the bundled DEMO profiles (Phase 5).
+"""Tests for the bundled DEMO profiles.
 
 Termapy ships two profiles alongside the simulator:
 

@@ -1,4 +1,4 @@
-"""Tests for Phase 2.5: /term.send <text> + dispatch_full fallthrough rewrite.
+"""Tests for /term.send <text> and dispatch_full's rewrite of a bare device line to it.
 
 The serial-send fallthrough in dispatch_full now rewrites bare user
 input to ``/term.send <text>`` and dispatches.  Goal: every action

@@ -1,4 +1,4 @@
-"""Modal dialog: CfgConfirm.
+"""Modal dialog: CfgConfirm -- confirms a config value change (/cfg <key> <value> in the TUI).
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

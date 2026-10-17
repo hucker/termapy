@@ -99,6 +99,13 @@ because they share the stdlib-only / fail-loud convention.
   `uv run python scripts/sync_format_tables.py`;
   `test_format_tables_sync.py` fails on drift.
 
+- `sync_architecture.py` - regenerate ARCHITECTURE.md's module tree
+  and test table from the module and test docstrings (first
+  paragraph each), keeping the line counts `release_prep` owns.
+  Imports `release_prep` for `ARCHITECTURE_LINE_COUNTS`; run it as
+  `uv run python scripts/sync_architecture.py` after adding a module
+  or test file; `test_architecture_sync.py` fails on drift.
+
 - `check_dep_updates.py` - query PyPI for the latest release of
   every direct dependency and flag which ones have moved past
   our upper bound.  Run before a release (or whenever you want)

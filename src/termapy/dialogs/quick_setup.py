@@ -1,4 +1,4 @@
-"""Modal dialog: QuickSetup.
+"""Modal dialog: QuickSetup -- the first-run / new-config wizard: name, port and baud rate on one screen.
 
 Extracted from the original monolithic ``dialogs.py``.  See
 ``termapy.dialogs.__init__`` for the package-level public API and

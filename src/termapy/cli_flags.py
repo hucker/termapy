@@ -51,9 +51,7 @@ if TYPE_CHECKING:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def run_info(
-    args: argparse.Namespace, *, source: PortSource | None = None
-) -> None:
+def run_info(args: argparse.Namespace, *, source: PortSource | None = None) -> None:
     """Print serial port chip info to stdout and exit.
 
     Calls ``port_control.chip_info()`` directly -- the underlying
@@ -130,10 +128,7 @@ def _filter_facts(args: argparse.Namespace, facts_list: list) -> list:
         out = [f for f in out if _pid_of(f) == needle]
     if args.mfg:
         m = args.mfg.lower()
-        out = [
-            f for f in out
-            if f.manufacturer and m in f.manufacturer.lower()
-        ]
+        out = [f for f in out if f.manufacturer and m in f.manufacturer.lower()]
     if args.sn:
         s = args.sn.lower()
         out = [f for f in out if f.serial and f.serial.lower() == s]
@@ -163,9 +158,7 @@ def _pid_of(facts) -> int | None:
     return split_vid_pid(facts.vid_pid)[1]
 
 
-def run_ports(
-    args: argparse.Namespace, *, source: PortSource | None = None
-) -> None:
+def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> None:
     """List serial ports one line per port and exit.
 
     With ``args.ports == "*"`` (the argparse ``const`` when the flag
@@ -258,19 +251,19 @@ _WATCH_INTERVAL_S = 0.2
 # state column (``open``/``closed``) carries the open/close signal on
 # its own line -- no verb needed.
 _WATCH_WIDTHS = {
-    "marker":      1,   # '+' / '-' / '~' / ' '
+    "marker": 1,  # '+' / '-' / '~' / ' '
     # "port" is NOT here: device-name length is the one platform-shaped
     # column (COMxxx on Windows vs /dev/cu.Bluetooth-Incoming-Port on
     # macOS), so its width is computed per watch session by
     # ``_watch_port_width`` -- a platform floor grown to the initial
     # fleet's longest name -- and threaded through the formatters.
-    "state":       6,   # closed / open (matches pyserial's is_open)
-    "mfg":         9,   # Microchip, Espressif, Parallels, SparkFun, ...
+    "state": 6,  # closed / open (matches pyserial's is_open)
+    "mfg": 9,  # Microchip, Espressif, Parallels, SparkFun, ...
     "description": 18,  # "USB Serial Device" = 17
-    "chip":       32,   # "FTDI FT230X / FT231X / FT234XD" = 30
-    "speed":      10,   # "Full-Speed" / "High-Speed"
-    "vid_pid":     9,   # 0403:6001
-    "sn":         20,   # "020026702RYN040952" = 18
+    "chip": 32,  # "FTDI FT230X / FT231X / FT234XD" = 30
+    "speed": 10,  # "Full-Speed" / "High-Speed"
+    "vid_pid": 9,  # 0403:6001
+    "sn": 20,  # "020026702RYN040952" = 18
 }
 
 
@@ -339,9 +332,7 @@ def run_usb(args: argparse.Namespace, *, source=None) -> None:
     sys.exit(0 if roots else 1)
 
 
-def run_watch(
-    args: argparse.Namespace, *, source: PortSource | None = None
-) -> None:
+def run_watch(args: argparse.Namespace, *, source: PortSource | None = None) -> None:
     """Monitor serial ports and print changes as log lines.  Ctrl+C to exit.
 
     Output is a uniform log: every line begins with ``[HH:MM:SS]`` and
@@ -386,9 +377,7 @@ def run_watch(
         if f.device is not None
     }
     note = " (in-use not shown on Windows)" if watch_fast else ""
-    print(
-        f"[{banner_ts}] monitoring {len(initial)} port(s); Ctrl+C to exit{note}"
-    )
+    print(f"[{banner_ts}] monitoring {len(initial)} port(s); Ctrl+C to exit{note}")
     port_w = _watch_port_width(initial)
     for device in sorted(initial):
         print(_format_state_line(" ", initial[device], port_w))
@@ -399,9 +388,7 @@ def run_watch(
             time.sleep(_WATCH_INTERVAL_S)
             current = {
                 f.device: f
-                for f in port_control._gather_all_chip_facts(
-                    fast=watch_fast, source=source
-                )
+                for f in port_control._gather_all_chip_facts(fast=watch_fast, source=source)
                 if f.device is not None
             }
             # Grow-only: a longer name than anything seen so far bumps
@@ -429,7 +416,7 @@ def _format_state_line(marker: str, facts, port_w: int) -> str:
 
     ts = datetime.now().strftime("%H:%M:%S")
     state = _state_of(facts)
-    mfg = (_mfg_alias(facts.manufacturer) or "-")
+    mfg = _mfg_alias(facts.manufacturer) or "-"
     description = (facts.description or "-").strip() or "-"
     # Strip trailing "(COMx)" clutter that pyserial sometimes appends.
     device = facts.device or "-"
@@ -518,9 +505,7 @@ def _emit_diff(
         old, new = previous[device], current[device]
         if _state_of(old) != _state_of(new):
             print(_format_state_line(" ", new, port_w))
-        if (old.serial or "") != (new.serial or "") or (
-            (old.vid_pid or "") != (new.vid_pid or "")
-        ):
+        if (old.serial or "") != (new.serial or "") or ((old.vid_pid or "") != (new.vid_pid or "")):
             print(_format_state_line("~", new, port_w))
 
 
@@ -575,10 +560,7 @@ def run_chips(args: argparse.Namespace) -> None:
     model_w = max(len(info.model) for _, _, info in rows)
     baud_w = max(len(f"{info.max_baud:,}") for _, _, info in rows)
 
-    header = (
-        f"{'VID:PID':9}  {'CHIP MODEL':{model_w}}  "
-        f"{'SPEED':5}  {'MAX BAUD':>{baud_w}}"
-    )
+    header = f"{'VID:PID':9}  {'CHIP MODEL':{model_w}}  {'SPEED':5}  {'MAX BAUD':>{baud_w}}"
     print(header)
     print("-" * len(header))
     for vid, pid, info in rows:

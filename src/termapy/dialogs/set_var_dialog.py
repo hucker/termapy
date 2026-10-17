@@ -43,15 +43,11 @@ class SetVarDialog(ModalScreen[tuple[str, str] | None]):
         self.dismiss(None)
 
     def on_mount(self) -> None:
-        self.query_one("#setvar-name", Input).tooltip = (
-            "Variable name.  Accepts NAME or $(NAME)."
-        )
-        self.query_one("#setvar-value", Input).tooltip = (
-            "Variable value.  Use $(OTHER) to reference another variable."
-        )
-        self.query_one("#setvar-cancel", Button).tooltip = (
-            "Close without setting a variable."
-        )
+        self.query_one("#setvar-name", Input).tooltip = "Variable name.  Accepts NAME or $(NAME)."
+        self.query_one(
+            "#setvar-value", Input
+        ).tooltip = "Variable value.  Use $(OTHER) to reference another variable."
+        self.query_one("#setvar-cancel", Button).tooltip = "Close without setting a variable."
 
     def compose(self) -> ComposeResult:
         with Vertical(id="setvar-dialog"):

@@ -107,8 +107,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     # that prefers reading the contract once and reusing it can do so.
     type_registry = TypeRegistry.from_profile(active_profile)
     types_block: dict[str, Any] = {
-        name: typedef_to_catalog(td)
-        for name, td in type_registry.all().items()
+        name: typedef_to_catalog(td) for name, td in type_registry.all().items()
     }
 
     # Device commands source from the active profile's commands dict.
@@ -123,7 +122,9 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         # without explicit enabled flags visible.
         device_commands = [
             _device_descriptor_from_spec(
-                name, profile_commands[name], type_registry,
+                name,
+                profile_commands[name],
+                type_registry,
             )
             for name in sorted(profile_commands)
             if isinstance(profile_commands[name], dict)
@@ -275,9 +276,7 @@ def build_device_state(
 
 def device_state_json(ctx: PluginContext, **kwargs: Any) -> str:
     """Serialize device_state to JSON (indent=2, stable order)."""
-    return json.dumps(
-        build_device_state(ctx, **kwargs), indent=2, sort_keys=False
-    )
+    return json.dumps(build_device_state(ctx, **kwargs), indent=2, sort_keys=False)
 
 
 # ── Command descriptors ─────────────────────────────────────────────────────
@@ -367,10 +366,7 @@ def _device_descriptor_from_spec(
                 entry = dict(typed_arg)
                 if type_registry is not None:
                     type_name = entry.get("type", "")
-                    td = (
-                        type_registry.resolve(type_name)
-                        if type_name else None
-                    )
+                    td = type_registry.resolve(type_name) if type_name else None
                     if td is not None:
                         entry["type_info"] = typedef_to_catalog(td)
                 enriched.append(entry)

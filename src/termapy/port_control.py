@@ -145,9 +145,7 @@ def parse_open_args(
     echo: bool | None = None
     first = True
 
-    def _err(msg: str) -> tuple[
-        None, None, None, None, None, str
-    ]:
+    def _err(msg: str) -> tuple[None, None, None, None, None, str]:
         return (None, None, None, None, None, msg)
 
     for token in args.split():
@@ -233,10 +231,7 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
         serial = cfg["serial"]
         sb = serial["stop_bits"]
         sb_str = str(int(sb)) if sb == int(sb) else str(sb)
-        current = (
-            f"{serial['baud_rate']} "
-            f"{serial['byte_size']}{serial['parity']}{sb_str}"
-        )
+        current = f"{serial['baud_rate']} {serial['byte_size']}{serial['parity']}{sb_str}"
         suffix = " (disconnected)" if ser is None else ""
         return _result([_msg(f"{current}{suffix}")])
 
@@ -254,9 +249,7 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
                 return _result([_msg(f"Duplicate baud rate: {token}", "red")])
             baud = int(token)
             continue
-        return _result(
-            [_msg(f"Invalid mode argument: {token} (use e.g. 9600 N81)", "red")]
-        )
+        return _result([_msg(f"Invalid mode argument: {token} (use e.g. 9600 N81)", "red")])
 
     if baud is None and mode is None:
         return _result([_msg("Nothing to set.", "yellow")])
@@ -599,9 +592,7 @@ def _gather_windows_extras(facts: ChipFacts, device: str) -> None:
     # virtual ports (Bluetooth, com0com) live elsewhere -- so walk all
     # top-level bus subkeys.
     try:
-        enum_root = winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum"
-        )
+        enum_root = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum")
     except OSError:
         return
     try:
@@ -981,17 +972,13 @@ def _windows_lookup_location(winreg_mod, inst_key) -> str | None:
                         continue
                     with node:
                         try:
-                            cid, _ = winreg_mod.QueryValueEx(
-                                node, "ContainerID"
-                            )
+                            cid, _ = winreg_mod.QueryValueEx(node, "ContainerID")
                         except OSError:
                             continue
                         if cid != container_id:
                             continue
                         try:
-                            loc, _ = winreg_mod.QueryValueEx(
-                                node, "LocationInformation"
-                            )
+                            loc, _ = winreg_mod.QueryValueEx(node, "LocationInformation")
                         except OSError:
                             return None
                         if loc:
@@ -1013,6 +1000,7 @@ def _normalize_windows_location(loc: str) -> str:
     pre-formatted string we shouldn't mangle.
     """
     import re
+
     m = re.match(r"^(Port_#\d+)\.(Hub_#\d+)$", loc)
     if not m:
         return loc
@@ -1210,9 +1198,7 @@ def gather_chip_facts(
 
     for port in comports():
         if port.device == port_name:
-            return _facts_from_port_info(
-                port, connected_port, fast=fast, enrich=enrich
-            )
+            return _facts_from_port_info(port, connected_port, fast=fast, enrich=enrich)
     # OS didn't enumerate it; fall back to synthesizing a record for
     # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
     # `termapy --info DEMO` work without hardware.
@@ -1229,9 +1215,7 @@ _DEMO_FLEET_ENV = "TERMAPY_DEMO_FLEET"
 PortSource = Callable[[], list[ChipFacts]]
 
 
-def resolve_port_source(
-    source: PortSource | None, trust_env: bool
-) -> list[ChipFacts] | None:
+def resolve_port_source(source: PortSource | None, trust_env: bool) -> list[ChipFacts] | None:
     """Return a substitute port list, or None to enumerate real hardware.
 
     Three layers, highest priority first:
@@ -1439,8 +1423,7 @@ class AmbiguousSerialNumberError(Exception):
         self.sn = sn
         self.matches = matches
         super().__init__(
-            f"serial number {sn!r} matches {len(matches)} connected "
-            f"devices: {', '.join(matches)}"
+            f"serial number {sn!r} matches {len(matches)} connected devices: {', '.join(matches)}"
         )
 
 
@@ -1454,9 +1437,7 @@ MATCH_RESERVED = "reserved"
 MATCH_URL = "url"
 
 
-def _match_candidate(
-    candidate: str, facts: list[ChipFacts]
-) -> tuple[str, str] | None:
+def _match_candidate(candidate: str, facts: list[ChipFacts]) -> tuple[str, str] | None:
     """Try to resolve a single candidate against a port list.
 
     Returns ``(resolved_device, match_reason)`` on success or ``None`` if
@@ -1480,10 +1461,9 @@ def _match_candidate(
     # clean list[str] for the ambiguity-error constructor.
     needle = candidate.lower()
     sn_matches: list[str] = [
-        fact.device for fact in facts
-        if fact.device is not None
-        and fact.serial is not None
-        and fact.serial.lower() == needle
+        fact.device
+        for fact in facts
+        if fact.device is not None and fact.serial is not None and fact.serial.lower() == needle
     ]
     if len(sn_matches) == 1:
         return (sn_matches[0], MATCH_SERIAL)
@@ -1538,9 +1518,7 @@ def resolve_port(
             more connected devices.  The caller is expected to surface
             this as a user-facing error rather than silently picking one.
     """
-    facts = _gather_all_chip_facts(
-        connected_port, fast=True, source=source, trust_env=trust_env
-    )
+    facts = _gather_all_chip_facts(connected_port, fast=True, source=source, trust_env=trust_env)
     candidates = spec.split("|")
     for candidate in candidates:
         result = _match_candidate(candidate, facts)
@@ -1573,9 +1551,7 @@ def resolve_port_trace(
     # fast=True for the same safety reason as resolve_port: tracing must
     # not open bystander ports (identity fields are all _match_candidate
     # reads).
-    facts = _gather_all_chip_facts(
-        connected_port, fast=True, source=source, trust_env=trust_env
-    )
+    facts = _gather_all_chip_facts(connected_port, fast=True, source=source, trust_env=trust_env)
     trace: list[tuple[str, str | None]] = []
     for candidate in spec.split("|"):
         try:
@@ -1633,17 +1609,15 @@ def _chip_page(facts: ChipFacts) -> list[Item]:
     items: list[Item] = [TextLine(facts.device or "?", "green"), *_chip_rows(facts)]
     # Nudge: when we see a real USB device whose VID:PID isn't in the
     # chip table, invite the user to report it so the table can grow.
-    if (
-        facts.model == "unknown"
-        and facts.vid_pid
-        and facts.vid_pid != "not a USB device"
-    ):
-        items.append(TextLine(
-            f"(chip {facts.vid_pid} not in termapy's lookup table -- "
-            f"please report at https://github.com/hucker/termapy/issues "
-            f"so we can add it)",
-            "dim",
-        ))
+    if facts.model == "unknown" and facts.vid_pid and facts.vid_pid != "not a USB device":
+        items.append(
+            TextLine(
+                f"(chip {facts.vid_pid} not in termapy's lookup table -- "
+                f"please report at https://github.com/hucker/termapy/issues "
+                f"so we can add it)",
+                "dim",
+            )
+        )
     return items
 
 
@@ -1896,8 +1870,7 @@ def port_info(
     if connected:
         try:
             signals = {
-                name: bool(getattr(ser, name))
-                for name in ("dtr", "rts", "cts", "dsr", "ri", "cd")
+                name: bool(getattr(ser, name)) for name in ("dtr", "rts", "cts", "dsr", "ri", "cd")
             }
         except OSError:
             signals = None
@@ -1907,9 +1880,7 @@ def port_info(
     return Report(data, tuple(items), actual or "")
 
 
-def get_set_prop(
-    ser: Any | None, cfg: Mapping[str, Any], key: str, args: str
-) -> Result:
+def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -> Result:
     """Get or set a serial port property.
 
     Args:
@@ -2061,9 +2032,7 @@ def send_break(ser: Any | None, args: str) -> Result:
             if duration <= 0:
                 raise ValueError
         except ValueError:
-            return _result(
-                [_msg("Invalid duration (use milliseconds, e.g. 250)", "red")]
-            )
+            return _result([_msg("Invalid duration (use milliseconds, e.g. 250)", "red")])
     try:
         ser.send_break(duration=duration)
         return _result([_msg(f"Break sent ({format_duration(duration)})")])

@@ -46,13 +46,16 @@ def _write_cfg(tmp_path, name: str = "proj", **overrides) -> tuple[dict, str]:
 @pytest.fixture
 def app_factory(tmp_path):
     """Build a SerialTerminal against a throwaway DEMO config."""
+
     def _make(**overrides):
         from termapy.app import SerialTerminal
+
         cfg, path = _write_cfg(tmp_path, **overrides)
         app = SerialTerminal(cfg, path)
         # The checkout has a real termapy_cfg/plugin/; keep it out of the boot.
         app.repl.global_root = tmp_path
         return app, cfg, path
+
     return _make
 
 
@@ -79,9 +82,9 @@ async def _until(pilot, predicate, seconds: float = 5.0) -> bool:
 
 
 class TestOnKey:
-
     def test_escape_ends_a_history_browse_and_clears_the_prompt(self, app_factory):
         """Up recalls the last command; Escape then leaves the browse and empties the prompt."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -105,6 +108,7 @@ class TestOnKey:
 
     def test_down_walks_forward_through_the_browse(self, app_factory):
         """Two Ups reach the older command; one Down comes back to the newer one."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -130,6 +134,7 @@ class TestOnKey:
 
     def test_down_moves_focus_into_the_command_popup(self, app_factory):
         """With the / popup open, Down hands focus to it instead of walking history."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -152,6 +157,7 @@ class TestOnKey:
 
     def test_escape_closes_the_command_popup(self, app_factory):
         """Escape on an open / popup hides it and returns focus to the prompt."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -172,6 +178,7 @@ class TestOnKey:
 
     def test_escape_cancels_a_transfer_while_the_port_is_claimed(self, app_factory):
         """While a capture holds the port, Escape sets the transfer-cancel event rather than touching history."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -196,6 +203,7 @@ class TestOnKey:
 
     def test_keys_are_left_to_a_modal_on_top(self, app_factory):
         """With a dialog open, Up does not touch the prompt underneath."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -228,9 +236,9 @@ def _write_scripts(cfg_path: str, **scripts: str) -> None:
 
 
 class TestScriptOverlay:
-
     def test_a_typed_run_mounts_the_overlay_and_restores_the_bar(self, app_factory):
         """A typed /run disables the prompt under a Stop overlay that names the script chain, then hands the bar and focus back."""
+
         async def scenario():
             app, _, path = app_factory()
             _write_scripts(path, outer="/run inner\n/delay 300ms\n", inner="/delay 300ms\n")
@@ -243,14 +251,18 @@ class TestScriptOverlay:
 
                 # Act -- type the run, then watch the overlay until it is gone
                 await _submit(pilot, "/run outer")
-                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), "overlay mounted"
+                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), (
+                    "overlay mounted"
+                )
                 for _ in range(250):
                     if not bar.query("#script-stop"):
                         break
                     labels.add(str(bar.query_one("#script-label", Static).render()))
                     prompt_disabled_during = prompt_disabled_during or inp.disabled
                     await pilot.pause(0.02)
-                assert await _until(pilot, lambda: app.focused is inp), "focus returns to the prompt"
+                assert await _until(pilot, lambda: app.focused is inp), (
+                    "focus returns to the prompt"
+                )
 
                 # Assert
                 assert any("outer.run" in label and "inner.run" not in label for label in labels), (
@@ -270,6 +282,7 @@ class TestScriptOverlay:
         mounted into it, so the Stop button was inert and only Escape
         stopped a script; the started handler now enables the bar it owns.
         """
+
         async def scenario():
             app, _, path = app_factory()
             # Fifty 100 ms lines: five seconds if left alone, and the stop
@@ -281,7 +294,9 @@ class TestScriptOverlay:
 
                 # Act
                 await _submit(pilot, "/run slow")
-                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), "overlay mounted"
+                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), (
+                    "overlay mounted"
+                )
                 await pilot.click("#script-stop")
                 gone = await _until(pilot, lambda: not bar.query("#script-stop"), seconds=2.0)
 
@@ -296,9 +311,9 @@ class TestScriptOverlay:
 
 
 class TestConfigPicked:
-
     def test_none_is_a_no_op(self, app_factory):
         """Cancelling the picker changes nothing."""
+
         async def scenario():
             app, _, path = app_factory()
             async with app.run_test() as pilot:
@@ -311,6 +326,7 @@ class TestConfigPicked:
 
     def test_load_switches_to_the_picked_config(self, app_factory, tmp_path):
         """A load result swaps the app onto that config (DEMO needs no port check)."""
+
         async def scenario():
             app, _, _ = app_factory()
             _, other = _write_cfg(tmp_path, name="other")
@@ -325,6 +341,7 @@ class TestConfigPicked:
 
     def test_load_of_a_broken_file_reports_and_stays(self, app_factory, tmp_path):
         """A load result naming an unreadable file reports the failure and keeps the current config."""
+
         async def scenario():
             app, _, path = app_factory()
             broken = tmp_path / "broken.cfg"
@@ -340,6 +357,7 @@ class TestConfigPicked:
 
     def test_new_opens_quick_setup(self, app_factory):
         """A new result opens the quick-setup dialog."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
@@ -352,6 +370,7 @@ class TestConfigPicked:
 
     def test_edit_opens_the_editor_on_that_file(self, app_factory, tmp_path):
         """An edit result opens the config editor on the named file; an unreadable one reports instead."""
+
         async def scenario():
             app, _, path = app_factory()
             broken = tmp_path / "broken.cfg"
@@ -373,6 +392,7 @@ class TestConfigPicked:
 
     def test_rename_prompts_for_a_name(self, app_factory):
         """A rename result asks for the new name first, in the filename dialog."""
+
         async def scenario():
             app, _, path = app_factory()
             async with app.run_test() as pilot:
@@ -385,6 +405,7 @@ class TestConfigPicked:
 
     def test_delete_asks_first_and_deletes_on_yes(self, app_factory, tmp_path):
         """A delete result confirms; No keeps the file, Yes removes it and reports."""
+
         async def scenario():
             app, _, _ = app_factory()
             _, other = _write_cfg(tmp_path, name="other")
@@ -411,6 +432,7 @@ class TestConfigPicked:
 
     def test_deleting_the_active_config_reopens_the_picker(self, app_factory):
         """Deleting the config in use clears the active path and reopens the picker to choose another."""
+
         async def scenario():
             app, _, path = app_factory()
             async with app.run_test() as pilot:
@@ -428,8 +450,12 @@ class TestConfigPicked:
 # ── headless --proto ─────────────────────────────────────────────────────────
 
 
-_AT_PASS = 'frame_gap = "50ms"\n\n[[test]]\nname = "AT"\nsend = \'"AT\\r"\'\nexpect = \'"OK\\r\\n"\'\n'
-_AT_FAIL = 'frame_gap = "50ms"\n\n[[test]]\nname = "AT"\nsend = \'"AT\\r"\'\nexpect = \'"NO\\r\\n"\'\n'
+_AT_PASS = (
+    'frame_gap = "50ms"\n\n[[test]]\nname = "AT"\nsend = \'"AT\\r"\'\nexpect = \'"OK\\r\\n"\'\n'
+)
+_AT_FAIL = (
+    'frame_gap = "50ms"\n\n[[test]]\nname = "AT"\nsend = \'"AT\\r"\'\nexpect = \'"NO\\r\\n"\'\n'
+)
 
 
 def _write_pro(cfg_path: str, name: str, text: str) -> None:

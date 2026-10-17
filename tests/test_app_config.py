@@ -43,17 +43,22 @@ pytestmark = pytest.mark.slow  # subprocess-based config-load tests
 # into the sub-dict and leaves other overrides (encoding, cmd_delay_ms,
 # config_version, etc.) at the top level, so tests can write
 # ``_cfg_with(byte_size=9)`` without thinking about the nesting.
-_SERIAL_KEYS = frozenset({
-    "port", "baud_rate", "custom_baud", "byte_size",
-    "parity", "stop_bits", "flow_control",
-})
+_SERIAL_KEYS = frozenset(
+    {
+        "port",
+        "baud_rate",
+        "custom_baud",
+        "byte_size",
+        "parity",
+        "stop_bits",
+        "flow_control",
+    }
+)
 
 
 def _cfg_with(**overrides) -> dict:
     """Build a test cfg, routing serial keys into ``cfg['serial']``."""
-    serial_overrides = {
-        k: overrides.pop(k) for k in list(overrides) if k in _SERIAL_KEYS
-    }
+    serial_overrides = {k: overrides.pop(k) for k in list(overrides) if k in _SERIAL_KEYS}
     default_serial = DEFAULT_CFG["serial"]
     assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
     return {
@@ -169,9 +174,7 @@ class TestCfgDataDir:
 
         pkg_root = Path(str(importlib.resources.files("termapy")))
         bundled_cfg = pkg_root / "builtins" / "demo" / "demo.cfg"
-        assert bundled_cfg.exists(), (
-            "precondition: bundled demo.cfg is the fixture under test"
-        )
+        assert bundled_cfg.exists(), "precondition: bundled demo.cfg is the fixture under test"
 
         # Act / Assert -- direct activation refused with a useful error.
         with pytest.raises(RuntimeError) as exc_info:
@@ -344,9 +347,7 @@ class TestDefaultCfg:
         # Post-v22, port and baud_rate live nested under cfg["serial"]
         # while line_ending and cmd_prefix stay at the top level.
         for key in ("eol", "cmd_prefix"):
-            assert key in DEFAULT_CFG, (
-                f"essential top-level key present: {key}"
-            )
+            assert key in DEFAULT_CFG, f"essential top-level key present: {key}"
         assert "serial" in DEFAULT_CFG, "serial sub-dict present"
         serial = DEFAULT_CFG["serial"]
         assert isinstance(serial, dict), "serial is a dict"
@@ -365,6 +366,7 @@ class TestLoadConfig:
 
         # Act / Assert - load_config no longer auto-creates files
         import pytest
+
         with pytest.raises(FileNotFoundError):
             load_config(str(config_path))
 
@@ -381,9 +383,7 @@ class TestLoadConfig:
         actual = load_config(str(config_path))
 
         # Assert -- original value preserved at its migrated location
-        assert actual["serial"]["port"] == "COM3", (
-            "original port preserved at migrated location"
-        )
+        assert actual["serial"]["port"] == "COM3", "original port preserved at migrated location"
         assert "custom_buttons" in actual, "missing default added"
         actual_saved = json.loads(config_path.read_text())
         assert "custom_buttons" in actual_saved, "persisted to disk"
@@ -407,9 +407,7 @@ class TestLoadConfig:
         actual = load_config(str(config_path))
 
         # Assert
-        assert actual["serial"]["port"] == "COM7", (
-            "custom port preserved at migrated location"
-        )
+        assert actual["serial"]["port"] == "COM7", "custom port preserved at migrated location"
         assert len(actual["custom_buttons"]) == 1, "custom buttons not replaced"
         assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
@@ -426,8 +424,9 @@ class TestLoadConfig:
         actual = load_config(str(config_path))
 
         # Assert -- distinct object, and mutating it cannot reach DEFAULT_CFG
-        assert actual["custom_buttons"] is not DEFAULT_CFG["custom_buttons"], \
+        assert actual["custom_buttons"] is not DEFAULT_CFG["custom_buttons"], (
             "backfilled list is a copy, not the module-global default"
+        )
         default_buttons = DEFAULT_CFG["custom_buttons"]
         assert isinstance(default_buttons, list), "custom_buttons is a list"
         expected_default_len = len(default_buttons)
@@ -435,8 +434,9 @@ class TestLoadConfig:
             {"enabled": True, "name": "X", "command": "X", "tooltip": ""}
         )
         actual_default_len = len(default_buttons)
-        assert actual_default_len == expected_default_len, \
+        assert actual_default_len == expected_default_len, (
             "mutating the loaded config must not change DEFAULT_CFG"
+        )
 
 
 # -- SCRIPT_TEMPLATE -------------------------------------------------------
@@ -452,9 +452,7 @@ class TestScriptTemplate:
         """Every non-blank template line is a comment, so a fresh script sends nothing."""
         actual = SCRIPT_TEMPLATE.format(name="x")
         lines = actual.strip().splitlines()
-        assert all(
-            line.startswith("#") for line in lines if line.strip()
-        ), "all lines are comments"
+        assert all(line.startswith("#") for line in lines if line.strip()), "all lines are comments"
 
     def test_has_example_commands(self):
         """The template shows a REPL command example (/delay) for the user to copy."""
@@ -558,29 +556,36 @@ class TestExpandEnvCfg:
         actual = expand_env_cfg(cfg)
 
         # Assert -- connect-command keys left literal; ordinary values expand
-        assert actual["on_connect_cmd"] == "AT+TOKEN=$(env.OCC_TEST)", \
+        assert actual["on_connect_cmd"] == "AT+TOKEN=$(env.OCC_TEST)", (
             "on_connect_cmd not pre-expanded (env gated at dispatch)"
-        assert actual["tui_on_connect_cmd"] == "$(env.OCC_TEST)", \
+        )
+        assert actual["tui_on_connect_cmd"] == "$(env.OCC_TEST)", (
             "tui_on_connect_cmd not pre-expanded"
-        assert actual["cli_on_connect_cmd"] == "$(env.OCC_TEST)", \
+        )
+        assert actual["cli_on_connect_cmd"] == "$(env.OCC_TEST)", (
             "cli_on_connect_cmd not pre-expanded"
-        assert actual["mcp_on_connect_cmd"] == "$(env.OCC_TEST)", \
+        )
+        assert actual["mcp_on_connect_cmd"] == "$(env.OCC_TEST)", (
             "mcp_on_connect_cmd not pre-expanded"
-        assert actual["log_file"] == "SECRET.log", \
-            "ordinary cfg values still expand"
-
+        )
+        assert actual["log_file"] == "SECRET.log", "ordinary cfg values still expand"
 
     def test_a_templated_bool_key_reads_as_a_real_bool(self, monkeypatch):
         """bool-one-vocabulary: a $(env.X) in a boolean key is read with the vocabulary, so the cfg holds a bool, not the text."""
         # Arrange
         monkeypatch.setenv("CFG_BOOL_TEST", "yes")
-        cfg = {"echo": "$(env.CFG_BOOL_TEST|false)", "serial": {"custom_baud": "$(env.CFG_BOOL_TEST)"}}
+        cfg = {
+            "echo": "$(env.CFG_BOOL_TEST|false)",
+            "serial": {"custom_baud": "$(env.CFG_BOOL_TEST)"},
+        }
 
         # Act
         actual = expand_env_cfg(cfg)
 
         # Assert
-        assert (actual["echo"], actual["serial"]["custom_baud"]) == (True, True), "top-level and nested"
+        assert (actual["echo"], actual["serial"]["custom_baud"]) == (True, True), (
+            "top-level and nested"
+        )
 
     def test_a_templated_bool_outside_the_vocabulary_is_refused_by_key(self, monkeypatch):
         """Text a boolean key cannot read raises Invalid <key>: <text>, so the cfg fails to load instead of reading True."""
@@ -598,18 +603,23 @@ class TestExpandEnvCfg:
         actual = expand_env_cfg({"echo": "$(env.CFG_BOOL_NOPE)"}, warnings)
 
         # Assert
-        assert actual["echo"] is False, "the default, not the literal placeholder (which read as True)"
+        assert actual["echo"] is False, (
+            "the default, not the literal placeholder (which read as True)"
+        )
         assert warnings == ["echo: $(env.CFG_BOOL_NOPE) did not resolve; using default false"]
 
 
 class TestBoolKeysAreTyped:
     """A boolean cfg key holds a JSON boolean: a string or number there is type-checked at load, never parsed."""
 
-    @pytest.mark.parametrize(("path", "value", "expected"), [
-        (("echo",), "false", "echo: expected bool, got str"),
-        (("timestamps",), 1, "timestamps: expected bool, got int"),
-        (("serial", "custom_baud"), "yes", "serial.custom_baud: expected bool, got str"),
-    ])
+    @pytest.mark.parametrize(
+        ("path", "value", "expected"),
+        [
+            (("echo",), "false", "echo: expected bool, got str"),
+            (("timestamps",), 1, "timestamps: expected bool, got int"),
+            (("serial", "custom_baud"), "yes", "serial.custom_baud: expected bool, got str"),
+        ],
+    )
     def test_a_non_bool_in_a_bool_key_warns_by_path(self, path, value, expected):
         """Every DEFAULT_CFG boolean path is checked, nested serial keys included; the warning names the path and the type."""
         # Arrange
@@ -620,25 +630,36 @@ class TestBoolKeysAreTyped:
         node[path[-1]] = value
 
         # Act / Assert
-        assert expected in validate_config(cfg), "a string in a bool key is a type warning, never read as a token"
+        assert expected in validate_config(cfg), (
+            "a string in a bool key is a type warning, never read as a token"
+        )
 
 
 class TestLoadConfigEnvExpansion:
-    def test_a_templated_bool_loads_as_a_bool_and_an_unresolved_one_warns(self, tmp_path, monkeypatch):
+    def test_a_templated_bool_loads_as_a_bool_and_an_unresolved_one_warns(
+        self, tmp_path, monkeypatch
+    ):
         """Through load_config a templated boolean is a bool in memory, and an unresolved one surfaces in _config_warnings."""
         # Arrange
         monkeypatch.setenv("LC_BOOL_ON", "on")
         monkeypatch.delenv("LC_BOOL_NOPE", raising=False)
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
-        config_path.write_text(json.dumps({"echo": "$(env.LC_BOOL_ON)", "timestamps": "$(env.LC_BOOL_NOPE)"}))
+        config_path.write_text(
+            json.dumps({"echo": "$(env.LC_BOOL_ON)", "timestamps": "$(env.LC_BOOL_NOPE)"})
+        )
 
         # Act
         actual = load_config(str(config_path))
 
         # Assert
-        assert (actual["echo"], actual["timestamps"]) == (True, False), "read with the vocabulary; default on no resolve"
-        assert "timestamps: $(env.LC_BOOL_NOPE) did not resolve; using default false" in actual["_config_warnings"]
+        assert (actual["echo"], actual["timestamps"]) == (True, False), (
+            "read with the vocabulary; default on no resolve"
+        )
+        assert (
+            "timestamps: $(env.LC_BOOL_NOPE) did not resolve; using default false"
+            in actual["_config_warnings"]
+        )
 
     def test_expands_env_in_loaded_config(self, tmp_path, monkeypatch):
         """A loaded config has env placeholders expanded in memory, after migration."""
@@ -653,9 +674,7 @@ class TestLoadConfigEnvExpansion:
         actual = load_config(str(config_path))
 
         # Assert -- after migration, port lives at cfg["serial"]["port"].
-        assert actual["serial"]["port"] == "COM8", (
-            "env var expanded in memory after migration"
-        )
+        assert actual["serial"]["port"] == "COM8", "env var expanded in memory after migration"
 
     def test_disk_keeps_template(self, tmp_path, monkeypatch):
         """The file on disk keeps the raw $(env...) template even after a migrating save."""
@@ -952,6 +971,7 @@ class TestValidateConfig:
         # Arrange -- a cfg with an older schema (migration will run
         # to bring it forward; the warning here is informational).
         from termapy.migration import CURRENT_CONFIG_VERSION
+
         cfg = _cfg_with(config_version=CURRENT_CONFIG_VERSION - 1)
 
         # Act
@@ -971,22 +991,19 @@ class TestValidateConfig:
         # one can't migrate.  This is the misleading "unknown key
         # (typo?)" scenario the change fixes.
         from termapy.migration import CURRENT_CONFIG_VERSION
+
         cfg = _cfg_with(config_version=CURRENT_CONFIG_VERSION + 1)
 
         # Act
         actual = validate_config(cfg)
 
         # Assert -- one clear warning with an actionable upgrade hint.
-        assert len(actual) == 1, (
-            f"only the upgrade warning, no per-key noise; got {actual!r}"
-        )
+        assert len(actual) == 1, f"only the upgrade warning, no per-key noise; got {actual!r}"
         msg = actual[0]
         assert "newer termapy" in msg, "explains the cause"
         assert "Upgrade with:" in msg, "names a specific upgrade command"
         assert "termapy" in msg, "command targets the termapy package"
-        assert "restart termapy" in msg.lower(), (
-            "tells the user to restart after upgrade"
-        )
+        assert "restart termapy" in msg.lower(), "tells the user to restart after upgrade"
 
     def test_newer_config_suppresses_unknown_key_noise(self):
         """A future config's unfamiliar keys are not misreported as typos."""
@@ -995,6 +1012,7 @@ class TestValidateConfig:
         # "unknown key (typo?)" warnings, misleading users into
         # thinking they had typos when the keys were just newer.
         from termapy.migration import CURRENT_CONFIG_VERSION
+
         cfg = _cfg_with(
             config_version=CURRENT_CONFIG_VERSION + 1,
             some_future_field="future-value",
@@ -1005,15 +1023,9 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1, (
-            f"only the single upgrade warning; got {actual!r}"
-        )
-        assert "typo" not in actual[0], (
-            "no misleading 'typo?' verbiage when cfg is from the future"
-        )
-        assert "some_future_field" not in actual[0], (
-            "future fields are not enumerated"
-        )
+        assert len(actual) == 1, f"only the single upgrade warning; got {actual!r}"
+        assert "typo" not in actual[0], "no misleading 'typo?' verbiage when cfg is from the future"
+        assert "some_future_field" not in actual[0], "future fields are not enumerated"
 
     def test_multiple_errors(self):
         """Several bad fields each get their own warning, none swallowed."""
@@ -1064,9 +1076,7 @@ class TestValidateConfig:
         # Assert
         assert len(actual) == 1, f"exactly one warning, got {actual}"
         assert "port" in actual[0], f"identifies the field; got {actual[0]!r}"
-        assert "empty" in actual[0], (
-            f"describes the problem; got {actual[0]!r}"
-        )
+        assert "empty" in actual[0], f"describes the problem; got {actual[0]!r}"
 
     def test_port_wrong_type_warns(self):
         """A numeric port value gets a type-mismatch warning."""
@@ -1121,9 +1131,9 @@ class TestRunCheck:
         argv = ["termapy", "--check", *args]
         result = subprocess.run(
             [
-                sys.executable, "-c",
-                f"import sys; sys.argv = {argv!r}; "
-                "from termapy.entry import main; main()",
+                sys.executable,
+                "-c",
+                f"import sys; sys.argv = {argv!r}; from termapy.entry import main; main()",
             ],
             capture_output=True,
             text=True,
@@ -1221,6 +1231,7 @@ class TestOpenSerialUrl:
         try:
             ser.write(b"test\r")
             import time
+
             time.sleep(0.05)
             data = ser.read(100)
         finally:
@@ -1309,6 +1320,7 @@ class TestOpenSerialRxBuffer:
             has_api = hasattr(ser, "set_buffer_size")
             ser.write(b"ok")
             import time
+
             time.sleep(0.05)
             data = ser.read(2)
         finally:
@@ -1381,7 +1393,9 @@ class TestOnConnectChainMigration:
         assert (run_folder / "mcp_on_connect.run").read_text(encoding="utf-8") == "/print mine\n", (
             "the user's script is untouched"
         )
-        assert (run_folder / "mcp_on_connect_2.run").is_file(), "the chain went to the next free name"
+        assert (run_folder / "mcp_on_connect_2.run").is_file(), (
+            "the chain went to the next free name"
+        )
         assert cfg["mcp_on_connect_cmd"] == "/run mcp_on_connect_2", "and the field runs that one"
 
     def test_load_twice_writes_one_script(self, tmp_path):
@@ -1430,7 +1444,11 @@ class TestOnConnectCommands:
     def test_universal_then_mode_field(self):
         """on_connect_cmd runs first, then the frontend's own field; empty fields are skipped."""
         # Arrange
-        cfg = {"on_connect_cmd": " /run setup ", "tui_on_connect_cmd": "/print tui", "cli_on_connect_cmd": ""}
+        cfg = {
+            "on_connect_cmd": " /run setup ",
+            "tui_on_connect_cmd": "/print tui",
+            "cli_on_connect_cmd": "",
+        }
 
         # Act
         actual = on_connect_commands(cfg, "tui_on_connect_cmd")
@@ -1438,9 +1456,9 @@ class TestOnConnectCommands:
         # Assert
         expected = [("on_connect_cmd", "/run setup"), ("tui_on_connect_cmd", "/print tui")]
         assert actual == expected, "both commands, in order, stripped"
-        assert on_connect_commands(cfg, "cli_on_connect_cmd") == [("on_connect_cmd", "/run setup")], (
-            "an empty mode field adds nothing"
-        )
+        assert on_connect_commands(cfg, "cli_on_connect_cmd") == [
+            ("on_connect_cmd", "/run setup")
+        ], "an empty mode field adds nothing"
 
     def test_a_field_is_never_split(self):
         """An escaped \\r\\n in a payload stays one command: nothing splits on \\n any more."""
@@ -1464,9 +1482,9 @@ class TestOnConnectCommands:
 
         # Assert
         assert actual == [], "a line break never reaches the device inside one line"
-        assert any(warning.startswith("mcp_on_connect_cmd: one command per field") for warning in warnings), (
-            "the load names the field and the fix"
-        )
+        assert any(
+            warning.startswith("mcp_on_connect_cmd: one command per field") for warning in warnings
+        ), "the load names the field and the fix"
 
     def test_an_old_config_is_not_warned(self):
         """--check reads an older config as it is on disk; its chain is the migration's job, not a warning."""

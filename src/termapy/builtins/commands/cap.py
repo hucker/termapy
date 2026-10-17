@@ -25,7 +25,14 @@ if TYPE_CHECKING:
 _MODE_VALUES = (EnumValue("new", ("n",)), EnumValue("append", ("a",)))
 
 _KEYWORDS = {
-    "mode=", "bytes=", "records=", "sep=", "echo=", "cmd=", "fmt=", "timeout=",
+    "mode=",
+    "bytes=",
+    "records=",
+    "sep=",
+    "echo=",
+    "cmd=",
+    "fmt=",
+    "timeout=",
 }
 
 # The frontend's ``start_capture`` says WHY on its status line (file would
@@ -56,7 +63,7 @@ def _extract_keyword_sections(args: str) -> dict[str, str]:
     if "fmt=" in args:
         idx = args.index("fmt=")
         before_fmt = args[:idx]
-        after_fmt = args[idx + 4:]
+        after_fmt = args[idx + 4 :]
         # Find next keyword in after_fmt
         fmt_end = len(after_fmt)
         for kw in _KEYWORDS:
@@ -213,9 +220,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     filename = positional[0]
     raw_file_mode = _parse_mode(sections)
     if raw_file_mode is None:
-        return CmdResult.fail(
-            msg=f"Invalid mode: {sections['mode']!r}. Use new/n or append/a."
-        )
+        return CmdResult.fail(msg=f"Invalid mode: {sections['mode']!r}. Use new/n or append/a.")
 
     fmt_spec = sections["fmt"]
     cmd = sections.get("cmd", "")
@@ -288,8 +293,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
         target_bytes = cap_bytes
         if target_bytes % record_size != 0:
             return CmdResult.fail(
-                msg=f"bytes={cap_bytes} is not a multiple of "
-                f"record size ({record_size} bytes)."
+                msg=f"bytes={cap_bytes} is not a multiple of record size ({record_size} bytes)."
             )
 
     try:
@@ -336,6 +340,7 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
 def _safe_filename(text: str) -> str:
     """Derive a safe filename stem from a command string."""
     import re as _re
+
     # Take first token, lowercase, replace non-alphanumeric with _
     first = text.strip().split()[0] if text.strip().split() else "poll"
     safe = _re.sub(r"[^A-Za-z0-9]+", "_", first).strip("_").lower()
@@ -366,10 +371,10 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
     if not cmds:
         return CmdResult.fail(msg="cmd= must have at least one command")
 
-    count = ctx.arg("count")                       # int, default 60, min 1
-    delay_s = ctx.arg("delay")                     # duration seconds (0 = as fast as possible)
-    timeout_ms = int(ctx.arg("timeout") * 1000)    # duration seconds -> ms
-    fmt = ctx.arg("fmt")                           # enum -> "csv" | "json"
+    count = ctx.arg("count")  # int, default 60, min 1
+    delay_s = ctx.arg("delay")  # duration seconds (0 = as fast as possible)
+    timeout_ms = int(ctx.arg("timeout") * 1000)  # duration seconds -> ms
+    fmt = ctx.arg("fmt")  # enum -> "csv" | "json"
 
     # Labels (default: command strings) -- domain checks stay here.
     # Comma-separated: a keyword value is one token to the dispatcher and
@@ -384,9 +389,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             )
         for label in labels:
             if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", label):
-                return CmdResult.fail(
-                    msg=f"Invalid label: {label!r} (must be identifier chars)"
-                )
+                return CmdResult.fail(msg=f"Invalid label: {label!r} (must be identifier chars)")
     else:
         labels = cmds[:]
 
@@ -478,9 +481,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             fh.flush()
 
     # Header line to the terminal
-    ctx.io.output("  " + "  ".join(
-        getattr(name, align)(w) for name, w, align in header_cols
-    ))
+    ctx.io.output("  " + "  ".join(getattr(name, align)(w) for name, w, align in header_cols))
 
     stop_event = ctx.internal.script_stop_event
     samples_written = 0
@@ -522,9 +523,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                 writer.writerow(csv_row)
                 fh.flush()
             elif fh is not None:  # JSONL
-                row: dict[str, object] = (
-                    {} if notime else {"timestamp": ts}
-                )
+                row: dict[str, object] = {} if notime else {"timestamp": ts}
                 row["counter"] = counter
                 for k, value in zip(labels, values):
                     row[k] = value
@@ -659,17 +658,20 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
         f"{escape_markup(bytes(rx).hex(' ').upper())}  [dim]{escape_markup(repr(rx_decoded))}[/]",
     )
 
-    return CmdResult.ok(value={
-        "tx_bytes": len(tx),
-        "rx_bytes": len(rx),
-        "tx_hex": bytes(tx).hex().upper(),
-        "rx_hex": bytes(rx).hex().upper(),
-        "tx_text": tx_decoded,
-        "rx_text": rx_decoded,
-    })
+    return CmdResult.ok(
+        value={
+            "tx_bytes": len(tx),
+            "rx_bytes": len(rx),
+            "tx_hex": bytes(tx).hex().upper(),
+            "rx_hex": bytes(rx).hex().upper(),
+            "tx_text": tx_decoded,
+            "rx_text": rx_decoded,
+        }
+    )
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
+
 
 def _cap_folder_line(ctx: PluginContext) -> str:
     """Green one-liner showing the count of files in cap/."""
@@ -801,16 +803,27 @@ COMMAND = Command(
             handler=_handler_text,
             needs=CapabilitySet.SERIAL_CONNECTED,
             params=[
-                ParamSpec("file", "path", positional=True, required=True,
-                          help="output filename (relative to cap/ dir)"),
-                ParamSpec("timeout", "duration", required=True,
-                          help="how long to capture, e.g. 3s, 500ms"),
-                ParamSpec("mode", "enum", default="new", values=_MODE_VALUES,
-                          help="file mode"),
-                ParamSpec("echo", "bool", default=False,
-                          help="also print captured text to the terminal"),
-                ParamSpec("cmd", "command", rest=True, default="",
-                          help="command to send after capture starts"),
+                ParamSpec(
+                    "file",
+                    "path",
+                    positional=True,
+                    required=True,
+                    help="output filename (relative to cap/ dir)",
+                ),
+                ParamSpec(
+                    "timeout", "duration", required=True, help="how long to capture, e.g. 3s, 500ms"
+                ),
+                ParamSpec("mode", "enum", default="new", values=_MODE_VALUES, help="file mode"),
+                ParamSpec(
+                    "echo", "bool", default=False, help="also print captured text to the terminal"
+                ),
+                ParamSpec(
+                    "cmd",
+                    "command",
+                    rest=True,
+                    default="",
+                    help="command to send after capture starts",
+                ),
             ],
         ),
         "bin": Command(
@@ -819,16 +832,28 @@ COMMAND = Command(
             handler=_handler_bin,
             needs=CapabilitySet.SERIAL_CONNECTED,
             params=[
-                ParamSpec("file", "path", positional=True, required=True,
-                          help="output filename (relative to cap/ dir)"),
-                ParamSpec("bytes", "int", required=True,
-                          help="target byte count"),
-                ParamSpec("mode", "enum", default="new", values=_MODE_VALUES,
-                          help="file mode"),
-                ParamSpec("timeout", "duration", default=0.0,
-                          help="safety timeout, e.g. 10s (default: none)"),
-                ParamSpec("cmd", "command", rest=True, default="",
-                          help="command to send after capture starts"),
+                ParamSpec(
+                    "file",
+                    "path",
+                    positional=True,
+                    required=True,
+                    help="output filename (relative to cap/ dir)",
+                ),
+                ParamSpec("bytes", "int", required=True, help="target byte count"),
+                ParamSpec("mode", "enum", default="new", values=_MODE_VALUES, help="file mode"),
+                ParamSpec(
+                    "timeout",
+                    "duration",
+                    default=0.0,
+                    help="safety timeout, e.g. 10s (default: none)",
+                ),
+                ParamSpec(
+                    "cmd",
+                    "command",
+                    rest=True,
+                    default="",
+                    help="command to send after capture starts",
+                ),
             ],
         ),
         "struct": Command(
@@ -857,23 +882,43 @@ COMMAND = Command(
             # params still parse the keywords + rest (raw_args skips only transforms).
             raw_args=True,
             params=[
-                ParamSpec("count", "int", default=60, min=1,
-                          help="number of ticks"),
-                ParamSpec("delay", "duration", default=1.0,
-                          help="delay between ticks (0 = as fast as possible)"),
-                ParamSpec("file", "path", default="",
-                          help="output CSV/JSONL file (terminal-only if omitted)"),
-                ParamSpec("labels", "str", default="",
-                          help="comma-separated column labels (default: the commands)"),
-                ParamSpec("regex", "str", default="",
-                          help="regex to extract a value from each response"),
-                ParamSpec("fmt", "enum", default="csv",
-                          values=(EnumValue("csv"), EnumValue("json")),
-                          help="output format"),
-                ParamSpec("timeout", "duration", default=1.0,
-                          help="per-command response timeout"),
-                ParamSpec("cmd", "command", rest=True, required=True,
-                          help="newline-separated commands to poll"),
+                ParamSpec("count", "int", default=60, min=1, help="number of ticks"),
+                ParamSpec(
+                    "delay",
+                    "duration",
+                    default=1.0,
+                    help="delay between ticks (0 = as fast as possible)",
+                ),
+                ParamSpec(
+                    "file",
+                    "path",
+                    default="",
+                    help="output CSV/JSONL file (terminal-only if omitted)",
+                ),
+                ParamSpec(
+                    "labels",
+                    "str",
+                    default="",
+                    help="comma-separated column labels (default: the commands)",
+                ),
+                ParamSpec(
+                    "regex", "str", default="", help="regex to extract a value from each response"
+                ),
+                ParamSpec(
+                    "fmt",
+                    "enum",
+                    default="csv",
+                    values=(EnumValue("csv"), EnumValue("json")),
+                    help="output format",
+                ),
+                ParamSpec("timeout", "duration", default=1.0, help="per-command response timeout"),
+                ParamSpec(
+                    "cmd",
+                    "command",
+                    rest=True,
+                    required=True,
+                    help="newline-separated commands to poll",
+                ),
             ],
         ),
         "stop": Command(
@@ -891,10 +936,19 @@ COMMAND = Command(
             # parse it (raw_args skips only transforms, not param parsing).
             raw_args=True,
             params=[
-                ParamSpec("wait_gap", "duration", default=0.05,
-                          help="idle-gap that signals the device is done (e.g. 200ms)"),
-                ParamSpec("cmd", "command", rest=True, required=True,
-                          help="command to run and watch on the wire"),
+                ParamSpec(
+                    "wait_gap",
+                    "duration",
+                    default=0.05,
+                    help="idle-gap that signals the device is done (e.g. 200ms)",
+                ),
+                ParamSpec(
+                    "cmd",
+                    "command",
+                    rest=True,
+                    required=True,
+                    help="command to run and watch on the wire",
+                ),
             ],
         ),
         **build_folder_subcommands("cap"),

@@ -43,7 +43,9 @@ def env(tmp_path, monkeypatch):
 
     output: list = []
     eng = ReplEngine(
-        cfg, str(config_path), lambda t, c=None: output.append((t, c)),
+        cfg,
+        str(config_path),
+        lambda t, c=None: output.append((t, c)),
     )
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
@@ -53,9 +55,7 @@ def env(tmp_path, monkeypatch):
     # builtin sees a configured host (TerminalHost normally does
     # this, but this test bypasses TerminalHost).
     eng.ctx.internal.add_post_dispatch_observer = eng.add_post_dispatch_observer
-    eng.ctx.internal.remove_post_dispatch_observer = (
-        eng.remove_post_dispatch_observer
-    )
+    eng.ctx.internal.remove_post_dispatch_observer = eng.remove_post_dispatch_observer
     # Tests dispatch via the engine, so scripts_dir on ctx.fs needs
     # to point at the real on-disk path; PluginContext defaults it
     # to Path('.').
@@ -97,9 +97,7 @@ class TestStartStop:
         recorded = (scripts_dir / "session_a.run").read_text(encoding="utf-8")
         # Both /app.ver lines were dispatched successfully.  Bare
         # /run.record at start AND stop should NOT appear.
-        assert recorded == "app.ver\napp.ver\n", (
-            f"expected two app.ver lines, got: {recorded!r}"
-        )
+        assert recorded == "app.ver\napp.ver\n", f"expected two app.ver lines, got: {recorded!r}"
 
     def test_failed_dispatch_is_skipped(self, env):
         """A command that fails to dispatch is not written, so replay never repeats it."""
@@ -133,9 +131,7 @@ class TestStartStop:
 
         # Assert
         recorded = (scripts_dir / "session_c.run").read_text(encoding="utf-8")
-        assert "run.record" not in recorded, (
-            "recorder must filter out /run.record in every form"
-        )
+        assert "run.record" not in recorded, "recorder must filter out /run.record in every form"
         assert recorded.count("app.ver\n") == 2, "both /app.ver lines preserved"
 
     def test_stop_message_reports_count_and_path(self, env):
@@ -152,9 +148,7 @@ class TestStartStop:
 
         # Assert
         texts = " ".join(t for t, _ in output)
-        assert "Recorded 3 commands" in texts, (
-            "stop message reports the count"
-        )
+        assert "Recorded 3 commands" in texts, "stop message reports the count"
         assert "session_d.run" in texts, "stop message includes the path"
 
 
@@ -170,13 +164,9 @@ class TestRefusal:
 
         # Assert
         assert not result.success, "refuses to clobber existing file"
-        assert "exists" in result.error.lower(), (
-            f"error mentions 'exists', got: {result.error!r}"
-        )
+        assert "exists" in result.error.lower(), f"error mentions 'exists', got: {result.error!r}"
         # Recorder must not be active after refusal.
-        assert _run_record.is_active() is False, (
-            "no recording activated after refusal"
-        )
+        assert _run_record.is_active() is False, "no recording activated after refusal"
         # Pre-existing file is untouched.
         assert (scripts_dir / "existing.run").read_text(
             encoding="utf-8",
@@ -193,9 +183,7 @@ class TestRefusal:
 
         # Assert
         assert not result.success, "second start refused"
-        assert "already recording" in result.error.lower(), (
-            "error mentions 'already recording'"
-        )
+        assert "already recording" in result.error.lower(), "error mentions 'already recording'"
         # Original recording still active.
         assert _run_record.is_active() is True, "first recording continues"
 
@@ -209,9 +197,7 @@ class TestRefusal:
 
         # Assert
         assert not result.success, "stop without active fails"
-        assert "not recording" in result.error.lower(), (
-            "error names the state"
-        )
+        assert "not recording" in result.error.lower(), "error names the state"
 
 
 class TestFilenameHandling:
@@ -225,9 +211,7 @@ class TestFilenameHandling:
         eng.dispatch("run.record")
 
         # Assert
-        assert (scripts_dir / "sans_suffix.run").is_file(), (
-            "filename without .run gets the suffix"
-        )
+        assert (scripts_dir / "sans_suffix.run").is_file(), "filename without .run gets the suffix"
 
     def test_rejects_wrong_suffix(self, env):
         """A non-.run suffix is refused with an explanation, and no file is created."""
@@ -239,12 +223,8 @@ class TestFilenameHandling:
 
         # Assert
         assert not result.success, ".txt suffix rejected"
-        assert ".run" in result.error.lower(), (
-            "error explains the .run requirement"
-        )
-        assert not (scripts_dir / "session.txt").exists(), (
-            "no file created on refusal"
-        )
+        assert ".run" in result.error.lower(), "error explains the .run requirement"
+        assert not (scripts_dir / "session.txt").exists(), "no file created on refusal"
 
     def test_rejects_path_separators(self, env):
         """Only a bare filename is accepted; a subfolder path is refused."""
@@ -256,10 +236,9 @@ class TestFilenameHandling:
 
         # Assert
         assert not result.success, "path with / refused"
-        assert (
-            "filename" in result.error.lower()
-            or "path" in result.error.lower()
-        ), "error explains why"
+        assert "filename" in result.error.lower() or "path" in result.error.lower(), (
+            "error explains why"
+        )
 
 
 class TestDurability:

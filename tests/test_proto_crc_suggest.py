@@ -57,8 +57,7 @@ class TestDidYouMeanHelper:
             f"suffix should start with sentinel; got {actual!r}"
         )
         assert "crc16-modbus" in actual, (
-            f"crc16-modbus should be suggested for typo crc16-modbsu; "
-            f"got {actual!r}"
+            f"crc16-modbus should be suggested for typo crc16-modbsu; got {actual!r}"
         )
 
     def test_garbage_returns_empty_string(self):
@@ -76,9 +75,7 @@ class TestDidYouMeanHelper:
         actual = _did_you_mean("crc16")
 
         # Assert
-        assert "crc16-modbus" in actual, (
-            f"crc16 family should suggest crc16-modbus; got {actual!r}"
-        )
+        assert "crc16-modbus" in actual, f"crc16 family should suggest crc16-modbus; got {actual!r}"
 
 
 class TestSuggestionRendersAtHandlerSites:
@@ -140,8 +137,7 @@ class TestSuggestionRendersAtHandlerSites:
         # Assert
         assert not result.success, "typo'd algo should fail"
         assert "crc16-modbus" in (result.error or ""), (
-            f"_crc_codegen (single) should suggest crc16-modbus; "
-            f"got {result.error!r}"
+            f"_crc_codegen (single) should suggest crc16-modbus; got {result.error!r}"
         )
 
     def test_crc_codegen_bundle_suffix(self):

@@ -39,15 +39,29 @@ def _build(compiler: str, folder: Path, *defines: str) -> Path:
     exe = folder / ("mem_host.exe" if sys.platform == "win32" else "mem_host")
     strict = subprocess.run(
         [compiler, *STRICT, *defines, "-fsyntax-only", "-I", str(FIRMWARE), str(MODULE)],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert strict.returncode == 0, strict.stderr
     link = subprocess.run(
         [
-            compiler, "-std=gnu99", "-Wall", "-Wextra", "-Werror", *defines,
-            "-I", str(FIRMWARE), str(MODULE), str(HARNESS), "-o", str(exe),
+            compiler,
+            "-std=gnu99",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            *defines,
+            "-I",
+            str(FIRMWARE),
+            str(MODULE),
+            str(HARNESS),
+            "-o",
+            str(exe),
         ],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert link.returncode == 0, link.stderr
     return exe
@@ -61,8 +75,10 @@ def mem_host(tmp_path_factory: pytest.TempPathFactory) -> Path:
 def _replies(exe: Path, commands: list[str]) -> list[str]:
     """One reply per command, exact bytes (CRLF kept), then the harness's lock line."""
     result = subprocess.run(
-        [str(exe)], input="\n".join(commands).encode("ascii") + b"\n",
-        capture_output=True, check=True,
+        [str(exe)],
+        input="\n".join(commands).encode("ascii") + b"\n",
+        capture_output=True,
+        check=True,
     )
     chunks = result.stdout.decode("ascii").split("--\n")
     assert len(chunks) == len(commands) + 1, "one reply per command, then the lock line"
@@ -81,7 +97,6 @@ def _masked(old: bytes, and_mask: int, or_mask: int) -> bytes:
 
 @pytest.mark.slow
 class TestWire:
-
     def test_info_and_silence_before_init(self, mem_host):
         # The harness sends INFO before TermapyMem_Init; any reply there
         # would land in front of this one and break the exact match.
@@ -105,11 +120,15 @@ class TestWire:
         assert back == _row(0x10, b"\xde\xad\xbe\xef") + "OK\r\n"
         assert spaced == _row(0x20, b"\xde\xad") + "OK\r\n", "lower-case, spaced pairs accepted"
 
-    @pytest.mark.parametrize(("addr", "old", "and_mask", "or_mask"), [
-        (0x10, b"\xde\xad\xbe\xef", 0xFFFFFF00, 0x00000001),
-        (0x20, b"\x34\x12", 0xFF00, 0x0001),
-        (0x30, b"\x12", 0xF0, 0x0F),
-    ], ids=["u32", "u16", "u8"])
+    @pytest.mark.parametrize(
+        ("addr", "old", "and_mask", "or_mask"),
+        [
+            (0x10, b"\xde\xad\xbe\xef", 0xFFFFFF00, 0x00000001),
+            (0x20, b"\x34\x12", 0xFF00, 0x0001),
+            (0x30, b"\x12", 0xF0, 0x0F),
+        ],
+        ids=["u32", "u16", "u8"],
+    )
     def test_modify_masks_the_word_the_core_sees(self, mem_host, addr, old, and_mask, or_mask):
         # Arrange: the masks' digit count picks the width, as on the wire.
         digits = len(old) * 2
@@ -132,32 +151,43 @@ class TestWire:
         assert reply == "ERR range\r\n", "the fake RAM ends at 0x100"
         assert lock == "locks=1 depth=0\n", "a refused read must not leave the lock held"
 
-    @pytest.mark.parametrize(("command", "reason"), [
-        ("", "usage"),
-        ("X", "usage"),
-        ("R", "usage"),
-        ("R 0", "usage"),
-        ("R 0 0", "length"),
-        ("R 0 65", "length"),
-        ("R F0 32", "range"),                       # runs past the fake RAM
-        ("R 0 16 junk", "usage"),                   # a verb takes exactly its arguments
-        ("INFO junk", "usage"),
-        ("R 100000000 1", "usage"),                 # nine hex digits: wider than an address
-        ("R 0 4294967296", "usage"),                # past uint32_t, refused rather than wrapped
-        ("W 0", "usage"),
-        ("W 0 ABC", "usage"),                       # odd digit count
-        ("W 0 " + "00" * 65, "length"),
-        ("M 3 FFFF 0000", "usage"),                 # misaligned for a 16-bit word
-        ("M 0 FF 0000", "usage"),                   # mask widths disagree
-        ("M 0 FF 00 junk", "usage"),
-    ])
+    @pytest.mark.parametrize(
+        ("command", "reason"),
+        [
+            ("", "usage"),
+            ("X", "usage"),
+            ("R", "usage"),
+            ("R 0", "usage"),
+            ("R 0 0", "length"),
+            ("R 0 65", "length"),
+            ("R F0 32", "range"),  # runs past the fake RAM
+            ("R 0 16 junk", "usage"),  # a verb takes exactly its arguments
+            ("INFO junk", "usage"),
+            ("R 100000000 1", "usage"),  # nine hex digits: wider than an address
+            ("R 0 4294967296", "usage"),  # past uint32_t, refused rather than wrapped
+            ("W 0", "usage"),
+            ("W 0 ABC", "usage"),  # odd digit count
+            ("W 0 " + "00" * 65, "length"),
+            ("M 3 FFFF 0000", "usage"),  # misaligned for a 16-bit word
+            ("M 0 FF 0000", "usage"),  # mask widths disagree
+            ("M 0 FF 00 junk", "usage"),
+        ],
+    )
     def test_errors(self, mem_host, command, reason):
         reply, _lock = _replies(mem_host, [command])
         assert reply == f"ERR {reason}\r\n"
 
-    @pytest.mark.parametrize("command", [
-        "R 0 1", "r 0 1", ".R 0 1", "MEM.R 0 1", "mem.r 0 1", "  R 0 1",
-    ])
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "R 0 1",
+            "r 0 1",
+            ".R 0 1",
+            "MEM.R 0 1",
+            "mem.r 0 1",
+            "  R 0 1",
+        ],
+    )
     def test_dispatcher_prefix_forms(self, mem_host, command):
         reply, _lock = _replies(mem_host, [command])
         assert reply == _row(0, b"\x00") + "OK\r\n"
@@ -165,7 +195,6 @@ class TestWire:
 
 @pytest.mark.slow
 class TestConfiguration:
-
     def test_address_bits_sets_the_row_width(self, tmp_path):
         exe = _build(_compiler(), tmp_path, "-DTERMAPY_MEM_ADDRESS_BITS=16")
         info, row, _lock = _replies(exe, ["INFO", "R 0 1"])
@@ -177,10 +206,17 @@ class TestConfiguration:
         # undefined shift in the hex printer.
         result = subprocess.run(
             [
-                _compiler(), *STRICT, "-DTERMAPY_MEM_ADDRESS_BITS=64",
-                "-fsyntax-only", "-I", str(FIRMWARE), str(MODULE),
+                _compiler(),
+                *STRICT,
+                "-DTERMAPY_MEM_ADDRESS_BITS=64",
+                "-fsyntax-only",
+                "-I",
+                str(FIRMWARE),
+                str(MODULE),
             ],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         assert result.returncode != 0
         assert "TERMAPY_MEM_ADDRESS_BITS" in result.stderr, "the #error names the knob"

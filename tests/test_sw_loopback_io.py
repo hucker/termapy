@@ -64,7 +64,8 @@ def _run_cli(
 
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', 'proj', '--cli', "
             f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -101,9 +102,7 @@ class TestLoopbackRoundTrip:
         result = _run_cli(tmp_path, {}, lines)
 
         # Assert
-        assert result.returncode == 0, (
-            f"exit {result.returncode}; stderr={result.stderr!r}"
-        )
+        assert result.returncode == 0, f"exit {result.returncode}; stderr={result.stderr!r}"
         cap = _cap_file(tmp_path, "out.bin").read_bytes()
         assert cap == b"hello-world\r", (
             f"loopback echo must be exactly 'hello-world\\r', got {cap!r}"
@@ -124,9 +123,7 @@ class TestLoopbackRoundTrip:
         result = _run_cli(tmp_path, {}, lines)
 
         # Assert
-        assert result.returncode == 0, (
-            f"exit {result.returncode}; stderr={result.stderr!r}"
-        )
+        assert result.returncode == 0, f"exit {result.returncode}; stderr={result.stderr!r}"
         cap = _cap_file(tmp_path, "raw.bin").read_bytes()
         assert cap == b"ABC-raw-XYZ!", (
             f"/raw must send its bytes and nothing after them, got {cap!r}"
@@ -157,14 +154,11 @@ class TestLoopbackLineEndings:
         result = _run_cli(tmp_path, cfg, lines)
 
         # Assert -- capture file contains exactly "ping" + configured ending.
-        assert result.returncode == 0, (
-            f"exit {result.returncode}; stderr={result.stderr!r}"
-        )
+        assert result.returncode == 0, f"exit {result.returncode}; stderr={result.stderr!r}"
         cap_bytes = _cap_file(tmp_path, "ending.bin").read_bytes()
         expected = b"ping" + suffix
         assert cap_bytes == expected, (
-            f"line_ending={line_ending!r}: expected capture bytes {expected!r}, "
-            f"got {cap_bytes!r}"
+            f"line_ending={line_ending!r}: expected capture bytes {expected!r}, got {cap_bytes!r}"
         )
 
 
@@ -178,8 +172,7 @@ class TestLoopbackProtoSend:
         # bytes on the wire.  With loop:// the same 8 bytes come
         # back on the RX side.
         lines = [
-            "/cap.bin crc.bin bytes=8 timeout=500ms "
-            "cmd=/proto.send crc16-modbus 01 03 00 00 00 0A",
+            "/cap.bin crc.bin bytes=8 timeout=500ms cmd=/proto.send crc16-modbus 01 03 00 00 00 0A",
             "/delay 700ms",
         ]
 
@@ -187,14 +180,11 @@ class TestLoopbackProtoSend:
         result = _run_cli(tmp_path, {}, lines)
 
         # Assert -- exact byte sequence: 01 03 00 00 00 0A C5 CD.
-        assert result.returncode == 0, (
-            f"exit {result.returncode}; stderr={result.stderr!r}"
-        )
+        assert result.returncode == 0, f"exit {result.returncode}; stderr={result.stderr!r}"
         cap_bytes = _cap_file(tmp_path, "crc.bin").read_bytes()
         expected = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A, 0xC5, 0xCD])
         assert cap_bytes[:8] == expected, (
-            f"CRC round-trip byte mismatch.  expected={expected.hex()}, "
-            f"got={cap_bytes[:8].hex()}"
+            f"CRC round-trip byte mismatch.  expected={expected.hex()}, got={cap_bytes[:8].hex()}"
         )
 
 
@@ -220,13 +210,9 @@ class TestLoopbackEncoding:
         result = _run_cli(tmp_path, cfg, lines)
 
         # Assert
-        assert result.returncode == 0, (
-            f"exit {result.returncode}; stderr={result.stderr!r}"
-        )
+        assert result.returncode == 0, f"exit {result.returncode}; stderr={result.stderr!r}"
         cap_bytes = _cap_file(tmp_path, "latin.bin").read_bytes()
-        assert cap_bytes == b"\xe9", (
-            f"latin-1 'é' must encode to 0xE9, got {cap_bytes!r}"
-        )
+        assert cap_bytes == b"\xe9", f"latin-1 'é' must encode to 0xE9, got {cap_bytes!r}"
 
 
 class TestLoopbackCliReaderTaps:
@@ -255,9 +241,7 @@ class TestLoopbackCliReaderTaps:
         result = _run_cli(tmp_path, {}, lines)
 
         # Assert
-        assert result.returncode == 0, (
-            f"exit {result.returncode}; stderr={result.stderr!r}"
-        )
+        assert result.returncode == 0, f"exit {result.returncode}; stderr={result.stderr!r}"
         cap = _cap_file(tmp_path, "out.txt").read_text(encoding="utf-8")
         assert "hello-text-2607" in cap, (
             f"CLI text capture must record the loopback echo, got {cap!r}"
@@ -282,6 +266,4 @@ class TestLoopbackCliReaderTaps:
             f"/expect should match the echo, not time out; "
             f"exit {result.returncode}, stderr={result.stderr!r}"
         )
-        assert "matched" in actual, (
-            f"expected an expect-match message, got {result.stdout!r}"
-        )
+        assert "matched" in actual, f"expected an expect-match message, got {result.stdout!r}"

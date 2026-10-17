@@ -23,7 +23,15 @@ from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 from termapy.demo import FakeSerial
 
-_TRAFFIC = Path(__file__).resolve().parent.parent / "src" / "termapy" / "builtins" / "demo" / "plugin" / "traffic.py"
+_TRAFFIC = (
+    Path(__file__).resolve().parent.parent
+    / "src"
+    / "termapy"
+    / "builtins"
+    / "demo"
+    / "plugin"
+    / "traffic.py"
+)
 
 
 @pytest.fixture

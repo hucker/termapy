@@ -228,7 +228,9 @@ class TestTermColor:
 
         # Assert -- invalid arg errors, never a silent flip
         assert result.success is False, "invalid arg fails"
-        assert result.error == "Invalid value: 2 (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)", "clear msg"
+        assert (
+            result.error == "Invalid value: 2 (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        ), "clear msg"
         assert cli.repl.ctx.ns("flags")["color"] is True, "state unchanged"
 
     def test_legacy_color_alias(self, cli):
@@ -443,7 +445,9 @@ class TestEditCfgCallableInCli:
         assert bare.success is False, "a bare stem names no folder, so /edit bails"
         assert bare.error == "File not found: foo"
         assert named.success, named.error
-        assert [Path(path).name for path in opened] == ["foo.run"], "only the named form opened a file"
+        assert [Path(path).name for path in opened] == ["foo.run"], (
+            "only the named form opened a file"
+        )
 
 
 # -- /run.profile.* ----------------------------------------------------------
@@ -605,7 +609,9 @@ class TestRunProfile:
         expected = prof_dir.resolve()
         assert result.success, "explore succeeds"
         assert actual == expected, f"returns prof/ dir path, got {actual}"
-        assert [Path(path) for path in opened] == [prof_dir], "opened prof/ folder via ctx.fs.open_file"
+        assert [Path(path) for path in opened] == [prof_dir], (
+            "opened prof/ folder via ctx.fs.open_file"
+        )
 
     def test_cmd_empty_fails_with_usage(self, cli, capsys):
         """Profiling with no command fails and prints the usage line."""
@@ -673,9 +679,7 @@ class TestConnect:
         cli._connect(port="DEMO")
 
         # Assert
-        assert cli.cfg["serial"]["port"] == "DEMO", (
-            "port updated in config at migrated location"
-        )
+        assert cli.cfg["serial"]["port"] == "DEMO", "port updated in config at migrated location"
         assert cli.engine.is_connected, "engine connected after override"
 
     def test_port_connect_command_reports_failure(self, cli):
@@ -692,9 +696,7 @@ class TestConnect:
         result = cli.repl.dispatch("port.connect")
 
         # Assert
-        assert not result.success, (
-            "connect must report failure when the port cannot open"
-        )
+        assert not result.success, "connect must report failure when the port cannot open"
         assert not cli.engine.is_connected, "engine remains disconnected on failure"
 
     def test_port_connect_command_reports_success(self, cli):
@@ -761,6 +763,7 @@ class TestTypedLine:
         # Poll briefly since the background reader runs on its own
         # thread.
         import time
+
         deadline = time.monotonic() + 1.0
         while time.monotonic() < deadline:
             actual = capsys.readouterr().out
@@ -779,16 +782,12 @@ class TestCapture:
         # Arrange -- start a real capture against tmp_path, then try
         # to start a second one.  The second call must be rejected.
         first = tmp_path / "first.txt"
-        started = cli._start_capture(
-            path=first, file_mode="w", mode="text", duration=1.0
-        )
+        started = cli._start_capture(path=first, file_mode="w", mode="text", duration=1.0)
         assert started is True, "first capture starts cleanly"
 
         # Act -- try to start another while the first is still active.
         second = tmp_path / "second.txt"
-        actual = cli._start_capture(
-            path=second, file_mode="w", mode="text", duration=1.0
-        )
+        actual = cli._start_capture(path=second, file_mode="w", mode="text", duration=1.0)
 
         # Assert
         assert actual is False, "returns False when already active"
@@ -800,9 +799,7 @@ class TestCapture:
         cap_path = tmp_path / "cap.txt"
 
         # Act
-        actual = cli._start_capture(
-            path=cap_path, file_mode="w", mode="text", duration=1.0
-        )
+        actual = cli._start_capture(path=cap_path, file_mode="w", mode="text", duration=1.0)
 
         # Assert -- real file was created, real engine reports active.
         assert actual is True, "returns True on success"
@@ -814,9 +811,7 @@ class TestCapture:
         """Stop flushes the file and prints Capture complete exactly once."""
         # Arrange -- real text capture of three bytes.
         cap_path = tmp_path / "cap.txt"
-        cli._start_capture(
-            path=cap_path, file_mode="w", mode="text", duration=1.0
-        )
+        cli._start_capture(path=cap_path, file_mode="w", mode="text", duration=1.0)
         cli.capture.feed_text(["abc"])
         capsys.readouterr()  # drain "Capture started" status
 
@@ -1032,7 +1027,10 @@ class TestBareForms:
         ("command", "line"),
         [
             ("run", "/run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list"),
-            ("proto", "/proto -- bare: opens the Proto picker in the TUI; elsewhere runs /proto.list"),
+            (
+                "proto",
+                "/proto -- bare: opens the Proto picker in the TUI; elsewhere runs /proto.list",
+            ),
             ("cfg", "/cfg -- bare: opens the Cfg picker in the TUI; elsewhere runs /cfg.list"),
             ("port", "/port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list"),
             ("proto.run", "/proto.run -- bare: opens the Proto picker in the TUI"),
@@ -1080,7 +1078,9 @@ class TestBareForms:
 
         # Assert
         assert "session_log" in bare.error, f"bare /log ran /log.show: {bare.error}"
-        assert bare.error.replace("/log ", "/log.show ") == shown.error, "bare /log and /log.show are one behavior"
+        assert bare.error.replace("/log ", "/log.show ") == shown.error, (
+            "bare /log and /log.show are one behavior"
+        )
 
 
 # -- Hook registration ------------------------------------------------------
@@ -1089,7 +1089,9 @@ class TestBareForms:
 class TestNoSessionLog:
     """D3: the CLI keeps no session log, and every /log command and $(CFG.LOG_FILE) agrees."""
 
-    @pytest.mark.parametrize("command", ["log.dump", "log.delete", "log.fingerprint", "log.show", "edit.log"])
+    @pytest.mark.parametrize(
+        "command", ["log.dump", "log.delete", "log.fingerprint", "log.show", "edit.log"]
+    )
     def test_the_cli_keeps_no_session_log(self, cli, command):
         """Every command on the session log is refused by the gate, for want of session_log.
 
@@ -1170,11 +1172,14 @@ class TestConfirmInAScript:
         cfg_root = tmp_path / "cfg"
         cfg_root.mkdir()
         result = subprocess.run(
-            [_sys.executable, "-c",
-             "import sys; "
-             f"sys.argv = ['termapy', '--cli', '--demo', '--run', {str(script)!r}, "
-             f"'--no-color', '--cfg-dir', {str(cfg_root)!r}]; "
-             "from termapy.entry import main; main()"],
+            [
+                _sys.executable,
+                "-c",
+                "import sys; "
+                f"sys.argv = ['termapy', '--cli', '--demo', '--run', {str(script)!r}, "
+                f"'--no-color', '--cfg-dir', {str(cfg_root)!r}]; "
+                "from termapy.entry import main; main()",
+            ],
             input=answer,
             capture_output=True,
             text=True,
@@ -1204,12 +1209,22 @@ class TestHookRegistration:
             # /delay is a builtin since 2026-10-16 (D2), not a CLI hook.
             # term.color / color moved to a portable builtin + legacy alias
             # (see TestTermColor); no longer CLI-registered hooks.
-            "run", "run.profile",
+            "run",
+            "run.profile",
             # /run.profile.* is the run builtin's since 2026-10-16 (D8).
-            "run.profile.cmd", "run.profile.dump",
-            "run.profile.list", "run.profile.show", "run.profile.explore",
-            "demo", "demo.force", "clr", "raw", "help.open",
-            "log.clear", "tui", "cli",
+            "run.profile.cmd",
+            "run.profile.dump",
+            "run.profile.list",
+            "run.profile.show",
+            "run.profile.explore",
+            "demo",
+            "demo.force",
+            "clr",
+            "raw",
+            "help.open",
+            "log.clear",
+            "tui",
+            "cli",
         }
 
         # Assert
@@ -1247,7 +1262,10 @@ class TestCliCompletionHook:
         cli.cfg["cli_completion"] = True
         result = cli.repl.dispatch("cli.completion maybe")
         assert result.success is False, "a token outside the vocabulary is refused"
-        assert result.error == "Invalid value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        assert (
+            result.error
+            == "Invalid value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        )
         assert cli.cfg["cli_completion"] is True, "state unchanged on a refused token"
 
 
@@ -1259,7 +1277,9 @@ class TestVersionFlag:
     """
 
     def test_version_exits_zero_and_prints_termapy_version(
-        self, capsys, monkeypatch,
+        self,
+        capsys,
+        monkeypatch,
     ):
         """--version exits 0 and prints termapy plus a non-empty version token."""
         # Arrange
@@ -1273,9 +1293,7 @@ class TestVersionFlag:
         # Assert
         out = capsys.readouterr().out
         assert exc.value.code == 0, "--version exits 0"
-        assert out.startswith("termapy "), (
-            f"--version output starts with 'termapy ', got: {out!r}"
-        )
+        assert out.startswith("termapy "), f"--version output starts with 'termapy ', got: {out!r}"
         # The version token should be at least two dot-separated
         # numerics (or 'unknown' if running from a checkout without
         # installed metadata).  Either is acceptable -- a totally
@@ -1294,7 +1312,9 @@ class TestHelpFlag:
     """
 
     def test_help_exits_zero_and_produces_substantive_output(
-        self, capsys, monkeypatch,
+        self,
+        capsys,
+        monkeypatch,
     ):
         """--help exits 0 with a multi-line block, not a stub."""
         # Arrange
@@ -1342,9 +1362,7 @@ class TestHelpFlag:
             "--validate-profile",
             "--mcp",
         ):
-            assert flag in out, (
-                f"--help should document {flag!r}; missing from output"
-            )
+            assert flag in out, f"--help should document {flag!r}; missing from output"
 
     def test_help_mentions_program_description(self, capsys, monkeypatch):
         """The parser description saying what termapy is survives in --help."""
@@ -1359,9 +1377,7 @@ class TestHelpFlag:
         # Assert -- argparse renders the parser's description string
         # near the top.  Catches "someone wiped the description" too.
         out = capsys.readouterr().out
-        assert "serial terminal" in out.lower(), (
-            "--help should mention what termapy is"
-        )
+        assert "serial terminal" in out.lower(), "--help should mention what termapy is"
 
 
 # -- --info CLI flag ---------------------------------------------------------
@@ -1398,9 +1414,7 @@ class TestInfoFlag:
         """--info on an unknown port exits 1 with a not-found message."""
         # Arrange - a port name that almost certainly doesn't exist
         # on any test runner.
-        monkeypatch.setattr(
-            "sys.argv", ["termapy", "--info=DEFINITELY_NOT_A_PORT_999"]
-        )
+        monkeypatch.setattr("sys.argv", ["termapy", "--info=DEFINITELY_NOT_A_PORT_999"])
         from termapy.entry import main
 
         # Act
@@ -1417,9 +1431,7 @@ class TestInfoFlag:
     def test_info_with_equals_syntax(self, capsys, monkeypatch):
         """The --info=NAME form passes NAME through to the lookup."""
         # Arrange - --info=NAME should parse the same as --info NAME.
-        monkeypatch.setattr(
-            "sys.argv", ["termapy", "--info=COM_DOES_NOT_EXIST"]
-        )
+        monkeypatch.setattr("sys.argv", ["termapy", "--info=COM_DOES_NOT_EXIST"])
         from termapy.entry import main
 
         # Act
@@ -1433,9 +1445,7 @@ class TestInfoFlag:
     def test_info_with_space_syntax(self, capsys, monkeypatch):
         """The --info NAME form parses the same as --info=NAME."""
         # Arrange - --info NAME should parse the same as --info=NAME.
-        monkeypatch.setattr(
-            "sys.argv", ["termapy", "--info", "ANOTHER_FAKE_PORT"]
-        )
+        monkeypatch.setattr("sys.argv", ["termapy", "--info", "ANOTHER_FAKE_PORT"])
         from termapy.entry import main
 
         # Act
@@ -1473,15 +1483,17 @@ def _synthetic_facts(*entries):
 
     out = []
     for device, manufacturer, model, vid_pid, serial in entries:
-        out.append(ChipFacts(
-            device=device,
-            description=f"USB Serial Port ({device})",
-            manufacturer=manufacturer,
-            model=model,
-            vid_pid=vid_pid,
-            serial=serial,
-            usb_speed="USB Full-Speed (1 ms min latency)",
-        ))
+        out.append(
+            ChipFacts(
+                device=device,
+                description=f"USB Serial Port ({device})",
+                manufacturer=manufacturer,
+                model=model,
+                vid_pid=vid_pid,
+                serial=serial,
+                usb_speed="USB Full-Speed (1 ms min latency)",
+            )
+        )
     return out
 
 
@@ -1513,10 +1525,8 @@ class TestPortsFlag:
         out = capsys.readouterr().out
         actual_code = exc.value.code
         assert actual_code == 0, "--ports with ports found exits 0"
-        assert "PORT" in out and "MFG" in out and "VID:PID" in out, \
-            "header row printed"
-        assert "COM3" in out and "COM4" in out and "COM7" in out, \
-            "every demo-fleet port appears"
+        assert "PORT" in out and "MFG" in out and "VID:PID" in out, "header row printed"
+        assert "COM3" in out and "COM4" in out and "COM7" in out, "every demo-fleet port appears"
         assert "MSFT" in out, "Microsoft manufacturer gets aliased to MSFT"
         assert "FTDI FT232R" in out, "chip model rendered"
 
@@ -1529,9 +1539,7 @@ class TestPortsFlag:
 
         from termapy import cli_flags
 
-        args = argparse.Namespace(
-            ports="*", json=False, vid=None, pid=None, mfg=None, sn=None
-        )
+        args = argparse.Namespace(ports="*", json=False, vid=None, pid=None, mfg=None, sn=None)
 
         # Act
         with pytest.raises(SystemExit) as exc:
@@ -1560,8 +1568,9 @@ class TestPortsFlag:
         # COM3 and COM7 should NOT appear as data rows.  The header
         # text "PORT" might accidentally match so we check the row.
         data_lines = [data_line for data_line in out.splitlines() if data_line.startswith("COM")]
-        assert all("COM4" in data_line for data_line in data_lines), \
+        assert all("COM4" in data_line for data_line in data_lines), (
             f"only COM4 row emitted, got: {data_lines}"
+        )
 
     def test_ports_filter_unknown_exits_nonzero(self, capsys, monkeypatch):
         """A filter with no match exits 1 with an error on stderr."""
@@ -1615,8 +1624,7 @@ class TestChipsFlag:
         assert exc.value.code == 0, "--chips exits 0"
         assert "VID:PID" in out and "CHIP MODEL" in out, "header emitted"
         assert "FT232R" in out, "at least one known chip present"
-        assert out.rstrip().splitlines()[-1].startswith("Count="), \
-            "final line is Count=<N>"
+        assert out.rstrip().splitlines()[-1].startswith("Count="), "final line is Count=<N>"
 
     def test_chips_filter_narrows(self, capsys, monkeypatch):
         """A --chips filter keeps matching vendors and drops the rest."""
@@ -1632,8 +1640,7 @@ class TestChipsFlag:
         out = capsys.readouterr().out
         assert exc.value.code == 0, "filter exits 0"
         data_lines = [
-            data_line for data_line in out.splitlines()
-            if ":" in data_line and "FTDI" in data_line
+            data_line for data_line in out.splitlines() if ":" in data_line and "FTDI" in data_line
         ]
         assert data_lines, "FTDI rows present"
         assert "Silicon Labs" not in out, "non-matching vendor excluded"
@@ -1746,14 +1753,8 @@ class TestWatchFlag:
         # COM3 remove.  The marker is the first non-timestamp char
         # on the line.
         out = capsys.readouterr().out
-        added_marker = [
-            line for line in out.splitlines()
-            if "] +" in line and "COM4" in line
-        ]
-        removed_marker = [
-            line for line in out.splitlines()
-            if "] -" in line and "COM3" in line
-        ]
+        added_marker = [line for line in out.splitlines() if "] +" in line and "COM4" in line]
+        removed_marker = [line for line in out.splitlines() if "] -" in line and "COM3" in line]
         assert added_marker, f"expected a '+ COM4' marker line, got: {out!r}"
         assert removed_marker, f"expected a '- COM3' marker line, got: {out!r}"
 
@@ -1791,11 +1792,14 @@ class TestCliFreeOfTextual:
 
         # Act
         result = subprocess.run(
-            [_sys.executable, "-c",
-             "import termapy.entry; "
-             "import sys; "
-             "assert 'textual' not in sys.modules, "
-             "    list(m for m in sys.modules if m.startswith('textual'))"],
+            [
+                _sys.executable,
+                "-c",
+                "import termapy.entry; "
+                "import sys; "
+                "assert 'textual' not in sys.modules, "
+                "    list(m for m in sys.modules if m.startswith('textual'))",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -1815,10 +1819,11 @@ class TestCliFreeOfTextual:
 
         # Act
         result = subprocess.run(
-            [_sys.executable, "-c",
-             "import termapy.cli_flags; "
-             "import sys; "
-             "assert 'textual' not in sys.modules"],
+            [
+                _sys.executable,
+                "-c",
+                "import termapy.cli_flags; import sys; assert 'textual' not in sys.modules",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -1838,10 +1843,11 @@ class TestCliFreeOfTextual:
 
         # Act
         result = subprocess.run(
-            [_sys.executable, "-c",
-             "import termapy.port_format; "
-             "import sys; "
-             "assert 'textual' not in sys.modules"],
+            [
+                _sys.executable,
+                "-c",
+                "import termapy.port_format; import sys; assert 'textual' not in sys.modules",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -1852,6 +1858,7 @@ class TestCliFreeOfTextual:
             f"importing termapy.port_format loaded textual.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
 
 class TestPlainFileHistory:
     """One history file per cfg, plain lines, shared by TUI and CLI."""
@@ -1903,8 +1910,7 @@ class TestPlainFileHistory:
         # Arrange -- a file written by the OLD FileHistory format
         path = tmp_path / "dev.history"
         path.write_text(
-            "\n# 2026-07-14 09:00:00.000000\n+/port.list\n"
-            "\n# 2026-07-14 09:00:05.000000\n+/ping\n",
+            "\n# 2026-07-14 09:00:00.000000\n+/port.list\n\n# 2026-07-14 09:00:05.000000\n+/ping\n",
             encoding="utf-8",
         )
 
@@ -1919,9 +1925,7 @@ class TestPlainFileHistory:
     def test_missing_file_yields_nothing(self, tmp_path):
         """A missing history file loads as empty, not an error."""
         # Act
-        actual = list(
-            PlainFileHistory(str(tmp_path / "absent.history")).load_history_strings()
-        )
+        actual = list(PlainFileHistory(str(tmp_path / "absent.history")).load_history_strings())
 
         # Assert
         assert actual == [], "no file, no history, no error"
@@ -1962,6 +1966,7 @@ class TestWatchPortWidth:
         """Short port names never shrink the column below the floor."""
         # Arrange / Act -- explicit floor so the test is platform-free
         from termapy.cli_flags import _watch_port_width
+
         actual = _watch_port_width(["COM3", "COM10"], floor=6)
 
         # Assert
@@ -1971,9 +1976,8 @@ class TestWatchPortWidth:
         """A device name longer than the floor sets the column width."""
         # Arrange / Act
         from termapy.cli_flags import _watch_port_width
-        actual = _watch_port_width(
-            ["/dev/cu.Bluetooth-Incoming-Port", "/dev/ttyUSB0"], floor=6
-        )
+
+        actual = _watch_port_width(["/dev/cu.Bluetooth-Incoming-Port", "/dev/ttyUSB0"], floor=6)
 
         # Assert
         expected = len("/dev/cu.Bluetooth-Incoming-Port")
@@ -1983,6 +1987,7 @@ class TestWatchPortWidth:
         """With no ports at start, the width is the floor so later rows pad."""
         # Arrange / Act -- watch can start with zero ports
         from termapy.cli_flags import _watch_port_width
+
         actual = _watch_port_width([], floor=32)
 
         # Assert
@@ -1999,8 +2004,7 @@ class TestWatchPortWidth:
 
         fleet = _synthetic_facts(
             ("/dev/cu.Bluetooth-Incoming-Port", "-", "-", "0000:0000", "-"),
-            ("/dev/cu.usbserial-BG03U7VT", "FTDI", "FTDI FT232R / FT245R",
-             "0403:6001", "BG03U7VT"),
+            ("/dev/cu.usbserial-BG03U7VT", "FTDI", "FTDI FT232R / FT245R", "0403:6001", "BG03U7VT"),
             ("/dev/cu.wlan-debug", "-", "-", "0000:0000", "-"),
         )
         monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
@@ -2024,8 +2028,7 @@ class TestWatchPortWidth:
         rows = [line for line in out.splitlines() if "/dev/cu." in line]
         assert len(rows) == 3, "one state row per fleet port"
         vid_offsets = {
-            row.find("0403:6001") if "0403:6001" in row else row.find("0000:0000")
-            for row in rows
+            row.find("0403:6001") if "0403:6001" in row else row.find("0000:0000") for row in rows
         }
         assert len(vid_offsets) == 1, (
             f"vid_pid column at one offset across rows; got {sorted(vid_offsets)}"
@@ -2046,13 +2049,9 @@ class TestWatchPortWidth:
             ("/dev/ttyUSB0", "FTDI", "FTDI FT232R", "0403:6001", "AAA"),
         )
         long_fleet = short + _synthetic_facts(
-            ("/dev/cu.usbserial-VERYLONGNAME0123456789", "FTDI",
-             "FTDI FT230X", "0403:6015", "BBB"),
+            ("/dev/cu.usbserial-VERYLONGNAME0123456789", "FTDI", "FTDI FT230X", "0403:6015", "BBB"),
         )
-        flipped = [
-            ChipFacts(**{**vars(facts), "in_use": "yes"})
-            for facts in long_fleet
-        ]
+        flipped = [ChipFacts(**{**vars(facts), "in_use": "yes"}) for facts in long_fleet]
         monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
         snapshots = [short, long_fleet, flipped]
         looks = [0]
@@ -2071,15 +2070,10 @@ class TestWatchPortWidth:
         # vid_pid offset (grown width); the baseline row keeps its
         # smaller offset (append-only: the seam is expected).
         out = capsys.readouterr().out
-        state_rows = [
-            line for line in out.splitlines()
-            if "0403:" in line
-        ]
+        state_rows = [line for line in out.splitlines() if "0403:" in line]
         assert len(state_rows) >= 3, f"baseline + add + flip rows; got:\n{out}"
         baseline_offset = state_rows[0].index("0403:6001")
-        grown_offsets = {
-            row.index("0403:") for row in state_rows[1:]
-        }
+        grown_offsets = {row.index("0403:") for row in state_rows[1:]}
         assert len(grown_offsets) == 1, (
             f"post-growth rows share one offset; got {sorted(grown_offsets)}"
         )

@@ -42,9 +42,7 @@ class TestResolveContainment:
         # Act
         actual = fs.resolve("adc.csv", "cap")
         # Assert -- contained even under the sandbox.
-        assert actual == (fs.cap_dir / "adc.csv").resolve(), (
-            "a plain name resolves inside cap/"
-        )
+        assert actual == (fs.cap_dir / "adc.csv").resolve(), "a plain name resolves inside cap/"
 
     def test_absolute_refused_under_sandbox(self, tmp_path):
         """A confined resolve refuses an absolute path as escaping the folder."""
@@ -145,9 +143,7 @@ class TestMcpHostSandboxed:
         assert host.ctx.capabilities.filesystem_unconfined is False, (
             "MCP filesystem is sandboxed by default"
         )
-        assert host.ctx.capabilities.network_egress is False, (
-            "MCP network egress is off by default"
-        )
+        assert host.ctx.capabilities.network_egress is False, "MCP network egress is off by default"
         # And the fs handle snapshot agrees (sync_capabilities ran).
         assert host.ctx.fs.capabilities.filesystem_unconfined is False, (
             "fs handle snapshot reflects the sandbox"
@@ -226,9 +222,7 @@ class TestMcpHostSandboxed:
         )
         # Assert
         assert not result.success, "cap.poll absolute file= refused under sandbox"
-        assert "escapes" in result.error or "sandbox" in result.error, (
-            "refusal cites containment"
-        )
+        assert "escapes" in result.error or "sandbox" in result.error, "refusal cites containment"
 
     def test_crc_calc_absolute_path_refused(self, tmp_path):
         """A host path as crc.calc data is refused -- it is an existence, size, and CRC oracle."""
@@ -260,9 +254,7 @@ class TestMcpHostSandboxed:
         # Act
         names = {command["name"] for command in build_catalog(host.ctx)["commands"]}
         # Assert
-        assert "/cfg.icon" not in names, (
-            "cfg.icon is gated out of the MCP catalog (needs gui_apps)"
-        )
+        assert "/cfg.icon" not in names, "cfg.icon is gated out of the MCP catalog (needs gui_apps)"
 
     def test_cfg_icon_dispatch_refused(self, tmp_path):
         """Calling cfg.icon directly hits the capability gate, not a command-not-found error."""
@@ -298,9 +290,7 @@ class TestMcpHostOptedIn:
     def test_optin_allows_absolute_cfg_auto(self, unconfined_host, tmp_path):
         """The opt-in restores the absolute log_file edit that a sandboxed host refuses."""
         # Act -- the same call that was refused under the sandbox.
-        result = unconfined_host.repl.dispatch(
-            rf"cfg.auto log_file {tmp_path}\ok.log"
-        )
+        result = unconfined_host.repl.dispatch(rf"cfg.auto log_file {tmp_path}\ok.log")
         # Assert
         assert result.success, "opt-in restores host-wide path-valued cfg keys"
 

@@ -40,6 +40,7 @@ def _run(scenario) -> None:
 class TestConfirmDialog:
     def test_a_bracketed_message_renders_as_typed(self):
         """widget-text-literal: a /confirm message is text; "[ok]" and "[Rec]" survive into the dialog."""
+
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -56,6 +57,7 @@ class TestConfirmDialog:
 
     def test_yes_dismisses_true(self):
         """Clicking Yes dismisses with True, the only answer that lets the action proceed."""
+
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -70,6 +72,7 @@ class TestConfirmDialog:
 
     def test_cancel_dismisses_false(self):
         """Clicking Cancel dismisses with False."""
+
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -84,6 +87,7 @@ class TestConfirmDialog:
 
     def test_escape_dismisses_false(self):
         """Escape is a safe no: it dismisses with False, never True."""
+
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -100,6 +104,7 @@ class TestConfirmDialog:
 class TestFilenameDialog:
     def test_submit_dismisses_with_stripped_name(self):
         """Enter dismisses with the typed name, surrounding whitespace stripped."""
+
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -118,6 +123,7 @@ class TestFilenameDialog:
 
     def test_cancel_dismisses_none(self):
         """Clicking Cancel dismisses with None rather than an empty string."""
+
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -132,6 +138,7 @@ class TestFilenameDialog:
 
     def test_empty_submit_keeps_dialog_open(self):
         """Enter on an empty field neither dismisses nor closes the dialog."""
+
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -150,6 +157,7 @@ class TestFilenameDialog:
 
     def test_escape_dismisses_none(self):
         """Escape dismisses with None, the same result as Cancel."""
+
         async def scenario():
             app = _Host()
             async with app.run_test() as pilot:
@@ -168,6 +176,7 @@ class TestScriptPicker:
 
     def test_rows_show_newest_first_with_size_age_and_summary(self, tmp_path):
         """Only .run files, newest first, under an aligned header; Enter runs the newest."""
+
         async def scenario():
             # Arrange -- the script that sorts FIRST by name is an hour old.
             run_dir = tmp_path / "run"
@@ -235,6 +244,7 @@ class TestScriptPicker:
 
     def test_rows_fit_a_narrow_terminal_without_wrapping(self, tmp_path):
         """In an 80-column terminal every row stays one line; a long summary ends in an ellipsis."""
+
         async def scenario():
             # Arrange
             run_dir = self._long_summaries(tmp_path)
@@ -251,12 +261,15 @@ class TestScriptPicker:
                 assert ol.virtual_size.height == ol.option_count, (
                     f"one rendered line per row, none wrapped: {rows}"
                 )
-                assert all(row.endswith("...") for row in rows[1:]), "each summary is truncated to fit"
+                assert all(row.endswith("...") for row in rows[1:]), (
+                    "each summary is truncated to fit"
+                )
 
         _run(scenario)
 
     def test_a_wide_terminal_grows_the_dialog_to_show_whole_summaries(self, tmp_path):
         """With room to spare the dialog widens past its 104 columns, so a long summary shows whole."""
+
         async def scenario():
             # Arrange -- a summary that needs more than the default width
             run_dir = tmp_path / "run"
@@ -282,6 +295,7 @@ class TestScriptPicker:
 
     def test_a_resize_refits_the_rows_and_keeps_the_highlight(self, tmp_path):
         """Narrowing the terminal shortens the rows to the new width and leaves the cursor where it was."""
+
         async def scenario():
             # Arrange -- a wide terminal, the cursor on the second script
             run_dir = self._long_summaries(tmp_path)
@@ -299,7 +313,9 @@ class TestScriptPicker:
 
                 # Assert
                 narrow = len(str(ol.get_option_at_index(2).prompt))
-                assert narrow < wide, f"rows refit to the narrower list ({wide} -> {narrow} columns)"
+                assert narrow < wide, (
+                    f"rows refit to the narrower list ({wide} -> {narrow} columns)"
+                )
                 assert ol.virtual_size.height == ol.option_count, "and still none wraps"
                 assert ol.highlighted == 2, "the highlighted script is kept"
 
@@ -307,6 +323,7 @@ class TestScriptPicker:
 
     def test_rename_button_dismisses_with_the_highlighted_path(self, tmp_path):
         """Rename dismisses with a (rename, path) tuple for the highlighted script."""
+
         async def scenario():
             # Arrange
             run_dir = tmp_path / "run"
@@ -433,7 +450,9 @@ class TestConfigPickerCfgDir:
                 assert link._folder == tmp_path.resolve(), (
                     "a click opens the absolute folder, not a relative name"
                 )
-                assert file_manager_name() in str(link.tooltip), "the tooltip names this platform's file manager"
+                assert file_manager_name() in str(link.tooltip), (
+                    "the tooltip names this platform's file manager"
+                )
                 assert str(tmp_path) not in str(link.tooltip), (
                     "and does not repeat the path the header already shows"
                 )

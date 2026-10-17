@@ -78,8 +78,7 @@ class TestLazyImport:
         # Assert
         assert result.returncode == 0, f"import failed: {result.stderr}"
         assert "mcp_absent" in result.stdout, (
-            "mcp SDK must not be imported as a side effect of "
-            "loading termapy.entry"
+            "mcp SDK must not be imported as a side effect of loading termapy.entry"
         )
 
 
@@ -118,9 +117,7 @@ class TestMcpDispatch:
             cwd=str(tmp_path),
         )
         # Assert — clean shutdown: no Python traceback in stderr.
-        assert "Traceback" not in result.stderr, (
-            f"server crashed; stderr: {result.stderr[:500]}"
-        )
+        assert "Traceback" not in result.stderr, f"server crashed; stderr: {result.stderr[:500]}"
         # Note: stdout may contain MCP protocol frames or be empty;
         # what matters is it didn't crash.
 
@@ -132,9 +129,7 @@ class TestMcpDispatch:
         except ImportError:
             pass
         else:
-            pytest.skip(
-                "mcp SDK is installed; cannot exercise the missing-SDK path"
-            )
+            pytest.skip("mcp SDK is installed; cannot exercise the missing-SDK path")
         # Act
         result = subprocess.run(
             [sys.executable, "-m", "termapy", "--mcp"],
@@ -166,8 +161,7 @@ class TestMcpDispatch:
         # whole MCP/pydantic stack under full-suite CPU load can blow a
         # tight budget (flaky TimeoutExpired).
         result = subprocess.run(
-            [sys.executable, "-m", "termapy", "--mcp", "--mcp-verbose",
-             "--cfg-dir", str(tmp_path)],
+            [sys.executable, "-m", "termapy", "--mcp", "--mcp-verbose", "--cfg-dir", str(tmp_path)],
             capture_output=True,
             text=True,
             timeout=30,
@@ -175,9 +169,5 @@ class TestMcpDispatch:
             cwd=str(tmp_path),
         )
         # Assert
-        assert "Traceback" not in result.stderr, (
-            f"server crashed; stderr: {result.stderr[:500]}"
-        )
-        assert "host built" in result.stderr, (
-            "verbose flag prints the startup notice to stderr"
-        )
+        assert "Traceback" not in result.stderr, f"server crashed; stderr: {result.stderr[:500]}"
+        assert "host built" in result.stderr, "verbose flag prints the startup notice to stderr"

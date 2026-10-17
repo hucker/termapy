@@ -11,7 +11,9 @@ def test_legacy_config_gets_version():
     """Config with no config_version gets stamped to current."""
     cfg = {"port": "COM4", "baud_rate": 115200}
     result = migrate_config(cfg)
-    assert result["config_version"] == CURRENT_CONFIG_VERSION, "legacy config stamped to current version"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, (
+        "legacy config stamped to current version"
+    )
 
 
 def test_current_version_unchanged():
@@ -60,7 +62,9 @@ def test_migration_skips_when_no_function():
     """Version gaps without migration functions still advance the version."""
     cfg = {"config_version": 0}
     result = migrate_config(cfg)
-    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced despite missing migration functions"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, (
+        "version advanced despite missing migration functions"
+    )
 
 
 def test_v1_to_v2_renames_add_date_to_cmd():
@@ -68,7 +72,9 @@ def test_v1_to_v2_renames_add_date_to_cmd():
     cfg = {"config_version": 1, "add_date_to_cmd": True, "port": "COM4"}
     result = migrate_config(cfg)
 
-    assert result["timestamps"] is True, "renamed key has old value (v28: show_timestamps -> timestamps)"
+    assert result["timestamps"] is True, (
+        "renamed key has old value (v28: show_timestamps -> timestamps)"
+    )
     assert "add_date_to_cmd" not in result, "old key removed"
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
@@ -163,10 +169,12 @@ def test_v3_to_v4_renames_config_keys():
     # autoconnect_cmd was renamed to on_connect_cmd in v4+v6, then v14->v15
     # split that universal value into per-mode TUI/CLI keys (clearing the
     # universal so MCP doesn't silently fire interactive-only commands).
-    assert result["tui_on_connect_cmd"] == "ATZ", \
+    assert result["tui_on_connect_cmd"] == "ATZ", (
         "autoconnect_cmd renamed and migrated to tui_on_connect_cmd in v15"
-    assert result["cli_on_connect_cmd"] == "ATZ", \
+    )
+    assert result["cli_on_connect_cmd"] == "ATZ", (
         "autoconnect_cmd renamed and migrated to cli_on_connect_cmd in v15"
+    )
     assert result["on_connect_cmd"] == "", "universal on_connect_cmd cleared in v15"
     assert "baudrate" not in result, "old key baudrate removed"
     assert "bytesize" not in result, "old key bytesize removed"
@@ -200,22 +208,34 @@ def test_v5_to_v6_renames_config_keys():
     assert result["echo_fmt"] == "[purple]> {cmd}[/]", "echo_cmd_fmt renamed (v28: -> echo_fmt)"
     # v6 renamed auto_connect_cmd -> on_connect_cmd; v15 then split its
     # value into per-mode interactive keys.
-    assert result["tui_on_connect_cmd"] == "ATZ", \
+    assert result["tui_on_connect_cmd"] == "ATZ", (
         "auto_connect_cmd renamed; v15 migrated value to tui_on_connect_cmd"
-    assert result["cli_on_connect_cmd"] == "ATZ", \
+    )
+    assert result["cli_on_connect_cmd"] == "ATZ", (
         "auto_connect_cmd renamed; v15 migrated value to cli_on_connect_cmd"
+    )
     assert result["on_connect_cmd"] == "", "universal cleared in v15"
     assert result["cmd_delay_ms"] == 100, "inter_cmd_delay_ms renamed"
-    assert result["eol_markers"] is True, "show_eol -> show_line_endings -> line_endings -> eol_markers"
+    assert result["eol_markers"] is True, (
+        "show_eol -> show_line_endings -> line_endings -> eol_markers"
+    )
     assert result["show_traceback"] is True, "exception_traceback renamed"
     assert result["border_color"] == "green", "app_border_color renamed"
     assert result["cmd_prefix"] == "/", "repl_prefix renamed"
     assert result["config_read_only"] is True, "read_only renamed"
 
     # Assert - old keys removed
-    for old_key in ("echo_cmd", "echo_cmd_fmt", "auto_connect_cmd",
-                    "inter_cmd_delay_ms", "show_eol", "exception_traceback",
-                    "app_border_color", "repl_prefix", "read_only"):
+    for old_key in (
+        "echo_cmd",
+        "echo_cmd_fmt",
+        "auto_connect_cmd",
+        "inter_cmd_delay_ms",
+        "show_eol",
+        "exception_traceback",
+        "app_border_color",
+        "repl_prefix",
+        "read_only",
+    ):
         assert old_key not in result, f"old key {old_key} removed"
 
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
@@ -355,8 +375,7 @@ def test_v14_to_v15_moves_on_connect_cmd_to_per_mode_keys():
     assert result["tui_on_connect_cmd"] == "AT+VER", "TUI keeps the old behavior"
     assert result["cli_on_connect_cmd"] == "AT+VER", "CLI keeps the old behavior"
     assert result["mcp_on_connect_cmd"] == "", "MCP gets a clean slate"
-    assert result["config_version"] == CURRENT_CONFIG_VERSION, \
-        "version advanced to current"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
 
 def test_v14_to_v15_empty_on_connect_cmd():
@@ -388,8 +407,9 @@ def test_v14_to_v15_preserves_explicit_per_mode_keys():
     result = migrate_config(cfg)
 
     # Assert
-    assert result["mcp_on_connect_cmd"] == "echo off", \
+    assert result["mcp_on_connect_cmd"] == "echo off", (
         "user-set mcp_on_connect_cmd preserved (setdefault skipped overwrite)"
+    )
     assert result["tui_on_connect_cmd"] == "AT+VER", "TUI gets migrated value"
     assert result["cli_on_connect_cmd"] == "AT+VER", "CLI gets migrated value"
     assert result["on_connect_cmd"] == "", "universal cleared regardless"
@@ -407,8 +427,7 @@ def test_v15_to_v16_adds_request_err_pattern():
     actual = result["request_err_pattern"]
     expected = r"(?i)^(ERROR|ERR|FAULT)\b"
     assert actual == expected, "default matches ERROR/ERR/FAULT, case-insensitive"
-    assert result["config_version"] == CURRENT_CONFIG_VERSION, \
-        "version advanced to current"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
 
 def test_v15_to_v16_preserves_explicit_request_err_pattern():
@@ -424,8 +443,7 @@ def test_v15_to_v16_preserves_explicit_request_err_pattern():
     result = migrate_config(cfg)
 
     # Assert
-    assert result["request_err_pattern"] == r"^FAIL", \
-        "explicit user value preserved"
+    assert result["request_err_pattern"] == r"^FAIL", "explicit user value preserved"
 
 
 def test_v15_to_v16_empty_request_err_pattern_preserved():
@@ -472,9 +490,7 @@ def test_v19_to_v20_rewrites_color_in_multi_line_chain():
     # Assert
     actual = result["tui_on_connect_cmd"]
     expected = "echo on\n/term.color off\n/help"
-    assert actual == expected, (
-        f"/color rewritten only at line boundary; got {actual!r}"
-    )
+    assert actual == expected, f"/color rewritten only at line boundary; got {actual!r}"
 
 
 def test_v19_to_v20_does_not_rewrite_color_in_argument_text():
@@ -560,9 +576,7 @@ def test_v22_to_v23_rewrites_ver_subcommands_and_chains():
     # Assert
     actual = result["tui_on_connect_cmd"]
     expected = "/app.ver.info\n/cls"
-    assert actual == expected, (
-        f"/ver.info rewritten at the line boundary; got {actual!r}"
-    )
+    assert actual == expected, f"/ver.info rewritten at the line boundary; got {actual!r}"
 
 
 def test_v22_to_v23_does_not_rewrite_verbose_or_argument_text():
@@ -734,9 +748,16 @@ def test_v27_to_v28_renames_keys_to_command_names():
     assert result["line_no"] is True, "show_line_numbers -> line_no"
     assert result["hex"] is True, "hex_mode -> hex"
     assert result["timestamps"] is True, "show_timestamps -> timestamps"
-    for old in ("echo_input", "echo_input_fmt", "line_ending", "rx_newline",
-                "show_line_endings", "show_line_numbers", "hex_mode",
-                "show_timestamps"):
+    for old in (
+        "echo_input",
+        "echo_input_fmt",
+        "line_ending",
+        "rx_newline",
+        "show_line_endings",
+        "show_line_numbers",
+        "hex_mode",
+        "show_timestamps",
+    ):
         assert old not in result, f"old key {old} removed"
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
@@ -813,9 +834,15 @@ def test_v29_to_v30_leaves_one_command_in_place():
     result = MIGRATIONS[29](cfg)
 
     # Assert
-    actual = [result[key] for key in (
-        "on_connect_cmd", "tui_on_connect_cmd", "cli_on_connect_cmd", "mcp_on_connect_cmd",
-    )]
+    actual = [
+        result[key]
+        for key in (
+            "on_connect_cmd",
+            "tui_on_connect_cmd",
+            "cli_on_connect_cmd",
+            "mcp_on_connect_cmd",
+        )
+    ]
     assert actual == expected, "one command stays one command"
     assert "_migration_run_files" not in result, "nothing to write"
 
@@ -864,9 +891,7 @@ def test_migration_steps_recorded_per_version():
         "v29 -> v30",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
-        assert step.startswith(prefix), (
-            f"step {step!r} should start with {prefix!r}"
-        )
+        assert step.startswith(prefix), f"step {step!r} should start with {prefix!r}"
 
 
 def test_migration_steps_include_docstring_summary():
@@ -881,9 +906,7 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 10, (
-        f"ten steps (v20->v21 ... v28->v29, v29->v30); got {steps!r}"
-    )
+    assert len(steps) == 10, f"ten steps (v20->v21 ... v28->v29, v29->v30); got {steps!r}"
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
     )
@@ -905,7 +928,10 @@ def test_no_steps_recorded_when_already_current():
 def test_a_saved_step_list_is_not_shown_again():
     """Steps an older run saved into the file are dropped: only this run's steps show, twice over."""
     # Arrange -- what load_config used to save: a past run's list, v27 -> v28 twice
-    stale = ["v27 -> v28: Rename display/session cfg keys", "v27 -> v28: Rename display/session cfg keys"]
+    stale = [
+        "v27 -> v28: Rename display/session cfg keys",
+        "v27 -> v28: Rename display/session cfg keys",
+    ]
     cfg = {"config_version": 28, "_migration_steps": list(stale)}
 
     # Act
@@ -972,9 +998,7 @@ def test_v21_to_v22_nests_pyserial_keys():
 
     # Assert -- the 7 flat keys are gone from the top level.
     for key in expected_serial:
-        assert key not in result, (
-            f"flat top-level {key!r} removed after nesting; still present"
-        )
+        assert key not in result, f"flat top-level {key!r} removed after nesting; still present"
 
     # Assert -- non-serial keys stay where they were.
     assert result["encoding"] == "utf-8", "encoding stays flat top-level"
@@ -982,9 +1006,7 @@ def test_v21_to_v22_nests_pyserial_keys():
     assert result["cmd_delay_ms"] == 100, "cmd_delay_ms stays flat top-level"
 
     # Assert -- version advanced.
-    assert result["config_version"] == CURRENT_CONFIG_VERSION, (
-        "version advanced to current"
-    )
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
 
 def test_v21_to_v22_idempotent_for_partial_v22_shape():
@@ -1006,12 +1028,8 @@ def test_v21_to_v22_idempotent_for_partial_v22_shape():
     result = migrate_config(cfg)
 
     # Assert -- nested value wins, flat value moves in alongside.
-    assert result["serial"]["baud_rate"] == 9600, (
-        "pre-existing nested baud_rate preserved"
-    )
-    assert result["serial"]["port"] == "COM4", (
-        "flat port moved into serial sub-dict"
-    )
+    assert result["serial"]["baud_rate"] == 9600, "pre-existing nested baud_rate preserved"
+    assert result["serial"]["port"] == "COM4", "flat port moved into serial sub-dict"
     assert "port" not in result, "flat port removed from top level"
 
 
@@ -1029,6 +1047,4 @@ def test_v21_to_v22_empty_cfg_creates_empty_serial():
     result = migrate_config(cfg)
 
     # Assert -- empty serial sub-dict, ready for backfill.
-    assert result["serial"] == {}, (
-        "serial sub-dict created (empty) so defaults-backfill fills it"
-    )
+    assert result["serial"] == {}, "serial sub-dict created (empty) so defaults-backfill fills it"

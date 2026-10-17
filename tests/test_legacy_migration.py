@@ -215,9 +215,7 @@ def engine_with_term(tmp_path):
     for sub in ("plugin", "ss", "run"):
         (config_path.parent / sub).mkdir(exist_ok=True)
     writes: list[tuple[str, str | None]] = []
-    eng = ReplEngine(
-        cfg, str(config_path), lambda t, c=None: writes.append((t, c))
-    )
+    eng = ReplEngine(cfg, str(config_path), lambda t, c=None: writes.append((t, c)))
     # ReplEngine.__init__ already loads builtins; wire ctx.internal.dispatch
     # the way TerminalHost would, so legacy forwarders that delegate via
     # ctx.internal.dispatch reach the REPL pipeline instead of the no-op
@@ -269,14 +267,10 @@ class TestVerboseRuntimeForward:
 
         # Act -- two invocations.
         eng.dispatch("verbose on")
-        first_count = sum(
-            1 for t, _ in writes if "legacy" in t and "verbose" in t
-        )
+        first_count = sum(1 for t, _ in writes if "legacy" in t and "verbose" in t)
         writes.clear()
         eng.dispatch("verbose off")
-        second_count = sum(
-            1 for t, _ in writes if "legacy" in t and "verbose" in t
-        )
+        second_count = sum(1 for t, _ in writes if "legacy" in t and "verbose" in t)
 
         # Assert -- the warning fires once per session, not per call.
         assert first_count == 1, "first /verbose call warns"
@@ -328,9 +322,7 @@ class TestSimpleForwarderRuntime:
         # Assert -- the forwarded result carries the toggle's reported state,
         # proving the forward reached /term.line_endings and it ran.
         assert result.success, "/show_line_endings forwards successfully"
-        assert result.value == "on", (
-            "/show_line_endings on -> /term.line_endings reported 'on'"
-        )
+        assert result.value == "on", "/show_line_endings on -> /term.line_endings reported 'on'"
 
     def test_forwarder_emits_deprecation_note_once(self, engine_with_term):
         """Generic forwarders also warn once per session; a second /echo is silent."""
@@ -362,6 +354,8 @@ class TestSimpleForwarderRuntime:
         result = eng.dispatch("echo maybe")
 
         # Assert
-        assert (result.success, result.error) == (False, expected), "the target's failure is the answer"
+        assert (result.success, result.error) == (False, expected), (
+            "the target's failure is the answer"
+        )
         printed = [text for text, _ in writes if expected in text]
         assert len(printed) == 1, "printed once, by the forwarder's exit"

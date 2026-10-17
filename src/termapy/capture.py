@@ -343,9 +343,7 @@ class CaptureEngine:
             elapsed = self._total - remaining
             pct = min(100, int(elapsed / self._total * 100)) if self._total > 0 else 100
         else:
-            pct = (
-                min(100, int(self._bytes / self._total * 100)) if self._total > 0 else 0
-            )
+            pct = min(100, int(self._bytes / self._total * 100)) if self._total > 0 else 0
             remaining = 0.0
         return CaptureProgress(
             path_name=path_name,

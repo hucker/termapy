@@ -117,14 +117,16 @@ class TestCatalog:
         # Arrange -- seed an active profile with a types block.
         ns = host.ctx.ns("active_profile")
         ns.clear()
-        ns.update({
-            "profile_version": 2,
-            "types": {
-                "on_off": {"kind": "enum", "values": ["on", "off"]},
-                "percent": {"kind": "int_range", "min": 0, "max": 100},
-            },
-            "commands": {},
-        })
+        ns.update(
+            {
+                "profile_version": 2,
+                "types": {
+                    "on_off": {"kind": "enum", "values": ["on", "off"]},
+                    "percent": {"kind": "int_range", "min": 0, "max": 100},
+                },
+                "commands": {},
+            }
+        )
         # Act
         cat = build_catalog(host.ctx)
         # Assert
@@ -148,23 +150,26 @@ class TestCatalog:
         # Commit B: device commands now source from active_profile.commands.
         ns = host.ctx.ns("active_profile")
         ns.clear()
-        ns.update({
-            "profile_version": 2,
-            "types": {"on_off": {"kind": "enum", "values": ["on", "off"]}},
-            "commands": {
-                "SET": {
-                    "help": "Set state.",
-                    "typed_args": [
-                        {"name": "state", "type": "on_off", "required": True},
-                    ],
+        ns.update(
+            {
+                "profile_version": 2,
+                "types": {"on_off": {"kind": "enum", "values": ["on", "off"]}},
+                "commands": {
+                    "SET": {
+                        "help": "Set state.",
+                        "typed_args": [
+                            {"name": "state", "type": "on_off", "required": True},
+                        ],
+                    },
                 },
-            },
-        })
+            }
+        )
         # Act
         cat = build_catalog(host.ctx)
         # Assert
         set_entry = next(
-            device_command for device_command in cat["device_commands"]
+            device_command
+            for device_command in cat["device_commands"]
             if device_command["name"] == "SET"
         )
         ta = set_entry["typed_args"][0]
@@ -172,38 +177,37 @@ class TestCatalog:
         assert ta["type"] == "on_off", "type name preserved"
         info = ta.get("type_info") or {}
         assert info.get("kind") == "enum", "type_info carries kind"
-        assert info.get("values") == ["on", "off"], (
-            "type_info carries the contract inline"
-        )
+        assert info.get("values") == ["on", "off"], "type_info carries the contract inline"
 
     def test_device_typed_args_builtin_resolves_to_builtin(self, host):
         """A device arg typed with a builtin like str resolves to kind=builtin."""
         # Arrange -- typed_arg using a builtin gets a builtin-shaped type_info.
         ns = host.ctx.ns("active_profile")
         ns.clear()
-        ns.update({
-            "profile_version": 2,
-            "commands": {
-                "ECHO": {
-                    "help": "Echo.",
-                    "typed_args": [
-                        {"name": "msg", "type": "str", "required": True},
-                    ],
+        ns.update(
+            {
+                "profile_version": 2,
+                "commands": {
+                    "ECHO": {
+                        "help": "Echo.",
+                        "typed_args": [
+                            {"name": "msg", "type": "str", "required": True},
+                        ],
+                    },
                 },
-            },
-        })
+            }
+        )
         # Act
         cat = build_catalog(host.ctx)
         # Assert
         echo = next(
-            device_command for device_command in cat["device_commands"]
+            device_command
+            for device_command in cat["device_commands"]
             if device_command["name"] == "ECHO"
         )
         ta = echo["typed_args"][0]
         info = ta.get("type_info") or {}
-        assert info.get("kind") == "builtin", (
-            "builtin types resolve to kind=builtin in catalog"
-        )
+        assert info.get("kind") == "builtin", "builtin types resolve to kind=builtin in catalog"
 
     def test_catalog_filters_disabled_device_commands(self, host):
         """Device commands with enabled=false stay hidden from the agent until reviewed."""
@@ -211,24 +215,24 @@ class TestCatalog:
         # reads from active_profile.commands, not target_commands ns.
         ns = host.ctx.ns("active_profile")
         ns.clear()
-        ns.update({
-            "profile_version": 2,
-            "commands": {
-                "AT_OK": {"help": "enabled command", "enabled": True},
-                "AT_DRAFT": {
-                    "help": "draft command pending review",
-                    "enabled": False,
+        ns.update(
+            {
+                "profile_version": 2,
+                "commands": {
+                    "AT_OK": {"help": "enabled command", "enabled": True},
+                    "AT_DRAFT": {
+                        "help": "draft command pending review",
+                        "enabled": False,
+                    },
                 },
-            },
-        })
+            }
+        )
         # Act
         cat = build_catalog(host.ctx)
         names = {entry["name"] for entry in cat["device_commands"]}
         # Assert -- LLM sees the enabled one only; disabled hidden
         assert "AT_OK" in names, "enabled device command appears in catalog"
-        assert "AT_DRAFT" not in names, (
-            "disabled device command hidden from MCP catalog"
-        )
+        assert "AT_DRAFT" not in names, "disabled device command hidden from MCP catalog"
 
     def test_catalog_command_has_required_fields(self, host):
         """Each command entry carries the full field set an agent relies on."""
@@ -236,8 +240,7 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         sample = next(command for command in cat["commands"] if command["name"] == "/help")
         # Assert
-        for key in ("name", "args", "help", "long_help", "flags",
-                    "needs", "hidden", "source"):
+        for key in ("name", "args", "help", "long_help", "flags", "needs", "hidden", "source"):
             assert key in sample, f"command entry missing {key!r}"
 
     def test_catalog_json_parses_back(self, host):
@@ -273,9 +276,16 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         names = {command["name"] for command in cat["commands"]}
         # Assert -- sample of plugins that declare needs.interactive=True
-        for cmd in ("/cls", "/grep", "/exit", "/os",
-                    "/seq", "/credits",
-                    "/xfer.xmodem", "/xfer.ymodem"):
+        for cmd in (
+            "/cls",
+            "/grep",
+            "/exit",
+            "/os",
+            "/seq",
+            "/credits",
+            "/xfer.xmodem",
+            "/xfer.ymodem",
+        ):
             assert cmd not in names, (
                 f"{cmd} should be filtered (needs.interactive=True; "
                 f"MCP doesn't advertise interactive)"
@@ -287,12 +297,18 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         names = {command["name"] for command in cat["commands"]}
         # Assert -- sample of plugins that declare needs.gui_apps=True
-        for cmd in ("/edit", "/edit.cfg", "/show", "/show.cfg",
-                    "/cfg.show", "/cfg.explore", "/app.explore",
-                    "/run.edit"):
+        for cmd in (
+            "/edit",
+            "/edit.cfg",
+            "/show",
+            "/show.cfg",
+            "/cfg.show",
+            "/cfg.explore",
+            "/app.explore",
+            "/run.edit",
+        ):
             assert cmd not in names, (
-                f"{cmd} should be filtered (needs.gui_apps=True; "
-                f"MCP doesn't advertise gui_apps)"
+                f"{cmd} should be filtered (needs.gui_apps=True; MCP doesn't advertise gui_apps)"
             )
 
     def test_hidden_and_capability_filter_are_independent(self, host):
@@ -414,18 +430,14 @@ class TestRunCommandHappy:
         # capture path.
         result = asyncio.run(host.run_command_async("/help", "verbose", 5.0))
         # Assert
-        assert len(result["output_lines"]) > 0, (
-            "/help emits output captured by buffer"
-        )
+        assert len(result["output_lines"]) > 0, "/help emits output captured by buffer"
 
     def test_silent_produces_no_output_lines(self, host):
         """The silent level suppresses every output line from the response."""
         # Arrange / Act
         result = asyncio.run(host.run_command_async("/help", "silent", 5.0))
         # Assert
-        assert result["output_lines"] == [], (
-            "silent mode: ctx.write is no-op, buffer stays empty"
-        )
+        assert result["output_lines"] == [], "silent mode: ctx.write is no-op, buffer stays empty"
 
     def test_verbose_produces_more_than_normal(self, host):
         """Raising the level never loses lines: verbose yields at least normal's output."""
@@ -448,22 +460,16 @@ class TestRunCommandErrors:
     def test_unknown_command_returns_failure(self, host):
         """An unknown slash command fails in the envelope rather than raising."""
         # Arrange / Act
-        result = asyncio.run(
-            host.run_command_async("/notarealcmd", "normal", 5.0)
-        )
+        result = asyncio.run(host.run_command_async("/notarealcmd", "normal", 5.0))
         # Assert
         assert result["success"] is False, "unknown command fails"
-        assert "Unknown command" in result["error"], (
-            "error names the failure mode"
-        )
+        assert "Unknown command" in result["error"], "error names the failure mode"
 
     def test_serial_send_when_disconnected_fails(self, host):
         """A bare device line with no port falls through to send and fails as not connected."""
         # Arrange — host has no port; /term.send should fail gracefully
         # Act — bare line goes through fallthrough -> /term.send
-        result = asyncio.run(
-            host.run_command_async("AT+VER", "normal", 5.0)
-        )
+        result = asyncio.run(host.run_command_async("AT+VER", "normal", 5.0))
         # Assert
         assert result["success"] is False, "no port = no send"
         assert STATE_MESSAGES["serial_connected"] in result["error"], "error says disconnected"
@@ -501,6 +507,7 @@ class TestRunCommandErrors:
         ticks to fail a live loop (3 ticks in 0.40 s, needing 4).  A longer
         window makes the steady state dominate the sample.
         """
+
         async def scenario():
             ticks = 0
 
@@ -538,8 +545,15 @@ class TestRunCommandErrors:
 # (not subset) so an accidentally re-added special case -- the old
 # "self-describing value skips the outer wrap" duality -- fails loudly.
 ENVELOPE_KEYS = {
-    "cmd", "success", "error", "value", "data", "elapsed_s",
-    "output_lines", "captured_artifacts", "async_events",
+    "cmd",
+    "success",
+    "error",
+    "value",
+    "data",
+    "elapsed_s",
+    "output_lines",
+    "captured_artifacts",
+    "async_events",
 }
 
 
@@ -579,8 +593,7 @@ class TestUnifiedEnvelope:
         result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
         # Assert
         assert result["data"] is None, (
-            "no structured form -> data is null, information stays in "
-            "value/output_lines"
+            "no structured form -> data is null, information stays in value/output_lines"
         )
 
     def test_var_returns_namespace_snapshot_in_data(self, host):
@@ -594,13 +607,9 @@ class TestUnifiedEnvelope:
         assert isinstance(data, dict), "structured listing, not prose"
         actual_namespaces = set(data.keys())
         expected_namespaces = {"user", "launch", "datetime", "context"}
-        assert actual_namespaces == expected_namespaces, (
-            "one sub-dict per variable namespace"
-        )
+        assert actual_namespaces == expected_namespaces, "one sub-dict per variable namespace"
         assert data["user"] == {"PORT": "COM9"}, "set variable visible in data"
-        assert data["launch"]["FRONT_END"] == "mcp", (
-            "launch namespace resolved into data"
-        )
+        assert data["launch"]["FRONT_END"] == "mcp", "launch namespace resolved into data"
 
     def test_mcp_info_returns_its_record_as_data_at_normal_level(self, host):
         """/mcp.info reaches an MCP client as one record of real values, pid first, and no rows of display text beside it."""
@@ -611,9 +620,13 @@ class TestUnifiedEnvelope:
         data = result["data"]
         actual_pid = data["pid"]
         expected_pid = os.getpid()
-        assert actual_pid == expected_pid, "the pid is this server's own process, to find in tasklist / ps"
+        assert actual_pid == expected_pid, (
+            "the pid is this server's own process, to find in tasklist / ps"
+        )
         assert next(iter(data)) == "pid", "pid leads the record"
-        assert (data["connected"], data["commands"] > 0) == (False, True), "real types, not display strings"
+        assert (data["connected"], data["commands"] > 0) == (False, True), (
+            "real types, not display strings"
+        )
         assert result["value"] == str(data["commands"]), "value stays the command count"
         assert result["output_lines"] == [], "the facts ride once, as data"
 
@@ -643,9 +656,7 @@ class TestUnifiedEnvelope:
         assert isinstance(data, list), "one record per port"
         actual_devices = [record["device"] for record in data]
         assert "COM3" in actual_devices, "demo fleet port surfaced as a record"
-        assert result["output_lines"] == [], (
-            "table prose skipped for the structured consumer"
-        )
+        assert result["output_lines"] == [], "table prose skipped for the structured consumer"
         first = data[0]
         assert "vid" in first and "serial_number" in first, (
             "records carry the fixed facts_to_json_record schema"
@@ -664,9 +675,7 @@ class TestCaptureArtifacts:
         # Arrange / Act
         result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
         # Assert
-        assert result["captured_artifacts"] == [], (
-            "/help doesn't write to cap_dir"
-        )
+        assert result["captured_artifacts"] == [], "/help doesn't write to cap_dir"
 
     def test_artifact_appears_after_capture_command(self, host):
         """A file new to cap_dir is reported with name, URI, size and recency fields."""
@@ -716,7 +725,9 @@ class TestOutputBufferLevels:
 
         # Arrange / Act -- /var.set echoes its row as markup even under MCP's wants_data
         try:
-            result = asyncio.run(host.run_command_async("/var.set MARKUP_TAG [ok] boot", "verbose", 5.0))
+            result = asyncio.run(
+                host.run_command_async("/var.set MARKUP_TAG [ok] boot", "verbose", 5.0)
+            )
         finally:
             unset_user_var("MARKUP_TAG")  # user variables are process-global
 
@@ -764,9 +775,7 @@ class TestAsyncEventsDelivery:
         # call to trigger delivery.  /help is the safest no-side-effects.
         result = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
         # Assert
-        assert "async_events" in result, (
-            "async_events present in any run_command shape"
-        )
+        assert "async_events" in result, "async_events present in any run_command shape"
 
     def test_pending_event_delivered_on_next_call(self, host):
         """Lines recorded between calls arrive, in order, on the next response."""
@@ -778,9 +787,7 @@ class TestAsyncEventsDelivery:
         # Assert -- async events are dicts with ``line``/``source``/``at``.
         actual_lines = [async_event["line"] for async_event in result["async_events"]]
         expected_lines = ["<START-UP>", "  banner line"]
-        assert actual_lines == expected_lines, (
-            "pending async events delivered in next response"
-        )
+        assert actual_lines == expected_lines, "pending async events delivered in next response"
 
     def test_async_events_cleared_after_delivery(self, host):
         """An async event is delivered exactly once; the following call sees none."""
@@ -792,9 +799,7 @@ class TestAsyncEventsDelivery:
         # Assert -- deliver-exactly-once: first call carried the event,
         # second call sees an empty list.
         first_lines = [async_event["line"] for async_event in first["async_events"]]
-        assert first_lines == ["first_event"], (
-            "first call carries the recorded event"
-        )
+        assert first_lines == ["first_event"], "first call carries the recorded event"
         assert second["async_events"] == [], (
             "second call's async_events is empty (deliver-exactly-once)"
         )
@@ -897,7 +902,8 @@ class TestColorStripping:
         )
         assert host._log_path is not None, "the fixture's cfg gives the host a log"
         logged = [
-            line for line in host._log_path.read_text(encoding="utf-8").splitlines()
+            line
+            for line in host._log_path.read_text(encoding="utf-8").splitlines()
             if line.startswith("< ")
         ]
         assert logged == ["< first", "< second", "< third"], "every line logged, in order"
@@ -913,17 +919,13 @@ class TestColorStripping:
 
         # Assert
         event_lines = [event["line"] for event in host._async_events]
-        assert event_lines == ["ERR: bad"], (
-            "device ANSI stripped from async_events when color off"
-        )
+        assert event_lines == ["ERR: bad"], "device ANSI stripped from async_events when color off"
 
     def test_on_lines_feeds_an_active_text_capture(self, host, tmp_path):
         """rx-every-line-delivered: lines read while a text capture runs over MCP reach its file, plain."""
         # Arrange
         cap_path = tmp_path / "mcp_capture.txt"
-        started = host.capture.start(
-            path=cap_path, file_mode="w", mode="text", duration=60.0
-        )
+        started = host.capture.start(path=cap_path, file_mode="w", mode="text", duration=60.0)
         assert started is True, "the text capture starts"
 
         # Act
@@ -934,8 +936,7 @@ class TestColorStripping:
         actual = cap_path.read_text(encoding="utf-8").splitlines()
         expected = ["green", "plain line"]
         assert actual == expected, (
-            "this host fed only the expect watcher, so /cap.text over MCP "
-            "recorded nothing"
+            "this host fed only the expect watcher, so /cap.text over MCP recorded nothing"
         )
 
     def test_on_hex_records_rows_and_feeds_the_lines(self, host):
@@ -1008,9 +1009,7 @@ class TestLogCommandsAvailableInMCP:
         # Assert
         assert plugin is not None, "log.dump registered as a builtin in MCP host"
         missing = list(plugin.needs.missing_from(attainable(host.ctx.capabilities)))
-        assert missing == [], (
-            f"log.dump satisfied by MCP capabilities (missing={missing})"
-        )
+        assert missing == [], f"log.dump satisfied by MCP capabilities (missing={missing})"
 
     def test_log_fingerprint_registered_and_mcp_callable(self, host):
         """/log.fingerprint is a builtin whose needs MCP fully satisfies."""
@@ -1022,9 +1021,7 @@ class TestLogCommandsAvailableInMCP:
         # Assert
         assert plugin is not None, "log.fingerprint registered as a builtin in MCP host"
         missing = list(plugin.needs.missing_from(attainable(host.ctx.capabilities)))
-        assert missing == [], (
-            f"log.fingerprint satisfied by MCP capabilities (missing={missing})"
-        )
+        assert missing == [], f"log.fingerprint satisfied by MCP capabilities (missing={missing})"
 
     def test_log_show_registered_but_gated_on_gui_apps(self, host):
         """/log.show is registered but stays unavailable to MCP for lack of gui_apps."""
@@ -1055,9 +1052,7 @@ class TestRunCommandsAvailableInMCP:
         # Assert
         assert plugin is not None, "/run registered in MCP host"
         missing = list(plugin.needs.missing_from(host.ctx.capabilities))
-        assert missing == [], (
-            f"/run is callable from MCP (missing={missing})"
-        )
+        assert missing == [], f"/run is callable from MCP (missing={missing})"
 
     def test_run_bare_lists_the_scripts(self, host):
         """bare-declared: bare /run with no picker in MCP runs /run.list, so an agent gets the scripts, not a usage error."""
@@ -1078,9 +1073,7 @@ class TestRunCommandsAvailableInMCP:
 
             # Assert
             assert plugin is not None, f"{name} registered in MCP host"
-            assert missing == [], (
-                f"{name} callable from MCP (missing={missing})"
-            )
+            assert missing == [], f"{name} callable from MCP (missing={missing})"
 
     def test_run_show_and_explore_gated_on_gui_apps(self, host):
         """run.show and run.explore stay gated on gui_apps in the headless MCP host."""
@@ -1091,9 +1084,7 @@ class TestRunCommandsAvailableInMCP:
 
             # Assert
             assert plugin is not None, f"{name} registered in MCP host"
-            assert "gui_apps" in missing, (
-                f"{name} stays gated on gui_apps -- MCP is headless"
-            )
+            assert "gui_apps" in missing, f"{name} stays gated on gui_apps -- MCP is headless"
 
 
 # ── device_state resource ───────────────────────────────────────────────────
@@ -1154,11 +1145,7 @@ class TestDeviceStateResource:
         from termapy.mcp.catalog import build_device_state
 
         # /expect with no port and no match data; will time out fast.
-        asyncio.run(
-            host.run_command_async(
-                "/expect timeout=50ms match=NEVER", "normal", 5.0
-            )
-        )
+        asyncio.run(host.run_command_async("/expect timeout=50ms match=NEVER", "normal", 5.0))
         state = build_device_state(
             host.ctx,
             expect_history=host._expect_history,
@@ -1253,9 +1240,7 @@ class TestBareSlotCaptureExposure:
     def test_active_cap_dir_is_none_without_cfg(self, bare_host):
         """A host with no cfg has no captures directory, not a fallback to CWD."""
         # Act / Assert
-        assert bare_host._active_cap_dir() is None, (
-            "bare slot has no captures directory"
-        )
+        assert bare_host._active_cap_dir() is None, "bare slot has no captures directory"
 
     def test_active_cap_dir_is_set_with_cfg(self, host):
         """A loaded cfg yields a captures directory equal to ctx.fs.cap_dir."""
@@ -1271,9 +1256,7 @@ class TestBareSlotCaptureExposure:
         from termapy.mcp.catalog import build_device_state
 
         # Act
-        state = build_device_state(
-            bare_host.ctx, captures_dir=bare_host._active_cap_dir()
-        )
+        state = build_device_state(bare_host.ctx, captures_dir=bare_host._active_cap_dir())
         # Assert -- the CWD secrets must NOT appear.
         assert state["captures"] == [], (
             "bare slot lists no capture artifacts (would leak CWD otherwise)"
@@ -1308,9 +1291,7 @@ class TestBareSlotCaptureExposure:
         cap_dir.mkdir(parents=True, exist_ok=True)
         (cap_dir / "adc_000.csv").write_text("1,2,3", encoding="utf-8")
         # Act -- same call shape as the resource, with a loaded cfg.
-        state = build_device_state(
-            host.ctx, captures_dir=host._active_cap_dir()
-        )
+        state = build_device_state(host.ctx, captures_dir=host._active_cap_dir())
         # Assert
         names = {capture["name"] for capture in state["captures"]}
         assert "adc_000.csv" in names, "loaded cfg still lists its captures"

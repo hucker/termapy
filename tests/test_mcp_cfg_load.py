@@ -87,8 +87,9 @@ class TestMcpCfgLoad:
 
         # Assert
         assert not result.success, "unknown name returns failure"
-        assert "No config matching" in result.error, \
+        assert "No config matching" in result.error, (
             f"error message names the missing cfg, got: {result.error}"
+        )
 
     def test_load_via_dispatch_works(self, host, two_cfgs):
         """/cfg.load through REPL dispatch, as an MCP call sends it, updates the host."""
@@ -100,8 +101,7 @@ class TestMcpCfgLoad:
 
         # Assert
         assert result.success, f"dispatch should succeed, got: {result.error}"
-        assert host.config_path == str(cfg_b), \
-            "dispatched /cfg.load actually updated host state"
+        assert host.config_path == str(cfg_b), "dispatched /cfg.load actually updated host state"
 
     def test_load_fires_on_config_load_hook(self, host, two_cfgs):
         """A load fires the on_config_load lifecycle hook exactly once."""
@@ -182,26 +182,24 @@ class TestZeroConfigMcpHost:
         actual_log = zero_host._log_path
         expected_parent = tmp_path / "alpha" / "mcp"
         assert actual_log is not None, "log path now set"
-        assert actual_log.parent == expected_parent, \
+        assert actual_log.parent == expected_parent, (
             f"log lives under cfg's mcp/, got: {actual_log}"
+        )
 
     def test_switch_re_routes_log(self, zero_host, tmp_path):
         """Switching configs moves the log to the new cfg, away from the old one."""
         # Arrange - load alpha first
         zero_host._load_config("alpha")
         first_log = zero_host._log_path
-        assert first_log is not None and "alpha" in str(first_log), \
-            "alpha log path"
+        assert first_log is not None and "alpha" in str(first_log), "alpha log path"
 
         # Act - switch to beta
         zero_host._load_config("beta")
 
         # Assert
         actual_log = zero_host._log_path
-        assert "beta" in str(actual_log), \
-            f"log re-routed to beta cfg, got: {actual_log}"
-        assert "alpha" not in str(actual_log), \
-            "old alpha log path cleared"
+        assert "beta" in str(actual_log), f"log re-routed to beta cfg, got: {actual_log}"
+        assert "alpha" not in str(actual_log), "old alpha log path cleared"
 
 
 class TestCfgLoadIdentity:
@@ -224,8 +222,9 @@ class TestCfgLoadIdentity:
         host._load_config("beta")
 
         # Assert -- identity, not equality: the fixed invariant
-        assert host.cfg is host.repl._cfg_data, \
+        assert host.cfg is host.repl._cfg_data, (
             "host.cfg rebinds to the engine's dict, not the transient load"
+        )
 
     def test_session_set_visible_to_cfg_query_after_load(self, host):
         """A /cfg.auto set after a load reads back through /cfg, not a stale value."""
@@ -233,17 +232,14 @@ class TestCfgLoadIdentity:
         host._load_config("beta")
 
         # Act -- the user-facing sequence: /cfg.auto then /cfg <key>
-        set_result = host.repl.dispatch(
-            "cfg.auto default_response_timeout_ms 5000"
-        )
+        set_result = host.repl.dispatch("cfg.auto default_response_timeout_ms 5000")
         query = host.repl.dispatch("cfg default_response_timeout_ms")
 
         # Assert
         assert set_result.success, f"set failed: {set_result.error}"
         actual = query.value
         expected = "5000"
-        assert actual == expected, \
-            "session set is visible through the ctx.cfg read path"
+        assert actual == expected, "session set is visible through the ctx.cfg read path"
 
 
 class TestCfgLoadFiresOnConnected:

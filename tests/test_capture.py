@@ -50,7 +50,10 @@ class TestLifecycle:
 
         # Act
         result = engine.start(
-            path=path, file_mode="wb", mode="bin", target_bytes=100,
+            path=path,
+            file_mode="wb",
+            mode="bin",
+            target_bytes=100,
         )
 
         # Assert
@@ -280,6 +283,7 @@ class TestBinaryFormatCapture:
     def _make_columns(self):
         """Create a simple format spec: two unsigned 16-bit big-endian columns."""
         from termapy.protocol import parse_format_spec
+
         return parse_format_spec("A:U1-2 B:U3-4")
 
     def test_format_spec_csv(self, tmp_path):
@@ -289,8 +293,13 @@ class TestBinaryFormatCapture:
         engine = CaptureEngine()
         path = tmp_path / "out.csv"
         engine.start(
-            path=path, file_mode="w", mode="bin", target_bytes=8,
-            columns=columns, record_size=4, sep=",",
+            path=path,
+            file_mode="w",
+            mode="bin",
+            target_bytes=8,
+            columns=columns,
+            record_size=4,
+            sep=",",
         )
 
         # Act - two 4-byte records
@@ -312,8 +321,13 @@ class TestBinaryFormatCapture:
         engine = CaptureEngine()
         path = tmp_path / "out.tsv"
         engine.start(
-            path=path, file_mode="w", mode="bin", target_bytes=4,
-            columns=columns, record_size=4, sep="\t",
+            path=path,
+            file_mode="w",
+            mode="bin",
+            target_bytes=4,
+            columns=columns,
+            record_size=4,
+            sep="\t",
         )
 
         # Act
@@ -334,8 +348,13 @@ class TestBinaryFormatCapture:
         engine = CaptureEngine(on_echo=echoed.append)
         path = tmp_path / "out.csv"
         engine.start(
-            path=path, file_mode="w", mode="bin", target_bytes=4,
-            columns=columns, record_size=4, echo=True,
+            path=path,
+            file_mode="w",
+            mode="bin",
+            target_bytes=4,
+            columns=columns,
+            record_size=4,
+            echo=True,
         )
 
         # Act
@@ -358,7 +377,11 @@ class TestHexCapture:
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
         engine.start(
-            path=path, file_mode="wb", mode="bin", target_bytes=3, hex_mode=True,
+            path=path,
+            file_mode="wb",
+            mode="bin",
+            target_bytes=3,
+            hex_mode=True,
         )
 
         # Act - feed hex-encoded text lines
@@ -375,7 +398,11 @@ class TestHexCapture:
         engine = CaptureEngine()
         path = tmp_path / "out.bin"
         engine.start(
-            path=path, file_mode="wb", mode="bin", target_bytes=3, hex_mode=True,
+            path=path,
+            file_mode="wb",
+            mode="bin",
+            target_bytes=3,
+            hex_mode=True,
         )
 
         # Act - partial line, then rest
@@ -437,7 +464,9 @@ class TestHexCapture:
         """Hex mode refuses a stream that never sends a newline instead of buffering it without bound."""
         # Arrange
         engine = CaptureEngine()
-        engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0, hex_mode=True)
+        engine.start(
+            path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0, hex_mode=True
+        )
 
         # Act
         actual_stop = engine.feed_bytes(b"0" * 5000)
@@ -449,15 +478,18 @@ class TestHexCapture:
 
 
 class TestFormattedHeaderAfterPadding:
-
     def test_header_written_when_the_first_column_is_padding(self, tmp_path):
         """Pad:_1 Temp:U2 writes the Temp header; pairing the padding-free headers with every column used to drop it."""
         # Arrange
         engine = CaptureEngine()
         path = tmp_path / "out.csv"
         engine.start(
-            path=path, file_mode="w", mode="bin", target_bytes=4,
-            columns=parse_format_spec("Pad:_1 Temp:U2"), record_size=2,
+            path=path,
+            file_mode="w",
+            mode="bin",
+            target_bytes=4,
+            columns=parse_format_spec("Pad:_1 Temp:U2"),
+            record_size=2,
         )
 
         # Act
@@ -556,9 +588,7 @@ class TestFormatCaptureResult:
     def test_aborted_is_red(self):
         """A result with an error reads as aborted, shows the error not the size, in red."""
         # Arrange -- a non-empty error marks an aborted capture
-        result = CaptureResult(
-            path=Path("out.csv"), byte_count=10, raw=False, error="disk full"
-        )
+        result = CaptureResult(path=Path("out.csv"), byte_count=10, raw=False, error="disk full")
 
         # Act
         text, color = format_capture_result(result)
@@ -684,8 +714,12 @@ class TestFormattedFlushKeepsPartialRecord:
         columns = parse_format_spec("A:U1 B:U2 C:U3")
         target = 2000 * self.RECORD
         engine.start(
-            path=path, file_mode="w", mode="bin", columns=columns,
-            record_size=self.RECORD, target_bytes=target,
+            path=path,
+            file_mode="w",
+            mode="bin",
+            columns=columns,
+            record_size=self.RECORD,
+            target_bytes=target,
         )
         data = self._records(2100)
 
@@ -895,4 +929,6 @@ class TestStopSerializesWithTheReaderFlush:
         stopper.join(5)
 
         # Assert
-        assert path.read_bytes() == b"\x01" * 4096, "one block, written once (two flushes wrote it twice)"
+        assert path.read_bytes() == b"\x01" * 4096, (
+            "one block, written once (two flushes wrote it twice)"
+        )

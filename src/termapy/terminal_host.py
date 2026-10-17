@@ -70,10 +70,7 @@ def _format_resolved_line(spec: str, actual: str) -> str:
         reason_label = "match"
 
     if "|" in spec and winning_candidate is not None:
-        return (
-            f"Resolved {spec} -> {actual} "
-            f"({reason_label} matched {winning_candidate})"
-        )
+        return f"Resolved {spec} -> {actual} ({reason_label} matched {winning_candidate})"
     if winning_reason is not None:
         return f"Resolved {spec} -> {actual} ({reason_label} match)"
     return f"Resolved {spec} -> {actual}"
@@ -89,6 +86,7 @@ def _is_recording() -> bool:
     dispatch.
     """
     from termapy.builtins.commands import _run_record
+
     return _run_record.is_active()
 
 
@@ -151,7 +149,10 @@ class TerminalHost:
         raise NotImplementedError
 
     def _run_script(
-        self, path: Path, profile: bool = False, verbose: bool = False,
+        self,
+        path: Path,
+        profile: bool = False,
+        verbose: bool = False,
     ) -> None:
         """Run a .run script through the REPL engine (default: synchronous).
 
@@ -366,8 +367,8 @@ class TerminalHost:
             # synchronous TerminalHost._run_script, TUI overrides with
             # @work(thread=True).
             start_script=lambda args: self.repl.start_script(args),
-            run_script=lambda path, profile=False, verbose=False: (
-                self._run_script(path, profile=profile, verbose=verbose)
+            run_script=lambda path, profile=False, verbose=False: self._run_script(
+                path, profile=profile, verbose=verbose
             ),
             # Which file this frontend's session log is: one owner, the
             # host's session_log_path (registry session-log-one-owner).
@@ -379,9 +380,7 @@ class TerminalHost:
             # registers via add_post_dispatch_observer; future audit-log /
             # repeat-last / event-stream features will use the same hook.
             add_post_dispatch_observer=self.repl.add_post_dispatch_observer,
-            remove_post_dispatch_observer=(
-                self.repl.remove_post_dispatch_observer
-            ),
+            remove_post_dispatch_observer=(self.repl.remove_post_dispatch_observer),
             # ``is_recording`` reaches into the recorder builtin's
             # module state.  Imported lazily inside the callable so the
             # host has no static dependency on a specific plugin (and
@@ -423,8 +422,8 @@ class TerminalHost:
             send=self._serial_send,
             read_raw=self._serial_read_raw,
             drain=self._drain_rx_queue,
-            wait_idle=lambda timeout_ms=100, max_wait_s=3.0: (
-                self._wait_for_idle(timeout_ms, max_wait_s)
+            wait_idle=lambda timeout_ms=100, max_wait_s=3.0: self._wait_for_idle(
+                timeout_ms, max_wait_s
             ),
             rx_queue=self.engine.rx_queue,
             claim=lambda: setattr(self.engine, "serial_claimed", True),
@@ -818,9 +817,7 @@ class TerminalHost:
         # ignored because the subsequent ``webbrowser.open`` will surface
         # any real failure to the user directly.
         try:
-            with urllib.request.urlopen(
-                f"http://127.0.0.1:{port}/", timeout=2
-            ):
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2):
                 pass
         except (urllib.error.URLError, OSError):
             pass
@@ -844,8 +841,7 @@ class TerminalHost:
             page = f"{topic}.html"
         if not (html_dir / page).exists():
             topics = sorted(
-                path.stem for path in html_dir.glob("*.html")
-                if path.stem not in ("index", "404")
+                path.stem for path in html_dir.glob("*.html") if path.stem not in ("index", "404")
             )
             return CmdResult.fail(
                 msg=f"Unknown help topic: {topic} (use one of: {', '.join(topics)})"
@@ -885,4 +881,3 @@ class TerminalHost:
         A host that keeps the file open (the TUI) closes it here; the
         default holds nothing open.
         """
-

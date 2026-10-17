@@ -60,9 +60,7 @@ def host(tmp_path, monkeypatch):
 
     # Force is_connected=True on the engine.  The property lives on
     # the class; patch at the class level for this test only.
-    monkeypatch.setattr(
-        type(h.engine), "is_connected", property(lambda _self: True)
-    )
+    monkeypatch.setattr(type(h.engine), "is_connected", property(lambda _self: True))
 
     # Capture outbound bytes; suppress the real port write (there is no port).
     sent: list[bytes] = []
@@ -135,12 +133,17 @@ class TestLiteralFormat:
     def test_returns_matched_when_response_equals_pattern(self, host):
         """A literal match returns the text, and the wire bytes use the cfg line ending."""
         # Arrange
-        _load_profile(host, _profile_with({
-            "AT": {
-                "help": "Connectivity test.",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT": {
+                        "help": "Connectivity test.",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["OK"])
         # Act
         result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
@@ -154,12 +157,17 @@ class TestLiteralFormat:
     def test_returns_failure_when_response_differs(self, host):
         """A reply that differs from the literal pattern fails with a mismatch error."""
         # Arrange
-        _load_profile(host, _profile_with({
-            "AT": {
-                "help": "Connectivity test.",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT": {
+                        "help": "Connectivity test.",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["NOPE"])
         # Act
         result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
@@ -172,17 +180,22 @@ class TestRegexFormat:
     def test_named_groups_with_type_coercion(self, host):
         """Named groups are coerced to their types in data; value keeps the raw reply."""
         # Arrange
-        _load_profile(host, _profile_with({
-            "AT+TEMP": {
-                "help": "Read temperature.",
-                "response": {
-                    "format": "regex",
-                    "pattern": r"(?P<celsius>-?\d+\.\d+)C",
-                    "types": {"celsius": "float"},
-                    "timeout_ms": 200,
-                },
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT+TEMP": {
+                        "help": "Read temperature.",
+                        "response": {
+                            "format": "regex",
+                            "pattern": r"(?P<celsius>-?\d+\.\d+)C",
+                            "types": {"celsius": "float"},
+                            "timeout_ms": 200,
+                        },
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["23.4C"])
         # Act
         result = asyncio.run(host.run_command_async("AT+TEMP", "normal", 5.0))
@@ -196,17 +209,22 @@ class TestRegexFormat:
     def test_regex_no_match_fails_with_raw(self, host):
         """A regex miss fails but keeps the raw reply in value and leaves data None."""
         # Arrange
-        _load_profile(host, _profile_with({
-            "AT+TEMP": {
-                "help": "Read temperature.",
-                "response": {
-                    "format": "regex",
-                    "pattern": r"(?P<celsius>-?\d+\.\d+)C",
-                    "types": {"celsius": "float"},
-                    "timeout_ms": 200,
-                },
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT+TEMP": {
+                        "help": "Read temperature.",
+                        "response": {
+                            "format": "regex",
+                            "pattern": r"(?P<celsius>-?\d+\.\d+)C",
+                            "types": {"celsius": "float"},
+                            "timeout_ms": 200,
+                        },
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["bogus"])
         # Act
         result = asyncio.run(host.run_command_async("AT+TEMP", "normal", 5.0))
@@ -220,16 +238,21 @@ class TestLinesFormat:
     def test_collects_until_terminator(self, host):
         """Lines collect up to the terminator; it and anything after are excluded."""
         # Arrange — multi-line reply ending with OK terminator
-        _load_profile(host, _profile_with({
-            "AT+INFO": {
-                "help": "Multi-line info.",
-                "response": {
-                    "format": "lines",
-                    "terminator": "^OK$",
-                    "timeout_ms": 200,
-                },
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT+INFO": {
+                        "help": "Multi-line info.",
+                        "response": {
+                            "format": "lines",
+                            "terminator": "^OK$",
+                            "timeout_ms": 200,
+                        },
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["model=DEMO", "version=1.0", "OK", "stale_after_ok"])
         # Act
         result = asyncio.run(host.run_command_async("AT+INFO", "normal", 5.0))
@@ -245,12 +268,17 @@ class TestTextFormat:
         """format=text returns the reply lines newline-joined, with no parsing."""
         # Arrange -- format=text: unstructured human-oriented output,
         # no pattern needed.  Value is the newline-joined response.
-        _load_profile(host, _profile_with({
-            "HELP": {
-                "help": "Help screen.",
-                "response": {"format": "text", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "HELP": {
+                        "help": "Help screen.",
+                        "response": {"format": "text", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["Commands:", "  rev  Show revision"])
         # Act
         result = asyncio.run(host.run_command_async("HELP", "normal", 5.0))
@@ -265,12 +293,17 @@ class TestTextFormat:
         # Arrange -- compatibility policy: a format name from a newer
         # spec revision degrades to text on this host instead of
         # failing, so the data stays usable.
-        _load_profile(host, _profile_with({
-            "STATUS": {
-                "help": "Status.",
-                "response": {"format": "tabular_v3", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "STATUS": {
+                        "help": "Status.",
+                        "response": {"format": "tabular_v3", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["all good"])
         # Act
         result = asyncio.run(host.run_command_async("STATUS", "normal", 5.0))
@@ -284,13 +317,18 @@ class TestUnknownSafetyTier:
         """An unrecognized safety tier gates like destructive and sends nothing."""
         # Arrange -- fail-safe degrade: a tier this host doesn't know
         # (e.g. a future stronger-than-destructive level) must gate.
-        _load_profile(host, _profile_with({
-            "SPIN": {
-                "help": "Spin the motor.",
-                "safety": "hazardous",
-                "response": {"format": "none", "timeout_ms": 0},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "SPIN": {
+                        "help": "Spin the motor.",
+                        "safety": "hazardous",
+                        "response": {"format": "none", "timeout_ms": 0},
+                    },
+                }
+            ),
+        )
         # Act
         result = asyncio.run(host.run_command_async("SPIN", "normal", 5.0))
         # Assert
@@ -298,26 +336,27 @@ class TestUnknownSafetyTier:
         assert result["success"] is False, "unknown tier gates like destructive"
         assert value["needs_confirmation"] is True, "confirmation marker set"
         assert value["safety"] == "hazardous", "raw declared tier surfaced"
-        assert "unrecognized" in result["error"], (
-            "error explains the tier was unrecognized"
-        )
+        assert "unrecognized" in result["error"], "error explains the tier was unrecognized"
         assert host._sent == [], "no bytes hit the wire"
 
     def test_unknown_tier_runs_with_confirm(self, host):
         """Once confirmed, an unknown-tier command goes out like a confirmed destructive."""
         # Arrange -- after the human approves, the command proceeds
         # exactly like a confirmed destructive one.
-        _load_profile(host, _profile_with({
-            "SPIN": {
-                "help": "Spin the motor.",
-                "safety": "hazardous",
-                "response": {"format": "none", "timeout_ms": 0},
-            },
-        }))
-        # Act
-        result = asyncio.run(
-            host.run_command_async("SPIN", "normal", 5.0, confirm=True)
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "SPIN": {
+                        "help": "Spin the motor.",
+                        "safety": "hazardous",
+                        "response": {"format": "none", "timeout_ms": 0},
+                    },
+                }
+            ),
         )
+        # Act
+        result = asyncio.run(host.run_command_async("SPIN", "normal", 5.0, confirm=True))
         # Assert
         assert result["success"] is True, "confirm=true releases the gate"
         assert host._sent == [b"SPIN\r\n"], "bytes went out after approval"
@@ -327,12 +366,17 @@ class TestJsonFormat:
     def test_returns_parsed_object(self, host):
         """A JSON reply is parsed into data, while value keeps the raw wire text."""
         # Arrange
-        _load_profile(host, _profile_with({
-            "GET_VOLT": {
-                "help": "Voltage reading (JSON).",
-                "response": {"format": "json", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "GET_VOLT": {
+                        "help": "Voltage reading (JSON).",
+                        "response": {"format": "json", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ['{"voltage": 1.2, "unit": "V"}'])
         # Act
         result = asyncio.run(host.run_command_async("GET_VOLT", "normal", 5.0))
@@ -341,9 +385,7 @@ class TestJsonFormat:
         expected = {"voltage": 1.2, "unit": "V"}
         assert result["success"] is True, "json parse succeeds"
         assert actual == expected, "json parsed into data as a dict"
-        assert result["value"] == '{"voltage": 1.2, "unit": "V"}', (
-            "raw response text kept in value"
-        )
+        assert result["value"] == '{"voltage": 1.2, "unit": "V"}', "raw response text kept in value"
 
 
 class TestNoneFormat:
@@ -351,12 +393,17 @@ class TestNoneFormat:
         """format=none succeeds on silence with a sent marker in data."""
         # Arrange — no reply scheduled; format=none waits briefly to
         # verify silence and then succeeds when nothing arrives.
-        _load_profile(host, _profile_with({
-            "RESET": {
-                "help": "Reset; no reply.",
-                "response": {"format": "none"},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "RESET": {
+                        "help": "Reset; no reply.",
+                        "response": {"format": "none"},
+                    },
+                }
+            ),
+        )
         # Act
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
         # Assert -- the sent marker is structure, so it lives in data; the
@@ -370,66 +417,71 @@ class TestNoneFormat:
         """A reply to a no-reply command fails and surfaces the stray output."""
         # Arrange -- profile says no reply, but the device sends one.
         # This is the misconfiguration we want to surface.
-        _load_profile(host, _profile_with({
-            "RESET": {
-                "help": "Reset; no reply.",
-                "response": {"format": "none", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "RESET": {
+                        "help": "Reset; no reply.",
+                        "response": {"format": "none", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["OOPS unexpected"])
         # Act
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
         # Assert
         assert result["success"] is False, "contract violation fails"
-        assert "Expected no response" in result["error"], (
-            "error names the violated contract"
-        )
+        assert "Expected no response" in result["error"], "error names the violated contract"
         assert "OOPS unexpected" in result["data"]["unexpected_output"], (
             "rejected output surfaced structurally for the LLM"
         )
-        assert "OOPS unexpected" in result["value"], (
-            "rejected output also readable as the scalar"
-        )
+        assert "OOPS unexpected" in result["value"], "rejected output also readable as the scalar"
 
     def test_timeout_zero_opts_out_of_silence_check(self, host):
         """timeout_ms=0 skips the silence check, so a later reply is ignored."""
         # Arrange -- explicit timeout_ms: 0 disables the wait, restoring
         # true fire-and-forget for authors who want it.
-        _load_profile(host, _profile_with({
-            "RESET": {
-                "help": "Hard fire-and-forget.",
-                "response": {"format": "none", "timeout_ms": 0},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "RESET": {
+                        "help": "Hard fire-and-forget.",
+                        "response": {"format": "none", "timeout_ms": 0},
+                    },
+                }
+            ),
+        )
         # Schedule a reply -- it should be IGNORED because we don't wait.
         _reply_after_send(host, ["this should not be checked"])
         # Act
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
         # Assert -- success even though the device emits something.
-        assert result["success"] is True, (
-            "timeout_ms=0 opts out of the silence verification"
-        )
-        assert result["data"] == {"sent": True}, (
-            "sent-marker still returned, in data"
-        )
+        assert result["success"] is True, "timeout_ms=0 opts out of the silence verification"
+        assert result["data"] == {"sent": True}, "sent-marker still returned, in data"
 
     def test_whitespace_only_reply_does_not_fail(self, host):
         """Blank or whitespace-only lines don't count as a reply under format=none."""
         # Arrange -- some devices emit a bare newline as idle artifact.
         # That shouldn't break a format=none contract.
-        _load_profile(host, _profile_with({
-            "RESET": {
-                "help": "Reset; bare newline tolerated.",
-                "response": {"format": "none", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "RESET": {
+                        "help": "Reset; bare newline tolerated.",
+                        "response": {"format": "none", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["", "   ", ""])
         # Act
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
         # Assert
-        assert result["success"] is True, (
-            "whitespace-only output is not a contract violation"
-        )
+        assert result["success"] is True, "whitespace-only output is not a contract violation"
 
 
 # ── Error detection ─────────────────────────────────────────────────────────
@@ -439,29 +491,30 @@ class TestErrorDetection:
     def test_error_pattern_dominates_response(self, host):
         """An error_detection match fails the call and its message group is the error."""
         # Arrange — even though regex would match, error_detection wins
-        _load_profile(host, _profile_with(
-            {
-                "AT+TEMP": {
-                    "help": "Read temperature.",
-                    "response": {
-                        "format": "regex",
-                        "pattern": r"(?P<celsius>-?\d+\.\d+)C",
-                        "types": {"celsius": "float"},
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT+TEMP": {
+                        "help": "Read temperature.",
+                        "response": {
+                            "format": "regex",
+                            "pattern": r"(?P<celsius>-?\d+\.\d+)C",
+                            "types": {"celsius": "float"},
+                        },
                     },
                 },
-            },
-            error_detection={
-                "pattern": r"^ERROR(?::\s*(?P<message>.+))?$",
-            },
-        ))
+                error_detection={
+                    "pattern": r"^ERROR(?::\s*(?P<message>.+))?$",
+                },
+            ),
+        )
         _reply_after_send(host, ["ERROR: sensor unavailable"])
         # Act
         result = asyncio.run(host.run_command_async("AT+TEMP", "normal", 5.0))
         # Assert
         assert result["success"] is False, "error pattern fails the call"
-        assert result["error"] == "sensor unavailable", (
-            "captured message group surfaces as error"
-        )
+        assert result["error"] == "sensor unavailable", "captured message group surfaces as error"
 
 
 # ── Destructive-command confirmation gate ───────────────────────────────────
@@ -474,13 +527,18 @@ class TestDestructiveGate:
     def test_destructive_without_confirm_refuses(self, host):
         """Destructive without confirm sends nothing and returns a needs_confirmation marker."""
         # Arrange — RESET marked destructive
-        _load_profile(host, _profile_with({
-            "RESET": {
-                "help": "Soft reset; clears RAM.",
-                "safety": "destructive",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "RESET": {
+                        "help": "Soft reset; clears RAM.",
+                        "safety": "destructive",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         # Act — call without confirm
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
         # Assert — fails BEFORE sending; surfaces an LLM-actionable shape
@@ -495,26 +553,27 @@ class TestDestructiveGate:
         assert "Confirmation required" in result["error"], (
             "error names the gate so the LLM client can elicit"
         )
-        assert actual_marker == expected_marker, (
-            "value carries structured marker for client UIs"
-        )
+        assert actual_marker == expected_marker, "value carries structured marker for client UIs"
         assert host._sent == [], "no bytes hit the wire when gate fires"
 
     def test_destructive_with_confirm_runs(self, host):
         """confirm=True lets a destructive command out and parses its reply normally."""
         # Arrange
-        _load_profile(host, _profile_with({
-            "RESET": {
-                "help": "Soft reset.",
-                "safety": "destructive",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "RESET": {
+                        "help": "Soft reset.",
+                        "safety": "destructive",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["OK"])
         # Act — confirm=True
-        result = asyncio.run(
-            host.run_command_async("RESET", "normal", 5.0, confirm=True)
-        )
+        result = asyncio.run(host.run_command_async("RESET", "normal", 5.0, confirm=True))
         # Assert
         assert result["success"] is True, "confirm=True bypasses the gate"
         assert result["value"] == "OK", "command ran and parsed normally"
@@ -523,13 +582,18 @@ class TestDestructiveGate:
     def test_safe_command_ignores_confirm(self, host):
         """A readonly command runs without confirm; the gate is destructive-only."""
         # Arrange — safe (default) command; confirm should be a no-op
-        _load_profile(host, _profile_with({
-            "AT": {
-                "help": "Connectivity test.",
-                "safety": "readonly",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT": {
+                        "help": "Connectivity test.",
+                        "safety": "readonly",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["OK"])
         # Act — call with confirm=False (the gate must not fire on readonly)
         result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
@@ -541,13 +605,18 @@ class TestDestructiveGate:
         """mutable state changes run without confirm; reversible is not destructive."""
         # Arrange — mutable: changes state but reversible (LED toggle).
         # The gate must NOT fire; only destructive does.
-        _load_profile(host, _profile_with({
-            "AT+LED": {
-                "help": "Set LED state.",
-                "safety": "mutable",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT+LED": {
+                        "help": "Set LED state.",
+                        "safety": "mutable",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["OK"])
         # Act
         result = asyncio.run(host.run_command_async("AT+LED", "normal", 5.0))
@@ -573,14 +642,19 @@ class TestEnabledGate:
         # executor MUST refuse (defense in depth: catalog filter
         # already hid it, but if the LLM somehow learned the name
         # we still won't let it run).
-        _load_profile(host, _profile_with({
-            "AT": {
-                "help": "Connection test.",
-                "enabled": False,
-                "safety": "readonly",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT": {
+                        "help": "Connection test.",
+                        "enabled": False,
+                        "safety": "readonly",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         # Act
         result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
         # Assert -- refused; no bytes on the wire; structured marker
@@ -598,13 +672,18 @@ class TestEnabledGate:
     def test_enabled_default_true_runs_normally(self, host):
         """An entry that omits enabled runs, so existing profiles behave unchanged."""
         # Arrange -- entry omits ``enabled`` entirely.  Default true.
-        _load_profile(host, _profile_with({
-            "AT": {
-                "help": "Connection test.",
-                "safety": "readonly",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT": {
+                        "help": "Connection test.",
+                        "safety": "readonly",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["OK"])
         # Act
         result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
@@ -619,18 +698,21 @@ class TestEnabledGate:
         # needs_confirmation marker.  Either way the user gets a
         # refusal -- but the message is "audit and enable" rather
         # than "approve once" because that's the right action.
-        _load_profile(host, _profile_with({
-            "RESET": {
-                "help": "Soft reset.",
-                "enabled": False,
-                "safety": "destructive",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
-        # Act -- even with confirm=True, disabled refuses
-        result = asyncio.run(
-            host.run_command_async("RESET", "normal", 5.0, confirm=True)
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "RESET": {
+                        "help": "Soft reset.",
+                        "enabled": False,
+                        "safety": "destructive",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
         )
+        # Act -- even with confirm=True, disabled refuses
+        result = asyncio.run(host.run_command_async("RESET", "normal", 5.0, confirm=True))
         # Assert
         assert result["success"] is False, "disabled refuses regardless of confirm"
         assert result["value"].get("disabled") is True, "disabled marker, not needs_confirmation"
@@ -644,12 +726,17 @@ class TestFallThrough:
     def test_slash_command_bypasses_profile(self, host):
         """Slash commands dispatch as termapy commands even with a profile loaded."""
         # Arrange — load a profile, but dispatch a slash command
-        _load_profile(host, _profile_with({
-            "AT": {
-                "help": "x",
-                "response": {"format": "literal", "pattern": "OK"},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT": {
+                        "help": "x",
+                        "response": {"format": "literal", "pattern": "OK"},
+                    },
+                }
+            ),
+        )
         # Act
         result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
         # Assert — /help dispatched normally, no serial write
@@ -660,12 +747,17 @@ class TestFallThrough:
         """A bare line the profile doesn't map still goes to the device via /term.send."""
         # Arrange — profile loaded but RANDOM not in it.  Bare line
         # should fall through to /term.send (writes bytes, value="").
-        _load_profile(host, _profile_with({
-            "AT": {
-                "help": "x",
-                "response": {"format": "literal", "pattern": "OK"},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT": {
+                        "help": "x",
+                        "response": {"format": "literal", "pattern": "OK"},
+                    },
+                }
+            ),
+        )
         # Act
         result = asyncio.run(host.run_command_async("RANDOM", "normal", 5.0))
         # Assert — /term.send returned ok; cfg.line_ending governs the
@@ -695,12 +787,17 @@ class TestStaleArchival:
         """Lines received between calls go to async_events, not into the next response."""
         # Arrange — load a profile, push some "between calls" lines into
         # the recent-lines buffer, then dispatch a profile command.
-        _load_profile(host, _profile_with({
-            "AT": {
-                "help": "x",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT": {
+                        "help": "x",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         host.repl.feed_lines(["leftover_1", "leftover_2"])
         _reply_after_send(host, ["OK"])
         # Act
@@ -709,10 +806,7 @@ class TestStaleArchival:
         # async_events stream, which run_command_async delivers in the
         # response (and clears the host buffer for next-call delivery).
         assert result["success"] is True, "command itself succeeds"
-        archived = [
-            e for e in result["async_events"]
-            if e.get("source") == "pre_send_drain"
-        ]
+        archived = [e for e in result["async_events"] if e.get("source") == "pre_send_drain"]
         actual_lines = [e["line"] for e in archived]
         expected_lines = ["leftover_1", "leftover_2"]
         assert actual_lines == expected_lines, (
@@ -727,13 +821,18 @@ class TestSendTemplate:
     def test_send_template_command_matches_rendered_text(self, host):
         """A rendered line like AT+LED=on matches its send_template entry and goes out."""
         # Arrange — AT+LED={state} entry; LLM types the rendered form.
-        _load_profile(host, _profile_with({
-            "AT+LED": {
-                "help": "Toggle LED.",
-                "send_template": "AT+LED={state}",
-                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "AT+LED": {
+                        "help": "Toggle LED.",
+                        "send_template": "AT+LED={state}",
+                        "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["OK"])
         # Act
         result = asyncio.run(host.run_command_async("AT+LED=on", "normal", 5.0))
@@ -759,19 +858,22 @@ class TestTypedArgValidation:
     def test_valid_custom_enum_passes_through(self, host):
         """A value in a profile enum type passes and is sent unchanged."""
         # Arrange -- enum-kind type with two members.
-        _load_profile(host, self._profile_with_types(
-            {"on_off": {"kind": "enum", "values": ["on", "off"]}},
-            {
-                "help": "Set state.",
-                "send_template": "SET {state}",
-                "typed_args": [
-                    {"name": "state", "type": "on_off", "required": True}
-                ],
-                "response": {
-                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+        _load_profile(
+            host,
+            self._profile_with_types(
+                {"on_off": {"kind": "enum", "values": ["on", "off"]}},
+                {
+                    "help": "Set state.",
+                    "send_template": "SET {state}",
+                    "typed_args": [{"name": "state", "type": "on_off", "required": True}],
+                    "response": {
+                        "format": "literal",
+                        "pattern": "OK",
+                        "timeout_ms": 200,
+                    },
                 },
-            },
-        ))
+            ),
+        )
         _reply_after_send(host, ["OK"])
         # Act
         result = asyncio.run(host.run_command_async("SET on", "normal", 5.0))
@@ -782,19 +884,22 @@ class TestTypedArgValidation:
     def test_invalid_enum_blocks_before_wire(self, host):
         """A value outside the enum fails naming it, before any bytes are sent."""
         # Arrange
-        _load_profile(host, self._profile_with_types(
-            {"on_off": {"kind": "enum", "values": ["on", "off"]}},
-            {
-                "help": "Set state.",
-                "send_template": "SET {state}",
-                "typed_args": [
-                    {"name": "state", "type": "on_off", "required": True}
-                ],
-                "response": {
-                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+        _load_profile(
+            host,
+            self._profile_with_types(
+                {"on_off": {"kind": "enum", "values": ["on", "off"]}},
+                {
+                    "help": "Set state.",
+                    "send_template": "SET {state}",
+                    "typed_args": [{"name": "state", "type": "on_off", "required": True}],
+                    "response": {
+                        "format": "literal",
+                        "pattern": "OK",
+                        "timeout_ms": 200,
+                    },
                 },
-            },
-        ))
+            ),
+        )
         # Act -- 'banana' is not a member of {on,off}.
         result = asyncio.run(host.run_command_async("SET banana", "normal", 5.0))
         # Assert
@@ -805,19 +910,22 @@ class TestTypedArgValidation:
     def test_invalid_int_range_blocks_before_wire(self, host):
         """An int above the int_range max fails naming the bound; nothing is sent."""
         # Arrange
-        _load_profile(host, self._profile_with_types(
-            {"percent": {"kind": "int_range", "min": 0, "max": 100}},
-            {
-                "help": "Set duty cycle.",
-                "send_template": "DUTY {pct}",
-                "typed_args": [
-                    {"name": "pct", "type": "percent", "required": True}
-                ],
-                "response": {
-                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+        _load_profile(
+            host,
+            self._profile_with_types(
+                {"percent": {"kind": "int_range", "min": 0, "max": 100}},
+                {
+                    "help": "Set duty cycle.",
+                    "send_template": "DUTY {pct}",
+                    "typed_args": [{"name": "pct", "type": "percent", "required": True}],
+                    "response": {
+                        "format": "literal",
+                        "pattern": "OK",
+                        "timeout_ms": 200,
+                    },
                 },
-            },
-        ))
+            ),
+        )
         # Act -- 150 is out of [0,100].
         result = asyncio.run(host.run_command_async("DUTY 150", "normal", 5.0))
         # Assert
@@ -828,42 +936,50 @@ class TestTypedArgValidation:
     def test_unknown_type_name_blocks_before_wire(self, host):
         """A typed_arg naming an undeclared type fails rather than skipping validation."""
         # Arrange -- typed_arg.type names a type that isn't declared.
-        _load_profile(host, _profile_with({
-            "SET": {
-                "help": "Set thing.",
-                "send_template": "SET {x}",
-                "typed_args": [
-                    {"name": "x", "type": "no_such_type", "required": True}
-                ],
-                "response": {
-                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
-                },
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "SET": {
+                        "help": "Set thing.",
+                        "send_template": "SET {x}",
+                        "typed_args": [{"name": "x", "type": "no_such_type", "required": True}],
+                        "response": {
+                            "format": "literal",
+                            "pattern": "OK",
+                            "timeout_ms": 200,
+                        },
+                    },
+                }
+            ),
+        )
         # Act
         result = asyncio.run(host.run_command_async("SET hi", "normal", 5.0))
         # Assert
         assert result["success"] is False, "unknown type name fails"
-        assert "unknown type" in result["error"].lower(), (
-            "error names the missing-type case"
-        )
+        assert "unknown type" in result["error"].lower(), "error names the missing-type case"
         assert host._sent == [], "no bytes sent -- short-circuited"
 
     def test_builtin_type_still_works(self, host):
         """Builtin types like str work without a profile types block."""
         # Arrange -- typed_arg uses 'str' builtin; no types block needed.
-        _load_profile(host, _profile_with({
-            "ECHO": {
-                "help": "Echo a string.",
-                "send_template": "ECHO {msg}",
-                "typed_args": [
-                    {"name": "msg", "type": "str", "required": True}
-                ],
-                "response": {
-                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
-                },
-            },
-        }))
+        _load_profile(
+            host,
+            _profile_with(
+                {
+                    "ECHO": {
+                        "help": "Echo a string.",
+                        "send_template": "ECHO {msg}",
+                        "typed_args": [{"name": "msg", "type": "str", "required": True}],
+                        "response": {
+                            "format": "literal",
+                            "pattern": "OK",
+                            "timeout_ms": 200,
+                        },
+                    },
+                }
+            ),
+        )
         _reply_after_send(host, ["OK"])
         # Act
         result = asyncio.run(host.run_command_async("ECHO hi", "normal", 5.0))
@@ -874,19 +990,22 @@ class TestTypedArgValidation:
     def test_failure_carries_structured_value(self, host):
         """A rejected arg returns its name, type, value and command in a value dict."""
         # Arrange
-        _load_profile(host, self._profile_with_types(
-            {"on_off": {"kind": "enum", "values": ["on", "off"]}},
-            {
-                "help": "Set state.",
-                "send_template": "SET {state}",
-                "typed_args": [
-                    {"name": "state", "type": "on_off", "required": True}
-                ],
-                "response": {
-                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+        _load_profile(
+            host,
+            self._profile_with_types(
+                {"on_off": {"kind": "enum", "values": ["on", "off"]}},
+                {
+                    "help": "Set state.",
+                    "send_template": "SET {state}",
+                    "typed_args": [{"name": "state", "type": "on_off", "required": True}],
+                    "response": {
+                        "format": "literal",
+                        "pattern": "OK",
+                        "timeout_ms": 200,
+                    },
                 },
-            },
-        ))
+            ),
+        )
         # Act
         result = asyncio.run(host.run_command_async("SET banana", "normal", 5.0))
         # Assert -- the LLM gets the rejected value/type back in `value`.

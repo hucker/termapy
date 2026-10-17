@@ -45,7 +45,9 @@ def cfg_env(tmp_path, monkeypatch):
 
     output: list = []
     eng = ReplEngine(
-        cfg, str(cfg_path), lambda t, c=None: output.append((t, c)),
+        cfg,
+        str(cfg_path),
+        lambda t, c=None: output.append((t, c)),
     )
     eng.ctx.config_path = str(cfg_path)
     eng.ctx.cfg = cfg
@@ -53,6 +55,7 @@ def cfg_env(tmp_path, monkeypatch):
     # these feature tests run.  A headless MCP host lacks it -- that gating
     # is asserted in test_fs_sandbox.py.
     from termapy.plugins import CapabilitySet
+
     eng.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True)
     eng.ctx.sync_capabilities()
     flags = eng.ctx.ns("flags")
@@ -91,9 +94,7 @@ class TestSanitizeFilename:
         actual = _cfg_icon._sanitize_filename("foo/bar:baz*qux")
 
         # Assert
-        assert actual == "foo_bar_baz_qux", (
-            "path separators and shell metacharacters replaced"
-        )
+        assert actual == "foo_bar_baz_qux", "path separators and shell metacharacters replaced"
 
     def test_dots_and_dashes_kept(self):
         """Dots and dashes survive, so version-like names stay readable."""
@@ -128,9 +129,7 @@ class TestPsQuote:
         actual = _cfg_icon._ps_quote(Path("C:/foo/bar"))
 
         # Assert
-        assert "foo" in actual and actual.startswith("'"), (
-            "Path stringified and wrapped"
-        )
+        assert "foo" in actual and actual.startswith("'"), "Path stringified and wrapped"
 
 
 # ── Linux: .desktop creation ─────────────────────────────────────────────────
@@ -153,16 +152,9 @@ class TestLinuxCreate:
 
         # Assert
         assert result.success, f"create succeeded, got: {result.error}"
-        expected_path = (
-            fake_home / ".local" / "share" / "applications"
-            / "termapy-demo.desktop"
-        )
-        assert expected_path.is_file(), (
-            f"launcher landed in XDG menu dir: {expected_path}"
-        )
-        assert result.value == str(expected_path), (
-            "CmdResult.value is the created path"
-        )
+        expected_path = fake_home / ".local" / "share" / "applications" / "termapy-demo.desktop"
+        assert expected_path.is_file(), f"launcher landed in XDG menu dir: {expected_path}"
+        assert result.value == str(expected_path), "CmdResult.value is the created path"
 
     def test_content_substitutes_name_and_cfg_path(self, cfg_env):
         """Every placeholder is filled, and Icon= names a bundled file that exists."""
@@ -174,41 +166,32 @@ class TestLinuxCreate:
 
         # Assert -- the .desktop file embeds the cfg title and the
         # absolute .cfg file path, both substituted from the template.
-        path = (
-            fake_home / ".local" / "share" / "applications"
-            / "termapy-demo.desktop"
-        )
+        path = fake_home / ".local" / "share" / "applications" / "termapy-demo.desktop"
         content = path.read_text(encoding="utf-8")
         cfg_file = (cfg_dir / "demo.cfg").resolve()
         import sys as _sys
-        assert "Name=Demo Device" in content, (
-            "Name= field carries the cfg title"
-        )
+
+        assert "Name=Demo Device" in content, "Name= field carries the cfg title"
         assert f'"{_sys.executable}" -m termapy "{cfg_file}"' in content, (
             "Exec= line invokes <python> -m termapy <cfg-path>"
         )
-        assert "Terminal=true" in content, (
-            "Terminal=true so the DE picks its preferred terminal"
-        )
+        assert "Terminal=true" in content, "Terminal=true so the DE picks its preferred terminal"
         for placeholder in (
-            "__NAME__", "__PYTHON__", "__CFG_PATH__", "__ICON_PATH__",
+            "__NAME__",
+            "__PYTHON__",
+            "__CFG_PATH__",
+            "__ICON_PATH__",
         ):
-            assert placeholder not in content, (
-                f"no leftover {placeholder} placeholder"
-            )
+            assert placeholder not in content, f"no leftover {placeholder} placeholder"
         # Icon= must point at the bundled termapy.png and the file
         # must actually exist on disk -- sanity that the binary is
         # bundled in the wheel install.
         assert "Icon=" in content and "termapy.png" in content, (
             "Icon= line points at the bundled termapy.png"
         )
-        icon_line = next(
-            line for line in content.splitlines() if line.startswith("Icon=")
-        )
+        icon_line = next(line for line in content.splitlines() if line.startswith("Icon="))
         icon_file = Path(icon_line.removeprefix("Icon="))
-        assert icon_file.is_file(), (
-            f"bundled icon present on disk: {icon_file}"
-        )
+        assert icon_file.is_file(), f"bundled icon present on disk: {icon_file}"
 
     def test_refuses_if_exists_without_force(self, cfg_env):
         """A second create without --force fails instead of clobbering the launcher."""
@@ -221,19 +204,14 @@ class TestLinuxCreate:
 
         # Assert
         assert not result.success, "refuse-if-exists"
-        assert "exists" in result.error.lower(), (
-            "error names the failure mode"
-        )
+        assert "exists" in result.error.lower(), "error names the failure mode"
 
     def test_force_overwrites_existing(self, cfg_env):
         """With --force a stale .desktop file is rewritten from the template."""
         # Arrange
         eng, _, fake_home, _ = cfg_env
         eng.dispatch("cfg.icon")
-        path = (
-            fake_home / ".local" / "share" / "applications"
-            / "termapy-demo.desktop"
-        )
+        path = fake_home / ".local" / "share" / "applications" / "termapy-demo.desktop"
         # Mutate the file so we can verify rewrite.
         path.write_text("STALE\n", encoding="utf-8")
 
@@ -243,19 +221,14 @@ class TestLinuxCreate:
         # Assert
         assert result.success, "second create with --force succeeds"
         content = path.read_text(encoding="utf-8")
-        assert "Name=Demo Device" in content, (
-            "fresh template content written, stale text gone"
-        )
+        assert "Name=Demo Device" in content, "fresh template content written, stale text gone"
 
     def test_remove_deletes_launcher(self, cfg_env):
         """/cfg.icon.remove deletes the .desktop file this cfg created."""
         # Arrange
         eng, _, fake_home, _ = cfg_env
         eng.dispatch("cfg.icon")
-        path = (
-            fake_home / ".local" / "share" / "applications"
-            / "termapy-demo.desktop"
-        )
+        path = fake_home / ".local" / "share" / "applications" / "termapy-demo.desktop"
         assert path.is_file(), "fixture sanity: file exists"
 
         # Act
@@ -291,9 +264,7 @@ class TestLinuxCreate:
 
         # Assert
         assert not result.success, "remove with no launcher fails"
-        assert "not found" in result.error.lower(), (
-            "error explains why"
-        )
+        assert "not found" in result.error.lower(), "error explains why"
 
 
 # ── macOS: .app bundle ───────────────────────────────────────────────────────
@@ -327,13 +298,9 @@ class TestMacosCreate:
         # The bundled .icns must land in Resources/ so Finder/Dock
         # render the custom icon (Info.plist's CFBundleIconFile points
         # to "termapy" -> resolves to Resources/termapy.icns).
-        assert icns.is_file(), (
-            "bundled termapy.icns copied into Contents/Resources/"
-        )
+        assert icns.is_file(), "bundled termapy.icns copied into Contents/Resources/"
         plist_text = plist.read_text(encoding="utf-8")
-        assert "CFBundleIconFile" in plist_text, (
-            "plist declares the icon file"
-        )
+        assert "CFBundleIconFile" in plist_text, "plist declares the icon file"
 
     def test_plist_and_launcher_substitute_placeholders(self, cfg_env):
         """No placeholders remain, and the launcher runs python -m termapy <cfg>."""
@@ -345,28 +312,17 @@ class TestMacosCreate:
 
         # Assert
         bundle = fake_home / "Applications" / "Demo Device.app"
-        plist_content = (
-            bundle / "Contents" / "Info.plist"
-        ).read_text(encoding="utf-8")
-        launcher_content = (
-            bundle / "Contents" / "MacOS" / "launcher"
-        ).read_text(encoding="utf-8")
+        plist_content = (bundle / "Contents" / "Info.plist").read_text(encoding="utf-8")
+        launcher_content = (bundle / "Contents" / "MacOS" / "launcher").read_text(encoding="utf-8")
 
-        assert "<string>Demo Device</string>" in plist_content, (
-            "CFBundleName carries the cfg title"
-        )
-        assert "__NAME__" not in plist_content, (
-            "plist placeholder filled"
-        )
+        assert "<string>Demo Device</string>" in plist_content, "CFBundleName carries the cfg title"
+        assert "__NAME__" not in plist_content, "plist placeholder filled"
         for placeholder in ("__NAME__", "__PYTHON__", "__CFG_PATH__"):
-            assert placeholder not in launcher_content, (
-                f"no leftover {placeholder} in launcher"
-            )
+            assert placeholder not in launcher_content, f"no leftover {placeholder} in launcher"
         cfg_file = (cfg_dir / "demo.cfg").resolve()
         import sys as _sys
-        assert str(cfg_file) in launcher_content, (
-            "launcher embeds the absolute .cfg file path"
-        )
+
+        assert str(cfg_file) in launcher_content, "launcher embeds the absolute .cfg file path"
         assert f"'{_sys.executable}' -m termapy '{cfg_file}'" in launcher_content, (
             "launcher invokes <python> -m termapy '<cfg>'"
         )
@@ -390,10 +346,7 @@ class TestMacosCreate:
         eng, _, fake_home, _ = cfg_env
         eng.dispatch("cfg.icon")
         # Drop a stray file inside the bundle to prove rmtree happened.
-        stray = (
-            fake_home / "Applications" / "Demo Device.app"
-            / "Contents" / "stale_marker"
-        )
+        stray = fake_home / "Applications" / "Demo Device.app" / "Contents" / "stale_marker"
         stray.write_text("stale")
 
         # Act
@@ -444,7 +397,9 @@ class TestWindowsCreate:
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "win32")
 
     def test_invokes_powershell_with_expected_shortcut_call(
-        self, cfg_env, monkeypatch,
+        self,
+        cfg_env,
+        monkeypatch,
     ):
         """The .lnk runs this python -m termapy on the cfg, with working dir and icon set."""
         # Arrange -- capture every subprocess.run call so we can
@@ -458,7 +413,8 @@ class TestWindowsCreate:
                 return _FakeProc(0, stdout="C:/Users/test/Desktop\n")
             # Shortcut creation script -- success path.
             return _FakeProc(
-                0, stdout="C:/Users/test/Desktop/Demo_Device.lnk\n",
+                0,
+                stdout="C:/Users/test/Desktop/Demo_Device.lnk\n",
             )
 
         monkeypatch.setattr(_cfg_icon.subprocess, "run", _fake_run)
@@ -470,39 +426,29 @@ class TestWindowsCreate:
         # Assert
         assert result.success, f"create succeeded, got: {result.error}"
         assert any(
-            "CreateShortcut" in (call[-1] if isinstance(call, list) else "")
-            for call in calls
+            "CreateShortcut" in (call[-1] if isinstance(call, list) else "") for call in calls
         ), "PowerShell COM script was invoked"
         # The script must reference cmd.exe, embed the cfg dir, and
         # set WorkingDirectory.
         scripts = [call[-1] for call in calls if isinstance(call, list)]
-        shortcut_script = next(
-            script for script in scripts if "CreateShortcut" in script
-        )
+        shortcut_script = next(script for script in scripts if "CreateShortcut" in script)
         assert "cmd.exe" in shortcut_script, "target is cmd.exe"
         cfg_file = (cfg_dir / "demo.cfg").resolve()
-        assert str(cfg_file) in shortcut_script, (
-            "cfg file path embedded in the shortcut arguments"
-        )
+        assert str(cfg_file) in shortcut_script, "cfg file path embedded in the shortcut arguments"
         import sys as _sys
+
         assert _sys.executable in shortcut_script, (
             "current python.exe embedded so launcher uses this install"
         )
         assert "-m termapy" in shortcut_script, (
             "launcher invokes python -m termapy (not bare termapy)"
         )
-        assert "WorkingDirectory" in shortcut_script, (
-            "shortcut sets WorkingDirectory"
-        )
+        assert "WorkingDirectory" in shortcut_script, "shortcut sets WorkingDirectory"
         # IconLocation must point at the bundled .ico so the Desktop
         # shortcut renders the custom termapy artwork instead of
         # inheriting cmd.exe's icon.
-        assert "IconLocation" in shortcut_script, (
-            "shortcut sets IconLocation"
-        )
-        assert "termapy.ico" in shortcut_script, (
-            "IconLocation points at bundled termapy.ico"
-        )
+        assert "IconLocation" in shortcut_script, "shortcut sets IconLocation"
+        assert "termapy.ico" in shortcut_script, "IconLocation points at bundled termapy.ico"
         # CmdResult.ok stores str(Path(value).resolve()).  On the real
         # Windows target that leaves the absolute "C:\\..." path unchanged,
         # but on a POSIX CI host "C:/..." is a *relative* path, so resolve()
@@ -514,15 +460,19 @@ class TestWindowsCreate:
         )
 
     def test_refuses_if_lnk_exists_without_force(
-        self, cfg_env, monkeypatch,
+        self,
+        cfg_env,
+        monkeypatch,
     ):
         """An EXISTS: marker from PowerShell becomes a failed result naming the conflict."""
+
         # Arrange -- simulate PowerShell reporting EXISTS:<path>.
         def _fake_run(cmd, **kwargs):
             if cmd[-1] == _cfg_icon._PS_RESOLVE_DESKTOP:
                 return _FakeProc(0, stdout="C:/Desktop\n")
             return _FakeProc(
-                1, stderr="EXISTS:C:/Desktop/Demo_Device.lnk",
+                1,
+                stderr="EXISTS:C:/Desktop/Demo_Device.lnk",
             )
 
         monkeypatch.setattr(_cfg_icon.subprocess, "run", _fake_run)
@@ -546,7 +496,8 @@ class TestWindowsCreate:
                 return _FakeProc(0, stdout="C:/Desktop\n")
             scripts.append(cmd[-1])
             return _FakeProc(
-                0, stdout="C:/Desktop/Demo_Device.lnk\n",
+                0,
+                stdout="C:/Desktop/Demo_Device.lnk\n",
             )
 
         monkeypatch.setattr(_cfg_icon.subprocess, "run", _fake_run)
@@ -558,9 +509,7 @@ class TestWindowsCreate:
         # Assert
         assert result.success, "force path succeeded"
         assert scripts, "shortcut script was invoked"
-        assert "Test-Path" not in scripts[0], (
-            "--force drops the existence guard"
-        )
+        assert "Test-Path" not in scripts[0], "--force drops the existence guard"
 
 
 # ── Dispatch + error paths ───────────────────────────────────────────────────
@@ -578,7 +527,8 @@ class TestList:
         eng.dispatch("cfg.icon")
         apps = fake_home / ".local" / "share" / "applications"
         (apps / "firefox.desktop").write_text(
-            "[Desktop Entry]\nName=Firefox\n", encoding="utf-8",
+            "[Desktop Entry]\nName=Firefox\n",
+            encoding="utf-8",
         )
 
         # Act
@@ -587,15 +537,9 @@ class TestList:
         # Assert -- exactly the one termapy launcher; firefox excluded.
         assert result.success, "list succeeded"
         lines = result.value.splitlines()
-        assert len(lines) == 1, (
-            f"only termapy-* matches, got {lines!r}"
-        )
-        assert "termapy-demo.desktop" in lines[0], (
-            "list contains the created launcher"
-        )
-        assert "firefox" not in result.value.lower(), (
-            "non-termapy .desktop filtered out"
-        )
+        assert len(lines) == 1, f"only termapy-* matches, got {lines!r}"
+        assert "termapy-demo.desktop" in lines[0], "list contains the created launcher"
+        assert "firefox" not in result.value.lower(), "non-termapy .desktop filtered out"
 
     def test_macos_lists_bundles_by_bundle_id(self, cfg_env, monkeypatch):
         """Bundles match by termapy's bundle id, so a foreign .app is not listed."""
@@ -619,18 +563,14 @@ class TestList:
         # Assert
         assert result.success, "list succeeded"
         lines = result.value.splitlines()
-        assert len(lines) == 1, (
-            f"only the termapy bundle matches, got {lines!r}"
-        )
-        assert "Demo Device.app" in lines[0], (
-            "list contains the termapy bundle"
-        )
-        assert "Other.app" not in result.value, (
-            "non-termapy bundle filtered out"
-        )
+        assert len(lines) == 1, f"only the termapy bundle matches, got {lines!r}"
+        assert "Demo Device.app" in lines[0], "list contains the termapy bundle"
+        assert "Other.app" not in result.value, "non-termapy bundle filtered out"
 
     def test_windows_filters_by_args_containing_termapy(
-        self, cfg_env, monkeypatch,
+        self,
+        cfg_env,
+        monkeypatch,
     ):
         """A .lnk is listed only when its arguments mention termapy."""
         # Arrange -- mock PowerShell to return two .lnks: one ours,
@@ -657,7 +597,9 @@ class TestList:
         # early.  _windows_desktop_path is mocked through subprocess
         # above so this never touches the disk.
         monkeypatch.setattr(
-            _cfg_icon.Path, "is_dir", lambda self: True,
+            _cfg_icon.Path,
+            "is_dir",
+            lambda self: True,
         )
 
         # Act
@@ -667,15 +609,9 @@ class TestList:
         # Assert
         assert result.success, "list succeeded"
         lines = result.value.splitlines()
-        assert len(lines) == 1, (
-            f"only the termapy .lnk matches, got {lines!r}"
-        )
-        assert "Demo_Device.lnk" in lines[0], (
-            "list contains the termapy launcher"
-        )
-        assert "notepad" not in result.value.lower(), (
-            "non-termapy .lnk filtered out"
-        )
+        assert len(lines) == 1, f"only the termapy .lnk matches, got {lines!r}"
+        assert "Demo_Device.lnk" in lines[0], "list contains the termapy launcher"
+        assert "notepad" not in result.value.lower(), "non-termapy .lnk filtered out"
 
     def test_empty_when_none_found(self, cfg_env, monkeypatch):
         """No launchers is a success: an empty value, no records, and a visible empty table naming where it looked."""
@@ -706,9 +642,7 @@ class TestList:
         result = eng.dispatch("cfg.icon.list")
 
         # Assert
-        assert result.success, (
-            "--list succeeds with no cfg loaded (unlike create/remove)"
-        )
+        assert result.success, "--list succeeds with no cfg loaded (unlike create/remove)"
 
 
 class TestFindLauncherForCfg:
@@ -733,12 +667,12 @@ class TestFindLauncherForCfg:
 
         # Assert
         assert found is not None, "find returns the matching launcher"
-        assert found.name == "termapy-demo.desktop", (
-            "found path matches the created .desktop file"
-        )
+        assert found.name == "termapy-demo.desktop", "found path matches the created .desktop file"
 
     def test_linux_returns_none_when_no_launcher_matches(
-        self, cfg_env, monkeypatch,
+        self,
+        cfg_env,
+        monkeypatch,
     ):
         """A cfg that no launcher references finds nothing, not a wrong launcher."""
         # Arrange -- create a launcher for one cfg, search for another.
@@ -784,15 +718,14 @@ class TestFindLauncherForCfg:
                 return _FakeProc(0, stdout="C:/Desktop\n")
             return _FakeProc(
                 0,
-                stdout=(
-                    "C:/Desktop/Demo_Device.lnk\t"
-                    f'/k ""C:/py.exe" -m termapy "{cfg_file}""\n'
-                ),
+                stdout=(f'C:/Desktop/Demo_Device.lnk\t/k ""C:/py.exe" -m termapy "{cfg_file}""\n'),
             )
 
         monkeypatch.setattr(_cfg_icon.subprocess, "run", _fake_run)
         monkeypatch.setattr(
-            _cfg_icon.Path, "is_dir", lambda self: True,
+            _cfg_icon.Path,
+            "is_dir",
+            lambda self: True,
         )
 
         # Act
@@ -800,9 +733,7 @@ class TestFindLauncherForCfg:
 
         # Assert
         assert found is not None, "find matched on substring of cfg_file"
-        assert found == Path("C:/Desktop/Demo_Device.lnk"), (
-            "found the right .lnk path"
-        )
+        assert found == Path("C:/Desktop/Demo_Device.lnk"), "found the right .lnk path"
 
 
 class TestRemoveLauncherAt:
@@ -853,9 +784,7 @@ class TestDispatch:
 
         # Assert
         assert not result.success, "no cfg -> fail"
-        assert "no config" in result.error.lower(), (
-            "error names the precondition"
-        )
+        assert "no config" in result.error.lower(), "error names the precondition"
 
     def test_unsupported_platform_fails_clean(self, cfg_env, monkeypatch):
         """An unknown platform gets an unsupported error instead of a crash."""
@@ -869,6 +798,4 @@ class TestDispatch:
 
         # Assert
         assert not result.success, "unsupported platform -> fail"
-        assert "unsupported" in result.error.lower(), (
-            "error names the platform"
-        )
+        assert "unsupported" in result.error.lower(), "error names the platform"

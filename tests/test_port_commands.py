@@ -55,7 +55,6 @@ def _demo_port(cli: CLITerminal) -> FakeSerial:
 
 
 class TestHelp:
-
     def test_port_help_renders_the_port_page(self, cli, capsys):
         """/port.help is /help port: the man page for the family, with the resolved name as the value."""
         capsys.readouterr()
@@ -75,7 +74,6 @@ class TestHelp:
 
 
 class TestSignals:
-
     def test_each_signal_reads_the_port_level(self, cli):
         """/port.cts, /port.dsr, /port.ri and /port.cd each return the live level as 0 or 1."""
         port = _demo_port(cli)
@@ -88,7 +86,9 @@ class TestSignals:
         """An input signal takes no argument: the command fails saying so, printed once, with no level."""
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.dsr 1")
-        assert (result.success, result.error) == (False, "DSR is read-only"), "a refusal is a failure"
+        assert (result.success, result.error) == (False, "DSR is read-only"), (
+            "a refusal is a failure"
+        )
         assert capsys.readouterr().out.count("DSR is read-only") == 1, "dispatch prints it, once"
         assert result.value == "", "a refusal is not a scriptable level"
 
@@ -98,7 +98,9 @@ class TestSignals:
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.cd")
         assert STATE_MESSAGES["serial_connected"] in capsys.readouterr().out
-        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), "no port, no level"
+        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), (
+            "no port, no level"
+        )
         assert result.value == ""
 
 
@@ -106,7 +108,6 @@ class TestSignals:
 
 
 class TestHardwareLines:
-
     def test_bare_reads_the_level(self, cli):
         """/port.dtr with no argument returns the live level as 0 or 1."""
         port = _demo_port(cli)
@@ -129,7 +130,10 @@ class TestHardwareLines:
         port.rts = True
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.rts maybe")
-        assert "Invalid RTS value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)" in capsys.readouterr().out
+        assert (
+            "Invalid RTS value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)"
+            in capsys.readouterr().out
+        )
         assert result.success is False, "a refused value fails the command"
         assert port.rts is True, "a refused value leaves the line alone"
 
@@ -141,11 +145,14 @@ class TestHardwareLines:
         assert STATE_MESSAGES["serial_connected"] in capsys.readouterr().out
         assert result.success is False, "nothing was set"
 
-    @pytest.mark.parametrize(("command", "label", "level"), [
-        ("dtr", "DTR (out)", True),
-        ("dtr", "DTR (out)", False),
-        ("cts", "CTS (in)", None),  # an input: the DEMO port's own level, read-only
-    ])
+    @pytest.mark.parametrize(
+        ("command", "label", "level"),
+        [
+            ("dtr", "DTR (out)", True),
+            ("dtr", "DTR (out)", False),
+            ("cts", "CTS (in)", None),  # an input: the DEMO port's own level, read-only
+        ],
+    )
     def test_help_shows_the_level_the_command_returns(self, cli, capsys, command, label, level):
         """/help's state line for a line or signal shows the 0/1 the command returns, not pyserial's True/False."""
         # Arrange
@@ -159,7 +166,9 @@ class TestHardwareLines:
 
         # Assert
         actual = capsys.readouterr().out
-        assert f"Current {label} = {expected}" in actual, f"help and /port.{command} agree:\n{actual}"
+        assert f"Current {label} = {expected}" in actual, (
+            f"help and /port.{command} agree:\n{actual}"
+        )
         assert expected in ("0", "1"), "the command answers 0 or 1"
 
 
@@ -167,7 +176,6 @@ class TestHardwareLines:
 
 
 class TestProperties:
-
     def test_bare_reads_the_live_value(self, cli):
         """/port.baud_rate with no argument returns the open port's baud rate."""
         result = cli.repl.dispatch_full("/port.baud_rate")
@@ -199,7 +207,9 @@ class TestProperties:
         result = cli.repl.dispatch_full("/port.byte_size 9")
         assert "Invalid data bits: 9 (use 5, 6, 7, 8)" in capsys.readouterr().out
         assert result.success is False, "a refused value fails the command"
-        assert (port.bytesize, cli.cfg["serial"]["byte_size"]) == (8, 8), "refused value applied nowhere"
+        assert (port.bytesize, cli.cfg["serial"]["byte_size"]) == (8, 8), (
+            "refused value applied nowhere"
+        )
 
     def test_a_non_number_is_refused(self, cli, capsys):
         """failure-is-failure: a baud rate that is not an integer fails by name, printed once.
@@ -209,8 +219,12 @@ class TestProperties:
         """
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.baud_rate fast")
-        assert (result.success, result.error) == (False, "Invalid baud rate: fast"), "a refusal is a failure"
-        assert capsys.readouterr().out.count("Invalid baud rate: fast") == 1, "dispatch prints it, once"
+        assert (result.success, result.error) == (False, "Invalid baud rate: fast"), (
+            "a refusal is a failure"
+        )
+        assert capsys.readouterr().out.count("Invalid baud rate: fast") == 1, (
+            "dispatch prints it, once"
+        )
 
     def test_json_carries_the_refusal(self, cli, capsys):
         """A refused set answers --json with success false and the reason in error."""
@@ -232,7 +246,6 @@ class TestProperties:
 
 
 class TestMode:
-
     def test_bare_shows_baud_and_frame(self, cli):
         """/port.mode with no argument reports the configured baud and frame as one token pair."""
         result = cli.repl.dispatch_full("/port.mode")
@@ -249,7 +262,12 @@ class TestMode:
         actual_port = (port.baudrate, port.parity, port.bytesize, port.stopbits)
         assert actual_port == (9600, "E", 7, 1), "the open port carries the new frame"
         serial = cli.cfg["serial"]
-        actual_cfg = (serial["baud_rate"], serial["parity"], serial["byte_size"], serial["stop_bits"])
+        actual_cfg = (
+            serial["baud_rate"],
+            serial["parity"],
+            serial["byte_size"],
+            serial["stop_bits"],
+        )
         assert actual_cfg == (9600, "E", 7, 1), "the session cfg agrees with the port"
         assert result.value == "Mode -> 9600 7E1"
 
@@ -289,7 +307,6 @@ class TestMode:
 
 
 class TestFlowControl:
-
     def test_bare_shows_the_configured_mode(self, cli):
         """/port.flow_control with no argument reports the cfg mode."""
         result = cli.repl.dispatch_full("/port.flow_control")
@@ -320,9 +337,14 @@ class TestFlowControl:
         port = _demo_port(cli)
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.flow_control bogus")
-        assert "Invalid flow control: bogus (use none/rtscts/xonxoff/manual)" in capsys.readouterr().out
+        assert (
+            "Invalid flow control: bogus (use none/rtscts/xonxoff/manual)"
+            in capsys.readouterr().out
+        )
         assert result.success is False, "a refused mode fails the command"
-        assert (port.rtscts, cli.cfg["serial"]["flow_control"]) == (False, "none"), "refused mode applied nowhere"
+        assert (port.rtscts, cli.cfg["serial"]["flow_control"]) == (False, "none"), (
+            "refused mode applied nowhere"
+        )
 
     def test_disconnected_read_carries_the_annotation(self, cli, capsys):
         """Without an open port the cfg mode is shown with the (disconnected) annotation."""
@@ -336,7 +358,6 @@ class TestFlowControl:
 
 
 class TestBreak:
-
     def test_default_duration_is_reported(self, cli):
         """/port.break with no argument sends the 250 ms default and says so."""
         result = cli.repl.dispatch_full("/port.break")
@@ -362,7 +383,6 @@ class TestBreak:
 
 
 class TestInfo:
-
     def test_connected_report_has_all_three_sections(self, cli, capsys, monkeypatch):
         """/port.info on the open DEMO port prints the frame, the synthesized chip rows and the live lines."""
         # Arrange -- no fleet in the environment, so DEMO resolves to its
@@ -376,7 +396,9 @@ class TestInfo:
         # Assert
         out = capsys.readouterr().out
         assert "DEMO  (connected)" in out, "the port row carries the state"
-        assert "Termapy simulated device" in out, "the chip section came from the reserved-port record"
+        assert "Termapy simulated device" in out, (
+            "the chip section came from the reserved-port record"
+        )
         for line in ("DTR", "RTS", "CTS", "DSR", "RI", "CD"):
             assert line in out, f"the live {line} row"
         assert result.value == "DEMO", "the scriptable value is the port name"
@@ -387,12 +409,16 @@ class TestInfo:
         data = cli.repl.dispatch_full("/port.info").data
 
         # Assert
-        assert (data["port"], data["connected"], data["baud_rate"]) == ("DEMO", True, 115200), "settings as values"
+        assert (data["port"], data["connected"], data["baud_rate"]) == ("DEMO", True, 115200), (
+            "settings as values"
+        )
         assert data["chip"]["model"] == "DEMO", "the chip record, keyed like /port.chip.<field>"
         actual = sorted(data["signals"])
         expected = ["cd", "cts", "dsr", "dtr", "ri", "rts"]
         assert actual == expected, "the six hardware lines"
-        assert all(isinstance(state, bool) for state in data["signals"].values()), "each line is a boolean"
+        assert all(isinstance(state, bool) for state in data["signals"].values()), (
+            "each line is a boolean"
+        )
 
     def test_an_argument_is_redirected_to_port_chip(self, cli):
         """/port.info takes no port name: it fails and points at /port.chip for another port."""
@@ -405,7 +431,6 @@ class TestInfo:
 
 
 class TestConnect:
-
     def test_optional_settings_land_in_the_cfg_before_the_open(self, cli):
         """/port.connect DEMO 9600 E71 lf noecho applies every optional field to the session cfg and stays connected."""
         # Act
@@ -415,7 +440,9 @@ class TestConnect:
         serial = cli.cfg["serial"]
         actual = (serial["baud_rate"], serial["parity"], serial["byte_size"], serial["stop_bits"])
         assert actual == (9600, "E", 7, 1), "the frame fields"
-        assert (cli.cfg["eol"], cli.cfg["echo"]) == ("\n", False), "lf is stored as the newline it names; echo off"
+        assert (cli.cfg["eol"], cli.cfg["echo"]) == ("\n", False), (
+            "lf is stored as the newline it names; echo off"
+        )
         assert cli.engine.is_connected is True
         assert result.value == "DEMO"
 
@@ -443,14 +470,15 @@ class TestConnect:
         # Assert
         assert result.success is False, "the port did not open"
         assert result.error.startswith("Cannot open DEMO_FAIL"), result.error
-        assert out.count("Cannot open DEMO_FAIL") == 1, "dispatch prints it; the status line stays quiet"
+        assert out.count("Cannot open DEMO_FAIL") == 1, (
+            "dispatch prints it; the status line stays quiet"
+        )
 
 
 # ── a failed command captured into a variable ───────────────────────────────
 
 
 class TestCapture:
-
     def test_a_failed_capture_answers_with_the_inner_error_once(self, cli, capsys):
         """failure-reported-once: $(B) <- a refused command fails with its error, printed once, B unset.
 
@@ -465,7 +493,9 @@ class TestCapture:
         out = capsys.readouterr().out
 
         # Assert
-        assert (result.success, result.error) == (False, "Invalid baud rate: fast"), "the inner failure is the answer"
+        assert (result.success, result.error) == (False, "Invalid baud rate: fast"), (
+            "the inner failure is the answer"
+        )
         assert out.count("Invalid baud rate: fast") == 1, "printed once, at the capture's exit"
         assert cli.repl.dispatch_full("/var B").value == "", "B was not assigned"
 
@@ -488,7 +518,6 @@ class TestCapture:
 
 
 class TestChip:
-
     def test_a_named_port_dumps_every_known_field(self, cli, capsys, monkeypatch):
         """/port.chip COM4 prints the device as a header and one labeled row per known field."""
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
@@ -516,7 +545,9 @@ class TestChip:
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         result = cli.repl.dispatch_full("/port.chip *")
         actual = [record["device"] for record in result.data]
-        assert actual == result.value.split("\n"), "the value lists the devices the records describe"
+        assert actual == result.value.split("\n"), (
+            "the value lists the devices the records describe"
+        )
         assert {"COM3", "COM4", "COM7"} <= set(actual), "one record per roster port"
 
     def test_the_fleet_is_authoritative_for_the_reserved_name(self, cli, capsys, monkeypatch):
@@ -552,7 +583,6 @@ class TestChip:
 
 
 class TestUsbTree:
-
     def test_the_tree_renders_where_a_backend_exists(self, cli, capsys):
         """/port.usb draws the machine's tree on Windows and Linux and fails by name elsewhere."""
         capsys.readouterr()

@@ -32,6 +32,7 @@ def repl_env(tmp_path, monkeypatch):
     _exec_request_mode.
     """
     from termapy import variables as _var_mod
+
     monkeypatch.setattr(_var_mod, "_LAUNCH_VARS", dict(_var_mod._LAUNCH_VARS))
     _var_mod._LAUNCH_VARS.pop("FRONT_END", None)
 
@@ -64,13 +65,16 @@ def repl_env(tmp_path, monkeypatch):
         dispatch=engine.dispatch,
     )
     from termapy.plugins import IOHandle
+
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),
         internal=internal_handle,
         io=IOHandle(_write=write, _write_markup=write_markup),
         capabilities=CapabilitySet(
-            interactive=True, gui_apps=True, serial_connected=True,
+            interactive=True,
+            gui_apps=True,
+            serial_connected=True,
         ),
     )
     engine.set_context(ctx)
@@ -124,7 +128,6 @@ class TestTermRequestToggle:
         # Assert
         assert cfg.get("request_mode") is True, "explicit on applied"
         assert result.value == "on", "value reports on"
-
 
     def test_any_parse_bool_token_sets(self, repl_env):
         """Any parse_bool token sets the mode: yes means on, not an Unknown token error."""
@@ -227,9 +230,7 @@ class TestExecRequestMode:
         result = engine._exec_request_mode("get_voltage")
 
         # Assert
-        assert result.data == {"volts": 5.5, "ok": True}, (
-            "JSON reply parsed into data"
-        )
+        assert result.data == {"volts": 5.5, "ok": True}, "JSON reply parsed into data"
         assert result.value == '{"volts": 5.5, "ok": true}', (
             "raw wire text kept in value for fidelity"
         )
@@ -426,8 +427,7 @@ class TestExecRequestMode:
         engine._exec_request_mode("slow_help")
 
         # Assert
-        assert fake.read_calls == [2500], \
-            "cfg default_response_timeout_ms reaches the read window"
+        assert fake.read_calls == [2500], "cfg default_response_timeout_ms reaches the read window"
 
     def test_read_window_falls_back_to_1000_without_cfg_key(self, repl_env):
         """With no default_response_timeout_ms in cfg, the read window is 1000 ms."""
@@ -460,10 +460,8 @@ class TestDeviceErrorDetection:
 
         # Assert -- CmdResult.fail with the device text as the error
         assert result.success is False, "device error -> CmdResult.fail"
-        assert result.error == "ERR: unknown command: foo", \
-            "error is device text"
-        assert result.value == "", \
-            "value empty (text moved to error)"
+        assert result.error == "ERR: unknown command: foo", "error is device text"
+        assert result.value == "", "value empty (text moved to error)"
 
     def test_default_pattern_matches_error_prefix(self, repl_env):
         """The ERROR alternative of the standard pattern flags the reply as a failure."""
@@ -600,10 +598,8 @@ class TestDeviceErrorDetection:
         # error=device text, empty result (no duplication)
         response_envelope = _rendered_envelope(output)
         assert response_envelope["success"] is False, "display success=false"
-        assert response_envelope["error"] == "ERR: unknown command", \
-            "display error is device text"
-        assert response_envelope["value"] == "", \
-            "display result empty when device errored"
+        assert response_envelope["error"] == "ERR: unknown command", "display error is device text"
+        assert response_envelope["value"] == "", "display result empty when device errored"
 
     def test_session_override_takes_precedence_over_cfg(self, repl_env):
         """An empty session override disables detection even when cfg sets a pattern."""
@@ -658,16 +654,18 @@ class TestTermRequestCommand:
 
         # User disables detection mid-session
         _handler_request(ctx, "err=")
-        assert ctx.ns("flags").get("request_err_pattern_override") == "", \
+        assert ctx.ns("flags").get("request_err_pattern_override") == "", (
             "override set to empty (disabled)"
+        )
 
         # User toggles off then on
         _handler_request(ctx, "off")
         _handler_request(ctx, "on")
 
         # Assert -- override cleared; cfg default is back in effect
-        assert "request_err_pattern_override" not in ctx.ns("flags"), \
+        assert "request_err_pattern_override" not in ctx.ns("flags"), (
             "/term.request on cleared the session override"
+        )
 
     def test_on_with_err_arg_sets_session_override(self, repl_env):
         """on err=<regex> enables the mode and stores the regex as the session override."""
@@ -697,8 +695,7 @@ class TestTermRequestCommand:
         _handler_request(ctx, "err=^FOO")
 
         # Assert -- override set but mode unchanged
-        assert cfg["request_mode"] is False, \
-            "err= alone does not flip request_mode"
+        assert cfg["request_mode"] is False, "err= alone does not flip request_mode"
         assert ctx.ns("flags")["request_err_pattern_override"] == "^FOO"
 
     def test_unknown_token_fails(self, repl_env):
@@ -867,9 +864,7 @@ class TestJsonInputUnwrapping:
         # Assert -- explicit failure; nothing sent to device
         assert result.success is False, "null cmd produces failure"
         assert fake.writes == [], "no bytes sent on bad cmd"
-        assert "non-empty string" in result.error, (
-            "error names the requirement"
-        )
+        assert "non-empty string" in result.error, "error names the requirement"
 
     def test_json_with_empty_cmd_returns_error_envelope(self, repl_env):
         """An empty-string cmd fails and nothing is written to the device."""
@@ -958,9 +953,7 @@ class TestRequestEnvelopeEcho:
         engine._exec_request_mode("get_voltage")
 
         # Assert -- request envelope still renders despite echo_input=False
-        assert len(markup) == 1, (
-            "echo_input=false has no effect when request_mode is on"
-        )
+        assert len(markup) == 1, "echo_input=false has no effect when request_mode is on"
         request_envelope = json.loads(markup[0])
         assert request_envelope == {"cmd": "get_voltage"}, (
             "request envelope renders independently of echo_input"
@@ -1059,18 +1052,12 @@ class TestDispatchFullEchoGating:
 
         # Assert -- the legacy echo callback was never called (gated out);
         # the markup channel got the request + response JSON envelopes.
-        assert legacy_echos == [], (
-            "legacy plain-text echo suppressed in request_mode"
-        )
+        assert legacy_echos == [], "legacy plain-text echo suppressed in request_mode"
         assert len(markup) == 1, "request echo rendered on markup"
         request_envelope = json.loads(markup[0])
-        assert request_envelope == {"cmd": "AT+VER"}, (
-            "the markup line is the request envelope"
-        )
+        assert request_envelope == {"cmd": "AT+VER"}, "the markup line is the request envelope"
         response_envelope = _rendered_envelope(output)
-        assert response_envelope["cmd"] == "AT+VER", (
-            "response envelope on the plain result channel"
-        )
+        assert response_envelope["cmd"] == "AT+VER", "response envelope on the plain result channel"
 
 
 # ── --json on a bare device line: the per-call form of the dial ─────────────
@@ -1100,7 +1087,9 @@ class TestBareLineJsonFlag:
         assert result.success is True, result.error
         assert result.value == "00001000: 1B 00\r\nOK", "the device's reply is the value"
         rendered = _rendered_envelope(output)
-        assert rendered["cmd"] == "MEM.R 0x1000 2", "the envelope is the exchange's, not /term.send's"
+        assert rendered["cmd"] == "MEM.R 0x1000 2", (
+            "the envelope is the exchange's, not /term.send's"
+        )
         assert rendered["value"] == "00001000: 1B 00\r\nOK", "and carries the reply"
 
     def test_without_the_flag_the_bare_line_is_a_plain_send(self, repl_env):
@@ -1185,7 +1174,9 @@ class TestJsonStyle:
         # Assert
         assert set_result.value == "color", "a style sets it"
         assert bare.value == "color", "bare reports it, changing nothing"
-        assert (first.value, second.value) == ("compact", "indent"), "cycle wraps color -> compact -> indent"
+        assert (first.value, second.value) == ("compact", "indent"), (
+            "cycle wraps color -> compact -> indent"
+        )
         assert cfg["json_style"] == "indent", "the session cfg follows"
 
     def test_term_json_refuses_an_unknown_style(self, repl_env):
@@ -1198,5 +1189,8 @@ class TestJsonStyle:
     def test_a_bad_style_in_a_cfg_warns_at_load(self):
         """A hand-edited json_style outside the choices is flagged by validate_config."""
         from termapy.config import validate_config
+
         warnings = validate_config({"json_style": "pretty"})
-        assert any(warning.startswith("json_style: invalid value 'pretty'") for warning in warnings), warnings
+        assert any(
+            warning.startswith("json_style: invalid value 'pretty'") for warning in warnings
+        ), warnings

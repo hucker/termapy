@@ -32,13 +32,12 @@ class TestCreditsSync:
     def test_acknowledgments_md_matches_credits_constant(self):
         """credits.py's embedded constant must equal the markdown text."""
         # Arrange
-        md_path = (
-            _REPO_ROOT / "src" / "termapy" / "help" / "acknowledgments.md"
-        )
+        md_path = _REPO_ROOT / "src" / "termapy" / "help" / "acknowledgments.md"
         expected = md_path.read_text(encoding="utf-8")
 
         # Act -- read the constant directly from the live module
         from termapy.builtins.commands.credits import _ACKNOWLEDGMENTS
+
         actual = _ACKNOWLEDGMENTS
 
         # Assert
@@ -58,8 +57,7 @@ class TestCreditsSync:
 
         # Assert
         assert rc == 0, (
-            "sync_acknowledgments.py --check reports drift; "
-            "run the script without --check to fix."
+            "sync_acknowledgments.py --check reports drift; run the script without --check to fix."
         )
 
     def test_credits_plugin_outputs_full_markdown(self, tmp_path):

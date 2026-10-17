@@ -261,15 +261,18 @@ class TestClearVars:
 class TestVarNameRegex:
     """Tests for the $(NAME) pattern matching."""
 
-    @pytest.mark.parametrize("text,expected_name", [
-        ("$(PORT)", "PORT"),
-        ("$(port)", "port"),
-        ("$(A)", "A"),
-        ("$(MY_VAR)", "MY_VAR"),
-        ("$(my_var)", "my_var"),
-        ("$(REG0)", "REG0"),
-        ("$(_PRIVATE)", "_PRIVATE"),
-    ])
+    @pytest.mark.parametrize(
+        "text,expected_name",
+        [
+            ("$(PORT)", "PORT"),
+            ("$(port)", "port"),
+            ("$(A)", "A"),
+            ("$(MY_VAR)", "MY_VAR"),
+            ("$(my_var)", "my_var"),
+            ("$(REG0)", "REG0"),
+            ("$(_PRIVATE)", "_PRIVATE"),
+        ],
+    )
     def test_valid_var_names(self, text, expected_name):
         """Either case, digits, underscores, and a leading underscore form a name."""
         # Act
@@ -279,10 +282,13 @@ class TestVarNameRegex:
         assert m is not None, f"regex should match {text}"
         assert m.group(1) == expected_name, f"captured name for {text}"
 
-    @pytest.mark.parametrize("text", [
-        "$(123)",        # starts with digit
-        "$PORT",         # bare $NAME (no parens)
-    ])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "$(123)",  # starts with digit
+            "$PORT",  # bare $NAME (no parens)
+        ],
+    )
     def test_invalid_var_names(self, text):
         """A digit-first name, or bare $NAME without parens, is not a reference."""
         # Act
@@ -736,12 +742,15 @@ class TestRunDirectivesIsolated:
         # Arrange
         engine, _ = _make_engine(tmp_path)
         engine._directives.clear()
-        engine.register_directive(DirectiveInfo(
-            name="test",
-            help="Test directive.",
-            handler=lambda line: DirectiveResult("rewrite", "replaced")
-            if line == "match" else None,
-        ))
+        engine.register_directive(
+            DirectiveInfo(
+                name="test",
+                help="Test directive.",
+                handler=lambda line: (
+                    DirectiveResult("rewrite", "replaced") if line == "match" else None
+                ),
+            )
+        )
 
         # Act
         actual = engine.run_directives("match")
@@ -755,11 +764,13 @@ class TestRunDirectivesIsolated:
         # Arrange
         engine, _ = _make_engine(tmp_path)
         engine._directives.clear()
-        engine.register_directive(DirectiveInfo(
-            name="test",
-            help="Test directive.",
-            handler=lambda line: None,
-        ))
+        engine.register_directive(
+            DirectiveInfo(
+                name="test",
+                help="Test directive.",
+                handler=lambda line: None,
+            )
+        )
 
         # Act
         actual = engine.run_directives("anything")
@@ -772,16 +783,20 @@ class TestRunDirectivesIsolated:
         # Arrange
         engine, _ = _make_engine(tmp_path)
         engine._directives.clear()
-        engine.register_directive(DirectiveInfo(
-            name="first",
-            help="First.",
-            handler=lambda line: DirectiveResult("rewrite", "first"),
-        ))
-        engine.register_directive(DirectiveInfo(
-            name="second",
-            help="Second.",
-            handler=lambda line: DirectiveResult("rewrite", "second"),
-        ))
+        engine.register_directive(
+            DirectiveInfo(
+                name="first",
+                help="First.",
+                handler=lambda line: DirectiveResult("rewrite", "first"),
+            )
+        )
+        engine.register_directive(
+            DirectiveInfo(
+                name="second",
+                help="Second.",
+                handler=lambda line: DirectiveResult("rewrite", "second"),
+            )
+        )
 
         # Act
         actual = engine.run_directives("anything")
@@ -803,7 +818,8 @@ def _make_engine(tmp_path):
         (cfg_dir / sub).mkdir()
     output = []
     engine = ReplEngine(
-        {"config_version": 8}, str(cfg_path),
+        {"config_version": 8},
+        str(cfg_path),
         lambda t, c=None: output.append((t, c)),
     )
     return engine, output
@@ -942,14 +958,13 @@ class TestResolveOne:
         actual = resolve_one("PORT", "%Y")
 
         # Assert
-        assert actual is None, (
-            "format suffix on a non-datetime var returns None"
-        )
+        assert actual is None, "format suffix on a non-datetime var returns None"
 
     def test_resolve_context_var(self):
         """A registered context var resolves by calling its callable."""
         # Arrange
         from termapy.variables import set_context_var
+
         set_context_var("TEST_CTX", lambda: "ctx_value")
 
         # Act
@@ -1053,9 +1068,7 @@ class TestDerefRef:
         actual = deref_ref("indirect")
 
         # Assert -- returned verbatim; the binder never re-scans it
-        assert actual == "$(p1)", (
-            "a resolved value is data, never re-expanded"
-        )
+        assert actual == "$(p1)", "a resolved value is data, never re-expanded"
 
 
 # ── snapshot ─────────────────────────────────────────────────────────────────
@@ -1068,6 +1081,7 @@ class TestSnapshot:
         """Exactly four namespaces, with context callables resolved to their values."""
         # Arrange
         from termapy.variables import set_context_var, snapshot
+
         _VARS["PORT"] = "COM9"
         set_context_var("SNAP_TEST", lambda: "ctx_value")
 
@@ -1077,21 +1091,15 @@ class TestSnapshot:
         # Assert
         actual_namespaces = set(actual.keys())
         expected_namespaces = {"user", "launch", "datetime", "context"}
-        assert actual_namespaces == expected_namespaces, (
-            "one sub-dict per namespace, no extras"
-        )
+        assert actual_namespaces == expected_namespaces, "one sub-dict per namespace, no extras"
         assert actual["user"] == {"PORT": "COM9"}, "user vars pass through"
         assert actual["context"]["SNAP_TEST"] == "ctx_value", (
             "context callables are resolved, not returned as callables"
         )
         # Value not pinned: FRONT_END is module-global session state that
         # sibling frontend/MCP tests legitimately set on this worker.
-        assert "FRONT_END" in actual["launch"], (
-            "launch namespace present in the snapshot"
-        )
-        assert actual["datetime"]["DATE"], (
-            "datetime vars arrive formatted, not empty"
-        )
+        assert "FRONT_END" in actual["launch"], "launch namespace present in the snapshot"
+        assert actual["datetime"]["DATE"], "datetime vars arrive formatted, not empty"
 
     def test_session_moment_appears_only_once_frozen(self):
         """SESSION_* is absent from the datetime namespace until the moment is frozen."""

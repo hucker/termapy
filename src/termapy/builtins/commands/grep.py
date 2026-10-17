@@ -126,7 +126,13 @@ command-help corpus rather than the scrollback).""",
     handler=_handler,
     needs=CapabilitySet.INTERACTIVE,  # scrollback only exists interactively
     params=[
-        ParamSpec("pattern", "str", positional=True, rest=True, required=True,
-                  help="case-insensitive regex to search the scrollback for"),
+        ParamSpec(
+            "pattern",
+            "str",
+            positional=True,
+            rest=True,
+            required=True,
+            help="case-insensitive regex to search the scrollback for",
+        ),
     ],
 )

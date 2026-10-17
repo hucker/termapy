@@ -83,9 +83,7 @@ class TestDraftProfileMessage:
         )
         # Assert -- LLM sees a clear "no help provided" message, not
         # a confusingly empty section
-        assert "(none provided" in body, (
-            "empty help section is explicitly marked"
-        )
+        assert "(none provided" in body, "empty help section is explicitly marked"
 
     def test_help_output_wrapped_in_code_fence(self):
         """Pasted help sits verbatim in a code fence so the LLM reads it as data."""
@@ -159,6 +157,4 @@ class TestRegisterPrompts:
         names = [p.name for p in asyncio.run(server.list_prompts())]
 
         # Assert
-        assert "draft_profile" in names, (
-            "draft_profile registered after register_prompts() call"
-        )
+        assert "draft_profile" in names, "draft_profile registered after register_prompts() call"

@@ -59,7 +59,6 @@ def cli(tmp_path):
 
 
 class TestDump:
-
     def test_by_symbol(self, cli):
         """A symbol resolves to its address, and the value is the bytes as one hex string."""
         # Act
@@ -67,7 +66,9 @@ class TestDump:
 
         # Assert
         assert result.success, result.error
-        assert result.value.startswith("1B00"), "gTemp is seeded to 27 (u16 le); value is the hex string"
+        assert result.value.startswith("1B00"), (
+            "gTemp is seeded to 27 (u16 le); value is the hex string"
+        )
         assert len(result.value) == 32, "16 bytes -> 32 hex digits"
 
     def test_rows_render_with_symbol_annotation(self, cli, capsys):
@@ -77,7 +78,9 @@ class TestDump:
 
         # Assert
         line = next(line for line in capsys.readouterr().out.splitlines() if "0x00001000" in line)
-        assert line.lstrip().startswith("0x00001000  1B 00 "), "address, then hex pairs (CLI indents output)"
+        assert line.lstrip().startswith("0x00001000  1B 00 "), (
+            "address, then hex pairs (CLI indents output)"
+        )
         assert line.rstrip().endswith("|  gTemp"), "ASCII column, then the containing symbol"
 
     def test_default_length_is_64(self, cli):
@@ -114,7 +117,11 @@ class TestDump:
         assert result.data["len"] == 2, "bytes read"
         assert result.data["bytes_hex"] == "1B00", "the block as hex"
         assert result.data["rows"][0] == {
-            "addr": 0x1000, "addr_hex": "0x00001000", "hex": "1B 00", "ascii": "..", "symbolic": "gTemp",
+            "addr": 0x1000,
+            "addr_hex": "0x00001000",
+            "hex": "1B 00",
+            "ascii": "..",
+            "symbolic": "gTemp",
         }, "one row with every key"
 
     @pytest.mark.parametrize(
@@ -137,7 +144,9 @@ class TestDump:
         """Length accepts decimal, 0x hex, and the h suffix -- the same numbers as addresses."""
         result = cli.repl.dispatch(f"mem.dump gTemp {token}")
         assert result.success, result.error
-        assert len(result.value) == expected_len * 2, "decimal, 0x hex and h-suffix all mean sixteen"
+        assert len(result.value) == expected_len * 2, (
+            "decimal, 0x hex and h-suffix all mean sixteen"
+        )
 
     @pytest.mark.parametrize("token", ["0", "zz", "-4", "1.5"])
     def test_bad_length(self, cli, token):
@@ -154,7 +163,6 @@ class TestDump:
 
 
 class TestWrite:
-
     def test_write_then_read_back(self, cli):
         """Written bytes persist on the device, and the value is the byte count."""
         # Act
@@ -181,15 +189,22 @@ class TestWrite:
         """The feedback line names the symbol and shows the bytes the write replaced."""
         cli.repl.dispatch("mem.write gTemp 2C01")
         out = capsys.readouterr().out
-        assert "Wrote 2 bytes at 0x00001000  gTemp  (was 1B00)" in out, "before-bytes in the feedback"
+        assert "Wrote 2 bytes at 0x00001000  gTemp  (was 1B00)" in out, (
+            "before-bytes in the feedback"
+        )
 
     def test_data_record(self, cli):
         """The data record holds before and after hex; spaced hex pairs are accepted as input."""
         cli.ctx.wants_data = True  # what the dispatcher sets for --json / MCP
         result = cli.repl.dispatch("mem.write 0x1000 2C 01")
         assert result.data == {
-            "addr": 0x1000, "addr_hex": "0x00001000", "count": 2,
-            "before_hex": "1B00", "before_skipped": "", "after_hex": "2C01", "origin": "cli",
+            "addr": 0x1000,
+            "addr_hex": "0x00001000",
+            "count": 2,
+            "before_hex": "1B00",
+            "before_skipped": "",
+            "after_hex": "2C01",
+            "origin": "cli",
         }, "spaced hex pairs accepted; record carries before and after"
 
     def test_write_crosses_the_block_limit(self, cli):
@@ -223,7 +238,9 @@ class TestWrite:
     def test_no_audit_when_the_write_fails(self, cli):
         """A device-refused write leaves no MEM.W line, so the audit never claims a change."""
         cli.repl.dispatch("mem.write 0x9000 00")
-        assert not any(text.startswith("MEM.W") for _, text in cli.audit), "nothing was written, nothing is audited"
+        assert not any(text.startswith("MEM.W") for _, text in cli.audit), (
+            "nothing was written, nothing is audited"
+        )
 
 
 class TestRead:
@@ -287,7 +304,9 @@ class TestRead:
         assert result.success, result.error
         assert result.data["fields"] == {"ON": 1, "UEN": 0, "BRGH": 1}, "the seeded 0x8008"
         out = capsys.readouterr().out
-        assert "ON       = 1" in out, "the DISPLAY agrees with the extract twin (gold caught it at 0)"
+        assert "ON       = 1" in out, (
+            "the DISPLAY agrees with the extract twin (gold caught it at 0)"
+        )
         assert "BRGH     = 1" in out, "bit 3 rendered from the combined word"
 
     def test_named_field(self, cli):
@@ -373,11 +392,12 @@ class TestBitWrites:
         result = cli.repl.dispatch("mem.write U1STA.0 1")
         assert not result.success
         assert "RMW refused: U1STA is rmw: false" in result.error
-        assert not any(text.startswith("MEM.M") for _, text in cli.audit), "nothing written, nothing audited"
+        assert not any(text.startswith("MEM.M") for _, text in cli.audit), (
+            "nothing written, nothing audited"
+        )
 
 
 class TestMaskOps:
-
     def test_or_width_from_symbol_type(self, cli, capsys):
         """OR takes its width from the symbol's u32 type and rides the atomic MEM.M."""
         # Act -- gFlags is u32 = 5; set bit 4
@@ -387,7 +407,10 @@ class TestMaskOps:
         assert result.success, result.error
         assert result.value == "00000015", "the new word"
         assert result.data["atomic"] is True, "or rides MEM.M"
-        assert "OR 0x00000010 at 0x00001008  gFlags  (0x00000005 -> 0x00000015)" in capsys.readouterr().out
+        assert (
+            "OR 0x00000010 at 0x00001008  gFlags  (0x00000005 -> 0x00000015)"
+            in capsys.readouterr().out
+        )
 
     def test_and(self, cli):
         """AND keeps only the mask bits and returns the new word as hex."""
@@ -446,7 +469,6 @@ class TestMaskOps:
 
 
 class TestStr:
-
     def test_banner_by_symbol(self, cli, capsys):
         """The NUL-terminated string is the value, with its length and an untruncated flag."""
         # Act
@@ -472,7 +494,6 @@ class TestStr:
 
 
 class TestDumpModes:
-
     def test_u16_word_columns(self, cli, capsys):
         """A u16 mode renders LE hex words per column while the value stays raw bytes."""
         # Act
@@ -488,7 +509,9 @@ class TestDumpModes:
         """An i16 mode puts signed decimal values in each data row's values list."""
         cli.ctx.wants_data = True  # what the dispatcher sets for --json / MCP
         result = cli.repl.dispatch("mem.dump gTemp 4 i16")
-        assert result.data["rows"][0]["values"] == [27, 20480], "signed decimal values in the records"
+        assert result.data["rows"][0]["values"] == [27, 20480], (
+            "signed decimal values in the records"
+        )
 
     def test_bare_mode(self, cli, capsys):
         """With addr and ascii both off, each row is only hex values, with no symbol label."""
@@ -503,17 +526,22 @@ class TestDumpModes:
         """Turning off only the address column keeps the ASCII column."""
         cli.repl.dispatch("mem.dump sBanner 8 addr=off")
         line = capsys.readouterr().out.splitlines()[0].lstrip()
-        assert line.startswith("42 61 73 73") and "|Bassomat|" in line, "ascii column without addresses"
+        assert line.startswith("42 61 73 73") and "|Bassomat|" in line, (
+            "ascii column without addresses"
+        )
 
     def test_word_length_must_align(self, cli):
         """A length that is not a multiple of the word size is refused, naming the type."""
         result = cli.repl.dispatch("mem.dump gTemp 3 u16")
         assert "Invalid length: 3 (not a multiple of 2 for u16)" in result.error
 
-    @pytest.mark.parametrize("line", [
-        "mem.dump gTemp 4 addr=false ascii=no",
-        "mem.dump gTemp 4 addr=0 ascii=OFF",
-    ])
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "mem.dump gTemp 4 addr=false ascii=no",
+            "mem.dump gTemp 4 addr=0 ascii=OFF",
+        ],
+    )
     def test_toggles_take_the_whole_parse_bool_vocabulary(self, cli, line, capsys):
         """The addr= and ascii= toggles accept any parse_bool token, such as false, no, 0, OFF."""
         # Act -- on/off is canonical, but any scripting.parse_bool token works
@@ -527,7 +555,10 @@ class TestDumpModes:
         """An unrecognized toggle token errors and lists the accepted boolean vocabulary."""
         result = cli.repl.dispatch("mem.dump gTemp 4 addr=maybe")
         assert not result.success
-        assert "invalid addr: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0/y/n/t/f)" in result.error
+        assert (
+            "invalid addr: 'maybe' (expected a boolean: on/off/true/false/yes/no/1/0/y/n/t/f)"
+            in result.error
+        )
 
     def test_type_token_in_the_len_slot(self, cli):
         """A type token in the length slot shifts over, so the symbol's own size applies."""
@@ -576,7 +607,6 @@ class TestDumpModes:
 
 
 class TestInfo:
-
     def test_device_answers_mem_info(self, cli):
         """With no profile, MEM.INFO supplies the facts and each is sourced to the device."""
         # Act -- no profile: the facts come from the device
@@ -587,7 +617,10 @@ class TestInfo:
         assert result.value == "termapy", "the dialect is the value"
         assert result.data["sources"]["max_block"] == "device", "MEM.INFO supplied the block limit"
         assert result.data["device_info"] == {
-            "max_block": 64, "address_bits": 32, "endian": "le", "modify": True,
+            "max_block": 64,
+            "address_bits": 32,
+            "endian": "le",
+            "modify": True,
         }
         assert result.data["atomic_modify"] is True, "the demo advertises MEM.M"
 
@@ -601,7 +634,9 @@ class TestInfo:
         result = cli.repl.dispatch("mem.info")
 
         # Assert
-        assert result.data["sources"]["max_block"] == "profile", "an explicit profile value is the source"
+        assert result.data["sources"]["max_block"] == "profile", (
+            "an explicit profile value is the source"
+        )
         assert result.data["max_block"] == 64
 
     def test_rows_show_each_source(self, cli, capsys):
@@ -653,8 +688,12 @@ class TestSpaceForm:
         out = capsys.readouterr().out
 
         # Assert
-        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), "the subcommand's failure is the answer"
-        assert out.count(STATE_MESSAGES["serial_connected"]) == 1, "printed once, at the redirect's exit"
+        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), (
+            "the subcommand's failure is the answer"
+        )
+        assert out.count(STATE_MESSAGES["serial_connected"]) == 1, (
+            "printed once, at the redirect's exit"
+        )
 
     def test_unknown_subcommand_names_the_choices(self, cli):
         """An unknown word after /mem is an error that lists the real subcommands."""
@@ -702,11 +741,8 @@ class TestRequestModeEnvelope:
     @staticmethod
     def _envelopes(out: str) -> list[dict]:
         import json
-        return [
-            json.loads(line)
-            for line in out.splitlines()
-            if line.strip().startswith("{")
-        ]
+
+        return [json.loads(line) for line in out.splitlines() if line.strip().startswith("{")]
 
     def test_bare_mem_emits_one_envelope(self, cli, capsys):
         """The bare_sub redirect yields one envelope, the inner record as data and no prose beside it."""
@@ -725,7 +761,9 @@ class TestRequestModeEnvelope:
         assert envelope["cmd"] == "/mem", "the command as the user issued it"
         assert envelope["value"] == "termapy", "the inner result propagates"
         assert envelope["data"]["dialect"] == "termapy", "the inner record propagates as data"
-        assert envelope["output_lines"] == [], "the facts ride once, as data, never as rows beside it"
+        assert envelope["output_lines"] == [], (
+            "the facts ride once, as data, never as rows beside it"
+        )
 
     def test_space_form_emits_one_envelope(self, cli, capsys):
         """The space-form redirect adds no second envelope, and the inner value propagates."""
@@ -748,7 +786,10 @@ class TestTemplateDialect:
 
     @pytest.fixture
     def legacy(self, cli):
-        shutil.copyfile(DEMO_DIR / "demo_legacy.profile.json", Path(cli.config_path).with_name("demo_legacy.profile.json"))
+        shutil.copyfile(
+            DEMO_DIR / "demo_legacy.profile.json",
+            Path(cli.config_path).with_name("demo_legacy.profile.json"),
+        )
         loaded = cli.repl.dispatch("profile.load demo_legacy.profile.json")  # cfg-relative
         assert loaded.success, loaded.error
         return cli
@@ -769,7 +810,10 @@ class TestTemplateDialect:
         """A template-dialect dump returns byte-for-byte what the native dialect returned."""
         # Arrange -- native first
         native = cli.repl.dispatch("mem.dump gTemp 40").value
-        shutil.copyfile(DEMO_DIR / "demo_legacy.profile.json", Path(cli.config_path).with_name("demo_legacy.profile.json"))
+        shutil.copyfile(
+            DEMO_DIR / "demo_legacy.profile.json",
+            Path(cli.config_path).with_name("demo_legacy.profile.json"),
+        )
         assert cli.repl.dispatch("profile.load demo_legacy.profile.json").success
 
         # Act
@@ -789,9 +833,9 @@ class TestTemplateDialect:
         assert written.success, written.error
         assert written.value == "2"
         assert read.value == "2C01", "both bytes landed through =val writes"
-        assert any(text == "MEM.W 0x00001000 before=1B00 after=2C01 origin=cli" for _, text in legacy.audit), (
-            "the audit line does not care which dialect carried the write"
-        )
+        assert any(
+            text == "MEM.W 0x00001000 before=1B00 after=2C01 origin=cli" for _, text in legacy.audit
+        ), "the audit line does not care which dialect carried the write"
 
     def test_device_error_is_reported_verbatim(self, legacy):
         """The template device's own error text is passed through unchanged."""
@@ -809,19 +853,24 @@ class TestTemplateDialect:
         """A template block with no read template refuses with the lint's own message."""
         # Arrange -- a template block with no read template
         broken = Path(cli.config_path).with_name("broken.profile.json")
-        broken.write_text(json.dumps({"profile_version": 2, "memory": {"dialect": "template"}, "commands": {}}))
-        assert cli.repl.dispatch("profile.load broken.profile.json").success, "lint warns, load succeeds"
+        broken.write_text(
+            json.dumps({"profile_version": 2, "memory": {"dialect": "template"}, "commands": {}})
+        )
+        assert cli.repl.dispatch("profile.load broken.profile.json").success, (
+            "lint warns, load succeeds"
+        )
 
         # Act
         result = cli.repl.dispatch("mem.dump gTemp 2")
 
         # Assert
         assert not result.success
-        assert "memory/read: required for the template dialect" in result.error, "the same message the lint gave"
+        assert "memory/read: required for the template dialect" in result.error, (
+            "the same message the lint gave"
+        )
 
 
 class TestHelpSection:
-
     def test_required_capabilities_round_trips_with_the_code(self, cli, capsys):
         """The section is named for the feature (CapabilitySet), not a synonym.
 
@@ -863,7 +912,9 @@ class TestHelpSection:
         # Assert
         assert "(missing)" not in connected_out, "met requirements carry no marker"
         assert "serial_connected" in disconnected_out, "the row still renders when unmet"
-        assert "(missing)" in disconnected_out, "an unmet requirement is marked in text, not just color"
+        assert "(missing)" in disconnected_out, (
+            "an unmet requirement is marked in text, not just color"
+        )
 
     def test_available_treats_serial_as_attainable(self, cli, capsys):
         """The AVAILABLE matrix answers "could it EVER run there".
@@ -954,7 +1005,6 @@ class TestNoMemoryInterface:
 
 
 class TestNotConnected:
-
     def test_dump_needs_a_port(self, cli):
         """With the port closed, /mem.dump is refused by the serial_connected gate."""
         cli._disconnect()
@@ -963,7 +1013,6 @@ class TestNotConnected:
 
 
 class TestValueContract:
-
     @pytest.mark.parametrize("line", ["mem.dump gTemp 4", "mem.write gTemp 1B00", "mem.info"])
     def test_every_command_returns_a_str_value(self, cli, line):
         """Dump, write, and info each return a str value, so $(X) capture works."""
@@ -1141,8 +1190,9 @@ class TestPeripheralReadGates:
         sfr_cli.repl.dispatch("mem.dump 0xBF806000 0x20")
 
         # Assert
-        assert not any(text.startswith("MEM.R") for _, text in sfr_cli.audit), \
+        assert not any(text.startswith("MEM.R") for _, text in sfr_cli.audit), (
             "the refusal is before the wire: no read happened to log"
+        )
 
     def test_write_only_register_refuses_a_read(self, sfr_cli):
         """Reading an access: wo register is refused, since it returns bus noise."""
@@ -1153,12 +1203,15 @@ class TestPeripheralReadGates:
         assert not result.success, "reading a wo register returns bus noise, not the value"
         assert "Read refused: UTXREG is access: wo" in result.error
 
-    @pytest.mark.parametrize("line", [
-        "mem.dump UTXREG 4",
-        "mem.str UTXREG",
-        "mem.or UTXREG 1",
-        "mem.not UTXREG",
-    ])
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "mem.dump UTXREG 4",
+            "mem.str UTXREG",
+            "mem.or UTXREG 1",
+            "mem.not UTXREG",
+        ],
+    )
     def test_every_reading_path_honors_write_only(self, sfr_cli, line):
         """Including the read half of a read-modify-write."""
         # Act
@@ -1229,8 +1282,9 @@ class TestPeripheralReadLog:
 
         # Assert
         assert result.success, "a deliberate read of a FIFO port proceeds"
-        assert "read_effect=UDATA" in self._reads(sfr_cli)[0], \
+        assert "read_effect=UDATA" in self._reads(sfr_cli)[0], (
             "the side effect is what a later grep needs to find"
+        )
 
     def test_a_field_read_is_logged(self, sfr_cli):
         """A bit read of a register logs the register just as a whole-word read does."""
@@ -1324,9 +1378,9 @@ class TestWritePathReadGates:
 
         # Assert
         assert result.success, result.error
-        assert self._lines(sfr_cli, "MEM.R") == [
-            "MEM.R 0xBF806000 len=4 regs=UMODE origin=cli"
-        ], "the pre-read is a peripheral read and appears in the read log"
+        assert self._lines(sfr_cli, "MEM.R") == ["MEM.R 0xBF806000 len=4 regs=UMODE origin=cli"], (
+            "the pre-read is a peripheral read and appears in the read log"
+        )
         assert self._lines(sfr_cli, "MEM.W") == [
             "MEM.W 0xBF806000 before=08800000 after=09800000 regs=UMODE origin=cli"
         ], "and the audit line still carries the true before"
@@ -1353,13 +1407,16 @@ class TestWritePathReadGates:
         assert "write the whole word" in result.error, "the whole-word write is the way to do it"
         assert self._lines(sfr_cli, "MEM.M") == [], "nothing written, nothing audited"
 
-    @pytest.mark.parametrize("line", [
-        "mem.write UDATA.0 1",
-        "mem.or UDATA 1",
-        "mem.clear UDATA 1",
-        "mem.xor UDATA 1",
-        "mem.not UDATA",
-    ])
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "mem.write UDATA.0 1",
+            "mem.or UDATA 1",
+            "mem.clear UDATA 1",
+            "mem.xor UDATA 1",
+            "mem.not UDATA",
+        ],
+    )
     def test_every_masked_form_refuses_a_read_effect_register(self, sfr_cli, line):
         """The read half would pop the FIFO -- the surprise is in the mechanism."""
         # Act

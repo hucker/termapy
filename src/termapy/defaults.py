@@ -155,6 +155,7 @@ def default_cfg() -> dict:
     default.  ``deepcopy`` is the correct primitive.
     """
     import copy
+
     return copy.deepcopy(DEFAULT_CFG)
 
 
@@ -518,8 +519,7 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: true, false.",
     ),
     "record_enabled": (
-        "Show the Record button next to the REPL prompt "
-        "(toggles /run.record).",
+        "Show the Record button next to the REPL prompt (toggles /run.record).",
         "Valid: true, false.",
     ),
     # Custom buttons (nested keys)

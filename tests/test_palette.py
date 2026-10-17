@@ -32,9 +32,7 @@ class TestPaletteEntries:
 
         # Assert -- each expected (label, handler) pair is present.
         for label, handler in _EXPECTED_PALETTE_ADDITIONS:
-            assert (label, handler) in entries, (
-                f"palette missing entry ({label!r}, {handler!r})"
-            )
+            assert (label, handler) in entries, f"palette missing entry ({label!r}, {handler!r})"
 
     def test_palette_handler_methods_exist(self):
         """Each search entry's handler name resolves to a callable on SerialTerminal."""
@@ -56,7 +54,8 @@ class TestPaletteEntries:
         # Assert
         help_idx = labels.index("Help")
         for offset, (label, _) in enumerate(
-            _EXPECTED_PALETTE_ADDITIONS, start=1,
+            _EXPECTED_PALETTE_ADDITIONS,
+            start=1,
         ):
             assert labels[help_idx + offset] == label, (
                 f"palette entry at slot {help_idx + offset} should be "
@@ -85,9 +84,7 @@ class TestPaletteEntries:
         # Assert -- each (label, handler) tuple is present and the
         # handler resolves to a callable on the class.
         for label, handler in expected:
-            assert (label, handler) in entries, (
-                f"palette missing entry ({label!r}, {handler!r})"
-            )
+            assert (label, handler) in entries, f"palette missing entry ({label!r}, {handler!r})"
             assert callable(getattr(SerialTerminal, handler, None)), (
                 f"SerialTerminal.{handler} is missing or not callable"
             )
@@ -175,9 +172,7 @@ class TestPromptThenDispatch:
         captured_callback[1]("")
 
         # Assert
-        assert dispatched == [], (
-            f"empty / None value -> no dispatch; got {dispatched!r}"
-        )
+        assert dispatched == [], f"empty / None value -> no dispatch; got {dispatched!r}"
 
 
 class TestPaletteSetVar:
@@ -206,9 +201,7 @@ class TestPaletteSetVar:
     def test_bare_name_and_dollar_paren_name_produce_same_dispatch(self):
         """TIMEOUT and $(TIMEOUT) in the Name field dispatch the identical /var.set line."""
         # Arrange
-        app, dispatched, captured_callback = (
-            self._make_app_with_captured_callback()
-        )
+        app, dispatched, captured_callback = self._make_app_with_captured_callback()
 
         # Act -- call the handler twice; simulate user submitting
         # the bare form once and the $(...) form once.
@@ -221,17 +214,14 @@ class TestPaletteSetVar:
         actual = dispatched
         expected = ["/var.set TIMEOUT 5000", "/var.set TIMEOUT 5000"]
         assert actual == expected, (
-            f"bare and $(...) Name forms must produce identical dispatch; "
-            f"got {actual!r}"
+            f"bare and $(...) Name forms must produce identical dispatch; got {actual!r}"
         )
 
     def test_value_dollar_paren_is_preserved(self):
         """A $(BAR) reference in the Value field reaches /var.set unstripped."""
         # Arrange -- the value field is the documented place to put
         # a variable reference; we must NOT strip $(...) there.
-        app, dispatched, captured_callback = (
-            self._make_app_with_captured_callback()
-        )
+        app, dispatched, captured_callback = self._make_app_with_captured_callback()
 
         # Act
         SerialTerminal._palette_set_var(app)  # type: ignore[arg-type]
@@ -240,17 +230,12 @@ class TestPaletteSetVar:
         # Assert
         actual = dispatched
         expected = ["/var.set FOO $(BAR)"]
-        assert actual == expected, (
-            f"$(...) in Value must reach the REPL untouched; "
-            f"got {actual!r}"
-        )
+        assert actual == expected, f"$(...) in Value must reach the REPL untouched; got {actual!r}"
 
     def test_cancel_does_not_dispatch(self):
         """Canceling the two-field modal sends nothing to the REPL."""
         # Arrange
-        app, dispatched, captured_callback = (
-            self._make_app_with_captured_callback()
-        )
+        app, dispatched, captured_callback = self._make_app_with_captured_callback()
 
         # Act -- user canceled (callback fired with None).
         SerialTerminal._palette_set_var(app)  # type: ignore[arg-type]
@@ -259,9 +244,7 @@ class TestPaletteSetVar:
         # Assert
         actual = dispatched
         expected: list[str] = []
-        assert actual == expected, (
-            f"Cancel must NOT dispatch; got {actual!r}"
-        )
+        assert actual == expected, f"Cancel must NOT dispatch; got {actual!r}"
 
 
 class TestPaletteProvider:
@@ -290,6 +273,7 @@ class TestPaletteProvider:
         # `self.app` lookup -- stub with a SimpleNamespace carrying
         # just the PALETTE_CMDS the provider needs.
         from types import SimpleNamespace
+
         provider._test_app = SimpleNamespace(PALETTE_CMDS=palette_cmds)  # ty: ignore[unresolved-attribute]
         type(provider).app = property(lambda self: self._test_app)  # ty: ignore[invalid-assignment]
         return provider
@@ -299,6 +283,7 @@ class TestPaletteProvider:
         # Arrange -- input order is intentionally non-alphabetical
         # so we can assert the provider re-sorts.
         import asyncio
+
         cmds = [("Zeta", "_palette_z"), ("Alpha", "_palette_a")]
         provider = self._make_provider(cmds)
 
@@ -313,14 +298,14 @@ class TestPaletteProvider:
         actual = labels
         expected = ["Alpha", "Zeta"]
         assert actual == expected, (
-            f"discover yields PALETTE_CMDS in alphabetical order; "
-            f"got {actual!r}"
+            f"discover yields PALETTE_CMDS in alphabetical order; got {actual!r}"
         )
 
     def test_search_fuzzy_filters(self):
         """A find query matches the Find entry and excludes unrelated labels like Exit."""
         # Arrange
         import asyncio
+
         cmds = [
             ("Find in scrollback...", "_palette_find"),
             ("Save SVG Screenshot", "_palette_ss_svg"),
@@ -347,6 +332,7 @@ class TestPaletteProvider:
         """A search hit's command looks up the handler name on the app and calls it once."""
         # Arrange
         import asyncio
+
         cmds = [("Run thing", "_call_a")]
         provider = self._make_provider(cmds)
         called: list[str] = []
@@ -355,9 +341,7 @@ class TestPaletteProvider:
         # Act -- search, then invoke the returned hit's callback.
         async def _flow():
             hits = [hit async for hit in provider.search("run")]
-            assert len(hits) == 1, (
-                f"search returned exactly one hit; got {len(hits)}"
-            )
+            assert len(hits) == 1, f"search returned exactly one hit; got {len(hits)}"
             hits[0].command()
 
         asyncio.run(_flow())
@@ -366,8 +350,5 @@ class TestPaletteProvider:
         actual = called
         expected = ["a"]
         assert actual == expected, (
-            f"invoking the hit calls the named handler on app; "
-            f"got {actual!r}"
+            f"invoking the hit calls the named handler on app; got {actual!r}"
         )
-
-

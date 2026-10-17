@@ -74,7 +74,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.record({}, [TextLine("No counters set.")], value="")
     rows = [(name, str(count)) for name, count in counters.items()]
     return CmdResult.record(
-        counters, rows, value=", ".join(f"{name}={count}" for name, count in counters.items()),
+        counters,
+        rows,
+        value=", ".join(f"{name}={count}" for name, count in counters.items()),
     )
 
 

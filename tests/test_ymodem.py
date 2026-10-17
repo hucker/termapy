@@ -10,6 +10,7 @@ from termapy.demo import FakeSerial, _xmodem_crc16
 
 # -- Helpers ----------------------------------------------------------------
 
+
 def _send_cmd(dev: FakeSerial, cmd: str) -> str:
     """Send an ASCII command and return the text response."""
     dev.write(cmd.encode() + b"\r")
@@ -31,7 +32,7 @@ def _enter_ymodem_mode(dev: FakeSerial, mode: str) -> None:
     resp = dev.read(4096)
     ok_text = b"OK\r\n"
     if resp.startswith(ok_text) and len(resp) > len(ok_text):
-        dev._output_buf.extend(resp[len(ok_text):])
+        dev._output_buf.extend(resp[len(ok_text) :])
 
 
 SOH = 0x01
@@ -293,6 +294,7 @@ class TestYmodemLibraryIntegration:
     @staticmethod
     def _make_read_write(dev: FakeSerial):
         """Create read/write callables for ModemSocket."""
+
         def read(size: int, timeout: float | None = None) -> bytes:
             old_timeout = dev.timeout
             dev.timeout = timeout if timeout is not None else 1.0

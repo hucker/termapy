@@ -48,9 +48,7 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
         try:
             n = int(arg)
         except ValueError:
-            raise UsageError(
-                f"Invalid count: {arg!r}  (N>0 last N, N<0 first N)"
-            ) from None
+            raise UsageError(f"Invalid count: {arg!r}  (N>0 last N, N<0 first N)") from None
         if n == 0:
             return CmdResult.fail(msg="Invalid line count: 0")
     try:

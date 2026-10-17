@@ -25,10 +25,11 @@ def _memory_warnings(profile: dict) -> list[str]:
 
 
 class TestMemoryBlock:
-
     def test_clean_block_is_silent(self):
         """A block with every key at a canonical value produces no memory warnings."""
-        profile = {"memory": {"dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le"}}
+        profile = {
+            "memory": {"dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le"}
+        }
         assert _memory_warnings(profile) == [], "canonical values raise nothing"
 
     def test_unknown_key_warns(self):
@@ -60,16 +61,22 @@ class TestMemoryBlock:
     def test_template_block_without_read_warns_with_the_refusal(self):
         """The template dialect without a read template warns that /mem.* will refuse."""
         warnings = _memory_warnings({"memory": {"dialect": "template"}})
-        assert any("memory/read: required" in warning and "refuse" in warning for warning in warnings)
+        assert any(
+            "memory/read: required" in warning and "refuse" in warning for warning in warnings
+        )
 
     def test_template_bad_regex_warns(self):
         """An uncompilable ack regex in a template block is reported by field name."""
-        warnings = _memory_warnings({"memory": {"dialect": "template", "read": "r {addr} {len}", "ack": "("}})
+        warnings = _memory_warnings(
+            {"memory": {"dialect": "template", "read": "r {addr} {len}", "ack": "("}}
+        )
         assert any("memory/ack: invalid regex" in warning for warning in warnings)
 
     def test_demo_legacy_profile_lints_clean(self):
         """The shipped demo_legacy template-dialect block lints with no warnings."""
-        profile = json.loads(DEMO_PROFILE.with_name("demo_legacy.profile.json").read_text(encoding="utf-8"))
+        profile = json.loads(
+            DEMO_PROFILE.with_name("demo_legacy.profile.json").read_text(encoding="utf-8")
+        )
         assert profile["memory"]["dialect"] == "template"
         assert _memory_warnings(profile) == [], "the shipped template block is canonical"
 

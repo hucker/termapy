@@ -70,21 +70,21 @@ ARCHITECTURE_LINE_COUNTS: tuple[str, ...] = (
     "src/termapy/serial_engine.py",
     "src/termapy/serial_port.py",
     "src/termapy/capture.py",
-    "src/termapy/dialogs",      # package (was dialogs.py)
+    "src/termapy/dialogs",  # package (was dialogs.py)
     "src/termapy/proto_debug.py",
-    "src/termapy/protocol",     # package (was protocol.py + friends)
+    "src/termapy/protocol",  # package (was protocol.py + friends)
     "src/termapy/demo.py",
     "src/termapy/repl.py",
-    "src/termapy/plugins",      # package (was plugins.py)
+    "src/termapy/plugins",  # package (was plugins.py)
     "src/termapy/config.py",
     "src/termapy/port_control.py",
     "src/termapy/scripting.py",
     "src/termapy/migration.py",
     "src/termapy/defaults.py",
-    "src/termapy/mcp",          # package
-    "src/termapy/profile",      # package
-    "src/termapy/usb",          # package
-    "src/termapy/symbols",      # package
+    "src/termapy/mcp",  # package
+    "src/termapy/profile",  # package
+    "src/termapy/usb",  # package
+    "src/termapy/symbols",  # package
     "src/termapy/memory.py",
     "src/termapy/memory_views.py",
 )
@@ -103,7 +103,7 @@ def bump_pyproject(version: str) -> None:
         flags=re.MULTILINE,
     )
     if n != 1:
-        die("could not find a single `version = \"...\"` line in pyproject.toml")
+        die('could not find a single `version = "..."` line in pyproject.toml')
     path.write_text(new_text, encoding="utf-8")
     ok(f"pyproject.toml -> {version}")
 
@@ -308,7 +308,8 @@ def update_suppression_count() -> None:
     new_text, n = re.subn(
         r"\d+( lint/type/coverage pragmas in)",
         rf"{total}\g<1>",
-        text, count=1,
+        text,
+        count=1,
     )
     if n != 1:
         die("ARCHITECTURE.md is missing the Suppressions count line to refresh.")
@@ -350,9 +351,7 @@ def update_architecture_md() -> None:
         # directory entry (``├── dialogs/  # (N lines)``).  The
         # ``/?`` after the basename absorbs the trailing slash on
         # package rows.
-        pattern = re.compile(
-            rf"(├── {re.escape(basename)}/?\s+# \()\d+( lines\))"
-        )
+        pattern = re.compile(rf"(├── {re.escape(basename)}/?\s+# \()\d+( lines\))")
         new_text, n = pattern.subn(rf"\g<1>{actual}\g<2>", text, count=1)
         if n == 1:
             text = new_text
@@ -490,21 +489,15 @@ def refresh_usb_vendor_table() -> None:
     # vanish, something is wrong with either upstream or the parser.
     spot_checks = [
         (0x0403, "Future Technology"),  # FTDI
-        (0x10C4, "Silicon Lab"),        # Silicon Labs
-        (0x04D8, "Microchip"),          # Microchip Technology
+        (0x10C4, "Silicon Lab"),  # Silicon Labs
+        (0x04D8, "Microchip"),  # Microchip Technology
     ]
     for vid, expected_substring in spot_checks:
         actual = table.get(vid, "")
         if expected_substring.lower() not in actual.lower():
-            die(
-                f"VID 0x{vid:04X} expected to contain {expected_substring!r}; "
-                f"got {actual!r}"
-            )
+            die(f"VID 0x{vid:04X} expected to contain {expected_substring!r}; got {actual!r}")
 
-    delta = (
-        f"{new_count - previous_count:+d}"
-        if previous_count is not None else "first run"
-    )
+    delta = f"{new_count - previous_count:+d}" if previous_count is not None else "first run"
     ok(f"USB vendor table refreshed ({new_count} entries, {delta})")
 
 
@@ -539,9 +532,7 @@ def insert_changelog_stub(version: str) -> None:
 
     if prev:
         log_range = f"{prev}..HEAD"
-        commits = run_out(
-            ["git", "log", log_range, "--oneline", "--no-merges"]
-        )
+        commits = run_out(["git", "log", log_range, "--oneline", "--no-merges"])
     else:
         commits = run_out(["git", "log", "--oneline", "--no-merges"])
 
@@ -624,8 +615,18 @@ def run_hw_loopback_suite(skip: bool) -> None:
         return
     info("Running the hw_loopback suite (serial, no coverage)...")
     result = run(
-        ["uv", "run", "pytest", "--require-hw-loopback", "-m", "hw_loopback",
-         "-n", "0", "--no-cov", "-q"],
+        [
+            "uv",
+            "run",
+            "pytest",
+            "--require-hw-loopback",
+            "-m",
+            "hw_loopback",
+            "-n",
+            "0",
+            "--no-cov",
+            "-q",
+        ],
         check=False,
     )
     if result.returncode != 0:
@@ -741,14 +742,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("version", help="New version, e.g. 0.53.0 (no leading 'v')")
     parser.add_argument(
-        "--ignore-vuln", action="append", default=[], metavar="ID",
+        "--ignore-vuln",
+        action="append",
+        default=[],
+        metavar="ID",
         help="advisory id the uv.lock audit may ignore (a finding reviewed "
-             "as unreachable); repeatable",
+        "as unreachable); repeatable",
     )
     parser.add_argument(
-        "--skip-hw-loopback", action="store_true",
+        "--skip-hw-loopback",
+        action="store_true",
         help="release without running the hw_loopback suite; the "
-             "default refuses unless it passes on the attached jumpered adapter",
+        "default refuses unless it passes on the attached jumpered adapter",
     )
     args = parser.parse_args()
 
@@ -791,6 +796,7 @@ def main() -> None:
 
     step(4, "Auditing uv.lock for known vulnerabilities...")
     import audit_lock
+
     audit_lock.audit_uv_lock(args.ignore_vuln)
 
     # Early, before the long suite: an unplugged bench should cost seconds,
@@ -807,6 +813,7 @@ def main() -> None:
 
     step(7, "Refreshing generated docs (config examples, credits sync)...")
     from update_doc_configs import update_doc_configs
+
     updated = update_doc_configs()
     if updated:
         ok(f"updated {len(updated)} config example(s)")
@@ -818,6 +825,7 @@ def main() -> None:
     # asserts the result matches the .md.  Running --check here gives
     # the release operator a clean error before pytest does the same.
     from sync_acknowledgments import main as sync_credits
+
     if sync_credits(["--check"]) != 0:
         die(
             "credits.py drifted from help/acknowledgments.md.  "
@@ -850,7 +858,9 @@ def main() -> None:
     print()
     ok(f"Release v{version} prepped on branch release/v{version}")
     if args.skip_hw_loopback:
-        warn("Reminder: --skip-hw-loopback -- this release was NOT tested on the hw_loopback adapter")
+        warn(
+            "Reminder: --skip-hw-loopback -- this release was NOT tested on the hw_loopback adapter"
+        )
     print()
     info("Next steps:")
     print("  1. Review the diff:        git log -p main..HEAD")

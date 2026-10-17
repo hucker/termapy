@@ -44,9 +44,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not args.strip():
         raise UsageError()
     try:
-        result = subprocess.run(
-            args, shell=True, capture_output=True, text=True, timeout=10
-        )
+        result = subprocess.run(args, shell=True, capture_output=True, text=True, timeout=10)
         for line in result.stdout.splitlines():
             ctx.io.output(line, "white")
         for line in result.stderr.splitlines():

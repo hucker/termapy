@@ -63,8 +63,7 @@ def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
         ctx.dispatch(args)
 
     ctx.io.output_markup(
-        f"  TX: [yellow]{tx_count[0]:d}[/]  "
-        f"RX: [cyan]{rx_count[0]:d}[/]  bytes",
+        f"  TX: [yellow]{tx_count[0]:d}[/]  RX: [cyan]{rx_count[0]:d}[/]  bytes",
     )
     return CmdResult.ok(value={"tx": tx_count[0], "rx": rx_count[0]})
 
@@ -95,11 +94,13 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
 
     t0 = time.monotonic()
     with out_path.open("w", encoding="utf-8") as f:
+
         def tee(direction: str):
             def cb(data: bytes) -> None:
                 ts = time.monotonic() - t0
                 f.write(f"[+{ts:6.3f}s] {direction}  {data.hex(' ').upper()}\n")
                 f.flush()
+
             return cb
 
         with ctx.serial.rx_observer(tee("RX")), ctx.serial.tx_observer(tee("TX")):
@@ -137,20 +138,20 @@ def _handler_rate(ctx: PluginContext, args: str) -> CmdResult:
     rx_rate = rx_count[0] / duration_s
     tx_rate = tx_count[0] / duration_s
     ctx.io.output_markup(
-        f"  TX: [yellow]{tx_count[0]:d}[/] bytes "
-        f"([yellow]{tx_rate:.1f}[/] B/s)",
+        f"  TX: [yellow]{tx_count[0]:d}[/] bytes ([yellow]{tx_rate:.1f}[/] B/s)",
     )
     ctx.io.output_markup(
-        f"  RX: [cyan]{rx_count[0]:d}[/] bytes "
-        f"([cyan]{rx_rate:.1f}[/] B/s)",
+        f"  RX: [cyan]{rx_count[0]:d}[/] bytes ([cyan]{rx_rate:.1f}[/] B/s)",
     )
-    return CmdResult.ok(value={
-        "duration_s": duration_s,
-        "tx_bytes": tx_count[0],
-        "rx_bytes": rx_count[0],
-        "tx_rate_bps": tx_rate,
-        "rx_rate_bps": rx_rate,
-    })
+    return CmdResult.ok(
+        value={
+            "duration_s": duration_s,
+            "tx_bytes": tx_count[0],
+            "rx_bytes": rx_count[0],
+            "tx_rate_bps": tx_rate,
+            "rx_rate_bps": rx_rate,
+        }
+    )
 
 
 # ── /traffic.snoop ──────────────────────────────────────────────────────────
@@ -205,12 +206,14 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
         f"[bold]{offset:d}[/] (after {len(buf) - len(pattern) - offset:d} "
         f"trailing bytes captured)",
     )
-    return CmdResult.ok(value={
-        "matched": True,
-        "pattern": pattern_hex,
-        "offset": offset,
-        "bytes_captured": len(buf),
-    })
+    return CmdResult.ok(
+        value={
+            "matched": True,
+            "pattern": pattern_hex,
+            "offset": offset,
+            "bytes_captured": len(buf),
+        }
+    )
 
 
 # ── Help summary that grows with file count ─────────────────────────────────
@@ -266,7 +269,7 @@ COMMAND = Command(
         ),
         "snoop": Command(
             args="<bytes> {timeout=<dur>}",
-            help="Block until a byte pattern (hex or \"text\") appears in the RX stream.",
+            help='Block until a byte pattern (hex or "text") appears in the RX stream.',
             handler=_handler_snoop,
             needs=CapabilitySet(serial_connected=True, block_until=True),
         ),

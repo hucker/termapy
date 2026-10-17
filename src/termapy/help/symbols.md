@@ -66,9 +66,10 @@ from termapy.symbols.table import Symbol
 
 FORMAT = "myboard"
 DESCRIPTION = "xc32 map, no function addresses, plus typed SFRs"
-DETECT = ()          # explicit-only: /sym.import <map> format=myboard
+DETECT = ()  # explicit-only: /sym.import <map> format=myboard
 
 _SFRS = [Symbol("U1MODE", 0xBF806000, 4, "sfr", type="u32", rmw=False)]
+
 
 def convert(text):
     rows = [s for s in xc32.convert(text) if s.section != "text"]

@@ -90,21 +90,24 @@ class FakeDevice:
             width = 1 if len(parts[2]) <= 2 else 2 if len(parts[2]) <= 4 else 4
             if not (BASE <= addr and addr + width <= BASE + SIZE):
                 return ["ERR range"]
-            old = bytes(self.ram[addr - BASE:addr - BASE + width])
+            old = bytes(self.ram[addr - BASE : addr - BASE + width])
             word = (int.from_bytes(old, "little") & and_mask) | or_mask
-            self.ram[addr - BASE:addr - BASE + width] = word.to_bytes(width, "little")
+            self.ram[addr - BASE : addr - BASE + width] = word.to_bytes(width, "little")
             return [f"{addr:08X}: " + " ".join(f"{byte:02X}" for byte in old), "OK"]
         if parts[0] == "MEM.INFO":
-            return [json.dumps({"max_block": self.max_block, "address_bits": 32, "endian": "be"}), "OK"]
+            return [
+                json.dumps({"max_block": self.max_block, "address_bits": 32, "endian": "be"}),
+                "OK",
+            ]
         if parts[0] == "MEM.R":
             addr, length = int(parts[1], 16), int(parts[2])
             if length > self.max_block:
                 return ["ERR length"]
             if not (BASE <= addr and addr + length <= BASE + SIZE):
                 return ["ERR range"]
-            data = self.ram[addr - BASE:addr - BASE + length]
+            data = self.ram[addr - BASE : addr - BASE + length]
             rows = [
-                f"{addr + i:08X}: " + " ".join(f"{byte:02X}" for byte in data[i:i + 16])
+                f"{addr + i:08X}: " + " ".join(f"{byte:02X}" for byte in data[i : i + 16])
                 for i in range(0, length, 16)
             ]
             return [*rows, "OK"]
@@ -114,7 +117,7 @@ class FakeDevice:
                 return ["ERR length"]
             if not (BASE <= addr and addr + len(data) <= BASE + SIZE):
                 return ["ERR range"]
-            self.ram[addr - BASE:addr - BASE + len(data)] = data
+            self.ram[addr - BASE : addr - BASE + len(data)] = data
             return ["OK"]
         return ["ERR usage"]
 
@@ -123,7 +126,6 @@ class FakeDevice:
 
 
 class TestCommands:
-
     def test_read_command(self):
         """MEM.R takes a 0x-prefixed hex address and a decimal byte count."""
         assert read_command(0x1000, 16) == "MEM.R 0x1000 16"
@@ -134,7 +136,6 @@ class TestCommands:
 
 
 class TestParseReply:
-
     def test_rows_then_ok(self):
         """Address rows followed by OK parse to a complete, error-free reply in wire order."""
         # Arrange
@@ -155,7 +156,7 @@ class TestParseReply:
         assert reply.error == "range", "the reason text after ERR"
 
     def test_err_with_colon_does_not_double_the_colon(self):
-        """"ERR: reason" drops the colon so errors never render as "error: : reason"."""
+        """ "ERR: reason" drops the colon so errors never render as "error: : reason"."""
         # A real monitor (the m3 bench device) answers "ERR: reason";
         # capturing the colon rendered "Device error: : unknown command"
         reply = parse_reply("ERR: unknown command: MEM.INFO\r\n")
@@ -195,7 +196,9 @@ class TestParseReply:
     def test_row_hex_may_be_lowercase_and_contiguous(self):
         """Row hex may be lower case and unspaced; the parser accepts either form."""
         reply = parse_reply("1000: 1b00ff\r\nOK\r\n")
-        assert reply.rows == ((0x1000, b"\x1b\x00\xff"),), "case and spacing are the device's choice"
+        assert reply.rows == ((0x1000, b"\x1b\x00\xff"),), (
+            "case and spacing are the device's choice"
+        )
 
     def test_json_line_is_decoded(self):
         """A JSON object line becomes reply.info, the carrier for the MEM.INFO record."""
@@ -214,7 +217,6 @@ class TestParseReply:
 
 
 class TestAssemble:
-
     def test_joins_contiguous_rows(self):
         """Rows whose addresses follow on exactly concatenate into the requested bytes."""
         rows = ((0x1000, b"\x01\x02"), (0x1002, b"\x03"))
@@ -223,7 +225,9 @@ class TestAssemble:
     def test_gap_is_discontinuous(self):
         """A gap between rows is refused, naming the expected and the received address."""
         rows = ((0x1000, b"\x01\x02"), (0x1010, b"\x03"))
-        with pytest.raises(DeviceMemoryError, match="Discontinuous reply: expected 0x00001002, got 0x00001010"):
+        with pytest.raises(
+            DeviceMemoryError, match="Discontinuous reply: expected 0x00001002, got 0x00001010"
+        ):
             assemble(rows, 0x1000, 3, address_bits=32)
 
     def test_wrong_start_is_discontinuous(self):
@@ -251,7 +255,6 @@ class TestAssemble:
 
 
 class TestRead:
-
     def test_block_within_max_is_one_exchange(self):
         """A read within max_block is a single MEM.R returning the device bytes verbatim."""
         # Arrange
@@ -275,7 +278,9 @@ class TestRead:
         data = memory.read(0x1000, 100)
 
         # Assert
-        assert device.sent == ["MEM.R 0x1000 64", "MEM.R 0x1040 36"], "64 then the 36-byte remainder"
+        assert device.sent == ["MEM.R 0x1000 64", "MEM.R 0x1040 36"], (
+            "64 then the 36-byte remainder"
+        )
         assert data == bytes(device.ram[:100]), "chunks are joined in order"
 
     def test_device_max_block_from_info_drives_chunking(self):
@@ -288,7 +293,9 @@ class TestRead:
     def test_echo_and_prompt_tolerated(self):
         """A full read still works through a device that echoes and prompts."""
         device = FakeDevice(echo=True, prompt="> ")
-        assert Memory(device.exchange).read(0x1000, 4) == bytes(device.ram[:4]), "noise around rows is ignored"
+        assert Memory(device.exchange).read(0x1000, 4) == bytes(device.ram[:4]), (
+            "noise around rows is ignored"
+        )
 
     def test_device_error(self):
         """A device ERR surfaces as "Device error: <reason>" with nothing added."""
@@ -355,7 +362,6 @@ class TestRead:
 
 
 class TestWrite:
-
     def test_write_then_read_back(self):
         """A write sends one MEM.W, returns the byte count, and the bytes read back."""
         # Arrange
@@ -376,7 +382,9 @@ class TestWrite:
         memory = Memory(device.exchange, MemoryInfo(max_block=4))
         memory.write(0x1000, bytes(range(10)))
         assert device.sent == [
-            "MEM.W 0x1000 00010203", "MEM.W 0x1004 04050607", "MEM.W 0x1008 0809",
+            "MEM.W 0x1000 00010203",
+            "MEM.W 0x1004 04050607",
+            "MEM.W 0x1008 0809",
         ], "4/4/2 chunks at advancing addresses"
         assert bytes(device.ram[:10]) == bytes(range(10)), "all ten landed"
 
@@ -398,7 +406,6 @@ class TestWrite:
 
 
 class TestModify:
-
     def test_atomic_path_sends_mem_m(self):
         """With atomic_modify, one MEM.M is sent and its row is the pre-modify value."""
         # Arrange -- the device advertised the atomic modify
@@ -420,7 +427,9 @@ class TestModify:
         memory = Memory(device.exchange, MemoryInfo(atomic_modify=True))
         old, new = memory.modify(0x1000, 4, 0xFFFF7FFF, 0x00008000)
         assert device.sent == ["MEM.M 0x1000 FFFF7FFF 00008000"], "8-digit masks = u32"
-        assert int.from_bytes(new, "little") == (int.from_bytes(old, "little") & 0xFFFF7FFF) | 0x8000
+        assert (
+            int.from_bytes(new, "little") == (int.from_bytes(old, "little") & 0xFFFF7FFF) | 0x8000
+        )
         assert bytes(device.ram[:4]) == new, "read-back matches the computed word"
 
     def test_fallback_is_read_then_write(self):
@@ -456,12 +465,17 @@ class TestModify:
         """Bad widths and masks too wide for the width raise ValueError with no traffic."""
         device = FakeDevice()
         with pytest.raises(ValueError, match=message):
-            Memory(device.exchange, MemoryInfo(atomic_modify=True)).modify(0x1000, width, and_mask, or_mask)
+            Memory(device.exchange, MemoryInfo(atomic_modify=True)).modify(
+                0x1000, width, and_mask, or_mask
+            )
         assert device.sent == [], "nothing goes to the wire for a bad argument"
 
     def test_modify_command_format(self):
         """MEM.M masks are zero-padded hex sized to the width: 2, 4 or 8 digits."""
-        assert modify_command(0xBF806000, 0xFFFF7FFF, 0x8000, 4) == "MEM.M 0xBF806000 FFFF7FFF 00008000"
+        assert (
+            modify_command(0xBF806000, 0xFFFF7FFF, 0x8000, 4)
+            == "MEM.M 0xBF806000 FFFF7FFF 00008000"
+        )
         assert modify_command(0x1000, 0xFE, 0x01, 1) == "MEM.M 0x1000 FE 01"
 
 
@@ -469,12 +483,13 @@ class TestModify:
 
 
 class TestQueryInfo:
-
     def test_record_returned_as_sent(self):
         """query_info returns the MEM.INFO JSON as the device sent it, uncoerced."""
         device = FakeDevice(max_block=32)
         assert Memory(device.exchange).query_info() == {
-            "max_block": 32, "address_bits": 32, "endian": "be",
+            "max_block": 32,
+            "address_bits": 32,
+            "endian": "be",
         }, "the JSON object, uncoerced"
 
     def test_device_without_info_answers_err(self):
@@ -491,12 +506,14 @@ class TestQueryInfo:
 
 
 class TestResolveInfo:
-
     def test_defaults(self):
         """With no profile and no device record, every fact is the default and says so."""
         info = resolve_info(None, None)
         assert (info.dialect, info.max_block, info.address_bits, info.endian) == (
-            "termapy", DEFAULT_MAX_BLOCK, DEFAULT_ADDRESS_BITS, "le",
+            "termapy",
+            DEFAULT_MAX_BLOCK,
+            DEFAULT_ADDRESS_BITS,
+            "le",
         )
         assert set(info.sources.values()) == {"default"}, "every fact is a default"
 
@@ -532,15 +549,21 @@ class TestResolveInfo:
         """The resolver keeps an unknown dialect; Memory refuses it, listing valid ones."""
         info = resolve_info({"dialect": "uboot"}, None)
         assert info.dialect == "uboot", "the resolver records what the profile said"
-        with pytest.raises(ValueError, match="Unknown memory dialect: uboot \\(dialects: termapy, template\\)"):
+        with pytest.raises(
+            ValueError, match="Unknown memory dialect: uboot \\(dialects: termapy, template\\)"
+        ):
             Memory(lambda command: "", info)
 
 
 class TestValidateBlock:
-
     def test_clean_block_has_no_warnings(self):
         """A memory block with every field valid produces no lint warnings."""
-        assert validate_block({"dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le"}) == []
+        assert (
+            validate_block(
+                {"dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le"}
+            )
+            == []
+        )
 
     def test_empty_block_is_fine(self):
         """An empty memory block is valid since every field is optional."""
@@ -550,9 +573,15 @@ class TestValidateBlock:
         "block, fragment",
         [
             ({"dialect": "uboot"}, "memory/dialect: unrecognized dialect 'uboot'"),
-            ({"max_block": 0}, "memory/max_block: expected a positive integer, got 0 (default 64 used)"),
+            (
+                {"max_block": 0},
+                "memory/max_block: expected a positive integer, got 0 (default 64 used)",
+            ),
             ({"address_bits": 7}, "memory/address_bits: expected an integer from 8 to 64"),
-            ({"endian": "middle"}, "memory/endian: expected le or be, got 'middle' (treated as le)"),
+            (
+                {"endian": "middle"},
+                "memory/endian: expected le or be, got 'middle' (treated as le)",
+            ),
         ],
     )
     def test_each_field_warns_with_its_degrade_rule(self, block, fragment):
@@ -614,11 +643,13 @@ class FakeLegacyDevice:
             return [f"ok [{addr:08X}] 0x{old:02X} -> 0x{self.ram[addr - BASE]:02X} (byte)"]
         count = min(int(parts[2]) if len(parts) > 2 else 16, self.max_count)
         if not (BASE <= addr and addr + count <= BASE + SIZE):
-            return [f"err: address range {addr:08X}..{addr + count - 1:08X} not mapped (would HardFault)"]
-        data = self.ram[addr - BASE:addr - BASE + count]
+            return [
+                f"err: address range {addr:08X}..{addr + count - 1:08X} not mapped (would HardFault)"
+            ]
+        data = self.ram[addr - BASE : addr - BASE + count]
         rows = []
         for i in range(0, count, 16):
-            row = data[i:i + 16]
+            row = data[i : i + 16]
             line = f"{addr + i:08X}:"
             for j in range(16):
                 if j % 4 == 0:
@@ -636,7 +667,6 @@ def _legacy_memory(device: FakeLegacyDevice, block: dict | None = None) -> Memor
 
 
 class TestTemplateBlock:
-
     def test_parse_defaults(self):
         """A read-only template defaults to no write, no ack, the generic row and 100ms."""
         spec = parse_template_block({"read": "rd {addr:X} {len}"})
@@ -655,7 +685,10 @@ class TestTemplateBlock:
             ({"read": "rd {addr} {len}", "row": "("}, "memory/row: invalid regex"),
             ({"read": "rd {addr} {len}", "row": "^(?P<addr>..):"}, "memory/row: regex needs"),
             ({"read": "rd {addr} {len}", "ack": 3}, "memory/ack: expected a regex string"),
-            ({"read": "rd {addr} {len}", "settle_ms": 0}, "memory/settle_ms: expected a positive integer"),
+            (
+                {"read": "rd {addr} {len}", "settle_ms": 0},
+                "memory/settle_ms: expected a positive integer",
+            ),
         ],
     )
     def test_problems_are_field_qualified(self, block, message):
@@ -666,9 +699,9 @@ class TestTemplateBlock:
     def test_validate_block_reports_template_problems_as_warnings(self):
         """The lint reports template errors as warnings saying /mem.* will refuse."""
         warnings = validate_block({"dialect": "template"})
-        assert any("memory/read: required" in warning and "refuse" in warning for warning in warnings), (
-            "the lint says what /mem.* will do"
-        )
+        assert any(
+            "memory/read: required" in warning and "refuse" in warning for warning in warnings
+        ), "the lint says what /mem.* will do"
 
     def test_make_dialect_needs_the_block(self):
         """The template dialect cannot be built without its block of templates."""
@@ -678,14 +711,14 @@ class TestTemplateBlock:
     def test_hex_write_template_means_block_writes(self):
         """A {hex} write template sends a whole block per command, not per byte."""
         dialect = make_dialect(
-            resolve_info(LEGACY_BLOCK, None), {**LEGACY_BLOCK, "write": "wr {addr:X} {hex}"},
+            resolve_info(LEGACY_BLOCK, None),
+            {**LEGACY_BLOCK, "write": "wr {addr:X} {hex}"},
         )
         assert dialect.write_unit == 0, "{hex} = one command per block"
         assert dialect.write_request(0x1000, b"\x1b\x00") == "wr 1000 1B00"
 
 
 class TestTemplateRead:
-
     def test_rows_with_ascii_column(self):
         """Template reads parse grouped hex pairs and ignore the trailing ASCII column."""
         # Arrange
@@ -704,7 +737,9 @@ class TestTemplateRead:
         device = FakeLegacyDevice()
         memory = _legacy_memory(device, {**LEGACY_BLOCK, "max_block": 32})
         assert memory.read(0x1000, 70) == bytes(device.ram[:70]), "32 + 32 + 6"
-        assert device.sent == ["mem 1000 32", "mem 1020 32", "mem 1040 6"], "chunked to the device's limit"
+        assert device.sent == ["mem 1000 32", "mem 1020 32", "mem 1040 6"], (
+            "chunked to the device's limit"
+        )
 
     def test_echo_and_prompt_tolerated(self):
         """Template reads ignore an echoed command and a trailing monitor prompt."""
@@ -714,7 +749,10 @@ class TestTemplateRead:
     def test_device_error_line_is_the_message(self):
         """The whole line matching the error regex becomes the device error message."""
         device = FakeLegacyDevice()
-        with pytest.raises(DeviceMemoryError, match="^Device error: err: address range 00009000..00009003 not mapped"):
+        with pytest.raises(
+            DeviceMemoryError,
+            match="^Device error: err: address range 00009000..00009003 not mapped",
+        ):
             _legacy_memory(device).read(0x9000, 4)
 
     def test_silence(self):
@@ -728,7 +766,9 @@ class TestTemplateRead:
         """Text with no rows and no error match is quoted back as unrecognized."""
         memory = _legacy_memory(FakeLegacyDevice())
         memory._exchange = lambda command: "Unknown command: mem\r\n"
-        with pytest.raises(DeviceMemoryError, match="^Unrecognized reply to mem 1000 4: Unknown command: mem$"):
+        with pytest.raises(
+            DeviceMemoryError, match="^Unrecognized reply to mem 1000 4: Unknown command: mem$"
+        ):
             memory.read(0x1000, 4)
 
     def test_short_reply(self):
@@ -744,17 +784,23 @@ class TestTemplateRead:
         # with hex-looking text: the row cap keeps it out of the data
         memory = _legacy_memory(FakeLegacyDevice())
         row = " ".join(f"{i:02X}" for i in range(16))
-        memory._exchange = lambda command: f"00001000: {row}  AB..CD..\r\n00001010: 10 11 12 13  ....\r\n"
+        memory._exchange = lambda command: (
+            f"00001000: {row}  AB..CD..\r\n00001010: 10 11 12 13  ....\r\n"
+        )
 
         # Act
         data = memory.read(0x1000, 20)
 
         # Assert
-        assert data == bytes(range(16)) + b"\x10\x11\x12\x13", "16 per row, then the tail; nothing from the column"
+        assert data == bytes(range(16)) + b"\x10\x11\x12\x13", (
+            "16 per row, then the tail; nothing from the column"
+        )
 
     def test_terminator_completes_the_reply(self):
         """A terminator regex ends the reply as soon as the matching prompt arrives."""
-        dialect = make_dialect(resolve_info(LEGACY_BLOCK, None), {**LEGACY_BLOCK, "terminator": r"^mon> $"})
+        dialect = make_dialect(
+            resolve_info(LEGACY_BLOCK, None), {**LEGACY_BLOCK, "terminator": r"^mon> $"}
+        )
         assert dialect.complete("00001000:  01\r\n") is False, "still waiting"
         assert dialect.complete("00001000:  01\r\nmon> ") is True, "the prompt ends it"
 
@@ -799,7 +845,6 @@ class TestReadOnlyTemplate:
 
 
 class TestTemplateWrite:
-
     def test_one_command_per_byte_with_ack(self):
         """A {byte} write template sends one command per byte, each acked."""
         # Arrange
@@ -830,7 +875,9 @@ class TestTemplateWrite:
 
     def test_device_error_on_write(self):
         """A write reply matching the error regex surfaces as a device error."""
-        with pytest.raises(DeviceMemoryError, match="^Device error: err: address 00009000 not mapped$"):
+        with pytest.raises(
+            DeviceMemoryError, match="^Device error: err: address 00009000 not mapped$"
+        ):
             _legacy_memory(FakeLegacyDevice()).write(0x9000, b"\x00")
 
     # Read-only refusal (write AND modify, before any traffic) is
@@ -841,7 +888,9 @@ class TestTemplateWrite:
         block = {key: value for key, value in LEGACY_BLOCK.items() if key != "ack"}
         memory = _legacy_memory(FakeLegacyDevice(), block)
         memory._exchange = lambda command: ""
-        assert memory.write(0x1000, b"\x00") == 1, "fire-and-forget write is fine when no ack is declared"
+        assert memory.write(0x1000, b"\x00") == 1, (
+            "fire-and-forget write is fine when no ack is declared"
+        )
 
     def test_query_info_refused(self):
         """The template dialect has no MEM.INFO, so query_info is refused."""
@@ -853,16 +902,19 @@ class TestTemplateWrite:
 
 
 class TestDumpRows:
-
     def test_splits_by_width_with_short_tail(self):
         """dump_rows cuts data into width-sized rows with a short final row."""
         rows = dump_rows(0x1000, bytes(range(20)), width=16)
-        assert [(row.addr, len(row.data)) for row in rows] == [(0x1000, 16), (0x1010, 4)], "16 then the tail"
+        assert [(row.addr, len(row.data)) for row in rows] == [(0x1000, 16), (0x1010, 4)], (
+            "16 then the tail"
+        )
 
     def test_label_callback_per_row(self):
         """The label callback is called once per row with that row's start address."""
         rows = dump_rows(0x1000, bytes(32), label=lambda addr: f"sym+0x{addr - 0x1000:X}")
-        assert [row.label for row in rows] == ["sym+0x0", "sym+0x10"], "the label sees each row's address"
+        assert [row.label for row in rows] == ["sym+0x0", "sym+0x10"], (
+            "the label sees each row's address"
+        )
 
     def test_hex_and_ascii(self):
         """A row's hex is upper-case spaced pairs; non-printables are dots in ascii."""
@@ -888,4 +940,10 @@ class TestDumpRows:
     def test_row_record_shape(self):
         """row_record is the JSON shape of a dump row, with address and symbol fields."""
         record = row_record(DumpRow(0x1000, b"\x01", "main"), address_bits=16)
-        assert record == {"addr": 0x1000, "addr_hex": "0x1000", "hex": "01", "ascii": ".", "symbolic": "main"}
+        assert record == {
+            "addr": 0x1000,
+            "addr_hex": "0x1000",
+            "hex": "01",
+            "ascii": ".",
+            "symbolic": "main",
+        }

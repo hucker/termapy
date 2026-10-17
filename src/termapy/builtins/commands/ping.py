@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 # float seconds); the old hand-written help claimed "1s", which was drift.
 _PING_PARAMS = [
     ParamSpec("count", "int", default=1, min=1, help="number of pings"),
-    ParamSpec(
-        "timeout", "duration", default=0.25, help="response timeout per ping"
-    ),
+    ParamSpec("timeout", "duration", default=0.25, help="response timeout per ping"),
     ParamSpec("cmd", "command", required=True, rest=True, help="command to send"),
 ]
 

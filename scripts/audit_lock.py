@@ -56,11 +56,18 @@ def audit_uv_lock(ignore_vulns: Sequence[str] = ()) -> None:
         requirements = Path(tmp) / "requirements.txt"
         exported = run(
             [
-                "uv", "export", "--all-extras", "--all-groups",
-                "--no-emit-project", "--format", "requirements-txt",
-                "-o", str(requirements),
+                "uv",
+                "export",
+                "--all-extras",
+                "--all-groups",
+                "--no-emit-project",
+                "--format",
+                "requirements-txt",
+                "-o",
+                str(requirements),
             ],
-            check=False, capture=True,
+            check=False,
+            capture=True,
         )
         if exported.returncode != 0:
             die(f"uv export failed:\n{exported.stderr.strip()}")
@@ -68,15 +75,18 @@ def audit_uv_lock(ignore_vulns: Sequence[str] = ()) -> None:
         # audit as written" -- so --disable-pip needs no resolver and no
         # --no-deps, and the tool has no hash warning to print.
         cmd = [
-            "uvx", PIP_AUDIT, "-r", str(requirements),
-            "--disable-pip", "--progress-spinner", "off",
+            "uvx",
+            PIP_AUDIT,
+            "-r",
+            str(requirements),
+            "--disable-pip",
+            "--progress-spinner",
+            "off",
         ]
         for vuln_id in ignore_vulns:
             cmd += ["--ignore-vuln", vuln_id]
         audited = run(cmd, check=False, capture=True)
-    report = "\n".join(
-        part.strip() for part in (audited.stdout, audited.stderr) if part.strip()
-    )
+    report = "\n".join(part.strip() for part in (audited.stdout, audited.stderr) if part.strip())
     if audited.returncode != 0:
         die(
             f"uv.lock audit failed:\n{report}\n"
@@ -90,10 +100,14 @@ def audit_uv_lock(ignore_vulns: Sequence[str] = ()) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--ignore-vuln", action="append", default=[], metavar="ID",
+        "--ignore-vuln",
+        action="append",
+        default=[],
+        metavar="ID",
         help="advisory id to ignore (CVE-..., GHSA-..., PYSEC-...); repeatable",
     )
     args = parser.parse_args(argv)

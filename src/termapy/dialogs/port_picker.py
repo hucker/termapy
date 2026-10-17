@@ -58,12 +58,10 @@ class PortPicker(ModalScreen[str | None]):
         self.dismiss(None)
 
     def on_mount(self) -> None:
-        self.query_one("#port-list", OptionList).tooltip = (
-            "Connected serial ports.  Click a row or press Enter to select."
-        )
-        self.query_one("#port-cancel", Button).tooltip = (
-            "Close without selecting a port."
-        )
+        self.query_one(
+            "#port-list", OptionList
+        ).tooltip = "Connected serial ports.  Click a row or press Enter to select."
+        self.query_one("#port-cancel", Button).tooltip = "Close without selecting a port."
         # Live refresh: poll once a second so plug / unplug events
         # appear without the user re-opening the dialog.  Textual
         # auto-cancels set_interval timers on widget unmount, so no
@@ -91,6 +89,7 @@ class PortPicker(ModalScreen[str | None]):
         stable when nothing has changed.
         """
         from serial.tools.list_ports import comports
+
         fresh = sorted(comports(), key=lambda p: p.device)
         if [p.device for p in fresh] == [p.device for p in self._ports]:
             return

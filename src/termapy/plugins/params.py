@@ -110,8 +110,7 @@ def _range_check(spec: ParamSpec, value: float) -> CoerceResult:
     lo, hi = spec.min, spec.max
     if lo is not None and hi is not None and not (lo <= value <= hi):
         return False, (
-            f"{spec.name} must be between {_fmt_num(lo)} and {_fmt_num(hi)} "
-            f"(got {_fmt_num(value)})"
+            f"{spec.name} must be between {_fmt_num(lo)} and {_fmt_num(hi)} (got {_fmt_num(value)})"
         )
     if lo is not None and value < lo:
         return False, f"{spec.name} must be >= {_fmt_num(lo)} (got {_fmt_num(value)})"
@@ -148,16 +147,13 @@ def coerce_value(spec: ParamSpec, text: str) -> CoerceResult:
             return True, parse_bool(text, what=spec.name)
         except ValueError:
             return False, (
-                f"invalid {spec.name}: {text!r} "
-                f"(expected a boolean: {BOOL_TOKENS_HELP})"
+                f"invalid {spec.name}: {text!r} (expected a boolean: {BOOL_TOKENS_HELP})"
             )
     if kind == "duration":
         try:
             return True, parse_duration(text)  # bare 0 accepted; a unit is required otherwise
         except ValueError:
-            return False, (
-                f"invalid {spec.name}: {text!r} (expected duration, e.g. 500ms, 1.5s)"
-            )
+            return False, (f"invalid {spec.name}: {text!r} (expected duration, e.g. 500ms, 1.5s)")
     low = text.lower()  # enum
     for enum_value in spec.values:
         aliases = {alias.lower() for alias in enum_value.aliases}
@@ -195,9 +191,7 @@ def resolve_deref(text: str, deref: Deref | None) -> CoerceResult:
     match = _DEREF_RE.fullmatch(text)
     if match is None:
         if _DEREF_RE.search(text):
-            return False, (
-                f"invalid reference: {text!r} ($(*NAME) must be the whole argument)"
-            )
+            return False, (f"invalid reference: {text!r} ($(*NAME) must be the whole argument)")
         return True, text
     value = deref(match.group(1))
     if value is None:
@@ -228,9 +222,7 @@ def validate_param_specs(params: list[ParamSpec], command_name: str) -> None:
                 f"(expected one of: {', '.join(sorted(TYPES))})"
             )
         if spec.name != spec.name.lower():
-            raise ValueError(
-                f"{label}: parameter name {spec.name!r} must be lowercase"
-            )
+            raise ValueError(f"{label}: parameter name {spec.name!r} must be lowercase")
         if spec.name in seen:
             raise ValueError(f"{label}: duplicate parameter {spec.name!r}")
         seen.add(spec.name)
@@ -244,9 +236,7 @@ def validate_param_specs(params: list[ParamSpec], command_name: str) -> None:
         if spec.type == "enum" and not spec.values:
             raise ValueError(f"{label}: enum parameter {spec.name!r} has no values")
         if spec.required and spec.default is not None:
-            raise ValueError(
-                f"{label}: required parameter {spec.name!r} must not have a default"
-            )
+            raise ValueError(f"{label}: required parameter {spec.name!r} must not have a default")
         if spec.type == "bool" and not spec.required and spec.default is None:
             # bool-one-vocabulary: absence has a declared meaning, so an
             # optional boolean says what leaving it out means.
@@ -259,9 +249,7 @@ def validate_param_specs(params: list[ParamSpec], command_name: str) -> None:
                 f"(a keyword binds one value, last-wins)"
             )
         if spec.variadic and spec.rest:
-            raise ValueError(
-                f"{label}: parameter {spec.name!r} cannot set both rest and variadic"
-            )
+            raise ValueError(f"{label}: parameter {spec.name!r} cannot set both rest and variadic")
         if spec.variadic and spec.default is not None:
             raise ValueError(
                 f"{label}: variadic parameter {spec.name!r} must not have a default "

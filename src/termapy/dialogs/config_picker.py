@@ -170,20 +170,14 @@ class ConfigPicker(ModalScreen[tuple | None]):
         self.dismiss(None)
 
     def on_mount(self) -> None:
-        self.query_one("#picker-list", OptionList).tooltip = (
-            "Configs found under termapy_cfg/.  Press Enter to load."
-        )
+        self.query_one(
+            "#picker-list", OptionList
+        ).tooltip = "Configs found under termapy_cfg/.  Press Enter to load."
         # No path here: the header row already shows it in full, and
         # repeating it in a tooltip is the clutter this replaced.
-        self.query_one("#picker-cfgdir", Static).tooltip = (
-            f"Open this folder in {self._manager}."
-        )
-        self.query_one("#picker-load", Button).tooltip = (
-            "Load and activate the selected config."
-        )
-        self.query_one("#picker-edit", Button).tooltip = (
-            "Open the selected config in the editor."
-        )
+        self.query_one("#picker-cfgdir", Static).tooltip = f"Open this folder in {self._manager}."
+        self.query_one("#picker-load", Button).tooltip = "Load and activate the selected config."
+        self.query_one("#picker-edit", Button).tooltip = "Open the selected config in the editor."
         # Absent under --web (see __init__); disabled when this process has
         # no display to reach, with the override named so the user can fix
         # a wrong guess (mosh, tmux inside SSH, WSLg).
@@ -195,18 +189,14 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 else "Not available in this environment: no display this process "
                 "can reach.  Set TERMAPY_GUI=1 to override the detection."
             )
-        self.query_one("#picker-new", Button).tooltip = (
-            "Create a new config."
-        )
-        self.query_one("#picker-rename", Button).tooltip = (
-            "Rename the selected config (its folder and .cfg move together)."
-        )
-        self.query_one("#picker-delete", Button).tooltip = (
-            "Delete the selected config (asks for confirmation)."
-        )
-        self.query_one("#picker-cancel", Button).tooltip = (
-            "Close without loading or editing."
-        )
+        self.query_one("#picker-new", Button).tooltip = "Create a new config."
+        self.query_one(
+            "#picker-rename", Button
+        ).tooltip = "Rename the selected config (its folder and .cfg move together)."
+        self.query_one(
+            "#picker-delete", Button
+        ).tooltip = "Delete the selected config (asks for confirmation)."
+        self.query_one("#picker-cancel", Button).tooltip = "Close without loading or editing."
 
     def __init__(
         self,

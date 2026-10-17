@@ -219,6 +219,7 @@ class TestSerialHandle:
                 _remove_rx_observer=lambda cb: registered.append(("remove", cb)),
             ),
         )
+
         def cb(data):
             return None
 

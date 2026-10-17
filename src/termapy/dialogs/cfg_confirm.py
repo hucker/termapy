@@ -37,12 +37,8 @@ class CfgConfirm(ModalScreen[bool]):
         self.dismiss(False)
 
     def on_mount(self) -> None:
-        self.query_one("#cfg-yes", Button).tooltip = (
-            "Apply the config change."
-        )
-        self.query_one("#cfg-no", Button).tooltip = (
-            "Discard the config change."
-        )
+        self.query_one("#cfg-yes", Button).tooltip = "Apply the config change."
+        self.query_one("#cfg-no", Button).tooltip = "Discard the config change."
 
     def __init__(self, key: str, old_val, new_val) -> None:
         super().__init__()

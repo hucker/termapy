@@ -114,6 +114,7 @@ class TestWrite:
 
     def test_failed_write_logs_no_tx(self):
         """tx-only-what-went-out: a write the port refuses raises and leaves no '>' log line."""
+
         # Arrange -- a port that fails the way an unplugged adapter does
         class _UnpluggedPort:
             def write(self, data: bytes) -> None:
@@ -170,6 +171,7 @@ class TestDrain:
         hardware before this purge existed
         (docs/review/2026-08-19-v0.74.0-opus-5.md).
         """
+
         # Arrange -- a port that records whether it was purged.
         class RecordingPort:
             is_open = True
@@ -200,6 +202,7 @@ class TestDrain:
 
     def test_drain_tolerates_a_port_that_cannot_purge(self):
         """A duck-typed port without reset_input_buffer still drains the queue, no raise."""
+
         # Arrange -- duck-typed ports need not implement the full pyserial API.
         class MinimalPort:
             is_open = True
@@ -906,11 +909,13 @@ class TestBackspace:
 class TestSerialReaderCapture:
     def test_binary_capture_consumes_data(self):
         """An active binary capture takes the raw bytes, and nothing reaches the display."""
+
         # Arrange - mock capture engine
         class MockCapture:
             active = True
             mode = "bin"
             fed = []
+
             def feed_bytes(self, data):
                 self.fed.append(data)
                 return False
@@ -927,10 +932,12 @@ class TestSerialReaderCapture:
 
     def test_capture_target_reached(self):
         """A capture reporting its target met sets capture_target_reached on the result."""
+
         # Arrange
         class MockCapture:
             active = True
             mode = "bin"
+
             def feed_bytes(self, data):
                 return True  # target reached
 
@@ -944,6 +951,7 @@ class TestSerialReaderCapture:
 
     def test_text_capture_not_consumed(self):
         """Text-mode capture does not intercept in the reader; lines still reach the display."""
+
         # Arrange - text mode capture doesn't intercept in reader
         class MockCapture:
             active = True
@@ -959,6 +967,7 @@ class TestSerialReaderCapture:
 
     def test_a_binary_capture_flushes_the_partial_line_before_it(self):
         """rx-every-line-delivered: a partial line held when a binary capture starts is flushed, not glued to the line after the capture."""
+
         # Arrange
         class MockCapture:
             active = False
@@ -1051,7 +1060,6 @@ class TestSerialReaderClaimed:
         assert after == ["after"], "claimed bytes were held and glued to the next line"
 
 
-
 class TestSerialReaderReset:
     def test_reset_clears_buffer(self):
         """A reset discards the buffered partial line so it cannot prefix the next one."""
@@ -1079,6 +1087,7 @@ class TestWaitForIdleUsesTheReaderClock:
 
     def test_does_not_report_idle_while_data_is_still_arriving(self):
         """The wait outlasts a 0.3s stream plus one gap while in_waiting reads 0 throughout."""
+
         # Arrange -- a port whose in_waiting is ALWAYS 0 (a reader just drained
         # it) while the device is in fact still streaming: the rx clock keeps
         # advancing.
@@ -1127,6 +1136,7 @@ class TestWaitForIdleUsesTheReaderClock:
         Returning then makes the caller talk over the reply it is waiting
         for -- the CLI gold file caught exactly that interleaving.
         """
+
         # Arrange -- clock is 5s stale; no reply has begun.
         class DrainedPort:
             is_open = True
@@ -1136,9 +1146,7 @@ class TestWaitForIdleUsesTheReaderClock:
                 pass
 
         stale = time.monotonic() - 5.0
-        sp = SerialPort(
-            port=DrainedPort(), rx_queue=queue.Queue(), last_rx=lambda: stale
-        )
+        sp = SerialPort(port=DrainedPort(), rx_queue=queue.Queue(), last_rx=lambda: stale)
 
         # Act
         started = time.monotonic()
@@ -1155,6 +1163,7 @@ class TestWaitForIdleUsesTheReaderClock:
 
     def test_returns_once_the_device_goes_quiet(self):
         """A quiet reader clock ends the wait one gap after the call, not at max_wait_s."""
+
         # Arrange -- rx clock frozen in the past: already idle.
         class DrainedPort:
             is_open = True
@@ -1164,9 +1173,7 @@ class TestWaitForIdleUsesTheReaderClock:
                 pass
 
         stale = time.monotonic() - 1.0
-        sp = SerialPort(
-            port=DrainedPort(), rx_queue=queue.Queue(), last_rx=lambda: stale
-        )
+        sp = SerialPort(port=DrainedPort(), rx_queue=queue.Queue(), last_rx=lambda: stale)
 
         # Act
         started = time.monotonic()

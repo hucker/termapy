@@ -132,9 +132,7 @@ class TestRegistryConformance:
         }
 
         # Assert
-        assert result.errors == [], (
-            f"builtin plugin files rejected at load: {result.errors}"
-        )
+        assert result.errors == [], f"builtin plugin files rejected at load: {result.errors}"
         assert bad == {}, f"registered synopses violating the grammar: {bad}"
         assert len(eng._plugins) > 50, "registry populated (walk is not vacuous)"
 
@@ -147,9 +145,7 @@ class TestRegistryConformance:
         result = load_plugins_from_dir(demo_plugin_dir, source="demo")
 
         # Assert
-        assert result.errors == [], (
-            f"demo plugin files rejected at load: {result.errors}"
-        )
+        assert result.errors == [], f"demo plugin files rejected at load: {result.errors}"
         assert result.plugins, "demo plugin dir loaded (not vacuous)"
         bad = {
             plugin.name: validate_synopsis(plugin.args)

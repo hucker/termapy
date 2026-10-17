@@ -138,6 +138,7 @@ class TestResolveConfigCfgDir:
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "termapy_cfg"))
         cfg = _make_cfg(tmp_path / "termapy_cfg", "demo")
 
@@ -153,6 +154,7 @@ class TestResolveConfigCfgDir:
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "termapy_cfg"))
         cfg = _make_cfg(tmp_path / "termapy_cfg", "demo")
 
@@ -172,6 +174,7 @@ class TestResolveConfigCwdFallback:
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         # Set cfg_dir to something that doesn't exist
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "nonexistent"))
         cfg = _make_cfg(tmp_path / "termapy_cfg", "demo")
@@ -192,6 +195,7 @@ class TestResolveConfigAppendCfg:
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "nonexistent"))
         cfg = tmp_path / "my_device.cfg"
         cfg.write_text("{}")
@@ -208,6 +212,7 @@ class TestResolveConfigAppendCfg:
         # Arrange - name already ends in .cfg, rule 5 should not add another
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "nonexistent"))
 
         # Act
@@ -225,6 +230,7 @@ class TestResolveConfigNotFound:
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "nonexistent"))
 
         # Act
@@ -238,6 +244,7 @@ class TestResolveConfigNotFound:
         # Arrange
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "nonexistent"))
 
         # Act
@@ -251,6 +258,7 @@ class TestResolveConfigNotFound:
         # Arrange - directory "demo" exists but contains "other.cfg" not "demo.cfg"
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "nonexistent"))
         folder = tmp_path / "demo"
         folder.mkdir()
@@ -273,6 +281,7 @@ class TestResolveConfigPriority:
         exact = tmp_path / "demo"
         exact.write_text("{}")  # file named "demo" in cwd
         import termapy.config as cfg_mod
+
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(tmp_path / "termapy_cfg"))
         _make_cfg(tmp_path / "termapy_cfg", "demo")
 
@@ -281,13 +290,16 @@ class TestResolveConfigPriority:
 
         # Assert
         assert actual is not None, "resolver returned a path"
-        assert Path(actual).resolve() == exact.resolve(), "rule 1 (exact file) wins over rule 3 (cfg_dir)"
+        assert Path(actual).resolve() == exact.resolve(), (
+            "rule 1 (exact file) wins over rule 3 (cfg_dir)"
+        )
 
     def test_cfg_dir_beats_cwd_fallback(self, tmp_path, monkeypatch):
         """The configured cfg dir wins over ./termapy_cfg when both hold the name."""
         # Arrange - same name exists in both cfg_dir and cwd/termapy_cfg
         monkeypatch.chdir(tmp_path)
         import termapy.config as cfg_mod
+
         cfg_dir_path = tmp_path / "configured_cfg"
         monkeypatch.setattr(cfg_mod, "CFG_DIR", str(cfg_dir_path))
         cfg_a = _make_cfg(cfg_dir_path, "demo")
@@ -298,7 +310,9 @@ class TestResolveConfigPriority:
 
         # Assert
         assert actual is not None, "resolver returned a path"
-        assert Path(actual).resolve() == cfg_a.resolve(), "rule 3 (cfg_dir) wins over rule 4 (cwd/termapy_cfg)"
+        assert Path(actual).resolve() == cfg_a.resolve(), (
+            "rule 3 (cfg_dir) wins over rule 4 (cwd/termapy_cfg)"
+        )
 
 
 # ── resolve_proto_path / proto_dir_for ──────────────────────────────────────

@@ -106,16 +106,19 @@ class TestEnumKind:
         # Assert
         assert not result.ok, "non-member fails"
         assert "banana" in result.error, "error names the rejected value"
-        assert "on" in result.error and "off" in result.error, (
-            "error lists all allowed values"
-        )
+        assert "on" in result.error and "off" in result.error, "error lists all allowed values"
 
     def test_enum_stringifies_numeric_values(self):
         """Numeric enum values match their string form, so 19200 typed as text passes."""
         # Arrange -- baud rates as numbers, LLM passes string form.
-        profile = {"types": {"baud": {
-            "kind": "enum", "values": [9600, 19200, 115200],
-        }}}
+        profile = {
+            "types": {
+                "baud": {
+                    "kind": "enum",
+                    "values": [9600, 19200, 115200],
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("baud", "19200")
@@ -131,9 +134,7 @@ class TestEnumKind:
         td = reg.resolve("bad")
         # Assert
         assert td is not None, "build-error type is still in registry"
-        assert "non-empty" in td.build_error, (
-            "empty enum values -> build error"
-        )
+        assert "non-empty" in td.build_error, "empty enum values -> build error"
 
 
 # ── int_range / float_range ───────────────────────────────────────────────────
@@ -143,9 +144,15 @@ class TestIntRange:
     def test_in_range_passes_and_coerces(self):
         """An in-range int string passes and is coerced to int, not kept as text."""
         # Arrange
-        profile = {"types": {"percent": {
-            "kind": "int_range", "min": 0, "max": 100,
-        }}}
+        profile = {
+            "types": {
+                "percent": {
+                    "kind": "int_range",
+                    "min": 0,
+                    "max": 100,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("percent", "42")
@@ -156,24 +163,34 @@ class TestIntRange:
     def test_below_minimum_fails_with_bound_in_message(self):
         """Below the minimum fails, and the error names the minimum and its value."""
         # Arrange
-        profile = {"types": {"percent": {
-            "kind": "int_range", "min": 0, "max": 100,
-        }}}
+        profile = {
+            "types": {
+                "percent": {
+                    "kind": "int_range",
+                    "min": 0,
+                    "max": 100,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("percent", "-5")
         # Assert
         assert not result.ok, "below minimum fails"
-        assert "minimum" in result.error and "0" in result.error, (
-            "error names the violated bound"
-        )
+        assert "minimum" in result.error and "0" in result.error, "error names the violated bound"
 
     def test_above_maximum_fails(self):
         """Above the maximum fails with an error that names the maximum."""
         # Arrange
-        profile = {"types": {"percent": {
-            "kind": "int_range", "min": 0, "max": 100,
-        }}}
+        profile = {
+            "types": {
+                "percent": {
+                    "kind": "int_range",
+                    "min": 0,
+                    "max": 100,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("percent", "150")
@@ -184,9 +201,15 @@ class TestIntRange:
     def test_non_int_string_fails_cleanly(self):
         """Non-numeric text fails with an expected-int error instead of a ValueError."""
         # Arrange
-        profile = {"types": {"percent": {
-            "kind": "int_range", "min": 0, "max": 100,
-        }}}
+        profile = {
+            "types": {
+                "percent": {
+                    "kind": "int_range",
+                    "min": 0,
+                    "max": 100,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("percent", "not a number")
@@ -199,9 +222,15 @@ class TestFloatRange:
     def test_in_range_passes(self):
         """An in-range float string passes and is coerced to float."""
         # Arrange
-        profile = {"types": {"v": {
-            "kind": "float_range", "min": 0.0, "max": 5.0,
-        }}}
+        profile = {
+            "types": {
+                "v": {
+                    "kind": "float_range",
+                    "min": 0.0,
+                    "max": 5.0,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("v", "3.3")
@@ -213,9 +242,15 @@ class TestFloatRange:
     def test_below_minimum_fails(self):
         """A float just below the minimum (-0.1 against 0.0) fails."""
         # Arrange
-        profile = {"types": {"v": {
-            "kind": "float_range", "min": 0.0, "max": 5.0,
-        }}}
+        profile = {
+            "types": {
+                "v": {
+                    "kind": "float_range",
+                    "min": 0.0,
+                    "max": 5.0,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("v", "-0.1")
@@ -230,9 +265,15 @@ class TestStrLength:
     def test_within_bounds_passes(self):
         """A string within min_len..max_len passes with its value unchanged."""
         # Arrange
-        profile = {"types": {"nickname": {
-            "kind": "str_length", "min_len": 1, "max_len": 8,
-        }}}
+        profile = {
+            "types": {
+                "nickname": {
+                    "kind": "str_length",
+                    "min_len": 1,
+                    "max_len": 8,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("nickname", "abc")
@@ -243,39 +284,52 @@ class TestStrLength:
     def test_below_min_len_fails(self):
         """A string shorter than min_len fails with an error naming the minimum."""
         # Arrange
-        profile = {"types": {"nickname": {
-            "kind": "str_length", "min_len": 3, "max_len": 8,
-        }}}
+        profile = {
+            "types": {
+                "nickname": {
+                    "kind": "str_length",
+                    "min_len": 3,
+                    "max_len": 8,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("nickname", "ab")
         # Assert
         assert not result.ok, "below min length fails"
-        assert "minimum" in result.error.lower(), (
-            "error mentions the minimum bound"
-        )
+        assert "minimum" in result.error.lower(), "error mentions the minimum bound"
 
     def test_above_max_len_fails(self):
         """A string longer than max_len fails with an error naming the maximum."""
         # Arrange
-        profile = {"types": {"nickname": {
-            "kind": "str_length", "min_len": 1, "max_len": 4,
-        }}}
+        profile = {
+            "types": {
+                "nickname": {
+                    "kind": "str_length",
+                    "min_len": 1,
+                    "max_len": 4,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("nickname", "abcdef")
         # Assert
         assert not result.ok, "above max length fails"
-        assert "maximum" in result.error.lower(), (
-            "error mentions the maximum bound"
-        )
+        assert "maximum" in result.error.lower(), "error mentions the maximum bound"
 
     def test_only_max_len_no_min(self):
         """With only max_len set there is no lower bound, so the empty string passes."""
         # Arrange -- one-sided bound.
-        profile = {"types": {"name": {
-            "kind": "str_length", "max_len": 16,
-        }}}
+        profile = {
+            "types": {
+                "name": {
+                    "kind": "str_length",
+                    "max_len": 16,
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act -- empty string still passes (no min).
         result = reg.validate("name", "")
@@ -290,9 +344,7 @@ class TestStrLength:
         # Act
         td = reg.resolve("name")
         # Assert
-        assert td is not None and td.build_error, (
-            "str_length without bounds is a build error"
-        )
+        assert td is not None and td.build_error, "str_length without bounds is a build error"
 
 
 # ── pattern ───────────────────────────────────────────────────────────────────
@@ -302,9 +354,14 @@ class TestPattern:
     def test_fullmatch_passes(self):
         """A value matching the whole anchored regex passes: 5s as a duration."""
         # Arrange
-        profile = {"types": {"duration": {
-            "kind": "pattern", "regex": r"^\d+(us|ms|s)$",
-        }}}
+        profile = {
+            "types": {
+                "duration": {
+                    "kind": "pattern",
+                    "regex": r"^\d+(us|ms|s)$",
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         result = reg.validate("duration", "5s")
@@ -315,9 +372,14 @@ class TestPattern:
         """Matching uses fullmatch, so an unanchored regex rejects trailing extra text."""
         # Arrange -- pattern is anchored via fullmatch semantics, even
         # if the regex itself lacks ^$ anchors.
-        profile = {"types": {"tag": {
-            "kind": "pattern", "regex": r"[a-z]+",
-        }}}
+        profile = {
+            "types": {
+                "tag": {
+                    "kind": "pattern",
+                    "regex": r"[a-z]+",
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act -- "abc123" partial-matches "abc" but isn't a fullmatch.
         result = reg.validate("tag", "abc123")
@@ -327,22 +389,23 @@ class TestPattern:
     def test_invalid_regex_is_build_error_not_crash(self):
         """A bad regex is a build error at load and fails every later validate call."""
         # Arrange -- unbalanced paren is a regex syntax error.
-        profile = {"types": {"bad": {
-            "kind": "pattern", "regex": r"(unclosed",
-        }}}
+        profile = {
+            "types": {
+                "bad": {
+                    "kind": "pattern",
+                    "regex": r"(unclosed",
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         # Act
         td = reg.resolve("bad")
         # Assert -- registry construction must not raise.
-        assert td is not None and td.build_error, (
-            "invalid regex -> build error, not crash"
-        )
+        assert td is not None and td.build_error, "invalid regex -> build error, not crash"
         # Using the broken type returns the build error
         outcome = reg.validate("bad", "anything")
         assert not outcome.ok, "broken type rejects all values"
-        assert "regex" in outcome.error.lower(), (
-            "error mentions regex"
-        )
+        assert "regex" in outcome.error.lower(), "error mentions regex"
 
 
 # ── format_spec (stub) ────────────────────────────────────────────────────────
@@ -359,9 +422,7 @@ class TestFormatSpecStub:
         # Assert
         assert td is not None, "format_spec type present"
         assert td.build_error == "", "well-formed spec has no build error"
-        assert td.columns, (
-            "parsed columns cached at build time for the catalog"
-        )
+        assert td.columns, "parsed columns cached at build time for the catalog"
 
     def test_stub_validate_passes_through(self):
         """Validation is a stub for now: any value passes, so dispatch is never blocked."""
@@ -372,9 +433,7 @@ class TestFormatSpecStub:
         # this proves the spot is wired and won't break dispatch.
         result = reg.validate("byte", "anything-goes-for-now")
         # Assert
-        assert result.ok, (
-            "format_spec stub passes anything (TODO: real validation)"
-        )
+        assert result.ok, "format_spec stub passes anything (TODO: real validation)"
 
     def test_invalid_spec_is_build_error(self):
         """A malformed spec never crashes construction: the type stays, carrying a build error."""
@@ -402,9 +461,7 @@ class TestErrorPaths:
         # Act
         td = reg.resolve("bad")
         # Assert
-        assert td is not None and td.build_error, (
-            "unknown kind -> build error"
-        )
+        assert td is not None and td.build_error, "unknown kind -> build error"
         result = reg.validate("bad", "x")
         assert not result.ok and "unknown kind" in result.error.lower()
 
@@ -416,9 +473,7 @@ class TestErrorPaths:
         result = reg.validate("nonexistent", "x")
         # Assert
         assert not result.ok, "unknown type name fails"
-        assert "unknown type" in result.error.lower(), (
-            "error names the unknown-type case"
-        )
+        assert "unknown type" in result.error.lower(), "error names the unknown-type case"
 
     def test_non_dict_entry_becomes_build_error(self):
         """A type entry that is a string, not an object, is marked broken, not raised."""
@@ -428,9 +483,7 @@ class TestErrorPaths:
         # Act
         td = reg.resolve("bad")
         # Assert -- registry tolerated it, type marked broken.
-        assert td is not None and td.build_error, (
-            "non-dict type entry -> build error, not a crash"
-        )
+        assert td is not None and td.build_error, "non-dict type entry -> build error, not a crash"
 
 
 # ── Builtin validators ────────────────────────────────────────────────────────
@@ -460,9 +513,7 @@ class TestBuiltinValidation:
         # Act / Assert
         for form in ("on", "true", "1", "yes"):
             result = reg.validate("bool", form)
-            assert result.ok and result.value is True, (
-                f"builtin bool accepts {form!r} as True"
-            )
+            assert result.ok and result.value is True, f"builtin bool accepts {form!r} as True"
 
     def test_bool_builtin_refuses_an_unknown_token_by_name(self):
         """A typed bool argument outside the vocabulary fails with the shared Invalid bool: message, not a coercion shrug."""
@@ -489,9 +540,15 @@ class TestCatalogRendering:
     def test_typedef_to_catalog_enum(self):
         """An enum's catalog entry carries its kind, values and help for agent consumers."""
         # Arrange — non-shadowing custom name.
-        profile = {"types": {"on_off": {
-            "kind": "enum", "values": ["on", "off"], "help": "On/Off",
-        }}}
+        profile = {
+            "types": {
+                "on_off": {
+                    "kind": "enum",
+                    "values": ["on", "off"],
+                    "help": "On/Off",
+                }
+            }
+        }
         reg = TypeRegistry.from_profile(profile)
         td = reg.resolve("on_off")
         assert td is not None, "the type resolves"
@@ -520,7 +577,11 @@ class TestCatalogRendering:
         kinds = schema_kinds()
         # Assert -- this is the canonical list tests use to detect drift
         for required in (
-            "enum", "int_range", "float_range",
-            "str_length", "pattern", "format_spec",
+            "enum",
+            "int_range",
+            "float_range",
+            "str_length",
+            "pattern",
+            "format_spec",
         ):
             assert required in kinds, f"schema kinds include {required}"

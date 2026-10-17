@@ -27,9 +27,7 @@ def _example_files() -> list[Path]:
     """Every .py file under examples/plugins/ (skip dunder files)."""
     if not _EXAMPLES_DIR.exists():
         return []
-    return sorted(
-        path for path in _EXAMPLES_DIR.glob("*.py") if not path.name.startswith("_")
-    )
+    return sorted(path for path in _EXAMPLES_DIR.glob("*.py") if not path.name.startswith("_"))
 
 
 def test_examples_dir_exists():
@@ -60,8 +58,7 @@ def test_example_loads_cleanly(plugin_path: Path):
     # Assert -- this example's filename must not be in the errors list.
     failed_names = {Path(name).name for name in result.errors}
     assert plugin_path.name not in failed_names, (
-        f"example {plugin_path.name} failed to load (it's in "
-        f"result.errors: {sorted(failed_names)})"
+        f"example {plugin_path.name} failed to load (it's in result.errors: {sorted(failed_names)})"
     )
 
     # And the example must register at least one plugin (the COMMAND
@@ -102,6 +99,7 @@ def test_example_dispatches_without_attribute_error(cmd_name, tmp_path):
     import json
 
     from termapy.repl import ReplEngine
+
     cfg = {"port": "DEMO", "baud_rate": 115200, "eol": "\r"}
     config_path = tmp_path / "test.cfg"
     config_path.write_text(json.dumps(cfg))
@@ -118,7 +116,4 @@ def test_example_dispatches_without_attribute_error(cmd_name, tmp_path):
     try:
         eng.dispatch(cmd_name)
     except AttributeError as e:
-        pytest.fail(
-            f"example /{cmd_name} raised AttributeError -- stale API call?\n"
-            f"  {e}"
-        )
+        pytest.fail(f"example /{cmd_name} raised AttributeError -- stale API call?\n  {e}")

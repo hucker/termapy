@@ -47,11 +47,11 @@ _HTTP_TIMEOUT_S = 5.0
 @dataclass
 class _Row:
     name: str
-    locked: str        # version in uv.lock
-    latest: str        # latest on PyPI (or "unreachable")
-    cap: str           # upper-bound part of the specifier, or "(none)"
-    action: str        # "BUMP AVAILABLE", "up to date", "unreachable", etc.
-    priority: int      # for sorting -- lower = more urgent
+    locked: str  # version in uv.lock
+    latest: str  # latest on PyPI (or "unreachable")
+    cap: str  # upper-bound part of the specifier, or "(none)"
+    action: str  # "BUMP AVAILABLE", "up to date", "unreachable", etc.
+    priority: int  # for sorting -- lower = more urgent
 
 
 def _load_direct_deps(pyproject: Path) -> list[Requirement]:
@@ -180,13 +180,15 @@ def _print_table(rows: list[_Row]) -> None:
     print("  ".join("-" * w for w in widths))
     for r in rows_sorted:
         print(
-            "  ".join([
-                r.name.ljust(widths[0]),
-                r.locked.ljust(widths[1]),
-                r.latest.ljust(widths[2]),
-                r.cap.ljust(widths[3]),
-                r.action.ljust(widths[4]),
-            ])
+            "  ".join(
+                [
+                    r.name.ljust(widths[0]),
+                    r.locked.ljust(widths[1]),
+                    r.latest.ljust(widths[2]),
+                    r.cap.ljust(widths[3]),
+                    r.action.ljust(widths[4]),
+                ]
+            )
         )
     bump_count = sum(1 for r in rows_sorted if r.action == "BUMP AVAILABLE")
     uncapped = sum(1 for r in rows_sorted if r.action == "no cap (unbounded)")

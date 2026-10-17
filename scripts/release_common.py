@@ -75,7 +75,10 @@ def run(
 
 
 def run_out(
-    cmd: list[str], *, cwd: Path | None = None, check: bool = True,
+    cmd: list[str],
+    *,
+    cwd: Path | None = None,
+    check: bool = True,
 ) -> str:
     """Run a command and return its stdout, stripped.
 

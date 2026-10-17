@@ -970,14 +970,16 @@ Add custom REPL commands by dropping a `.py` file in a plugin folder. No classes
 # hello.py - drop into termapy_cfg/plugin/ or termapy_cfg/<config>/plugin/
 from termapy.plugins import Command, PluginContext
 
+
 def _handler(ctx: PluginContext, args: str):
     name = args.strip() or "world"
     ctx.io.result(f"Hello, {name}!")
 
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="hello",
-    args="{name}",        # {braces} = optional, <angle> = required, "" = no args
+    args="{name}",  # {braces} = optional, <angle> = required, "" = no args
     help="Say hello.",
     handler=_handler,
 )
@@ -1110,6 +1112,7 @@ For non-standard checksums, add a CRC plugin (3 lines of Python):
 ```python
 NAME = "sum8"
 WIDTH = 1
+
 
 def compute(data: bytes) -> int:
     return sum(data) & 0xFF

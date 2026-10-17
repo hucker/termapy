@@ -74,8 +74,7 @@ def _watcher(ctx: PluginContext, ns: dict, stop_event: threading.Event) -> None:
             # byte.
             try:
                 ctx.io.status_bar(
-                    f"TX:{_format(ns['tx_bytes'])}  "
-                    f"RX:{_format(ns['rx_bytes'])}",
+                    f"TX:{_format(ns['tx_bytes'])}  RX:{_format(ns['rx_bytes'])}",
                     timeout=2.0,
                 )
             except Exception:  # noqa: BLE001 -- never crash a background thread
@@ -93,7 +92,9 @@ def _start(ctx: PluginContext) -> None:
         return
     stop_event = threading.Event()
     thread = threading.Thread(
-        target=_watcher, args=(ctx, ns, stop_event), daemon=True,
+        target=_watcher,
+        args=(ctx, ns, stop_event),
+        daemon=True,
     )
     ns["stop_event"] = stop_event
     ns["thread"] = thread
@@ -125,13 +126,13 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value="off")
     if not arg:
         state = "on" if _is_active(ns) else "off"
-        ctx.io.result(
-            f"TX: {_format(ns['tx_bytes'])}  "
-            f"RX: {_format(ns['rx_bytes'])}  ({state})"
-        )
+        ctx.io.result(f"TX: {_format(ns['tx_bytes'])}  RX: {_format(ns['rx_bytes'])}  ({state})")
         return CmdResult.ok(
-            value={"tx_bytes": ns["tx_bytes"], "rx_bytes": ns["rx_bytes"],
-                   "active": _is_active(ns)},
+            value={
+                "tx_bytes": ns["tx_bytes"],
+                "rx_bytes": ns["rx_bytes"],
+                "active": _is_active(ns),
+            },
         )
     return CmdResult.fail(msg="Usage: /traffic [on|off]")
 

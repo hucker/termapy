@@ -33,9 +33,16 @@ from termapy.symbols import Symbol
 # Scalar type token -> (struct format char, byte size).  ``char`` is the
 # odd one out: one byte rendered as a character, handled separately.
 SCALARS: Final[dict[str, tuple[str, int]]] = {
-    "u8": ("B", 1), "u16": ("H", 2), "u32": ("I", 4), "u64": ("Q", 8),
-    "i8": ("b", 1), "i16": ("h", 2), "i32": ("i", 4), "i64": ("q", 8),
-    "f32": ("f", 4), "f64": ("d", 8),
+    "u8": ("B", 1),
+    "u16": ("H", 2),
+    "u32": ("I", 4),
+    "u64": ("Q", 8),
+    "i8": ("b", 1),
+    "i16": ("h", 2),
+    "i32": ("i", 4),
+    "i64": ("q", 8),
+    "f32": ("f", 4),
+    "f64": ("d", 8),
 }
 
 TYPE_TOKENS: Final[frozenset[str]] = frozenset(SCALARS) | {"char"}
@@ -67,8 +74,11 @@ def decode_scalar(data: bytes, type_name: str, endian: str) -> int | float:
     Raises:
         ValueError: Unknown token or wrong byte count.
     """
-    fmt, size = SCALARS["u8" if type_name == "char" else type_name] \
-        if (type_name in SCALARS or type_name == "char") else (None, None)
+    fmt, size = (
+        SCALARS["u8" if type_name == "char" else type_name]
+        if (type_name in SCALARS or type_name == "char")
+        else (None, None)
+    )
     if fmt is None:
         raise ValueError(f"Unknown type: {type_name} (types: {', '.join(sorted(TYPE_TOKENS))})")
     if len(data) != size:
@@ -87,7 +97,7 @@ def decode_words(data: bytes, type_name: str, endian: str) -> list[int | float]:
     if len(data) % size:
         raise ValueError(f"Invalid length: {len(data)} (not a multiple of {size} for {type_name})")
     return [
-        decode_scalar(data[offset:offset + size], type_name, endian)
+        decode_scalar(data[offset : offset + size], type_name, endian)
         for offset in range(0, len(data), size)
     ]
 
@@ -204,7 +214,11 @@ def _word_width(symbol: Symbol | None, default_width: int) -> int:
 
 
 def resolve_bit_target(
-    symbol: Symbol | None, suffix: str, *, endian: str, default_width: int = 4,
+    symbol: Symbol | None,
+    suffix: str,
+    *,
+    endian: str,
+    default_width: int = 4,
 ) -> BitTarget:
     """Interpret an address-grammar suffix against an optional symbol.
 
@@ -226,12 +240,17 @@ def resolve_bit_target(
     match = _BIT_RE.match(suffix)
     if match is None:
         if symbol is None:
-            raise ValueError(f"Unknown field: .{suffix} (a bare address takes .<bit> or .<lo>-<hi>)")
+            raise ValueError(
+                f"Unknown field: .{suffix} (a bare address takes .<bit> or .<lo>-<hi>)"
+            )
         column = find_field(symbol, suffix, endian)
         indices = column.byte_indices
         low, bit_width = _column_slice(column)
         return BitTarget(
-            offset=min(indices), width=len(indices), low=low, bit_width=bit_width,
+            offset=min(indices),
+            width=len(indices),
+            low=low,
+            bit_width=bit_width,
             field=column.name,
         )
     lo = int(match.group("lo"))
@@ -264,8 +283,8 @@ def mask_pair(target: BitTarget, value: int) -> tuple[int, int]:
         raise ValueError(
             f"Invalid value: {value} "
             f"({label} is {target.bit_width} bit{'s' if target.bit_width != 1 else ''})"
-            if target.field else
-            f"Invalid value: {value} ({target.bit_width} bit{'s' if target.bit_width != 1 else ''})"
+            if target.field
+            else f"Invalid value: {value} ({target.bit_width} bit{'s' if target.bit_width != 1 else ''})"
         )
     word_mask = (1 << (8 * target.width)) - 1
     and_mask = word_mask & ~target.mask

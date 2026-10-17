@@ -57,9 +57,7 @@ class TestFormHappyPath:
         # Assert -- match line includes the algorithm + form tag
         assert result.success, f"crclink frame should match: {result.error!r}"
         match_line = "".join(captured_markup)
-        assert "crc16-xmodem" in match_line, (
-            f"crclink frame uses crc16-xmodem; got {match_line!r}"
-        )
+        assert "crc16-xmodem" in match_line, f"crclink frame uses crc16-xmodem; got {match_line!r}"
         assert "form=crclink" in match_line, (
             f"match line should advertise form=crclink; got {match_line!r}"
         )
@@ -75,15 +73,13 @@ class TestFormHappyPath:
         # Assert -- a "Wrapper:" line carries the recovered message
         wrapper_lines = [t for t, _color in captured if "Wrapper:" in t]
         assert wrapper_lines, (
-            f"a Wrapper: line should accompany a form match; "
-            f"got captured={captured}"
+            f"a Wrapper: line should accompany a form match; got captured={captured}"
         )
         assert "crclink JSON frame" in wrapper_lines[0], (
             f"wrapper line should name the form; got {wrapper_lines[0]!r}"
         )
         assert '{"t":1234,"v":42,' in wrapper_lines[0], (
-            f"wrapper line should carry the recovered message; "
-            f"got {wrapper_lines[0]!r}"
+            f"wrapper line should carry the recovered message; got {wrapper_lines[0]!r}"
         )
 
 
@@ -101,12 +97,8 @@ class TestFormValidation:
         # Assert -- error names what's known so the user can pick
         assert not result.success, "unknown form should fail"
         msg = result.error or ""
-        assert "Unknown form: nosuch" in msg, (
-            f"error should name the unknown form; got {msg!r}"
-        )
-        assert "crclink" in msg, (
-            f"error should list crclink in known forms; got {msg!r}"
-        )
+        assert "Unknown form: nosuch" in msg, f"error should name the unknown form; got {msg!r}"
+        assert "crclink" in msg, f"error should list crclink in known forms; got {msg!r}"
 
     def test_empty_form_value_rejected(self):
         """A bare form= with no value is an error saying a value is required."""
@@ -119,8 +111,7 @@ class TestFormValidation:
         # Assert
         assert not result.success, "empty form= should fail"
         assert "requires a value" in (result.error or ""), (
-            f"empty form= should mention 'requires a value'; "
-            f"got {result.error!r}"
+            f"empty form= should mention 'requires a value'; got {result.error!r}"
         )
 
     def test_form_with_asc_rejected(self):
@@ -138,9 +129,7 @@ class TestFormValidation:
         assert "form= is not compatible with asc=" in msg, (
             f"error should explain the incompatibility; got {msg!r}"
         )
-        assert "bin=" in msg, (
-            f"error should point at bin= as the alternative; got {msg!r}"
-        )
+        assert "bin=" in msg, f"error should point at bin= as the alternative; got {msg!r}"
 
 
 class TestFormBackwardCompat:

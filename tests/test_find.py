@@ -41,7 +41,9 @@ def env(tmp_path, monkeypatch):
 
     output: list = []
     eng = ReplEngine(
-        cfg, str(config_path), lambda t, c=None: output.append((t, c)),
+        cfg,
+        str(config_path),
+        lambda t, c=None: output.append((t, c)),
     )
     flags = eng.ctx.ns("flags")
     flags["output_level"] = "verbose"
@@ -53,14 +55,14 @@ def env(tmp_path, monkeypatch):
     # Stub get_screen_text to return a fixed scrollback so tests
     # don't depend on actual terminal rendering.
     scrollback_lines = [
-        "boot OK",            # 1
-        "AT response",        # 2
+        "boot OK",  # 1
+        "AT response",  # 2
         "ERROR: rx timeout",  # 3
-        "INFO: retrying",     # 4
-        "AT response",        # 5
-        "INFO: ok",           # 6
+        "INFO: retrying",  # 4
+        "AT response",  # 5
+        "INFO: ok",  # 6
         "ERROR: parse fail",  # 7
-        "AT response",        # 8
+        "AT response",  # 8
     ]
     fake_scrollback = "\n".join(scrollback_lines)
     eng.ctx.ui._get_screen_text_impl = lambda: fake_scrollback
@@ -138,9 +140,7 @@ class TestFindHandler:
 
         # Assert
         assert _find._active is not None, "state populated"
-        assert len(_find._active.matches) == 2, (
-            "two ERROR lines matched case-insensitively"
-        )
+        assert len(_find._active.matches) == 2, "two ERROR lines matched case-insensitively"
 
 
 class TestNextPrev:
@@ -253,12 +253,8 @@ class TestUiCallback:
         # Assert -- the payload's line_no points at the FIRST matching
         # line (1-based), and snippet is its text.
         payload = payloads[-1]
-        assert payload["line_no"] == 3, (
-            "first ERROR is line 3 (1-based)"
-        )
-        assert "ERROR: rx timeout" in payload["snippet"], (
-            "snippet is the matching line text"
-        )
+        assert payload["line_no"] == 3, "first ERROR is line 3 (1-based)"
+        assert "ERROR: rx timeout" in payload["snippet"], "snippet is the matching line text"
 
 
 class TestFindMatchesHelper:
@@ -289,9 +285,7 @@ class TestFindMatchesHelper:
         # Assert
         assert err is None, "valid pattern"
         assert len(matches) == 1, "one match"
-        assert "\x1b" not in matches[0][1], (
-            "ANSI escapes stripped from snippet"
-        )
+        assert "\x1b" not in matches[0][1], "ANSI escapes stripped from snippet"
 
     def test_invalid_regex_returns_error(self):
         """A bad regex returns an "Invalid pattern" error and no matches, not an exception."""
@@ -300,9 +294,7 @@ class TestFindMatchesHelper:
 
         # Assert
         assert matches == [], "no matches on bad pattern"
-        assert err is not None and "Invalid pattern" in err, (
-            "clear error name"
-        )
+        assert err is not None and "Invalid pattern" in err, "clear error name"
 
     def test_empty_text_returns_error(self):
         """Empty scrollback, as from a CLI or MCP host, is a "No scrollback" error."""
@@ -311,9 +303,7 @@ class TestFindMatchesHelper:
 
         # Assert
         assert matches == [], "no matches on empty text"
-        assert err is not None and "No scrollback" in err, (
-            "clear error name for the no-buffer case"
-        )
+        assert err is not None and "No scrollback" in err, "clear error name for the no-buffer case"
 
     def test_is_noise_filter_skips_lines(self):
         """The is_noise filter drops lines such as the /find echo even when they match."""
@@ -328,9 +318,7 @@ class TestFindMatchesHelper:
 
         # Assert -- the /find line is dropped despite containing "atch".
         assert len(matches) == 2, "only the two real-match lines kept"
-        assert all("/find" not in line for _, line in matches), (
-            "noise filter excludes /find echo"
-        )
+        assert all("/find" not in line for _, line in matches), "noise filter excludes /find echo"
 
 
 class TestMaxCount:
@@ -356,9 +344,7 @@ class TestMaxCount:
         assert "150" in result.error and "100" in result.error, (
             "message names the actual count and the current cap"
         )
-        assert "find.max_count" in result.error, (
-            "message suggests the override command"
-        )
+        assert "find.max_count" in result.error, "message suggests the override command"
         assert _find._active is None, "no state populated on refuse"
 
     def test_max_count_override_raises_cap(self, env, monkeypatch):

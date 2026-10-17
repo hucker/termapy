@@ -61,8 +61,7 @@ class TestMfg:
         assert mfg("Infineon") == "Infineon", "Infineon stays Infineon"
         # Same rule for Atmel vs Microchip
         assert mfg("Atmel") == "Atmel", "Atmel stays Atmel"
-        assert mfg("Microchip Technology") == "Microchip", \
-            "Microchip stays Microchip"
+        assert mfg("Microchip Technology") == "Microchip", "Microchip stays Microchip"
 
     def test_unknown_passes_through(self):
         """An unrecognized vendor comes back verbatim, never blanked or shortened."""
@@ -77,8 +76,7 @@ class TestMfg:
     def test_windows_standard_port_types_empty(self):
         """Windows built-in COM ports get blanked (not interesting)."""
         # Act / Assert
-        assert mfg("(Standard port types)") == "", \
-            "Windows generic reports as empty"
+        assert mfg("(Standard port types)") == "", "Windows generic reports as empty"
 
 
 class TestAliasTable:
@@ -93,21 +91,18 @@ class TestAliasTable:
         """
         # Act / Assert
         long_aliases = [e.mfg for e in MANUFACTURER_ALIASES if len(e.mfg) > 9]
-        assert long_aliases == [], \
-            f"all aliases must be <= 9 chars; too long: {long_aliases}"
+        assert long_aliases == [], f"all aliases must be <= 9 chars; too long: {long_aliases}"
 
     def test_prefixes_are_lowercase(self):
         """Prefixes must be lowercase so the runtime ``.lower()`` match works."""
         # Act / Assert
-        non_lower = [e.prefix for e in MANUFACTURER_ALIASES
-                     if e.prefix != e.prefix.lower()]
-        assert non_lower == [], \
-            f"prefixes must be lowercase; found: {non_lower}"
+        non_lower = [e.prefix for e in MANUFACTURER_ALIASES if e.prefix != e.prefix.lower()]
+        assert non_lower == [], f"prefixes must be lowercase; found: {non_lower}"
 
     def test_entries_are_vendoralias_instances(self):
         """Every table entry uses the VendorAlias dataclass, not raw tuples."""
         # Act / Assert
-        wrong_types = [type(e).__name__ for e in MANUFACTURER_ALIASES
-                       if not isinstance(e, VendorAlias)]
-        assert wrong_types == [], \
-            f"all entries must be VendorAlias; got: {wrong_types}"
+        wrong_types = [
+            type(e).__name__ for e in MANUFACTURER_ALIASES if not isinstance(e, VendorAlias)
+        ]
+        assert wrong_types == [], f"all entries must be VendorAlias; got: {wrong_types}"

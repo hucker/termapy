@@ -42,7 +42,6 @@ def table() -> SymbolTable:
 
 
 class TestSymbol:
-
     def test_contains_start(self):
         """The first byte of a symbol's range is inside it."""
         # Arrange
@@ -114,7 +113,12 @@ class TestSymbol:
         symbol = Symbol("main", 0x10FFA, 0x1BA, "text")
 
         # Assert
-        assert (symbol.name, symbol.addr, symbol.size, symbol.section) == ("main", 0x10FFA, 0x1BA, "text")
+        assert (symbol.name, symbol.addr, symbol.size, symbol.section) == (
+            "main",
+            0x10FFA,
+            0x1BA,
+            "text",
+        )
         assert (symbol.file, symbol.type, symbol.space, symbol.rmw) == ("", "", "", True), (
             "optional fields default to empty / rmw True"
         )
@@ -180,7 +184,8 @@ class TestSymbol:
         """A bit-field format spec is accepted as the type and kept verbatim."""
         # Act
         symbol = Symbol.from_dict(
-            {"name": "U1MODE", "addr": 0, "type": "ON:B1-4.15 UEN:B1-4.8-9"}, "symbols[0]",
+            {"name": "U1MODE", "addr": 0, "type": "ON:B1-4.15 UEN:B1-4.8-9"},
+            "symbols[0]",
         )
 
         # Assert
@@ -191,22 +196,47 @@ class TestSymbol:
         [
             ({"name": "", "addr": 0}, "symbols[3].name: expected a non-empty string"),
             ({"addr": 0}, "symbols[3].name: expected a non-empty string"),
-            ({"name": "a", "addr": "zz"}, "symbols[3].addr: expected 0x-hex string or int, got 'zz'"),
-            ({"name": "a", "addr": "4096"}, "symbols[3].addr: expected 0x-hex string or int, got '4096'"),
+            (
+                {"name": "a", "addr": "zz"},
+                "symbols[3].addr: expected 0x-hex string or int, got 'zz'",
+            ),
+            (
+                {"name": "a", "addr": "4096"},
+                "symbols[3].addr: expected 0x-hex string or int, got '4096'",
+            ),
             ({"name": "a", "addr": -1}, "symbols[3].addr: expected 0x-hex string or int, got -1"),
             ({"name": "a"}, "symbols[3].addr: expected 0x-hex string or int, got None"),
-            ({"name": "a", "addr": True}, "symbols[3].addr: expected 0x-hex string or int, got True"),
-            ({"name": "a", "addr": 0, "size": -1}, "symbols[3].size: expected a non-negative integer"),
-            ({"name": "a", "addr": 0, "size": True}, "symbols[3].size: expected a non-negative integer"),
+            (
+                {"name": "a", "addr": True},
+                "symbols[3].addr: expected 0x-hex string or int, got True",
+            ),
+            (
+                {"name": "a", "addr": 0, "size": -1},
+                "symbols[3].size: expected a non-negative integer",
+            ),
+            (
+                {"name": "a", "addr": 0, "size": True},
+                "symbols[3].size: expected a non-negative integer",
+            ),
             ({"name": "a", "addr": 0, "type": "Q9"}, "symbols[3].type: invalid type spec 'Q9'"),
             ({"name": "a", "addr": 0, "rmw": "yes"}, "symbols[3].rmw: expected a boolean"),
             ({"name": "a", "addr": 0, "file": 3}, "symbols[3].file: expected a string"),
             ("not an object", "symbols[3]: expected an object"),
         ],
         ids=[
-            "name-empty", "name-missing", "addr-zz", "addr-decimal-string", "addr-negative",
-            "addr-missing", "addr-bool", "size-negative", "size-bool", "type-bad", "rmw-string",
-            "file-int", "not-object",
+            "name-empty",
+            "name-missing",
+            "addr-zz",
+            "addr-decimal-string",
+            "addr-negative",
+            "addr-missing",
+            "addr-bool",
+            "size-negative",
+            "size-bool",
+            "type-bad",
+            "rmw-string",
+            "file-int",
+            "not-object",
         ],
     )
     def test_from_dict_errors_are_field_qualified(self, raw, expected):
@@ -229,7 +259,6 @@ class TestSymbol:
 
 
 class TestSymbolTableLookup:
-
     def test_exact_match(self, table):
         """A lookup at a symbol's start address returns that symbol."""
         # Act
@@ -289,10 +318,12 @@ class TestSymbolTableLookup:
     def test_size0_global_inside_sized_symbol_does_not_hide_it(self):
         """A size-0 marker inside a function does not hide the function's other bytes."""
         # Arrange -- a linker global sits inside main's range
-        table = SymbolTable([
-            Symbol("main", 0x2000, 442, "text"),
-            Symbol("_marker", 0x2010, 0, "global"),
-        ])
+        table = SymbolTable(
+            [
+                Symbol("main", 0x2000, 442, "text"),
+                Symbol("_marker", 0x2010, 0, "global"),
+            ]
+        )
 
         # Act
         above = table.lookup(0x2020)
@@ -309,10 +340,12 @@ class TestSymbolTableLookup:
     def test_sized_symbol_sorts_after_size0_at_same_address(self):
         """At a shared address size-0 sorts first, so lookup lands on the sized one."""
         # Arrange
-        table = SymbolTable([
-            Symbol("main", 0x2000, 442, "text"),
-            Symbol("_start", 0x2000, 0, "global"),
-        ])
+        table = SymbolTable(
+            [
+                Symbol("main", 0x2000, 442, "text"),
+                Symbol("_start", 0x2000, 0, "global"),
+            ]
+        )
 
         # Act
         names = [symbol.name for symbol in table.symbols]
@@ -327,7 +360,6 @@ class TestSymbolTableLookup:
 
 
 class TestSymbolTableByName:
-
     def test_single(self, table):
         """An exact name with one definition returns that one symbol."""
         # Act
@@ -349,7 +381,9 @@ class TestSymbolTableByName:
         # Assert
         assert [symbol.addr for symbol in hits] == [0x1010, 0x1014], "both statics, address order"
 
-    @pytest.mark.parametrize("file", ["src/adc.c", "adc.c", "adc"], ids=["exact", "basename", "stem"])
+    @pytest.mark.parametrize(
+        "file", ["src/adc.c", "adc.c", "adc"], ids=["exact", "basename", "stem"]
+    )
     def test_file_qualifier_forms(self, table, file):
         """A file qualifier may be the full path, basename or stem."""
         # Act
@@ -373,7 +407,6 @@ class TestSymbolTableByName:
 
 
 class TestSymbolTableSearch:
-
     def test_substring_match(self, table):
         """A plain pattern matches as a substring of the name."""
         # Act
@@ -445,7 +478,6 @@ class TestSymbolTableSearch:
 
 
 class TestSymbolTableStats:
-
     def test_stats(self, table):
         """stats counts symbols per raw section name."""
         # Act
@@ -481,14 +513,17 @@ def _doc(**overrides) -> dict:
 
 
 class TestSymbolTableJson:
-
     def test_round_trip_preserves_every_field(self):
         """to_dict then from_dict preserves symbols, metadata, endian and regions."""
         # Arrange
         regions = [{"name": "ram", "start": "0x20000000", "size": "0x10000", "kind": "ram"}]
         original = SymbolTable(
-            _demo_symbols(), source="build/mem.map", imported="2026-08-29T10:12:00",
-            address_bits=32, endian="be", regions=regions,
+            _demo_symbols(),
+            source="build/mem.map",
+            imported="2026-08-29T10:12:00",
+            address_bits=32,
+            endian="be",
+            regions=regions,
         )
 
         # Act
@@ -507,7 +542,13 @@ class TestSymbolTableJson:
 
         # Assert
         expected = [
-            "symbols_version", "source", "imported", "address_bits", "endian", "regions", "symbols",
+            "symbols_version",
+            "source",
+            "imported",
+            "address_bits",
+            "endian",
+            "regions",
+            "symbols",
         ]
         assert keys == expected, "stable key order keeps the file diff-friendly"
         assert table.to_dict()["symbols_version"] == SYMBOLS_VERSION, "current version written"
@@ -544,10 +585,19 @@ class TestSymbolTableJson:
             (_doc(source=7), "source: expected a string"),
         ],
         ids=[
-            "version-2", "version-bool", "version-missing", "not-object", "symbols-not-list",
-            "symbol-not-object", "endian", "address_bits-0", "address_bits-str",
-            "address_bits-bool", "regions-not-list",
-            "region-not-object", "source-int",
+            "version-2",
+            "version-bool",
+            "version-missing",
+            "not-object",
+            "symbols-not-list",
+            "symbol-not-object",
+            "endian",
+            "address_bits-0",
+            "address_bits-str",
+            "address_bits-bool",
+            "regions-not-list",
+            "region-not-object",
+            "source-int",
         ],
     )
     def test_from_dict_errors(self, doc, expected):
@@ -604,7 +654,6 @@ class TestSymbolTableJson:
 
 
 class TestSidecarPath:
-
     def test_beside_the_cfg(self, tmp_path):
         """The symbol sidecar lives at <cfg dir>/sym/<stem>.symbols.json."""
         # Arrange

@@ -88,9 +88,7 @@ class TestCliFlagsImportDiscipline:
         # Assert
         actual = result.stdout.strip()
         expected = "[]"
-        assert actual == expected, (
-            "termapy.entry pulled in heavy UI deps at import time"
-        )
+        assert actual == expected, "termapy.entry pulled in heavy UI deps at import time"
 
 
 # ── JSON output: --ports --json ───────────────────────────────────────────────
@@ -129,12 +127,15 @@ def _make_facts(**kw) -> ChipFacts:
 class TestChipRows:
     """The chip rows /port.chip and /port.info share, and how --info prints them."""
 
-    @pytest.mark.parametrize(("latency", "advised"), [
-        ("16 ms", True),
-        ("1 ms", False),
-        ("n/a", False),
-        ("n/a (Windows - check Device Manager)", False),
-    ])
+    @pytest.mark.parametrize(
+        ("latency", "advised"),
+        [
+            ("16 ms", True),
+            ("1 ms", False),
+            ("n/a", False),
+            ("n/a (Windows - check Device Manager)", False),
+        ],
+    )
     def test_latency_advice_only_for_a_numeric_timer_above_one_ms(self, latency, advised):
         """Both reports advise on the latency timer only when it is a number above 1 ms; "n/a" is unknown, not slow."""
         # Act
@@ -180,10 +181,21 @@ class TestPortsJsonShape:
         assert len(records) == 1, "one record for one fact"
         actual = records[0]
         expected_keys = {
-            "device", "manufacturer", "manufacturer_raw", "vendor",
-            "description", "chip", "speed",
-            "vid", "pid", "vid_pid", "serial_number", "in_use", "driver",
-            "location", "interface_number",
+            "device",
+            "manufacturer",
+            "manufacturer_raw",
+            "vendor",
+            "description",
+            "chip",
+            "speed",
+            "vid",
+            "pid",
+            "vid_pid",
+            "serial_number",
+            "in_use",
+            "driver",
+            "location",
+            "interface_number",
         }
         assert set(actual.keys()) == expected_keys, (
             f"every documented field present; got {sorted(actual)}"
@@ -273,16 +285,24 @@ class TestMultiAxisFilters:
     def fleet(self):
         """Three mock ports across two manufacturers + chip types."""
         ftdi = _make_facts(
-            device="COM3", manufacturer="FTDI",
-            vid_pid="0403:6001", serial="FT01",
+            device="COM3",
+            manufacturer="FTDI",
+            vid_pid="0403:6001",
+            serial="FT01",
         )
         cp210 = _make_facts(
-            device="COM4", manufacturer="Silabs",
-            vid_pid="10C4:EA60", serial="SL02", model="CP2102",
+            device="COM4",
+            manufacturer="Silabs",
+            vid_pid="10C4:EA60",
+            serial="SL02",
+            model="CP2102",
         )
         ch340 = _make_facts(
-            device="COM5", manufacturer="WCH",
-            vid_pid="1A86:7523", serial="CH03", model="CH340",
+            device="COM5",
+            manufacturer="WCH",
+            vid_pid="1A86:7523",
+            serial="CH03",
+            model="CH340",
         )
         return [ftdi, cp210, ch340]
 
@@ -336,9 +356,7 @@ class TestMultiAxisFilters:
         # Arrange + Act
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
-            cli_flags.run_ports(
-                _ports_args(json=True, vid="dead"), source=lambda: fleet
-            )
+            cli_flags.run_ports(_ports_args(json=True, vid="dead"), source=lambda: fleet)
 
         # Assert
         assert exc.value.code == 1, "exit 1 on no match"
@@ -349,9 +367,7 @@ class TestMultiAxisFilters:
         """A non-hex --vid exits 2, keeping bad input distinct from no match (exit 1)."""
         # Arrange + Act
         with pytest.raises(SystemExit) as exc:
-            cli_flags.run_ports(
-                _ports_args(json=True, vid="not-hex"), source=lambda: fleet
-            )
+            cli_flags.run_ports(_ports_args(json=True, vid="not-hex"), source=lambda: fleet)
 
         # Assert -- exit 2 distinguishes "bad input" from "no match" (1).
         assert exc.value.code == 2, "exit 2 on invalid input"
@@ -480,9 +496,7 @@ class TestReservedPortSynthesis:
         """An OS-enumerated port named DEMO wins over the synthetic record."""
         # Arrange -- if the OS somehow enumerates a port named "DEMO"
         # (shouldn't happen, but fence it), the real one wins.
-        real_demo = _make_facts(
-            device="DEMO", manufacturer="real-vendor", driver="usbser"
-        )
+        real_demo = _make_facts(device="DEMO", manufacturer="real-vendor", driver="usbser")
 
         # Act
         buf = io.StringIO()
@@ -491,9 +505,7 @@ class TestReservedPortSynthesis:
 
         # Assert -- real port's manufacturer wins, not the synthesized "termapy".
         record = json.loads(buf.getvalue())[0]
-        assert record["manufacturer"] == "real-vendor", (
-            "OS-enumerated record wins over synthesis"
-        )
+        assert record["manufacturer"] == "real-vendor", "OS-enumerated record wins over synthesis"
 
 
 # ── Fast-gather path used by --watch ──────────────────────────────────────────
@@ -524,19 +536,14 @@ class TestFastGather:
         monkeypatch.setattr(port_control, "_check_in_use", _trap)
         # Also fence off the platform extras so the test doesn't depend
         # on whether we're running on Linux or Windows.
-        monkeypatch.setattr(port_control, "_gather_linux_extras",
-                            lambda *a, **kw: None)
-        monkeypatch.setattr(port_control, "_gather_windows_extras",
-                            lambda *a, **kw: None)
+        monkeypatch.setattr(port_control, "_gather_linux_extras", lambda *a, **kw: None)
+        monkeypatch.setattr(port_control, "_gather_windows_extras", lambda *a, **kw: None)
 
         # Act
         port_control._gather_all_chip_facts(fast=True)
 
         # Assert
-        assert called == [], (
-            "fast=True must not call _check_in_use; "
-            f"trap recorded: {called}"
-        )
+        assert called == [], f"fast=True must not call _check_in_use; trap recorded: {called}"
 
     def test_fast_gather_marks_in_use_none(self):
         """Fast facts leave in_use and permissions None (not gathered) but fill identity."""
@@ -662,8 +669,8 @@ class TestVendorLookup:
         facts = ChipFacts(
             device="COM3",
             description="USB Serial Device (COM3)",
-            manufacturer="Microsoft",   # from usbser.sys INF
-            vendor="Microchip",         # from VID 0x04D8 lookup
+            manufacturer="Microsoft",  # from usbser.sys INF
+            vendor="Microchip",  # from VID 0x04D8 lookup
             vid_pid="04D8:9036",
             model=None,
             in_use="no",
@@ -677,15 +684,9 @@ class TestVendorLookup:
 
         # Assert -- all three fields visible, telling the full story.
         record = json.loads(buf.getvalue())[0]
-        assert record["manufacturer_raw"] == "Microsoft", (
-            "raw descriptor / INF string preserved"
-        )
-        assert record["manufacturer"] == "MSFT", (
-            "manufacturer column-aliased to short form"
-        )
-        assert record["vendor"] == "Microchip", (
-            "silicon vendor from VID lookup"
-        )
+        assert record["manufacturer_raw"] == "Microsoft", "raw descriptor / INF string preserved"
+        assert record["manufacturer"] == "MSFT", "manufacturer column-aliased to short form"
+        assert record["vendor"] == "Microchip", "silicon vendor from VID lookup"
 
     def test_ftdi_all_three_fields_agree(self):
         """For FTDI the raw manufacturer, the aliased one, and vendor all read FTDI."""
@@ -734,9 +735,7 @@ class TestVendorLookup:
         from termapy.port_control import _normalize_windows_location
 
         # Multi-element chain -- leave as-is.
-        actual = _normalize_windows_location(
-            "Port_#0001.Hub_#0001.Hub_#0002"
-        )
+        actual = _normalize_windows_location("Port_#0001.Hub_#0001.Hub_#0002")
         expected = "Port_#0001.Hub_#0001.Hub_#0002"
         assert actual == expected, "complex chains unchanged"
 
@@ -770,12 +769,8 @@ class TestVendorLookup:
         # Assert
         record = json.loads(buf.getvalue())[0]
         assert record["manufacturer_raw"] == "Silicon Labs", "raw preserved"
-        assert record["manufacturer"] == "SiLabs", (
-            "alias collapses to narrow column form"
-        )
-        assert record["vendor"] == "Silicon Labs", (
-            "vendor stays canonical for machine consumers"
-        )
+        assert record["manufacturer"] == "SiLabs", "alias collapses to narrow column form"
+        assert record["vendor"] == "Silicon Labs", "vendor stays canonical for machine consumers"
 
 
 # ── Interface column behavior in port_format ──────────────────────────────────
@@ -837,6 +832,4 @@ class TestInterfaceColumn:
         # Assert -- "?" would claim the interface exists and could not be
         # read.  A single-function device simply has none.
         actual = row["interface_number"]
-        assert actual == "", (
-            f"absent is blank, not the unknown marker; got {actual!r}"
-        )
+        assert actual == "", f"absent is blank, not the unknown marker; got {actual!r}"

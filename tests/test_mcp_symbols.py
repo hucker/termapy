@@ -47,7 +47,6 @@ def host(tmp_path):
 
 
 class TestMcpSymbols:
-
     def test_on_app_start_loads_the_sidecar(self, host):
         """The sidecar loads at on_app_start in the MCP host, not when the host is built."""
         # Arrange -- nothing loaded until the server's boot line fires

@@ -111,6 +111,7 @@ def make_edit_handler(folder: str, get_dir, ext):
     ``/<folder>.list`` result (a picker host never gets here bare -- the
     dispatcher opens the picker first).
     """
+
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         name = args.strip()
         if not name:
@@ -121,6 +122,7 @@ def make_edit_handler(folder: str, get_dir, ext):
             return CmdResult.fail(msg=f"File not found: {name}")
         ctx.internal.edit_file(path)
         return CmdResult.ok(value=path)
+
     return handler
 
 
@@ -130,8 +132,10 @@ def make_list_handler(folder: str):
     Forwarded through the engine, so the listing (format, order, data
     records, ``/run.list``'s SUMMARY) is the folder command's own.
     """
+
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         return ctx.internal.dispatch(f"{folder}.list")
+
     return handler
 
 
@@ -140,17 +144,21 @@ def make_explore_handler(get_dir):
 
     Returns the opened folder path as ``CmdResult.value``.
     """
+
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         ctx.fs.open_file(ensure_folder(folder))
         return CmdResult.ok(value=folder)
+
     return handler
 
 
 def _folder_dir(folder: str) -> Callable[[PluginContext], Path]:
     """Getter for a per-config data folder; the cwd when no config is loaded."""
+
     def get_dir(ctx: PluginContext) -> Path:
         return Path(ctx.config_path).parent / folder if ctx.config_path else Path(".")
+
     return get_dir
 
 
@@ -168,6 +176,7 @@ def _folder_long_help(folder: str, text: str = "") -> Callable[[PluginContext], 
 
     def long_help(ctx: PluginContext) -> str:
         return compose(folder_line(ctx, folder, noun=noun), text)
+
     return long_help
 
 
@@ -187,9 +196,17 @@ def edit_command(folder: str) -> Command:
     # A folder with a picker opens it on a bare call in the TUI (SYNOPSIS
     # says so); the listing is what a host without pickers falls back to.
     picker = folder if folder in PICKERS else ""
-    bare = f"Without a picker (CLI, MCP), bare lists {folder}/." if picker else f"Bare lists {folder}/."
+    bare = (
+        f"Without a picker (CLI, MCP), bare lists {folder}/."
+        if picker
+        else f"Bare lists {folder}/."
+    )
     own_editor = spec.ext in _TERMAPY_EDITS
-    where = "termapy's editor in the TUI, the system editor in the CLI" if own_editor else "the system editor"
+    where = (
+        "termapy's editor in the TUI, the system editor in the CLI"
+        if own_editor
+        else "the system editor"
+    )
     text = (
         f"With a name, opens that existing file from {folder}/ in {where} "
         f"(the {spec.ext} is optional); a missing name fails.  {bare}  "

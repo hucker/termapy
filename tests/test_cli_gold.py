@@ -15,9 +15,7 @@ pytestmark = pytest.mark.slow  # full CLI subprocess + ~100-command gold compare
 GOLD_DIR = Path(__file__).parent / "cli_gold"
 
 
-def _run_cli_script(
-    script_name: str, tmp_path: Path
-) -> subprocess.CompletedProcess[str]:
+def _run_cli_script(script_name: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     """Run a .run script via CLI mode and return the completed process.
 
     Returns the whole ``CompletedProcess`` (not just stdout) so the caller
@@ -35,7 +33,8 @@ def _run_cli_script(
     script_path = GOLD_DIR / script_name
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', '--cli', '--demo', "
             f"'--run', {str(script_path)!r}, "
@@ -167,8 +166,7 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
     # before the stdout diff so a late crash or a leaked traceback is
     # reported as itself instead of hiding behind a confusing output diff.
     assert result.returncode == 0, (
-        f"CLI exited {result.returncode} (expected 0); "
-        f"stderr:\n{result.stderr}"
+        f"CLI exited {result.returncode} (expected 0); stderr:\n{result.stderr}"
     )
     assert "Traceback (most recent call last)" not in result.stderr, (
         f"CLI leaked a traceback to stderr:\n{result.stderr}"
@@ -184,7 +182,8 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
     # Assert
     if actual != expected:
         diff = difflib.unified_diff(
-            expected, actual,
+            expected,
+            actual,
             fromfile=f"expected ({expected_name})",
             tofile="actual",
             lineterm="",
@@ -196,18 +195,12 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
         # most recent failure always overwrites.
         failures_dir = GOLD_DIR / "_failures"
         failures_dir.mkdir(exist_ok=True)
-        (failures_dir / f"{script_name}.actual_raw.txt").write_text(
-            actual_text, encoding="utf-8"
-        )
-        (failures_dir / f"{script_name}.actual.txt").write_text(
-            "\n".join(actual), encoding="utf-8"
-        )
+        (failures_dir / f"{script_name}.actual_raw.txt").write_text(actual_text, encoding="utf-8")
+        (failures_dir / f"{script_name}.actual.txt").write_text("\n".join(actual), encoding="utf-8")
         (failures_dir / f"{script_name}.expected.txt").write_text(
             "\n".join(expected), encoding="utf-8"
         )
-        (failures_dir / f"{script_name}.diff.txt").write_text(
-            diff_text, encoding="utf-8"
-        )
+        (failures_dir / f"{script_name}.diff.txt").write_text(diff_text, encoding="utf-8")
 
         raise AssertionError(
             f"CLI output does not match gold file.\n"
@@ -216,7 +209,6 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
 
 
 class TestCliGold:
-
     def test_cli_basic(self, tmp_path):
         """Run cli_test.run and compare to cli_test.expected."""
         _assert_gold("cli_test.run", "cli_test.expected", tmp_path)

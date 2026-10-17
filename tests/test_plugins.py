@@ -21,9 +21,11 @@ class TestCapabilitySet:
         actual = attainable(CapabilitySet(serial_io=False))
 
         # Assert
-        assert (actual.config_loaded, actual.serial_connected, actual.block_until) == (True, True, True), (
-            "every dynamic field is attainable"
-        )
+        assert (actual.config_loaded, actual.serial_connected, actual.block_until) == (
+            True,
+            True,
+            True,
+        ), "every dynamic field is attainable"
         assert actual.serial_io is False, "a union would have turned the sandboxed baseline back on"
 
     def test_empty_satisfies_empty(self):
@@ -172,7 +174,10 @@ class TestLoadPlugins:
     def test_loads_valid_plugin(self, plugin_dir):
         """A file with a COMMAND loads with its name, args, help, and source tag intact."""
         # Arrange
-        _write_plugin(plugin_dir, "hello.py", '''
+        _write_plugin(
+            plugin_dir,
+            "hello.py",
+            """
 from termapy.plugins import Command
 
 def _handler(ctx, args):
@@ -184,7 +189,8 @@ COMMAND = Command(
     help="Say hello.",
     handler=_handler,
 )
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -198,30 +204,42 @@ COMMAND = Command(
 
     def test_skips_files_without_command(self, plugin_dir):
         """A .py with no COMMAND is skipped and named in skipped, not silently dropped."""
-        _write_plugin(plugin_dir, "bad.py", '''
+        _write_plugin(
+            plugin_dir,
+            "bad.py",
+            """
 def handler(ctx, args): pass
-''')
+""",
+        )
         result = load_plugins_from_dir(plugin_dir, "test")
         assert len(result.plugins) == 0, "skipped - no COMMAND"
         assert result.skipped == ["bad.py"], "file name reported"
 
     def test_skips_files_without_name(self, plugin_dir):
         """A COMMAND with no name cannot register, so its file is reported as skipped."""
-        _write_plugin(plugin_dir, "bad.py", '''
+        _write_plugin(
+            plugin_dir,
+            "bad.py",
+            """
 from termapy.plugins import Command
 COMMAND = Command(help="Missing name.")
-''')
+""",
+        )
         result = load_plugins_from_dir(plugin_dir, "test")
         assert len(result.plugins) == 0, "skipped - no name in COMMAND"
         assert result.skipped == ["bad.py"], "file name reported"
 
     def test_skips_underscore_files(self, plugin_dir):
         """Underscore files, __init__.py included, are private helpers and never load."""
-        _write_plugin(plugin_dir, "_private.py", '''
+        _write_plugin(
+            plugin_dir,
+            "_private.py",
+            """
 from termapy.plugins import Command
 def _handler(ctx, args): pass
 COMMAND = Command(name="private", help="Should be skipped.", handler=_handler)
-''')
+""",
+        )
         _write_plugin(plugin_dir, "__init__.py", "")
         result = load_plugins_from_dir(plugin_dir, "test")
         assert len(result.plugins) == 0, "underscore-prefixed files skipped"
@@ -234,16 +252,24 @@ COMMAND = Command(name="private", help="Should be skipped.", handler=_handler)
     def test_multiple_plugins_sorted(self, plugin_dir):
         """Plugins load in alphabetical order regardless of file creation order."""
         # Arrange
-        _write_plugin(plugin_dir, "beta.py", '''
+        _write_plugin(
+            plugin_dir,
+            "beta.py",
+            """
 from termapy.plugins import Command
 def _handler(ctx, args): pass
 COMMAND = Command(name="beta", help="B", handler=_handler)
-''')
-        _write_plugin(plugin_dir, "alpha.py", '''
+""",
+        )
+        _write_plugin(
+            plugin_dir,
+            "alpha.py",
+            """
 from termapy.plugins import Command
 def _handler(ctx, args): pass
 COMMAND = Command(name="alpha", help="A", handler=_handler)
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -257,11 +283,15 @@ COMMAND = Command(name="alpha", help="A", handler=_handler)
         """A plugin that raises on import is reported in errors; its neighbors still load."""
         # Arrange
         _write_plugin(plugin_dir, "broken.py", "raise RuntimeError('boom')")
-        _write_plugin(plugin_dir, "good.py", '''
+        _write_plugin(
+            plugin_dir,
+            "good.py",
+            """
 from termapy.plugins import Command
 def _handler(ctx, args): pass
 COMMAND = Command(name="good", help="Works.", handler=_handler)
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -277,7 +307,10 @@ class TestSubCommands:
     def test_flattens_sub_commands(self, plugin_dir):
         """Subcommands flatten into dotted entries registered beside their root."""
         # Arrange
-        _write_plugin(plugin_dir, "tool.py", '''
+        _write_plugin(
+            plugin_dir,
+            "tool.py",
+            """
 from termapy.plugins import Command
 
 def _run(ctx, args): pass
@@ -291,7 +324,8 @@ COMMAND = Command(
         "status": Command(help="Show status.", handler=_status),
     },
 )
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -306,7 +340,10 @@ COMMAND = Command(
     def test_root_has_children(self, plugin_dir):
         """The root records its dotted children in declaration order for /help."""
         # Arrange
-        _write_plugin(plugin_dir, "tool.py", '''
+        _write_plugin(
+            plugin_dir,
+            "tool.py",
+            """
 from termapy.plugins import Command
 
 def _a(ctx, args): pass
@@ -320,7 +357,8 @@ COMMAND = Command(
         "beta": Command(help="Second.", handler=_b),
     },
 )
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -332,7 +370,10 @@ COMMAND = Command(
     def test_nested_sub_commands(self, plugin_dir):
         """Two levels of nesting flatten into root, interior, and leaf entries."""
         # Arrange
-        _write_plugin(plugin_dir, "tool.py", '''
+        _write_plugin(
+            plugin_dir,
+            "tool.py",
+            """
 from termapy.plugins import Command
 
 def _leaf(ctx, args): pass
@@ -349,7 +390,8 @@ COMMAND = Command(
         ),
     },
 )
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -369,7 +411,10 @@ COMMAND = Command(
         callable must reach it unchanged.
         """
         # Arrange
-        _write_plugin(plugin_dir, "dyn.py", '''
+        _write_plugin(
+            plugin_dir,
+            "dyn.py",
+            """
 from termapy.plugins import Command
 
 def _handler(ctx, args): pass
@@ -381,7 +426,8 @@ COMMAND = Command(
     long_help=_dyn,
     handler=_handler,
 )
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -395,7 +441,10 @@ COMMAND = Command(
     def test_interior_gets_synthetic_handler(self, plugin_dir):
         """A root with no handler of its own gets a synthesized one, so it stays callable."""
         # Arrange
-        _write_plugin(plugin_dir, "tool.py", '''
+        _write_plugin(
+            plugin_dir,
+            "tool.py",
+            """
 from termapy.plugins import Command
 
 def _leaf(ctx, args): pass
@@ -407,7 +456,8 @@ COMMAND = Command(
         "leaf": Command(help="A leaf.", handler=_leaf),
     },
 )
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -419,11 +469,15 @@ COMMAND = Command(
 
     def test_defaults_for_missing_fields(self, plugin_dir):
         """Omitted args and long_help default to empty strings; a leaf has no children."""
-        _write_plugin(plugin_dir, "bare.py", '''
+        _write_plugin(
+            plugin_dir,
+            "bare.py",
+            """
 from termapy.plugins import Command
 def _handler(ctx, args): pass
 COMMAND = Command(name="bare", help="Bare.", handler=_handler)
-''')
+""",
+        )
         result = load_plugins_from_dir(plugin_dir, "test")
         assert result.plugins[0].args == "", "missing args defaults to empty"
         assert result.plugins[0].long_help == "", "missing long_help defaults to empty"
@@ -434,7 +488,10 @@ class TestTransformLoading:
     def test_transform_loaded(self, plugin_dir):
         """A TRANSFORM loads with working repl and serial callables and its source tag."""
         # Arrange
-        _write_plugin(plugin_dir, "xform.py", '''
+        _write_plugin(
+            plugin_dir,
+            "xform.py",
+            """
 from termapy.plugins import Transform
 def _repl_xf(s): return s.upper()
 def _serial_xf(s): return s.lower()
@@ -442,7 +499,8 @@ TRANSFORM = Transform(
     name="vars", help="Expand variables.",
     repl=_repl_xf, serial=_serial_xf,
 )
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -457,10 +515,14 @@ TRANSFORM = Transform(
     def test_transform_only_file_not_skipped(self, plugin_dir):
         """A file exporting only a TRANSFORM is valid and is not reported as skipped."""
         # Arrange
-        _write_plugin(plugin_dir, "xonly.py", '''
+        _write_plugin(
+            plugin_dir,
+            "xonly.py",
+            """
 from termapy.plugins import Transform
 TRANSFORM = Transform(name="xonly", help="Transform only.", repl=lambda s: s)
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -473,12 +535,16 @@ TRANSFORM = Transform(name="xonly", help="Transform only.", repl=lambda s: s)
     def test_file_with_both_command_and_transform(self, plugin_dir):
         """One file can contribute both a command and a transform."""
         # Arrange
-        _write_plugin(plugin_dir, "both.py", '''
+        _write_plugin(
+            plugin_dir,
+            "both.py",
+            """
 from termapy.plugins import Command, Transform
 def _handler(ctx, args): pass
 COMMAND = Command(name="both", help="A command.", handler=_handler)
 TRANSFORM = Transform(name="both_xf", help="A transform.", serial=lambda s: s)
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -490,11 +556,15 @@ TRANSFORM = Transform(name="both_xf", help="A transform.", serial=lambda s: s)
     def test_no_transforms_by_default(self, plugin_dir):
         """A command-only plugin contributes no transforms."""
         # Arrange
-        _write_plugin(plugin_dir, "plain.py", '''
+        _write_plugin(
+            plugin_dir,
+            "plain.py",
+            """
 from termapy.plugins import Command
 def _handler(ctx, args): pass
 COMMAND = Command(name="plain", help="No transforms.", handler=_handler)
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -511,6 +581,7 @@ class TestSerialIo:
         """ctx.serial.io() claims the port before the body and releases it after."""
         # Arrange
         from termapy.plugins import IOHandle, SerialHandle
+
         calls = []
         ctx = PluginContext(
             io=IOHandle(_write=lambda t, c=None: None),
@@ -531,6 +602,7 @@ class TestSerialIo:
         """The port is released even when the body raises, so it is never left claimed."""
         # Arrange
         from termapy.plugins import IOHandle, SerialHandle
+
         calls = []
         ctx = PluginContext(
             io=IOHandle(_write=lambda t, c=None: None),
@@ -554,6 +626,7 @@ class TestNamespaces:
 
     def _ctx(self):
         from termapy.plugins import IOHandle
+
         return PluginContext(io=IOHandle(_write=lambda t, c=None: None))
 
     def test_lazy_creation_returns_empty_dict(self):
@@ -662,7 +735,10 @@ class TestLifecycleHookDiscovery:
     def test_discovers_on_app_start(self, plugin_dir):
         """A module-level on_app_start is found as a hook and tagged with its plugin stem."""
         # Arrange
-        _write_plugin(plugin_dir, "hooked.py", '''
+        _write_plugin(
+            plugin_dir,
+            "hooked.py",
+            """
 from termapy.plugins import Command
 
 def _handler(ctx, args):
@@ -672,7 +748,8 @@ def on_app_start(ctx):
     ctx.ns("hooked")["started"] = True
 
 COMMAND = Command(name="hooked", help="x", handler=_handler)
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -686,7 +763,10 @@ COMMAND = Command(name="hooked", help="x", handler=_handler)
     def test_discovers_all_four_hooks(self, plugin_dir):
         """All four recognized hook names are discovered from one plugin file."""
         # Arrange
-        _write_plugin(plugin_dir, "fully_hooked.py", '''
+        _write_plugin(
+            plugin_dir,
+            "fully_hooked.py",
+            """
 from termapy.plugins import Command
 
 def _handler(ctx, args):
@@ -698,7 +778,8 @@ def on_script_start(ctx): pass
 def on_script_stop(ctx): pass
 
 COMMAND = Command(name="fully_hooked", help="x", handler=_handler)
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -711,7 +792,10 @@ COMMAND = Command(name="fully_hooked", help="x", handler=_handler)
     def test_non_hook_functions_ignored(self, plugin_dir):
         """Only the recognized hook names count; other on_* functions are ignored."""
         # Arrange
-        _write_plugin(plugin_dir, "noisy.py", '''
+        _write_plugin(
+            plugin_dir,
+            "noisy.py",
+            '''
 from termapy.plugins import Command
 
 def _handler(ctx, args):
@@ -725,7 +809,8 @@ def helper():
     pass
 
 COMMAND = Command(name="noisy", help="x", handler=_handler)
-''')
+''',
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -736,10 +821,14 @@ COMMAND = Command(name="noisy", help="x", handler=_handler)
     def test_hook_only_plugin_not_skipped(self, plugin_dir):
         """A file that exports only a hook (no COMMAND) is still a valid plugin."""
         # Arrange
-        _write_plugin(plugin_dir, "hook_only.py", '''
+        _write_plugin(
+            plugin_dir,
+            "hook_only.py",
+            """
 def on_app_start(ctx):
     pass
-''')
+""",
+        )
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -754,28 +843,37 @@ class TestFireLifecycle:
 
     def _engine(self, tmp_path):
         from termapy.repl import ReplEngine
+
         cfg_path = tmp_path / "test.cfg"
         cfg_path.write_text("{}", encoding="utf-8")
         # global_root: the checkout has a real termapy_cfg/plugin/; keep it out.
         return ReplEngine(
-            {}, str(cfg_path), lambda t, c=None: None, global_root=tmp_path,
+            {},
+            str(cfg_path),
+            lambda t, c=None: None,
+            global_root=tmp_path,
         )
 
     def test_fire_calls_matching_hooks_only(self, tmp_path):
         """Firing one event runs only that event's hooks, not every registered hook."""
         # Arrange
         from termapy.plugins import LifecycleHook
+
         calls = []
         eng = self._engine(tmp_path)
         eng._lifecycle_hooks = []  # clear builtin hooks for isolation
-        eng.register_lifecycle_hook(LifecycleHook(
-            name="on_app_start",
-            handler=lambda ctx: calls.append("start"),
-        ))
-        eng.register_lifecycle_hook(LifecycleHook(
-            name="on_app_stop",
-            handler=lambda ctx: calls.append("stop"),
-        ))
+        eng.register_lifecycle_hook(
+            LifecycleHook(
+                name="on_app_start",
+                handler=lambda ctx: calls.append("start"),
+            )
+        )
+        eng.register_lifecycle_hook(
+            LifecycleHook(
+                name="on_app_stop",
+                handler=lambda ctx: calls.append("stop"),
+            )
+        )
 
         # Act
         eng.fire_lifecycle("on_app_start")
@@ -787,14 +885,17 @@ class TestFireLifecycle:
         """Hooks for one event fire in the order they were registered, never reordered."""
         # Arrange
         from termapy.plugins import LifecycleHook
+
         calls = []
         eng = self._engine(tmp_path)
         eng._lifecycle_hooks = []
         for label in ("a", "b", "c"):
-            eng.register_lifecycle_hook(LifecycleHook(
-                name="on_app_start",
-                handler=lambda ctx, lbl=label: calls.append(lbl),
-            ))
+            eng.register_lifecycle_hook(
+                LifecycleHook(
+                    name="on_app_start",
+                    handler=lambda ctx, lbl=label: calls.append(lbl),
+                )
+            )
 
         # Act
         eng.fire_lifecycle("on_app_start")
@@ -808,6 +909,7 @@ class TestFireLifecycle:
         """A hook that raises is contained so later hooks for the event still run."""
         # Arrange
         from termapy.plugins import LifecycleHook
+
         calls = []
         eng = self._engine(tmp_path)
         eng._lifecycle_hooks = []
@@ -815,15 +917,19 @@ class TestFireLifecycle:
         def bad_hook(ctx):
             raise RuntimeError("boom")
 
-        eng.register_lifecycle_hook(LifecycleHook(
-            name="on_app_start",
-            handler=bad_hook,
-            plugin="bad",
-        ))
-        eng.register_lifecycle_hook(LifecycleHook(
-            name="on_app_start",
-            handler=lambda ctx: calls.append("survivor"),
-        ))
+        eng.register_lifecycle_hook(
+            LifecycleHook(
+                name="on_app_start",
+                handler=bad_hook,
+                plugin="bad",
+            )
+        )
+        eng.register_lifecycle_hook(
+            LifecycleHook(
+                name="on_app_start",
+                handler=lambda ctx: calls.append("survivor"),
+            )
+        )
 
         # Act
         eng.fire_lifecycle("on_app_start")
@@ -845,7 +951,6 @@ class TestFireLifecycle:
 
 
 class TestPluginConfig:
-
     def test_get_set_save_reload(self, tmp_path):
         """Values set and saved survive a fresh load from disk with their types intact."""
         # Arrange
@@ -958,13 +1063,13 @@ class TestPluginConfig:
 
 
 class TestPluginContextPluginCfg:
-
     def test_returns_plugin_config(self, tmp_path):
         """plugin_cfg(name) resolves to <config_dir>/plugin/<name>.cfg beside the config."""
         # Arrange
         cfg_path = tmp_path / "test.cfg"
         cfg_path.write_text("{}", encoding="utf-8")
         from termapy.plugins import IOHandle
+
         ctx = PluginContext(io=IOHandle(_write=lambda *a, **kw: None), config_path=str(cfg_path))
 
         # Act
@@ -980,6 +1085,7 @@ class TestPluginContextPluginCfg:
         cfg_path = tmp_path / "test.cfg"
         cfg_path.write_text("{}", encoding="utf-8")
         from termapy.plugins import IOHandle
+
         ctx = PluginContext(io=IOHandle(_write=lambda *a, **kw: None), config_path=str(cfg_path))
 
         # Act
@@ -1001,6 +1107,7 @@ class TestPluginContextPluginCfg:
         """
         # Arrange -- two configs; only the first saves a setting for this plugin
         from termapy.plugins import IOHandle
+
         first = tmp_path / "first" / "first.cfg"
         second = tmp_path / "second" / "second.cfg"
         for path in (first, second):
@@ -1008,10 +1115,12 @@ class TestPluginContextPluginCfg:
             path.write_text("{}", encoding="utf-8")
         (first.parent / "plugin").mkdir()
         (first.parent / "plugin" / "mapper.cfg").write_text(
-            '{"map_path": "first.map"}', encoding="utf-8",
+            '{"map_path": "first.map"}',
+            encoding="utf-8",
         )
         ctx = PluginContext(
-            io=IOHandle(_write=lambda *a, **kw: None), config_path=str(first),
+            io=IOHandle(_write=lambda *a, **kw: None),
+            config_path=str(first),
         )
         assert ctx.plugin_cfg("mapper").get("map_path") == "first.map", (
             "precondition: the first config's setting is readable"
@@ -1032,13 +1141,15 @@ class TestPluginContextPluginCfg:
         """Switching away and back reaches the same config's file again."""
         # Arrange
         from termapy.plugins import IOHandle
+
         first = tmp_path / "first" / "first.cfg"
         second = tmp_path / "second" / "second.cfg"
         for path in (first, second):
             path.parent.mkdir()
             path.write_text("{}", encoding="utf-8")
         ctx = PluginContext(
-            io=IOHandle(_write=lambda *a, **kw: None), config_path=str(first),
+            io=IOHandle(_write=lambda *a, **kw: None),
+            config_path=str(first),
         )
         ctx.plugin_cfg("mapper")["map_path"] = "first.map"
 
@@ -1056,10 +1167,12 @@ class TestPluginContextPluginCfg:
         """With no config loaded, plugin_cfg raises rather than writing to a guessed path."""
         # Arrange
         from termapy.plugins import IOHandle
+
         ctx = PluginContext(io=IOHandle(_write=lambda *a, **kw: None), config_path="")
 
         # Act / Assert
         import pytest
+
         with pytest.raises(RuntimeError, match="no config loaded"):
             ctx.plugin_cfg("myplugin")
 
@@ -1098,6 +1211,7 @@ class TestCapabilityProfiles:
     def test_profiles_are_frozen(self):
         """A shared profile cannot be mutated, so no command can alter another's needs."""
         import dataclasses
+
         with pytest.raises(dataclasses.FrozenInstanceError):
             CapabilitySet.SERIAL_CONNECTED.serial_connected = False  # ty: ignore[invalid-assignment]
 
@@ -1122,15 +1236,13 @@ class TestRequirementHints:
     @staticmethod
     def _restrictive_fields() -> set[str]:
         import dataclasses
-        return {
-            field.name
-            for field in dataclasses.fields(CapabilitySet)
-            if field.default is False
-        }
+
+        return {field.name for field in dataclasses.fields(CapabilitySet) if field.default is False}
 
     def test_every_restrictive_field_has_a_hint(self):
         """capability-declared-once: every restrictive CapabilitySet field is declared with its /help hint."""
         from termapy.plugins import REQUIREMENT_HINTS
+
         actual_unhinted = sorted(self._restrictive_fields() - set(REQUIREMENT_HINTS))
         assert actual_unhinted == [], (
             "a restrictive field without a hint renders no row in "
@@ -1140,6 +1252,7 @@ class TestRequirementHints:
     def test_hints_fit_the_requires_stem(self):
         """Each hint is a non-empty noun phrase that reads after 'requires', no period."""
         from termapy.plugins import REQUIREMENT_HINTS
+
         for name, hint in REQUIREMENT_HINTS.items():
             assert hint and not hint.endswith("."), (
                 f"{name}: hints are noun phrases completing 'requires ...' "
@@ -1154,6 +1267,7 @@ class TestBareSub:
     def _node(bare_sub: str, handler=None):
         """A ``/mem``-shaped node with two children, optionally with its own handler."""
         from termapy.plugins import Command
+
         return Command(
             name="mem",
             help="h",
@@ -1168,17 +1282,20 @@ class TestBareSub:
     def test_typo_fails_loud_at_load(self):
         """A bare_sub naming no real child raises when the node is flattened, not on use."""
         from termapy.plugins.loader import _flatten_command
+
         with pytest.raises(ValueError, match="bare_sub 'bogus' names no subcommand"):
             _flatten_command(self._node("bogus"), "", "built-in")
 
     def test_a_node_with_a_handler_is_validated_too(self):
         """A handler node (/run's shape) gets the same load-time check as an interior one."""
         from termapy.plugins.loader import _flatten_command
+
         with pytest.raises(ValueError, match="bare_sub 'bogus' names no subcommand"):
             _flatten_command(self._node("bogus", handler=lambda ctx, args: None), "", "built-in")
 
     def test_valid_bare_sub_reaches_plugin_info(self):
         """A bare_sub naming a declared child loads and is carried on the PluginInfo for dispatch and /help."""
         from termapy.plugins.loader import _flatten_command
+
         infos = {info.name: info for info in _flatten_command(self._node("info"), "", "built-in")}
         assert infos["mem"].bare_sub == "info", "the declaration survives the flatten"

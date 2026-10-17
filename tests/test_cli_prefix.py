@@ -52,8 +52,15 @@ def _run_cli(
     # under cfg["serial"], not at the top level.  Route any flat
     # serial-domain keys passed in cfg_overrides into cfg["serial"]
     # so call sites can stay schema-agnostic.
-    serial_keys = {"port", "baud_rate", "custom_baud", "byte_size",
-                   "parity", "stop_bits", "flow_control"}
+    serial_keys = {
+        "port",
+        "baud_rate",
+        "custom_baud",
+        "byte_size",
+        "parity",
+        "stop_bits",
+        "flow_control",
+    }
     cfg = {**DEFAULT_CFG, "auto_connect": True}
     cfg["serial"] = {**cfg["serial"], "port": "DEMO"}
     for k, v in cfg_overrides.items():
@@ -68,7 +75,8 @@ def _run_cli(
 
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', 'proj', '--cli', "
             f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -104,8 +112,7 @@ class TestPrefixDispatchShapes:
         # Assert
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "termapy v" in actual, \
-            f"!ver didn't dispatch the version handler: {actual!r}"
+        assert "termapy v" in actual, f"!ver didn't dispatch the version handler: {actual!r}"
 
     def test_positional_string_dispatches(self, tmp_path):
         """A free-text argument after the ! prefix reaches !print as the whole rest of the line."""
@@ -119,8 +126,7 @@ class TestPrefixDispatchShapes:
         # Assert
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "hello from bang" in actual, \
-            f"!print didn't dispatch: {actual!r}"
+        assert "hello from bang" in actual, f"!print didn't dispatch: {actual!r}"
 
     def test_cfg_read_dispatches(self, tmp_path):
         """A single-key read, !cfg cmd_prefix, dispatches and reports the configured value."""
@@ -153,8 +159,7 @@ class TestPrefixDispatchShapes:
         # Assert -- the set took effect (value reads back as False).
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "False" in actual, \
-            f"!cfg.auto set didn't take effect: {actual!r}"
+        assert "False" in actual, f"!cfg.auto set didn't take effect: {actual!r}"
 
     def test_device_command_unprefixed_still_reaches_serial(self, tmp_path):
         """A line with no prefix still falls through to the device and gets the demo OK."""
@@ -169,12 +174,9 @@ class TestPrefixDispatchShapes:
         # Assert
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "OK" in actual, \
-            f"AT device command didn't reach DEMO: {actual!r}"
+        assert "OK" in actual, f"AT device command didn't reach DEMO: {actual!r}"
 
-    def test_default_slash_is_not_a_repl_prefix_when_cmd_prefix_is_bang(
-        self, tmp_path
-    ):
+    def test_default_slash_is_not_a_repl_prefix_when_cmd_prefix_is_bang(self, tmp_path):
         """Once the prefix is !, a /print line goes to the device instead of the handler."""
         # Arrange -- with cmd_prefix="!", the literal `/print hello`
         # must NOT dispatch the print handler.  It's sent to the
@@ -357,5 +359,4 @@ class TestPrefixDefault:
         # Assert
         actual = result.stdout
         assert result.returncode == 0, f"cli exited non-zero, stderr: {result.stderr}"
-        assert "hello default" in actual, \
-            f"default '/' prefix regressed: {actual!r}"
+        assert "hello default" in actual, f"default '/' prefix regressed: {actual!r}"

@@ -227,7 +227,11 @@ class CLITerminal(TerminalHost):
         # instead of isinstance -- only real TextIOWrapper instances need
         # the recode.
         reconfigure = getattr(sys.stdout, "reconfigure", None)
-        if reconfigure and sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+        if (
+            reconfigure
+            and sys.stdout.encoding
+            and sys.stdout.encoding.lower() not in ("utf-8", "utf8")
+        ):
             reconfigure(encoding="utf-8", errors="replace")
 
         # Rich console for colored output
@@ -240,16 +244,16 @@ class CLITerminal(TerminalHost):
         # lines) work.  Tables are pre-fitted to term_width upstream, so
         # their rendering is unchanged.
         self.console = Console(
-            no_color=no_color, highlight=False, width=term_width,
+            no_color=no_color,
+            highlight=False,
+            width=term_width,
             soft_wrap=True,
         )
 
         # Engines
         self.capture = CaptureEngine(
             on_echo=lambda line: self.write(f"  {line}"),
-            on_complete=lambda result: self.status(
-                format_capture_result(result)[0]
-            ),
+            on_complete=lambda result: self.status(format_capture_result(result)[0]),
         )
         self.engine = SerialEngine(
             cfg=cfg,
@@ -352,6 +356,7 @@ class CLITerminal(TerminalHost):
         # runner when running a .run file in CLI mode -- see
         # ReplEngine._effective_capabilities.
         from termapy.plugins import detect_gui_apps
+
         gui = detect_gui_apps()
         self.ctx.capabilities = CapabilitySet(
             interactive=True,
@@ -496,7 +501,9 @@ class CLITerminal(TerminalHost):
         if self.repl.in_script or self.is_oneshot:
             return
         if done:
-            full = render_progress_bar(total, total, self._DELAY_BAR_WIDTH, ascii_only=self.no_color)
+            full = render_progress_bar(
+                total, total, self._DELAY_BAR_WIDTH, ascii_only=self.no_color
+            )
             self._raw("\r" + " " * (len(full) + 2) + "\r", end="")
             return
         bar = render_progress_bar(elapsed, total, self._DELAY_BAR_WIDTH, ascii_only=self.no_color)
@@ -692,7 +699,7 @@ class CLITerminal(TerminalHost):
     # Tuning knobs for _run_exec_mode.  Class constants so they're
     # easy to find / override in a subclass or test, and so the docstring
     # references stay accurate without magic numbers in the body.
-    _EXEC_IDLE_GAP_S = 0.5   # quiet period that signals "device done"
+    _EXEC_IDLE_GAP_S = 0.5  # quiet period that signals "device done"
     _EXEC_MAX_WAIT_S = 60.0  # hard cap so runaway streams can't hang us
 
     def _run_interactive(self) -> None:
@@ -767,10 +774,7 @@ class CLITerminal(TerminalHost):
         except KeyboardInterrupt:
             self._raw("\nInterrupted")
         finally:
-            actual = (
-                getattr(self.engine.port_obj, "port", "")
-                or self.cfg["serial"]["port"]
-            )
+            actual = getattr(self.engine.port_obj, "port", "") or self.cfg["serial"]["port"]
             self.engine.disconnect()
             msg = f"Disconnected: {actual}" if actual else "Disconnected."
             self.write(msg, "red")

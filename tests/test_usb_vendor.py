@@ -67,9 +67,7 @@ class TestParseVendors:
         actual = parse_vendors(usb_ids_fixture)
 
         # Assert
-        assert actual[0x0403] == "Future Technology Devices International, Ltd", (
-            "FTDI line parsed"
-        )
+        assert actual[0x0403] == "Future Technology Devices International, Ltd", "FTDI line parsed"
         assert actual[0x04D8] == "Microchip Technology, Inc.", "Microchip parsed"
         assert actual[0x10C4] == "Silicon Labs", "SiLabs parsed"
 
@@ -121,9 +119,7 @@ class TestParseVendors:
         actual = parse_vendors(usb_ids_fixture)
 
         # Assert
-        assert actual[0xABCD] == "Lowercase Hex Vendor", (
-            "lowercase hex VID parsed"
-        )
+        assert actual[0xABCD] == "Lowercase Hex Vendor", "lowercase hex VID parsed"
 
     def test_non_ascii_name(self, usb_ids_fixture):
         """A non-ASCII vendor name survives parsing unchanged."""
@@ -134,9 +130,7 @@ class TestParseVendors:
         actual = parse_vendors(usb_ids_fixture)
 
         # Assert -- non-ASCII names round-trip cleanly.
-        assert actual[0x1234] == "Acme Ä GmbH", (
-            "non-ASCII vendor name preserved"
-        )
+        assert actual[0x1234] == "Acme Ä GmbH", "non-ASCII vendor name preserved"
 
 
 # ── emit_python_module ────────────────────────────────────────────────────────
@@ -252,9 +246,7 @@ class TestVendorLookupFallback:
 
         # Assert -- canonical name from usb.ids.
         assert actual is not None, "fallback found a vendor"
-        assert "Yubico" in actual or "Logitech" in actual, (
-            f"Yubico expected; got {actual!r}"
-        )
+        assert "Yubico" in actual or "Logitech" in actual, f"Yubico expected; got {actual!r}"
 
     def test_truly_unknown_vid_returns_none(self):
         """A VID in neither table yields None, not a placeholder string."""
@@ -272,12 +264,8 @@ class TestVendorLookupFallback:
         from termapy.usb._vendors_full import USB_VENDORS_FULL
 
         actual = len(USB_VENDORS_FULL)
-        assert actual > 1000, (
-            f"full table looks too small ({actual} entries); refresh failed?"
-        )
-        assert actual > len(USB_VENDORS) * 30, (
-            "full table should dwarf curated table"
-        )
+        assert actual > 1000, f"full table looks too small ({actual} entries); refresh failed?"
+        assert actual > len(USB_VENDORS) * 30, "full table should dwarf curated table"
 
 
 # ── Generated-module metadata ────────────────────────────────────────────────
@@ -294,19 +282,14 @@ class TestGeneratedMetadata:
         # ISO date format: YYYY-MM-DD.
         import re
 
-        assert re.match(r"^\d{4}-\d{2}-\d{2}$", actual), (
-            f"GENERATED_DATE looks wrong: {actual!r}"
-        )
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", actual), f"GENERATED_DATE looks wrong: {actual!r}"
 
     def test_source_url_present(self):
         """SOURCE_URL names usb.ids, the upstream the full table was generated from."""
         from termapy.usb import _vendors_full as _usb_vendor_full
 
         actual = _usb_vendor_full.SOURCE_URL
-        assert "usb.ids" in actual, (
-            f"SOURCE_URL should reference usb.ids; got {actual!r}"
-        )
-
+        assert "usb.ids" in actual, f"SOURCE_URL should reference usb.ids; got {actual!r}"
 
 
 # ── /term.usb_db handler ──────────────────────────────────────────────────────
@@ -349,6 +332,7 @@ class TestTermUsbDbHandler:
         from termapy.builtins.commands.term import _handler_usb_db
         from termapy.plugins import IOHandle, PluginContext
         from termapy.usb._vendors_full import USB_VENDORS_FULL
+
         ctx = PluginContext(
             io=IOHandle(
                 _write=lambda t, c=None: None,
@@ -363,8 +347,7 @@ class TestTermUsbDbHandler:
         actual = result.value
         expected = str(len(USB_VENDORS_FULL))
         assert actual == expected, (
-            f"value should be the full-table count ({expected}); "
-            f"got {actual!r}"
+            f"value should be the full-table count ({expected}); got {actual!r}"
         )
 
     def test_handler_does_not_make_network_calls(self, monkeypatch):
@@ -374,14 +357,14 @@ class TestTermUsbDbHandler:
 
         def _trap(*args, **kwargs):
             raise AssertionError(
-                "/term.usb_db must not make HTTP requests; "
-                f"caught urlopen({args!r}, {kwargs!r})"
+                f"/term.usb_db must not make HTTP requests; caught urlopen({args!r}, {kwargs!r})"
             )
 
         monkeypatch.setattr(urllib.request, "urlopen", _trap)
 
         from termapy.builtins.commands.term import _handler_usb_db
         from termapy.plugins import IOHandle, PluginContext
+
         ctx = PluginContext(
             io=IOHandle(
                 _write=lambda t, c=None: None,

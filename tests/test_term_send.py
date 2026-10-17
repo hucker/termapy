@@ -44,6 +44,7 @@ def env(tmp_path):
     eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
 
     from termapy.plugins import IOHandle, SerialHandle
+
     serial_writes: list[bytes] = []
     ctx = PluginContext(
         cfg=cfg,
@@ -145,6 +146,7 @@ class TestTermSendErrors:
         eng2 = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
         writes: list[bytes] = []
         from termapy.plugins import IOHandle, SerialHandle
+
         ctx2 = PluginContext(
             cfg=cfg,
             config_path=str(config_path),
@@ -161,7 +163,9 @@ class TestTermSendErrors:
         result = eng2.dispatch("term.send AT+VER")
         # Assert
         assert result.success is False, "disconnect blocks send"
-        assert result.error == STATE_MESSAGES["serial_connected"], "the gate's answer for a closed port"
+        assert result.error == STATE_MESSAGES["serial_connected"], (
+            "the gate's answer for a closed port"
+        )
         assert writes == [], "nothing sent when not connected"
 
     def test_serial_write_raises_returns_send_error(self, env):
@@ -217,8 +221,7 @@ class TestByteEquivalence:
         explicit_bytes = list(writes_b)
         # Assert
         assert bare_bytes == explicit_bytes, (
-            f"bare-line and /term.send produce identical wire bytes "
-            f"for {text!r}"
+            f"bare-line and /term.send produce identical wire bytes for {text!r}"
         )
 
 
@@ -248,21 +251,23 @@ def _load_test_profile(ctx) -> None:
     """Install a small typed profile into the active_profile namespace."""
     ns = ctx.ns("active_profile")
     ns.clear()
-    ns.update({
-        "profile_version": 2,
-        "types": {
-            "on_off": {"kind": "enum", "values": ["on", "off"]},
-        },
-        "commands": {
-            "ECHO": {
-                "help": "Toggle echo.",
-                "send_template": "ECHO {state}",
-                "typed_args": [
-                    {"name": "state", "type": "on_off", "required": True},
-                ],
+    ns.update(
+        {
+            "profile_version": 2,
+            "types": {
+                "on_off": {"kind": "enum", "values": ["on", "off"]},
             },
-        },
-    })
+            "commands": {
+                "ECHO": {
+                    "help": "Toggle echo.",
+                    "send_template": "ECHO {state}",
+                    "typed_args": [
+                        {"name": "state", "type": "on_off", "required": True},
+                    ],
+                },
+            },
+        }
+    )
 
 
 class TestCliTypedArgValidation:
@@ -286,9 +291,7 @@ class TestCliTypedArgValidation:
             is_connected=lambda: True,
         )
         # Assert -- bytes reach the wire; device error would be the truth.
-        assert writes == [b"ECHO banana\r"], (
-            "validate_typed_args off -> raw pass-through"
-        )
+        assert writes == [b"ECHO banana\r"], "validate_typed_args off -> raw pass-through"
 
     def test_on_blocks_bad_value_before_wire(self, env):
         """With validation on, a bad value fails, sends nothing, and the status names it."""
@@ -329,9 +332,7 @@ class TestCliTypedArgValidation:
             is_connected=lambda: True,
         )
         # Assert
-        assert writes == [b"ECHO on\r"], (
-            "valid value reaches the wire unchanged"
-        )
+        assert writes == [b"ECHO on\r"], "valid value reaches the wire unchanged"
 
     def test_on_with_no_profile_loaded_passes_through(self, env):
         """With validation on but no profile loaded, every line goes to the wire."""
@@ -348,9 +349,7 @@ class TestCliTypedArgValidation:
             is_connected=lambda: True,
         )
         # Assert -- nothing to validate against; pass through.
-        assert writes == [b"anything goes\r"], (
-            "no profile loaded -> no gating, raw pass-through"
-        )
+        assert writes == [b"anything goes\r"], "no profile loaded -> no gating, raw pass-through"
 
     def test_on_with_unmatched_command_passes_through(self, env):
         """A line matching no profile command is sent as-is, even with validation on."""

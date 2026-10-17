@@ -11,6 +11,7 @@ termapy plumbing -- frames in, manifest-typed params through, a structured
 result out.  crcglot owns (and tests) the maths, and owns the rule that the two
 input forms are mutually exclusive.
 """
+
 from __future__ import annotations
 
 from termapy import variables as var
@@ -68,9 +69,7 @@ class TestCrcDetectFrames:
         """Several positional frames all reach crcglot as one list, not just the first."""
         # Act -- several frames is the whole point: one frame alone is often
         # ambiguous, and crcglot intersects candidates across the set
-        result = _engine().dispatch(
-            f"proto.crc.detect {FRAME_1} {FRAME_2} {FRAME_3}"
-        )
+        result = _engine().dispatch(f"proto.crc.detect {FRAME_1} {FRAME_2} {FRAME_3}")
 
         # Assert
         assert result.success, "detect ran cleanly over three frames"
@@ -119,16 +118,12 @@ class TestCrcDetectFrameKeyword:
         result = _engine().dispatch(f"proto.crc.detect width=16 frame={SPACED_FRAME}")
 
         # Assert
-        assert "crc16-modbus" in result.value, (
-            "a keyword before frame= binds normally"
-        )
+        assert "crc16-modbus" in result.value, "a keyword before frame= binds normally"
 
     def test_both_input_forms_is_crcglot_error(self):
         """Positional frames plus frame= fail with crcglot's own exclusion message."""
         # Act
-        result = _engine().dispatch(
-            f"proto.crc.detect {FRAME_1} frame={SPACED_FRAME}"
-        )
+        result = _engine().dispatch(f"proto.crc.detect {FRAME_1} frame={SPACED_FRAME}")
 
         # Assert -- the exclusion is crcglot's rule; termapy surfaces it
         # verbatim rather than policing it itself
@@ -222,9 +217,7 @@ class TestCrcDetectVariableForms:
         # Assert -- a deref asserts the name exists, so a typo fails loudly
         # rather than reaching crcglot as the literal text "$(*nope)"
         assert not result.success, "an undefined reference fails"
-        assert "unknown variable: 'nope'" in result.error, (
-            "the failure names the missing variable"
-        )
+        assert "unknown variable: 'nope'" in result.error, "the failure names the missing variable"
 
     def test_embedded_reference_errors(self):
         """A $(*NAME) inside a larger token is an error, not passed on as a literal."""

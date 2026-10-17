@@ -137,15 +137,11 @@ def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     if arg.lower() == "cycle":
-        level = next_in_cycle(
-            flags.get("output_level", "normal"), list(OUTPUT_LEVELS)
-        )
+        level = next_in_cycle(flags.get("output_level", "normal"), list(OUTPUT_LEVELS))
     else:
         level = parse_output_level(arg)
         if level is None:
-            return CmdResult.fail(
-                msg=f"Unknown level: {arg} (use {'/'.join(OUTPUT_LEVELS)}/cycle)"
-            )
+            return CmdResult.fail(msg=f"Unknown level: {arg} (use {'/'.join(OUTPUT_LEVELS)}/cycle)")
     flags["output_level"] = level
     ctx.io.result(level)
     return CmdResult.ok(value=level)
@@ -158,8 +154,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
         warned["term.verbose"] = True
         p = ctx.prefix
         ctx.io.output(
-            f"  Note: {p}term.verbose is legacy; use "
-            f"{p}term.output (verbose|normal).",
+            f"  Note: {p}term.verbose is legacy; use {p}term.output (verbose|normal).",
             "yellow",
         )
     body = args.strip()
@@ -238,9 +233,7 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
         cur = _EOL_LABELS.get(ctx.cfg.get("eol", "\r"), "cr")
         arg = next_in_cycle(cur, list(_EOL_TOKENS))
     if arg not in _EOL_TOKENS:
-        return CmdResult.fail(
-            msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)}/cycle)"
-        )
+        return CmdResult.fail(msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)}/cycle)")
     ctx.internal.apply_cfg("eol", _EOL_TOKENS[arg])
     ctx.io.result(arg)
     return CmdResult.ok(value=arg)
@@ -329,7 +322,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
     err_token = None  # None means "not specified"; "" means "user said err="
     for token in args.split():
         if token.startswith("err="):
-            err_token = token[len("err="):]
+            err_token = token[len("err=") :]
         elif token.lower() == SETTING_TOGGLE:
             state_token, state = token, None
         else:
@@ -349,9 +342,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         # Explicit session override (including "" to disable detection)
         flags["request_err_pattern_override"] = err_token
         if err_token:
-            ctx.io.output(
-                f"request_err_pattern = {err_token!r}  (session)", "green"
-            )
+            ctx.io.output(f"request_err_pattern = {err_token!r}  (session)", "green")
         else:
             ctx.io.output(
                 "request_err_pattern cleared -- error detection disabled  (session)",
@@ -436,6 +427,7 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
         # Path on disk -- helpful when the user wants to inspect the
         # bundled module or sanity-check which copy is loaded.
         from pathlib import Path
+
         full_path = Path(_full.__file__).resolve()
         try:
             data["path"] = str(full_path.relative_to(Path.cwd()))
@@ -457,7 +449,10 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
     # repo-level workflow, not exposed to package users.
     notes = (
         ("", ""),
-        ("To update: upgrade termapy (e.g. uv tool upgrade termapy or pip install -U termapy)", "dim"),
+        (
+            "To update: upgrade termapy (e.g. uv tool upgrade termapy or pip install -U termapy)",
+            "dim",
+        ),
     )
     return CmdResult.record(data, rows, value=str(data["full_table"] or 0), notes=notes)
 
@@ -741,9 +736,9 @@ COMMAND = Command(
                 "Every answer -- device exchange or termapy command --\n"
                 "uses ONE envelope shape:\n"
                 "\n"
-                "  {\"cmd\":\"...\",\"success\":true,\"error\":\"\",\n"
-                "   \"value\":\"...\",\"data\":null,\"output_lines\":[],\n"
-                "   \"elapsed_s\":0.065}\n"
+                '  {"cmd":"...","success":true,"error":"",\n'
+                '   "value":"...","data":null,"output_lines":[],\n'
+                '   "elapsed_s":0.065}\n'
                 "\n"
                 "One user command = one envelope: a command that runs\n"
                 "another internally ({prefix}mem -> {prefix}mem.info)\n"
@@ -765,7 +760,7 @@ COMMAND = Command(
                 "\n"
                 "Input is symmetric: a JSON object with a string ``cmd``\n"
                 "field is unwrapped, so callers can send either plain\n"
-                "text (``get_voltage``) or JSON ({\"cmd\":\"get_voltage\"}).\n"
+                'text (``get_voltage``) or JSON ({"cmd":"get_voltage"}).\n'
                 "Malformed JSON or JSON without a ``cmd`` key falls back\n"
                 "to plain-text send for graceful behavior.\n"
                 "\n"
@@ -789,7 +784,7 @@ COMMAND = Command(
                 "  indent   indented, two spaces per level\n"
                 "  color    indented and highlighted\n"
                 "\n"
-                "The request echo ({\"cmd\": ...}) stays on one line in\n"
+                'The request echo ({"cmd": ...}) stays on one line in\n'
                 "every style.  MCP gets the envelope as data, so the style\n"
                 "does not touch it.  A session setting; persist it with\n"
                 "{prefix}cfg json_style indent."

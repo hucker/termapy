@@ -46,13 +46,16 @@ def _write_cfg(tmp_path, name: str = "proj", **overrides) -> tuple[dict, str]:
 @pytest.fixture
 def app_factory(tmp_path):
     """Build a SerialTerminal against a throwaway DEMO config."""
+
     def _make(**overrides):
         from termapy.app import SerialTerminal
+
         cfg, path = _write_cfg(tmp_path, **overrides)
         app = SerialTerminal(cfg, path)
         # The checkout has a real termapy_cfg/plugin/; keep it out of the boot.
         app.repl.global_root = tmp_path
         return app, cfg, path
+
     return _make
 
 
@@ -89,9 +92,9 @@ def _squash(text: str) -> str:
 
 
 class TestCaptureOverlay:
-
     def test_a_text_capture_shows_progress_and_ends_on_its_timer(self, app_factory):
         """A timed text capture mounts the overlay with a live label, disables the prompt, and tears down when the timer fires."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
@@ -105,7 +108,10 @@ class TestCaptureOverlay:
                 assert await _until(pilot, lambda: bool(bar.query("#cap-stop"))), "overlay mounted"
                 prompt_disabled_during = inp.disabled
                 labelled = await _until(
-                    pilot, lambda: "Capturing -> t.txt" in str(bar.query_one("#cap-label", Static).render()),
+                    pilot,
+                    lambda: (
+                        "Capturing -> t.txt" in str(bar.query_one("#cap-label", Static).render())
+                    ),
                 )
                 gone = await _until(pilot, lambda: not bar.query("#cap-stop"), seconds=4.0)
 
@@ -120,6 +126,7 @@ class TestCaptureOverlay:
 
     def test_the_stop_button_ends_a_binary_capture(self, app_factory):
         """A byte-target capture shows bytes against the target; Stop ends it and releases the port claim."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
@@ -132,7 +139,8 @@ class TestCaptureOverlay:
                 assert await _until(pilot, lambda: bool(bar.query("#cap-stop"))), "overlay mounted"
                 claimed_during = app._engine.serial_claimed
                 labelled = await _until(
-                    pilot, lambda: "/ 97.7 KB" in str(bar.query_one("#cap-label", Static).render()),
+                    pilot,
+                    lambda: "/ 97.7 KB" in str(bar.query_one("#cap-label", Static).render()),
                 )
                 await pilot.click("#cap-stop")
                 gone = await _until(pilot, lambda: not bar.query("#cap-stop"), seconds=2.0)
@@ -146,6 +154,7 @@ class TestCaptureOverlay:
 
     def test_a_second_capture_is_refused_while_one_runs(self, app_factory):
         """Starting a capture over an active one fails the command and says so."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
@@ -169,13 +178,15 @@ class TestCaptureOverlay:
 
     def test_a_scripted_capture_leaves_the_bar_to_the_script(self, app_factory):
         """Inside a script the capture mounts no overlay of its own; the bar is usable again when the script ends."""
+
         async def scenario():
             app, _, path = app_factory()
             folder = Path(path).parent / "run"
             folder.mkdir()
             # The delay keeps the script alive long enough to be watched.
             (folder / "cap.run").write_text(
-                "/cap.bin t.bin bytes=100000\n/delay 300ms\n/cap.stop\n", encoding="utf-8",
+                "/cap.bin t.bin bytes=100000\n/delay 300ms\n/cap.stop\n",
+                encoding="utf-8",
             )
             async with app.run_test(size=_SIZE) as pilot:
                 await pilot.pause()
@@ -185,7 +196,9 @@ class TestCaptureOverlay:
 
                 # Act
                 await _submit(pilot, "/run cap")
-                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), "script overlay mounted"
+                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), (
+                    "script overlay mounted"
+                )
                 for _ in range(250):
                     if not bar.query("#script-stop"):
                         break
@@ -211,6 +224,7 @@ class TestDelayBar:
 
     def test_stop_ends_a_scripted_delay_as_a_stopped_script(self, app_factory):
         """Stop during a scripted /delay of seconds ends it at the next tick; the script reports itself stopped."""
+
         async def scenario():
             app, _, path = app_factory()
             folder = Path(path).parent / "run"
@@ -222,9 +236,12 @@ class TestDelayBar:
 
                 # Act
                 await _submit(pilot, "/run slow")
-                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), "overlay mounted"
+                assert await _until(pilot, lambda: bool(bar.query("#script-stop"))), (
+                    "overlay mounted"
+                )
                 barred = await _until(
-                    pilot, lambda: "0s/3s" in str(bar.query_one("#script-label", Static).render()),
+                    pilot,
+                    lambda: "0s/3s" in str(bar.query_one("#script-label", Static).render()),
                 )
                 await pilot.click("#script-stop")
                 gone = await _until(pilot, lambda: not bar.query("#script-stop"), seconds=2.0)
@@ -238,6 +255,7 @@ class TestDelayBar:
 
     def test_escape_cancels_a_delay_typed_at_the_prompt(self, app_factory):
         """A /delay typed at the prompt runs the progress bar; Escape cancels it at the next tick and says so."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
@@ -248,7 +266,9 @@ class TestDelayBar:
                 await pilot.pause(0.3)  # one tick of the bar
                 await pilot.press("escape")
                 reported = await _until(
-                    pilot, lambda: "Delay 3s canceled." in app._get_screen_text(), seconds=2.0,
+                    pilot,
+                    lambda: "Delay 3s canceled." in app._get_screen_text(),
+                    seconds=2.0,
                 )
 
                 # Assert
@@ -261,9 +281,9 @@ class TestDelayBar:
 
 
 class TestConfigInfo:
-
     def test_verbose_shows_the_config_paths(self, app_factory):
         """At verbose output the config info lists the folder, file, transfer root (cap/ by default), and log."""
+
         async def scenario():
             app, _, path = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
@@ -280,13 +300,16 @@ class TestConfigInfo:
                 resolved = Path(path).resolve()
                 assert _squash(f"Config dir: {resolved.parent}") in text, text
                 assert _squash(f"Config file: {resolved}") in text
-                assert _squash(f"Xfer root: {resolved.parent / 'cap'}") in text, "cap/ when no root is configured"
+                assert _squash(f"Xfer root: {resolved.parent / 'cap'}") in text, (
+                    "cap/ when no root is configured"
+                )
                 assert "Logfile:" in text
 
         _run(scenario)
 
     def test_a_configured_transfer_root_is_shown(self, app_factory, tmp_path):
         """A file_xfer_root in the config replaces the cap/ default in the listing."""
+
         async def scenario():
             root = tmp_path / "xfer"
             app, _, path = app_factory(file_xfer_root=str(root))
@@ -302,6 +325,7 @@ class TestConfigInfo:
 
     def test_silent_below_verbose(self, app_factory):
         """At the default output level the config info prints nothing."""
+
         async def scenario():
             app, _, path = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
@@ -314,7 +338,6 @@ class TestConfigInfo:
 
 
 class TestPortPicker:
-
     def test_the_picker_opens_unless_exactly_one_port(self, app_factory):
         """With zero or several ports the picker opens; with exactly one it would switch to it unasked, so that case is skipped here."""
         from serial.tools.list_ports import comports
@@ -334,9 +357,9 @@ class TestPortPicker:
 
 
 class TestCommandPopup:
-
     def test_the_filter_narrows_to_matching_commands(self, app_factory):
         """Typed text filters the popup to commands containing it; a command with a required arg gets only the fill-in row."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
@@ -350,16 +373,20 @@ class TestCommandPopup:
                 # Assert
                 popup = app.query_one("#history-popup", OptionList)
                 ids = {
-                    option.id for option in (popup.get_option_at_index(i) for i in range(popup.option_count))
+                    option.id
+                    for option in (popup.get_option_at_index(i) for i in range(popup.option_count))
                     if option.id
                 }
-                assert ids == {"repl:proto.run"}, "one command, fill-in row only (its arg is required)"
+                assert ids == {"repl:proto.run"}, (
+                    "one command, fill-in row only (its arg is required)"
+                )
                 assert app._popup_mode == "commands"
 
         _run(scenario)
 
     def test_no_match_shows_a_placeholder(self, app_factory):
         """A filter nothing matches shows a disabled placeholder naming it."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
@@ -375,6 +402,7 @@ class TestCommandPopup:
 
     def test_selecting_a_fill_in_row_puts_the_command_in_the_prompt(self, app_factory):
         """Choosing a command with arguments fills the prompt with it and a trailing space, ready for the args."""
+
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test(size=_SIZE) as pilot:

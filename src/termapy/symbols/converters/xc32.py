@@ -63,15 +63,11 @@ _DETAIL_RE: Final = re.compile(
 
 # Continuation line with address + size (follows a name-only detail line):
 #                 0x00016c1e       0xd4
-_DETAIL_ADDR_RE: Final = re.compile(
-    r"^\s+(?P<addr>0x[0-9a-fA-F]+)\s+(?P<size>0x[0-9a-fA-F]+)\s*$"
-)
+_DETAIL_ADDR_RE: Final = re.compile(r"^\s+(?P<addr>0x[0-9a-fA-F]+)\s+(?P<size>0x[0-9a-fA-F]+)\s*$")
 
 # Global symbols from the linker map section:
 #                 0x20005a58                sCal
-_GLOBAL_RE: Final = re.compile(
-    r"^\s+(?P<addr>0x[0-9a-fA-F]+)\s+(?P<name>[a-zA-Z_]\w+)\s*$"
-)
+_GLOBAL_RE: Final = re.compile(r"^\s+(?P<addr>0x[0-9a-fA-F]+)\s+(?P<name>[a-zA-Z_]\w+)\s*$")
 
 # Input-section line after a %NNN block (leading single space).  The object
 # path is on the same line in one form and on the next line in the other.
@@ -82,9 +78,7 @@ _INPUT_SECTION_RE: Final = re.compile(
 
 # Continuation line carrying the object path (next-line form):
 #                 0x000055e4      0x820 .../libg-musl.a(floatscan.o)
-_OBJ_LINE_RE: Final = re.compile(
-    r"^\s+0x[0-9a-fA-F]+\s+0x[0-9a-fA-F]+\s+(?P<obj>\S.*)$"
-)
+_OBJ_LINE_RE: Final = re.compile(r"^\s+0x[0-9a-fA-F]+\s+0x[0-9a-fA-F]+\s+(?P<obj>\S.*)$")
 
 # GCC merged string-literal pools: .rodata.str1.1, .rodata.str1.4 ...
 _LITERAL_POOL_RE: Final = re.compile(r"^str\d+\.\d+$")
@@ -165,9 +159,14 @@ def convert(text: str) -> list[Symbol]:
                 addr = int(m.group("addr"), 16)
                 size = int(m.group("size"), 16)
                 if addr not in seen_addrs:
-                    symbols.append(Symbol(
-                        pending_name, addr, size, pending_section or "",
-                    ))
+                    symbols.append(
+                        Symbol(
+                            pending_name,
+                            addr,
+                            size,
+                            pending_section or "",
+                        )
+                    )
                     seen_addrs.add(addr)
                     awaiting_obj = len(symbols) - 1
             pending_name = None
@@ -181,7 +180,8 @@ def convert(text: str) -> list[Symbol]:
             if m:
                 if m.group("obj"):
                     symbols[awaiting_obj] = replace(
-                        symbols[awaiting_obj], file=object_file_stem(m.group("obj")),
+                        symbols[awaiting_obj],
+                        file=object_file_stem(m.group("obj")),
                     )
                     awaiting_obj = None
                 # else: next-line form -- the object path follows.
@@ -189,7 +189,8 @@ def convert(text: str) -> list[Symbol]:
             m = _OBJ_LINE_RE.match(line)
             if m:
                 symbols[awaiting_obj] = replace(
-                    symbols[awaiting_obj], file=object_file_stem(m.group("obj")),
+                    symbols[awaiting_obj],
+                    file=object_file_stem(m.group("obj")),
                 )
             awaiting_obj = None
 
@@ -201,12 +202,14 @@ def convert(text: str) -> list[Symbol]:
                 continue
             addr = int(m.group("addr"), 16)
             if addr not in seen_addrs:
-                symbols.append(Symbol(
-                    name=m.group("name"),
-                    addr=addr,
-                    size=int(m.group("size"), 16),
-                    section=m.group("section"),
-                ))
+                symbols.append(
+                    Symbol(
+                        name=m.group("name"),
+                        addr=addr,
+                        size=int(m.group("size"), 16),
+                        section=m.group("section"),
+                    )
+                )
                 seen_addrs.add(addr)
             continue
 
@@ -216,12 +219,14 @@ def convert(text: str) -> list[Symbol]:
         if m:
             addr = int(m.group("addr"), 16)
             if addr not in seen_addrs:
-                symbols.append(Symbol(
-                    name=m.group("name"),
-                    addr=addr,
-                    size=0,
-                    section="global",
-                ))
+                symbols.append(
+                    Symbol(
+                        name=m.group("name"),
+                        addr=addr,
+                        size=0,
+                        section="global",
+                    )
+                )
                 seen_addrs.add(addr)
 
     return symbols

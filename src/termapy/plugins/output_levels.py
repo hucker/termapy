@@ -23,14 +23,12 @@ OUTPUT_LEVELS: tuple[str, ...] = ("silent", "quiet", "normal", "verbose")
 DEFAULT_OUTPUT_LEVEL = "normal"
 
 #: Per-level rank.  Higher rank = louder.
-OUTPUT_LEVEL_RANK: dict[str, int] = {
-    name: rank for rank, name in enumerate(OUTPUT_LEVELS)
-}
+OUTPUT_LEVEL_RANK: dict[str, int] = {name: rank for rank, name in enumerate(OUTPUT_LEVELS)}
 
 #: Channel-to-minimum-rank mapping.  A channel writes only when the
 #: active level's rank is at least this.
-RESULT_MIN_RANK = OUTPUT_LEVEL_RANK["quiet"]    # quiet, normal, verbose
-OUTPUT_MIN_RANK = OUTPUT_LEVEL_RANK["normal"]   # normal, verbose
+RESULT_MIN_RANK = OUTPUT_LEVEL_RANK["quiet"]  # quiet, normal, verbose
+OUTPUT_MIN_RANK = OUTPUT_LEVEL_RANK["normal"]  # normal, verbose
 STATUS_MIN_RANK = OUTPUT_LEVEL_RANK["verbose"]  # verbose only
 
 #: Per-call flag tokens that override the level for one dispatch.  Stripped

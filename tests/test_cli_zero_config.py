@@ -46,16 +46,21 @@ def _run_zero_config(
         extra_flags = f", '--run', {script_path!r}"
 
     cli_argv = [
-        "'termapy'", "'--cli'",
-        "'--cfg-dir'", f"{empty_cfg!r}",
-        "'--no-color'", "'--term-width'", "'120'",
+        "'termapy'",
+        "'--cli'",
+        "'--cfg-dir'",
+        f"{empty_cfg!r}",
+        "'--no-color'",
+        "'--term-width'",
+        "'120'",
     ]
     if args:
         cli_argv.extend(repr(a) for a in args)
 
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             f"import sys; sys.argv = [{', '.join(cli_argv)}{extra_flags}]; "
             "from termapy.entry import main; main()",
         ],
@@ -78,22 +83,13 @@ class TestZeroConfigWelcomeBanner:
         # Assert -- the key pieces of the banner are all present, in
         # whatever order the frontend emits them.
         assert result.returncode == 0, (
-            f"exit cleanly on EOF, got {result.returncode}. "
-            f"stderr: {result.stderr!r}"
+            f"exit cleanly on EOF, got {result.returncode}. stderr: {result.stderr!r}"
         )
         out = result.stdout
-        assert "No config found" in out, (
-            f"welcome banner must say so; stdout: {out!r}"
-        )
-        assert "Available ports:" in out, (
-            f"must list ports; stdout: {out!r}"
-        )
-        assert "115200 N81 cr noecho" in out, (
-            f"must state the defaults; stdout: {out!r}"
-        )
-        assert "/port.connect" in out, (
-            f"must hint at /port.connect; stdout: {out!r}"
-        )
+        assert "No config found" in out, f"welcome banner must say so; stdout: {out!r}"
+        assert "Available ports:" in out, f"must list ports; stdout: {out!r}"
+        assert "115200 N81 cr noecho" in out, f"must state the defaults; stdout: {out!r}"
+        assert "/port.connect" in out, f"must hint at /port.connect; stdout: {out!r}"
 
     def test_banner_mentions_help(self):
         """The zero-config banner points a first-time user at /help."""
@@ -102,9 +98,7 @@ class TestZeroConfigWelcomeBanner:
 
         # Assert
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
-        assert "/help" in result.stdout, (
-            f"should mention /help; stdout: {result.stdout!r}"
-        )
+        assert "/help" in result.stdout, f"should mention /help; stdout: {result.stdout!r}"
 
 
 class TestZeroConfigRunPreserved:
@@ -128,7 +122,8 @@ class TestZeroConfigRunPreserved:
         # Act
         result = subprocess.run(
             [
-                sys.executable, "-c",
+                sys.executable,
+                "-c",
                 "import sys; sys.argv = ["
                 "'termapy', '--cli', "
                 f"'--cfg-dir', {empty_cfg!r}, "
@@ -151,7 +146,4 @@ class TestZeroConfigRunPreserved:
         )
         assert "cannot infer config" in result.stderr.lower() or (
             "unreachable" not in result.stdout
-        ), (
-            f"should tell user the inference failed, NOT run the script. "
-            f"stderr: {result.stderr!r}"
-        )
+        ), f"should tell user the inference failed, NOT run the script. stderr: {result.stderr!r}"

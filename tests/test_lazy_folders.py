@@ -208,6 +208,7 @@ class TestPruneAtLoadAndStop:
 
     def test_tui_boot_drops_empty_data_folders(self, tmp_path):
         """The TUI prunes empty data folders at boot exactly as the CLI does."""
+
         async def scenario():
             from termapy.app import SerialTerminal
 
@@ -292,7 +293,9 @@ class TestCliWritersCreateTheirFolder:
 
         # Assert
         assert result.error == "File not found: fresh", "a missing script is refused"
-        assert not (Path(cli.config_path).parent / "run").exists(), "a read never creates a data folder"
+        assert not (Path(cli.config_path).parent / "run").exists(), (
+            "a read never creates a data folder"
+        )
         assert opened == [], "nothing was handed to the editor"
 
     def test_sym_import_creates_sym(self, cli):
@@ -356,6 +359,7 @@ class TestCliWritersCreateTheirFolder:
 class TestTuiWritersCreateTheirFolder:
     def test_screenshot_actions_create_ss(self, tmp_path):
         """The SVG and text screenshot actions both create ss/ on a bare config."""
+
         async def scenario():
             from termapy.app import SerialTerminal
 
@@ -379,6 +383,7 @@ class TestTuiWritersCreateTheirFolder:
 
     def test_ss_txt_hook_creates_ss(self, tmp_path):
         """The /ss.txt hook, run from a worker thread, creates ss/ for its output."""
+
         async def scenario():
             from termapy.app import SerialTerminal
             from termapy.app_hooks import _hook_ss_txt
@@ -416,6 +421,7 @@ class TestTuiWritersCreateTheirFolder:
 
     def test_ss_and_captures_buttons_create_and_open_their_folder(self, tmp_path):
         """The SS and Captures buttons create ss/ and cap/ before opening them."""
+
         async def scenario():
             from termapy.app import SerialTerminal
 
@@ -444,6 +450,7 @@ class TestTuiWritersCreateTheirFolder:
 
     def test_ss_and_captures_shortcuts_with_no_config_open_nothing(self, tmp_path):
         """test-messages-through-owner: with no config the shortcuts open nothing and say the gate's answer, as the buttons do."""
+
         async def scenario():
             from termapy.app import SerialTerminal
             from termapy.plugins.capabilities import STATE_MESSAGES
@@ -465,12 +472,15 @@ class TestTuiWritersCreateTheirFolder:
                 # Assert
                 assert opened == [], "no folder is opened without a config"
                 text = app._get_screen_text()
-                assert text.count(STATE_MESSAGES["config_loaded"]) == 2, "each shortcut says why, once"
+                assert text.count(STATE_MESSAGES["config_loaded"]) == 2, (
+                    "each shortcut says why, once"
+                )
 
         _run(scenario)
 
     def test_script_editor_save_creates_run(self, tmp_path):
         """Saving in ScriptEditor creates a missing run/ and returns the new script path."""
+
         async def scenario():
             # Arrange
             run_dir = tmp_path / "rig" / "run"
@@ -494,6 +504,7 @@ class TestTuiWritersCreateTheirFolder:
 
     def test_proto_editor_save_creates_proto(self, tmp_path):
         """Saving in ProtoEditor creates a missing proto/ and returns the new .pro path."""
+
         async def scenario():
             # Arrange
             proto_dir = tmp_path / "rig" / "proto"

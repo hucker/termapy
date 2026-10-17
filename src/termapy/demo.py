@@ -312,13 +312,13 @@ class FakeSerial:
     # (little-endian, matching demo.symbols.json).  Everything else is a
     # fixed address-derived pattern.
     _RAM_SEEDS: tuple[tuple[int, bytes], ...] = (
-        (0x1000, (27).to_bytes(2, "little")),            # gTemp      u16 = 27
-        (0x1002, struct.pack("<f", 1013.25)),             # gPressure  f32
-        (0x1008, (5).to_bytes(4, "little")),             # gFlags     u32
-        (0x100C, (12).to_bytes(4, "little")),            # count.12   u32
-        (0xBF806000, (0x8008).to_bytes(4, "little")),    # U1MODE: ON | BRGH
-        (0xBF806010, (0x0110).to_bytes(4, "little")),    # U1STA
-        (0x3100, b"Bassomatic v77\x00"),                 # sBanner    char[15]
+        (0x1000, (27).to_bytes(2, "little")),  # gTemp      u16 = 27
+        (0x1002, struct.pack("<f", 1013.25)),  # gPressure  f32
+        (0x1008, (5).to_bytes(4, "little")),  # gFlags     u32
+        (0x100C, (12).to_bytes(4, "little")),  # count.12   u32
+        (0xBF806000, (0x8008).to_bytes(4, "little")),  # U1MODE: ON | BRGH
+        (0xBF806010, (0x0110).to_bytes(4, "little")),  # U1STA
+        (0x3100, b"Bassomatic v77\x00"),  # sBanner    char[15]
     )
 
     # Default virtual filesystem - pre-loaded demo files
@@ -404,9 +404,7 @@ class FakeSerial:
             uptime = self._uptime_str()
             free_mem = random.randint(28000, 32000)
             return (
-                f"Bassomatic v77 v1.0\r\n"
-                f"Uptime: {uptime}\r\n"
-                f"Free memory: {free_mem} bytes\r\n"
+                f"Bassomatic v77 v1.0\r\nUptime: {uptime}\r\nFree memory: {free_mem} bytes\r\n"
             ).encode()
 
         if upper == "AT+TEMP":
@@ -433,13 +431,19 @@ class FakeSerial:
 
         if upper.startswith("AT+NAME"):
             return self._handle_set_query(
-                cmd, upper, "AT+NAME", self._device_name,
+                cmd,
+                upper,
+                "AT+NAME",
+                self._device_name,
                 self._set_name,
             )
 
         if upper.startswith("AT+BAUD"):
             return self._handle_set_query(
-                cmd, upper, "AT+BAUD", str(self._device_baud),
+                cmd,
+                upper,
+                "AT+BAUD",
+                str(self._device_baud),
                 self._set_baud,
             )
 
@@ -450,9 +454,7 @@ class FakeSerial:
             led = "ON" if self._led_state else "OFF"
             uptime = self._uptime_str()
             return (
-                f"LED: {led}\r\n"
-                f"Uptime: {uptime}\r\n"
-                f"Connections: {self._connect_count}\r\n"
+                f"LED: {led}\r\nUptime: {uptime}\r\nConnections: {self._connect_count}\r\n"
             ).encode()
 
         if upper == "AT+RESET":
@@ -553,7 +555,9 @@ class FakeSerial:
                     "args": "",
                     "safety": "readonly",
                     "response": {
-                        "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                        "format": "literal",
+                        "pattern": "OK",
+                        "timeout_ms": 200,
                     },
                 },
                 "AT+PROD-ID": {
@@ -580,7 +584,8 @@ class FakeSerial:
                     ),
                     "response": {
                         # 3 lines, no explicit terminator -- rely on idle gap.
-                        "format": "lines", "timeout_ms": 500,
+                        "format": "lines",
+                        "timeout_ms": 500,
                     },
                 },
                 "AT+TEMP": {
@@ -628,7 +633,9 @@ class FakeSerial:
                     "send_template": "AT+LED {state}",
                     "typed_args": [
                         {
-                            "name": "state", "type": "on_off", "required": True,
+                            "name": "state",
+                            "type": "on_off",
+                            "required": True,
                             "help": "LED state.",
                         }
                     ],
@@ -645,7 +652,9 @@ class FakeSerial:
                         "-b": "--blink",
                     },
                     "response": {
-                        "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                        "format": "literal",
+                        "pattern": "OK",
+                        "timeout_ms": 200,
                     },
                 },
                 "AT+NAME?": {"help": "Query device name", "args": ""},
@@ -663,7 +672,8 @@ class FakeSerial:
                     "safety": "readonly",
                     "response": {
                         # 3 lines (LED/Uptime/Connections); no OK terminator.
-                        "format": "lines", "timeout_ms": 500,
+                        "format": "lines",
+                        "timeout_ms": 500,
                     },
                 },
                 "AT+RESET": {
@@ -672,7 +682,8 @@ class FakeSerial:
                     "safety": "destructive",
                     "response": {
                         # 4 lines including "[Boot] Ready"; no OK terminator.
-                        "format": "lines", "timeout_ms": 1000,
+                        "format": "lines",
+                        "timeout_ms": 1000,
                     },
                 },
                 "AT+TEXTDUMP": {"help": "Emit text readings", "args": "<n>"},
@@ -743,6 +754,7 @@ class FakeSerial:
     def _help_json(self) -> bytes:
         """Machine-readable v2 profile descriptor (AT+HELP.JSON)."""
         import json
+
         return (json.dumps(self._descriptor()) + "\r\n").encode()
 
     def _help_text(self) -> bytes:
@@ -758,9 +770,7 @@ class FakeSerial:
             sig = f"{name} {spec.get('args', '')}".rstrip()
             lines.append(f"  {sig:<28}{spec.get('help', '')}")
         lines.append("")
-        lines.append(
-            "AT+HELP.JSON returns the same list as a machine-readable descriptor."
-        )
+        lines.append("AT+HELP.JSON returns the same list as a machine-readable descriptor.")
         return ("\r\n".join(lines) + "\r\n").encode()
 
     def _initial_ram(self) -> dict[int, bytearray]:
@@ -773,7 +783,7 @@ class FakeSerial:
             located = self._ram_window(addr, len(data))
             assert located is not None, f"seed at 0x{addr:X} is outside every window"
             base, offset = located
-            ram[base][offset:offset + len(data)] = data
+            ram[base][offset : offset + len(data)] = data
         return ram
 
     def _ram_window(self, addr: int, length: int) -> tuple[int, int] | None:
@@ -833,9 +843,9 @@ class FakeSerial:
             if located is None:
                 return b"ERR range\r\n"
             base, offset = located
-            old = bytes(self._ram[base][offset:offset + width])
+            old = bytes(self._ram[base][offset : offset + width])
             word = (int.from_bytes(old, "little") & and_mask) | or_mask
-            self._ram[base][offset:offset + width] = word.to_bytes(width, "little")
+            self._ram[base][offset : offset + width] = word.to_bytes(width, "little")
             row = f"{addr:08X}: " + " ".join(f"{byte:02X}" for byte in old)
             return (row + "\r\nOK\r\n").encode()
         if verb == "MEM.R":
@@ -854,9 +864,9 @@ class FakeSerial:
             if located is None:
                 return b"ERR range\r\n"
             base, offset = located
-            data = self._ram[base][offset:offset + length]
+            data = self._ram[base][offset : offset + length]
             rows = [
-                f"{addr + i:08X}: " + " ".join(f"{byte:02X}" for byte in data[i:i + 16])
+                f"{addr + i:08X}: " + " ".join(f"{byte:02X}" for byte in data[i : i + 16])
                 for i in range(0, length, 16)
             ]
             return ("\r\n".join(rows) + "\r\nOK\r\n").encode()
@@ -876,7 +886,7 @@ class FakeSerial:
             if located is None:
                 return b"ERR range\r\n"
             base, offset = located
-            self._ram[base][offset:offset + len(data)] = data
+            self._ram[base][offset : offset + len(data)] = data
             return b"OK\r\n"
         return b"ERR usage\r\n"
 
@@ -922,9 +932,9 @@ class FakeSerial:
             if located is None:
                 return f"err: address {addr:08X} not mapped\r\n".encode()
             base, offset = located
-            old = int.from_bytes(self._ram[base][offset:offset + width], "little")
+            old = int.from_bytes(self._ram[base][offset : offset + width], "little")
             value = int(digits, 16) & ((1 << (8 * width)) - 1)
-            self._ram[base][offset:offset + width] = value.to_bytes(width, "little")
+            self._ram[base][offset : offset + width] = value.to_bytes(width, "little")
             label = {1: "byte", 2: "half", 4: "word"}[width]
             digits_out = width * 2
             return (
@@ -947,10 +957,10 @@ class FakeSerial:
                 f"(would HardFault)\r\n"
             ).encode()
         base, offset = located
-        data = self._ram[base][offset:offset + count]
+        data = self._ram[base][offset : offset + count]
         lines: list[str] = []
         for i in range(0, count, 16):
-            row = data[i:i + 16]
+            row = data[i : i + 16]
             line = f"{addr + i:08X}:"
             for j in range(16):
                 if j % 4 == 0:
@@ -984,20 +994,32 @@ class FakeSerial:
         return ("\r\n".join(lines) + "\r\n").encode()
 
     _BINDUMP_TYPES: dict[str, tuple[str, int]] = {
-        "i8": ("<b", 1), "u8": ("<B", 1),
-        "i16": ("<h", 2), "u16": ("<H", 2),
-        "i32": ("<i", 4), "u32": ("<I", 4),
-        "i64": ("<q", 8), "u64": ("<Q", 8),
-        "f4": ("<f", 4), "f8": ("<d", 8),
+        "i8": ("<b", 1),
+        "u8": ("<B", 1),
+        "i16": ("<h", 2),
+        "u16": ("<H", 2),
+        "i32": ("<i", 4),
+        "u32": ("<I", 4),
+        "i64": ("<q", 8),
+        "u64": ("<Q", 8),
+        "f4": ("<f", 4),
+        "f8": ("<d", 8),
     }
 
     # Mixed record: 10s label, u8, u16, u32, float32 (little-endian, 21 bytes)
     # Format spec: fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18
     _MIXED_RECORD_SIZE = 21
     _MIXED_LABELS = [
-        "Sensor-A  ", "Sensor-B  ", "Motor-1   ", "Motor-2   ",
-        "Pump-Main ", "Valve-In  ", "Valve-Out ", "Thermo-1  ",
-        "Thermo-2  ", "Pressure  ",
+        "Sensor-A  ",
+        "Sensor-B  ",
+        "Motor-1   ",
+        "Motor-2   ",
+        "Pump-Main ",
+        "Valve-In  ",
+        "Valve-Out ",
+        "Thermo-1  ",
+        "Thermo-2  ",
+        "Pressure  ",
     ]
 
     def _handle_bindump(self, cmd: str) -> bytes:
@@ -1171,8 +1193,7 @@ class FakeSerial:
             speed = round(random.uniform(0.0, 0.2), 1)
             course = round(random.uniform(0, 360), 1)
             body = (
-                f"GPRMC,{utc},{status},{lat},{lat_dir},{lon},{lon_dir},"
-                f"{speed},{course},{date},,,A"
+                f"GPRMC,{utc},{status},{lat},{lat_dir},{lon},{lon_dir},{speed},{course},{date},,,A"
             )
             return self._nmea_sentence(body)
 
@@ -1256,8 +1277,12 @@ class FakeSerial:
     # match any catalog entry so reverse_packets has to recover it
     # algebraically rather than via the catalog tier.
     _RND_CUSTOM_PARAMS: dict[str, int | bool] = {
-        "width": 16, "poly": 0x1A2B, "init": 0xABCD,
-        "refin": False, "refout": False, "xorout": 0x0000,
+        "width": 16,
+        "poly": 0x1A2B,
+        "init": 0xABCD,
+        "refin": False,
+        "refout": False,
+        "xorout": 0x0000,
     }
 
     # Payload-length cycle for AT+RND.CUSTOM.  Two lengths repeat so
@@ -1272,9 +1297,14 @@ class FakeSerial:
         Crc constructor narrowing, so we hand-pass each field.
         """
         from crcglot import Crc
+
         return Crc(
-            width=16, poly=0x1A2B, init=0xABCD,
-            refin=False, refout=False, xorout=0x0000,
+            width=16,
+            poly=0x1A2B,
+            init=0xABCD,
+            refin=False,
+            refout=False,
+            xorout=0x0000,
         )
 
     def _handle_rnd(self, upper: str) -> bytes:
@@ -1296,9 +1326,7 @@ class FakeSerial:
             return body.encode() + b"\r\n"
 
         if upper == "AT+RND.CUSTOM":
-            length = self._RND_CUSTOM_LENGTHS[
-                self._rnd_custom_n % len(self._RND_CUSTOM_LENGTHS)
-            ]
+            length = self._RND_CUSTOM_LENGTHS[self._rnd_custom_n % len(self._RND_CUSTOM_LENGTHS)]
             self._rnd_custom_n += 1
             payload = bytes(random.randint(0, 255) for _ in range(length))
             crc_int = generic_crc(payload, self._custom_crc())
@@ -1312,6 +1340,7 @@ class FakeSerial:
             crc_int = compute(payload, algo_name)
             # Catalog algorithms vary in width; ceil-div to bytes.
             from crcglot import ALGORITHMS
+
             width_bytes = (ALGORITHMS[algo_name].width + 7) // 8
             # Endian: emit big-endian for refout=False, little-endian for
             # refout=True (the algorithm's natural wire order).
@@ -1494,7 +1523,11 @@ class FakeSerial:
         del buf[0]
 
         # Initial handshake: NAK = checksum mode, 'C' = CRC mode
-        if self._xmodem_block_num == 1 and not self._xmodem_crc_mode and byte in (self._NAK, self._CRC_START):
+        if (
+            self._xmodem_block_num == 1
+            and not self._xmodem_crc_mode
+            and byte in (self._NAK, self._CRC_START)
+        ):
             self._xmodem_crc_mode = byte == self._CRC_START
             self._enqueue_xmodem_block()
             return
@@ -1522,7 +1555,7 @@ class FakeSerial:
         Uses checksum or CRC depending on negotiated mode.
         """
         offset = (self._xmodem_block_num - 1) * 128
-        chunk = self._xmodem_send_data[offset:offset + 128]
+        chunk = self._xmodem_send_data[offset : offset + 128]
 
         if not chunk:
             # No more data - send EOT
@@ -1654,7 +1687,7 @@ class FakeSerial:
 
         blk_num = block[1]
         blk_inv = block[2]
-        data = block[3:3 + block_size]
+        data = block[3 : 3 + block_size]
 
         # Validate block number complement
         if (blk_num + blk_inv) & 0xFF != 0xFF:
@@ -1674,7 +1707,7 @@ class FakeSerial:
                 # Empty filename = end of batch - store received file in VFS
                 if self._ymodem_recv_name and self._ymodem_recv_buf:
                     if self._ymodem_recv_size > 0:
-                        actual = bytes(self._ymodem_recv_buf[:self._ymodem_recv_size])
+                        actual = bytes(self._ymodem_recv_buf[: self._ymodem_recv_size])
                     else:
                         actual = bytes(self._ymodem_recv_buf)
                     self._vfs[self._ymodem_recv_name] = actual
@@ -1685,7 +1718,7 @@ class FakeSerial:
             # Parse filename and size (format: filename\0filesize[ mtime ...]\0)
             null_idx = data.index(0x00)
             self._ymodem_recv_name = data[:null_idx].decode("ascii", errors="replace")
-            rest = data[null_idx + 1:]
+            rest = data[null_idx + 1 :]
             size_end = rest.index(0x00) if 0x00 in rest else len(rest)
             fields_str = rest[:size_end].decode("ascii", errors="replace").strip()
             # Filesize is the first space-separated field (decimal)
@@ -1806,7 +1839,7 @@ class FakeSerial:
         sequence number is block_num + 1 (block 0 was the header).
         """
         offset = self._ymodem_block_num * 1024
-        chunk = self._ymodem_send_data[offset:offset + 1024]
+        chunk = self._ymodem_send_data[offset : offset + 1024]
 
         if not chunk:
             self._output_buf.extend(bytes([self._EOT]))
@@ -1904,7 +1937,7 @@ class FakeSerial:
         Returns:
             Response bytes with ``\\r\\n`` line endings.
         """
-        rest = cmd[len(prefix):]
+        rest = cmd[len(prefix) :]
         if rest == "?":
             return f"+{prefix[3:]}:{current}\r\n".encode()
         if rest.startswith("="):

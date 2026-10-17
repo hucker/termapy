@@ -97,7 +97,7 @@ def show_commands(app) -> None:
     # match is on the command name only.
     raw = app.query_one("#cmd", Input).value.strip()
     if raw.startswith(prefix):
-        raw = raw[len(prefix):]
+        raw = raw[len(prefix) :]
     # If the user typed args (``/port open COM3``), only match on
     # the first token -- the name portion.
     filter_term = raw.split(None, 1)[0].lower() if raw else ""
@@ -154,5 +154,3 @@ def show_commands(app) -> None:
     popup.focus()
     popup.highlighted = 1 if popup.option_count > 1 else 0
     app._popup_mode = "commands"
-
-

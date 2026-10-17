@@ -82,5 +82,5 @@ def extract_docstring(path: Path) -> tuple[str, str]:
     # already prints the name in its own column, so drop the prefix.
     prefix = f"{path.name} -- "
     if summary.lower().startswith(prefix.lower()):
-        summary = summary[len(prefix):].strip()
+        summary = summary[len(prefix) :].strip()
     return summary, full

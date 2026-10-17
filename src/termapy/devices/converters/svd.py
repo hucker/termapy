@@ -88,7 +88,9 @@ def convert(text: str) -> dict[str, Any]:
         "device": _device_name(name),
         "description": _clean(_text(root, "description")),
         "vendor": _text(root, "vendor") or _text(root, "vendorID"),
-        "source": f"CMSIS-SVD {root.get('schemaVersion', '?')}: {name} v{_text(root, 'version')}".rstrip(" v"),
+        "source": f"CMSIS-SVD {root.get('schemaVersion', '?')}: {name} v{_text(root, 'version')}".rstrip(
+            " v"
+        ),
         "parts": [name] if name else [],
         "license": _license(text, _text(root, "licenseText")),
         "registers": builder.registers,
@@ -167,7 +169,7 @@ def _ident(name: str) -> str:
 
 def _device_name(name: str) -> str:
     """``ATSAME54P20A`` -> ``atsame54p20a``, shaped for the ``device`` field."""
-    return (_ident(name).lower().strip("_") or "device")
+    return _ident(name).lower().strip("_") or "device"
 
 
 def _defaults(inherited: dict[str, Any], el: ET.Element) -> dict[str, Any]:
@@ -261,7 +263,10 @@ class _Builder:
         self._names: set[str] = set()
 
     def peripheral(
-        self, el: ET.Element, by_name: dict[str, ET.Element], defaults: dict[str, Any],
+        self,
+        el: ET.Element,
+        by_name: dict[str, ET.Element],
+        defaults: dict[str, Any],
     ) -> None:
         chain = _resolve(el, by_name)
         name = _text(el, "name")
@@ -273,14 +278,17 @@ class _Builder:
         per_defaults = defaults
         for base_el in reversed(chain):
             per_defaults = _defaults(per_defaults, base_el)
-        reg_by_name = {
-            _text(reg, "name"): reg for reg in registers_el.iter("register")
-        }
+        reg_by_name = {_text(reg, "name"): reg for reg in registers_el.iter("register")}
         for label, offset in _dims(el):
             per_name = _ident(_expand(name, label))
             self._registers(
-                registers_el, per_name, base + offset, per_defaults,
-                peripheral=per_name, group=group, reg_by_name=reg_by_name,
+                registers_el,
+                per_name,
+                base + offset,
+                per_defaults,
+                peripheral=per_name,
+                group=group,
+                reg_by_name=reg_by_name,
             )
 
     def _registers(
@@ -302,14 +310,23 @@ class _Builder:
                 for label, dim_offset in _dims(el):
                     cluster_name = _ident(_expand(_text(el, "name"), label))
                     self._registers(
-                        el, f"{prefix}_{cluster_name}", base + offset + dim_offset,
-                        cluster_defaults, peripheral=peripheral, group=group,
+                        el,
+                        f"{prefix}_{cluster_name}",
+                        base + offset + dim_offset,
+                        cluster_defaults,
+                        peripheral=peripheral,
+                        group=group,
                         reg_by_name=reg_by_name,
                     )
             elif tag == "register":
                 self._register(
-                    el, prefix, base, defaults,
-                    peripheral=peripheral, group=group, reg_by_name=reg_by_name,
+                    el,
+                    prefix,
+                    base,
+                    defaults,
+                    peripheral=peripheral,
+                    group=group,
+                    reg_by_name=reg_by_name,
                 )
 
     def _register(

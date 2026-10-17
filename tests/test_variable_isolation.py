@@ -28,13 +28,16 @@ class TestVariablesDoNotLeak:
         variables._FROZEN_MOMENTS[_LEAK] = datetime(2000, 1, 1)
 
         # Assert
-        assert variables.expand_vars(f"$({_LEAK})") == "user", "the write landed where expansion reads it"
+        assert variables.expand_vars(f"$({_LEAK})") == "user", (
+            "the write landed where expansion reads it"
+        )
 
     def test_the_next_test_sees_none_of_it(self):
         """The fixture restored every store, so nothing the previous test wrote is left."""
         # Act
         leaked = [
-            name for name, store in (
+            name
+            for name, store in (
                 ("_VARS", variables._VARS),
                 ("_LAUNCH_VARS", variables._LAUNCH_VARS),
                 ("_CONTEXT_VARS", variables._CONTEXT_VARS),

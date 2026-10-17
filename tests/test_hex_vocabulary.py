@@ -53,7 +53,6 @@ def cli(tmp_path):
 
 
 class TestInputIsCaseInsensitive:
-
     @pytest.mark.parametrize("spelling", list(_SPELLINGS.values()), ids=list(_SPELLINGS))
     def test_parse_hex_and_parse_data_read_every_spelling(self, spelling):
         """hex-one-reader: both byte readers read every spelling, in either case, to the same bytes."""
@@ -62,7 +61,9 @@ class TestInputIsCaseInsensitive:
 
     def test_a_pattern_reads_either_case(self):
         """An expect pattern's hex and its wildcards read the same in either case."""
-        assert parse_pattern("4f ** 0D") == parse_pattern("4F ** 0d"), "case never changes a pattern"
+        assert parse_pattern("4f ** 0D") == parse_pattern("4F ** 0d"), (
+            "case never changes a pattern"
+        )
 
     @pytest.mark.parametrize("text", ["0x1f", "0X1F", "1fh", "1FH"])
     def test_a_hex_number_reads_either_case(self, text):
@@ -74,7 +75,6 @@ class TestInputIsCaseInsensitive:
 
 
 class TestOnePayloadGrammar:
-
     @pytest.mark.parametrize("spelling", list(_SPELLINGS.values()), ids=list(_SPELLINGS))
     def test_calc_reads_every_spelling_as_bytes(self, cli, spelling):
         """/proto.crc.calc reads hex in every spelling as bytes; it once returned the CRC of the characters."""
@@ -90,7 +90,9 @@ class TestOnePayloadGrammar:
     @pytest.mark.parametrize("spelling", list(_SPELLINGS.values()), ids=list(_SPELLINGS))
     def test_verify_reads_every_spelling(self, cli, spelling):
         """/proto.crc.verify reads the frame and its trailer in every spelling."""
-        result = cli.repl.dispatch_full(f"/proto.crc.verify crc16-modbus endian=le {spelling} C5 CD")
+        result = cli.repl.dispatch_full(
+            f"/proto.crc.verify crc16-modbus endian=le {spelling} C5 CD"
+        )
         assert result.success is True, result.error
 
     @pytest.mark.parametrize("spelling", list(_SPELLINGS.values()), ids=list(_SPELLINGS))
@@ -114,7 +116,6 @@ class TestOnePayloadGrammar:
 
 
 class TestZeroXMarksOneByte:
-
     def test_a_multi_byte_0x_token_is_refused_with_the_fix(self):
         """hex-one-reader: 0xDEADBEEF reads as a number of unstated byte order, so every reader refuses it and names the fix."""
         with pytest.raises(ValueError, match=r"a 0x prefix marks one byte; write DE AD BE EF\)"):
@@ -141,7 +142,6 @@ class TestZeroXMarksOneByte:
 
 
 class TestQuotesOnlyWhereTextBelongs:
-
     def test_packet_commands_are_hex_only(self, cli):
         """/proto.crc.verify and .find bin= take a packet, hex only; quoted text is refused as such."""
         verify = cli.repl.dispatch_full('/proto.crc.verify crc16-modbus endian=le "AT" C5 CD')
@@ -156,7 +156,6 @@ class TestQuotesOnlyWhereTextBelongs:
 
 
 class TestCalcText:
-
     def test_quoted_text_is_text(self, cli):
         """Text goes in quotes, as for /proto.send; the catalog check string gives the catalog check value."""
         result = cli.repl.dispatch_full('/proto.crc.calc crc32 "123456789"')
@@ -181,7 +180,6 @@ class TestCalcText:
 
 
 class TestOutputIsUppercase:
-
     def test_send_returns_uppercase_hex(self, cli):
         """hex-output-uppercase: /proto.send's scriptable value is uppercase, matching what it prints."""
         result = cli.repl.dispatch_full("/proto.send --dry-run 0a 0b")

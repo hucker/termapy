@@ -32,7 +32,8 @@ def _run(tmp_path: Path) -> str:
     """Invoke the CLI on the fixture script and return stdout."""
     result = subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', '--cli', '--demo', "
             f"'--run', {str(FIXTURE)!r}, "
@@ -73,7 +74,6 @@ EXPECTED_CAPTURES = [
 
 
 class TestValueCaptureE2E:
-
     def test_every_handler_populates_cmdresult_value(self, tmp_path):
         """Each fixture handler returns a non-None value a script can capture via /var.capture."""
         # Act

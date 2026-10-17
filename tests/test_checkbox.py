@@ -33,6 +33,7 @@ def _run(scenario) -> None:
 
 def test_glyph_is_blank_when_off():
     """An unchecked box renders a blank glyph, the classic [ ]."""
+
     async def scenario():
         async with _Host(value=False).run_test() as pilot:
             cb = pilot.app.query_one(StrongCheckbox)
@@ -43,6 +44,7 @@ def test_glyph_is_blank_when_off():
 
 def test_glyph_is_x_when_on():
     """A checked box renders an ASCII X, the classic [X]."""
+
     async def scenario():
         async with _Host(value=True).run_test() as pilot:
             cb = pilot.app.query_one(StrongCheckbox)
@@ -53,6 +55,7 @@ def test_glyph_is_x_when_on():
 
 def test_glyph_flips_when_value_changes():
     """Changing value after mount re-renders the glyph both ways, not just at compose."""
+
     async def scenario():
         async with _Host(value=False).run_test() as pilot:
             cb = pilot.app.query_one(StrongCheckbox)

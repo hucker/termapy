@@ -74,8 +74,8 @@ _INSTALL_HINT = (
 # A list-of-dicts collected during one run_command invocation.  Each
 # entry: {"level": "text"|"markup", "text": str, "color": str}; a markup
 # entry's text is flattened to what a terminal shows (see write_markup).
-_buffer: contextvars.ContextVar[list[dict[str, Any]] | None] = (
-    contextvars.ContextVar("termapy_mcp_buffer", default=None)
+_buffer: contextvars.ContextVar[list[dict[str, Any]] | None] = contextvars.ContextVar(
+    "termapy_mcp_buffer", default=None
 )
 
 
@@ -146,9 +146,7 @@ class MCPHost(TerminalHost):
         # Engines (mirroring CLITerminal construction).
         self.capture = CaptureEngine(
             on_echo=lambda line: self.write(f"  {line}"),
-            on_complete=lambda result: self.status(
-                format_capture_result(result)[0]
-            ),
+            on_complete=lambda result: self.status(format_capture_result(result)[0]),
         )
         self.engine = SerialEngine(
             cfg=cfg,
@@ -252,9 +250,7 @@ class MCPHost(TerminalHost):
         """
         active = self._active_cap_dir()
         if active is None:
-            raise FileNotFoundError(
-                "No captures available: load a cfg first (/cfg.load <name>)."
-            )
+            raise FileNotFoundError("No captures available: load a cfg first (/cfg.load <name>).")
         cap_dir = active.resolve()
         target = (cap_dir / filename).resolve()
         if not target.is_relative_to(cap_dir):
@@ -650,9 +646,7 @@ class MCPHost(TerminalHost):
                 self._banner_text = match
                 self._log_line(f"  banner: {match}")
             else:
-                self._log_line(
-                    f"! banner not seen within 2s (pattern: {pattern!r})"
-                )
+                self._log_line(f"! banner not seen within 2s (pattern: {pattern!r})")
 
         threading.Thread(target=watch, daemon=True, name="mcp-banner-watch").start()
 
@@ -749,9 +743,7 @@ class MCPHost(TerminalHost):
                         self.ctx._call_level = saved_call_level
 
                 ctx_snapshot = contextvars.copy_context()
-                fut = loop.run_in_executor(
-                    _command_executor(self), ctx_snapshot.run, _run_sync
-                )
+                fut = loop.run_in_executor(_command_executor(self), ctx_snapshot.run, _run_sync)
                 try:
                     result = await asyncio.wait_for(fut, timeout=timeout_s)
                 # asyncio's and concurrent.futures' TimeoutError are this one class since 3.11.
@@ -760,9 +752,7 @@ class MCPHost(TerminalHost):
                     # be cancelled.  timeout_s bounds the CALLER's wait, not
                     # the device operation; the shared worker keeps the next
                     # dispatch from overlapping this one.
-                    result = CmdResult.fail(
-                        msg=f"timeout after {format_duration(timeout_s)}"
-                    )
+                    result = CmdResult.fail(msg=f"timeout after {format_duration(timeout_s)}")
             finally:
                 output_lines = _buffer.get() or []
                 _buffer.reset(token)
@@ -839,9 +829,6 @@ class MCPHost(TerminalHost):
             }
 
 
-
-
-
 # ── MCP server wiring (lazy, only when --mcp runs) ──────────────────────────
 
 
@@ -895,9 +882,7 @@ def _build_server(host: MCPHost) -> Any:
             JSON-able dict with ``cmd``, ``success``, ``error``, ``value``,
             ``elapsed_s``, ``output_lines``, ``captured_artifacts``.
         """
-        return await host.run_command_async(
-            command, output, timeout_s, confirm=confirm
-        )
+        return await host.run_command_async(command, output, timeout_s, confirm=confirm)
 
     # ── catalog resource ────────────────────────────────────────────────────
     @server.resource("termapy://commands.json")
@@ -935,6 +920,7 @@ def _build_server(host: MCPHost) -> Any:
     # Prompts: user-invocable conversation recipes (e.g. draft_profile).
     # Lives in mcp/prompts.py to keep this file focused on host wiring.
     from termapy.mcp.prompts import register_prompts
+
     register_prompts(server, host)
 
     return server
@@ -994,11 +980,7 @@ def _snapshot_cap_dir(cap_dir: Path) -> dict[str, float]:
     """Return {filename: mtime} for files in cap_dir.  Empty when missing."""
     if not cap_dir.exists():
         return {}
-    return {
-        path.name: path.stat().st_mtime
-        for path in cap_dir.iterdir()
-        if path.is_file()
-    }
+    return {path.name: path.stat().st_mtime for path in cap_dir.iterdir() if path.is_file()}
 
 
 def _new_artifacts(
@@ -1022,7 +1004,11 @@ def _new_artifacts(
 
 
 def _confirmation_required(
-    name: str, safety: str, help_text: str, *, confirm: bool,
+    name: str,
+    safety: str,
+    help_text: str,
+    *,
+    confirm: bool,
 ) -> CmdResult | None:
     """The structured refusal for a destructive call made without confirm.
 
@@ -1077,16 +1063,22 @@ def _gate_slash_command(host: MCPHost, line: str, *, confirm: bool) -> CmdResult
     """
     if not line.startswith(host.prefix):
         return None
-    plugin = host.repl.plugin_for(line[len(host.prefix):])
+    plugin = host.repl.plugin_for(line[len(host.prefix) :])
     if plugin is None:
         return None
     return _confirmation_required(
-        host.prefix + plugin.name, plugin.safety, plugin.help, confirm=confirm,
+        host.prefix + plugin.name,
+        plugin.safety,
+        plugin.help,
+        confirm=confirm,
     )
 
 
 def _dispatch_via_profile(
-    host: MCPHost, command_text: str, *, confirm: bool = False,
+    host: MCPHost,
+    command_text: str,
+    *,
+    confirm: bool = False,
 ) -> CmdResult | None:
     """Send a profile-mapped command and shape the response.
 
@@ -1191,10 +1183,7 @@ def _dispatch_via_profile(
             outcome = reg.validate(arg_type, bound[arg_name])
             if not outcome.ok:
                 return CmdResult.fail(
-                    msg=(
-                        f"Arg {arg_name!r} invalid for {name!r}: "
-                        f"{outcome.error}"
-                    ),
+                    msg=(f"Arg {arg_name!r} invalid for {name!r}: {outcome.error}"),
                     value={
                         "arg": arg_name,
                         "type": arg_type,
@@ -1213,9 +1202,7 @@ def _dispatch_via_profile(
     # device contract ("what commands you accept").
     encoding = host.cfg.get("encoding", "utf-8")
     eol_send = host.cfg.get("eol", "\r")
-    default_response_timeout_ms = int(
-        host.cfg.get("default_response_timeout_ms", 1000) or 1000
-    )
+    default_response_timeout_ms = int(host.cfg.get("default_response_timeout_ms", 1000) or 1000)
     raw_response = spec.get("response") or {}
     response = raw_response if isinstance(raw_response, dict) else {}
     fmt = response.get("format", "none")
@@ -1229,9 +1216,7 @@ def _dispatch_via_profile(
         # forget (no wait at all) opt out with response.timeout_ms: 0.
         timeout_s = float(response.get("timeout_ms", 100)) / 1000.0
     else:
-        timeout_s = float(
-            response.get("timeout_ms", default_response_timeout_ms)
-        ) / 1000.0
+        timeout_s = float(response.get("timeout_ms", default_response_timeout_ms)) / 1000.0
 
     # Drain -> send -> wait pipeline lives in request_response.py so the
     # generic json_mode fallthrough (repl.py) shares identical timing
@@ -1263,9 +1248,7 @@ def _dispatch_via_profile(
         timeout_s=timeout_s,
         terminator=terminator,
         idle_gap_s=idle_gap_s,
-        on_drained_line=lambda line: host._record_async_event(
-            line, source="pre_send_drain"
-        ),
+        on_drained_line=lambda line: host._record_async_event(line, source="pre_send_drain"),
         wait=wait,
     )
     if rr["error"]:
@@ -1304,16 +1287,9 @@ def _dispatch_via_profile(
         meaningful = [ln for ln in collected if ln.strip()]
         if meaningful:
             preview = meaningful[0]
-            extra = (
-                f" (+{len(meaningful) - 1} more line(s))"
-                if len(meaningful) > 1
-                else ""
-            )
+            extra = f" (+{len(meaningful) - 1} more line(s))" if len(meaningful) > 1 else ""
             result = CmdResult.fail(
-                msg=(
-                    f"Expected no response from {name!r}, got: "
-                    f"{preview!r}{extra}"
-                ),
+                msg=(f"Expected no response from {name!r}, got: {preview!r}{extra}"),
                 value="\n".join(meaningful),
                 data={"unexpected_output": meaningful},
             )
@@ -1423,8 +1399,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     if verbose:
         print(
-            f"termapy --mcp: host built; cfg={cfg_path or '(none)'}, "
-            f"mcp_dir={host._mcp_dir}",
+            f"termapy --mcp: host built; cfg={cfg_path or '(none)'}, mcp_dir={host._mcp_dir}",
             file=sys.stderr,
         )
 

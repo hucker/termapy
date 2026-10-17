@@ -90,8 +90,7 @@ class TestAppExplore:
         actual_call_count = ctx.open_file.call_count
         expected_call_count = 2
         assert result.success, "ok"
-        assert actual_call_count == expected_call_count, \
-            "two distinct dirs -> two opens"
+        assert actual_call_count == expected_call_count, "two distinct dirs -> two opens"
         opened = {call.args[0] for call in ctx.open_file.call_args_list}
         assert state_dir in opened, "state dir was opened"
         assert config_dir in opened, "config dir was opened"
@@ -110,8 +109,9 @@ class TestAppExplore:
         actual_call_count = ctx.open_file.call_count
         expected_call_count = 1
         assert result.success, "ok"
-        assert actual_call_count == expected_call_count, \
+        assert actual_call_count == expected_call_count, (
             "deduped when state and config resolve to one path"
+        )
 
 
 # -- /app.list ---------------------------------------------------------------
@@ -153,7 +153,10 @@ class TestAppList:
             "the records are file_record's, so SIZE and UPDATED read as in every list"
         )
         assert [column.title for column in result.view.columns] == [
-            "NAME", "SIZE", "UPDATED", "FOLDER",
+            "NAME",
+            "SIZE",
+            "UPDATED",
+            "FOLDER",
         ], "the shared file columns, then FOLDER"
 
     def test_list_one_folder_is_the_title(self, monkeypatch, tmp_path, ctx):
@@ -196,8 +199,7 @@ class TestAppState:
         actual = "\n".join(ctx.lines)
         assert result.success, "ok"
         assert str(state_dir / "state.json") in actual, "full path printed"
-        assert result.value == str(state_dir / "state.json"), \
-            "value equals the path (scriptable)"
+        assert result.value == str(state_dir / "state.json"), "value equals the path (scriptable)"
 
     def test_dump_missing_file_is_empty_object(self, pin_app_dirs, ctx):
         """A missing state.json dumps as {} and succeeds rather than erroring."""

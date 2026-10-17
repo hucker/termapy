@@ -54,7 +54,7 @@ def template_to_regex(template: str) -> str:
     pattern_parts: list[str] = []
     pos = 0
     for m in re.finditer(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", template):
-        pattern_parts.append(re.escape(template[pos:m.start()]))
+        pattern_parts.append(re.escape(template[pos : m.start()]))
         pattern_parts.append(f"(?P<{m.group(1)}>.+?)")
         pos = m.end()
     pattern_parts.append(re.escape(template[pos:]))
@@ -62,7 +62,8 @@ def template_to_regex(template: str) -> str:
 
 
 def match_profile_command(
-    text: str, commands: dict[str, dict],
+    text: str,
+    commands: dict[str, dict],
 ) -> tuple[str, dict, dict[str, str]] | None:
     """Find the profile command that ``text`` invokes, if any.
 

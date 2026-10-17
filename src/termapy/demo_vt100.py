@@ -54,10 +54,10 @@ class FakeSerialVT100(FakeSerial):
         baudrate: Baud rate (cosmetic, like the base ``FakeSerial``).
     """
 
-    _W = 44                    # inner box width (chars)
-    _STATUS_DT = 0.25          # dashboard refresh interval (seconds)
-    _CALIB_DT = 0.12           # calibration progress step interval
-    _CALIB_STEP = 5            # percent added per calibration step
+    _W = 44  # inner box width (chars)
+    _STATUS_DT = 0.25  # dashboard refresh interval (seconds)
+    _CALIB_DT = 0.12  # calibration progress step interval
+    _CALIB_STEP = 5  # percent added per calibration step
 
     def __init__(self, baudrate: int = 115200) -> None:
         super().__init__(baudrate=baudrate, port="DEMO_VT100")
@@ -68,12 +68,12 @@ class FakeSerialVT100(FakeSerial):
         self._screen = "menu"
         self._sel = 0
         self._keybuf = bytearray()
-        self._frame_n = 0           # animation counter (status gauges)
+        self._frame_n = 0  # animation counter (status gauges)
         self._t0 = time.monotonic()
         self._last_frame = 0.0
-        self._motor = 40            # motor slider, percent
-        self._calib = 0             # calibration progress, percent
-        self._calib_drawn = False   # has the calib screen done its full draw?
+        self._motor = 40  # motor slider, percent
+        self._calib = 0  # calibration progress, percent
+        self._calib_drawn = False  # has the calib screen done its full draw?
 
     # -- serial.Serial overrides -------------------------------------------
 
@@ -263,7 +263,11 @@ class FakeSerialVT100(FakeSerial):
         for i, name in enumerate(_MENU_ITEMS):
             cell = f"  {'>' if i == self._sel else ' '} {name}".ljust(self._W)[: self._W]
             lines.append("|" + (_REVERSE + cell + _RESET if i == self._sel else cell) + "|")
-        lines += [self._row(""), self._box(), self._hint("Up/Down move   Enter select   Ctrl-] quit")]
+        lines += [
+            self._row(""),
+            self._box(),
+            self._hint("Up/Down move   Enter select   Ctrl-] quit"),
+        ]
         return lines
 
     def _status_lines(self) -> list[str]:
@@ -298,7 +302,9 @@ class FakeSerialVT100(FakeSerial):
         width = 18
         pos = round(pct / 100 * (width - 1))
         track_plain = "-" * pos + "O" + "-" * (width - 1 - pos)
-        track_col = f"{_GREEN}{'-' * pos}\x1b[1;37mO{_RESET}{_GREEN}{'-' * (width - 1 - pos)}{_RESET}"
+        track_col = (
+            f"{_GREEN}{'-' * pos}\x1b[1;37mO{_RESET}{_GREEN}{'-' * (width - 1 - pos)}{_RESET}"
+        )
         plain = f"  [{track_plain}]  {pct:3d}%  ->  {rpm:4d} rpm"
         colored = f"  [{track_col}]  {pct:3d}%  ->  {rpm:4d} rpm"
         return [

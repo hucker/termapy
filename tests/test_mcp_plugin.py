@@ -121,8 +121,12 @@ class TestMcpCatalog:
         params = {param["name"]: param for param in entry["params"]}
 
         # Assert
-        assert (params["key"]["positional"], params["key"]["rest"]) == (True, False), "given by place"
-        assert (params["value"]["positional"], params["value"]["rest"]) == (True, True), "runs to end of line"
+        assert (params["key"]["positional"], params["key"]["rest"]) == (True, False), (
+            "given by place"
+        )
+        assert (params["value"]["positional"], params["value"]["rest"]) == (True, True), (
+            "runs to end of line"
+        )
 
 
 # ── /mcp.info ──────────────────────────────────────────────────────────────
@@ -180,9 +184,7 @@ class TestMcpInfo:
         full = " ".join(t for t, _ in output)
         # Assert -- the destructive row is present and reads 0
         assert "destructive" in full, "destructive row present"
-        assert "destructive" in full and ": 0" in full, (
-            "no profile -> zero destructive commands"
-        )
+        assert "destructive" in full and ": 0" in full, "no profile -> zero destructive commands"
 
     def test_no_profile_omits_enabled_row(self, env):
         """No profile means no profile_enabled row, rather than a meaningless 0 of 0."""
@@ -192,43 +194,43 @@ class TestMcpInfo:
         full = " ".join(t for t, _ in output)
         # Assert -- "profile_enabled" row is suppressed when no profile loaded
         # so we don't render a meaningless "0 of 0" line
-        assert "profile_enabled" not in full, (
-            "no profile -> enabled row suppressed"
-        )
+        assert "profile_enabled" not in full, "no profile -> enabled row suppressed"
 
     def test_enabled_split_when_profile_has_drafts(self, env):
         """Disabled profile entries show as N of M with a drafts-pending-review count."""
         # Arrange -- seed profile with one enabled and two disabled entries
         eng, ctx, output = env
         ns = ctx.ns("active_profile")
-        ns.update({
-            "commands": {
-                "AT": {"help": "x", "enabled": True},
-                "RESET": {"help": "y", "enabled": False},
-                "ERASE": {"help": "z", "enabled": False},
-            },
-        })
+        ns.update(
+            {
+                "commands": {
+                    "AT": {"help": "x", "enabled": True},
+                    "RESET": {"help": "y", "enabled": False},
+                    "ERASE": {"help": "z", "enabled": False},
+                },
+            }
+        )
         # Act
         output.clear()
         eng.dispatch("mcp.info")
         full = " ".join(t for t, _ in output)
         # Assert -- explicit count + drafts-pending phrasing
         assert "1 of 3" in full, "shows enabled-of-total ratio"
-        assert "2 drafts pending review" in full, (
-            "calls out unreviewed entries explicitly"
-        )
+        assert "2 drafts pending review" in full, "calls out unreviewed entries explicitly"
 
     def test_enabled_split_all_enabled(self, env):
         """A profile with every entry enabled reads N of N, all enabled."""
         # Arrange -- profile with everything enabled (curated steady state)
         eng, ctx, output = env
         ns = ctx.ns("active_profile")
-        ns.update({
-            "commands": {
-                "AT": {"help": "x"},  # enabled defaults true
-                "AT+TEMP": {"help": "y", "enabled": True},
-            },
-        })
+        ns.update(
+            {
+                "commands": {
+                    "AT": {"help": "x"},  # enabled defaults true
+                    "AT+TEMP": {"help": "y", "enabled": True},
+                },
+            }
+        )
         # Act
         output.clear()
         eng.dispatch("mcp.info")
@@ -242,21 +244,21 @@ class TestMcpInfo:
         # Arrange -- seed an active profile with one destructive entry
         eng, ctx, output = env
         ns = ctx.ns("active_profile")
-        ns.update({
-            "commands": {
-                "AT+RESET": {"help": "x", "safety": "destructive"},
-                "AT": {"help": "y", "safety": "readonly"},
-            },
-        })
+        ns.update(
+            {
+                "commands": {
+                    "AT+RESET": {"help": "x", "safety": "destructive"},
+                    "AT": {"help": "y", "safety": "readonly"},
+                },
+            }
+        )
         # Act
         output.clear()
         eng.dispatch("mcp.info")
         # Assert
         full = " ".join(t for t, _ in output)
         assert "AT+RESET" in full, "destructive name surfaces in /mcp.info"
-        assert "1 (AT+RESET)" in full, (
-            "count + name list rendered exactly"
-        )
+        assert "1 (AT+RESET)" in full, "count + name list rendered exactly"
 
 
 # ── /mcp.log + subcommands ─────────────────────────────────────────────────
@@ -305,9 +307,7 @@ class TestMcpLog:
         assert result.success, "succeeds when file exists"
         full = " ".join(t for t, _ in output)
         assert "session.log" in full, "path printed"
-        assert "(not yet created)" not in full, (
-            "no absent-marker when file is there"
-        )
+        assert "(not yet created)" not in full, "no absent-marker when file is there"
 
     def test_log_dump_when_absent_fails_cleanly(self, env):
         """Dumping a missing log is a not-found error, not a crash or empty success."""

@@ -41,10 +41,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from release_prep import ARCHITECTURE_LINE_COUNTS, count_lines  # noqa: E402 -- path set above
 
 # Packages the tree opens, one row per module; any other package is one row.
-EXPANDED = frozenset({
-    "builtins", "builtins/commands", "devices", "devices/converters", "dialogs", "mcp",
-    "plugins", "profile", "protocol", "symbols", "symbols/converters", "usb", "widgets",
-})
+EXPANDED = frozenset(
+    {
+        "builtins",
+        "builtins/commands",
+        "devices",
+        "devices/converters",
+        "dialogs",
+        "mcp",
+        "plugins",
+        "profile",
+        "protocol",
+        "symbols",
+        "symbols/converters",
+        "usb",
+        "widgets",
+    }
+)
 
 # Entries that are not Python modules, so there is no docstring to read.
 NOTES = {
@@ -85,7 +98,11 @@ def describe(path: Path, key: str) -> str:
     if key in NOTES:
         return NOTES[key]
     source = path / "__init__.py" if path.is_dir() else path
-    doc = ast.get_docstring(ast.parse(source.read_text(encoding="utf-8"))) if source.is_file() else None
+    doc = (
+        ast.get_docstring(ast.parse(source.read_text(encoding="utf-8")))
+        if source.is_file()
+        else None
+    )
     summary = " ".join((doc or "").strip().split("\n\n")[0].split()).removesuffix(".")
     summary = _KIND_PREFIX.sub("", summary)
     # reST inline markup (``x``, :mod:`x`) reads as one backtick pair in both blocks.
@@ -101,12 +118,14 @@ def describe(path: Path, key: str) -> str:
 def _children(folder: Path, rel: str) -> list[Path]:
     """What the tree shows inside a folder: subpackages, then modules, each alphabetical."""
     folders = sorted(
-        path for path in folder.iterdir()
-        if path.is_dir() and not path.name.startswith(("_", "."))
+        path for path in folder.iterdir() if path.is_dir() and not path.name.startswith(("_", "."))
     )
     files = sorted(
-        path for path in folder.iterdir()
-        if path.is_file() and path.suffix in (".py", ".json") and not path.name.startswith("__")
+        path
+        for path in folder.iterdir()
+        if path.is_file()
+        and path.suffix in (".py", ".json")
+        and not path.name.startswith("__")
         # The command plugins' private helpers stay out, as the tree says.
         and not (rel == "builtins/commands" and path.name.startswith("_"))
     )
@@ -197,7 +216,9 @@ def main(argv: list[str] | None = None) -> int:
         print("ARCHITECTURE.md is in sync")
         return 0
     if args.check:
-        print("ARCHITECTURE.md has drifted from the docstrings; run: uv run python scripts/sync_architecture.py")
+        print(
+            "ARCHITECTURE.md has drifted from the docstrings; run: uv run python scripts/sync_architecture.py"
+        )
         return 1
     DOC.write_text(fresh, encoding="utf-8")
     print("ARCHITECTURE.md updated")

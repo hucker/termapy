@@ -52,7 +52,8 @@ def write_ico() -> Path:
     # flattens partial alpha and can leave a hard halo on
     # Windows Explorer thumbnails.
     base.save(
-        out, format="ICO",
+        out,
+        format="ICO",
         sizes=[(s, s) for s in ICO_SIZES],
         bitmap_format="png",
     )
@@ -74,7 +75,8 @@ def write_icns() -> Path:
 def write_png() -> Path:
     out = ICONS_DIR / "termapy.png"
     Image.open(io.BytesIO(render(PNG_SIZE))).convert("RGBA").save(
-        out, format="PNG",
+        out,
+        format="PNG",
     )
     return out
 

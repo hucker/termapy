@@ -94,16 +94,18 @@ A minimal plugin:
 ```python
 from termapy.plugins import CmdResult, Command, PluginContext
 
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Called when the user types /hello."""
     name = args.strip() or "world"
     ctx.io.result(f"Hello, {name}!")
     return CmdResult.ok(value=f"Hello, {name}!")
 
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="hello",
-    args="{name}",          # {braces} = optional, <angle> = required
+    args="{name}",  # {braces} = optional, <angle> = required
     help="Say hello.",
     handler=_handler,
 )
@@ -140,23 +142,23 @@ fields (`cfg`, `config_path`, `prefix`) and universal methods
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    if not ctx.cfg.get("encoding"):           # plain config (read-only)
+    if not ctx.cfg.get("encoding"):  # plain config (read-only)
         ...
-    ctx.io.result("Hello", "green")           # final answer (quiet+)
-    ctx.io.output("listing line")             # bulk data (normal+)
-    ctx.io.status("loading...")               # progress chatter (verbose only)
+    ctx.io.result("Hello", "green")  # final answer (quiet+)
+    ctx.io.output("listing line")  # bulk data (normal+)
+    ctx.io.status("loading...")  # progress chatter (verbose only)
 
-    with ctx.serial.io():                     # claim serial for sync read
+    with ctx.serial.io():  # claim serial for sync read
         ctx.serial.write(b"AT\r")
         resp = ctx.serial.read_raw()
 
-    folder = ensure_folder(ctx.fs.cap_dir)    # termapy.folders: data folders appear on first write
-    ctx.fs.open_file(folder / "out.csv")      # open in system viewer
+    folder = ensure_folder(ctx.fs.cap_dir)  # termapy.folders: data folders appear on first write
+    ctx.fs.open_file(folder / "out.csv")  # open in system viewer
 
-    ctx.ui.confirm("Sure?")                   # TUI-only dialog (gated)
+    ctx.ui.confirm("Sure?")  # TUI-only dialog (gated)
 
-    ctx.dispatch("/var.set X 5")              # re-route a command
-    ns = ctx.ns("my_plugin")                 # session-scoped storage (a dict)
+    ctx.dispatch("/var.set X 5")  # re-route a command
+    ns = ctx.ns("my_plugin")  # session-scoped storage (a dict)
     ns["counter"] = ns.get("counter", 0) + 1
     ctx.io.output(f"Usage: {ctx.prefix}foo")  # active REPL prefix (from cfg)
 
@@ -180,7 +182,8 @@ what your command needs:
 
 ```python
 COMMAND = Command(
-    name="ask", help="Prompt user.",
+    name="ask",
+    help="Prompt user.",
     needs=CapabilitySet(confirm_dialog=True),  # refuse to dispatch in CLI
     handler=_handler,
 )
@@ -238,6 +241,7 @@ _COLUMNS = (
     Column("NAME", lambda record: record["name"]),
     Column("TEMP", lambda record: f"{record['temp_c']:.1f}", right=True),
 )
+
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     records = [{"name": name, "temp_c": read_temp(name)} for name in sensors()]
@@ -299,9 +303,10 @@ returning a hand-written usage message:
 ```python
 from termapy.plugins import CmdResult, Command, PluginContext, UsageError
 
+
 def _handler(ctx: PluginContext, args: str):
     if not args.strip():
-        raise UsageError()                     # bare: just the usage line
+        raise UsageError()  # bare: just the usage line
     try:
         n = int(args)
     except ValueError:
@@ -339,19 +344,22 @@ synthesized from the same declaration:
 from termapy.plugins import CmdResult, Command, PluginContext
 from termapy.plugins.params import ParamSpec
 
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    count = ctx.arg("count")            # already an int, range-checked
-    delay = ctx.arg("delay")            # a duration in seconds
+    count = ctx.arg("count")  # already an int, range-checked
+    delay = ctx.arg("delay")  # a duration in seconds
     ...
     return CmdResult.ok(value=count)
+
 
 COMMAND = Command(
     name="blink",
     help="Blink the LED.",
     handler=_handler,
     params=[
-        ParamSpec("count", "int", positional=True, required=True, min=1, max=100,
-                  help="how many blinks"),
+        ParamSpec(
+            "count", "int", positional=True, required=True, min=1, max=100, help="how many blinks"
+        ),
         ParamSpec("delay", "duration", default=0.5, help="gap between blinks"),
     ],
 )
@@ -374,7 +382,7 @@ COMMAND = Command(
     args="<filename>",
     help="Replay a capture.",
     handler=_handler,
-    files="cap",    # a folders.FOLDERS name: run, proto, cap, ...
+    files="cap",  # a folders.FOLDERS name: run, proto, cap, ...
 )
 ```
 
@@ -390,17 +398,18 @@ argument as a flip.
 ```python
 from termapy.scripting import SETTING_QUERY, SETTING_TOGGLE, parse_bool_setting
 
+
 def _handler(ctx, args):
     try:
         action = parse_bool_setting(args)
-    except ValueError as e:                  # unrecognized -> error, not a flip
-        return CmdResult.fail(msg=str(e))    # "Invalid value: X (use on/off/... or toggle)"
+    except ValueError as e:  # unrecognized -> error, not a flip
+        return CmdResult.fail(msg=str(e))  # "Invalid value: X (use on/off/... or toggle)"
     flags = ctx.ns("flags")
-    if action is SETTING_QUERY:               # bare: show, don't mutate
+    if action is SETTING_QUERY:  # bare: show, don't mutate
         pass
-    elif action is SETTING_TOGGLE:            # the explicit `toggle` verb
+    elif action is SETTING_TOGGLE:  # the explicit `toggle` verb
         flags["myflag"] = not flags.get("myflag", False)
-    else:                                     # a bool token: set
+    else:  # a bool token: set
         flags["myflag"] = action
     state = "on" if flags.get("myflag") else "off"
     ctx.io.result(state)
@@ -425,10 +434,7 @@ def _dynamic_long_help(ctx):
     commands = profile.get("commands") or {}
     if commands:
         rev = profile.get("profile_revision") or "(none)"
-        state = (
-            f"Active profile: {len(commands)} device command(s) "
-            f"(rev {rev})."
-        )
+        state = f"Active profile: {len(commands)} device command(s) (rev {rev})."
     else:
         state = "No profile loaded."
     return f"""{state}
@@ -436,10 +442,11 @@ def _dynamic_long_help(ctx):
 Load a device profile with /profile.load <path>, or fetch one from
 the connected device with /profile.load cmd=<command>."""
 
+
 COMMAND = Command(
     name="profile",
     help="Device profile commands.",
-    long_help=_dynamic_long_help,   # a function, not a string
+    long_help=_dynamic_long_help,  # a function, not a string
     handler=_handler,
 )
 ```
@@ -467,14 +474,15 @@ output is green-on-default and uniform across every command.
 
 ```python
 from termapy.help_dynamic import (
-    state_line,   # "Current <label> = <value>" in green
+    state_line,  # "Current <label> = <value>" in green
     folder_line,  # "<N> files in <folder>/" in green
     port_status,  # "Connected: COM3 @ 115200 8N1" or "Not connected."
-    cfg_status,   # "Active cfg = demo (2 configs available)"
-    ns_count,     # len(ctx.ns(name)), guards a missing ns
-    compose,      # join non-empty parts with a blank line between
-    green,        # any text as a green state line, escaped
+    cfg_status,  # "Active cfg = demo (2 configs available)"
+    ns_count,  # len(ctx.ns(name)), guards a missing ns
+    compose,  # join non-empty parts with a blank line between
+    green,  # any text as a green state line, escaped
 )
+
 
 def _long_help(ctx):
     return compose(
@@ -504,10 +512,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     encoding = ctx.cfg.get("encoding", "utf-8")
     eol = ctx.cfg.get("eol", "\r")
 
-    with ctx.serial.io():                # suppress terminal, claim serial
-        ctx.serial.drain()               # discard stale bytes
+    with ctx.serial.io():  # suppress terminal, claim serial
+        ctx.serial.drain()  # discard stale bytes
         ctx.serial.write(f"YOUR_COMMAND{eol}".encode(encoding))
-        raw = ctx.serial.read_raw()      # read response with timeout
+        raw = ctx.serial.read_raw()  # read response with timeout
         text = raw.decode(encoding, errors="replace").strip()
 
     ctx.io.result(text)
@@ -527,7 +535,8 @@ handler runs when the port is down:
 
 ```python
 COMMAND = Command(
-    name="hello", help="Say hello to the device.",
+    name="hello",
+    help="Say hello to the device.",
     needs=CapabilitySet.SERIAL_CONNECTED,
     handler=_handler,
 )
@@ -558,6 +567,7 @@ for display (`01 0A FF`), `data.hex().upper()` for a scriptable value.
 ```python
 from termapy.protocol import format_hex, parse_data
 
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     try:
         data = parse_data(args)
@@ -579,14 +589,20 @@ protocol parsing, or USB chip lookup.  Each is self-contained
 # Device profile schema, loader, type registry (validate typed args,
 # resolve profile-local types, walk a v2 profile dict).
 from termapy.profile import (
-    TypeRegistry, load_profile, validate_profile, profile_command_view,
+    TypeRegistry,
+    load_profile,
+    validate_profile,
+    profile_command_view,
 )
 
 # Binary protocol toolkit (format-spec parser, CRC catalog, .pro runner,
 # visualizer loader).  See protocol-testing.md for the format-spec
 # language and serial-tools.md for the CRC catalog.
 from termapy.protocol import (
-    parse_format_spec, apply_format, FrameCollector, get_crc_registry,
+    parse_format_spec,
+    apply_format,
+    FrameCollector,
+    get_crc_registry,
 )
 
 # USB lookup tables (VID -> vendor, VID:PID -> chip + max baud,
@@ -719,7 +735,7 @@ COMMAND = Command(
     name="tool",
     help="A tool with subcommands.",
     sub_commands={
-        "run":    Command(args="<file>", help="Run.", handler=_run),
+        "run": Command(args="<file>", help="Run.", handler=_run),
         "status": Command(help="Show status.", handler=_status),
     },
 )

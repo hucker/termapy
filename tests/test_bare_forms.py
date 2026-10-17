@@ -63,9 +63,11 @@ def test_an_argument_reaches_the_handler_not_the_picker(engine_with_pickers):
 
 def _probe(calls: list[str]) -> PluginInfo:
     """A picker= command whose handler records each call it receives."""
+
     def _handler(ctx, args: str) -> CmdResult:
         calls.append(args)
         return CmdResult.ok(value="handler")
+
     return PluginInfo(name="probe", args="{x}", help="h", handler=_handler, picker="run")
 
 
@@ -102,12 +104,20 @@ def test_with_pickers_the_handler_never_sees_a_bare_call(engine_with_pickers):
 
 def _probe_with_list(calls: list[str]) -> list[PluginInfo]:
     """/probe (picker="run", bare_sub="list") and its /probe.list, which records each run."""
+
     def _handler_list(ctx, args: str) -> CmdResult:
         calls.append("list")
         return CmdResult.ok(value="listed")
+
     return [
-        PluginInfo(name="probe", args="{x}", help="h", handler=lambda ctx, args: CmdResult.ok(value=""),
-                   picker="run", bare_sub="list"),
+        PluginInfo(
+            name="probe",
+            args="{x}",
+            help="h",
+            handler=lambda ctx, args: CmdResult.ok(value=""),
+            picker="run",
+            bare_sub="list",
+        ),
         PluginInfo(name="probe.list", args="", help="h", handler=_handler_list),
     ]
 

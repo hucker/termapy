@@ -59,8 +59,13 @@ class _StubHost(TerminalHost):
 @pytest.fixture
 def host(tmp_path):
     """Create a _StubHost with mocked engines."""
-    cfg = {"port": "COM99", "baud_rate": 115200, "eol": "\r",
-           "encoding": "utf-8", "cmd_prefix": "/"}
+    cfg = {
+        "port": "COM99",
+        "baud_rate": 115200,
+        "eol": "\r",
+        "encoding": "utf-8",
+        "cmd_prefix": "/",
+    }
     config_path = tmp_path / "test_cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
@@ -157,8 +162,9 @@ class TestBuildInternalHandle:
         api = host._build_internal_handle()
 
         # Assert
-        assert api.script_stop_event is host.repl._script_stop, \
+        assert api.script_stop_event is host.repl._script_stop, (
             "script_stop_event is repl's stop event"
+        )
 
 
 # -- _build_plugin_context ---------------------------------------------------
@@ -246,6 +252,7 @@ class TestBuildPluginContext:
         api = host._build_internal_handle()
         ctx = host._build_plugin_context(api)
         from termapy.plugins import CapabilitySet
+
         ctx.capabilities = CapabilitySet(confirm_dialog=True)
         ctx.ui.capabilities = ctx.capabilities
 
@@ -420,7 +427,6 @@ class TestSerialIO:
         host.engine.serial_port.write.assert_called_once_with(expected)
 
 
-
 # -- _dispatch ---------------------------------------------------------------
 
 
@@ -433,7 +439,10 @@ class TestDispatch:
         host.repl.set_context(host.ctx)
         host._init_flags()  # echo state irrelevant to this delegation test
         host.repl.register_hook(
-            "ping", "", "test", lambda ctx, args: CmdResult.ok(value="pong"),
+            "ping",
+            "",
+            "test",
+            lambda ctx, args: CmdResult.ok(value="pong"),
             source="test",
         )
 
@@ -502,8 +511,9 @@ class TestCapture:
 
         # Assert
         assert actual is True, "returns True on success"
-        assert any("Capture started" in status_msg for status_msg in host._status_msgs), \
+        assert any("Capture started" in status_msg for status_msg in host._status_msgs), (
             "shows started message"
+        )
 
     def test_stop_delegates_message_to_on_complete(self, host):
         """_stop_capture emits no completion line itself; on_complete owns it, so none doubles."""
@@ -520,8 +530,9 @@ class TestCapture:
 
         # Assert
         host.capture.stop.assert_called_once()
-        assert not any("Capture complete" in status_msg for status_msg in host._status_msgs), \
+        assert not any("Capture complete" in status_msg for status_msg in host._status_msgs), (
             "_stop_capture must not emit the message (on_complete owns it)"
+        )
 
     def test_stop_no_result(self, host):
         """Stopping when the engine returns no result produces no status message."""
@@ -612,7 +623,9 @@ class TestLogDelete:
         """Run /log.delete's handler against ``host``'s real handle wiring."""
         from termapy.builtins.commands.log import _handler_delete
 
-        logging_host = _LoggingHost(host.cfg, host.config_path, host.engine, host.repl, host.capture)
+        logging_host = _LoggingHost(
+            host.cfg, host.config_path, host.engine, host.repl, host.capture
+        )
         logging_host.log_file = log_file
         ctx = logging_host._build_plugin_context(logging_host._build_internal_handle())
         return logging_host, _handler_delete(ctx, "")

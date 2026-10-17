@@ -183,9 +183,7 @@ class TestFileDates:
         # (padded name "a.run     " then "  <size>  <created>  <modified>").
         file_line = actual[1]
         assert "a.run     " in file_line, f"name padded to width 10: {file_line!r}"
-        assert " B" in file_line or " KB" in file_line, (
-            f"size column appended: {file_line!r}"
-        )
+        assert " B" in file_line or " KB" in file_line, f"size column appended: {file_line!r}"
 
     def test_no_file_dates_omits_padding(self):
         """Without file_dates, name_width is ignored and names carry no padding."""

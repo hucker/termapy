@@ -155,9 +155,7 @@ def parse_response(
 # ── Per-format implementations ───────────────────────────────────────────────
 
 
-def _parse_regex(
-    text: str, pattern: str, types: dict[str, str] | None
-) -> Any:
+def _parse_regex(text: str, pattern: str, types: dict[str, str] | None) -> Any:
     """Apply ``re.search`` and return a typed shape based on group structure."""
     if not pattern:
         return None

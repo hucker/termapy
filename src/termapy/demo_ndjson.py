@@ -309,14 +309,10 @@ class FakeSerialNDJSON:
         except json.JSONDecodeError as e:
             # Malformed input: respond with an error.  No id available
             # so the bridge will route this as an async error.
-            self._output_buf.extend(
-                _line({"error": f"invalid json: {e}", "code": -2})
-            )
+            self._output_buf.extend(_line({"error": f"invalid json: {e}", "code": -2}))
             return
         if not isinstance(req, dict):
-            self._output_buf.extend(
-                _line({"error": "request must be a JSON object", "code": -3})
-            )
+            self._output_buf.extend(_line({"error": "request must be a JSON object", "code": -3}))
             return
         response = self._dispatch_request(req)
         if response is not None:

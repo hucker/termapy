@@ -43,9 +43,7 @@ class TestParseHelpers:
         # Act / Assert -- hex with and without 0x prefix
         assert _parse_int_value("0x1021", "poly") == 0x1021, "0x-prefixed"
         assert _parse_int_value("0X1021", "poly") == 0x1021, "0X-prefixed"
-        assert _parse_int_value("0xFFFFFFFF", "xorout") == 0xFFFFFFFF, (
-            "0x-prefixed full-width"
-        )
+        assert _parse_int_value("0xFFFFFFFF", "xorout") == 0xFFFFFFFF, "0x-prefixed full-width"
 
     def test_parse_int_invalid(self):
         """A non-numeric token raises ``Invalid <key>: <value>`` from the shared number reader, never a default."""
@@ -58,9 +56,7 @@ class TestParseHelpers:
         # explicit symbol= is given; verify the helper produces the
         # basename of common path shapes.
         # Act / Assert
-        assert _symbol_from_stem("c:/tmp/my_crc") == "my_crc", (
-            "absolute path stem -> basename"
-        )
+        assert _symbol_from_stem("c:/tmp/my_crc") == "my_crc", "absolute path stem -> basename"
         assert _symbol_from_stem("out/sub/my-crc") == "my_crc", (
             "relative path with dashes -> sanitized basename"
         )
@@ -91,6 +87,7 @@ class TestPythonSlice8Fallback:
         path, IOHandle with capturing _write callbacks for output().
         """
         from termapy.plugins import IOHandle, PluginContext
+
         captured: list[tuple[str, str]] = []
         captured_markup: list[str] = []
 
@@ -110,6 +107,7 @@ class TestPythonSlice8Fallback:
         """Python --slice8 emits a note plus table-driven code with no slice tables."""
         # Arrange
         from termapy.builtins.commands.proto import _crc_codegen
+
         ctx, captured, captured_markup = self._build_stub_ctx()
         ctx.active_flags = {"--slice8": True}
 
@@ -120,8 +118,7 @@ class TestPythonSlice8Fallback:
         assert result.success, f"handler should succeed, got {result.error!r}"
         note_msgs = [t for t, _color in captured if "slice8" in t.lower()]
         assert note_msgs, (
-            f"fallback note about --slice8 should appear in output; "
-            f"got captured={captured}"
+            f"fallback note about --slice8 should appear in output; got captured={captured}"
         )
         # The emitted code should be table-driven (a 256-entry lookup
         # table), NOT slice-by-8 (would contain CRC_SLICE_TABLES).
@@ -134,14 +131,13 @@ class TestPythonSlice8Fallback:
             "Python slice8 fallback should emit table-driven code "
             "(no Python slice-by-8 implementation exists)"
         )
-        assert "SLICE" not in emitted.upper(), (
-            "Python fallback must NOT emit slice-by-8 code"
-        )
+        assert "SLICE" not in emitted.upper(), "Python fallback must NOT emit slice-by-8 code"
 
     def test_python_slice8_with_table_is_rejected(self):
         """--slice8 with --table is a mutual-exclusion error, checked before the fallback."""
         # Arrange
         from termapy.builtins.commands.proto import _crc_codegen
+
         ctx, _captured, _markup = self._build_stub_ctx()
         ctx.active_flags = {"--slice8": True, "--table": True}
 
@@ -170,6 +166,7 @@ class TestCustomParamsDispatch:
 
     def _build_stub_ctx(self):
         from termapy.plugins import IOHandle, PluginContext
+
         captured: list[tuple[str, str]] = []
         captured_markup: list[str] = []
 
@@ -190,20 +187,18 @@ class TestCustomParamsDispatch:
         # Arrange -- C output (tuple result) to stdout exercises the
         # banner path that referenced the formerly-unbound ``name``.
         from termapy.builtins.commands.proto import _crc_codegen
+
         ctx, _captured, captured_markup = self._build_stub_ctx()
 
         # Act -- crc16-ccitt params via the custom path, no file=.
         result = _crc_codegen(
             ctx,
-            "width=16 poly=0x1021 init=0xFFFF refin=true refout=true "
-            "xorout=0x0000 name=mycrc",
+            "width=16 poly=0x1021 init=0xFFFF refin=true refout=true xorout=0x0000 name=mycrc",
             "c",
         )
 
         # Assert
-        assert result.success, (
-            f"custom-params C/stdout should succeed, got {result.error!r}"
-        )
+        assert result.success, f"custom-params C/stdout should succeed, got {result.error!r}"
         emitted = "".join(captured_markup)
         assert "mycrc" in emitted, (
             f"custom name should appear in generated C; got {emitted[:200]!r}"
@@ -213,6 +208,7 @@ class TestCustomParamsDispatch:
         """refin=maybe fails with the one reader's message under the Custom CRC prefix; leaving refin out means False."""
         # Arrange
         from termapy.builtins.commands.proto import _crc_codegen
+
         ctx, _captured, _markup = self._build_stub_ctx()
 
         # Act
@@ -231,22 +227,19 @@ class TestCustomParamsDispatch:
         # Arrange -- Python output (string result) confirms the
         # AlgorithmInfo handoff to *_from_entry works.
         from termapy.builtins.commands.proto import _crc_codegen
+
         ctx, _captured, captured_markup = self._build_stub_ctx()
 
         # Act
         result = _crc_codegen(
             ctx,
-            "width=16 poly=0x8005 init=0xFFFF refin=true refout=true "
-            "xorout=0x0000 name=cust16",
+            "width=16 poly=0x8005 init=0xFFFF refin=true refout=true xorout=0x0000 name=cust16",
             "python",
         )
 
         # Assert
-        assert result.success, (
-            f"custom-params Python should succeed, got {result.error!r}"
-        )
+        assert result.success, f"custom-params Python should succeed, got {result.error!r}"
         emitted = "".join(captured_markup)
         assert "cust16" in emitted, (
-            f"custom name should appear in generated Python; "
-            f"got {emitted[:200]!r}"
+            f"custom name should appear in generated Python; got {emitted[:200]!r}"
         )

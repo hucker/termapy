@@ -20,10 +20,17 @@ from termapy.defaults import DEFAULT_CFG
 pytestmark = pytest.mark.slow  # subprocess + tempfile config-switching tests
 
 
-_SERIAL_KEYS = frozenset({
-    "port", "baud_rate", "custom_baud", "byte_size",
-    "parity", "stop_bits", "flow_control",
-})
+_SERIAL_KEYS = frozenset(
+    {
+        "port",
+        "baud_rate",
+        "custom_baud",
+        "byte_size",
+        "parity",
+        "stop_bits",
+        "flow_control",
+    }
+)
 
 
 def _write_cfg(cfg_dir: Path, name: str, cfg_overrides: dict) -> Path:
@@ -37,12 +44,8 @@ def _write_cfg(cfg_dir: Path, name: str, cfg_overrides: dict) -> Path:
     """
     proj = cfg_dir / name
     proj.mkdir(parents=True, exist_ok=True)
-    serial_overrides = {
-        k: cfg_overrides[k] for k in cfg_overrides if k in _SERIAL_KEYS
-    }
-    top_overrides = {
-        k: v for k, v in cfg_overrides.items() if k not in _SERIAL_KEYS
-    }
+    serial_overrides = {k: cfg_overrides[k] for k in cfg_overrides if k in _SERIAL_KEYS}
+    top_overrides = {k: v for k, v in cfg_overrides.items() if k not in _SERIAL_KEYS}
     default_serial = DEFAULT_CFG["serial"]
     assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
     cfg = {
@@ -71,7 +74,8 @@ def _run_zero_config(
 
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; sys.argv = ["
             "'termapy', '--cli', "
             f"'--cfg-dir', {str(tmp)!r}, "
@@ -117,7 +121,8 @@ class TestCfgLoadFromZeroConfig:
         tmp_run.write_text("/cfg.load proj\n/cfg port\n")
         result = subprocess.run(
             [
-                sys.executable, "-c",
+                sys.executable,
+                "-c",
                 "import sys; sys.argv = ["
                 "'termapy', 'bootstrap', '--cli', "
                 f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -134,8 +139,7 @@ class TestCfgLoadFromZeroConfig:
 
         # Assert
         assert result.returncode == 0, (
-            f"exit cleanly, got {result.returncode}. "
-            f"stderr: {result.stderr!r}"
+            f"exit cleanly, got {result.returncode}. stderr: {result.stderr!r}"
         )
         assert "Loaded config: proj" in result.stdout, (
             f"/cfg.load must announce success; stdout: {result.stdout!r}"
@@ -153,7 +157,8 @@ class TestCfgLoadFromZeroConfig:
         tmp_run.write_text("/cfg.load nonexistent_project\n/echo continued\n")
         result = subprocess.run(
             [
-                sys.executable, "-c",
+                sys.executable,
+                "-c",
                 "import sys; sys.argv = ["
                 "'termapy', 'bootstrap', '--cli', "
                 f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -170,16 +175,10 @@ class TestCfgLoadFromZeroConfig:
 
         # Assert -- script continues after the failure.
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
-        assert (
-            "No config matching" in result.stdout
-            or "No config matching" in result.stderr
-        ), (
-            f"unknown-name should produce a clear error. "
-            f"stdout: {result.stdout!r}"
+        assert "No config matching" in result.stdout or "No config matching" in result.stderr, (
+            f"unknown-name should produce a clear error. stdout: {result.stdout!r}"
         )
-        assert "continued" in result.stdout, (
-            "REPL continues after /cfg.load failure"
-        )
+        assert "continued" in result.stdout, "REPL continues after /cfg.load failure"
 
     def test_load_without_name_errors(self, tmp_path):
         """A bare /cfg.load shows usage instead of loading anything; the script continues."""
@@ -193,7 +192,8 @@ class TestCfgLoadFromZeroConfig:
         tmp_run.write_text("/cfg.load\n/echo continued\n")
         result = subprocess.run(
             [
-                sys.executable, "-c",
+                sys.executable,
+                "-c",
                 "import sys; sys.argv = ["
                 "'termapy', 'bootstrap', '--cli', "
                 f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -217,9 +217,7 @@ class TestCfgLoadFromZeroConfig:
         assert "Usage:" in combined or "usage" in combined.lower(), (
             f"empty name must show usage. combined: {combined!r}"
         )
-        assert "continued" in result.stdout, (
-            "REPL continues after /cfg.load failure"
-        )
+        assert "continued" in result.stdout, "REPL continues after /cfg.load failure"
 
 
 class TestCfgLoadSwitchesPortContext:
@@ -237,14 +235,11 @@ class TestCfgLoadSwitchesPortContext:
 
         # Act
         tmp_run = tmp_path / "switch.run"
-        tmp_run.write_text(
-            "/cfg baud_rate\n"
-            "/cfg.load fast\n"
-            "/cfg baud_rate\n"
-        )
+        tmp_run.write_text("/cfg baud_rate\n/cfg.load fast\n/cfg baud_rate\n")
         result = subprocess.run(
             [
-                sys.executable, "-c",
+                sys.executable,
+                "-c",
                 "import sys; sys.argv = ["
                 "'termapy', 'slow', '--cli', "
                 f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -268,6 +263,5 @@ class TestCfgLoadSwitchesPortContext:
         assert idx_slow >= 0, f"9600 (slow cfg) should appear; stdout: {result.stdout!r}"
         assert idx_fast >= 0, f"115200 (fast cfg) should appear; stdout: {result.stdout!r}"
         assert idx_slow < idx_fast, (
-            "9600 should appear before 115200 (pre-load vs post-load). "
-            f"stdout: {result.stdout!r}"
+            f"9600 should appear before 115200 (pre-load vs post-load). stdout: {result.stdout!r}"
         )

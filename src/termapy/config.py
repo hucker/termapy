@@ -94,6 +94,7 @@ def _os_default_cfg_dir() -> Path:
     Linux:   ~/.config/termapy (XDG_CONFIG_HOME respected)
     """
     import platform
+
     system = platform.system()
     if system == "Windows":
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
@@ -121,9 +122,7 @@ def cfg_dir() -> Path:
                 f"(has extension '{d.suffix}'). Use --cfg-dir for directories."
             )
         if not d.exists():
-            raise SystemExit(
-                f"termapy: config directory does not exist: {d.resolve()}"
-            )
+            raise SystemExit(f"termapy: config directory does not exist: {d.resolve()}")
         return d
 
     # 2. Environment variable
@@ -131,9 +130,7 @@ def cfg_dir() -> Path:
     if env:
         d = Path(env)
         if not d.exists():
-            raise SystemExit(
-                f"termapy: TERMAPY_CFG_DIR does not exist: {d.resolve()}"
-            )
+            raise SystemExit(f"termapy: TERMAPY_CFG_DIR does not exist: {d.resolve()}")
         return d
 
     # 3. Local termapy_cfg/ in cwd (check, never create)
@@ -341,9 +338,7 @@ def rename_config(config_path: str, new_name: str) -> str:
     return str(new_path)
 
 
-def connection_string(
-    cfg: dict, level: str = "medium", actual_port: str = ""
-) -> str:
+def connection_string(cfg: dict, level: str = "medium", actual_port: str = "") -> str:
     """Format connection info from config at different detail levels.
 
     Args:
@@ -391,9 +386,14 @@ def hardware_signals(port_obj: object) -> str:
     """
     try:
         parts = []
-        for name, attr in [("DTR", "dtr"), ("RTS", "rts"),
-                           ("CTS", "cts"), ("DSR", "dsr"),
-                           ("RI", "ri"), ("CD", "cd")]:
+        for name, attr in [
+            ("DTR", "dtr"),
+            ("RTS", "rts"),
+            ("CTS", "cts"),
+            ("DSR", "dsr"),
+            ("RI", "ri"),
+            ("CD", "cd"),
+        ]:
             parts.append(f"{name}={int(getattr(port_obj, attr, 0))}")
         return " ".join(parts)
     except (OSError, Exception):  # noqa: BLE001 -- boundary: any backend's modem-line read; the banner omits the signals
@@ -535,6 +535,7 @@ def expand_env_str(text: str) -> str:
     Returns:
         String with known placeholders replaced.
     """
+
     def _replace(m: re.Match) -> str:
         val = os.environ.get(m.group(1))
         if val is not None:
@@ -542,6 +543,7 @@ def expand_env_str(text: str) -> str:
         if m.group(2) is not None:
             return m.group(2)
         return m.group(0)
+
     return _ENV_RE.sub(_replace, text)
 
 
@@ -594,22 +596,25 @@ def _default_at(path: tuple[str, ...]) -> Any:
 
 
 def _expand_bool_value(
-    path: tuple[str, ...], raw: str, expanded: str, warnings: list[str] | None,
+    path: tuple[str, ...],
+    raw: str,
+    expanded: str,
+    warnings: list[str] | None,
 ) -> bool:
     """A templated boolean key: unresolved falls back to the default, loudly; anything else is read with the vocabulary."""
     dotted = ".".join(path)
     if "$(env." in expanded:
         default = _default_at(path)
         if warnings is not None:
-            warnings.append(
-                f"{dotted}: {raw} did not resolve; using default {json.dumps(default)}"
-            )
+            warnings.append(f"{dotted}: {raw} did not resolve; using default {json.dumps(default)}")
         return default
     return parse_bool(expanded, what=dotted)
 
 
 def expand_env_cfg(
-    cfg: dict, warnings: list[str] | None = None, _path: tuple[str, ...] = (),
+    cfg: dict,
+    warnings: list[str] | None = None,
+    _path: tuple[str, ...] = (),
 ) -> dict:
     """Expand $(env.NAME) in string values of a config dict, recursively.
 
@@ -685,6 +690,7 @@ def validate_config(cfg: dict) -> list[str]:
             # upgrade hint and suppress the per-key spam.
             from_future = True
             from termapy.install_info import upgrade_command
+
             warnings.append(
                 f"cfg was created by a newer termapy "
                 f"(config_version {ver} > {CURRENT_CONFIG_VERSION}).  "
@@ -694,9 +700,7 @@ def validate_config(cfg: dict) -> list[str]:
         else:
             # Older cfg -- migrate_config() will bring it forward
             # automatically; the warning is just informational.
-            warnings.append(
-                f"config_version: {ver} (current is {CURRENT_CONFIG_VERSION})"
-            )
+            warnings.append(f"config_version: {ver} (current is {CURRENT_CONFIG_VERSION})")
 
     # Unknown / deprecated keys (skip internal keys starting with _).
     # Skipped entirely when the cfg is from a newer termapy: the
@@ -727,8 +731,7 @@ def validate_config(cfg: dict) -> list[str]:
             warnings.append(f"serial.port: expected str, got {type(p).__name__}")
         elif p == "":
             warnings.append(
-                "serial.port: must not be empty "
-                "(use a device name, USB serial number, or 'DEMO')"
+                "serial.port: must not be empty (use a device name, USB serial number, or 'DEMO')"
             )
 
     # An on-connect field is one command (v30).  A line break means a
@@ -815,9 +818,7 @@ def _check_set(
         return
     label = f"{key_prefix}{key}"
     if not isinstance(val, expected_type):
-        warnings.append(
-            f"{label}: expected {_type_name(expected_type)}, got {type(val).__name__}"
-        )
+        warnings.append(f"{label}: expected {_type_name(expected_type)}, got {type(val).__name__}")
         return
     if val not in valid:
         warnings.append(f"{label}: invalid value {val!r}, expected one of {sorted(valid)}")
@@ -930,9 +931,7 @@ def load_config(path: str) -> dict:
         try:
             cfg = json.load(f)
         except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Invalid JSON at line {e.lineno}, column {e.colno}: {e.msg}"
-            ) from e
+            raise ValueError(f"Invalid JSON at line {e.lineno}, column {e.colno}: {e.msg}") from e
 
     # Run migrations before applying defaults
     old_version = cfg.get("config_version", 0)
@@ -1272,7 +1271,17 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     # Copy run scripts
     run_dir = ensure_folder(demo_dir / "run")
     run_pkg = pkg / "run"
-    for name in ("welcome.run", "at_demo.run", "gps_demo.run", "smoke_test.run", "status_check.run", "var_demo.run", "expect_test.run", "doc_screenshots.run", "crc_tour.run"):
+    for name in (
+        "welcome.run",
+        "at_demo.run",
+        "gps_demo.run",
+        "smoke_test.run",
+        "status_check.run",
+        "var_demo.run",
+        "expect_test.run",
+        "doc_screenshots.run",
+        "crc_tour.run",
+    ):
         dest = run_dir / name
         if force or not dest.exists():
             src = run_pkg / name

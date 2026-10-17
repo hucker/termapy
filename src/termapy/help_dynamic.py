@@ -87,6 +87,7 @@ def compose(*parts: str | None) -> str:
 # Filesystem helpers -- per-config folder inspection.
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def folder_dir(ctx: _Ctx, kind: str) -> Path | None:
     """Return the Path for a per-config folder by ``folders.py`` name.
 
@@ -160,6 +161,7 @@ def folder_line(ctx: _Ctx, kind: str, noun: str | None = None) -> str:
 # Port helpers -- read live pyserial state safely.
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _serial_attr(ctx: _Ctx, name: str) -> Any:
     """Look up a name on ctx.serial, falling back to ctx (for test fakes)."""
     serial = getattr(ctx, "serial", None)
@@ -227,6 +229,7 @@ def port_status(ctx: _Ctx) -> str:
 # Config helpers -- active cfg + total count under termapy_cfg/.
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def cfg_name(ctx: _Ctx) -> str:
     """Return the active config's short name (the directory stem).
 
@@ -255,8 +258,7 @@ def cfg_count(ctx: _Ctx) -> int:
         return 0
     try:
         return sum(
-            1 for sub in root.iterdir()
-            if sub.is_dir() and (sub / f"{sub.name}.cfg").is_file()
+            1 for sub in root.iterdir() if sub.is_dir() and (sub / f"{sub.name}.cfg").is_file()
         )
     except OSError:
         return 0
@@ -279,6 +281,7 @@ def cfg_status(ctx: _Ctx) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # Namespace helpers -- counts from ``ctx.ns(...)`` dicts.
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def ns_count(ctx: _Ctx, name: str) -> int:
     """Return ``len(ctx.ns(name))``, or 0 when ``ctx`` has no ``ns``."""

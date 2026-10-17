@@ -57,9 +57,20 @@ SYMBOLS_VERSION: Final[int] = 1
 
 # Scalar type tokens a symbol's ``type`` may carry; anything else must be a
 # format spec (``protocol.core.parse_format_spec``).
-SCALAR_TYPES: Final[frozenset[str]] = frozenset({
-    "u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64", "f32", "f64",
-})
+SCALAR_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+        "f32",
+        "f64",
+    }
+)
 
 _ENDIANS: Final[tuple[str, ...]] = ("le", "be")
 
@@ -201,9 +212,16 @@ class Symbol:
         if access not in ("rw", "ro", "wo"):
             raise ValueError(f"{where}.access: expected rw, ro or wo")
         return cls(
-            name, addr, size, texts["section"],
-            file=texts["file"], type=texts["type"], space=texts["space"],
-            rmw=flags["rmw"], access=access, read_effect=flags["read_effect"],
+            name,
+            addr,
+            size,
+            texts["section"],
+            file=texts["file"],
+            type=texts["type"],
+            space=texts["space"],
+            rmw=flags["rmw"],
+            access=access,
+            read_effect=flags["read_effect"],
         )
 
 
@@ -294,7 +312,8 @@ class SymbolTable:
                 (``{"mtime": float, "size": int}``), or None.
         """
         self.symbols: list[Symbol] = sorted(
-            symbols, key=lambda symbol: (symbol.addr, symbol.size, symbol.name),
+            symbols,
+            key=lambda symbol: (symbol.addr, symbol.size, symbol.name),
         )
         self._addrs: list[int] = [symbol.addr for symbol in self.symbols]
         self.path = path
@@ -359,8 +378,10 @@ class SymbolTable:
         if not file:
             return hits
         return [
-            symbol for symbol in hits
-            if symbol.file and (
+            symbol
+            for symbol in hits
+            if symbol.file
+            and (
                 symbol.file == file
                 or PureWindowsPath(symbol.file).name == file
                 or PureWindowsPath(symbol.file).stem == file
@@ -435,14 +456,16 @@ class SymbolTable:
             out["recipe"] = self.recipe
         if self.witness:
             out["witness"] = self.witness
-        out.update({
-            "address_bits": self.address_bits,
-            "endian": self.endian,
-            "regions": self.regions,
-            "symbols": [
-                symbol.to_dict(address_bits=self.address_bits) for symbol in self.symbols
-            ],
-        })
+        out.update(
+            {
+                "address_bits": self.address_bits,
+                "endian": self.endian,
+                "regions": self.regions,
+                "symbols": [
+                    symbol.to_dict(address_bits=self.address_bits) for symbol in self.symbols
+                ],
+            }
+        )
         return out
 
     @classmethod
@@ -463,9 +486,7 @@ class SymbolTable:
             raise ValueError("expected a JSON object")
         version = data.get("symbols_version", "missing")
         if isinstance(version, bool) or version != SYMBOLS_VERSION:
-            raise ValueError(
-                f"symbols_version: expected {SYMBOLS_VERSION}, got {version}"
-            )
+            raise ValueError(f"symbols_version: expected {SYMBOLS_VERSION}, got {version}")
         raw_symbols = data.get("symbols")
         if not isinstance(raw_symbols, list):
             raise ValueError("symbols: expected a list")
@@ -476,25 +497,17 @@ class SymbolTable:
                 raise ValueError(f"{key}: expected a string")
             texts[key] = value
         address_bits = data.get("address_bits", 32)
-        if (
-            isinstance(address_bits, bool)
-            or not isinstance(address_bits, int)
-            or address_bits <= 0
-        ):
+        if isinstance(address_bits, bool) or not isinstance(address_bits, int) or address_bits <= 0:
             raise ValueError("address_bits: expected a positive integer")
         endian = data.get("endian", "le")
         if endian not in _ENDIANS:
             raise ValueError(f"endian: expected le or be, got {endian!r}")
         regions = data.get("regions", [])
-        if not isinstance(regions, list) or not all(
-            isinstance(region, dict) for region in regions
-        ):
+        if not isinstance(regions, list) or not all(isinstance(region, dict) for region in regions):
             raise ValueError("regions: expected a list of objects")
         recipe = _optional_object(data, "recipe")
         witness = _optional_object(data, "witness")
-        symbols = [
-            Symbol.from_dict(raw, f"symbols[{i}]") for i, raw in enumerate(raw_symbols)
-        ]
+        symbols = [Symbol.from_dict(raw, f"symbols[{i}]") for i, raw in enumerate(raw_symbols)]
         return cls(
             symbols,
             path=path,
@@ -530,7 +543,8 @@ class SymbolTable:
         file = Path(path)
         folders.ensure_folder(file.parent)
         file.write_text(
-            json.dumps(self.to_dict(), indent=2) + "\n", encoding="utf-8",
+            json.dumps(self.to_dict(), indent=2) + "\n",
+            encoding="utf-8",
         )
 
 

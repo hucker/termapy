@@ -255,15 +255,19 @@ class TestAutoLoadProfileOnConnect:
 
     def _write_profile(self, path: Path, command: str = "PING") -> None:
         """Write a minimal valid v2 profile carrying one command."""
-        path.write_text(json.dumps({
-            "profile_version": 2,
-            "profile_revision": "1.0.0",
-            "profile_date": "2026-05-03",
-            "device": {"name": "Test Device"},
-            "commands": {
-                command: {"help": "ping the device", "safety": "readonly"},
-            },
-        }))
+        path.write_text(
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "profile_revision": "1.0.0",
+                    "profile_date": "2026-05-03",
+                    "device": {"name": "Test Device"},
+                    "commands": {
+                        command: {"help": "ping the device", "safety": "readonly"},
+                    },
+                }
+            )
+        )
 
     @pytest.fixture
     def cfg_dir(self, tmp_path):
@@ -351,9 +355,9 @@ class TestAutoLoadProfileOnConnect:
         # it.  Pinning the invariant so a future "let's hoist this to
         # the base class" refactor has to consciously break this test.
         from termapy.terminal_host import TerminalHost
+
         assert not hasattr(TerminalHost, "_on_connect_auto_load_profile"), (
-            "TerminalHost must NOT have profile auto-load -- "
-            "TUI/CLI stay text-to-text by design"
+            "TerminalHost must NOT have profile auto-load -- TUI/CLI stay text-to-text by design"
         )
         assert hasattr(MCPHost, "_on_connect_auto_load_profile"), (
             "MCPHost auto-loads profiles on connect"
@@ -382,9 +386,7 @@ class TestAutoLoadProfileOnConnect:
             # Assert -- "PING" from explicit, NOT "DIFFERENT" from convention
             actual = h.ctx.ns("active_profile").get("commands", {})
             assert "PING" in actual, "explicit profile loaded"
-            assert "DIFFERENT" not in actual, (
-                "convention NOT loaded when explicit path is set"
-            )
+            assert "DIFFERENT" not in actual, "convention NOT loaded when explicit path is set"
         finally:
             if h.engine.is_connected:
                 h._disconnect()
@@ -425,8 +427,9 @@ class TestOnConnectCmd:
 
         # Assert
         log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
-        assert "$ /ver  (on_connect_cmd)" in log, \
+        assert "$ /ver  (on_connect_cmd)" in log, (
             f"universal on_connect_cmd fires in MCP, log was:\n{log}"
+        )
 
     def test_mcp_on_connect_cmd_fires_in_mcp(self, tmp_path):
         """mcp_on_connect_cmd is the MCP-only device-setup hook."""
@@ -443,8 +446,9 @@ class TestOnConnectCmd:
 
         # Assert
         log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
-        assert "$ /ver  (mcp_on_connect_cmd)" in log, \
+        assert "$ /ver  (mcp_on_connect_cmd)" in log, (
             f"mcp_on_connect_cmd fires in MCP, log was:\n{log}"
+        )
 
     def test_mcp_on_connect_cmd_runs_a_script(self, tmp_path):
         """A migrated chain works in MCP: /run <field> runs every line of its script."""
@@ -471,7 +475,7 @@ class TestOnConnectCmd:
         # Arrange
         h = self._make_host(
             tmp_path,
-            on_connect_cmd="/cls",            # silly but distinguishable
+            on_connect_cmd="/cls",  # silly but distinguishable
             mcp_on_connect_cmd="/ver",
         )
 

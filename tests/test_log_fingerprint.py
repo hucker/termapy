@@ -59,7 +59,6 @@ def _section(out: str, title: str) -> list[str]:
 
 
 class TestFingerprint:
-
     def test_show_echoes_every_section(self, cli, capsys, tmp_path):
         """--show prints the report: identity, terminal, config, serial port, and runtime flags, framed by markers."""
         # Act
@@ -72,18 +71,28 @@ class TestFingerprint:
         for key in ("Termapy version", "Python", "Platform", "OS name", "Hostname"):
             assert key in out, f"{key} line"
         config = _section(out, "Config:")
-        assert any(line.startswith("Config name") and line.endswith("rig") for line in config), config
-        assert any(line.startswith("Config path") and line.endswith("rig.cfg") for line in config), config
-        assert any(line.startswith("Line ending") and line.endswith("'\\r'") for line in config), config
+        assert any(line.startswith("Config name") and line.endswith("rig") for line in config), (
+            config
+        )
+        assert any(
+            line.startswith("Config path") and line.endswith("rig.cfg") for line in config
+        ), config
+        assert any(line.startswith("Line ending") and line.endswith("'\\r'") for line in config), (
+            config
+        )
         serial = _section(out, "Serial port:")
         assert "Connected           True" in serial, serial
-        assert any(line.startswith("Port name") and line.endswith("DEMO") for line in serial), serial
-        assert any(line.startswith("Baud rate") and line.endswith("115200") for line in serial), serial
+        assert any(line.startswith("Port name") and line.endswith("DEMO") for line in serial), (
+            serial
+        )
+        assert any(line.startswith("Baud rate") and line.endswith("115200") for line in serial), (
+            serial
+        )
         assert any(line.startswith("DTR") for line in serial), "control lines are reported"
         assert "Runtime flags:" in out
-        assert result.value == str(out.count("\n", out.index("=== Termapy"), out.index("=== end") + 1) + 1), (
-            "the value is the line count of the report"
-        )
+        assert result.value == str(
+            out.count("\n", out.index("=== Termapy"), out.index("=== end") + 1) + 1
+        ), "the value is the line count of the report"
 
     def test_without_show_only_the_confirmation_prints(self, cli, capsys):
         """Without --show the terminal gets one confirmation line and none of the report."""
@@ -107,7 +116,9 @@ class TestFingerprint:
         monkeypatch.setenv("TERM_PROGRAM", "termapy-probe")
         cli.repl.dispatch_full("/log.fingerprint --show")
         terminal = _section(capsys.readouterr().out, "Terminal:")
-        assert any(line.startswith("TERM_PROGRAM") and line.endswith("termapy-probe") for line in terminal), terminal
+        assert any(
+            line.startswith("TERM_PROGRAM") and line.endswith("termapy-probe") for line in terminal
+        ), terminal
 
     def test_runtime_flags_list_the_session_toggles(self, cli, capsys):
         """Flags the session has set appear under Runtime flags:, one per line."""

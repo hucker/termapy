@@ -28,9 +28,7 @@ from termapy.defaults import DEFAULT_CFG
 # ---------------------------------------------------------------------------
 
 
-def _run_cli(
-    tmp_path: Path, script_lines: list[str]
-) -> subprocess.CompletedProcess[str]:
+def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedProcess[str]:
     """Invoke termapy --cli against a throwaway config and script."""
     proj_dir = tmp_path / "proj"
     proj_dir.mkdir(parents=True, exist_ok=True)
@@ -52,7 +50,8 @@ def _run_cli(
 
     return subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; "
             f"sys.argv = ['termapy', 'proj', '--cli', "
             f"'--cfg-dir', {str(tmp_path)!r}, "
@@ -82,8 +81,7 @@ class TestCrcFindCli:
         actual_code = result.returncode
         expected_code = 0
         assert actual_code == expected_code, (
-            f"/proto.crc.find must exit 0, got {actual_code}. "
-            f"stderr: {result.stderr!r}"
+            f"/proto.crc.find must exit 0, got {actual_code}. stderr: {result.stderr!r}"
         )
         assert "crc16-modbus" in result.stdout, (
             f"/proto.crc.find with a Modbus packet must report crc16-modbus. "
@@ -101,8 +99,7 @@ class TestCrcFindCli:
         # Assert
         assert result.returncode == 0, f"exit code: {result.returncode}"
         assert "crc16-modbus" in result.stdout, (
-            f"asc= form with trailing hex-ASCII Modbus CRC must match. "
-            f"stdout: {result.stdout!r}"
+            f"asc= form with trailing hex-ASCII Modbus CRC must match. stdout: {result.stdout!r}"
         )
 
     def test_missing_input_mode_fails(self, tmp_path):
@@ -130,8 +127,7 @@ class TestCrcFindCli:
         # Assert
         assert result.returncode == 0, f"exit code: {result.returncode}"
         assert "Parse error" in result.stdout, (
-            f"bad hex must produce the shared reader's Parse error. "
-            f"stdout: {result.stdout!r}"
+            f"bad hex must produce the shared reader's Parse error. stdout: {result.stdout!r}"
         )
 
     def test_normal_mode_suppresses_header_and_hint(self, tmp_path):
@@ -147,15 +143,10 @@ class TestCrcFindCli:
 
         # Assert
         out = result.stdout
-        assert "crc16-modbus" in out, (
-            f"match line still present at normal level. stdout: {out!r}"
-        )
-        assert "1 match" not in out, (
-            f"the 'N matches:' header should be gone. stdout: {out!r}"
-        )
+        assert "crc16-modbus" in out, f"match line still present at normal level. stdout: {out!r}"
+        assert "1 match" not in out, f"the 'N matches:' header should be gone. stdout: {out!r}"
         assert "Generate source" not in out, (
-            f"the codegen hint should not show at normal level. "
-            f"stdout: {out!r}"
+            f"the codegen hint should not show at normal level. stdout: {out!r}"
         )
 
     def test_verbose_mode_shows_generate_hint(self, tmp_path):
@@ -170,12 +161,8 @@ class TestCrcFindCli:
         # Assert
         out = result.stdout
         assert "Generate source" in out, (
-            f"--verbose / .verbose should surface the codegen hint. "
-            f"stdout: {out!r}"
+            f"--verbose / .verbose should surface the codegen hint. stdout: {out!r}"
         )
         assert "/proto.crc.c crc16-modbus" in out, (
-            f"hint points at the per-language codegen command. "
-            f"stdout: {out!r}"
+            f"hint points at the per-language codegen command. stdout: {out!r}"
         )
-
-

@@ -107,13 +107,25 @@ class TableView:
             return "  ".join(parts).rstrip()
 
         lines = [(f"{self.title} - {counted(len(self.records), self.noun)}", "")]
-        lines.append((line([f"{column.title:<{width}}" for column, width in zip(self.columns, widths)]), "dim"))
+        lines.append(
+            (
+                line([f"{column.title:<{width}}" for column, width in zip(self.columns, widths)]),
+                "dim",
+            )
+        )
         lines.append((line(["-" * width for width in widths]), "dim"))
         for row in cells:
-            lines.append((line([
-                f"{cell:>{width}}" if column.right else f"{cell:<{width}}"
-                for column, cell, width in zip(self.columns, row, widths)
-            ]), ""))
+            lines.append(
+                (
+                    line(
+                        [
+                            f"{cell:>{width}}" if column.right else f"{cell:<{width}}"
+                            for column, cell, width in zip(self.columns, row, widths)
+                        ]
+                    ),
+                    "",
+                )
+            )
         return lines
 
 
@@ -166,6 +178,8 @@ class RecordView:
                 lines.append("")
             else:
                 body_markup = escape_markup(item.text)
-                lines.append(f"  [{item.color}]{body_markup}[/]" if item.color else f"  {body_markup}")
+                lines.append(
+                    f"  [{item.color}]{body_markup}[/]" if item.color else f"  {body_markup}"
+                )
         flush()
         return lines

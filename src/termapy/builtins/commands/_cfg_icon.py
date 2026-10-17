@@ -74,7 +74,10 @@ def _already_exists(name: str, *, on_desktop: bool = False) -> str:
 
 def _linux_menu_path(stem: str) -> Path:
     return (
-        Path.home() / ".local" / "share" / "applications"
+        Path.home()
+        / ".local"
+        / "share"
+        / "applications"
         / f"termapy-{_sanitize_filename(stem)}.desktop"
     )
 
@@ -91,7 +94,10 @@ def _windows_desktop_path() -> Path:
     try:
         proc = subprocess.run(
             ["powershell", "-NoProfile", "-Command", _PS_RESOLVE_DESKTOP],
-            capture_output=True, text=True, check=True, timeout=10,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return Path.home() / "Desktop"
@@ -124,7 +130,10 @@ def _by_platform(linux: _T, darwin: _T, win32: _T) -> _T | None:
 
 
 def _create_linux(
-    name: str, stem: str, cfg_path: Path, force: bool,
+    name: str,
+    stem: str,
+    cfg_path: Path,
+    force: bool,
 ) -> tuple[Path | None, str | None]:
     template_path = _TEMPLATES_DIR / "linux" / "termapy.desktop.template"
     if not template_path.is_file():
@@ -148,7 +157,10 @@ def _create_linux(
 
 
 def _create_macos(
-    name: str, stem: str, cfg_path: Path, force: bool,
+    name: str,
+    stem: str,
+    cfg_path: Path,
+    force: bool,
 ) -> tuple[Path | None, str | None]:
     template_dir = _TEMPLATES_DIR / "macos" / "Termapy.app"
     plist_template = template_dir / "Contents" / "Info.plist"
@@ -179,7 +191,9 @@ def _create_macos(
     launcher_path.write_text(
         _render_template(
             launcher_template,
-            NAME=name, PYTHON=sys.executable, CFG_PATH=str(cfg_path),
+            NAME=name,
+            PYTHON=sys.executable,
+            CFG_PATH=str(cfg_path),
         ),
         encoding="utf-8",
     )
@@ -191,7 +205,10 @@ def _create_macos(
 
 
 def _create_windows(
-    name: str, stem: str, cfg_path: Path, force: bool,
+    name: str,
+    stem: str,
+    cfg_path: Path,
+    force: bool,
 ) -> tuple[Path | None, str | None]:
     """Create a Desktop .lnk via PowerShell + WScript.Shell COM."""
     filename = _sanitize_filename(name) + ".lnk"
@@ -205,8 +222,8 @@ def _create_windows(
     ico_path = _TEMPLATES_DIR / "icons" / "termapy.ico"
     cmd_exe = r"C:\Windows\System32\cmd.exe"
 
-    overwrite_guard = "" if force else (
-        "if (Test-Path $path) { Write-Error ('EXISTS:' + $path); exit 1 };"
+    overwrite_guard = (
+        "" if force else ("if (Test-Path $path) { Write-Error ('EXISTS:' + $path); exit 1 };")
     )
     ps = (
         "$ErrorActionPreference = 'Stop';"
@@ -226,7 +243,9 @@ def _create_windows(
     try:
         proc = subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except (subprocess.TimeoutExpired, OSError) as e:
         return None, f"PowerShell invocation failed: {e}"
@@ -245,7 +264,11 @@ def _create_windows(
 
 
 def _create(
-    ctx: PluginContext, name: str, stem: str, cfg_path: Path, force: bool,
+    ctx: PluginContext,
+    name: str,
+    stem: str,
+    cfg_path: Path,
+    force: bool,
 ) -> CmdResult:
     handler = _by_platform(_create_linux, _create_macos, _create_windows)
     if handler is None:
@@ -296,7 +319,8 @@ def _scan_macos() -> list[Path]:
             # Bundle-ID prefix is the unambiguous marker; every termapy
             # launcher carries net.termapy.<slug> in CFBundleIdentifier.
             if "net.termapy." in plist.read_text(
-                encoding="utf-8", errors="ignore",
+                encoding="utf-8",
+                errors="ignore",
             ):
                 found.append(app)
         except OSError:
@@ -320,13 +344,15 @@ def _enum_windows_launchers() -> list[tuple[Path, str]]:
         "$ws = New-Object -ComObject WScript.Shell;"
         f"Get-ChildItem {_ps_quote(desktop)} -Filter *.lnk | ForEach-Object {{"
         "  $s = $ws.CreateShortcut($_.FullName);"
-        "  Write-Output (\"{0}`t{1}\" -f $_.FullName, $s.Arguments)"
+        '  Write-Output ("{0}`t{1}" -f $_.FullName, $s.Arguments)'
         "}"
     )
     try:
         proc = subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except (subprocess.TimeoutExpired, OSError):
         return []
@@ -355,7 +381,8 @@ def _find_linux_launcher_for_cfg(cfg_path: Path) -> Path | None:
     for desktop_file in _scan_linux():
         try:
             if needle in desktop_file.read_text(
-                encoding="utf-8", errors="ignore",
+                encoding="utf-8",
+                errors="ignore",
             ):
                 return desktop_file
         except OSError:
@@ -369,7 +396,8 @@ def _find_macos_launcher_for_cfg(cfg_path: Path) -> Path | None:
         launcher = app / "Contents" / "MacOS" / "launcher"
         try:
             if launcher.is_file() and needle in launcher.read_text(
-                encoding="utf-8", errors="ignore",
+                encoding="utf-8",
+                errors="ignore",
             ):
                 return app
         except OSError:
@@ -442,8 +470,8 @@ def retire_launcher(cfg_path: Path) -> tuple[str, str] | None:
 
 def _list(ctx: PluginContext) -> CmdResult:
     scan, where = _by_platform(
-        (_scan_linux,  "~/.local/share/applications/"),
-        (_scan_macos,  "~/Applications/"),
+        (_scan_linux, "~/.local/share/applications/"),
+        (_scan_macos, "~/Applications/"),
         (_scan_windows, "Desktop"),
     ) or (None, None)
     if scan is None:
@@ -451,7 +479,10 @@ def _list(ctx: PluginContext) -> CmdResult:
     # A list answer (registry list-one-format): one record per launcher.
     records = [{"name": path.name, "path": str(path)} for path in scan()]
     return CmdResult.table(
-        f"termapy launchers in {where}", "launcher", _LAUNCHER_COLUMNS, records,
+        f"termapy launchers in {where}",
+        "launcher",
+        _LAUNCHER_COLUMNS,
+        records,
         value="\n".join(record["path"] for record in records),
     )
 

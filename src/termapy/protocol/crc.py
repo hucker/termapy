@@ -35,9 +35,14 @@ from termapy.plugins import BoundaryException
 
 CRC_CATALOGUE: dict[str, dict] = {
     name: {
-        "width": a.width, "poly": a.poly, "init": a.init,
-        "refin": a.refin, "refout": a.refout, "xorout": a.xorout,
-        "check": a.check, "desc": a.desc,
+        "width": a.width,
+        "poly": a.poly,
+        "init": a.init,
+        "refin": a.refin,
+        "refout": a.refout,
+        "xorout": a.xorout,
+        "check": a.check,
+        "desc": a.desc,
     }
     for name, a in _ALGORITHMS.items()
 }
@@ -57,8 +62,12 @@ def _make_crc_compute(entry: dict) -> Callable[[bytes], int]:
     # ints.  Bind one ``Crc`` per entry at registry-build time so the
     # hot path is still a single function call.
     crc = _Crc(
-        width=entry["width"], poly=entry["poly"], init=entry["init"],
-        refin=entry["refin"], refout=entry["refout"], xorout=entry["xorout"],
+        width=entry["width"],
+        poly=entry["poly"],
+        init=entry["init"],
+        refin=entry["refin"],
+        refout=entry["refout"],
+        xorout=entry["xorout"],
     )
     return lambda data: _generic_crc(data, crc)
 
@@ -132,14 +141,8 @@ def load_crc_plugins(
                 name = getattr(mod, "NAME", None)
                 width = getattr(mod, "WIDTH", None)
                 compute_fn = getattr(mod, "compute", None)
-                if (
-                    isinstance(name, str)
-                    and isinstance(width, int)
-                    and callable(compute_fn)
-                ):
-                    algorithms[name] = CrcAlgorithm(
-                        name=name, width=width, compute=compute_fn
-                    )
+                if isinstance(name, str) and isinstance(width, int) and callable(compute_fn):
+                    algorithms[name] = CrcAlgorithm(name=name, width=width, compute=compute_fn)
             # Plugin file: third-party code being imported; its
             # top-level can raise anything (import errors, syntax,
             # missing CRC_ALGORITHM).  Report to stderr and keep
@@ -172,7 +175,8 @@ def get_crc_registry() -> dict[str, CrcAlgorithm]:
         for name, entry in CRC_CATALOGUE.items():
             width_bytes = (entry["width"] + 7) // 8
             registry[name] = CrcAlgorithm(
-                name=name, width=width_bytes,
+                name=name,
+                width=width_bytes,
                 compute=_make_crc_compute(entry),
                 refout=entry["refout"],
             )

@@ -55,24 +55,16 @@ class ScriptEditor(ModalScreen[str | None]):
         self.dismiss(None)
 
     def on_mount(self) -> None:
-        self.query_one("#sed-editor", TextArea).tooltip = (
-            "Edit the .run script body."
-        )
-        self.query_one("#sed-name", Input).tooltip = (
-            "Script name (the .run extension is added automatically)."
-        )
-        self.query_one("#sed-save-as-input", Input).tooltip = (
-            "New filename for Save As (without .run)."
-        )
-        self.query_one("#sed-save", Button).tooltip = (
-            "Save the script to disk and close."
-        )
-        self.query_one("#sed-save-as", Button).tooltip = (
-            "Save the script to a new filename."
-        )
-        self.query_one("#sed-cancel", Button).tooltip = (
-            "Discard changes and close."
-        )
+        self.query_one("#sed-editor", TextArea).tooltip = "Edit the .run script body."
+        self.query_one(
+            "#sed-name", Input
+        ).tooltip = "Script name (the .run extension is added automatically)."
+        self.query_one(
+            "#sed-save-as-input", Input
+        ).tooltip = "New filename for Save As (without .run)."
+        self.query_one("#sed-save", Button).tooltip = "Save the script to disk and close."
+        self.query_one("#sed-save-as", Button).tooltip = "Save the script to a new filename."
+        self.query_one("#sed-cancel", Button).tooltip = "Discard changes and close."
 
     def __init__(self, scripts_dir: Path, path: str | None = None) -> None:
         super().__init__()

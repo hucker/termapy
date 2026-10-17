@@ -121,7 +121,9 @@ def update_doc_configs() -> list[str]:
         if unknown:
             changes.append(f"removed {sorted(unknown)}")
         if version_stale:
-            changes.append(f"version {example_cfg.get('config_version')} -> {CURRENT_CONFIG_VERSION}")
+            changes.append(
+                f"version {example_cfg.get('config_version')} -> {CURRENT_CONFIG_VERSION}"
+            )
         desc = f"{file_path.name}:{tag_line + 1} - {', '.join(changes)}"
         print(f"  FIXED {desc}")
         updated.append(desc)

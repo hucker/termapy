@@ -29,14 +29,17 @@ from termapy.symbols import Symbol
 
 # The demo's U1MODE: LE u32 register, seeded ON | BRGH = 0x8008.
 U1MODE = Symbol(
-    "U1MODE", 0xBF806000, 4, "sfr", type="ON:B.15 UEN:B.8-9 BRGH:B.3",
+    "U1MODE",
+    0xBF806000,
+    4,
+    "sfr",
+    type="ON:B.15 UEN:B.8-9 BRGH:B.3",
 )
 U1MODE_BYTES = (0x8008).to_bytes(4, "little")
 GFLAGS = Symbol("gFlags", 0x1008, 4, "data", type="u32")
 
 
 class TestScalars:
-
     @pytest.mark.parametrize(
         "type_name, data, endian, expected",
         [
@@ -54,6 +57,7 @@ class TestScalars:
 
     def test_decode_f32(self):
         import struct
+
         assert decode_scalar(struct.pack("<f", 1013.25), "f32", "le") == pytest.approx(1013.25)
 
     def test_wrong_size(self):
@@ -74,7 +78,6 @@ class TestScalars:
 
 
 class TestRendering:
-
     @pytest.mark.parametrize(
         "value, type_name, expected",
         [
@@ -97,7 +100,6 @@ class TestRendering:
 
 
 class TestBitTargets:
-
     def test_named_field(self):
         # Act -- ON is bit 15 of the register word; the device's endian binds it
         target = resolve_bit_target(U1MODE, "ON", endian="le")
@@ -126,10 +128,14 @@ class TestBitTargets:
 
     def test_numeric_bit_width_from_symbol_type(self):
         target = resolve_bit_target(GFLAGS, "4", endian="le")
-        assert (target.width, target.low, target.bit_width) == (4, 4, 1), "u32 symbol -> 4-byte word"
+        assert (target.width, target.low, target.bit_width) == (4, 4, 1), (
+            "u32 symbol -> 4-byte word"
+        )
 
     def test_slice_normalizes_order(self):
-        assert resolve_bit_target(GFLAGS, "6-4", endian="le").low == 4, "hi-lo and lo-hi mean the same slice"
+        assert resolve_bit_target(GFLAGS, "6-4", endian="le").low == 4, (
+            "hi-lo and lo-hi mean the same slice"
+        )
         assert resolve_bit_target(GFLAGS, "4-6", endian="le").bit_width == 3
 
     def test_bare_address_defaults_to_32_bits(self):
@@ -141,7 +147,9 @@ class TestBitTargets:
             resolve_bit_target(GFLAGS, "32", endian="le")
 
     def test_unknown_field(self):
-        with pytest.raises(ValueError, match="Unknown field: U1MODE.BOGUS \\(fields: ON, UEN, BRGH\\)"):
+        with pytest.raises(
+            ValueError, match="Unknown field: U1MODE.BOGUS \\(fields: ON, UEN, BRGH\\)"
+        ):
             find_field(U1MODE, "BOGUS", "le")
 
     def test_field_on_a_bare_address(self):
@@ -159,7 +167,6 @@ class TestBitTargets:
 
 
 class TestMaskPair:
-
     def test_set_one_bit(self):
         target = resolve_bit_target(U1MODE, "ON", endian="le")
         and_mask, or_mask = mask_pair(target, 1)

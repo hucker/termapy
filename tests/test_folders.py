@@ -115,7 +115,9 @@ class TestDefaultFileName:
         actual_missing = default_file_name(tmp_path / "nothing", ".run")
 
         # Assert
-        assert actual_found == tmp_path / "hex_view.run", "the extension is added when that file exists"
+        assert actual_found == tmp_path / "hex_view.run", (
+            "the extension is added when that file exists"
+        )
         assert actual_missing == tmp_path / "nothing", "the caller's not-found names what was typed"
 
     def test_the_name_as_typed_wins_when_both_exist(self, tmp_path):

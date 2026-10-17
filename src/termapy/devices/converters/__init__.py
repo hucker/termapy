@@ -29,7 +29,9 @@ FORMATS: Final[tuple[str, ...]] = tuple(spec.format for spec in CONVERTERS)
 
 
 def find_converter(
-    format_name: str = "", text: str = "", extra: Iterable[ConverterSpec] = (),
+    format_name: str = "",
+    text: str = "",
+    extra: Iterable[ConverterSpec] = (),
 ) -> ConverterSpec | None:
     """The device registry's lookup -- see :func:`termapy.converters.find_converter`."""
     return _find_converter(format_name, text, extra, registry=CONVERTERS)

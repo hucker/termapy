@@ -32,6 +32,7 @@ def _build_stub_ctx():
     plus an empty active_flags dict (tests mutate this per case).
     """
     from termapy.plugins import IOHandle, PluginContext
+
     captured: list[tuple[str, str]] = []
     captured_markup: list[str] = []
 
@@ -59,6 +60,7 @@ def _dispatch_cells():
     its own test in test_proto_crc_custom.py.
     """
     from crcglot import LANGUAGES
+
     cells = []
     for code, info in sorted(LANGUAGES.items()):
         cells.append((code, "bitwise", {}))
@@ -89,13 +91,10 @@ class TestDispatchSmoke:
         # Assert -- handler succeeded and produced non-empty output via
         # the markup channel (which is where generated code lands).
         assert result.success, (
-            f"/proto.crc.{lang} crc32 ({variant}) should succeed, "
-            f"got error: {result.error!r}"
+            f"/proto.crc.{lang} crc32 ({variant}) should succeed, got error: {result.error!r}"
         )
         emitted = "".join(captured_markup)
-        assert emitted, (
-            f"/proto.crc.{lang} crc32 ({variant}) produced no markup output"
-        )
+        assert emitted, f"/proto.crc.{lang} crc32 ({variant}) produced no markup output"
         # Tiny content check: the algorithm name should appear in the
         # output (header comment, function name, or docstring -- exact
         # location is crcglot's concern, presence is termapy's).
@@ -129,12 +128,10 @@ class TestUnsupportedVariantFlagRejected:
         # Assert -- clean failure naming the rejected flag, not silent
         # success.
         assert not result.success, (
-            f"/proto.crc.{lang} {flag} should be rejected, not silently "
-            f"ignored"
+            f"/proto.crc.{lang} {flag} should be rejected, not silently ignored"
         )
         assert flag in (result.error or ""), (
-            f"error should name the rejected flag {flag!r}; "
-            f"got {result.error!r}"
+            f"error should name the rejected flag {flag!r}; got {result.error!r}"
         )
 
     def test_native_flag_still_accepted(self):
@@ -144,7 +141,5 @@ class TestUnsupportedVariantFlagRejected:
         ctx, _captured, captured_markup = _build_stub_ctx()
         ctx.active_flags = {"--slice8": True}
         result = _crc_codegen(ctx, "crc32", "c")
-        assert result.success, (
-            f"c --slice8 should still work, got {result.error!r}"
-        )
+        assert result.success, f"c --slice8 should still work, got {result.error!r}"
         assert "".join(captured_markup), "c --slice8 should produce output"

@@ -249,9 +249,17 @@ And `/proto.crc.python crc16-cms --table`:
 
 ```python
 _TABLE = (
-    0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
+    0x0000,
+    0x8005,
+    0x800F,
+    0x000A,
+    0x801B,
+    0x001E,
+    0x0014,
+    0x8011,
     # ... 248 more entries ...
 )
+
 
 def crc16_cms(data: bytes) -> int:
     """crc16-cms - CMS (RPM package format)
@@ -334,6 +342,7 @@ with no self-test overhead and no streaming-vs-one-shot duplication.
 # sum8.py - drop into termapy's builtins/crc/ folder
 NAME = "sum8"
 WIDTH = 1
+
 
 def compute(data: bytes) -> int:
     return sum(data) & 0xFF

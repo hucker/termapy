@@ -42,7 +42,9 @@ def format_columns(data: bytes) -> tuple[list[str], list[str]]:
 
 
 def diff_columns(
-    actual: bytes, expected: bytes, mask: bytes,
+    actual: bytes,
+    expected: bytes,
+    mask: bytes,
 ) -> tuple[list[str], list[str], list[str], list[str]]:
     """Compare actual vs expected as text columns.
 

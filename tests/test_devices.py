@@ -58,7 +58,6 @@ def _write(folder: Path, name: str, doc: dict) -> Path:
 
 
 class TestParse:
-
     def test_minimal_document(self):
         # Act
         device = parse_device(_doc())
@@ -99,16 +98,31 @@ class TestParse:
 
     def test_duplicate_register_names_rejected(self):
         with pytest.raises(ValueError, match="duplicate name 'R'"):
-            parse_device(_doc(registers=[
-                {"name": "R", "addr": 0, "size": 4}, {"name": "R", "addr": 4, "size": 4},
-            ]))
+            parse_device(
+                _doc(
+                    registers=[
+                        {"name": "R", "addr": 0, "size": 4},
+                        {"name": "R", "addr": 4, "size": 4},
+                    ]
+                )
+            )
 
     def test_safety_fields_reach_the_symbol(self):
         # Act
-        device = parse_device(_doc(registers=[{
-            "name": "DATA", "addr": 0, "size": 1,
-            "access": "ro", "read_effect": True, "rmw": False,
-        }]))
+        device = parse_device(
+            _doc(
+                registers=[
+                    {
+                        "name": "DATA",
+                        "addr": 0,
+                        "size": 1,
+                        "access": "ro",
+                        "read_effect": True,
+                        "rmw": False,
+                    }
+                ]
+            )
+        )
 
         # Assert
         symbol = device.registers()[0].symbol
@@ -122,13 +136,24 @@ class TestParse:
 
     def test_viewer_context_reaches_the_register(self):
         # Act
-        device = parse_device(_doc(
-            description="A part", vendor="acme", parts=["ACME1"],
-            registers=[{
-                "name": "R", "addr": 0, "size": 4, "peripheral": "PORTA",
-                "group": "PORT", "description": "Data Direction", "reset": "0x0000FFFF",
-            }],
-        ))
+        device = parse_device(
+            _doc(
+                description="A part",
+                vendor="acme",
+                parts=["ACME1"],
+                registers=[
+                    {
+                        "name": "R",
+                        "addr": 0,
+                        "size": 4,
+                        "peripheral": "PORTA",
+                        "group": "PORT",
+                        "description": "Data Direction",
+                        "reset": "0x0000FFFF",
+                    }
+                ],
+            )
+        )
 
         # Assert
         register = device.registers()[0]
@@ -140,22 +165,28 @@ class TestParse:
     def test_unknown_keys_are_ignored(self):
         """Forward compatibility: a newer file loads on an older termapy."""
         # Act
-        device = parse_device(_doc(future_key=1, registers=[
-            {"name": "R", "addr": 0, "size": 4, "future_reg_key": True},
-        ]))
+        device = parse_device(
+            _doc(
+                future_key=1,
+                registers=[
+                    {"name": "R", "addr": 0, "size": 4, "future_reg_key": True},
+                ],
+            )
+        )
 
         # Assert
         assert len(device) == 1, "unknown keys at both levels are ignored"
 
 
 class TestFields:
-
     def test_fields_derive_the_type_spec(self):
         # Arrange
         fields = [{"name": "EVEN", "bit": 0, "width": 4}, {"name": "ODD", "bit": 4, "width": 4}]
 
         # Act
-        device = parse_device(_doc(registers=[{"name": "PMUX", "addr": 0, "size": 1, "fields": fields}]))
+        device = parse_device(
+            _doc(registers=[{"name": "PMUX", "addr": 0, "size": 1, "fields": fields}])
+        )
 
         # Assert
         register = device.registers()[0]
@@ -167,7 +198,9 @@ class TestFields:
         spec = derive_type((Field("EN", 15), Field("MODE", 8, 2)))
 
         # Assert
-        assert spec == "EN:B.15 MODE:B.8-9", "no byte range: width and byte order come from the reader"
+        assert spec == "EN:B.15 MODE:B.8-9", (
+            "no byte range: width and byte order come from the reader"
+        )
 
     def test_derived_spec_parses(self):
         """The derivation must produce what the format-spec parser accepts as a register spec."""
@@ -182,24 +215,56 @@ class TestFields:
 
     def test_fields_and_type_together_is_an_error(self):
         with pytest.raises(ValueError, match="derived"):
-            parse_device(_doc(registers=[{
-                "name": "R", "addr": 0, "size": 1, "type": "u8",
-                "fields": [{"name": "F", "bit": 0}],
-            }]))
+            parse_device(
+                _doc(
+                    registers=[
+                        {
+                            "name": "R",
+                            "addr": 0,
+                            "size": 1,
+                            "type": "u8",
+                            "fields": [{"name": "F", "bit": 0}],
+                        }
+                    ]
+                )
+            )
 
     def test_field_outside_the_register_is_an_error(self):
         with pytest.raises(ValueError, match="do not fit"):
-            parse_device(_doc(registers=[{
-                "name": "R", "addr": 0, "size": 1, "fields": [{"name": "F", "bit": 7, "width": 2}],
-            }]))
+            parse_device(
+                _doc(
+                    registers=[
+                        {
+                            "name": "R",
+                            "addr": 0,
+                            "size": 1,
+                            "fields": [{"name": "F", "bit": 7, "width": 2}],
+                        }
+                    ]
+                )
+            )
 
     def test_enumerated_values_parse_from_json_keys(self):
         # Act
-        device = parse_device(_doc(registers=[{
-            "name": "R", "addr": 0, "size": 1,
-            "fields": [{"name": "MODE", "bit": 0, "width": 2,
-                        "values": {"0": "INPUT", "0x1": "OUTPUT"}}],
-        }]))
+        device = parse_device(
+            _doc(
+                registers=[
+                    {
+                        "name": "R",
+                        "addr": 0,
+                        "size": 1,
+                        "fields": [
+                            {
+                                "name": "MODE",
+                                "bit": 0,
+                                "width": 2,
+                                "values": {"0": "INPUT", "0x1": "OUTPUT"},
+                            }
+                        ],
+                    }
+                ]
+            )
+        )
 
         # Assert
         actual = device.registers()[0].fields[0].values
@@ -211,13 +276,14 @@ class TestFields:
 
 _RELOCATABLE = {
     "relocatable": True,
-    "registers": [{"name": "STATUS", "addr": "0x00", "size": 1},
-                  {"name": "DATA", "addr": "0x04", "size": 4}],
+    "registers": [
+        {"name": "STATUS", "addr": "0x00", "size": 1},
+        {"name": "DATA", "addr": "0x04", "size": 4},
+    ],
 }
 
 
 class TestInstances:
-
     def test_non_relocatable_has_one_unnamed_instance_at_zero(self):
         # Act
         device = parse_device(_doc())
@@ -229,9 +295,15 @@ class TestInstances:
 
     def test_relocatable_expands_each_instance(self):
         # Act
-        device = parse_device(_doc(**_RELOCATABLE, instances=[
-            {"name": "ADC1", "base": "0x60000000"}, {"name": "ADC2", "base": "0x60000100"},
-        ]))
+        device = parse_device(
+            _doc(
+                **_RELOCATABLE,
+                instances=[
+                    {"name": "ADC1", "base": "0x60000000"},
+                    {"name": "ADC2", "base": "0x60000100"},
+                ],
+            )
+        )
 
         # Assert
         names = {register.symbol.name: register.symbol.addr for register in device.registers()}
@@ -254,16 +326,21 @@ class TestInstances:
 
     def test_duplicate_instance_names_rejected(self):
         with pytest.raises(ValueError, match="duplicate name 'ADC1'"):
-            parse_device(_doc(**_RELOCATABLE, instances=[
-                {"name": "ADC1", "base": 0}, {"name": "ADC1", "base": 0x100},
-            ]))
+            parse_device(
+                _doc(
+                    **_RELOCATABLE,
+                    instances=[
+                        {"name": "ADC1", "base": 0},
+                        {"name": "ADC1", "base": 0x100},
+                    ],
+                )
+            )
 
 
 # ── Folders and layers ──────────────────────────────────────────────────────
 
 
 class TestFolder:
-
     def test_loads_every_device_file_and_nothing_else(self, tmp_path):
         # Arrange
         _write(tmp_path, "a", _doc(device="alpha"))
@@ -309,7 +386,6 @@ class TestFolder:
 
 
 class TestResolve:
-
     def test_per_config_overrides_global_by_device(self, tmp_path):
         # Arrange
         cfg = tmp_path / "rig" / "rig.cfg"
@@ -331,8 +407,16 @@ class TestResolve:
         cfg = tmp_path / "rig" / "rig.cfg"
         cfg.parent.mkdir()
         cfg.write_text("{}", encoding="utf-8")
-        _write(cfg.parent / "dev", "a", _doc(device="a", registers=[{"name": "STATUS", "addr": 0, "size": 1}]))
-        _write(cfg.parent / "dev", "b", _doc(device="b", registers=[{"name": "STATUS", "addr": 8, "size": 1}]))
+        _write(
+            cfg.parent / "dev",
+            "a",
+            _doc(device="a", registers=[{"name": "STATUS", "addr": 0, "size": 1}]),
+        )
+        _write(
+            cfg.parent / "dev",
+            "b",
+            _doc(device="b", registers=[{"name": "STATUS", "addr": 8, "size": 1}]),
+        )
 
         # Act
         devices, errors = resolve_devices(str(cfg), tmp_path)
@@ -351,7 +435,6 @@ class TestResolve:
 
 
 class TestMerge:
-
     def test_registers_join_the_build_symbols(self):
         # Arrange
         build = [Symbol("main", 0x2000, 442, "text")]
@@ -387,11 +470,17 @@ class TestRegistersInRange:
     @staticmethod
     def _three() -> list:
         """Three 4-byte registers at 0x40000000, 0x40000004, 0x40000010."""
-        return [parse_device(_doc(registers=[
-            {"name": "A", "addr": "0x40000000", "size": 4},
-            {"name": "B", "addr": "0x40000004", "size": 4},
-            {"name": "C", "addr": "0x40000010", "size": 4},
-        ]))]
+        return [
+            parse_device(
+                _doc(
+                    registers=[
+                        {"name": "A", "addr": "0x40000000", "size": 4},
+                        {"name": "B", "addr": "0x40000004", "size": 4},
+                        {"name": "C", "addr": "0x40000010", "size": 4},
+                    ]
+                )
+            )
+        ]
 
     def test_ram_address_touches_nothing(self):
         # Act
@@ -449,10 +538,12 @@ class TestRegistersInRange:
 
     def test_results_are_sorted_across_devices(self):
         # Arrange: a second part placed BELOW the first, loaded after it.
-        second = parse_device(_doc(
-            device="other",
-            registers=[{"name": "Z", "addr": "0x3FFFFFFC", "size": 4}],
-        ))
+        second = parse_device(
+            _doc(
+                device="other",
+                registers=[{"name": "Z", "addr": "0x3FFFFFFC", "size": 4}],
+            )
+        )
         devices = [*self._three(), second]
 
         # Act
@@ -473,10 +564,15 @@ class TestDistinctSpans:
         The shape a real PIC32CM / SAM SVD emits: a SERCOM's modes each get
         a full register definition at the same offset.
         """
-        return parse_device(_doc(registers=[
-            {"name": f"SERCOM0_{mode}_CTRLA", "addr": "0x42000400", "size": 4}
-            for mode in ("I2CM", "I2CS", "SPIM", "SPIS", "USART_INT", "USART_EXT")
-        ] + [{"name": "SERCOM0_I2CM_CTRLB", "addr": "0x42000404", "size": 4}])).registers()
+        return parse_device(
+            _doc(
+                registers=[
+                    {"name": f"SERCOM0_{mode}_CTRLA", "addr": "0x42000400", "size": 4}
+                    for mode in ("I2CM", "I2CS", "SPIM", "SPIS", "USART_INT", "USART_EXT")
+                ]
+                + [{"name": "SERCOM0_I2CM_CTRLB", "addr": "0x42000404", "size": 4}]
+            )
+        ).registers()
 
     def test_mode_aliases_are_one_span(self):
         # Arrange -- only the six CTRLA definitions
@@ -508,10 +604,14 @@ class TestDistinctSpans:
         on ``(addr, size)``.
         """
         # Arrange
-        registers = parse_device(_doc(registers=[
-            {"name": "RTC_MODE0_COUNT", "addr": "0x40002418", "size": 4},
-            {"name": "RTC_MODE1_COUNT", "addr": "0x40002418", "size": 2},
-        ])).registers()
+        registers = parse_device(
+            _doc(
+                registers=[
+                    {"name": "RTC_MODE0_COUNT", "addr": "0x40002418", "size": 4},
+                    {"name": "RTC_MODE1_COUNT", "addr": "0x40002418", "size": 2},
+                ]
+            )
+        ).registers()
 
         # Act
         actual = distinct_spans(registers)
@@ -522,11 +622,15 @@ class TestDistinctSpans:
     def test_a_narrow_alias_straddling_the_wide_one_merges_through_it(self):
         """MODE1 COMP1 at +2 shares no byte with MODE1 COMP0; both sit inside MODE0 COMP0."""
         # Arrange
-        registers = parse_device(_doc(registers=[
-            {"name": "RTC_MODE0_COMP0", "addr": "0x40002420", "size": 4},
-            {"name": "RTC_MODE1_COMP0", "addr": "0x40002420", "size": 2},
-            {"name": "RTC_MODE1_COMP1", "addr": "0x40002422", "size": 2},
-        ])).registers()
+        registers = parse_device(
+            _doc(
+                registers=[
+                    {"name": "RTC_MODE0_COMP0", "addr": "0x40002420", "size": 4},
+                    {"name": "RTC_MODE1_COMP0", "addr": "0x40002420", "size": 2},
+                    {"name": "RTC_MODE1_COMP1", "addr": "0x40002422", "size": 2},
+                ]
+            )
+        ).registers()
 
         # Act
         actual = distinct_spans(registers)
@@ -537,10 +641,14 @@ class TestDistinctSpans:
     def test_adjacent_registers_are_two_spans(self):
         """DIR and DIRCLR share no byte: reading both IS the sweep the gate refuses."""
         # Arrange
-        registers = parse_device(_doc(registers=[
-            {"name": "DIR", "addr": "0x41008000", "size": 4},
-            {"name": "DIRCLR", "addr": "0x41008004", "size": 4},
-        ])).registers()
+        registers = parse_device(
+            _doc(
+                registers=[
+                    {"name": "DIR", "addr": "0x41008000", "size": 4},
+                    {"name": "DIRCLR", "addr": "0x41008004", "size": 4},
+                ]
+            )
+        ).registers()
 
         # Act
         actual = distinct_spans(registers)
@@ -550,11 +658,15 @@ class TestDistinctSpans:
 
     def test_span_groups_run_by_address_and_keep_the_given_order_within(self):
         # Arrange -- registers_in_range order: address, then name
-        device = parse_device(_doc(registers=[
-            {"name": "SERCOM0_SPIM_CTRLA", "addr": "0x42000400", "size": 4},
-            {"name": "SERCOM0_I2CM_CTRLA", "addr": "0x42000400", "size": 4},
-            {"name": "SERCOM0_I2CM_CTRLB", "addr": "0x42000404", "size": 4},
-        ]))
+        device = parse_device(
+            _doc(
+                registers=[
+                    {"name": "SERCOM0_SPIM_CTRLA", "addr": "0x42000400", "size": 4},
+                    {"name": "SERCOM0_I2CM_CTRLA", "addr": "0x42000400", "size": 4},
+                    {"name": "SERCOM0_I2CM_CTRLB", "addr": "0x42000404", "size": 4},
+                ]
+            )
+        )
 
         # Act
         groups = span_groups(registers_in_range([device], 0x42000400, 8))
@@ -593,10 +705,12 @@ class TestScanLibrary:
     @staticmethod
     def _tree(root):
         """A two-vendor library, nested the way the hierarchy intends."""
-        _write(root / "microchip" / "mcu" / "pic32cm", "pic32part", _doc(
-            device="pic32part", vendor="microchip", description="A part"))
-        _write(root / "lattice" / "fpga", "icepart", _doc(
-            device="icepart", vendor="lattice"))
+        _write(
+            root / "microchip" / "mcu" / "pic32cm",
+            "pic32part",
+            _doc(device="pic32part", vendor="microchip", description="A part"),
+        )
+        _write(root / "lattice" / "fpga", "icepart", _doc(device="icepart", vendor="lattice"))
         return root
 
     def test_missing_root_is_an_empty_library(self, tmp_path):
@@ -650,10 +764,15 @@ class TestScanLibrary:
         """A thousand parts must list without a thousand validations."""
         # Arrange -- an address no parse would accept, in a listable file
         root = tmp_path / "lib"
-        _write(root, "sloppy", {
-            "device_version": 1, "device": "sloppy",
-            "registers": [{"name": "R", "addr": "not-an-address", "size": 4}],
-        })
+        _write(
+            root,
+            "sloppy",
+            {
+                "device_version": 1,
+                "device": "sloppy",
+                "registers": [{"name": "R", "addr": "not-an-address", "size": 4}],
+            },
+        )
 
         # Act
         parts, errors = scan_library(root)
@@ -704,10 +823,15 @@ class TestScanLibrary:
         # Arrange
         root = tmp_path / "lib"
         _write(root, "fixed", _doc(device="fixed"))
-        _write(root, "movable", _doc(
-            device="movable", relocatable=True,
-            registers=[{"name": "R", "addr": "0x0", "size": 4}],
-        ))
+        _write(
+            root,
+            "movable",
+            _doc(
+                device="movable",
+                relocatable=True,
+                registers=[{"name": "R", "addr": "0x0", "size": 4}],
+            ),
+        )
 
         # Act
         parts, _ = scan_library(root)
@@ -723,10 +847,16 @@ class TestReferenceFiles:
     @staticmethod
     def _library(root):
         """A library holding one relocatable part."""
-        _write(root / "lattice", "icepart", _doc(
-            device="icepart", relocatable=True,
-            instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
-            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}]))
+        _write(
+            root / "lattice",
+            "icepart",
+            _doc(
+                device="icepart",
+                relocatable=True,
+                instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
+                registers=[{"name": "STATUS", "addr": "0x00", "size": 4}],
+            ),
+        )
         return root
 
     @staticmethod
@@ -741,9 +871,11 @@ class TestReferenceFiles:
         # Arrange -- a bare reference needs a FIXED-address part; a
         # relocatable one must state its placement (TestRelocatable...).
         library = tmp_path / "lib"
-        _write(library / "lattice", "icepart", _doc(
-            device="icepart",
-            registers=[{"name": "STATUS", "addr": "0x40000000", "size": 4}]))
+        _write(
+            library / "lattice",
+            "icepart",
+            _doc(device="icepart", registers=[{"name": "STATUS", "addr": "0x40000000", "size": 4}]),
+        )
         ref = self._ref(tmp_path / "dev", "board")
 
         # Act
@@ -757,9 +889,14 @@ class TestReferenceFiles:
         """The library's instances are at best an example; the board is real."""
         # Arrange
         library = self._library(tmp_path / "lib")
-        ref = self._ref(tmp_path / "dev", "board",
-                        instances=[{"name": "FPGA0", "base": "0x70000000"},
-                                   {"name": "FPGA1", "base": "0x70001000"}])
+        ref = self._ref(
+            tmp_path / "dev",
+            "board",
+            instances=[
+                {"name": "FPGA0", "base": "0x70000000"},
+                {"name": "FPGA1", "base": "0x70001000"},
+            ],
+        )
 
         # Act
         device = load_device(ref, "cfg", library)
@@ -776,8 +913,7 @@ class TestReferenceFiles:
         library = self._library(tmp_path / "lib")
         part = library / "lattice" / "icepart.device.json"
         before = part.read_text(encoding="utf-8")
-        ref = self._ref(tmp_path / "dev", "board",
-                        instances=[{"name": "X", "base": "0x70000000"}])
+        ref = self._ref(tmp_path / "dev", "board", instances=[{"name": "X", "base": "0x70000000"}])
 
         # Act
         load_device(ref, "cfg", library)
@@ -789,8 +925,9 @@ class TestReferenceFiles:
         """That would be a fork, and not-being-a-fork is the whole value."""
         # Arrange
         library = self._library(tmp_path / "lib")
-        ref = self._ref(tmp_path / "dev", "board",
-                        registers=[{"name": "SNEAKY", "addr": "0x0", "size": 4}])
+        ref = self._ref(
+            tmp_path / "dev", "board", registers=[{"name": "SNEAKY", "addr": "0x0", "size": 4}]
+        )
 
         # Act / Assert
         with pytest.raises(ValueError, match="only instances"):
@@ -846,7 +983,8 @@ class TestReferenceFiles:
         folder = tmp_path / "dev"
         _write(folder, "plain", _doc(device="plain"))
         (folder / "bad.device.json").write_text(
-            json.dumps({"device_version": 1, "ref": "absent"}), encoding="utf-8")
+            json.dumps({"device_version": 1, "ref": "absent"}), encoding="utf-8"
+        )
 
         # Act
         load = load_devices_from_dir(folder, "cfg", library)
@@ -861,10 +999,16 @@ class TestRelocatableReferenceNeedsPlacement:
 
     @staticmethod
     def _library(root):
-        _write(root / "lattice", "icepart", _doc(
-            device="icepart", relocatable=True,
-            instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
-            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}]))
+        _write(
+            root / "lattice",
+            "icepart",
+            _doc(
+                device="icepart",
+                relocatable=True,
+                instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
+                registers=[{"name": "STATUS", "addr": "0x00", "size": 4}],
+            ),
+        )
         return root
 
     def test_a_reference_does_not_inherit_the_library_placement(self, tmp_path):
@@ -874,8 +1018,7 @@ class TestRelocatableReferenceNeedsPlacement:
         folder = tmp_path / "dev"
         folder.mkdir()
         file = folder / "board.device.json"
-        file.write_text(json.dumps({"device_version": 1, "ref": "icepart"}),
-                        encoding="utf-8")
+        file.write_text(json.dumps({"device_version": 1, "ref": "icepart"}), encoding="utf-8")
 
         # Act / Assert
         with pytest.raises(ValueError, match="needs at least one"):
@@ -887,10 +1030,16 @@ class TestRelocatableReferenceNeedsPlacement:
         folder = tmp_path / "dev"
         folder.mkdir()
         file = folder / "board.device.json"
-        file.write_text(json.dumps({
-            "device_version": 1, "ref": "icepart",
-            "instances": [{"name": "REAL", "base": "0x70000000"}],
-        }), encoding="utf-8")
+        file.write_text(
+            json.dumps(
+                {
+                    "device_version": 1,
+                    "ref": "icepart",
+                    "instances": [{"name": "REAL", "base": "0x70000000"}],
+                }
+            ),
+            encoding="utf-8",
+        )
 
         # Act
         device = load_device(file, "cfg", library)
@@ -908,8 +1057,7 @@ class TestRelocatableReferenceNeedsPlacement:
         folder = tmp_path / "dev"
         folder.mkdir()
         file = folder / "board.device.json"
-        file.write_text(json.dumps({"device_version": 1, "ref": "fixedpart"}),
-                        encoding="utf-8")
+        file.write_text(json.dumps({"device_version": 1, "ref": "fixedpart"}), encoding="utf-8")
 
         # Act
         device = load_device(file, "cfg", library)
@@ -961,10 +1109,16 @@ class TestLibraryLayers:
     @staticmethod
     def _twins(tmp_path):
         """The same identity in both layers, with a different register each."""
-        _write(tmp_path / "lib" / "v", "twin", _doc(
-            device="twin", registers=[{"name": "SHARED", "addr": "0x1000", "size": 4}]))
-        _write(tmp_path / "rig" / "lib" / "v", "twin", _doc(
-            device="twin", registers=[{"name": "LOCAL", "addr": "0x2000", "size": 4}]))
+        _write(
+            tmp_path / "lib" / "v",
+            "twin",
+            _doc(device="twin", registers=[{"name": "SHARED", "addr": "0x1000", "size": 4}]),
+        )
+        _write(
+            tmp_path / "rig" / "lib" / "v",
+            "twin",
+            _doc(device="twin", registers=[{"name": "LOCAL", "addr": "0x2000", "size": 4}]),
+        )
         return [(tmp_path / "lib", "global"), (tmp_path / "rig" / "lib", "rig")]
 
     @staticmethod

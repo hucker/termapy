@@ -29,6 +29,7 @@ def _fix_msys2_path_on_windows() -> None:
     import os
     import sys
     import warnings
+
     if sys.platform != "win32":
         return
     msys2_bin = r"C:\msys64\mingw64\bin"
@@ -96,7 +97,12 @@ def _isolate_variables():
     """
     from termapy import variables
 
-    stores = (variables._VARS, variables._LAUNCH_VARS, variables._CONTEXT_VARS, variables._FROZEN_MOMENTS)
+    stores = (
+        variables._VARS,
+        variables._LAUNCH_VARS,
+        variables._CONTEXT_VARS,
+        variables._FROZEN_MOMENTS,
+    )
     saved = [dict(store) for store in stores]
     yield
     for store, before in zip(stores, saved):
@@ -150,7 +156,10 @@ def pytest_configure(config) -> None:
         return
     demanded = [
         flag
-        for flag, dest in (("--run-hw-loopback", "run_hw_loopback"), ("--require-hw-loopback", "require_hw_loopback"))
+        for flag, dest in (
+            ("--run-hw-loopback", "run_hw_loopback"),
+            ("--require-hw-loopback", "require_hw_loopback"),
+        )
         if config.getoption(dest)
     ]
     if demanded:
@@ -182,7 +191,7 @@ def pytest_collection_modifyitems(config, items) -> None:
         return
     skip = pytest.mark.skip(
         reason="hw_loopback: needs --run-hw-loopback and the jumpered adapter; "
-               "run: uv run pytest --run-hw-loopback -m hw_loopback -n 0"
+        "run: uv run pytest --run-hw-loopback -m hw_loopback -n 0"
     )
     for item in items:
         if "hw_loopback" in item.keywords:

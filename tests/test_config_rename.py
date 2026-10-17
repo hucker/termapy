@@ -145,6 +145,8 @@ class TestRenameCarriesEverySidecar:
         lab = tmp_path / "lab"
         for name in ("lab.history", "lab.log", "lab.md", "lab.profile.json"):
             assert (lab / name).is_file(), f"{name} followed the rename"
-        assert (lab / "sym" / "lab.symbols.json").is_file(), "the symbol table followed, inside sym/"
+        assert (lab / "sym" / "lab.symbols.json").is_file(), (
+            "the symbol table followed, inside sym/"
+        )
         left = sorted(path.name for path in lab.rglob("bench*"))
         assert left == [], f"nothing keeps the old name: {left}"

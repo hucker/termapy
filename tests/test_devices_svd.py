@@ -32,7 +32,6 @@ def rows(doc):
 
 
 class TestFlattening:
-
     def test_count(self, doc):
         assert len(doc["registers"]) == EXPECTED_COUNT, "every dim, cluster and derivation expanded"
 
@@ -42,7 +41,9 @@ class TestFlattening:
 
     def test_register_dim_uses_dimindex_labels(self, rows):
         assert rows["PORT_GROUP0_PMUX0"]["addr"] == "0x40003030", "%s -> first label"
-        assert rows["PORT_GROUP0_PMUX1"]["addr"] == "0x40003031", "%s -> second label, +dimIncrement"
+        assert rows["PORT_GROUP0_PMUX1"]["addr"] == "0x40003031", (
+            "%s -> second label, +dimIncrement"
+        )
 
     def test_derived_peripheral_copies_registers_at_its_own_base(self, rows):
         assert rows["SERCOM1_DATA"]["addr"] == "0x40003C28", "SERCOM0's layout at SERCOM1's base"
@@ -58,7 +59,6 @@ class TestFlattening:
 
 
 class TestSemantics:
-
     def test_access_maps(self, rows):
         assert rows["PORT_GROUP0_IN"]["access"] == "ro", "read-only -> ro"
         assert rows["SERCOM0_DBGCTRL"]["access"] == "wo", "write-only -> wo"
@@ -82,7 +82,6 @@ class TestSemantics:
 
 
 class TestFields:
-
     def test_three_bit_spellings(self, rows):
         by_name = {field["name"]: field for field in rows["PORT_GROUP0_PMUX0"]["fields"]}
         assert (by_name["PMUXE"]["bit"], by_name["PMUXE"]["width"]) == (0, 4), "bitRange [3:0]"
@@ -100,7 +99,6 @@ class TestFields:
 
 
 class TestDocument:
-
     def test_metadata(self, doc):
         assert doc["device"] == "atsample1", "the SVD name, lowercased"
         assert doc["vendor"] == "Sample Semiconductor"
@@ -142,7 +140,6 @@ class TestDocument:
 
 
 class TestRegistry:
-
     def test_svd_is_registered(self):
         assert FORMATS == ("svd",)
         assert CONVERTERS[0].kind == "device", "a device converter, never offered to /sym.import"

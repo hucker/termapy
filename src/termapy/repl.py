@@ -217,9 +217,7 @@ def _closest_flag(needle: str, candidates: list[str]) -> str | None:
     return best[1] if best else None
 
 
-def _suggest_command(
-    name: str, plugins: dict, prefix: str = DEFAULT_CMD_PREFIX
-) -> str | None:
+def _suggest_command(name: str, plugins: dict, prefix: str = DEFAULT_CMD_PREFIX) -> str | None:
     """Find close command names using edit distance (max 2, top 3)."""
     candidates = []
     for command in plugins:
@@ -376,6 +374,7 @@ class ReplEngine:
         # write callable; the host replaces this whole ctx via
         # ``set_context()`` once it builds the real one.
         from termapy.plugins.handles.io import IOHandle
+
         self.ctx = PluginContext(io=IOHandle(_write=write))
 
         # Unified plugin registry - all commands live here
@@ -398,9 +397,7 @@ class ReplEngine:
         # any future audit / repeat-last / event-stream feature.
         # Observer exceptions are caught so a buggy subscriber can't
         # break dispatch.
-        self._post_dispatch_observers: list[
-            Callable[[str, CmdResult], None]
-        ] = []
+        self._post_dispatch_observers: list[Callable[[str, CmdResult], None]] = []
 
         # Lifecycle hooks - flat list in load order. fire_lifecycle() filters
         # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
@@ -770,6 +767,7 @@ class ReplEngine:
         # into ``output_lines`` too -- the exact duplication we set out
         # to avoid.  Computed once and reused below.
         from termapy.variables import launch_var
+
         _is_mcp = launch_var("FRONT_END") == "mcp"
 
         # Symmetric input: unwrap {"cmd": "..."} into the cmd value.
@@ -784,9 +782,7 @@ class ReplEngine:
                 if isinstance(cmd_value, str) and cmd_value:
                     command = cmd_value
                 else:
-                    err_msg = (
-                        'Invalid JSON input: "cmd" must be a non-empty string'
-                    )
+                    err_msg = 'Invalid JSON input: "cmd" must be a non-empty string'
                     # Same envelope dialect as every other answer; MCP
                     # skips the render because its outer response
                     # envelope is built from the CmdResult.
@@ -955,7 +951,8 @@ class ReplEngine:
         built-ins, so a config folder can also override a built-in.
         """
         self._converters[:] = [
-            existing for existing in self._converters
+            existing
+            for existing in self._converters
             if (existing.kind, existing.format) != (spec.kind, spec.format)
         ]
         self._converters.append(spec)
@@ -1020,8 +1017,7 @@ class ReplEngine:
         if self.trusted_only:
             if not self._trusted_notice_shown:
                 self.write(
-                    "TERMAPY_TRUSTED_PLUGINS_ONLY=1: "
-                    "skipping filesystem plugin discovery.",
+                    "TERMAPY_TRUSTED_PLUGINS_ONLY=1: skipping filesystem plugin discovery.",
                     "yellow",
                 )
                 self._trusted_notice_shown = True
@@ -1050,29 +1046,20 @@ class ReplEngine:
         is what makes a per-config transform go away on a config switch.
         """
         dropped = [
-            name for name, info in self._plugins.items()
-            if info.source not in _EXTERNAL_KEEP
+            name for name, info in self._plugins.items() if info.source not in _EXTERNAL_KEEP
         ]
         for name in dropped:
             del self._plugins[name]
         self._transform_infos[:] = [
             info for info in self._transform_infos if info.source in _EXTERNAL_KEEP
         ]
-        self._repl_transforms[:] = [
-            info.repl for info in self._transform_infos if info.repl
-        ]
-        self._serial_transforms[:] = [
-            info.serial for info in self._transform_infos if info.serial
-        ]
-        self._directives[:] = [
-            info for info in self._directives if info.source in _EXTERNAL_KEEP
-        ]
+        self._repl_transforms[:] = [info.repl for info in self._transform_infos if info.repl]
+        self._serial_transforms[:] = [info.serial for info in self._transform_infos if info.serial]
+        self._directives[:] = [info for info in self._directives if info.source in _EXTERNAL_KEEP]
         self._lifecycle_hooks[:] = [
             hook for hook in self._lifecycle_hooks if hook.source in _EXTERNAL_KEEP
         ]
-        self._converters[:] = [
-            spec for spec in self._converters if spec.source in _EXTERNAL_KEEP
-        ]
+        self._converters[:] = [spec for spec in self._converters if spec.source in _EXTERNAL_KEEP]
         return dropped
 
     def _install_layer(self, result: LoadResult, source: str) -> None:
@@ -1322,12 +1309,14 @@ class ReplEngine:
 
             def _open(ctx: PluginContext, args: str) -> CmdResult:
                 return open_picker(picker)
+
             return _open
         if plugin.bare_sub:
             target = f"{plugin.name}.{plugin.bare_sub}"
 
             def _run(ctx: PluginContext, args: str) -> CmdResult:
                 return self.dispatch(target, report=False)
+
             return _run
         return None
 
@@ -1415,15 +1404,15 @@ class ReplEngine:
                 continue
             outcome = registry.validate(arg_type, bound[arg_name])
             if not outcome.ok:
-                return CmdResult.fail(
-                    msg=f"Arg {arg_name!r} invalid for {name!r}: {outcome.error}"
-                )
+                return CmdResult.fail(msg=f"Arg {arg_name!r} invalid for {name!r}: {outcome.error}")
         return None
 
     # -- Full dispatch pipeline ------------------------------------------------
 
     def format_echo_markup(
-        self, text: str, eol_label: Callable[[str], str] | None = None,
+        self,
+        text: str,
+        eol_label: Callable[[str], str] | None = None,
     ) -> str:
         """The echo line for a command or device line, as markup.
 
@@ -1509,7 +1498,8 @@ class ReplEngine:
                 _echo(self.format_echo_markup(cmd))
             refusal = self._capability_refusal(raw_plugin, "raw")
             result = (
-                CmdResult.fail(msg=refusal) if refusal is not None
+                CmdResult.fail(msg=refusal)
+                if refusal is not None
                 else raw_plugin.handler(self.ctx, raw_text)
             )
             if report and not result.success:
@@ -1661,7 +1651,8 @@ class ReplEngine:
     # -- REPL dispatch ---------------------------------------------------------
 
     def add_post_dispatch_observer(
-        self, cb: Callable[[str, CmdResult], None],
+        self,
+        cb: Callable[[str, CmdResult], None],
     ) -> Callable[[str, CmdResult], None]:
         """Register ``cb(line, result)`` to fire after every dispatch().
 
@@ -1680,7 +1671,8 @@ class ReplEngine:
         return cb
 
     def remove_post_dispatch_observer(
-        self, token: Callable[[str, CmdResult], None],
+        self,
+        token: Callable[[str, CmdResult], None],
     ) -> None:
         """Deregister a previously-added observer.  Idempotent."""
         if token in self._post_dispatch_observers:
@@ -1838,10 +1830,11 @@ class ReplEngine:
             args, flag_level = _strip_level_flags(args)
             if flag_level is not None:
                 if call_level is not None and call_level != flag_level:
-                    return _finish(CmdResult.fail(
-                        msg=f"Conflicting output level: .{call_level} "
-                        f"and --{flag_level}"
-                    ))
+                    return _finish(
+                        CmdResult.fail(
+                            msg=f"Conflicting output level: .{call_level} and --{flag_level}"
+                        )
+                    )
                 call_level = flag_level
             # First-class flag parsing: strip declared flags from args and
             # record them on the context for the handler to read via
@@ -1864,20 +1857,23 @@ class ReplEngine:
                 # raw_args commands opt out -- their contract is that values
                 # arrive literal.  Lazy import: repl is core, var is a builtin.
                 from termapy.variables import deref_ref
+
                 bound_params, param_error = parse_params(
                     plugin.params,
                     args,
                     deref=None if plugin.raw_args else deref_ref,
                 )
                 if param_error:
-                    return _finish(CmdResult.fail(
-                        msg=format_usage(
-                            self.prefix,
-                            name,
-                            plugin,
-                            detail=f"{self.prefix}{name}: {param_error}",
+                    return _finish(
+                        CmdResult.fail(
+                            msg=format_usage(
+                                self.prefix,
+                                name,
+                                plugin,
+                                detail=f"{self.prefix}{name}: {param_error}",
+                            )
                         )
-                    ))
+                    )
             self.ctx.active_flags = active_flags
             # Save+restore the level (rather than reset to None) so a
             # nested dispatch inside the handler -- e.g. /run cascading
@@ -1953,9 +1949,7 @@ class ReplEngine:
             # hand-write "Usage:" strings).  Must precede the broad
             # BoundaryException catch below.
             except UsageError as e:
-                result = CmdResult.fail(
-                    msg=format_usage(self.prefix, name, plugin, e.detail)
-                )
+                result = CmdResult.fail(msg=format_usage(self.prefix, name, plugin, e.detail))
             # MissingCapability is the structural backstop for
             # "handler called a capability-gated handle method but didn't
             # declare the capability in Command.needs".  Surface it with
@@ -2026,9 +2020,7 @@ class ReplEngine:
         start_perf = seq_ns.get("_start_perf")
         elapsed_s = None if start_perf is None else time.monotonic() - start_perf
         counters = {k: v for k, v in seq_ns.items() if isinstance(k, int)}
-        result, new_counters = expand_template(
-            text, counters, start_time, elapsed_s=elapsed_s
-        )
+        result, new_counters = expand_template(text, counters, start_time, elapsed_s=elapsed_s)
         for k in list(seq_ns):
             if isinstance(k, int):
                 del seq_ns[k]
@@ -2227,9 +2219,7 @@ class ReplEngine:
                 cmd_result = self.dispatch(stripped[len(sctx.prefix) :].strip())
             elif self.ctx.serial.is_connected():
                 self.ctx.serial.write(
-                    (stripped + self.cfg.get("eol", "\r")).encode(
-                        self.cfg.get("encoding", "utf-8")
-                    )
+                    (stripped + self.cfg.get("eol", "\r")).encode(self.cfg.get("encoding", "utf-8"))
                 )
                 cmd_result = None
             else:
@@ -2257,9 +2247,7 @@ class ReplEngine:
         return result
 
     @contextmanager
-    def _script_session(
-        self, path, w, dispatch, profile, verbose, progress, on_nest
-    ):
+    def _script_session(self, path, w, dispatch, profile, verbose, progress, on_nest):
         """Context manager for script lifecycle - setup, yield, teardown."""
         sctx = ScriptCtx(
             w=w,
@@ -2285,9 +2273,7 @@ class ReplEngine:
                 self.ctx.ns("flags")["echo_repl"] = self._echo_repl_before_script
             yield sctx  # yield empty context so 'with' block runs (lines is empty)
             return
-        sctx.lines = [
-            ln for ln in all_lines if ln.strip() and not ln.strip().startswith("#")
-        ]
+        sctx.lines = [ln for ln in all_lines if ln.strip() and not ln.strip().startswith("#")]
         sctx.total = len(sctx.lines)
         if profile:
             ts = filename_timestamp()
@@ -2350,9 +2336,7 @@ class ReplEngine:
         # thread that actually executes, so a nested /run is recognized as
         # nesting and any other thread's launch is refused.
         self._script_owner = threading.get_ident()
-        with self._script_session(
-            path, w, dispatch, profile, verbose, progress, on_nest
-        ) as sctx:
+        with self._script_session(path, w, dispatch, profile, verbose, progress, on_nest) as sctx:
             for step, raw_line in enumerate(sctx.lines, 1):
                 if self._script_stop.is_set():
                     w("Script stopped.")

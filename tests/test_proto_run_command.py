@@ -55,7 +55,6 @@ expect = '"OK\\r\\n"'
 
 
 class TestResultsDocument:
-
     def test_json_file_is_written_beside_the_script(self, cli, tmp_path):
         """A script-level json_file lands in test/ next to the script, named by the template, holding the shared document."""
         # Arrange
@@ -70,7 +69,10 @@ class TestResultsDocument:
         assert out_path.exists(), "written where termapy --proto writes"
         document = json.loads(out_path.read_text(encoding="utf-8"))
         assert document["summary"] == {
-            "total": 1, "passed": 1, "failed": 0, "elapsed_ms": document["summary"]["elapsed_ms"],
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "elapsed_ms": document["summary"]["elapsed_ms"],
         }
         assert document["meta"]["script"] == "at.pro", "the same meta the headless runner records"
         assert document["tests"][0]["name"] == "AT basic"
@@ -106,7 +108,6 @@ class TestResultsDocument:
 
 
 class TestTeardown:
-
     def test_per_test_teardown_runs(self, cli, tmp_path, capsys):
         """A test's own teardown commands are sent after its expect, as the headless runner does."""
         # Arrange
@@ -122,7 +123,6 @@ class TestTeardown:
 
 
 class TestStop:
-
     def test_stale_stop_is_cleared_at_the_prompt(self, cli, tmp_path):
         """Typed at the prompt, /proto.run owns the stop event: a stale Escape does not end the run before it starts."""
         # Arrange

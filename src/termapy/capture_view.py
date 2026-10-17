@@ -184,5 +184,3 @@ def _cap_hide_progress(app) -> None:
         inp.focus()
     except SHUTDOWN_RACE:
         pass  # overlay gone or main widgets unmounted
-
-

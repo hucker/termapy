@@ -27,9 +27,7 @@ class TestExtractDocstring:
 
         # Assert
         assert summary == "Smoke-test the device.", "summary is the first comment line"
-        assert full == "Smoke-test the device.", (
-            "single-line block: full == summary"
-        )
+        assert full == "Smoke-test the device.", "single-line block: full == summary"
 
     def test_multiline_block_summary_is_first_line(self, tmp_path):
         """Summary is line one; the full text keeps every line with one leading space stripped."""
@@ -47,11 +45,7 @@ class TestExtractDocstring:
 
         # Assert -- summary is first line; full preserves the block.
         assert summary == "Smoke test.", "summary is line 1"
-        expected_full = (
-            "Smoke test.\n"
-            "Connects, captures 2s of output.\n"
-            "Used by the CI gate."
-        )
+        expected_full = "Smoke test.\nConnects, captures 2s of output.\nUsed by the CI gate."
         assert full == expected_full, "full block preserved with one-space strip"
 
     def test_block_with_blank_comment_lines(self, tmp_path):
@@ -59,10 +53,7 @@ class TestExtractDocstring:
         # Arrange -- ``#`` alone is a paragraph separator (Python-doc style).
         path = _write(
             tmp_path,
-            "# Title line.\n"
-            "#\n"
-            "# Paragraph two.\n"
-            "/cmd\n",
+            "# Title line.\n#\n# Paragraph two.\n/cmd\n",
         )
 
         # Act
@@ -82,10 +73,7 @@ class TestExtractDocstring:
         # NOT part of the docstring.
         path = _write(
             tmp_path,
-            "# Header.\n"
-            "/cmd1\n"
-            "# This is NOT part of the docstring.\n"
-            "/cmd2\n",
+            "# Header.\n/cmd1\n# This is NOT part of the docstring.\n/cmd2\n",
         )
 
         # Act
@@ -100,10 +88,7 @@ class TestExtractDocstring:
         # Arrange -- a blank line ends the block (no leading-#).
         path = _write(
             tmp_path,
-            "# Header.\n"
-            "\n"
-            "# Not the docstring.\n"
-            "/cmd\n",
+            "# Header.\n\n# Not the docstring.\n/cmd\n",
         )
 
         # Act

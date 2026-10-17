@@ -23,7 +23,6 @@ _MAIN = Symbol("main", 0x10FFA, 0x1BA, "text", file="main.c")
 
 
 class TestHexAddr:
-
     def test_default_width(self):
         """With no width given, addresses render as 32-bit, eight hex digits."""
         assert hex_addr(0x2010) == "0x00002010", "32-bit -> 8 digits"
@@ -38,7 +37,6 @@ class TestHexAddr:
 
 
 class TestSymbolicName:
-
     def test_at_start(self):
         """An address at the symbol's start is the bare name, with no +0x0."""
         assert symbolic_name(_MAIN, 0x10FFA) == "main", "no offset at the start"
@@ -53,7 +51,6 @@ class TestSymbolicName:
 
 
 class TestFormatSymbol:
-
     def test_basic_format(self):
         """The line is address, name, then [label size file] in brackets."""
         # Act
@@ -104,7 +101,6 @@ class TestFormatSymbol:
 
 
 class TestSymbolRecord:
-
     def test_fixed_keys(self):
         """The data record always carries every key, with int and hex address both."""
         # Act
@@ -112,15 +108,23 @@ class TestSymbolRecord:
 
         # Assert
         expected = {
-            "name": "main", "addr": 0x10FFA, "addr_hex": "0x00010FFA", "end": 0x10FFA + 0x1BA,
-            "size": 0x1BA, "section": "text", "file": "main.c", "type": "", "space": "",
-            "rmw": True, "access": "rw", "read_effect": False,
+            "name": "main",
+            "addr": 0x10FFA,
+            "addr_hex": "0x00010FFA",
+            "end": 0x10FFA + 0x1BA,
+            "size": 0x1BA,
+            "section": "text",
+            "file": "main.c",
+            "type": "",
+            "space": "",
+            "rmw": True,
+            "access": "rw",
+            "read_effect": False,
         }
         assert actual == expected, "int and hex addr side by side; every key present"
 
 
 class TestLookupRecord:
-
     def test_hit(self):
         """A hit record carries the query, address, symbolic form and nested symbol."""
         # Arrange
@@ -151,13 +155,13 @@ class TestLookupRecord:
 
 
 class TestTableRecord:
-
     def test_agrees_with_info_rows(self):
         """The data record and the prose rows report the same count, span and sources."""
         # Arrange
         table = SymbolTable(
             [_MAIN, Symbol("sCal", 0x20005A58, 0, "global"), Symbol("buf", 0x20000000, 16, "bss")],
-            source="build/mem.map", imported="2026-08-29T10:12:00",
+            source="build/mem.map",
+            imported="2026-08-29T10:12:00",
             regions=[{"name": "ram"}],
         )
 
@@ -170,7 +174,10 @@ class TestTableRecord:
         assert record["sections"] == table.stats(), "record carries the raw section counts"
         assert rows["symbols"] == "3  (bss 1, code 1, global 1)", "rows use display labels, sorted"
         assert record["range"] == {
-            "start": 0x10FFA, "end": 0x20005A58, "start_hex": "0x00010FFA", "end_hex": "0x20005A58",
+            "start": 0x10FFA,
+            "end": 0x20005A58,
+            "start_hex": "0x00010FFA",
+            "end_hex": "0x20005A58",
         }, "range is the table span"
         assert rows["range"] == "0x00010FFA - 0x20005A58", "same span as prose"
         assert (record["path"], rows["file"]) == ("rig.symbols.json", "rig.symbols.json")
@@ -191,4 +198,8 @@ class TestTableRecord:
         assert record["range"] is None, "no span, null range"
         assert rows["range"] == "(empty)", "prose says empty"
         assert rows["symbols"] == "0", "no section breakdown for an empty table"
-        assert (rows["file"], rows["source"], rows["imported"]) == ("(in-memory)", "(none)", "(none)")
+        assert (rows["file"], rows["source"], rows["imported"]) == (
+            "(in-memory)",
+            "(none)",
+            "(none)",
+        )

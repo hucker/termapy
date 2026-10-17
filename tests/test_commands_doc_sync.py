@@ -73,6 +73,5 @@ def test_every_documented_command_exists():
 
     # Assert
     assert phantom == [], (
-        "commands.md lists commands that don't exist (renamed/removed?): "
-        f"{phantom}"
+        f"commands.md lists commands that don't exist (renamed/removed?): {phantom}"
     )

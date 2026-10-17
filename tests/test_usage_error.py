@@ -149,9 +149,7 @@ class TestDispatchRendersUsage:
         result = eng.dispatch("utest.sub")
 
         # Assert
-        assert result.error == "Usage: /utest.sub <n>", (
-            "dotted name renders in full"
-        )
+        assert result.error == "Usage: /utest.sub <n>", "dotted name renders in full"
 
     def test_custom_prefix_in_usage_line(self, engine):
         """A cmd_prefix changed after registration is honored live, never a hardcoded /."""

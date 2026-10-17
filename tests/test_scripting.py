@@ -554,9 +554,7 @@ class TestResolveSeqFilename:
         """A counter at the pattern's maximum wraps back to 0."""
         # Arrange - set counter to max
         seq_path = tmp_path / ".cap_seq"
-        seq_path.write_text(
-            json.dumps({"data_$(n0).txt": 9}), encoding="utf-8"
-        )
+        seq_path.write_text(json.dumps({"data_$(n0).txt": 9}), encoding="utf-8")
 
         # Act
         actual = resolve_seq_filename("data_$(n0).txt", tmp_path)
@@ -762,6 +760,7 @@ class TestCmdResult:
         # ``value`` is keyword-only with no default so callers can't
         # silently forget it.  Positional or missing args must error.
         import pytest as _pytest
+
         with _pytest.raises(TypeError):
             CmdResult.ok()  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument] -- the TypeError is the point
 
@@ -780,6 +779,7 @@ class TestCmdResult:
         # Path values auto-convert to absolute strings via the
         # constructor; callers can hand a Path directly.
         from pathlib import Path
+
         p = Path("some/relative/path")
         actual = CmdResult.ok(value=p)
         assert isinstance(actual.value, str), "Path converted to string"
@@ -819,7 +819,9 @@ class TestParseBoolSetting:
         expected = f"Invalid value: {val} (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
         with pytest.raises(ValueError) as exc:
             parse_bool_setting(val)
-        assert str(exc.value) == expected, "the message names the text as typed, the vocabulary and toggle"
+        assert str(exc.value) == expected, (
+            "the message names the text as typed, the vocabulary and toggle"
+        )
 
 
 class TestNextInCycle:
@@ -885,9 +887,9 @@ class TestParseBool:
         """Unknown words, including near-misses like enable and the old high/low, raise; never False, never a default."""
         with pytest.raises(ValueError) as exc:
             parse_bool(val, default=False)
-        assert str(exc.value) == f"Invalid boolean: {val} (use on/off/true/false/yes/no/1/0/y/n/t/f)", (
-            "a present token outside the vocabulary errors even when a default was declared"
-        )
+        assert (
+            str(exc.value) == f"Invalid boolean: {val} (use on/off/true/false/yes/no/1/0/y/n/t/f)"
+        ), "a present token outside the vocabulary errors even when a default was declared"
 
     @pytest.mark.parametrize("text", ["", "   ", None])
     def test_absence_yields_the_declared_default(self, text):

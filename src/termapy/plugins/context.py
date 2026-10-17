@@ -380,9 +380,7 @@ class PluginContext:
             RuntimeError: If no config is loaded (no ``config_path``).
         """
         if not self.config_path:
-            raise RuntimeError(
-                f"Cannot access plugin config for {name!r}: no config loaded"
-            )
+            raise RuntimeError(f"Cannot access plugin config for {name!r}: no config loaded")
         path = Path(self.config_path).parent / PLUGIN / f"{name}.cfg"
         # Keyed by the FILE, not the plugin name.  One context serves every
         # config in a TUI session -- app._switch_config reassigns

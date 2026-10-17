@@ -66,12 +66,8 @@ class FilenameDialog(ModalScreen[str | None]):
         self.dismiss(None)
 
     def on_mount(self) -> None:
-        self.query_one("#filename-input", Input).tooltip = (
-            "Filename for the new file."
-        )
-        self.query_one("#filename-cancel", Button).tooltip = (
-            "Close without saving."
-        )
+        self.query_one("#filename-input", Input).tooltip = "Filename for the new file."
+        self.query_one("#filename-cancel", Button).tooltip = "Close without saving."
 
     def compose(self) -> ComposeResult:
         with Vertical(id="filename-dialog"):

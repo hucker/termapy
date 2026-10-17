@@ -41,8 +41,13 @@ def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
     """
     cfg = {
         "serial": {
-            "port": "COM4", "baud_rate": 115200, "custom_baud": False, "byte_size": 8,
-            "parity": "N", "stop_bits": 1, "flow_control": "none",
+            "port": "COM4",
+            "baud_rate": 115200,
+            "custom_baud": False,
+            "byte_size": 8,
+            "parity": "N",
+            "stop_bits": 1,
+            "flow_control": "none",
         },
         "echo": False,
         "eol": "\r",
@@ -123,7 +128,6 @@ def _texts(output) -> list[str]:
 
 
 class TestAutoload:
-
     def test_sidecar_present_loads_on_app_start(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
@@ -233,7 +237,6 @@ class TestAutoload:
 
 
 class TestSymImport:
-
     def test_import_writes_sidecar_and_installs(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
@@ -258,7 +261,9 @@ class TestSymImport:
         assert ("  duplicate names need name@file: sState", "dim") in output, (
             "the bench user learns the name@file form before hitting the error"
         )
-        assert result.data is not None and result.data["format"] == "xc32", "data carries the format"
+        assert result.data is not None and result.data["format"] == "xc32", (
+            "data carries the format"
+        )
         assert result.data["count"] == XC32_COUNT, "data carries the count"
 
     def test_explicit_format(self, sym_env):
@@ -343,7 +348,9 @@ class TestSymImport:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(XC32_COUNT), "the whole path binds; the keyword after it still parses"
+        assert result.value == str(XC32_COUNT), (
+            "the whole path binds; the keyword after it still parses"
+        )
 
     def test_missing_map(self, sym_env):
         # Arrange
@@ -681,7 +688,8 @@ class TestDevices:
         engine, config_path, _ = sym_env
         _install_device(tmp_path / "dev", "part", _PART)
         _install_device(
-            config_path.parent / "dev", "part",
+            config_path.parent / "dev",
+            "part",
             [{"name": "REG_A", "addr": "0x60000000", "size": 4}],
         )
 
@@ -713,7 +721,8 @@ class TestDevices:
         engine, config_path, output = sym_env
         _install_sidecar(config_path)
         _install_device(
-            config_path.parent / "dev", "part",
+            config_path.parent / "dev",
+            "part",
             [{"name": "gTemp", "addr": "0x50000000", "size": 2}],
         )
 
@@ -733,7 +742,7 @@ class TestDevices:
 SVD_SAMPLE = Path(__file__).parent / "fixtures" / "devices" / "svd_sample.svd"
 SVD_COUNT = 16  # see test_devices_svd.py
 
-_DEVICE_CONVERTER = '''
+_DEVICE_CONVERTER = """
 KIND = "device"
 FORMAT = "acme"
 DESCRIPTION = "Acme register dump"
@@ -743,7 +752,7 @@ DETECT = ()
 def convert(text):
     return {"device_version": 1, "device": "acmepart",
             "registers": [{"name": "ACME_CTRL", "addr": "0x70000000", "size": 4}]}
-'''
+"""
 
 
 class TestDevImport:
@@ -813,9 +822,14 @@ class TestDevImport:
     def test_refuses_a_second_file_for_the_same_device(self, sym_env):
         # Arrange
         engine, config_path, _ = sym_env
-        _install_device(config_path.parent / "dev", "mine", [
-            {"name": "X", "addr": 0, "size": 4},
-        ], device="atsample1")  # a differently named file claiming the same device
+        _install_device(
+            config_path.parent / "dev",
+            "mine",
+            [
+                {"name": "X", "addr": 0, "size": 4},
+            ],
+            device="atsample1",
+        )  # a differently named file claiming the same device
         engine.fire_lifecycle("on_app_start")
 
         # Act
@@ -852,7 +866,7 @@ class TestDevImport:
 # A converter plugin: the four names a built-in converter exports.  This is
 # the pipeline shape the feature exists for -- reuse a built-in, drop what
 # the board doesn't want, add the typed rows a linker map cannot express.
-_PIPELINE_CONVERTER = '''
+_PIPELINE_CONVERTER = """
 from termapy.symbols.converters import xc32
 from termapy.symbols.table import Symbol
 
@@ -866,9 +880,9 @@ _SFRS = [Symbol("U1MODE", 0xBF806000, 4, "sfr", type="u32", rmw=False)]
 def convert(text):
     rows = [s for s in xc32.convert(text) if s.section != "text"]
     return rows + _SFRS
-'''
+"""
 
-_BROKEN_CONVERTER = '''
+_BROKEN_CONVERTER = """
 FORMAT = "boom"
 DESCRIPTION = "raises on purpose"
 DETECT = ()
@@ -876,15 +890,15 @@ DETECT = ()
 
 def convert(text):
     raise ValueError("bad regex")
-'''
+"""
 
 # FORMAT present, convert() missing -- an authoring error, not a plugin
 # that simply has no converter.
-_MALFORMED_CONVERTER = '''
+_MALFORMED_CONVERTER = """
 FORMAT = "halfdone"
 DESCRIPTION = "no convert()"
 DETECT = ()
-'''
+"""
 
 
 def _install_converter(config_path: Path, source: str, name: str = "conv") -> Path:
@@ -1117,7 +1131,6 @@ class TestConverterPlugins:
 
 
 class TestSymLoadUnload:
-
     def test_bare_load_reads_sidecar(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
@@ -1177,7 +1190,9 @@ class TestSymLoadUnload:
         # _display_path's out-of-folder branch: the full path, not a bare name.
         info = engine.dispatch("sym.info")
         rows = [text for text, color in output if color == "markup"]
-        assert any(str(DEMO_SYMBOLS) in row for row in rows), "file row shows the full path out-of-folder"
+        assert any(str(DEMO_SYMBOLS) in row for row in rows), (
+            "file row shows the full path out-of-folder"
+        )
         assert info.data is not None, "info record"
         assert info.data["path"] == str(DEMO_SYMBOLS), "data carries the same path"
 
@@ -1191,7 +1206,9 @@ class TestSymLoadUnload:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(DEMO_COUNT), "a bare name resolves into sym/, not against the CWD"
+        assert result.value == str(DEMO_COUNT), (
+            "a bare name resolves into sym/, not against the CWD"
+        )
 
     def test_load_takes_a_bare_stem_in_sym(self, sym_env):
         """file-name-default-ext: /sym.load rig finds sym/rig.symbols.json; the suffix is optional."""
@@ -1246,14 +1263,15 @@ class TestSymLoadUnload:
         assert second.success, second.error
         assert second.value == "0", "a second unload is a no-op, not an error"
         assert ("No symbols loaded.", "yellow") in output
-        assert (config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}").exists(), "the file is untouched"
+        assert (config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}").exists(), (
+            "the file is untouched"
+        )
 
 
 # ── /sym ────────────────────────────────────────────────────────────────────
 
 
 class TestSymRoot:
-
     def test_address_to_symbolic(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
@@ -1324,13 +1342,18 @@ class TestSymRoot:
         # Arrange -- two symbols at one address: the sized one is what lookup lands on
         engine, config_path, output = sym_env
         aliased = tmp_path / "aliased.symbols.json"
-        aliased.write_text(json.dumps({
-            "symbols_version": 1,
-            "symbols": [
-                {"name": "main", "addr": "0x2000", "size": 442, "section": "text"},
-                {"name": "_start", "addr": "0x2000", "size": 0, "section": "global"},
-            ],
-        }), encoding="utf-8")
+        aliased.write_text(
+            json.dumps(
+                {
+                    "symbols_version": 1,
+                    "symbols": [
+                        {"name": "main", "addr": "0x2000", "size": 442, "section": "text"},
+                        {"name": "_start", "addr": "0x2000", "size": 0, "section": "global"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         engine.dispatch(f"sym.load {aliased}")
 
         # Act
@@ -1410,7 +1433,6 @@ class TestSymRoot:
 
 
 class TestSymSearch:
-
     def test_prose_branch(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
@@ -1445,7 +1467,9 @@ class TestSymSearch:
         # Assert
         assert result.value == "gTemp", "value is unchanged by the data branch"
         assert result.data is not None and [rec["name"] for rec in result.data] == [
-            "gTemp", "gPressure", "gFlags",
+            "gTemp",
+            "gPressure",
+            "gFlags",
         ], "records in address order"
         assert len(output) == before, "the data branch prints nothing"
 
@@ -1479,7 +1503,6 @@ class TestSymSearch:
 
 
 class TestSymInfo:
-
     def test_loaded(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
@@ -1508,12 +1531,12 @@ class TestSymInfo:
         assert result.success, result.error
         assert result.value == "", "no table = empty value, not an error"
         assert (
-            "No symbols loaded.  /sym.import <map> or /sym.load {path} to load one.", "yellow",
+            "No symbols loaded.  /sym.import <map> or /sym.load {path} to load one.",
+            "yellow",
         ) in output
 
 
 class TestSymHelp:
-
     def test_long_help_reports_the_loaded_state(self, sym_env):
         # Arrange
         engine, config_path, output = sym_env
@@ -1523,20 +1546,19 @@ class TestSymHelp:
         before = list(_texts(output))
         _load(engine, config_path)
         engine.dispatch("help sym")
-        after = _texts(output)[len(before):]
+        after = _texts(output)[len(before) :]
 
         # Assert
         assert any("Current symbols = none" in text for text in before), "no table -> none"
-        assert any(f"Current symbols = {DEMO_COUNT} (sym/rig{SYMBOLS_SUFFIX})" in text for text in after), (
-            "loaded -> count and the config-relative sidecar path"
-        )
+        assert any(
+            f"Current symbols = {DEMO_COUNT} (sym/rig{SYMBOLS_SUFFIX})" in text for text in after
+        ), "loaded -> count and the config-relative sidecar path"
 
 
 # ── Sandbox and the value contract ──────────────────────────────────────────
 
 
 class TestSandbox:
-
     def test_absolute_paths_refused_when_confined(self, tmp_path):
         # Arrange -- an MCP host without TERMAPY_MCP_FS_UNCONFINED
         engine, config_path, _ = _build(tmp_path, unconfined=False)
@@ -1555,12 +1577,16 @@ class TestSandbox:
 
 
 class TestValueContract:
-
     @pytest.mark.parametrize(
         "line",
         [
-            "sym main", "sym 1000", "sym.search g*", "sym.search zzz", "sym.info",
-            "sym.unload", "sym.load",
+            "sym main",
+            "sym 1000",
+            "sym.search g*",
+            "sym.search zzz",
+            "sym.info",
+            "sym.unload",
+            "sym.load",
         ],
     )
     def test_every_command_returns_a_str_value(self, sym_env, line):
@@ -1612,11 +1638,14 @@ class TestDevList:
         # Arrange
         engine, config_path, output = sym_env
         _install_device(
-            config_path.parent / "dev", "fpga",
+            config_path.parent / "dev",
+            "fpga",
             [{"name": "STATUS", "addr": "0x00", "size": 4}],
             relocatable=True,
-            instances=[{"name": "FPGA0", "base": "0x60000000"},
-                       {"name": "FPGA1", "base": "0x60010000"}],
+            instances=[
+                {"name": "FPGA0", "base": "0x60000000"},
+                {"name": "FPGA1", "base": "0x60010000"},
+            ],
         )
         engine.fire_lifecycle("on_app_start")
         output.clear()  # drop the load lines
@@ -1662,10 +1691,14 @@ class TestDevList:
         """A part every config loads and a part this board has are different facts."""
         # Arrange
         engine, config_path, output = sym_env
-        _install_device(tmp_path / "dev", "globalpart",
-                        [{"name": "G_REG", "addr": "0x70000000", "size": 4}])
-        _install_device(config_path.parent / "dev", "localpart",
-                        [{"name": "L_REG", "addr": "0x80000000", "size": 4}])
+        _install_device(
+            tmp_path / "dev", "globalpart", [{"name": "G_REG", "addr": "0x70000000", "size": 4}]
+        )
+        _install_device(
+            config_path.parent / "dev",
+            "localpart",
+            [{"name": "L_REG", "addr": "0x80000000", "size": 4}],
+        )
         engine.fire_lifecycle("on_app_start")
         output.clear()
 
@@ -1686,7 +1719,8 @@ def _install_library(root: Path, category: str, name: str, **extra) -> Path:
     folder = root / "lib" / category if category else root / "lib"
     folder.mkdir(parents=True, exist_ok=True)
     doc = {
-        "device_version": 1, "device": name,
+        "device_version": 1,
+        "device": name,
         "registers": [{"name": "R", "addr": "0x90000000", "size": 4}],
     } | extra
     file = folder / f"{name}.device.json"
@@ -1760,8 +1794,9 @@ class TestDevLib:
         result = engine.dispatch("dev.lib pic32cm*")
 
         # Assert
-        assert result.value.splitlines() == ["pic32cm1216", "pic32cm2532"], \
+        assert result.value.splitlines() == ["pic32cm1216", "pic32cm2532"], (
             "the wildcard matched both families and excluded the rest"
+        )
 
     def test_a_loaded_part_is_marked(self, sym_env, config_dev_part, tmp_path):
         """The listing answers 'do I already have this?' in the same glance."""
@@ -1790,8 +1825,9 @@ class TestDevLib:
         assert isinstance(result.data, list), "one record per part"
         assert result.data[0]["device"] == "somepart"
         assert result.data[0]["category"] == "microchip/mcu", "browsable location"
-        assert result.data[0]["relative"].endswith("somepart.device.json"), \
+        assert result.data[0]["relative"].endswith("somepart.device.json"), (
             "a path relative to the library root, for a follow-up command"
+        )
 
 
 @pytest.fixture
@@ -1821,17 +1857,23 @@ class TestDevUse:
         ref = config_path.parent / "dev" / "fixedpart.device.json"
         assert ref.is_file(), "a reference file landed in dev/"
         assert json.loads(ref.read_text(encoding="utf-8")) == {
-            "device_version": 1, "ref": "fixedpart",
+            "device_version": 1,
+            "ref": "fixedpart",
         }, "it references, it does not copy"
 
     def test_the_reference_is_tiny_next_to_the_part(self, sym_env, tmp_path):
         """The whole point: the part is stored once, the config says it uses it."""
         # Arrange
         engine, config_path, _ = sym_env
-        part = _install_library(tmp_path, "vendor", "bigpart", registers=[
-            {"name": f"REG{i}", "addr": f"0x{0x40000000 + i * 4:X}", "size": 4}
-            for i in range(200)
-        ])
+        part = _install_library(
+            tmp_path,
+            "vendor",
+            "bigpart",
+            registers=[
+                {"name": f"REG{i}", "addr": f"0x{0x40000000 + i * 4:X}", "size": 4}
+                for i in range(200)
+            ],
+        )
 
         # Act
         engine.dispatch("dev.use bigpart")
@@ -1845,8 +1887,13 @@ class TestDevUse:
     def test_placement_is_written_and_used(self, sym_env, tmp_path):
         # Arrange
         engine, config_path, _ = sym_env
-        _install_library(tmp_path, "vendor", "icepart", relocatable=True,
-                         registers=[{"name": "STATUS", "addr": "0x00", "size": 4}])
+        _install_library(
+            tmp_path,
+            "vendor",
+            "icepart",
+            relocatable=True,
+            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}],
+        )
 
         # Act
         result = engine.dispatch("dev.use icepart at=FPGA0@0x70000000 FPGA1@0x70001000")
@@ -1861,9 +1908,14 @@ class TestDevUse:
         """And must not inherit the library's example addresses."""
         # Arrange
         engine, config_path, _ = sym_env
-        _install_library(tmp_path, "vendor", "icepart", relocatable=True,
-                         instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
-                         registers=[{"name": "STATUS", "addr": "0x00", "size": 4}])
+        _install_library(
+            tmp_path,
+            "vendor",
+            "icepart",
+            relocatable=True,
+            instances=[{"name": "EXAMPLE", "base": "0x10000000"}],
+            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}],
+        )
 
         # Act
         result = engine.dispatch("dev.use icepart")
@@ -1876,8 +1928,13 @@ class TestDevUse:
         """Otherwise every later load would report the same error."""
         # Arrange
         engine, config_path, _ = sym_env
-        _install_library(tmp_path, "vendor", "icepart", relocatable=True,
-                         registers=[{"name": "STATUS", "addr": "0x00", "size": 4}])
+        _install_library(
+            tmp_path,
+            "vendor",
+            "icepart",
+            relocatable=True,
+            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}],
+        )
 
         # Act
         engine.dispatch("dev.use icepart")
@@ -1923,8 +1980,13 @@ class TestDevUse:
     def test_a_malformed_placement_is_named(self, sym_env, tmp_path, token):
         # Arrange
         engine, _, _ = sym_env
-        _install_library(tmp_path, "vendor", "icepart", relocatable=True,
-                         registers=[{"name": "STATUS", "addr": "0x00", "size": 4}])
+        _install_library(
+            tmp_path,
+            "vendor",
+            "icepart",
+            relocatable=True,
+            registers=[{"name": "STATUS", "addr": "0x00", "size": 4}],
+        )
 
         # Act
         result = engine.dispatch(f"dev.use icepart at={token}")
@@ -2003,10 +2065,13 @@ class TestNotFoundNamesTheFolder:
     is exactly what happened in use.
     """
 
-    @pytest.mark.parametrize("line, subject", [
-        ("dev.import ../part.svd", "Source file"),
-        ("sym.import nope.map", "Map file"),
-    ])
+    @pytest.mark.parametrize(
+        "line, subject",
+        [
+            ("dev.import ../part.svd", "Source file"),
+            ("sym.import nope.map", "Map file"),
+        ],
+    )
     def test_a_relative_path_names_the_anchor(self, sym_env, line, subject):
         # Arrange
         engine, config_path, _ = sym_env
@@ -2045,7 +2110,8 @@ def _install_config_library(config_path: Path, category: str, name: str, **extra
     folder = config_path.parent / LIB / category if category else config_path.parent / LIB
     folder.mkdir(parents=True, exist_ok=True)
     doc = {
-        "device_version": 1, "device": name,
+        "device_version": 1,
+        "device": name,
         "registers": [{"name": "R", "addr": "0x90000000", "size": 4}],
     } | extra
     file = folder / f"{name}.device.json"

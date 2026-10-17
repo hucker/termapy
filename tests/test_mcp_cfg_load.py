@@ -327,3 +327,36 @@ class TestCfgLoadFiresOnConnected:
         assert "$ /ver  (on_connect_cmd)" in log, (
             f"on_connect_cmd fired on cfg.load reconnect, log was:\n{log}"
         )
+
+
+class TestMcpCfgNew:
+    """/cfg.new under MCP: an agent can create a config, but never overwrite one."""
+
+    def test_cfg_new_creates_a_config_an_agent_can_load(self, host, two_cfgs):
+        """config-created-once: /cfg.new writes NAME/NAME.cfg beside the others and returns its path."""
+        # Arrange
+        cfg_a, _ = two_cfgs
+        expected_path = cfg_a.parent.parent / "gamma" / "gamma.cfg"
+
+        # Act
+        result = host.repl.dispatch("cfg.new gamma COM9 9600 E71")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == str(expected_path), "the new path is the value"
+        assert result.data == {"name": "gamma", "path": str(expected_path), "overwritten": False}
+        assert json.loads(expected_path.read_text(encoding="utf-8"))["title"] == "gamma"
+
+    def test_cfg_new_over_an_existing_config_is_refused(self, host, two_cfgs):
+        """config-created-once: with no one to ask, an existing config is left alone and the call fails."""
+        # Arrange
+        _, cfg_b = two_cfgs
+        before = cfg_b.read_text(encoding="utf-8")
+
+        # Act
+        result = host.repl.dispatch("cfg.new beta COM9")
+
+        # Assert
+        assert not result.success, "MCP cannot answer the overwrite question"
+        assert result.error == "Config already exists: beta"
+        assert cfg_b.read_text(encoding="utf-8") == before, "beta is untouched"

@@ -30,7 +30,9 @@ your `--cfg-dir`), titled `my_device`. The settings are
 frame (`8N1` or `N81`), `cr|lf|crlf` and `echo|noecho`; anything left off
 is 115200 8N1. Naming a config that already exists, here or in the dialog,
 asks before its `.cfg` is replaced; the scripts and data in its folder are
-kept. The dialog and the flag make the same files.
+kept. Inside a session, `/cfg.new my_device COM4 115200 8N1` creates the
+same config where `/cfg.list` looks, and `/cfg.load my_device` switches to
+it. The dialog, the flag and the command make the same files.
 
 ## Launching with a config
 

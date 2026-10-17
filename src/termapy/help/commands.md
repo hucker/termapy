@@ -57,6 +57,7 @@ because its folders hold different types of file.
 | `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
 | `/cfg.info {--display}`   | Write and show the project report (tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
+| `/cfg.new <name> <port> {baud} {mode}` | Create a config for a port (settings as `/port.connect`); asks before replacing one; TUI bare: the New Config wizard. `/cfg.load <name>` switches to it |
 | `/cfg.show`               | Open the current config file in the system viewer                           |
 | `/cls`                    | Clear the terminal                                                          |
 | `/confirm {message}`      | Ask Yes/Cancel (TUI dialog, CLI y/n); Cancel stops a script                 |

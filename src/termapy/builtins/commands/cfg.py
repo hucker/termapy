@@ -16,11 +16,15 @@ from termapy.builtins.commands._cfg_icon import (
 )
 from termapy.builtins.commands.edit import edit_cfg_command
 from termapy.config import (
+    ConfigExistsError,
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
+    cfg_path_for_name,
     config_summary,
+    create_config,
     global_plugins_dir,
+    new_config_from_args,
     open_with_system,
 )
 from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
@@ -205,6 +209,55 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     # under the MCP sandbox.
     ctx.fs.guard_external_path(name, "Config")
     return ctx.internal.load_config(name)
+
+
+def _handler_new(ctx: PluginContext, args: str) -> CmdResult:
+    """Create config NAME for PORT where ``/cfg.list`` looks; ``/cfg.load`` switches to it.
+
+    Read and written exactly as ``termapy --new`` is
+    (``config.new_config_from_args``, ``config.create_config``), so the
+    command, the flag and the New Config wizard make the same files.  It
+    creates and does not load: loading is ``/cfg.load``'s job, and a
+    script that keeps running after it keeps its state.  A config already
+    there is replaced only on a yes to the shared question, and then only
+    its ``.cfg``; a host with no one to ask (MCP) refuses instead.  Bare,
+    the TUI opens the New Config wizard (``picker="setup"``).
+
+    Args:
+        ctx: Plugin context.
+        args: ``NAME PORT [SETTING ...]``.
+    """
+    # Hand-rolled (CLAUDE.md "Declarative Command Parameters"): the
+    # settings are /port.connect's grammar, read by its own reader.
+    name, _, settings = args.strip().partition(" ")
+    if not name:
+        raise UsageError()
+    try:
+        cfg = new_config_from_args(name, settings)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
+    path = cfg_path_for_name(name)
+    overwritten = False
+    try:
+        try:
+            create_config(path, cfg)
+        except ConfigExistsError as e:
+            if not ctx.capabilities.confirm_dialog:
+                return CmdResult.fail(msg=str(e))
+            if not ctx.ui.confirm(e.question):
+                return CmdResult.fail(msg=f"Config not changed: {name}")
+            create_config(path, cfg, overwrite=True)
+            overwritten = True
+    except (ValueError, RuntimeError, OSError) as e:
+        return CmdResult.fail(msg=str(e))
+    if overwritten:
+        ctx.io.result(f"Replaced {path.name}; the other files in {name}/ are kept.", "green")
+    else:
+        ctx.io.result(f"Created config {name}.", "green")
+    return CmdResult.ok(
+        value=str(path),
+        data={"name": name, "path": str(path), "overwritten": overwritten},
+    )
 
 
 # ── /cfg.explore handler ──────────────────────────────────────────────────────
@@ -597,6 +650,26 @@ COMMAND = Command(
             args="<name>",
             help="Load a different config in this session (hot-swap).",
             handler=_handler_load,
+        ),
+        "new": Command(
+            args="<name> <port> {baud} {mode}",
+            help="Create a config for a port; {prefix}cfg.load <name> switches to it.",
+            long_help=(
+                "Create config <name> (title <name>) for <port>, where "
+                "{prefix}cfg.list looks, set to connect when it loads.  The "
+                "settings after the port are {prefix}port.connect's: baud, "
+                "frame (8N1 or N81), cr|lf|crlf, echo|noecho; unset ones are "
+                "115200 8N1.  It creates and does not load: {prefix}cfg.load "
+                "<name> switches to it.\n"
+                "\n"
+                "A config already there is replaced only after you say yes, "
+                "and then only its .cfg; the scripts and data in its folder "
+                "stay.  MCP has no one to ask, so it refuses.  termapy --new "
+                "NAME PORT [SETTING ...] does the same from the command line "
+                "and starts the new config."
+            ),
+            handler=_handler_new,
+            picker="setup",
         ),
         "info": Command(
             args="",

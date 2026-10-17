@@ -2259,7 +2259,7 @@ class TestEditHooks:
         """bare-declared: every picker= command opens its button's picker when bare, and the TUI opens every PICKERS name."""
 
         async def scenario():
-            from termapy.dialogs import ConfigPicker, ProtoPicker, ScriptPicker
+            from termapy.dialogs import ConfigPicker, ProtoPicker, QuickSetup, ScriptPicker
             from termapy.plugins.command import PICKERS
 
             app, _, _ = app_factory()
@@ -2280,6 +2280,7 @@ class TestEditHooks:
                     "edit.proto": ProtoPicker,
                     "proto.run": ProtoPicker,
                     "proto.debug": ProtoPicker,
+                    "cfg.new": QuickSetup,
                 }
                 asked: set[str] = set()
                 for command, picker in expected.items():

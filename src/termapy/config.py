@@ -340,6 +340,47 @@ def new_config(
     return cfg
 
 
+def new_config_from_args(name: str, settings: str) -> dict:
+    """``NAME PORT [SETTING ...]`` as a new config: what ``--new`` and ``/cfg.new`` read.
+
+    One reading for the flag and the command.  The settings are
+    ``/port.connect``'s grammar, read by its reader
+    (``port_control.parse_open_args``): the port, which is required, then
+    baud, frame, line ending and echo in any order.  The config connects
+    when it loads -- a port was named, so connecting is the point.
+
+    Args:
+        name: The config name.
+        settings: The settings text after the name.
+
+    Returns:
+        The new cfg, from ``new_config``.
+
+    Raises:
+        ValueError: The name fails ``validate_file_stem``, a setting is not
+            ``/port.connect``'s, or there is no port.
+    """
+    from termapy.port_control import parse_open_args
+
+    reason = validate_file_stem(name)
+    if reason:
+        raise ValueError(reason)
+    port, baud, mode, line_ending, echo, error = parse_open_args(settings)
+    if error:
+        raise ValueError(error)
+    if not port:
+        raise ValueError("A port is required")
+    return new_config(
+        name,
+        port=port,
+        baud=baud,
+        mode=mode,
+        eol=line_ending,
+        echo=echo,
+        auto_connect=True,
+    )
+
+
 class ConfigExistsError(ValueError):
     """A new config's place is taken; overwriting its ``.cfg`` needs a yes.
 

@@ -2171,7 +2171,7 @@ class TestNewFlag:
 
         # Assert
         assert result.returncode == 2
-        assert "a port is required" in result.stderr
+        assert "A port is required" in result.stderr
         assert not (tmp_path / "termapy_cfg").exists(), "nothing is created"
 
     def test_new_with_a_positional_config_is_a_usage_error(self, tmp_path):
@@ -2196,3 +2196,96 @@ class TestNewFlag:
         assert result.returncode == 0, result.stderr
         assert (cfg_root / "mydev" / "mydev.cfg").is_file(), "created under TERMAPY_CFG_DIR"
         assert not (tmp_path / "termapy_cfg").exists(), "no ./termapy_cfg when an override is set"
+
+
+class TestCfgNewCommand:
+    """``/cfg.new NAME PORT [SETTING ...]`` in the CLI: creates where /cfg.list looks, asks on stdin.
+
+    Driven through ``--cli -e`` in a subprocess so the overwrite question
+    is answered on a real stdin, as the /confirm tests do.
+    """
+
+    @staticmethod
+    def _run(cfg_root: Path, command: str, answer: str = ""):
+        """Run one command in a ``--demo`` session over ``cfg_root``, feeding ``answer`` on stdin.
+
+        ``--demo`` gives the session a config that connects, so the one-shot
+        reaches the command whatever else is in the folder.
+        """
+        import subprocess
+        import sys as _sys
+
+        return subprocess.run(
+            [
+                _sys.executable,
+                "-c",
+                "import sys; "
+                f"sys.argv = ['termapy', '--cli', '--demo', '--cfg-dir', {str(cfg_root)!r}, "
+                f"'-e', {command!r}]; "
+                "from termapy.entry import main; main()",
+            ],
+            input=answer,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    @staticmethod
+    def _existing(cfg_root: Path) -> tuple[Path, Path]:
+        """A config ``mydev`` with a run script beside its .cfg."""
+        cfg_path = cfg_root / "mydev" / "mydev.cfg"
+        (cfg_path.parent / "run").mkdir(parents=True)
+        cfg_path.write_text(json.dumps({"title": "old"}), encoding="utf-8")
+        script = cfg_path.parent / "run" / "x.run"
+        script.write_text("/print hi\n", encoding="utf-8")
+        return cfg_path, script
+
+    def test_cfg_new_creates_the_config_and_does_not_load_it(self, tmp_path):
+        """/cfg.new writes NAME/NAME.cfg from /port.connect's settings and reports it."""
+        # Act
+        result = self._run(tmp_path, "/cfg.new mydev COM9 9600 E71")
+
+        # Assert
+        data = json.loads((tmp_path / "mydev" / "mydev.cfg").read_text(encoding="utf-8"))
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Created config mydev." in result.stdout
+        assert data["title"] == "mydev"
+        assert (data["serial"]["port"], data["serial"]["baud_rate"]) == ("COM9", 9600)
+        assert data["auto_connect"] is True, "a named port connects on load"
+
+    def test_cfg_new_yes_replaces_the_cfg_and_keeps_the_scripts(self, tmp_path):
+        """config-created-once: a y to the question replaces mydev.cfg; the run script stays."""
+        # Arrange
+        cfg_path, script = self._existing(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.new mydev COM9", answer="y\n")
+
+        # Assert
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Overwrite mydev.cfg? Other files are kept." in result.stdout, "the shared question"
+        assert json.loads(cfg_path.read_text(encoding="utf-8"))["title"] == "mydev"
+        assert script.is_file(), "the run script is kept"
+
+    def test_cfg_new_no_changes_nothing_and_fails(self, tmp_path):
+        """config-created-once: an n leaves the config as it was and the command fails."""
+        # Arrange
+        cfg_path, _ = self._existing(tmp_path)
+
+        # Act
+        result = self._run(tmp_path, "/cfg.new mydev COM9", answer="n\n")
+
+        # Assert
+        assert result.returncode == 1
+        assert "Config not changed: mydev" in result.stdout
+        assert json.loads(cfg_path.read_text(encoding="utf-8"))["title"] == "old"
+
+    def test_cfg_new_without_a_port_fails(self, tmp_path):
+        """Settings with no port are refused and nothing is created."""
+        # Act
+        result = self._run(tmp_path, "/cfg.new mydev 115200 8N1")
+
+        # Assert
+        assert result.returncode == 1
+        assert "A port is required" in result.stdout
+        assert not (tmp_path / "mydev").exists(), "nothing is created"

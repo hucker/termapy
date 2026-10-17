@@ -265,7 +265,7 @@ class TestRunNew:
     def test_a_port_is_required(self, cfg_root):
         """Settings without a port are a usage error, and nothing is written."""
         # Act
-        with pytest.raises(_UsageError, match="a port is required"):
+        with pytest.raises(_UsageError, match="A port is required"):
             run_new(["mydev", "115200", "8N1"], confirm=lambda _q: False, usage_error=_usage_error)
 
         # Assert

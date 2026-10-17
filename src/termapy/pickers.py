@@ -269,9 +269,9 @@ def open_picker(app, name: str) -> CmdResult:
 
     Wired into ``InternalHandle.open_picker`` from ``_register_tui_hooks``;
     the dispatcher calls it for a bare invocation of any command that
-    declares ``picker=`` (``/cfg``, ``/run``, ``/proto``, ``/port`` and
-    the edit/run twins), so it behaves like clicking the matching
-    title-bar button.  CLI never installs this callback; those handlers
+    declares ``picker=`` (``/cfg``, ``/run``, ``/proto``, ``/port``, the
+    edit/run twins, and ``/cfg.new`` for the New Config wizard), so it
+    behaves like clicking the matching button.  CLI never installs this callback; those handlers
     then run their own bare fallback.  ``name`` is one of
     ``plugins.command.PICKERS``.
     """
@@ -280,6 +280,7 @@ def open_picker(app, name: str) -> CmdResult:
         "run": app._btn_scripts,
         "proto": app._btn_proto,
         "port": app._show_port_picker,
+        "setup": app._new_config,
     }
     fn = dispatch.get(name)
     if fn is None:

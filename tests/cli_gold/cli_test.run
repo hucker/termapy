@@ -70,6 +70,12 @@ $(BAUD) <- /port.baud_rate
 /print === section: config dump ===
 /cfg.dump
 
+# ── REPL: config new (creates, never loads; a port is required) ─────────────
+/print === section: config new ===
+/cfg.new gold_new loop:// 9600 E71
+/cfg.new gold_bad 115200 8N1
+/cfg.new
+
 # ── REPL: config folder listings ────────────────────────────────────────────
 /print === section: config folders ===
 /run.list

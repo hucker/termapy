@@ -672,12 +672,13 @@ def run_new(
 
     The one flag here that does not exit on success: ``main()`` goes on to
     load the new config in whichever frontend was asked for, so the CLI,
-    TUI, VT100, web and MCP modes all start from it.  The settings are
-    ``/port.connect``'s grammar, read by its reader
-    (``port_control.parse_open_args``); the port is required and the config
-    connects on load.  The config is built and written by the same core as
-    the TUI's New Config wizard (``config.new_config`` /
-    ``config.create_config``).  Status lines go to stderr, because stdout
+    TUI, VT100, web and MCP modes all start from it.  The arguments are read
+    as ``/cfg.new`` reads them (``config.new_config_from_args``: the port is
+    required and the config connects on load) and written by the same core
+    as the TUI's New Config wizard (``config.create_config``).  Unlike
+    ``/cfg.new``, which writes where ``/cfg.list`` looks, ``--new`` starts a
+    project: a new ``./termapy_cfg`` when no config directory is set
+    (``config.new_cfg_root``).  Status lines go to stderr, because stdout
     may be ``--check``'s JSON or ``--mcp``'s protocol.
 
     Args:
@@ -692,29 +693,14 @@ def run_new(
         ConfigExistsError,
         create_config,
         new_cfg_root,
-        new_config,
-        validate_file_stem,
+        new_config_from_args,
     )
-    from termapy.port_control import parse_open_args
 
     name, *settings = tokens
-    reason = validate_file_stem(name)
-    if reason:
-        usage_error(f"--new: {reason}")
-    port, baud, mode, line_ending, echo, error = parse_open_args(" ".join(settings))
-    if error:
-        usage_error(f"--new: {error}")
-    if not port:
-        usage_error("--new: a port is required: --new NAME PORT [SETTING ...]")
-    cfg = new_config(
-        name,
-        port=port,
-        baud=baud,
-        mode=mode,
-        eol=line_ending,
-        echo=echo,
-        auto_connect=True,
-    )
+    try:
+        cfg = new_config_from_args(name, " ".join(settings))
+    except ValueError as e:
+        usage_error(f"--new: {e}")
     path = new_cfg_root() / name / f"{name}.cfg"
     try:
         try:

@@ -1000,11 +1000,13 @@ class TestLogCommandsAvailableInMCP:
     def test_log_dump_registered_and_mcp_callable(self, host):
         """/log.dump is a builtin whose needs MCP satisfies, so agents can read the log."""
         # Arrange / Act
+        from termapy.plugins.capabilities import attainable
+
         plugin = host.repl._plugins.get("log.dump")
 
         # Assert
         assert plugin is not None, "log.dump registered as a builtin in MCP host"
-        missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+        missing = list(plugin.needs.missing_from(attainable(host.ctx.capabilities)))
         assert missing == [], (
             f"log.dump satisfied by MCP capabilities (missing={missing})"
         )
@@ -1012,11 +1014,13 @@ class TestLogCommandsAvailableInMCP:
     def test_log_fingerprint_registered_and_mcp_callable(self, host):
         """/log.fingerprint is a builtin whose needs MCP fully satisfies."""
         # Arrange / Act
+        from termapy.plugins.capabilities import attainable
+
         plugin = host.repl._plugins.get("log.fingerprint")
 
         # Assert
         assert plugin is not None, "log.fingerprint registered as a builtin in MCP host"
-        missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+        missing = list(plugin.needs.missing_from(attainable(host.ctx.capabilities)))
         assert missing == [], (
             f"log.fingerprint satisfied by MCP capabilities (missing={missing})"
         )

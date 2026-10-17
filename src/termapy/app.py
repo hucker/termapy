@@ -1188,6 +1188,7 @@ class SerialTerminal(TerminalHost, App):
             gui_apps=detect_gui_apps(),
             # Its own config and script editors work over SSH too.
             file_editor=True,
+            session_log=True,
             # The operator is the caller on their own machine: no sandbox.
             filesystem_unconfined=True,
             network_egress=True,

@@ -2,7 +2,10 @@
 
 Runs on the ``CLITerminal`` DEMO rig.  The CLI has no session log, so
 the report is read through ``--show``, which echoes it to the terminal;
-the handler had no test at all until this file (2026-10-12).
+the handler had no test at all until this file (2026-10-12).  Since
+2026-10-16 the command declares ``session_log``, which the CLI lacks, so
+the rig grants it: these tests are about the report's content, not about
+which frontend may write it.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ import pytest
 
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
+from termapy.plugins import CapabilitySet
 
 
 def _make(tmp_path, connect: bool) -> CLITerminal:
@@ -26,6 +30,9 @@ def _make(tmp_path, connect: bool) -> CLITerminal:
     terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
     # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
     terminal.repl.global_root = tmp_path
+    caps = terminal.ctx.capabilities.union(CapabilitySet(session_log=True))
+    terminal.ctx.capabilities = caps
+    terminal.ctx.fs.capabilities = caps
     if connect:
         assert terminal._connect() is True, "the DEMO port opens"
     return terminal

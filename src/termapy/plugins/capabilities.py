@@ -219,6 +219,16 @@ class CapabilitySet:
     #        Not MCP.
     file_editor: bool = False
 
+    # What:  The frontend keeps a session log of its own
+    #        (``ctx.internal.session_log_path``): the TUI's ``<cfg>.log``
+    #        (or ``log_file``), the MCP server's ``mcp/session.log``.  It is
+    #        per config, so commands pair it with ``config_loaded``
+    #        (``CapabilitySet.SESSION_LOG``).  Replaced five handler checks
+    #        that answered "No log file." in the CLI, where /help said the
+    #        /log commands were available (2026-10-16).
+    # Where: TUI, MCP.  Not the CLI, which keeps none (review 2026-10-15, D3).
+    session_log: bool = False
+
     # What:  Handler may resolve a caller-supplied path OUTSIDE the
     #        per-config sandbox -- an absolute path or ``..`` traversal
     #        (e.g. ``/cap.text file=<abs>``, ``/profile.save <abs>``,
@@ -233,8 +243,8 @@ class CapabilitySet:
     # What:  Handler may open a NETWORK connection -- pyserial
     #        serial-over-URL "ports" (``socket://``, ``rfc2217://``) via
     #        ``/port.connect``.  When absent, a URL port is refused so an
-    #        automated peer can't open arbitrary outbound TCP (egress /
-    #        exfil); physical device ports are unaffected.
+    #        automated peer can't open arbitrary outbound TCP and send data
+    #        off the machine; physical device ports are unaffected.
     # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_NET_EGRESS`` is set.
     network_egress: bool = False
 
@@ -277,6 +287,12 @@ class CapabilitySet:
 
     The TUI's own config and script editors, or a desktop's system
     editor.  The TUI has it over SSH too; the CLI only with a desktop."""
+
+    SESSION_LOG: ClassVar["CapabilitySet"]
+    """This frontend's session log, which needs a config (``session_log`` + ``config_loaded``).
+
+    The TUI and the MCP server keep one per config; the CLI keeps none,
+    so the /log commands are unavailable there."""
 
     SCREEN_CAPTURE: ClassVar["CapabilitySet"]
     """Can capture the rendered screen (``screen_capture=True``).
@@ -349,6 +365,7 @@ CapabilitySet.CONFIG_LOADED = CapabilitySet(config_loaded=True)
 CapabilitySet.INTERACTIVE = CapabilitySet(interactive=True)
 CapabilitySet.GUI_APPS = CapabilitySet(gui_apps=True)
 CapabilitySet.FILE_EDITOR = CapabilitySet(file_editor=True)
+CapabilitySet.SESSION_LOG = CapabilitySet(session_log=True, config_loaded=True)
 CapabilitySet.SCREEN_CAPTURE = CapabilitySet(screen_capture=True)
 CapabilitySet.TUI_MODE = CapabilitySet(tui_mode=True)
 CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
@@ -377,6 +394,7 @@ REQUIREMENT_HINTS: dict[str, str] = {
     "interactive": "an interactive session (a human at a terminal; not MCP)",
     "gui_apps": "a local desktop that can open apps the user sees",
     "file_editor": "an editor for project files (the TUI's own, or a desktop's)",
+    "session_log": "a session log (the TUI's or the MCP server's; the CLI keeps none)",
     "filesystem_unconfined": "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)",
     "network_egress": "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
 }
@@ -486,6 +504,7 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
             interactive=True,
             gui_apps=gui,
             file_editor=True,
+            session_log=True,
             tui_mode=True,
             screen_capture=True,
             confirm_dialog=True,
@@ -507,6 +526,7 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
         # MCP (stdio server): no human, no display.  Host access beyond the
         # device is sandboxed unless the operator opts in per-class.
         "MCP": CapabilitySet(
+            session_log=True,
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
         ),

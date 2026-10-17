@@ -1060,7 +1060,7 @@ class TestBareForms:
         assert opened == expected, f"bare /{folder} opened {folder}/"
 
     def test_bare_log_is_log_show(self, cli, tmp_path):
-        """Bare /log does what the Log button does, /log.show: in the CLI, which keeps no log, refusing."""
+        """Bare /log does what the Log button does, /log.show: in the CLI, which keeps no log, the gate refuses both alike."""
         # Arrange -- the CLI has no session log, so no system viewer is launched
         _grant_gui_apps(cli)
 
@@ -1069,8 +1069,8 @@ class TestBareForms:
         shown = cli.repl.dispatch("log.show")
 
         # Assert
-        assert bare.error == "No log file.", "bare /log ran /log.show"
-        assert bare.error == shown.error, "bare /log and /log.show are one behavior"
+        assert "session_log" in bare.error, f"bare /log ran /log.show: {bare.error}"
+        assert bare.error.replace("/log ", "/log.show ") == shown.error, "bare /log and /log.show are one behavior"
 
 
 # -- Hook registration ------------------------------------------------------
@@ -1079,22 +1079,29 @@ class TestBareForms:
 class TestNoSessionLog:
     """D3: the CLI keeps no session log, and every /log command and $(CFG.LOG_FILE) agrees."""
 
-    def test_the_cli_keeps_no_session_log(self, cli):
-        """/log.dump and /log.delete answer No log file, and $(CFG.LOG_FILE) is empty.
+    @pytest.mark.parametrize("command", ["log.dump", "log.delete", "log.fingerprint", "log.show", "edit.log"])
+    def test_the_cli_keeps_no_session_log(self, cli, command):
+        """Every command on the session log is refused by the gate, for want of session_log.
 
         Until 2026-10-16 they read the TUI's <cfg>.log, so a CLI could dump
-        or delete another frontend's log (review 2026-10-15, D3).
+        or delete another frontend's log (review 2026-10-15, D3); then each
+        answered "No log file." itself while /help called them available.
         """
-        from termapy.variables import expand_vars
+        # Arrange -- grant what else they need, so session_log is the gap
+        _grant_gui_apps(cli)
 
         # Act
-        dumped = cli.repl.dispatch_full("/log.dump")
-        deleted = cli.repl.dispatch_full("/log.delete")
+        result = cli.repl.dispatch_full(f"/{command}")
 
         # Assert
         assert cli.session_log_path() is None, "the CLI writes no session log"
-        assert (dumped.success, dumped.error) == (False, "No log file.")
-        assert (deleted.success, deleted.error) == (False, "No log file.")
+        expected = f"/{command} requires: session_log (not available in this environment)"
+        assert (result.success, result.error) == (False, expected)
+
+    def test_cfg_log_file_is_empty_in_the_cli(self, cli):
+        """$(CFG.LOG_FILE) names nothing in the CLI, which keeps no session log."""
+        from termapy.variables import expand_vars
+
         assert expand_vars("$(CFG.LOG_FILE)") == "", "nothing to name"
 
 

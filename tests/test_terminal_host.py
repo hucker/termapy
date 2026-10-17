@@ -615,10 +615,16 @@ class TestLogDelete:
         ctx = logging_host._build_plugin_context(logging_host._build_internal_handle())
         return logging_host, _handler_delete(ctx, "")
 
-    def test_a_frontend_without_a_log_says_so(self, host):
-        """A frontend that keeps no session log (the CLI) answers No log file."""
-        _, result = self._delete(host, None)
-        assert (result.success, result.error) == (False, "No log file.")
+    def test_a_log_not_written_yet_is_not_found(self, host, tmp_path):
+        """A frontend with a log that does not exist yet answers in the standard phrasing, as /log.dump does."""
+        # Arrange
+        log_file = tmp_path / "session.log"
+
+        # Act
+        _, result = self._delete(host, log_file)
+
+        # Assert
+        assert (result.success, result.error) == (False, f"Log file not found: {log_file}")
 
     def test_deletes_the_frontends_log_after_letting_go_of_it(self, host, tmp_path):
         """The frontend's log is closed, then removed, and the deleted path is the value."""

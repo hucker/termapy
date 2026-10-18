@@ -1396,6 +1396,7 @@ HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
         "_detect_ascii",
     ): "a packet's ASCII-hex CRC trailer, device text",
     ("symbols/converters/xc32.py", "convert"): "a linker map's own address format",
+    ("symbols/converters/xc32.py", "regions"): "a linker map's memory table, the same format",
     ("symbols/table.py", "parse_addr_field"): "a symbol file's 0x address field",
 }
 

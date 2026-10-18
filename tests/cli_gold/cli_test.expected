@@ -27,8 +27,8 @@ demo> AT+BAUD?
   [9/219] AT+BAUD? (31us)
 demo> mem 0x1000 32
 00001000:  1B 00 00 50  7D 44 3A 21  05 00 00 00  0C 00 00 00  |...P}D:!........|
-00001010:  60 67 6E 95  9C 83 8A B1  B8 BF A6 AD  D4 DB C2 C9  |`gn.............|
-  [10/219] mem 0x1000 32 (89us)
+00001010:  60 67 6E 95  9C 83 8A B1  03 00 A6 AD  D4 DB C2 C9  |`gn.............|
+  [10/308] mem 0x1000 32 (100us)
 demo> mem 0x2000 16
 00002000:  20 27 2E 35  3C 03 0A 11  18 1F 66 6D  74 7B 42 49  | '.5<.....fmt{BI|
   [11/219] mem 0x2000 16 (87us)
@@ -508,10 +508,10 @@ demo> /sym.info
   imported    : 2026-08-29T00:00:00
   address_bits: 32
   endian      : le
-  symbols     : 13  (bss 5, code 2, const 2, data 1, global 1, sfr 2)
+  symbols     : 14  (bss 6, code 2, const 2, data 1, global 1, sfr 2)
   range       : 0x00001000 - 0xBF806014
-  regions     : 0
-  [100/219] /sym.info (2.87ms)
+  regions     : 2  (ram 0x00001000+0x1000 rw, rom 0x00002000+0x2000 ro)
+  [109/308] /sym.info (867us)
 demo> /sym main
     0x00002000  main  [code 442 bytes main.c]
   [101/219] /sym main (299us)
@@ -569,14 +569,14 @@ demo> /sym.load nosuch.json
   Error: Symbols not found: nosuch.json
   [117/219] /sym.load nosuch.json (108us)
 demo> /sym.unload
-  Unloaded symbols (13).
-  [118/219] /sym.unload (229us)
+  Unloaded symbols (14).
+  [128/308] /sym.unload (188us)
 demo> /sym gTemp
   Error: No symbols loaded.
   [119/219] /sym gTemp (21us)
 demo> /sym.load
-  Loaded 13 symbols (demo.symbols.json)
-  [120/219] /sym.load (1ms)
+  Loaded 14 symbols (demo.symbols.json)
+  [130/308] /sym.load (859us)
 demo> /print === section: memory ===
   === section: memory ===
   [121/219] /print === section: memory === (175us)
@@ -601,9 +601,9 @@ demo> /mem.dump 0x2000 4
 demo> /mem.dump main+0x10 8
   0x00002010  50 57 5E A5 AC B3 BA 81                          |PW^.....|  main+0x10
   [126/219] /mem.dump main+0x10 8 (69.1ms)
-demo> /mem.write gFlags 07000000
-  Wrote 4 bytes at 0x00001008  gFlags  (was 05000000)
-  [127/219] /mem.write gFlags 07000000 (119ms)
+demo> /mem.write gFlags 7
+  Set gFlags = 7  (0x00000007, was 5)
+  [137/308] /mem.write gFlags 7 (124ms)
 demo> /mem.dump gFlags 4
   0x00001008  07 00 00 00                                      |....|  gFlags
   [128/219] /mem.dump gFlags 4 (59.5ms)
@@ -655,9 +655,9 @@ demo> /mem.info
 demo> /mem.dump gTemp 16
   0x00001000  1B 00 00 50 7D 44 3A 21 07 00 00 00 0C 00 00 00  |...P}D:!........|  gTemp
   [139/219] /mem.dump gTemp 16 (1.01s)
-demo> /mem.write gTemp 2C01
-  Wrote 2 bytes at 0x00001000  gTemp  (was 1B00)
-  [140/219] /mem.write gTemp 2C01 (3.02s)
+demo> /mem.write gTemp 300
+  Set gTemp = 300  (0x012C, was 27)
+  [150/308] /mem.write gTemp 300 (3.04s)
 demo> /mem.dump gTemp 4
   0x00001000  2C 01 00 50                                      |,..P|  gTemp
   [141/219] /mem.dump gTemp 4 (1.01s)
@@ -726,6 +726,39 @@ demo> /mem.dump gTemp 16 u16
 demo> /mem.dump gTemp 4 addr=off ascii=off
   2C 01 00 50
   [162/219] /mem.dump gTemp 4 addr=off ascii=off (66.3ms)
+demo> /mem.read sCount
+  sCount = 3  (0x0003)
+  [173/308] /mem.read sCount (61.9ms)
+demo> /mem.write sCount 513
+  Set sCount = 513  (0x0201, was 3)
+  [174/308] /mem.write sCount 513 (123ms)
+demo> /mem.read sCount
+  sCount = 513  (0x0201)
+  [175/308] /mem.read sCount (61.6ms)
+demo> /mem.write gPressure 2.5
+  Set gPressure = 2.5  (was 1013.25)
+  [176/308] /mem.write gPressure 2.5 (126ms)
+demo> /mem.read gPressure
+  gPressure = 2.5
+  [177/308] /mem.read gPressure (61.2ms)
+demo> /mem.read gTemp u32
+  Error: Invalid type: u32 (4 bytes) runs past the end of gTemp (2 bytes)
+  [178/308] /mem.read gTemp u32 (43us)
+demo> /mem.write gTemp 2C01
+  Error: Invalid value: 2C01 (u16 takes -32768..65535)
+  [179/308] /mem.write gTemp 2C01 (87us)
+demo> /mem.write gTemp+1 0102
+  Error: Write refused: 2 bytes run past the end of gTemp (2 bytes)
+  [180/308] /mem.write gTemp+1 0102 (103us)
+demo> /mem.read sBanner
+  Error: Type required: sBanner is 15 bytes, not one value (give a type, or /mem.dump it)
+  [181/308] /mem.read sBanner (66us)
+demo> /mem.write sBanner 41
+  Error: Write refused: sBanner is access: ro (read-only)
+  [182/308] /mem.write sBanner 41 (23us)
+demo> /mem.not main
+  Error: Write refused: main is access: ro (read-only)
+  [183/308] /mem.not main (22us)
 demo> MEM.M 0x1000 F0 05 --json
 {"cmd": "MEM.M 0x1000 F0 05"}
   {"cmd": "MEM.M 0x1000 F0 05", "success": true, "error": "", "value": "00001000: 2C\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0.0636}
@@ -1041,7 +1074,7 @@ SYNOPSIS
   /sym <addr|name>
 
 DESCRIPTION
-  Current symbols = 13 (sym/demo.symbols.json)
+  Current symbols = 14 (sym/demo.symbols.json)
   
   Symbols come from your linker map: /sym.import <map> converts it to
   sym/<cfg>.symbols.json in the config folder (a generated file, overwritten on
@@ -1103,6 +1136,11 @@ DESCRIPTION
   mask writes use the device's atomic MEM.M when advertised, else a
   read + write-back that can race an ISR (xor always does).
   
+  A named target stays inside its symbol: a read's type and a write's
+  bytes may not run past its end, and an access: ro symbol (code,
+  constants, read-only registers) refuses every write.  A symbol with
+  no type reads and writes as the unsigned integer of its size.
+  
   Every mutation is audited in the session log (address, word before
   and after, registers touched, origin).  Over MCP they are
   destructive: confirm=true.
@@ -1112,7 +1150,8 @@ DESCRIPTION
                                        i*/f* decimal/float; addr= ascii=
                                        toggle columns (both off = bare)
     /mem.read <target> {type}        - one typed value, field, bit or slice
-    /mem.write <target> <hex|value>  - hex bytes; or a field/bit value
+    /mem.write <target> <value>      - a number at a named symbol or field;
+                                       hex bytes at an address or array
     /mem.or|and|xor|clear <target> <mask> - mask ops (clear: word &= ~mask)
     /mem.not <target>                - invert one word
     /mem.str <target> {max}          - NUL-terminated string (default cap 256)
@@ -1133,7 +1172,7 @@ SUBCOMMANDS
   /mem.or       OR a mask into one word (atomic via MEM.M when available).
   /mem.read     Read one typed value: scalar, char, register field, bit or slice.
   /mem.str      Read a NUL-terminated string at an address or symbol.
-  /mem.write    Write hex bytes, or set a register field/bit (audited).
+  /mem.write    Write a value to a named symbol, register or field, or hex bytes at an address (audited).
   /mem.xor      XOR a mask into one word (always read + write-back).
   [174/219] /help mem (5.69ms)
 demo> /help run

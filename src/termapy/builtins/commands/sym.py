@@ -225,6 +225,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         )
     try:
         symbols = spec.convert(text)
+        regions = spec.regions(text) if spec.regions is not None else []
     # A plugin converter is third-party code on the dispatch path: a bad
     # regex or a typo must name the converter, not crash the app.  The
     # built-ins are documented as never raising on odd input; this guard
@@ -238,6 +239,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         path=dest,
         source=str(path),
         imported=datetime.now().isoformat(timespec="seconds"),
+        regions=regions,
         # Provenance: what to re-run, and what the map looked like now.
         # The witness is taken AFTER the read, so a map rewritten during
         # the import reads as stale next time rather than in sync.

@@ -48,7 +48,14 @@ from termapy.symbols.converters import xc32
 # Order = sniffing precedence: a specific toolchain before a future generic
 # gcc-map, so the specific one claims its maps first.
 CONVERTERS: Final[tuple[ConverterSpec, ...]] = (
-    ConverterSpec(xc32.FORMAT, xc32.DETECT, xc32.convert, xc32.DESCRIPTION, kind=SYMBOLS),
+    ConverterSpec(
+        xc32.FORMAT,
+        xc32.DETECT,
+        xc32.convert,
+        xc32.DESCRIPTION,
+        kind=SYMBOLS,
+        regions=xc32.regions,
+    ),
 )
 
 # Derived: feeds the /sym.import format= help and every error message.

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from termapy.symbols.address import Address
 from termapy.symbols.provenance import IN_SYNC, UNKNOWN, check_staleness
-from termapy.symbols.table import Symbol, SymbolTable, hex_digits, section_label
+from termapy.symbols.table import Region, Symbol, SymbolTable, hex_digits, section_label
 
 if TYPE_CHECKING:
     from termapy.devices import Device, LibraryPart
@@ -74,6 +74,25 @@ def symbol_record(symbol: Symbol, *, address_bits: int = 32) -> dict[str, Any]:
         "access": symbol.access,
         "read_effect": symbol.read_effect,
     }
+
+
+def region_record(region: Region, *, address_bits: int = 32) -> dict[str, Any]:
+    """The agent record for one memory region (int and hex start; every key)."""
+    return {
+        "name": region.name,
+        "start": region.start,
+        "start_hex": hex_addr(region.start, address_bits),
+        "end": region.end,
+        "size": region.size,
+        "access": region.access,
+        "space": region.space,
+    }
+
+
+def format_region(region: Region, *, address_bits: int = 32) -> str:
+    """``rom 0x00000000+0x80000 ro`` -- the linker script's ORIGIN and LENGTH."""
+    access = f" {region.access}" if region.access else ""
+    return f"{region.name} {hex_addr(region.start, address_bits)}+0x{region.size:X}{access}"
 
 
 def lookup_record(
@@ -221,7 +240,7 @@ def table_record(table: SymbolTable, *, file: str = "") -> dict[str, Any]:
             "start_hex": hex_addr(span[0], bits),
             "end_hex": hex_addr(span[1], bits),
         },
-        "regions": len(table.regions),
+        "regions": [region_record(region, address_bits=bits) for region in table.regions],
     }
 
 
@@ -238,6 +257,8 @@ def info_rows(table: SymbolTable, *, file: str = "") -> list[tuple[str, str]]:
     span_text = (
         "(empty)" if span is None else f"{hex_addr(span[0], bits)} - {hex_addr(span[1], bits)}"
     )
+    region_list = ", ".join(format_region(region, address_bits=bits) for region in table.regions)
+    regions = f"{len(table.regions)}  ({region_list})" if region_list else "0"
     rows = [
         ("file", file or "(in-memory)"),
         ("source", table.source or "(none)"),
@@ -257,7 +278,7 @@ def info_rows(table: SymbolTable, *, file: str = "") -> list[tuple[str, str]]:
         ("endian", table.endian),
         ("symbols", symbols),
         ("range", span_text),
-        ("regions", str(len(table.regions))),
+        ("regions", regions),
     ]
     # Devices are a separate layer, so name them separately: the build's
     # symbol count and the part's register count answer different

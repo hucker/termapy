@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from termapy.symbols import SymbolTable
+from termapy.symbols import Region, SymbolTable
 from termapy.symbols.converters import CONVERTERS, FORMATS, find_converter, xc32
 
 MAPS_DIR = Path(__file__).parent / "fixtures" / "maps"
@@ -316,3 +316,89 @@ def test_pairwise_exclusivity(fixture: Path, spec):
     assert detected == (spec.format == owner), (
         f"{fixture.name} must be claimed by {owner} only; {spec.format} detect={detected}"
     )
+
+
+# ── Memory regions: GNU ld's Memory Configuration table ─────────────────────
+
+
+class TestXc32Regions:
+    def test_regions_from_the_memory_table(self, map_text):
+        """Each row is a region in the map's order, its access from the attributes."""
+        # Act
+        actual = xc32.regions(map_text)
+
+        # Assert
+        expected = [
+            Region("rom", 0x00000000, 0x00080000, "ro"),
+            Region("ram", 0x20000000, 0x00010000, "rw"),
+        ]
+        assert actual == expected, "*default* is the whole space, not a region"
+
+    def test_a_row_without_attributes_has_unknown_access(self):
+        """A fuse word with no attributes is a region whose access is not assumed."""
+        # Arrange
+        text = (
+            "Memory Configuration\n\n"
+            "Name             Origin             Length             Attributes\n"
+            "config_00804000  0x00804000         0x00000004\n"
+            "*default*        0x00000000         0xffffffff\n\n"
+            "Linker script and memory map\n"
+        )
+
+        # Act
+        actual = xc32.regions(text)
+
+        # Assert
+        assert actual == [Region("config_00804000", 0x00804000, 4)], "access left empty"
+
+    def test_the_table_ends_at_its_blank_line(self, map_text):
+        """Lines after the table never become regions, even ones shaped like rows."""
+        # Arrange -- a row-shaped line after the blank line that ends the table
+        text = map_text.replace(
+            "Linker script and memory map",
+            "Linker script and memory map\nstray            0x00000000         0x00000010",
+        )
+
+        # Act
+        actual = [region.name for region in xc32.regions(text)]
+
+        # Assert
+        assert actual == ["rom", "ram"], "the stray row is outside the table"
+
+    def test_crlf_input_parses_identically(self, map_text):
+        """A map with Windows line endings yields the same regions."""
+        # Act / Assert
+        assert xc32.regions(map_text.replace("\n", "\r\n")) == xc32.regions(map_text)
+
+    @pytest.mark.parametrize("text", ["", "garbage\x00\x01", "Memory Configuration"])
+    def test_no_table_is_no_regions(self, text):
+        """A map without a Memory Configuration table has no regions, and nothing raises."""
+        # Act / Assert
+        assert xc32.regions(text) == []
+
+    @pytest.mark.parametrize(
+        ("attributes", "expected"),
+        [
+            ("xrl", "ro"),
+            ("xw!r", "rw"),
+            ("rwx", "rw"),
+            ("rx", "ro"),
+            ("RX", "ro"),
+            ("r!w", "ro"),
+            ("!w", ""),
+            ("x", ""),
+            ("", ""),
+        ],
+    )
+    def test_region_access(self, attributes, expected):
+        """Only the letters before a ! grant: w is read-write, r alone read-only, else unknown."""
+        # Act / Assert
+        assert xc32.region_access(attributes) == expected
+
+    def test_the_registry_entry_carries_regions(self):
+        """The built-in xc32 spec hands /sym.import its regions function."""
+        # Act
+        spec = find_converter("xc32")
+
+        # Assert
+        assert spec is not None and spec.regions is xc32.regions

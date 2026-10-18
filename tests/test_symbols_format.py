@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from termapy.symbols import (
     Address,
+    Region,
     Symbol,
     SymbolTable,
     format_symbol,
@@ -118,10 +119,12 @@ class TestSymbolRecord:
             "type": "",
             "space": "",
             "rmw": True,
-            "access": "rw",
+            "access": "ro",
             "read_effect": False,
         }
-        assert actual == expected, "int and hex addr side by side; every key present"
+        assert actual == expected, (
+            "int and hex addr side by side; every key present; code is read-only by its section"
+        )
 
 
 class TestLookupRecord:
@@ -162,7 +165,7 @@ class TestTableRecord:
             [_MAIN, Symbol("sCal", 0x20005A58, 0, "global"), Symbol("buf", 0x20000000, 16, "bss")],
             source="build/mem.map",
             imported="2026-08-29T10:12:00",
-            regions=[{"name": "ram"}],
+            regions=[Region("ram", 0x20000000, 0x10000, "rw"), Region("cfg", 0x00804000, 4)],
         )
 
         # Act
@@ -182,7 +185,29 @@ class TestTableRecord:
         assert rows["range"] == "0x00010FFA - 0x20005A58", "same span as prose"
         assert (record["path"], rows["file"]) == ("rig.symbols.json", "rig.symbols.json")
         assert (record["source"], rows["source"]) == ("build/mem.map", "build/mem.map")
-        assert (record["regions"], rows["regions"]) == (1, "1"), "regions reported as a count"
+        assert record["regions"] == [
+            {
+                "name": "ram",
+                "start": 0x20000000,
+                "start_hex": "0x20000000",
+                "end": 0x20010000,
+                "size": 0x10000,
+                "access": "rw",
+                "space": "",
+            },
+            {
+                "name": "cfg",
+                "start": 0x00804000,
+                "start_hex": "0x00804000",
+                "end": 0x00804004,
+                "size": 4,
+                "access": "",
+                "space": "",
+            },
+        ], "one record per region, every key present, unknown access empty"
+        assert rows["regions"] == "2  (ram 0x20000000+0x10000 rw, cfg 0x00804000+0x4)", (
+            "prose names each region as ORIGIN+LENGTH, access only when known"
+        )
         assert (record["address_bits"], record["endian"]) == (32, "le")
 
     def test_empty_table(self):

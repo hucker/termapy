@@ -87,6 +87,12 @@ A converter may set every `Symbol` field -- `type`, `rmw`, `space`,
 `file` -- so the typed registers and bit fields a linker map cannot
 express become script output instead of hand-maintained data.
 
+A converter may also export `regions(text)`, returning the memory regions
+the map declares as `termapy.symbols.Region` objects (`name`, `start`,
+`size`, `access`). It follows the same contract as `convert`. The built-in
+`xc32` reads GNU ld's `Memory Configuration` table. Without it the table
+has no regions.
+
 ### The contract
 
 `convert(text)` is **pure**: text in, list out. No I/O, no config, no
@@ -122,6 +128,10 @@ one (an unmapped word is harmless, just unlabeled):
 
 Map your toolchain's region names on (`ER_IROM1`, `CODE` -> `text`;
 `ZI` -> `bss`; `RW` -> `data`; `RO-data`, `CONST` -> `rodata`).
+
+The section decides the default access: a symbol in `text` or `rodata`
+is read-only (`access: ro`) unless the converter says otherwise, so
+`/mem.*` refuses to write code or a constant.
 
 ### Naming and detection
 
@@ -167,7 +177,7 @@ build symbol with the same name wins, with a warning.
 | `/sym.load {path}`                 | `/sym.load`                 | Reload the sidecar, or load an explicit file            |
 | `/sym.unload`                      | `/sym.unload`               | Clear the loaded table (file untouched)                 |
 | `/sym.search <pattern>`            | `/sym.search Mon*`          | Search names: exact, glob, regex, or substring          |
-| `/sym.info`                        | `/sym.info`                 | File, source, counts by section, address range          |
+| `/sym.info`                        | `/sym.info`                 | File, source, counts by section, address range, regions |
 
 `/sym` returns the *other* representation as its value: `$(A) <- /sym gTemp`
 captures `0x00001000`, `$(N) <- /sym 0x2010` captures `main+0x10`.
@@ -182,7 +192,7 @@ captures `0x00001000`, `$(N) <- /sym 0x2010` captures `main+0x10`.
 | `main`        | symbol name (exact, case-sensitive)                                  |
 | `main+0x10`   | symbol plus offset (`main-4` too)                                    |
 | `tick@adc.c`  | a duplicate static, qualified by file (`tick@adc`, `tick@src/adc.c`) |
-| `name.<bit>`  | reserved for bit, slice and field access in a later step             |
+| `name.<bit>`  | a bit, slice or field (`U1MODE.ON`, `gFlags.4-6`); see [Memory](memory.md) |
 
 An exact symbol name wins, so `count.12` (a name GCC emits) is the symbol,
 not bit 12 of `count`. Duplicate names without a qualifier are refused with
@@ -199,7 +209,10 @@ the addresses and files listed, so you can pick one or type the address.
   "witness": {"mtime": 1756461120.0, "size": 482113},
   "address_bits": 32,
   "endian": "le",
-  "regions": [],
+  "regions": [
+    {"name": "rom", "start": "0x00000000", "size": 524288, "access": "ro"},
+    {"name": "ram", "start": "0x20000000", "size": 65536, "access": "rw"}
+  ],
   "symbols": [
     {"name": "gTemp", "addr": "0x00001000", "size": 2, "section": "bss", "file": "sensor.c", "type": "u16"},
     {"name": "main",  "addr": "0x00002000", "size": 442, "section": "text", "file": "main.c"},
@@ -215,14 +228,18 @@ the addresses and files listed, so you can pick one or type the address.
 | `size`    | no       | Bytes; 0 = unknown (linker globals)                                            |
 | `section` | no       | `text` / `bss` / `data` / `rodata` / `global` / `sfr` (shown as code, const, ...) |
 | `file`    | no       | Defining object or source; what `name@file` matches                            |
-| `type`    | no       | A scalar (`u8`..`u64`, `i8`..`i64`, `f32`, `f64`) or a format spec              |
-| `rmw`     | no       | `false` forbids bit writes (W1C / self-clearing registers); honored later       |
+| `type`    | no       | A scalar (`u8`..`u64`, `i8`..`i64`, `f32`, `f64`) or a format spec; absent on a 1, 2, 4 or 8 byte symbol = the unsigned integer of its size |
+| `access`  | no       | `rw` / `ro` / `wo`; absent = the section's (`ro` for `text` and `rodata`, else `rw`) |
+| `rmw`     | no       | `false` forbids bit and mask writes (W1C / self-clearing registers)             |
 | `space`   | no       | Reserved for Harvard parts                                                     |
 
 `recipe` and `witness` are written by `/sym.import` and drive the staleness
-check below; both are optional, and a table without them is fine. `endian`
-and `regions` are stored now and honored by `/mem.*` later.
-Unknown keys are ignored. `type` reuses the format-spec language from
+check below; both are optional, and a table without them is fine.
+`endian` is for reference: `/mem.*` uses the device's own byte order
+(`/mem.info`). `regions` are the linker's memory regions, one per row of
+the map's memory table, each `{name, start, size, access}` with `access`
+left out when the linker states none; `/sym.info` shows them, and
+`/mem.*` does not act on them yet. Unknown keys are ignored. `type` reuses the format-spec language from
 [protocol testing](protocol-testing.md#format-spec-language), so a register
 can carry named bits: `"type": "ON:B.15 UEN:B.8-9 BRGH:B.3"` -- bits of the
 register word, its width from `size` and its byte order from the device

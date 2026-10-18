@@ -12,7 +12,7 @@ import json
 import pytest
 
 from termapy import folders
-from termapy.symbols import SYMBOLS_VERSION, Symbol, SymbolTable, sidecar_path
+from termapy.symbols import SYMBOLS_VERSION, Region, Symbol, SymbolTable, sidecar_path
 
 
 def _demo_symbols() -> list[Symbol]:
@@ -253,6 +253,75 @@ class TestSymbol:
 
         # Assert
         assert symbol.name == "a", "unknown per-symbol keys are ignored (forward compat)"
+
+
+# ── access: the section's default ───────────────────────────────────────────
+
+
+class TestSectionAccess:
+    @pytest.mark.parametrize(
+        ("section", "expected"),
+        [
+            ("text", "ro"),
+            ("rodata", "ro"),
+            ("bss", "rw"),
+            ("data", "rw"),
+            ("global", "rw"),
+            ("sfr", "rw"),
+            ("", "rw"),
+        ],
+    )
+    def test_unstated_access_is_the_sections(self, section, expected):
+        """section-default-access: code and constants are read-only, everything else read-write."""
+        # Act
+        actual = Symbol("x", 0x1000, 4, section).access
+
+        # Assert
+        assert actual == expected
+
+    def test_stated_access_wins(self):
+        """An access the caller states is kept, even where the section says otherwise."""
+        # Act
+        actual = Symbol("x", 0x1000, 4, "rodata", access="rw").access
+
+        # Assert
+        assert actual == "rw", "an explicit access overrides the section default"
+
+    def test_file_stores_access_only_where_it_differs(self):
+        """section-default-access: the file shape omits an access that matches the section's."""
+        # Arrange
+        const = Symbol("k", 0x3000, 4, "rodata")
+        patched = Symbol("p", 0x3004, 4, "rodata", access="rw")
+        variable = Symbol("v", 0x1000, 4, "bss")
+
+        # Act
+        actual = [symbol.to_dict().get("access") for symbol in (const, patched, variable)]
+
+        # Assert
+        assert actual == [None, "rw", None], "only the override is written"
+
+    def test_round_trip_keeps_an_override(self):
+        """A rodata symbol stated rw survives save and load; an unstated one reloads ro."""
+        # Arrange
+        original = SymbolTable(
+            [Symbol("k", 0x3000, 4, "rodata"), Symbol("p", 0x3004, 4, "rodata", access="rw")]
+        )
+
+        # Act
+        rebuilt = SymbolTable.from_dict(json.loads(json.dumps(original.to_dict())))
+
+        # Assert
+        actual = [(symbol.name, symbol.access) for symbol in rebuilt.symbols]
+        assert actual == [("k", "ro"), ("p", "rw")], "the default and the override both survive"
+
+    def test_bad_stated_access_names_the_field(self):
+        """A stated access outside rw/ro/wo is refused with the field path."""
+        # Arrange
+        doc = _doc(symbols=[{"name": "a", "addr": "0x10", "size": 4, "access": "rx"}])
+
+        # Act / Assert
+        with pytest.raises(ValueError, match=r"symbols\[0\]\.access: expected rw, ro or wo"):
+            SymbolTable.from_dict(doc)
 
 
 # ── SymbolTable.lookup ──────────────────────────────────────────────────────
@@ -516,7 +585,10 @@ class TestSymbolTableJson:
     def test_round_trip_preserves_every_field(self):
         """to_dict then from_dict preserves symbols, metadata, endian and regions."""
         # Arrange
-        regions = [{"name": "ram", "start": "0x20000000", "size": "0x10000", "kind": "ram"}]
+        regions = [
+            Region("ram", 0x20000000, 0x10000, "rw"),
+            Region("cfg", 0x00804000, 4, space="data"),
+        ]
         original = SymbolTable(
             _demo_symbols(),
             source="build/mem.map",
@@ -533,7 +605,7 @@ class TestSymbolTableJson:
         assert rebuilt.symbols == original.symbols, "every symbol field survives"
         assert (rebuilt.source, rebuilt.imported) == ("build/mem.map", "2026-08-29T10:12:00")
         assert (rebuilt.address_bits, rebuilt.endian) == (32, "be")
-        assert rebuilt.regions == regions, "regions round-trip opaquely"
+        assert rebuilt.regions == regions, "every region field survives, unknown access included"
 
     def test_to_dict_key_order(self, table):
         """Top-level keys are written in a fixed order, with the current version."""
@@ -580,8 +652,24 @@ class TestSymbolTableJson:
             (_doc(address_bits=0), "address_bits: expected a positive integer"),
             (_doc(address_bits="32"), "address_bits: expected a positive integer"),
             (_doc(address_bits=True), "address_bits: expected a positive integer"),
-            (_doc(regions={}), "regions: expected a list of objects"),
-            (_doc(regions=[1]), "regions: expected a list of objects"),
+            (_doc(regions={}), "regions: expected a list"),
+            (_doc(regions=[1]), "regions[0]: expected an object"),
+            (
+                _doc(regions=[{"start": "0x0", "size": 4}]),
+                "regions[0].name: expected a non-empty string",
+            ),
+            (
+                _doc(regions=[{"name": "rom", "start": "zz", "size": 4}]),
+                "regions[0].start: expected 0x-hex string or int, got 'zz'",
+            ),
+            (
+                _doc(regions=[{"name": "rom", "start": "0x0", "size": -1}]),
+                "regions[0].size: expected a non-negative integer",
+            ),
+            (
+                _doc(regions=[{"name": "rom", "start": "0x0", "size": 4, "access": "rx"}]),
+                "regions[0].access: expected rw, ro or wo",
+            ),
             (_doc(source=7), "source: expected a string"),
         ],
         ids=[
@@ -597,6 +685,10 @@ class TestSymbolTableJson:
             "address_bits-bool",
             "regions-not-list",
             "region-not-object",
+            "region-no-name",
+            "region-bad-start",
+            "region-negative-size",
+            "region-bad-access",
             "source-int",
         ],
     )

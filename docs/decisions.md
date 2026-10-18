@@ -412,3 +412,26 @@ eleven `crcglot.lang` modules for the one function that generates code;
 it now reads `crcglot.LANGUAGES[lang]` there. The next cost is in
 crcglot itself: building `crcglot.VERBS`, which termapy reads at plugin
 load, imports every language generator though no verb generates code.
+
+## 2026-10-18 — A name is honored at its size and access; `/mem.write` takes a value there
+
+A named target is the symbol's whole extent and nothing past it.
+`/mem.read` of a symbol with no type reads the unsigned integer of its
+size when that is 1, 2, 4 or 8 bytes, and `/mem.write` at a named scalar
+(typed, of such a size, or a register) takes a number in the address
+grammar's vocabulary and encodes it at that width in the device's byte
+order. Hex bytes remain the form for a literal address, an offset and an
+array, bounded by the symbol a name points into. A type or a payload that
+would run past the symbol's end is refused, and a symbol in `text` or
+`rodata` defaults to `access: ro`, which every writing command refuses.
+**Why:** a linker map knows two facts about every name, where it is and
+how big it is, and the memory commands used only the first: `/mem.read
+sCmdCount` asked for a type the map cannot supply, `u32` on a 2-byte
+variable read the next one, and a byte-order-reversed hex payload was the
+only way to set a register. Making the user spell the bytes of a named
+value is the byte-order mistake the rest of termapy designs out.
+**Behavior change:** `/mem.write gTemp 2C01` (bytes) is refused on a
+named scalar; write `300` or `0x12C`. Bare digits are decimal, as in the
+address grammar. **Where:** registry `mem-named-bounds` and
+`section-default-access`; `tests/test_mem_commands.py`,
+`tests/test_symbols_table.py`.

@@ -20,6 +20,10 @@ which import the converter serves.  The two kinds are separate namespaces:
 a device converter named ``svd`` and a symbol converter named ``svd`` do not
 collide, and ``/sym.import`` never offers a device converter as a map format.
 
+A symbol converter may also export ``def regions(text)``, the memory
+regions the map declares (``list[termapy.symbols.Region]``), pure and
+never raising like ``convert``.  Without it a table has no regions.
+
 Each registry keeps its own ``CONVERTERS`` tuple and wraps
 :func:`find_converter` with it; the plugin loader uses
 :func:`converter_from_module` and hands every kind to the engine, which
@@ -54,6 +58,8 @@ class ConverterSpec:
             (``"global"`` / the config name), so ``ReplEngine`` can drop
             folder-loaded converters on a config switch.
         kind: Which import this serves (:data:`KINDS`).
+        regions: A symbol converter's optional text-in / regions-out
+            function; None when the format declares no memory regions.
     """
 
     format: str
@@ -62,6 +68,7 @@ class ConverterSpec:
     description: str = ""
     source: str = "built-in"
     kind: str = SYMBOLS
+    regions: Callable[[str], Any] | None = None
 
 
 def find_converter(
@@ -140,4 +147,9 @@ def converter_from_module(module: Any, source: str) -> ConverterSpec | None:
     kind = getattr(module, "KIND", SYMBOLS)
     if kind not in KINDS:
         raise ValueError(f"converter {fmt!r}: KIND must be one of {', '.join(KINDS)}")
-    return ConverterSpec(fmt, detect, convert, description, source=source, kind=kind)
+    regions = getattr(module, "regions", None)
+    if regions is not None and not callable(regions):
+        raise ValueError(f"converter {fmt!r}: regions must be a function")
+    return ConverterSpec(
+        fmt, detect, convert, description, source=source, kind=kind, regions=regions
+    )

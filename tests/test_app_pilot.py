@@ -34,7 +34,7 @@ from termapy.plugins.command import CmdResult, LifecycleHook
 DEMO_SYMBOLS = (
     Path(__file__).parent.parent / "src" / "termapy" / "builtins" / "demo" / f"demo{SYMBOLS_SUFFIX}"
 )
-DEMO_COUNT = 13
+DEMO_COUNT = 14
 
 
 def _age(path, seconds: float) -> None:

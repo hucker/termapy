@@ -316,6 +316,7 @@ class FakeSerial:
         (0x1002, struct.pack("<f", 1013.25)),  # gPressure  f32
         (0x1008, (5).to_bytes(4, "little")),  # gFlags     u32
         (0x100C, (12).to_bytes(4, "little")),  # count.12   u32
+        (0x1018, (3).to_bytes(2, "little")),  # sCount     2 bytes, untyped
         (0xBF806000, (0x8008).to_bytes(4, "little")),  # U1MODE: ON | BRGH
         (0xBF806010, (0x0110).to_bytes(4, "little")),  # U1STA
         (0x3100, b"Bassomatic v77\x00"),  # sBanner    char[15]

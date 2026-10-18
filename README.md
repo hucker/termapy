@@ -251,7 +251,7 @@ The most common ones:
 | `/proto.info`                        | Print current protocol state                                                  |
 | `/mem.dump <target> {len} {type}`    | Hexdump or typed word columns at an address or symbol                         |
 | `/mem.read <target> {type}`          | One typed value: scalar, char, register field, bit or slice                   |
-| `/mem.write <target> <hex>`          | Write hex bytes, or set a register field/bit (audited; destructive over MCP)  |
+| `/mem.write <target> <value>`        | Write a value to a named symbol, register or field, or hex bytes at an address (audited; destructive over MCP) |
 | `/mem.or <target> <mask>`            | Boolean ops on one word (also `.and`, `.clear`, `.xor`, `.not`); atomic via `MEM.M` where expressible |
 | `/mem.str <target> {max}`            | Read a NUL-terminated string as a first-class value                           |
 | `/mem.info`                          | Memory access config: dialect, block limit, width, endian, atomic modify      |

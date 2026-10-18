@@ -4,7 +4,10 @@
   "imported": "2026-08-29T00:00:00",
   "address_bits": 32,
   "endian": "le",
-  "regions": [],
+  "regions": [
+    {"name": "ram", "start": "0x00001000", "size": 4096, "access": "rw"},
+    {"name": "rom", "start": "0x00002000", "size": 8192, "access": "ro"}
+  ],
   "symbols": [
     {"name": "gTemp", "addr": "0x00001000", "size": 2, "section": "bss", "file": "sensor.c", "type": "u16"},
     {"name": "gPressure", "addr": "0x00001002", "size": 4, "section": "bss", "file": "sensor.c", "type": "f32"},
@@ -12,6 +15,7 @@
     {"name": "count.12", "addr": "0x0000100C", "size": 4, "section": "bss", "file": "main.c", "type": "u32"},
     {"name": "tick", "addr": "0x00001010", "size": 4, "section": "bss", "file": "mon.c", "type": "u32"},
     {"name": "tick", "addr": "0x00001014", "size": 4, "section": "bss", "file": "adc.c", "type": "u32"},
+    {"name": "sCount", "addr": "0x00001018", "size": 2, "section": "bss", "file": "main.c"},
     {"name": "sCal", "addr": "0x00001020", "size": 0, "section": "global"},
     {"name": "main", "addr": "0x00002000", "size": 442, "section": "text", "file": "main.c"},
     {"name": "MonGpio", "addr": "0x00002200", "size": 776, "section": "text", "file": "mon.c"},

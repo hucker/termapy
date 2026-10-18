@@ -13,8 +13,15 @@ Subcommands:
   columns; ``addr=``/``ascii=`` toggle the columns (both off = bare values).
 - ``/mem.read <target> {type}`` -- ONE typed value: a scalar, a char, a
   named register field (``U1MODE.ON``), a bit (``.15``) or slice (``.4-6``).
-- ``/mem.write <target> <hex>`` -- plain target: hex bytes; a target with
-  a bit/field suffix: an atomic masked write (``MEM.M``) or RMW fallback.
+- ``/mem.write <target> <value>`` -- a named scalar (a typed symbol, or
+  one the size of a scalar): a number at its width; an address, an offset
+  or an array: hex bytes; a bit/field suffix: an atomic masked write
+  (``MEM.M``) or RMW fallback.
+
+A NAMED target stays inside its symbol: a read's type and a write's bytes
+may not run past its end, and an ``access: ro`` symbol (code, constants,
+read-only registers) refuses every write.  A literal address is not
+bounded -- it names nothing.
 - ``/mem.or|and|xor|clear <target> <mask>``, ``/mem.not <target>`` -- the
   boolean set on one word (``clear`` = ``word &= ~mask``).
 - ``/mem.str <target> {max}`` -- a NUL-terminated string, first class.
@@ -52,9 +59,11 @@ from termapy.memory_views import (
     BitTarget,
     decode_scalar,
     decode_words,
+    encode_scalar,
     escape_text,
     extract_bits,
     mask_pair,
+    parse_scalar_value,
     render_char,
     render_value,
     resolve_bit_target,
@@ -68,6 +77,7 @@ from termapy.scripting import strip_ansi
 from termapy.symbols import Address, get_table, parse_address, parse_number, symbolic_name
 from termapy.symbols.format import hex_addr
 from termapy.symbols.session import get_devices
+from termapy.symbols.table import SCALAR_BY_SIZE
 from termapy.variables import launch_var
 
 if TYPE_CHECKING:
@@ -202,6 +212,7 @@ def _resolve(
     *,
     suffix_ok: bool = False,
     reads: bool = False,
+    writes: bool = False,
 ) -> Address | CmdResult:
     """The address a token names, or the failure to return.
 
@@ -213,6 +224,8 @@ def _resolve(
             read half of a read-modify-write, which is why ``/mem.or`` and
             ``/mem.not`` pass it.  Gates ``access: "wo"``, where a read
             returns whatever the silicon leaves on the bus.
+        writes: True when the command will WRITE the target.  Gates
+            ``access: "ro"``: code, constants and read-only registers.
     """
     try:
         parsed = parse_address(target, get_table(ctx))
@@ -230,7 +243,38 @@ def _resolve(
                 f"the value read back is not the value written"
             )
         )
+    if writes and symbol is not None and symbol.access == "ro":
+        return CmdResult.fail(msg=f"Write refused: {symbol.name} is access: ro (read-only)")
     return parsed
+
+
+def _scalar_type(parsed: Address) -> str:
+    """The scalar a NAMED whole symbol holds, or ``""``.
+
+    Its declared type when that is a scalar; otherwise, for a symbol the
+    size of one (:data:`SCALAR_BY_SIZE`), the unsigned integer of that
+    width.  ``""`` for an address, an offset or field into a symbol, and
+    an array or struct: those are bytes.
+    """
+    symbol = parsed.symbol
+    if symbol is None or parsed.offset or parsed.suffix:
+        return ""
+    if symbol.type in SCALARS:
+        return symbol.type
+    return SCALAR_BY_SIZE.get(symbol.size, "")
+
+
+def _room(parsed: Address) -> int | None:
+    """Bytes from a named target to its symbol's end, or None when unbounded.
+
+    Only a target INSIDE a sized symbol is bounded.  A literal address
+    names nothing, a linker global (size 0) has no end, and an offset
+    outside the symbol is the user exploring around it, not naming it.
+    """
+    symbol = parsed.symbol
+    if symbol is None or symbol.size <= 0 or not 0 <= parsed.offset < symbol.size:
+        return None
+    return symbol.size - parsed.offset
 
 
 def _labeler(table: SymbolTable | None) -> Callable[[int], str] | None:
@@ -681,12 +725,29 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
                         "fields": fields,
                     },
                 )
+            # Untyped, or a register without fields: the size says.
+            type_name = _scalar_type(parsed)
     if not type_name:
+        if symbol is not None and parsed.offset == 0 and symbol.size:
+            return CmdResult.fail(
+                msg=(
+                    f"Type required: {symbol.name} is {symbol.size} bytes, not one value "
+                    f"(give a type, or {ctx.prefix}mem.dump it)"
+                )
+            )
         return CmdResult.fail(
             msg="Type required: /mem.read <target> <type> "
             "(u8..u64, i8..i64, f32, f64, char) -- or target a typed symbol"
         )
     size = scalar_size(type_name)
+    room = _room(parsed)
+    if room is not None and symbol is not None and size > room:
+        return CmdResult.fail(
+            msg=(
+                f"Invalid type: {type_name} ({size} bytes) runs past the end of "
+                f"{symbol.name} ({symbol.size} bytes)"
+            )
+        )
     try:
         data = memory.read(parsed.addr, size)
     except (ValueError, DeviceMemoryError) as e:
@@ -707,18 +768,9 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
             },
         )
     scalar = decode_scalar(data, type_name, info.endian)
-    shown = f"{scalar:.6g}" if isinstance(scalar, float) else str(scalar)
-    # The hex twin is the DECODED value, not the raw bytes: on a
-    # little-endian device those differ, and a byte-order-reversed hex is
-    # exactly the wrong thing to show for a register.  Signed types are
-    # masked to the width so an i32 reads as two's complement (0xFFFFFFFE)
-    # rather than -0x2.
-    tail = (
-        ""
-        if isinstance(scalar, float)
-        else (f"  (0x{scalar & ((1 << (len(data) * 8)) - 1):0{len(data) * 2}X})")
-    )
-    ctx.io.result(f"{raw_target} = {shown}{tail}")
+    shown = _shown(scalar)
+    twin = _hex_twin(scalar, len(data))
+    ctx.io.result(f"{raw_target} = {shown}  ({twin})" if twin else f"{raw_target} = {shown}")
     return CmdResult.ok(
         value=shown,
         data={
@@ -732,11 +784,66 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
     )
 
 
+def _put(
+    ctx: PluginContext, memory: Memory, parsed: Address, data: bytes
+) -> tuple[bytes | None, str, int] | CmdResult:
+    """Write ``data`` at the target: the audit pre-read, the write, the audit line.
+
+    The one write sequence both whole-target forms of ``/mem.write`` share.
+
+    Returns:
+        ``(before, skipped, count)`` -- the bytes replaced (None when the
+        pre-read was skipped), why it was skipped, and the byte count
+        written -- or the failure to return.
+    """
+    bits = memory.info.address_bits
+    # The audit pre-read is a wire read like any other: gated, and logged.
+    skipped = _pre_read_skip(ctx, parsed, len(data))
+    before: bytes | None = None
+    if not skipped:
+        try:
+            before = memory.read(parsed.addr, len(data))
+        except (ValueError, DeviceMemoryError) as e:
+            return CmdResult.fail(msg=str(e))
+        _log_peripheral_read(ctx, parsed, len(data), bits)
+    try:
+        count = memory.write(parsed.addr, data)
+    except (ValueError, DeviceMemoryError) as e:
+        return CmdResult.fail(msg=str(e))
+    _audit(ctx, "MEM.W", parsed, parsed.addr, before, data, bits)
+    return before, skipped, count
+
+
+def _shown(value: int | float) -> str:
+    """A scalar as ``/mem.read`` and ``/mem.write`` print it."""
+    return f"{value:.6g}" if isinstance(value, float) else str(value)
+
+
+def _hex_twin(value: int | float, width: int) -> str:
+    """``0x000B``: an integer's value in hex at its width; ``""`` for a float.
+
+    The DECODED value, not the raw bytes: on a little-endian device those
+    differ, and a byte-order-reversed hex is exactly the wrong thing to
+    show for a register.  A signed value is masked to the width, so an
+    i32 -2 is 0xFFFFFFFE, never -0x2.
+    """
+    if isinstance(value, float):
+        return ""
+    return f"0x{value & ((1 << (8 * width)) - 1):0{2 * width}X}"
+
+
 def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
-    """Hex bytes at a plain target; a masked word write at a bit/field target."""
+    """A value at a named scalar, hex bytes elsewhere, a masked write at a field.
+
+    A named scalar (:func:`_scalar_type`) takes a number, encoded at its
+    width in the device's byte order: the symbol already says how big it
+    is, so the user never spells its bytes.  Everything else -- a literal
+    address, an offset into a symbol, an array -- takes hex bytes in
+    memory order, bounded by the symbol a name points into.
+    """
     raw_target = str(ctx.arg("target"))
-    payload = str(ctx.arg("hex"))
-    parsed = _resolve(ctx, raw_target, suffix_ok=True)
+    payload = str(ctx.arg("value"))
+    parsed = _resolve(ctx, raw_target, suffix_ok=True, writes=True)
     if isinstance(parsed, CmdResult):
         return parsed
     memory = _engine(ctx)
@@ -768,40 +875,54 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
         record["target"] = raw_target
         return CmdResult.ok(value=str(value), data=record)
 
-    try:
-        data = parse_hex(payload)
-    except ValueError:
-        return CmdResult.fail(msg=f"Invalid hex: {payload}")
-    if not data:
-        return CmdResult.fail(msg=f"Invalid hex: {payload}")
-    # The audit pre-read is a wire read like any other: gated, and logged.
-    skipped = _pre_read_skip(ctx, parsed, len(data))
-    before: bytes | None = None
-    if not skipped:
+    type_name = _scalar_type(parsed)
+    if type_name:
+        # /mem.write gTemp 300 -- a named scalar takes a number at its width.
         try:
-            before = memory.read(parsed.addr, len(data))
-        except (ValueError, DeviceMemoryError) as e:
+            data = encode_scalar(parse_scalar_value(payload, type_name), type_name, info.endian)
+        except ValueError as e:
             return CmdResult.fail(msg=str(e))
-        _log_peripheral_read(ctx, parsed, len(data), bits)
-    try:
-        count = memory.write(parsed.addr, data)
-    except (ValueError, DeviceMemoryError) as e:
-        return CmdResult.fail(msg=str(e))
-    _audit(ctx, "MEM.W", parsed, parsed.addr, before, data, bits)
-    was = f"was {before.hex().upper()}" if before is not None else f"not read first: {skipped}"
-    ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}  ({was})")
-    return CmdResult.ok(
-        value=str(count),
-        data={
-            "addr": parsed.addr,
-            "addr_hex": hex_addr(parsed.addr, bits),
-            "count": count,
-            "before_hex": before.hex().upper() if before is not None else None,
-            "before_skipped": skipped,
-            "after_hex": data.hex().upper(),
-            "origin": _origin(),
-        },
-    )
+    else:
+        try:
+            data = parse_hex(payload)
+        except ValueError:
+            return CmdResult.fail(msg=f"Invalid hex: {payload}")
+        if not data:
+            return CmdResult.fail(msg=f"Invalid hex: {payload}")
+        room = _room(parsed)
+        if room is not None and parsed.symbol is not None and len(data) > room:
+            return CmdResult.fail(
+                msg=(
+                    f"Write refused: {len(data)} bytes run past the end of "
+                    f"{parsed.symbol.name} ({parsed.symbol.size} bytes)"
+                )
+            )
+    outcome = _put(ctx, memory, parsed, data)
+    if isinstance(outcome, CmdResult):
+        return outcome
+    before, skipped, count = outcome
+    record: dict[str, Any] = {
+        "addr": parsed.addr,
+        "addr_hex": hex_addr(parsed.addr, bits),
+        "count": count,
+        "before_hex": before.hex().upper() if before is not None else None,
+        "before_skipped": skipped,
+        "after_hex": data.hex().upper(),
+        "origin": _origin(),
+    }
+    if not type_name:
+        was = f"was {before.hex().upper()}" if before is not None else f"not read first: {skipped}"
+        ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}  ({was})")
+        return CmdResult.ok(value=str(count), data=record)
+    # Shown as the type decodes what was stored -- the actual, so -1 into
+    # a u16 reads back 65535 here exactly as /mem.read will show it.
+    value = decode_scalar(data, type_name, info.endian)
+    previous = decode_scalar(before, type_name, info.endian) if before is not None else None
+    was = f"was {_shown(previous)}" if previous is not None else f"not read first: {skipped}"
+    notes = ", ".join(note for note in (_hex_twin(value, len(data)), was) if note)
+    ctx.io.result(f"Set {raw_target} = {_shown(value)}  ({notes})")
+    record |= {"target": raw_target, "type": type_name, "value": value, "before": previous}
+    return CmdResult.ok(value=_shown(value), data=record)
 
 
 def _mask_width(parsed: Address, mask_text: str, default: int = 4) -> int:
@@ -829,7 +950,7 @@ def _handler_mask(ctx: PluginContext, args: str, *, op: str) -> CmdResult:
     mask = parse_number(mask_text)
     if mask is None:
         return CmdResult.fail(msg=f"Invalid mask: {mask_text}")
-    parsed = _resolve(ctx, raw_target, reads=True)
+    parsed = _resolve(ctx, raw_target, reads=True, writes=True)
     if isinstance(parsed, CmdResult):
         return parsed
     memory = _engine(ctx)
@@ -901,7 +1022,7 @@ def _handler_not(ctx: PluginContext, args: str) -> CmdResult:
     """Invert one word.  NOT depends on the old value, so like xor it is
     always a read + write-back, never MEM.M."""
     raw_target = str(ctx.arg("target"))
-    parsed = _resolve(ctx, raw_target, reads=True)
+    parsed = _resolve(ctx, raw_target, reads=True, writes=True)
     if isinstance(parsed, CmdResult):
         return parsed
     memory = _engine(ctx)
@@ -1089,6 +1210,11 @@ _LONG_HELP: Final[str] = (
     "mask writes use the device's atomic MEM.M when advertised, else a\n"
     "read + write-back that can race an ISR (xor always does).\n"
     "\n"
+    "A named target stays inside its symbol: a read's type and a write's\n"
+    "bytes may not run past its end, and an access: ro symbol (code,\n"
+    "constants, read-only registers) refuses every write.  A symbol with\n"
+    "no type reads and writes as the unsigned integer of its size.\n"
+    "\n"
     "Every mutation is audited in the session log (address, word before\n"
     "and after, registers touched, origin).  Over MCP they are\n"
     "destructive: confirm=true.\n"
@@ -1098,7 +1224,8 @@ _LONG_HELP: Final[str] = (
     "                                     i*/f* decimal/float; addr= ascii=\n"
     "                                     toggle columns (both off = bare)\n"
     "  /mem.read <target> {type}        - one typed value, field, bit or slice\n"
-    "  /mem.write <target> <hex|value>  - hex bytes; or a field/bit value\n"
+    "  /mem.write <target> <value>      - a number at a named symbol or field;\n"
+    "                                     hex bytes at an address or array\n"
     "  /mem.or|and|xor|clear <target> <mask> - mask ops (clear: word &= ~mask)\n"
     "  /mem.not <target>                - invert one word\n"
     "  /mem.str <target> {max}          - NUL-terminated string (default cap 256)\n"
@@ -1177,15 +1304,16 @@ COMMAND = Command(
                     help="address or symbol; with .field/.bit the value is masked in",
                 ),
                 ParamSpec(
-                    "hex",
+                    "value",
                     "str",
                     positional=True,
                     required=True,
                     rest=True,
-                    help="hex bytes, or the field value for a .suffix target",
+                    help="a number for a named scalar, register or .field; "
+                    "hex bytes for an address, an offset or an array",
                 ),
             ],
-            help="Write hex bytes, or set a register field/bit (audited).",
+            help="Write a value to a named symbol, register or field, or hex bytes at an address (audited).",
             handler=_handler_write,
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",

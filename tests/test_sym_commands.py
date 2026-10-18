@@ -28,7 +28,7 @@ DEMO_SYMBOLS = (
 )
 XC32_MAP = Path(__file__).parent / "fixtures" / "maps" / "xc32_sample.map"
 XC32_COUNT = 17  # symbols in the fixture (see test_symbols_xc32.py)
-DEMO_COUNT = 13
+DEMO_COUNT = 14
 
 
 def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
@@ -265,6 +265,31 @@ class TestSymImport:
             "data carries the format"
         )
         assert result.data["count"] == XC32_COUNT, "data carries the count"
+
+    def test_import_writes_regions_and_section_access(self, sym_env):
+        """The map's memory regions reach the sidecar; code and constants load read-only."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+
+        # Act
+        engine.dispatch(f"sym.import {XC32_MAP}")
+
+        # Assert
+        doc = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert doc["regions"] == [
+            {"name": "rom", "start": "0x00000000", "size": 524288, "access": "ro"},
+            {"name": "ram", "start": "0x20000000", "size": 65536, "access": "rw"},
+        ], "the Memory Configuration table, *default* left out"
+        assert not any("access" in row for row in doc["symbols"]), (
+            "every access is its section's, so the file states none"
+        )
+        table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
+        access = {symbol.name: symbol.access for symbol in table.symbols}
+        assert (access["main"], access["sCmdTableA"], access["sDispatch"]) == ("ro", "ro", "rw"), (
+            "code and constants are read-only, a bss variable read-write"
+        )
 
     def test_explicit_format(self, sym_env):
         # Arrange
@@ -2208,3 +2233,78 @@ class TestLibraryLayersCommands:
 
         # Assert
         assert not (config_path.parent / LIB).exists(), "empty, so gone"
+
+
+# A converter that also declares regions, and one whose regions is not a
+# function -- the optional export follows the same fail-loud rule.
+_REGIONS_CONVERTER = """
+from termapy.symbols import Region
+from termapy.symbols.converters import xc32
+
+FORMAT = "withregions"
+DESCRIPTION = "xc32 map with a hand-declared FRAM region"
+DETECT = ()
+
+convert = xc32.convert
+
+
+def regions(text):
+    return [Region("fram", 0x60000000, 0x8000, "rw")]
+"""
+
+_BAD_REGIONS_CONVERTER = """
+FORMAT = "badregions"
+DESCRIPTION = "regions is a list, not a function"
+DETECT = ()
+regions = []
+
+
+def convert(text):
+    return []
+"""
+
+
+class TestConverterRegions:
+    def test_a_plugin_converter_may_declare_regions(self, sym_env):
+        """The optional regions(text) export is the table's regions."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _REGIONS_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=withregions")
+
+        # Assert
+        assert result.success, result.error
+        table = get_table(engine.ctx)
+        assert table is not None and [region.name for region in table.regions] == ["fram"]
+
+    def test_a_converter_without_regions_gives_none(self, sym_env):
+        """A converter that does not export regions imports a table with no regions."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        engine.dispatch(f"sym.import {XC32_MAP} format=myboard")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table is not None and table.regions == [], "regions is optional"
+
+    def test_regions_that_is_not_a_function_is_reported(self, sym_env):
+        """A non-callable regions export is an authoring error, reported at load."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_converter(config_path, _BAD_REGIONS_CONVERTER)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        errors = [text for text in _texts(output) if "Plugin error" in text]
+        assert any("badregions" in text and "regions" in text for text in errors), (
+            "the report names the converter and the export"
+        )

@@ -102,7 +102,7 @@ because its folders hold different types of file.
 | `/mem.or <target> <mask>` | OR a mask into one word (atomic via MEM.M when available)                   |
 | `/mem.read <target> {type}` | One typed value: scalar, char, register field, bit or slice               |
 | `/mem.str <target> {max}` | Read a NUL-terminated string                                                |
-| `/mem.write <target> <hex>` | Write hex bytes, or set a register field/bit (audited)                    |
+| `/mem.write <target> <value>` | Write a value to a named symbol, register or field, or hex bytes at an address (audited) |
 | `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
 | `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list ports. With name: open it.       |

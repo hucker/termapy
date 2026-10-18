@@ -1,5 +1,101 @@
 # Changelog
 
+## 0.78.0 (2026-10-17)
+
+Configs can now be created, deleted and renamed by command, in every
+frontend and straight from the shell; the command-line flags and CLI
+one-shots start much faster; and a review of the REPL commands left each
+one with a single implementation that behaves the same in the TUI, the
+CLI and over MCP.
+
+### Making and removing configs
+
+- **`termapy --new NAME PORT [SETTING ...]`** goes from nothing to a
+  connected session in one line: `termapy --new mydev COM4 115200 8N1`
+  writes `termapy_cfg/mydev/mydev.cfg` with `auto_connect` on and starts
+  it in whichever frontend the other flags pick (TUI, `--cli`, `--web`,
+  `--mcp`, ...). The settings use `/port.connect`'s grammar and default to
+  115200 8N1.
+- **`/cfg.new NAME PORT [SETTING ...]`** is the same thing from the REPL,
+  for scripts and MCP agents. It creates the config without switching to
+  it (`/cfg.load NAME` does that). Bare, in the TUI, it opens the New
+  Config wizard.
+- **`/cfg.delete <name>`** removes a config's whole folder -- the `.cfg`,
+  its scripts, profile, logs and captures -- after asking (over MCP it is
+  destructive and needs `confirm=true`). It refuses the active config, and
+  a config another program holds open is refused with nothing removed.
+  The config picker's Delete button now runs this command; it used to
+  remove only the `.cfg`.
+- **`/cfg.rename <name> <new>`** renames the folder, the `.cfg` and its
+  sidecar files together, and never overwrites.
+- **Replacing a config asks first.** The New Config wizard and the
+  editor's Save As used to overwrite a config of the same name without a
+  word. Now every path asks, and a yes replaces only the `.cfg`, keeping
+  the scripts and data beside it.
+
+### Pickers
+
+- The Run and Proto pickers show the highlighted file's full path in
+  their title row, and widen to show it whole. Clicking it shows the file
+  in your file manager with it selected.
+- The Proto picker and `/proto.list` have a TITLE column: the name each
+  `.pro` script declares.
+
+### Faster startup
+
+The print-and-exit flags and CLI one-shots no longer load libraries they
+never use. Measured on Windows: `--ports` 274 -> 135 ms, `--usb` 455 ->
+128 ms, `--check` 246 -> 77 ms, and a `--cli -e` one-shot loads a third
+fewer modules. The TUI's own import is about 0.1 s quicker. crcglot's
+code generators now load only for the language you generate.
+
+### One command, one behavior
+
+The 2026-10-15 command review found commands with separate copies in the
+TUI, the CLI and the MCP server, and the copies had drifted apart. Each
+now has one implementation. What you will notice:
+
+- **A failure is reported as a failure.** A `/port.*` setting that
+  refused a value printed a red line but reported success, so scripts and
+  agents never saw it; it now fails. `/proto.run` fails with `<n> of
+  <total> tests failed` when a test fails.
+- **Missing state gets one answer.** A command that needs a config, an
+  open port, a loaded profile, a symbol table, or no capture already
+  running is refused by the dispatcher with the same message everywhere
+  (`No config loaded.`, `Not connected.`, `Capture already active - use
+  /cap.stop first.`), and `/help` lists these needs under REQUIRED
+  CAPABILITIES.
+- **MCP lists every command.** The catalog left out everything that needs
+  an open port (`/mem.*`, `/ping`, the captures, `/proto.send`); those are
+  listed now, and `/run.profile` is available over MCP.
+- **`/delay` and `/expect` are the same everywhere.** Escape and Ctrl+C
+  both cancel a delay, `/expect` defaults to 5 s, and a timeout inside a
+  script stops the script on every path. `/confirm` works in CLI scripts.
+- **`/edit foo.py` works in the TUI**, as it already did in the CLI.
+- **In the CLI**, `/exit` and `/tui` work from a `.run` file and `-e`, not
+  only when typed. The CLI keeps no session log, so `/help` now shows the
+  `/log` commands as unavailable there instead of each one answering
+  `No log file.`.
+- **`/cfg <key> <value>` in the TUI** waits for its confirm dialog: Yes
+  returns the value, Cancel fails with `Canceled.`.
+- **`/xfer.xmodem.recv`** receives into `<name>.part` and replaces
+  `<name>` only when the transfer completes.
+- `/term.info` reports `line_no` correctly (it always said off), and
+  `/clr` is an alias for `/cls`.
+
+### Display fixes
+
+- The find bar's previous, next and close buttons show their arrows and
+  cross again; an edit in September had garbled them.
+- `/help port.cts` and the other line and signal pages show the level as
+  0 or 1, as the command returns it, instead of True or False.
+
+### Packaging
+
+- The wheel now includes the LICENSE file.
+- The build backend is `uv_build` 0.13 (`>=0.13,<0.14`).
+- crcglot 0.32.1 or newer is required.
+
 ## 0.77.1 (2026-10-15)
 
 A README and release-tooling fix; termapy itself is unchanged from 0.77.0.
@@ -420,6 +516,7 @@ fall back to `text`; an unknown safety tier is gated like `destructive`
 (fail-closed); `$`-prefixed and `x_`/`x-` keys are a blessed extension
 namespace that never warns.
 
+<!-- cspell:ignore saftey -->
 Leniency opens a real hole, so it ships with a typo defense: `saftey:
 destructive` would have left a command **ungated**. Unknown-name warnings now
 carry a did-you-mean suggestion, and `--validate-profile <path> --strict`
@@ -1035,7 +1132,7 @@ install layout it detects (uv tool / pipx / pip / dev tree), and
 the per-key noise is suppressed when the cfg is genuinely from
 the future.
 
-### Improvements
+### 0.68.0 Improvements
 
 - **`/cfg.icon` source refactor** -- the per-platform handler
   module shed ~30% of its post-feature LOC during same-day trim;
@@ -1363,7 +1460,7 @@ the release process so it can't drift back.
 - Fixed a stray "you you" typo in the `protocol/crc_codegen`
   module docstring caught during the lint pass.
 
-### Docs
+### 0.65.1 Docs
 
 - CLAUDE.md Precommit + Release sections now spell out the
   ruff=0 / ty=0 gate and enumerate every figure release_prep
@@ -1734,11 +1831,13 @@ existing scripts.
 - **``/log.*`` namespace for session-log inspection** -- alongside
   the existing ``/log.clear``:
 
-      /log.show         opens the session log in the system viewer
-      /log.dump {N}     prints the entire log (or last N lines) to terminal
-      /log.fingerprint  writes OS, terminal, Python, termapy, config,
-                        and serial port state to the log so old logs
-                        are unambiguous when read back later
+  ```text
+  /log.show         opens the session log in the system viewer
+  /log.dump {N}     prints the entire log (or last N lines) to terminal
+  /log.fingerprint  writes OS, terminal, Python, termapy, config,
+                    and serial port state to the log so old logs
+                    are unambiguous when read back later
+  ```
 
   Plus ``/term.log <text>`` for annotating the log without echoing
   to screen -- useful for markers, timestamps, and notes that are
@@ -1854,7 +1953,9 @@ family.
   accepts a USB serial number (``"A1B2C3D4"``) in addition to a
   device name, with a ``|``-separated fallback chain:
 
-      "port": "A1B2C3D4|COM3"
+  ```json
+  "port": "A1B2C3D4|COM3"
+  ```
 
   *"Prefer serial number A1B2C3D4; if it's not connected, fall back
   to COM3."*  Stable across replugs, stable across machines, stable
@@ -1888,11 +1989,13 @@ family.
   command (``/ss``, ``/run``, ``/proto``, ``/cap``, ``/cfg``,
   ``/plugin``, ``/app``) now exposes the same shape:
 
-      /<folder>.list       list files
-      /<folder>.explore    open folder in file manager
-      /<folder>.show       open newest file in system viewer
-      /<folder>.dump       print newest (or named) file to terminal
-      /<folder>.clear      delete all files (only on ss, cap, prof)
+  ```text
+  /<folder>.list       list files
+  /<folder>.explore    open folder in file manager
+  /<folder>.show       open newest file in system viewer
+  /<folder>.dump       print newest (or named) file to terminal
+  /<folder>.clear      delete all files (only on ss, cap, prof)
+  ```
 
   Which of show/dump/clear is exposed follows the folder's nature:
   user-authored folders (run/, proto/, plugin/) don't get a

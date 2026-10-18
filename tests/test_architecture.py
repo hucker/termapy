@@ -663,7 +663,6 @@ ALLOWED_HEADERLESS: frozenset[str] = frozenset(
     {
         "test_devices.py",
         "test_devices_svd.py",
-        "test_firmware_mem.py",
         "test_memory_views.py",
         "test_sym_commands.py",
     }

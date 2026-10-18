@@ -218,13 +218,18 @@ This is the whole contract; a drop-in reference implementation ships in
 the repo at `examples/firmware/termapy_mem.c`. It owns only the wire
 grammar: you hand it a `TermapyMem_Ops` with two byte operations --
 `read(addr, dst, count)` and `write(addr, src, count)` -- an optional
-IRQ-mask `lock`/`unlock` pair (that is all `MEM.M` needs), and a
-putchar-compatible output, once, with `TermapyMem_Init`; each received
-line then goes to `TermapyMem_Cmd`. Flat-MCU implementations of the two
-ops ship as `TermapyMem_DirectRead/Write` with an editable region table
-and width-aware accesses; banked parts, external memories and host tests
+IRQ-mask `lock`/`unlock` pair (that is all `MEM.M` needs), a
+putchar-compatible output, and the part's memory map -- a table of
+`{name, start, size, writable}` regions -- once, with `TermapyMem_Init`;
+each received line then goes to `TermapyMem_Cmd`. The module checks every
+read against the map and every write against its writable regions before
+a byte op runs, and reports the map in `MEM.INFO`. Flat-MCU
+implementations of the two ops ship as `TermapyMem_DirectRead/Write`,
+pure width-aware movers; banked parts, external memories and host tests
 supply their own (the repo's own test drives the module on the host that
-way). No allocation, no printf.
+way). The block size, address width and row width are `-D` knobs in
+`termapy_mem.h`, which also gives the line-buffer size a full `MEM.W`
+needs (`TERMAPY_MEM_LINE_SIZE`). No allocation, no printf.
 
 ```text
 MEM.R <addr> <len>      ->  <ADDR>: <XX XX XX ...>     one or more rows
@@ -233,7 +238,11 @@ MEM.W <addr> <hex>      ->  OK
 MEM.M <addr> <and> <or> ->  <ADDR>: <old word bytes>    the PRE-modify word
                             OK
 MEM.INFO                ->  {"max_block": 64, "address_bits": 32,
-                             "endian": "le", "modify": true}
+                             "endian": "le", "modify": true,
+                             "regions": [{"name": "flash", "start": "0x00000000",
+                                          "size": 524288, "w": false},
+                                         {"name": "sram", "start": "0x20000000",
+                                          "size": 65536, "w": true}]}
                             OK
 any failure             ->  ERR <reason>
 ```
@@ -246,9 +255,9 @@ any failure             ->  ERR <reason>
   any length; 16 bytes is conventional. termapy checks that consecutive
   rows are contiguous and that they add up to `<len>`.
 - Every successful command ends with a line reading exactly `OK`. Any
-  failure is a single line `ERR <reason>`; the demo device uses `usage`,
-  `length` (more than `max_block` bytes) and `range` (outside its
-  windows).
+  failure is a single line `ERR <reason>`; the demo device and the
+  reference module use `usage`, `length` (more than `max_block` bytes) and
+  `range` (outside the memory map, or a write to a read-only region).
 - Lines that are none of row / `OK` / `ERR` are ignored, so a monitor that
   echoes the command or prints a prompt is fine.
 - `MEM.M` is optional: an atomic masked write, `word = (word & and) | or`
@@ -261,6 +270,12 @@ any failure             ->  ERR <reason>
   block limit, address width, byte order and whether `MEM.M` exists
   (`"modify": true`) from the device itself and no profile block is
   needed. Without it, the defaults are 64 / 32 / `le` / no.
+- `regions` in `MEM.INFO` is optional too: the device's memory map, one
+  object per region in the device's order, `start` as `0x` plus the
+  address width's hex digits, `size` in decimal bytes, `w` whether
+  `MEM.W` and `MEM.M` may write there. termapy stores it with the rest of
+  the `MEM.INFO` record (`/mem.info`'s `device_info`) and does not act on
+  it yet; a device without it loses nothing.
 - The copy loop should store at the natural width when the length is 2 or
   4 and the address is aligned: a byte store to a peripheral register is a
   bus fault on PIC32 and Cortex-M.

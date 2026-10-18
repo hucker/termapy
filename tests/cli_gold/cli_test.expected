@@ -1498,8 +1498,8 @@ demo> /nope_bogus_cmd
   {"cmd": "/nope_bogus_cmd", "success": false, "error": "Unknown command: nope_bogus_cmd", "value": "", "data": null, "output_lines": [], "elapsed_s": 0.0}
   [215/219] /nope_bogus_cmd (19.4ms)
 demo> /mem
-  {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true}, "device_error": null, "problem": null, "template": null}, "output_lines": [], "elapsed_s": 0.0706}
-  [216/219] /mem (59.9ms)
+  {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}, "device_error": null, "problem": null, "template": null}, "output_lines": [], "elapsed_s": 0.061}
+  [231/297] /mem (61ms)
 demo> /term.request off
   request_mode = False  (session)
   {"cmd": "/term.request off", "success": true, "error": "", "value": "off", "data": null, "output_lines": ["off"], "elapsed_s": 0.0004}

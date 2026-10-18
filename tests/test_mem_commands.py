@@ -873,7 +873,11 @@ class TestInfo:
             "address_bits": 32,
             "endian": "le",
             "modify": True,
-        }
+            "regions": [
+                {"name": "ram", "start": "0x00000000", "size": 16384, "w": True},
+                {"name": "sfr", "start": "0xBF806000", "size": 32, "w": True},
+            ],
+        }, "the record is kept whole, the memory map included"
         assert result.data["atomic_modify"] is True, "the demo advertises MEM.M"
 
     def test_profile_block_wins(self, cli):

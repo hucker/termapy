@@ -827,6 +827,12 @@ class FakeSerial:
                 "address_bits": 32,
                 "endian": "le",
                 "modify": True,
+                # The memory map, as the reference module reports it: the
+                # demo's windows, every one writable.
+                "regions": [
+                    {"name": name, "start": f"0x{base:08X}", "size": size, "w": True}
+                    for name, (base, size) in zip(("ram", "sfr"), self._RAM_WINDOWS, strict=True)
+                ],
             }
             return (json.dumps(info) + "\r\nOK\r\n").encode()
         if verb == "MEM.M":

@@ -164,9 +164,9 @@ class TestDump:
 
 class TestWrite:
     def test_write_then_read_back(self, cli):
-        """Written bytes persist on the device, and the value is the byte count."""
+        """Hex bytes at an address persist on the device, and the value is the byte count."""
         # Act
-        written = cli.repl.dispatch("mem.write gFlags 07000000")
+        written = cli.repl.dispatch("mem.write 0x1008 07000000")
         read = cli.repl.dispatch("mem.dump gFlags 4")
 
         # Assert
@@ -177,7 +177,7 @@ class TestWrite:
     def test_audit_line_in_the_session_log(self, cli):
         """A write logs one MEM.W line: address, before and after bytes, and origin."""
         # Act
-        cli.repl.dispatch("mem.write gTemp 2C01")
+        cli.repl.dispatch("mem.write 0x1000 2C01")
 
         # Assert
         audits = [text for prefix, text in cli.audit if prefix == "#" and text.startswith("MEM.W")]
@@ -187,11 +187,10 @@ class TestWrite:
 
     def test_result_line_shows_what_was_there(self, cli, capsys):
         """The feedback line names the symbol and shows the bytes the write replaced."""
-        cli.repl.dispatch("mem.write gTemp 2C01")
+        # sCal is a linker global: no size, so a name with no scalar to hold.
+        cli.repl.dispatch("mem.write sCal 2C01")
         out = capsys.readouterr().out
-        assert "Wrote 2 bytes at 0x00001000  gTemp  (was 1B00)" in out, (
-            "before-bytes in the feedback"
-        )
+        assert "Wrote 2 bytes at 0x00001020  sCal  (was " in out, "before-bytes in the feedback"
 
     def test_data_record(self, cli):
         """The data record holds before and after hex; spaced hex pairs are accepted as input."""
@@ -223,8 +222,8 @@ class TestWrite:
     @pytest.mark.parametrize(
         "line, message",
         [
-            ("mem.write gTemp ZZ", "Invalid hex: ZZ"),
-            ("mem.write gTemp ABC", "Invalid hex: ABC"),
+            ("mem.write 0x1000 ZZ", "Invalid hex: ZZ"),
+            ("mem.write 0x1000 ABC", "Invalid hex: ABC"),
             ("mem.write nosuch 00", "Unknown symbol: nosuch"),
             ("mem.write 0x9000 00", "Device error: range"),
         ],
@@ -241,6 +240,259 @@ class TestWrite:
         assert not any(text.startswith("MEM.W") for _, text in cli.audit), (
             "nothing was written, nothing is audited"
         )
+
+
+class TestValueWrites:
+    """A named scalar takes a number at its width, in the device's byte order."""
+
+    def test_a_typed_symbol_takes_a_number(self, cli):
+        """mem-named-bounds: a u16 symbol takes 300 and stores it as its two bytes."""
+        # Act
+        written = cli.repl.dispatch("mem.write gTemp 300")
+        read = cli.repl.dispatch("mem.dump gTemp 2")
+
+        # Assert
+        assert written.success, written.error
+        assert written.value == "300", "the value written is the answer"
+        assert read.value == "2C01", "300 as a little-endian u16"
+
+    def test_an_untyped_symbol_takes_a_number_at_its_size(self, cli):
+        """mem-named-bounds: a 2-byte symbol with no type holds a u16, the linker-map case."""
+        # Act
+        written = cli.repl.dispatch("mem.write sCount 513")
+        read = cli.repl.dispatch("mem.dump sCount 2")
+
+        # Assert
+        assert written.success, written.error
+        assert read.value == "0102", "513 as a little-endian u16, sized by the symbol"
+
+    @pytest.mark.parametrize("token", ["300", "0x12C", "12Ch"])
+    def test_the_number_grammar(self, cli, token):
+        """Decimal, 0x hex and Nh hex all name the same value."""
+        # Act
+        cli.repl.dispatch(f"mem.write gTemp {token}")
+
+        # Assert
+        assert cli.repl.dispatch("mem.dump gTemp 2").value == "2C01", f"{token} is 300"
+
+    def test_bare_digits_are_decimal(self, cli):
+        """0100 is one hundred, as in the address grammar; bare digits are never hex."""
+        # Act
+        cli.repl.dispatch("mem.write gFlags 0100")
+
+        # Assert
+        assert cli.repl.dispatch("mem.read gFlags").value == "100", "decimal, leading zero or not"
+
+    def test_hex_bytes_are_not_a_value(self, cli):
+        """The bytes spelling is refused on a named scalar rather than read as some number."""
+        # Act
+        result = cli.repl.dispatch("mem.write gTemp 2C01")
+
+        # Assert
+        assert not result.success, "2C01 is not a number in the vocabulary"
+        assert result.error.endswith("Invalid value: 2C01 (u16 takes -32768..65535)")
+
+    def test_a_negative_value_is_stored_twos_complement(self, cli):
+        """-1 into a u16 is FF FF, and the answer is what the type now reads back."""
+        # Act
+        written = cli.repl.dispatch("mem.write gTemp -1")
+
+        # Assert
+        assert cli.repl.dispatch("mem.dump gTemp 2").value == "FFFF", "two's complement"
+        assert written.value == "65535", "the actual stored value, as /mem.read shows it"
+
+    def test_a_float_symbol_takes_a_decimal(self, cli):
+        """An f32 symbol takes 2.5 and reads it back."""
+        # Act
+        cli.repl.dispatch("mem.write gPressure 2.5")
+
+        # Assert
+        assert cli.repl.dispatch("mem.read gPressure").value == "2.5"
+
+    @pytest.mark.parametrize(
+        "line, message",
+        [
+            ("mem.write gTemp 65536", "Invalid value: 65536 (u16 takes -32768..65535)"),
+            ("mem.write gTemp -32769", "Invalid value: -32769 (u16 takes -32768..65535)"),
+            ("mem.write sCount ZZ", "Invalid value: ZZ (u16 takes -32768..65535)"),
+            ("mem.write gPressure abc", "Invalid value: abc (f32 takes a decimal number)"),
+            ("mem.write gPressure 1e39", "Invalid value: 1e39 (f32 takes a decimal number)"),
+            ("mem.write gPressure nan", "Invalid value: nan (f32 takes a decimal number)"),
+        ],
+    )
+    def test_a_bad_value_writes_nothing(self, cli, line, message):
+        """Out of range or not a number: refused with the range, and nothing is audited."""
+        # Act
+        result = cli.repl.dispatch(line)
+
+        # Assert
+        assert not result.success, "refused"
+        assert message in result.error
+        assert not any(text.startswith("MEM.W") for _, text in cli.audit), "nothing was written"
+
+    def test_record_and_audit(self, cli):
+        """The record adds the typed value before and after; the audit line stays the bytes."""
+        # Arrange
+        cli.ctx.wants_data = True
+
+        # Act
+        result = cli.repl.dispatch("mem.write gTemp 300")
+
+        # Assert
+        assert result.data == {
+            "addr": 0x1000,
+            "addr_hex": "0x00001000",
+            "count": 2,
+            "before_hex": "1B00",
+            "before_skipped": "",
+            "after_hex": "2C01",
+            "origin": "cli",
+            "target": "gTemp",
+            "type": "u16",
+            "value": 300,
+            "before": 27,
+        }, "the bytes record plus the typed value before and after"
+        assert ("#", "MEM.W 0x00001000 before=1B00 after=2C01 origin=cli") in cli.audit, (
+            "the audit line is the bytes, whichever form the user typed"
+        )
+
+    def test_result_line(self, cli, capsys):
+        """The feedback line reads like /mem.read: the value, its hex twin, what was there."""
+        # Act
+        cli.repl.dispatch("mem.write gTemp 300")
+
+        # Assert
+        assert "Set gTemp = 300  (0x012C, was 27)" in capsys.readouterr().out
+
+    def test_a_register_takes_its_whole_word(self, cli):
+        """A register typed by its fields is still one word: 0x8000 sets ON and clears BRGH."""
+        # Act
+        written = cli.repl.dispatch("mem.write U1MODE 0x8000")
+
+        # Assert
+        assert written.success, written.error
+        actual = (
+            cli.repl.dispatch("mem.read U1MODE.ON").value,
+            cli.repl.dispatch("mem.read U1MODE.BRGH").value,
+        )
+        assert actual == ("1", "0"), "the number is the register word, in the device's order"
+
+
+class TestNamedBounds:
+    """A named target stays inside its symbol; a literal address names nothing."""
+
+    def test_an_untyped_symbol_reads_at_its_size(self, cli, capsys):
+        """mem-named-bounds: /mem.read of a 2-byte symbol with no type decodes a u16."""
+        # Act
+        result = cli.repl.dispatch("mem.read sCount")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "3", "the seeded counter"
+        assert "sCount = 3  (0x0003)" in capsys.readouterr().out, "two bytes, so four hex digits"
+
+    def test_a_type_wider_than_the_symbol_is_refused(self, cli):
+        """mem-named-bounds: u32 on the 2-byte gTemp would read gPressure's first bytes."""
+        # Act
+        result = cli.repl.dispatch("mem.read gTemp u32")
+
+        # Assert
+        assert not result.success, "the read would run into the next variable"
+        assert result.error.endswith(
+            "Invalid type: u32 (4 bytes) runs past the end of gTemp (2 bytes)"
+        )
+
+    def test_a_narrower_type_reads_the_first_bytes(self, cli):
+        """A type smaller than the symbol stays inside it, so it reads."""
+        # Act
+        result = cli.repl.dispatch("mem.read gFlags u8")
+
+        # Assert
+        assert result.value == "5", "the low byte of the seeded u32"
+
+    def test_an_offset_inside_the_symbol_is_bounded(self, cli):
+        """gTemp+1 has one byte left, so a u16 there is refused."""
+        # Act
+        result = cli.repl.dispatch("mem.read gTemp+1 u16")
+
+        # Assert
+        assert not result.success, "one byte of room, two asked for"
+        assert "runs past the end of gTemp" in result.error
+
+    def test_an_offset_outside_the_symbol_is_not_bounded(self, cli):
+        """gTemp+4 is past gTemp's end: the user is exploring around it, not naming it."""
+        # Act
+        result = cli.repl.dispatch("mem.read gTemp+4 u32")
+
+        # Assert
+        assert result.success, result.error
+
+    def test_a_symbol_of_no_scalar_size_asks_for_a_type(self, cli):
+        """A 15-byte string is not one value: the refusal says so and names /mem.dump."""
+        # Act
+        result = cli.repl.dispatch("mem.read sBanner")
+
+        # Assert
+        assert not result.success, "no scalar is 15 bytes"
+        assert "Type required: sBanner is 15 bytes, not one value" in result.error
+        assert "mem.dump it" in result.error, "the refusal says what to type instead"
+
+    def test_bytes_past_the_end_of_a_symbol_are_refused(self, cli):
+        """mem-named-bounds: two bytes at gTemp+1 would overwrite gPressure; nothing is written."""
+        # Act
+        result = cli.repl.dispatch("mem.write gTemp+1 0102")
+
+        # Assert
+        assert not result.success, "the write would run into the next variable"
+        assert result.error.endswith("Write refused: 2 bytes run past the end of gTemp (2 bytes)")
+        assert not any(text.startswith("MEM.W") for _, text in cli.audit), "nothing was written"
+
+    def test_bytes_inside_the_symbol_are_written(self, cli):
+        """One byte at gTemp+1 fits, so it is written."""
+        # Act
+        result = cli.repl.dispatch("mem.write gTemp+1 05")
+
+        # Assert
+        assert result.success, result.error
+        assert cli.repl.dispatch("mem.dump gTemp 2").value == "1B05", "the high byte only"
+
+    def test_a_literal_address_is_not_bounded(self, cli):
+        """0x1000 names nothing, so four bytes across gTemp and gPressure are written."""
+        # Act
+        result = cli.repl.dispatch("mem.write 0x1000 01020304")
+
+        # Assert
+        assert result.success, result.error
+        assert cli.repl.dispatch("mem.dump 0x1000 4").value == "01020304"
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "mem.write sBanner 41",
+            "mem.write sBanner+1 41",
+            "mem.write sCmdTable.0 1",
+            "mem.or sCmdTable 1",
+            "mem.clear sBanner 1",
+            "mem.not main",
+        ],
+    )
+    def test_a_read_only_symbol_refuses_every_write(self, cli, line):
+        """mem-named-bounds: code and constants refuse every writing command, before the wire."""
+        # Act
+        result = cli.repl.dispatch(line)
+
+        # Assert
+        assert not result.success, f"{line}: writes a read-only symbol"
+        assert "is access: ro (read-only)" in result.error
+        assert cli.audit == [], "refused before anything reached the device"
+
+    def test_a_read_only_symbol_still_reads(self, cli):
+        """The gate is on writing: a constant string reads as usual."""
+        # Act
+        result = cli.repl.dispatch("mem.str sBanner")
+
+        # Assert
+        assert result.value == "Bassomatic v77"
 
 
 class TestRead:
@@ -277,7 +529,7 @@ class TestRead:
         """A negative value's hex twin is two's complement at its width, never a signed -2."""
         # Arrange -- put a negative i32 in gFlags: bytes FE FF FF FF little
         # endian is -2.  A plain f"{-2:X}" would render "-2".
-        cli.repl.dispatch("mem.write gFlags FEFFFFFF")
+        cli.repl.dispatch("mem.write gFlags -2")
         capsys.readouterr()
 
         # Act
@@ -830,12 +1082,12 @@ class TestTemplateDialect:
     def test_write_is_one_command_per_byte_and_audited(self, legacy):
         """Template writes go one byte per command and log the same MEM.W line as native."""
         # Act
-        written = legacy.repl.dispatch("mem.write gTemp 2C01")
+        written = legacy.repl.dispatch("mem.write gTemp 300")
         read = legacy.repl.dispatch("mem.dump gTemp 2")
 
         # Assert
         assert written.success, written.error
-        assert written.value == "2"
+        assert written.value == "300", "a named scalar's write answers with the value"
         assert read.value == "2C01", "both bytes landed through =val writes"
         assert any(
             text == "MEM.W 0x00001000 before=1B00 after=2C01 origin=cli" for _, text in legacy.audit
@@ -1017,7 +1269,7 @@ class TestNotConnected:
 
 
 class TestValueContract:
-    @pytest.mark.parametrize("line", ["mem.dump gTemp 4", "mem.write gTemp 1B00", "mem.info"])
+    @pytest.mark.parametrize("line", ["mem.dump gTemp 4", "mem.write gTemp 27", "mem.info"])
     def test_every_command_returns_a_str_value(self, cli, line):
         """Dump, write, and info each return a str value, so $(X) capture works."""
         result = cli.repl.dispatch(line)
@@ -1036,7 +1288,7 @@ _SFR_DEVICE = {
     "device": "demo-uart",
     "registers": [
         {"name": "UMODE", "addr": "0xBF806000", "size": 4},
-        {"name": "USTAT", "addr": "0xBF806010", "size": 4},
+        {"name": "USTAT", "addr": "0xBF806010", "size": 4, "access": "ro"},
         {"name": "UDATA", "addr": "0xBF806014", "size": 4, "read_effect": True},
         {"name": "UTXREG", "addr": "0xBF806018", "size": 4, "access": "wo"},
         # One register described twice, the way SVD models a peripheral's
@@ -1228,7 +1480,7 @@ class TestPeripheralReadGates:
     def test_write_only_register_still_accepts_a_write(self, sfr_cli):
         """The gate is on reading; writing a wo register is its whole purpose."""
         # Act
-        result = sfr_cli.repl.dispatch("mem.write UTXREG 41000000")
+        result = sfr_cli.repl.dispatch("mem.write UTXREG 0x41")
 
         # Assert
         assert result.success, result.error
@@ -1334,7 +1586,7 @@ class TestWritePathReadGates:
     def test_a_write_only_register_is_not_read_first(self, sfr_cli):
         """Writing a wo register skips the pre-read; MEM.W shows before=? and names it."""
         # Act
-        result = sfr_cli.repl.dispatch("mem.write UTXREG 41000000")
+        result = sfr_cli.repl.dispatch("mem.write UTXREG 0x41")
 
         # Assert
         assert result.success, "writing a wo register is its whole purpose"
@@ -1349,7 +1601,7 @@ class TestWritePathReadGates:
         sfr_cli.ctx.wants_data = True
 
         # Act
-        result = sfr_cli.repl.dispatch("mem.write UTXREG 41000000")
+        result = sfr_cli.repl.dispatch("mem.write UTXREG 0x41")
 
         # Assert
         assert result.data["before_hex"] is None, "unknown, not a guess"
@@ -1358,17 +1610,17 @@ class TestWritePathReadGates:
     def test_the_skipped_pre_read_is_explained_in_the_result_line(self, sfr_cli, capsys):
         """The feedback line says the target was not read first and gives the reason."""
         # Act
-        sfr_cli.repl.dispatch("mem.write UTXREG 41000000")
+        sfr_cli.repl.dispatch("mem.write UTXREG 0x41")
 
         # Assert
-        assert "Wrote 4 bytes at 0xBF806018  UTXREG  (not read first: UTXREG is access: wo)" in (
+        assert "Set UTXREG = 65  (0x00000041, not read first: UTXREG is access: wo)" in (
             capsys.readouterr().out
         )
 
     def test_a_read_effect_register_is_not_popped_by_a_write(self, sfr_cli):
         """A NAMED read of a FIFO port is the user's call; a write asked for no read."""
         # Act
-        result = sfr_cli.repl.dispatch("mem.write UDATA 01000000")
+        result = sfr_cli.repl.dispatch("mem.write UDATA 1")
 
         # Assert
         assert result.success, result.error
@@ -1378,7 +1630,7 @@ class TestWritePathReadGates:
     def test_the_pre_read_of_a_plain_register_is_logged(self, sfr_cli):
         """A readable register's pre-read shows in the read log; MEM.W keeps the true before."""
         # Act
-        result = sfr_cli.repl.dispatch("mem.write UMODE 09800000")
+        result = sfr_cli.repl.dispatch("mem.write UMODE 0x8009")
 
         # Assert
         assert result.success, result.error
@@ -1392,7 +1644,7 @@ class TestWritePathReadGates:
     def test_ram_writes_still_read_first(self, sfr_cli):
         """RAM writes still pre-read for before=, with no MEM.R line and no regs= field."""
         # Act
-        sfr_cli.repl.dispatch("mem.write gTemp 2C01")
+        sfr_cli.repl.dispatch("mem.write gTemp 300")
 
         # Assert
         assert self._lines(sfr_cli, "MEM.R") == [], "a RAM read is not a peripheral read"
@@ -1456,7 +1708,7 @@ class TestWriteAudit:
     def test_every_alias_is_named_and_the_typed_one_leads(self, sfr_cli):
         """A write lists every alias at the address in regs=, the typed name first."""
         # Act
-        result = sfr_cli.repl.dispatch("mem.write UMODE_SPI_CTRL 00000000")
+        result = sfr_cli.repl.dispatch("mem.write UMODE_SPI_CTRL 0")
 
         # Assert
         assert result.success, result.error
@@ -1469,10 +1721,107 @@ class TestWriteAudit:
         """A grep for regs=UMODE finds the read, the write's pre-read, and the write."""
         # Act
         sfr_cli.repl.dispatch("mem.read UMODE u32")
-        sfr_cli.repl.dispatch("mem.write UMODE 09800000")
+        sfr_cli.repl.dispatch("mem.write UMODE 0x8009")
 
         # Assert
         hits = [text for text in self._audits(sfr_cli) if "regs=UMODE" in text]
         assert [text.split()[0] for text in hits] == ["MEM.R", "MEM.R", "MEM.W"], (
             "the typed read, the write's pre-read, and the write itself"
         )
+
+
+class TestReadOnlyRegisters:
+    """A device file's access: ro is the same gate as a constant's."""
+
+    @pytest.mark.parametrize("line", ["mem.write USTAT 0", "mem.write USTAT.0 1", "mem.or USTAT 1"])
+    def test_a_read_only_register_refuses_writes(self, sfr_cli, line):
+        """mem-named-bounds: a status register the vendor marks read-only is not written."""
+        # Act
+        result = sfr_cli.repl.dispatch(line)
+
+        # Assert
+        assert not result.success, f"{line}: writes a read-only register"
+        assert "Write refused: USTAT is access: ro (read-only)" in result.error
+
+    def test_a_read_only_register_still_reads(self, sfr_cli):
+        """Reading it is what it is for."""
+        # Act
+        result = sfr_cli.repl.dispatch("mem.read USTAT")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "272", "U1STA's seeded 0x0110"
+
+    def test_a_narrow_mode_alias_bounds_the_read(self, sfr_cli):
+        """The 16-bit view of a register refuses a u32 read, as a 2-byte variable would."""
+        # Act
+        result = sfr_cli.repl.dispatch("mem.read UCNT_MODE1 u32")
+
+        # Assert
+        assert not result.success, "UCNT_MODE1 is the 2-byte view of the register"
+        assert "runs past the end of UCNT_MODE1 (2 bytes)" in result.error
+
+
+class TestArraysAndStructs:
+    """What an ELF types: an array by its element, a struct by its members."""
+
+    def test_an_array_is_not_one_value(self, cli):
+        """mem-named-bounds: a u32 array refuses a bare read and says how to read it."""
+        # Act
+        result = cli.repl.dispatch("mem.read sCmdTable")
+
+        # Assert
+        assert not result.success, "sixteen values are not one"
+        assert result.error.endswith(
+            "Type required: sCmdTable is 16 u32 values, not one "
+            "(/mem.dump sCmdTable u32, or one with sCmdTable+4 u32)"
+        )
+
+    @pytest.mark.parametrize("line", ["mem.read sCmdTable u32", "mem.read sCmdTable+4 u32"])
+    def test_one_element_reads_with_its_type(self, cli, line):
+        """Naming the type reads one element, inside the array."""
+        # Act
+        result = cli.repl.dispatch(line)
+
+        # Assert
+        assert result.success, result.error
+
+    def test_a_struct_reads_as_its_members(self, cli, capsys):
+        """Every member decoded at its offset; the record has each as a JSON value."""
+        # Arrange
+        cli.ctx.wants_data = True
+
+        # Act
+        result = cli.repl.dispatch("mem.read sCfg")
+
+        # Assert
+        assert result.success, result.error
+        assert result.data["fields"] == {
+            "baud_div": 258,
+            "trim": -4,
+            "mode": 3,
+            "gain": 0.5,
+            "inner": "0506",
+        }, "ints, a float and hex, not display strings"
+
+    def test_a_struct_takes_bytes_not_one_number(self, cli):
+        """A layout is not a word: 5 is not hex bytes, 0302 is, and lands at the start."""
+        # Act
+        refused = cli.repl.dispatch("mem.write sCfg 5")
+        written = cli.repl.dispatch("mem.write sCfg 0302")
+        cli.ctx.wants_data = True
+        members = cli.repl.dispatch("mem.read sCfg").data["fields"]
+
+        # Assert
+        assert not refused.success and "Invalid hex: 5" in refused.error, "no whole-value write"
+        assert written.success, written.error
+        assert members["baud_div"] == 515, "0x0203 little-endian"
+
+    def test_a_struct_write_is_bounded(self, cli):
+        """Thirteen bytes into a 12-byte struct would reach the next variable."""
+        # Act
+        result = cli.repl.dispatch("mem.write sCfg " + "00" * 13)
+
+        # Assert
+        assert not result.success, "past the end"
+        assert "run past the end of sCfg (12 bytes)" in result.error

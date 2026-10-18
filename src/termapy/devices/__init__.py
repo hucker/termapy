@@ -124,7 +124,13 @@ from pathlib import Path
 from typing import Any, Final
 
 from termapy import folders
-from termapy.symbols.table import Symbol, check_type, parse_addr_field
+from termapy.symbols.table import (
+    ACCESS_MODES,
+    SCALAR_BY_SIZE,
+    Symbol,
+    check_type,
+    parse_addr_field,
+)
 
 DEVICE_VERSION: Final[int] = 1
 
@@ -132,8 +138,6 @@ DEVICE_VERSION: Final[int] = 1
 DEVICE_SECTION: Final[str] = "sfr"
 
 SUFFIX: Final[str] = ".device.json"
-
-ACCESS_MODES: Final[tuple[str, ...]] = ("rw", "ro", "wo")
 
 # What a loader may be handed to resolve a ``ref``: one library root (a
 # test convenience), the layered ``(folder, label)`` list from
@@ -150,9 +154,6 @@ _IDENT_RE: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # whose file matching splits on "." (stem), so dots are out; dashes are
 # in because part numbers have them.
 _DEVICE_RE: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
-
-# Scalar type by register width when a file gives neither type nor fields.
-_SCALAR_BY_SIZE: Final[dict[int, str]] = {1: "u8", 2: "u16", 4: "u32", 8: "u64"}
 
 
 @dataclass(frozen=True)
@@ -354,7 +355,8 @@ def _register_template(raw: Any, where: str, device: str) -> Register:
     if fields:
         type_spec = derive_type(fields)
     elif not type_spec:
-        type_spec = _SCALAR_BY_SIZE.get(size, "")
+        # Neither type nor fields: the register's width says what it holds.
+        type_spec = SCALAR_BY_SIZE.get(size, "")
     check_type(type_spec, where)
     access = raw.get("access", "rw")
     if access not in ACCESS_MODES:

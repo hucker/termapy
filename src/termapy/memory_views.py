@@ -3,9 +3,10 @@
 :mod:`termapy.memory` moves bytes; this module gives them meaning:
 scalars (``u16`` -> 27), characters, word-grouped dump values, and --
 for CPU registers -- named bit fields via the protocol format-spec
-language.  The format-spec semantics are EXACTLY the protocol engine's
-("byte order in the spec IS the byte order in memory"): an LE 32-bit
-register's bit 15 is authored ``ON:B4-1.15``, and decoding is
+language.  It also goes the other way: a typed value to its bytes
+(:func:`parse_scalar_value`, :func:`encode_scalar`).  A register's bit 15
+is authored ``ON:B.15``, bound at read time to the register's width and
+the device's byte order, and decoding is
 :func:`termapy.protocol.core.extract_column_value` verbatim.
 
 Bit targets (a ``.suffix`` from the address grammar) resolve to a word
@@ -28,7 +29,7 @@ from termapy.protocol.core import (
     parse_format_spec,
     resolve_word_columns,
 )
-from termapy.symbols import Symbol
+from termapy.symbols import Symbol, parse_number
 
 # Scalar type token -> (struct format char, byte size).  ``char`` is the
 # odd one out: one byte rendered as a character, handled separately.
@@ -48,6 +49,10 @@ SCALARS: Final[dict[str, tuple[str, int]]] = {
 TYPE_TOKENS: Final[frozenset[str]] = frozenset(SCALARS) | {"char"}
 
 _BIT_RE: Final = re.compile(r"^(?P<lo>\d+)(?:-(?P<hi>\d+))?$")
+
+# A float literal: decimal, optional fraction and exponent.  Narrower than
+# float(), which also takes "nan", "inf" and digit-group underscores.
+_FLOAT_RE: Final = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 
 def scalar_size(type_name: str) -> int:
@@ -85,6 +90,65 @@ def decode_scalar(data: bytes, type_name: str, endian: str) -> int | float:
         raise ValueError(f"Type {type_name} needs {size} bytes, got {len(data)}")
     prefix = "<" if endian == "le" else ">"
     return struct.unpack(f"{prefix}{fmt}", data)[0]
+
+
+def parse_scalar_value(text: str, type_name: str) -> int | float:
+    """User text -> a value for a ``type_name`` scalar, range-checked.
+
+    An integer takes the number grammar (:func:`termapy.symbols.parse_number`:
+    decimal, ``0x`` hex, ``Nh``) with an optional leading ``-``.  It fits
+    when it is a signed or an unsigned number of the width -- ``u16`` and
+    ``i16`` both take -32768..65535 -- and :func:`encode_scalar` stores it
+    two's complement, the C conversion.  A float takes a decimal literal.
+
+    Args:
+        text: The value as typed.
+        type_name: A token from :data:`SCALARS`.
+
+    Returns:
+        The value.
+
+    Raises:
+        ValueError: ``Invalid value: <text> (<type> takes <range>)``.
+    """
+    token = text.strip()
+    if type_name in ("f32", "f64"):
+        if _FLOAT_RE.match(token):
+            value = float(token)
+            try:
+                struct.pack(f"<{SCALARS[type_name][0]}", value)
+            except OverflowError:
+                pass
+            else:
+                return value
+        raise ValueError(f"Invalid value: {token} ({type_name} takes a decimal number)")
+    bits = scalar_size(type_name) * 8
+    low, high = -(1 << (bits - 1)), (1 << bits) - 1
+    negative = token.startswith("-")
+    number = parse_number(token[1:] if negative else token)
+    if number is not None:
+        value = -number if negative else number
+        if low <= value <= high:
+            return value
+    raise ValueError(f"Invalid value: {token} ({type_name} takes {low}..{high})")
+
+
+def encode_scalar(value: int | float, type_name: str, endian: str) -> bytes:
+    """One scalar to bytes in memory order -- the twin of :func:`decode_scalar`.
+
+    An integer is stored two's complement at the type's width, so ``-1``
+    as ``u16`` is ``FF FF``; range checking is :func:`parse_scalar_value`'s.
+
+    Raises:
+        ValueError: Unknown token.
+    """
+    if type_name not in SCALARS:
+        raise ValueError(f"Unknown type: {type_name} (types: {', '.join(sorted(SCALARS))})")
+    fmt, size = SCALARS[type_name]
+    if type_name in ("f32", "f64"):
+        return struct.pack(f"{'<' if endian == 'le' else '>'}{fmt}", value)
+    order = "little" if endian == "le" else "big"
+    return (int(value) & ((1 << (8 * size)) - 1)).to_bytes(size, order)
 
 
 def decode_words(data: bytes, type_name: str, endian: str) -> list[int | float]:
@@ -163,6 +227,20 @@ class BitTarget:
     @property
     def mask(self) -> int:
         return ((1 << self.bit_width) - 1) << self.low
+
+
+def is_word_spec(spec: str) -> bool:
+    """True when a format spec names bits of one word (a register), not a layout.
+
+    A register's fields are all bit columns (``ON:B.15``); a struct's
+    members are byte columns (``count:U4-3``).  The two read the same way
+    but write differently: a word takes one number, a layout takes bytes.
+    """
+    try:
+        columns = parse_format_spec(spec, word=True)
+    except (ValueError, IndexError, KeyError):
+        return False
+    return bool(columns) and all(column.type_code in ("B", "b") for column in columns)
 
 
 def symbol_columns(symbol: Symbol, endian: str) -> list[ColumnSpec]:

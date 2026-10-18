@@ -1,4 +1,4 @@
-"""Symbol converters -- vendor map text in, termapy symbols out.
+"""Symbol converters -- a build's ELF or linker map in, termapy symbols out.
 
 Table-driven like ``folders.FOLDERS``: one master tuple, derived views.
 Vendor knowledge lives only in the converter modules; this file knows
@@ -6,10 +6,12 @@ names and sniff strings.  The record type and the lookup are shared with
 the device registry -- see :mod:`termapy.converters` for the four names a
 converter module exports and the optional ``KIND``.
 
-Adding a toolchain = one module, one tuple entry, one fixture under
+Adding a map toolchain = one module, one tuple entry, one fixture under
 ``tests/fixtures/maps/`` (the pairwise-exclusivity test picks it up; the
 fixture stem before the first ``_`` must equal ``FORMAT``, so a key with
-an underscore breaks it).  The authoring rules a converter must follow --
+an underscore breaks it).  A toolchain that writes an ELF needs nothing:
+the ``elf`` converter reads them all (its fixtures, one per compiler,
+are under ``tests/fixtures/elf/``).  The authoring rules a converter must follow --
 purity, VMA-not-LMA, the section vocabulary, DETECT uniqueness -- are in
 ``help/symbols.md`` under "Your own converter, as a plugin"; they are the
 same for a built-in and a plugin converter.
@@ -43,12 +45,30 @@ from collections.abc import Iterable
 from typing import Final
 
 from termapy.converters import SYMBOLS, ConverterSpec, find_converter as _find_converter
-from termapy.symbols.converters import xc32
+from termapy.symbols.converters import elf, xc32
 
 # Order = sniffing precedence: a specific toolchain before a future generic
 # gcc-map, so the specific one claims its maps first.
 CONVERTERS: Final[tuple[ConverterSpec, ...]] = (
-    ConverterSpec(xc32.FORMAT, xc32.DETECT, xc32.convert, xc32.DESCRIPTION, kind=SYMBOLS),
+    ConverterSpec(
+        xc32.FORMAT,
+        xc32.DETECT,
+        xc32.convert,
+        xc32.DESCRIPTION,
+        kind=SYMBOLS,
+        layout=xc32.layout,
+    ),
+    # Binary: recognized by its magic before any map's text markers, which
+    # an XC32 ELF carries in its debug strings.
+    ConverterSpec(
+        elf.FORMAT,
+        elf.DETECT,
+        elf.convert,
+        elf.DESCRIPTION,
+        kind=SYMBOLS,
+        layout=elf.layout,
+        magic=elf.MAGIC,
+    ),
 )
 
 # Derived: feeds the /sym.import format= help and every error message.
@@ -59,6 +79,7 @@ def find_converter(
     format_name: str = "",
     text: str = "",
     extra: Iterable[ConverterSpec] = (),
+    data: bytes = b"",
 ) -> ConverterSpec | None:
     """The symbol registry's lookup -- see :func:`termapy.converters.find_converter`."""
-    return _find_converter(format_name, text, extra, registry=CONVERTERS)
+    return _find_converter(format_name, text, extra, registry=CONVERTERS, data=data)

@@ -125,7 +125,9 @@ All other paths relative to `src/termapy/`.
     `protocol.core.parse_data` (hex + quoted text) for `/proto.send`,
     `/proto.crc.calc`, `/traffic.snoop` and `.pro` files; `parse_hex`
     (hex only) for the packet commands `/proto.crc.verify`, `.find bin=`,
-    `.reverse` and `/mem.write`; `parse_pattern` for expect wildcards. A
+    `.reverse` and `/mem.write`'s bytes form (an address, an offset or an
+    array; a named scalar takes a number, `parse_scalar_value`);
+    `parse_pattern` for expect wildcards. A
     bad payload is `Parse error: {e}`. **Output is uppercase**: `format_hex`
     for display, `.hex().upper()` for a value, `X` in format specs.
     **Enforced by `tests/test_architecture.py` (registry `hex-one-reader`,

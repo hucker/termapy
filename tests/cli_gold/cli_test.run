@@ -180,7 +180,7 @@ $(BAUD) <- /port.baud_rate
 /mem.dump gTemp 0x10
 /mem.dump 0x2000 4
 /mem.dump main+0x10 8
-/mem.write gFlags 07000000
+/mem.write gFlags 7
 /mem.dump gFlags 4
 /mem.dump U1MODE.ON 4
 /mem.dump nosuch
@@ -196,13 +196,13 @@ $(BAUD) <- /port.baud_rate
 /profile.load demo_legacy.profile.json
 /mem.info
 /mem.dump gTemp 16
-/mem.write gTemp 2C01
+/mem.write gTemp 300
 /mem.dump gTemp 4
 /mem.dump 0x9000 4
 /profile.unload
 /mem.dump gTemp 2
-# Typed reads, bits, strings (state so far: gTemp=2C01 from the template write,
-# gFlags=07000000 from the native write)
+# Typed reads, bits, strings (state so far: gTemp=300 from the template write,
+# gFlags=7 from the native write)
 /mem.read gTemp
 /mem.read gPressure
 /mem.read U1MODE
@@ -221,6 +221,25 @@ $(BAUD) <- /port.baud_rate
 /mem.read 0x1000
 /mem.dump gTemp 16 u16
 /mem.dump gTemp 4 addr=off ascii=off
+# A named target stays inside its symbol.  sCount is 2 bytes with no type,
+# as a linker map gives it; code and constants are read-only.
+/mem.read sCount
+/mem.write sCount 513
+/mem.read sCount
+/mem.write gPressure 2.5
+/mem.read gPressure
+/mem.read gTemp u32
+/mem.write gTemp 2C01
+/mem.write gTemp+1 0102
+/mem.read sBanner
+/mem.write sBanner 41
+/mem.not main
+# An ELF types an array by its element and a struct by its members.
+/mem.read sCmdTable
+/mem.dump sCmdTable u32
+/mem.read sCfg
+/mem.write sCfg 0302
+/mem.read sCfg
 MEM.M 0x1000 F0 05 --json
 
 # ── REPL: help for specific commands ────────────────────────────────────────

@@ -1612,6 +1612,36 @@ def extract_column_value(data: bytes, col: ColumnSpec) -> int:
     return (combined >> low) & ((1 << width) - 1)
 
 
+def column_value(data: bytes, col: ColumnSpec) -> int | float | str | None:
+    """A column's value with its JSON type -- the ``data=`` twin of its cell.
+
+    ``U``/``I`` give an int, ``F`` a float, ``S`` its text (rendered as the
+    cell is), ``B``/``b`` the field's int, anything else its bytes as
+    uppercase hex.  Bytes combine in the spec's index order, as everywhere.
+
+    Args:
+        data: The bytes the spec's byte refs index into.
+        col: A parsed column with a byte range.
+
+    Returns:
+        The value, or None when the column reaches past ``data`` (where
+        the rendered cell is ``?``).
+    """
+    indices = col.byte_indices
+    if not indices or any(not 0 <= index < len(data) for index in indices):
+        return None
+    if col.type_code in ("B", "b") and col.bit is not None:
+        return extract_column_value(data, col)
+    raw = bytes(data[index] for index in indices)
+    if col.type_code in ("U", "I"):
+        return int.from_bytes(raw, "big", signed=col.type_code == "I")
+    if col.type_code == "F" and len(raw) in (4, 8):
+        return struct.unpack(">f" if len(raw) == 4 else ">d", raw)[0]
+    if col.type_code == "S":
+        return "".join(chr(byte) if 32 <= byte < 127 else "." for byte in raw)
+    return raw.hex().upper()
+
+
 def inject_column_value(data: bytes, col: ColumnSpec, value: int) -> bytes:
     """Set a ``B`` bit-field column's value, returning the new bytes.
 

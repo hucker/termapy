@@ -4,13 +4,13 @@
 or by name, on any architecture, through two monitor commands the device
 implements. The device only ever moves bytes; names come from the
 [symbol table](symbols.md), and widths, byte order and bit fields are
-termapy's job (a later step).
+termapy's job.
 
 ```text
 /mem.dump gTemp 16
 00001000  1B 00 40 06 7D 44 05 00 00 00 0C 00 00 00 00 00  |..@.}D..........|  gTemp
-/mem.write gFlags 07000000
-Wrote 4 bytes at 0x00001008  gFlags  (was 05000000)
+/mem.write gFlags 7
+Set gFlags = 7  (0x00000007, was 5)
 ```
 
 Addresses take every `/sym` form: `0x1000`, `1000h`, `1000` (decimal),
@@ -23,15 +23,17 @@ symbol that contains them when a table is loaded.
 |-----------------------------|------------------------------|-------------------------------------------------------------|
 | `/mem.dump <target> {len} {type}` | `/mem.dump gTemp 0x10`  | Hexdump; `u16`/`u32` hex-word columns, `i*` decimal, `f*` floats; `addr=off` / `ascii=off` drop columns (both off = bare values). No `len` dumps the symbol's own size, else 64 bytes |
 | `/mem.read <target> {type}` | `/mem.read U1MODE.ON`        | One typed value: scalar, `char`, register field, bit (`.15`) or slice (`.4-6`) |
-| `/mem.write <target> <hex>` | `/mem.write gFlags 07000000` | Write hex bytes; with a `.field`/`.bit` target the value is masked in (audited) |
+| `/mem.write <target> <value>` | `/mem.write gFlags 7`      | A number at a named symbol or register, at its width; hex bytes at an address, an offset or an array; with a `.field`/`.bit` target the value is masked in (audited) |
 | `/mem.or <target> <mask>`   | `/mem.or gFlags 0x10`        | The boolean set on one word: `.or` set, `.and` keep, `.clear` = `word &= ~mask`, `.xor` toggle, `.not` invert; atomic via `MEM.M` where expressible |
 | `/mem.str <target> {max}`   | `/mem.str sBanner`           | A NUL-terminated string as a first-class value (default cap 256) |
 | `/mem.info` (bare `/mem`)   | `/mem`                       | Availability status + dialect, block limit, address width, byte order, atomic modify -- and their sources; re-probes `MEM.INFO`, so it doubles as the check after connect |
 
 `/mem.dump` returns the bytes as one hex string (`$(B) <- /mem.dump gTemp 2`
-captures `1B00`); `/mem.write` returns the byte count. In JSON mode the
-dump carries `rows` (`addr`, `addr_hex`, `hex`, `ascii`, `symbolic`) and
-the write carries `before_hex` / `after_hex`.
+captures `1B00`); `/mem.write` returns the value it stored at a named
+target and the byte count otherwise. In JSON mode the dump carries `rows`
+(`addr`, `addr_hex`, `hex`, `ascii`, `symbolic`) and the write carries
+`before_hex` / `after_hex`, plus `type`, `value` and `before` at a named
+target.
 
 **Every write is audited.** The session log (the TUI's `<name>.log`, the
 MCP server's log; the one-shot CLI keeps none) gets one line per write:
@@ -87,6 +89,41 @@ symbol marked `"rmw": false` (write-1-to-clear and self-clearing
 registers) refuses every masked form: write the whole word instead.
 Every mutation is audited in the session log with the word before and
 after.
+
+## Named targets stay inside their symbol
+
+A symbol knows how big it is, so a name is honored at its size and its
+access:
+
+| Target                                       | `/mem.read`                           | `/mem.write`                     |
+|----------------------------------------------|---------------------------------------|----------------------------------|
+| A typed symbol (`gTemp`, `u16`)              | its type                              | a number at its width            |
+| An untyped symbol of 1, 2, 4 or 8 bytes      | the unsigned integer of its size      | a number at its size             |
+| A register                                   | its fields                            | a number: the whole word         |
+| A typed array (`sCmdTable`, 16 `u32`)         | one element with a type (`sCmdTable+4 u32`); `/mem.dump sCmdTable u32` for all | hex bytes, inside the array |
+| A struct (`sCfg`, a layout of members)       | every member, decoded                 | hex bytes, inside the struct     |
+| An untyped array or offset (`gTemp+1`)       | needs a type, inside the symbol       | hex bytes, inside the symbol     |
+| A literal address (`0x1000`)                 | needs a type                          | hex bytes, not bounded           |
+
+An untyped symbol of a scalar's size is the linker-map case: a map gives
+every name its size and nothing else. An ELF import types arrays by their
+element and structs by a layout of their members (see
+[Symbols](symbols.md#types-from-the-debug-info)), and `/mem.read` of a
+struct shows each member, with its value in the JSON record's `fields`. A type wider than the symbol is
+refused (`/mem.read gTemp u32` would read the next variable), and so are
+bytes that run past its end. A literal address names nothing, so it is
+not bounded.
+
+A number takes the address grammar's vocabulary, `300`, `0x12C` or
+`12Ch`; bare digits are always decimal, so `0100` is one hundred, and
+hex bytes (`2C01`) are refused on a named scalar rather than read as
+some number. A negative value is stored two's complement (`-1` into a
+`u16` is `FF FF`); a value out of range is refused with the range.
+
+A symbol in `text` or `rodata`, code or a constant, is `access: ro`
+unless its table says otherwise, and every writing command refuses it,
+the same refusal a register gets when its device file marks it
+read-only.
 
 ## Strings
 

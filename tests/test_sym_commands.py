@@ -28,7 +28,7 @@ DEMO_SYMBOLS = (
 )
 XC32_MAP = Path(__file__).parent / "fixtures" / "maps" / "xc32_sample.map"
 XC32_COUNT = 17  # symbols in the fixture (see test_symbols_xc32.py)
-DEMO_COUNT = 13
+DEMO_COUNT = 15
 
 
 def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
@@ -266,6 +266,31 @@ class TestSymImport:
         )
         assert result.data["count"] == XC32_COUNT, "data carries the count"
 
+    def test_import_writes_regions_and_section_access(self, sym_env):
+        """The map's memory regions reach the sidecar; code and constants load read-only."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+
+        # Act
+        engine.dispatch(f"sym.import {XC32_MAP}")
+
+        # Assert
+        doc = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert doc["regions"] == [
+            {"name": "rom", "start": "0x00000000", "size": 524288, "access": "ro"},
+            {"name": "ram", "start": "0x20000000", "size": 65536, "access": "rw"},
+        ], "the Memory Configuration table, *default* left out"
+        assert not any("access" in row for row in doc["symbols"]), (
+            "every access is its section's, so the file states none"
+        )
+        table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
+        access = {symbol.name: symbol.access for symbol in table.symbols}
+        assert (access["main"], access["sCmdTableA"], access["sDispatch"]) == ("ro", "ro", "rw"), (
+            "code and constants are read-only, a bss variable read-write"
+        )
+
     def test_explicit_format(self, sym_env):
         # Arrange
         engine, _, _ = sym_env
@@ -304,7 +329,7 @@ class TestSymImport:
         result = engine.dispatch(f"sym.import {notes}")
 
         # Assert
-        expected = f"Unknown map format: notes.txt (formats: {', '.join(FORMATS)})"
+        expected = f"Unknown build format: notes.txt (formats: {', '.join(FORMATS)})"
         assert result.error == expected, "the message lists every registered format"
 
     def test_no_symbols_found_writes_nothing(self, sym_env, tmp_path):
@@ -360,7 +385,7 @@ class TestSymImport:
         result = engine.dispatch("sym.import nosuch.map")
 
         # Assert
-        assert result.error.startswith("Map file not found: nosuch.map"), (
+        assert result.error.startswith("Build file not found: nosuch.map"), (
             "names the file; the anchor note follows (TestNotFoundNamesTheFolder)"
         )
 
@@ -2081,7 +2106,7 @@ class TestNotFoundNamesTheFolder:
         "line, subject",
         [
             ("dev.import ../part.svd", "Source file"),
-            ("sym.import nope.map", "Map file"),
+            ("sym.import nope.map", "Build file"),
         ],
     )
     def test_a_relative_path_names_the_anchor(self, sym_env, line, subject):
@@ -2208,3 +2233,221 @@ class TestLibraryLayersCommands:
 
         # Assert
         assert not (config_path.parent / LIB).exists(), "empty, so gone"
+
+
+# A converter that also declares regions, and one whose regions is not a
+# function -- the optional export follows the same fail-loud rule.
+_REGIONS_CONVERTER = """
+from termapy.symbols import Layout, Region
+from termapy.symbols.converters import xc32
+
+FORMAT = "withregions"
+DESCRIPTION = "xc32 map with a hand-declared FRAM region"
+DETECT = ()
+
+convert = xc32.convert
+
+
+def layout(text):
+    return Layout(regions=(Region("fram", 0x60000000, 0x8000, "rw"),))
+"""
+
+_BAD_REGIONS_CONVERTER = """
+FORMAT = "badregions"
+DESCRIPTION = "layout is a list, not a function"
+DETECT = ()
+layout = []
+
+
+def convert(text):
+    return []
+"""
+
+
+class TestConverterRegions:
+    def test_a_plugin_converter_may_declare_regions(self, sym_env):
+        """The optional layout(text) export supplies the table's regions."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _REGIONS_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_MAP} format=withregions")
+
+        # Assert
+        assert result.success, result.error
+        table = get_table(engine.ctx)
+        assert table is not None and [region.name for region in table.regions] == ["fram"]
+
+    def test_a_converter_without_regions_gives_none(self, sym_env):
+        """A converter that does not export layout imports a table with no regions."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _PIPELINE_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+
+        # Act
+        engine.dispatch(f"sym.import {XC32_MAP} format=myboard")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table is not None and table.regions == [], "regions is optional"
+
+    def test_a_layout_that_is_not_a_function_is_reported(self, sym_env):
+        """A non-callable layout export is an authoring error, reported at load."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_converter(config_path, _BAD_REGIONS_CONVERTER)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        errors = [text for text in _texts(output) if "Plugin error" in text]
+        assert any("badregions" in text and "layout" in text for text in errors), (
+            "the report names the converter and the export"
+        )
+
+
+# ── ELF import ──────────────────────────────────────────────────────────────
+
+ELF_DIR = Path(__file__).parent / "fixtures" / "elf"
+XC32_ELF = ELF_DIR / "elf_xc32_cm23.elf"
+CLANG_ELF = ELF_DIR / "elf_clang_ppc64.elf"
+
+
+class TestElfImport:
+    def _doc(self, config_path: Path) -> dict:
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        return json.loads(sidecar.read_text(encoding="utf-8"))
+
+    def test_an_elf_imports_with_its_types(self, sym_env):
+        """The ELF is recognized by its signature, and its debug info types the sidecar."""
+        # Arrange
+        engine, config_path, _ = sym_env
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_ELF}")
+
+        # Assert
+        assert result.success, result.error
+        doc = self._doc(config_path)
+        types = {row["name"]: row.get("type", "") for row in doc["symbols"]}
+        assert (types["gI16"], types["gF32"], types["main"]) == ("i16", "f32", ""), (
+            "a signed short, a float, and code with no value type"
+        )
+        assert doc["recipe"] == {"converter": "elf"}, "the converter that ran is recorded"
+        assert doc["witness"]["size"] == XC32_ELF.stat().st_size, "the ELF is the witnessed source"
+
+    def test_the_header_sets_width_and_byte_order(self, sym_env):
+        """A 64-bit big-endian build's table says so, from the ELF header."""
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        engine.dispatch(f"sym.import {CLANG_ELF}")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table is not None and (table.address_bits, table.endian) == (64, "be")
+
+    def test_regions_are_the_loadable_segments(self, sym_env):
+        """The RAM segment is the last region, read-write, named after its first section."""
+        # Arrange
+        engine, config_path, _ = sym_env
+
+        # Act
+        engine.dispatch(f"sym.import {XC32_ELF}")
+
+        # Assert
+        regions = self._doc(config_path)["regions"]
+        assert regions[-1] == {"name": "bss", "start": "0x20000000", "size": 188, "access": "rw"}
+
+    def test_bare_import_reruns_the_elf(self, sym_env, tmp_path):
+        """After a rebuild, bare /sym.import reads the same ELF through the same converter."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        build = tmp_path / "default.elf"
+        build.write_bytes(XC32_ELF.read_bytes())
+        engine.dispatch(f"sym.import {build}")
+
+        # Act
+        result = engine.dispatch("sym.import")
+
+        # Assert
+        assert result.success, result.error
+        assert self._doc(config_path)["recipe"] == {"converter": "elf"}, "the same pipeline again"
+
+    def test_format_elf_names_the_converter(self, sym_env):
+        """format=elf picks the converter explicitly, as format=xc32 does for a map."""
+        # Arrange
+        engine, _, _ = sym_env
+
+        # Act
+        result = engine.dispatch(f"sym.import {XC32_ELF} format=elf")
+
+        # Assert
+        assert result.success, result.error
+
+
+# A binary plugin format: MAGIC makes it read bytes and be sniffed by them.
+_BINARY_CONVERTER = """
+from termapy.symbols import Symbol
+
+FORMAT = "rawbin"
+DESCRIPTION = "four bytes of signature, four of address"
+DETECT = ()
+MAGIC = b"RAWB"
+
+
+def convert(data):
+    if not isinstance(data, bytes):
+        return []
+    return [Symbol("head", int.from_bytes(data[4:8], "little"), 4, "data")]
+"""
+
+_TEXT_MAGIC_CONVERTER = """
+FORMAT = "textmagic"
+DESCRIPTION = "MAGIC must be bytes"
+DETECT = ()
+MAGIC = "RAWB"
+
+
+def convert(data):
+    return []
+"""
+
+
+class TestBinaryConverters:
+    def test_a_plugin_with_magic_reads_bytes_and_is_sniffed_by_them(self, sym_env, tmp_path):
+        """converter-magic-first: a plugin's signature selects it and hands it the bytes."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_converter(config_path, _BINARY_CONVERTER)
+        engine.fire_lifecycle("on_app_start")
+        build = tmp_path / "build.bin"
+        build.write_bytes(b"RAWB" + (0x1234).to_bytes(4, "little"))
+
+        # Act
+        result = engine.dispatch(f"sym.import {build}")
+
+        # Assert
+        assert result.success, result.error
+        table = get_table(engine.ctx)
+        assert table is not None and [(s.name, s.addr) for s in table.symbols] == [("head", 0x1234)]
+
+    def test_magic_that_is_not_bytes_is_reported(self, sym_env):
+        """MAGIC = "RAWB" (a str) is an authoring error, reported at load."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_converter(config_path, _TEXT_MAGIC_CONVERTER)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        errors = [text for text in _texts(output) if "Plugin error" in text]
+        assert any("textmagic" in text and "MAGIC" in text for text in errors), (
+            "the report names the converter and the export"
+        )

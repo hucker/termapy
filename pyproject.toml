@@ -137,6 +137,12 @@ dependencies = [
     # /proto.crc.detect (single-frame is unaffected).  Surfacing it is a
     # follow-up, not a floor concern.  Floor moves to 0.31.0.
     "crcglot>=0.32.1",
+    # ELF + DWARF reader behind /sym.import of a build's .elf: symbols from
+    # the symbol table, C types from the debug info.  Public domain, pure
+    # Python, no dependencies.  Imported only inside the elf converter, so
+    # startup and the flag paths never load it.  0.33 is the floor tested
+    # (DWARF 2 from XC32, DWARF 5 from Clang).
+    "pyelftools>=0.33",
 ]
 
 [project.optional-dependencies]

@@ -412,3 +412,48 @@ eleven `crcglot.lang` modules for the one function that generates code;
 it now reads `crcglot.LANGUAGES[lang]` there. The next cost is in
 crcglot itself: building `crcglot.VERBS`, which termapy reads at plugin
 load, imports every language generator though no verb generates code.
+
+## 2026-10-18 — A name is honored at its size and access; `/mem.write` takes a value there
+
+A named target is the symbol's whole extent and nothing past it.
+`/mem.read` of a symbol with no type reads the unsigned integer of its
+size when that is 1, 2, 4 or 8 bytes, and `/mem.write` at a named scalar
+(typed, of such a size, or a register) takes a number in the address
+grammar's vocabulary and encodes it at that width in the device's byte
+order. Hex bytes remain the form for a literal address, an offset and an
+array, bounded by the symbol a name points into. A type or a payload that
+would run past the symbol's end is refused, and a symbol in `text` or
+`rodata` defaults to `access: ro`, which every writing command refuses.
+**Why:** a linker map knows two facts about every name, where it is and
+how big it is, and the memory commands used only the first: `/mem.read
+sCmdCount` asked for a type the map cannot supply, `u32` on a 2-byte
+variable read the next one, and a byte-order-reversed hex payload was the
+only way to set a register. Making the user spell the bytes of a named
+value is the byte-order mistake the rest of termapy designs out.
+**Behavior change:** `/mem.write gTemp 2C01` (bytes) is refused on a
+named scalar; write `300` or `0x12C`. Bare digits are decimal, as in the
+address grammar. **Where:** registry `mem-named-bounds` and
+`section-default-access`; `tests/test_mem_commands.py`,
+`tests/test_symbols_table.py`.
+
+## 2026-10-18 — A build's ELF is the symbol source; pyelftools reads it
+
+`/sym.import` reads an ELF as well as a linker map, and the ELF is the
+preferred source. Its symbol table gives every name, address and size,
+and its DWARF debug info gives each variable's C type: signedness, float,
+pointer, enum, array element, struct members. A linker map has no types
+at all, and its layout differs by toolchain. A type is written only where
+DWARF states it plainly (registry `elf-types-or-none`). The format is
+recognized by the file's signature before any text marker (registry
+`converter-magic-first`), so there is no separate command. pyelftools
+(public domain, pure Python, no dependencies) is a runtime dependency,
+imported only inside the converter. **Why:** names without types made
+`/mem.read` read every value as unsigned; every current 32-bit toolchain
+writes ELF with DWARF because every debugger reads it. Measured on the
+board build (XC32 v5, DWARF 2): 1,083 of the map's 1,097 symbols
+identical, none missing, 180 more; the 6 that differ are map converter
+errors (a function's `.rodata.<function>` constant pool named after the
+function); 1.46 s per import. The map converter stays for toolchains
+without an ELF, and as the only source of the linker script's named
+regions. **Where:** `symbols/converters/elf.py`, `tests/test_symbols_elf.py`
+(fixtures from GCC and Clang, DWARF 2 and 5, little and big-endian).

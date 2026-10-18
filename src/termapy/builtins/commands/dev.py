@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from termapy.config import cfg_relative_path, not_found_message
-from termapy.converters import DEVICE
+from termapy.converters import DEVICE, read_source
 from termapy.devices import (
     SUFFIX,
     device_dir,
@@ -86,17 +86,17 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     if not path.is_file():
         return CmdResult.fail(msg=not_found_message("Source file", raw, ctx.config_path))
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        data, text = read_source(path)
     except OSError as e:
         return CmdResult.fail(msg=f"Read error: {e}")
-    spec = find_converter(fmt, text, extra=_plugin_converters(ctx))
+    spec = find_converter(fmt, text, extra=_plugin_converters(ctx), data=data)
     if spec is None:
         subject = fmt if fmt else path.name
         return CmdResult.fail(
             msg=f"Unknown device format: {subject} (formats: {', '.join(_known_formats(ctx))})"
         )
     try:
-        doc = spec.convert(text)
+        doc = spec.convert(spec.source_of(data, text))
     # A plugin converter is third-party code on the dispatch path.
     except BoundaryException as e:
         return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")

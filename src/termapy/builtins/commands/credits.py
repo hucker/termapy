@@ -103,6 +103,9 @@ Each one below is a direct runtime dependency declared in
   catalog, detection / reversal, and multi-language code generation
   behind every /proto.crc.* command; extracted from termapy into its
   own package.
+- [**pyelftools**](https://github.com/eliben/pyelftools) -- reads a
+  build's ELF for /sym.import: the symbol table, and each variable's C
+  type from its DWARF debug info; public domain.
 - [**frist**](https://github.com/hucker/frist) -- the age and duration
   engine behind every "10 min ago" and "1.5s" termapy prints: unit
   selection and calendar-accurate months, so termapy owns only the

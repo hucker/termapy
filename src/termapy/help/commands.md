@@ -102,7 +102,7 @@ because its folders hold different types of file.
 | `/mem.or <target> <mask>` | OR a mask into one word (atomic via MEM.M when available)                   |
 | `/mem.read <target> {type}` | One typed value: scalar, char, register field, bit or slice               |
 | `/mem.str <target> {max}` | Read a NUL-terminated string                                                |
-| `/mem.write <target> <hex>` | Write hex bytes, or set a register field/bit (audited)                    |
+| `/mem.write <target> <value>` | Write a value to a named symbol, register or field, or hex bytes at an address (audited) |
 | `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
 | `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list ports. With name: open it.       |
@@ -166,7 +166,7 @@ because its folders hold different types of file.
 | `/ss.txt {name} {N}`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
 | `/sym <addr\|name>`       | Symbol table: name to address, or address to `name+offset`                  |
-| `/sym.import {file} {format=<value>}` | Convert a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same map) |
+| `/sym.import {file} {format=<value>}` | Convert an ELF or a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same file) |
 | `/sym.info`               | Show the loaded symbol table: file, source, counts by section, range        |
 | `/sym.load {path}`        | Load a symbol table (default: the cfg sidecar `/sym.import` writes)         |
 | `/sym.search <pattern>`   | Search symbols by name: exact, glob, regex, or substring                     |

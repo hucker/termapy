@@ -1,8 +1,8 @@
-"""Converter registries -- vendor text in, termapy data out, one record type.
+"""Converter registries -- vendor files in, termapy data out, one record type.
 
 Two registries share this shape and this lookup:
 
-- ``symbols/converters``  -- a linker map  -> ``list[Symbol]``   (``/sym.import``)
+- ``symbols/converters``  -- a linker map or an ELF -> ``list[Symbol]`` (``/sym.import``)
 - ``devices/converters``  -- a vendor register description (CMSIS-SVD, ...)
                              -> a device document              (``/dev.import``)
 
@@ -20,6 +20,19 @@ which import the converter serves.  The two kinds are separate namespaces:
 a device converter named ``svd`` and a symbol converter named ``svd`` do not
 collide, and ``/sym.import`` never offers a device converter as a map format.
 
+A binary format (an ELF, say) adds ``MAGIC: bytes``, its file signature:
+its ``convert`` receives the file's bytes instead of its text, and it is
+recognized by ``data.startswith(MAGIC)`` BEFORE any text marker is tried,
+because a binary file can contain another format's marker (an XC32 ELF
+holds "/xc32/" in its debug strings).  A binary converter's ``DETECT`` is
+ignored.
+
+A symbol converter may also export ``def layout(source)``, what the file
+says about the table as a whole (``termapy.symbols.Layout``: its memory
+regions, and the target's address width and byte order when the format
+states them), pure and never raising like ``convert``.  Without it a table
+has no regions and the default width and byte order.
+
 Each registry keeps its own ``CONVERTERS`` tuple and wraps
 :func:`find_converter` with it; the plugin loader uses
 :func:`converter_from_module` and hands every kind to the engine, which
@@ -30,7 +43,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 SYMBOLS: Final[str] = "symbols"
 DEVICE: Final[str] = "device"
@@ -48,20 +64,44 @@ class ConverterSpec:
             for a plugin converter: it is one board's pipeline, not a
             toolchain, and its input may be a file a built-in would also
             claim).
-        convert: Pure text-in / data-out function.
+        convert: Pure source-in / data-out function: the file's text, or
+            its bytes for a binary format (``magic``).
         description: One line for ``/help``.
         source: Where it came from -- ``"built-in"`` or the plugin layer
             (``"global"`` / the config name), so ``ReplEngine`` can drop
             folder-loaded converters on a config switch.
         kind: Which import this serves (:data:`KINDS`).
+        layout: A symbol converter's optional source-in / ``Layout``-out
+            function; None when the format states nothing about the table.
+        magic: The file signature of a binary format, empty for text.
     """
 
     format: str
     detect: tuple[str, ...]
-    convert: Callable[[str], Any]
+    convert: Callable[[Any], Any]
     description: str = ""
     source: str = "built-in"
     kind: str = SYMBOLS
+    layout: Callable[[Any], Any] | None = None
+    magic: bytes = b""
+
+    def source_of(self, data: bytes, text: str) -> bytes | str:
+        """What this converter reads: the file's bytes for a binary format, else its text."""
+        return data if self.magic else text
+
+
+def read_source(path: Path) -> tuple[bytes, str]:
+    """A build file's bytes and its text, read once for every converter.
+
+    The text is decoded with ``errors="replace"`` -- a map with one stray
+    byte still converts -- and doubles as the sniff input for the text
+    formats; the bytes are what a binary format reads and sniffs.
+
+    Raises:
+        OSError: The file could not be read.
+    """
+    data = path.read_bytes()
+    return data, data.decode("utf-8", errors="replace")
 
 
 def find_converter(
@@ -70,8 +110,13 @@ def find_converter(
     extra: Iterable[ConverterSpec] = (),
     *,
     registry: Iterable[ConverterSpec] = (),
+    data: bytes = b"",
 ) -> ConverterSpec | None:
-    """Pick a converter by explicit name, else by sniffing ``text``.
+    """Pick a converter by explicit name, else by sniffing the input.
+
+    A binary format is recognized first, by its ``magic`` at the start of
+    ``data``: a signature is decisive, a text marker is only a substring,
+    and a binary file can carry another format's marker inside it.
 
     The sniff scans the WHOLE text, not a window: a marker may sit deep in
     a large file (the XC32 summary header is ~49 KB into a real map), and
@@ -88,6 +133,7 @@ def find_converter(
         text: The input text to sniff.
         extra: Converters loaded from plugin folders.
         registry: The built-in converters of one kind.
+        data: The input's bytes, for a binary format's signature.
 
     Returns:
         The spec, or None when nothing matches (the caller owns the error
@@ -101,7 +147,10 @@ def find_converter(
                 return spec
         return None
     for spec in (*builtins, *extras):
-        if any(marker in text for marker in spec.detect):
+        if spec.magic and data.startswith(spec.magic):
+            return spec
+    for spec in (*builtins, *extras):
+        if not spec.magic and any(marker in text for marker in spec.detect):
             return spec
     return None
 
@@ -140,4 +189,19 @@ def converter_from_module(module: Any, source: str) -> ConverterSpec | None:
     kind = getattr(module, "KIND", SYMBOLS)
     if kind not in KINDS:
         raise ValueError(f"converter {fmt!r}: KIND must be one of {', '.join(KINDS)}")
-    return ConverterSpec(fmt, detect, convert, description, source=source, kind=kind)
+    layout = getattr(module, "layout", None)
+    if layout is not None and not callable(layout):
+        raise ValueError(f"converter {fmt!r}: layout must be a function")
+    magic = getattr(module, "MAGIC", b"")
+    if not isinstance(magic, bytes):
+        raise ValueError(f"converter {fmt!r}: MAGIC must be bytes")
+    return ConverterSpec(
+        fmt,
+        detect,
+        convert,
+        description,
+        source=source,
+        kind=kind,
+        layout=layout,
+        magic=magic,
+    )

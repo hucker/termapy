@@ -17,7 +17,9 @@ File shape (``<cfg_dir>/sym/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)
                   "size": 482113},
       "address_bits": 32,                   # hex width of printed addresses
       "endian": "le",                       # le | be (stored; step 3 reads it)
-      "regions": [],                        # opaque until the regions step
+      "regions": [                          # the linker's MEMORY regions
+        {"name": "rom", "start": "0x00000000", "size": 524288, "access": "ro"}
+      ],
       "symbols": [
         {"name": "gTemp", "addr": "0x00001000", "size": 2,
          "section": "bss", "file": "sensor.c", "type": "u16"},
@@ -25,6 +27,11 @@ File shape (``<cfg_dir>/sym/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)
          "section": "sfr", "type": "u32", "rmw": false}
       ]
     }
+
+A symbol with no ``access`` takes its section's (:func:`section_access`):
+code and constants are read-only, everything else read-write, so a map
+converter, a hand-written table and a file written before the rule all
+read the same way.  The file stores ``access`` only where it differs.
 
 ``recipe`` and ``witness`` are the provenance pair, both optional and both
 written by ``/sym.import``: the witness answers "is this stale", the recipe
@@ -72,6 +79,12 @@ SCALAR_TYPES: Final[frozenset[str]] = frozenset(
     }
 )
 
+# What a value the size of one scalar holds when nothing says otherwise:
+# the unsigned integer of that width.  A linker map knows a symbol's size
+# and nothing else; a device file may give a register neither type nor
+# fields.
+SCALAR_BY_SIZE: Final[dict[int, str]] = {1: "u8", 2: "u16", 4: "u32", 8: "u64"}
+
 _ENDIANS: Final[tuple[str, ...]] = ("le", "be")
 
 # Linker section -> display label.  Converters emit the linker's own names
@@ -88,6 +101,12 @@ _SECTION_LABELS: Final[dict[str, str]] = {
 
 _HEX_ADDR_RE: Final = re.compile(r"^0[xX][0-9a-fA-F]+$")
 
+# The one access vocabulary, shared with device files and regions.
+ACCESS_MODES: Final[tuple[str, ...]] = ("rw", "ro", "wo")
+
+# Sections a running program cannot write: its code and its constants.
+_READ_ONLY_SECTIONS: Final[frozenset[str]] = frozenset({"text", "rodata"})
+
 
 def hex_digits(address_bits: int) -> int:
     """Hex digits needed to print an ``address_bits``-wide address."""
@@ -97,6 +116,23 @@ def hex_digits(address_bits: int) -> int:
 def section_label(section: str) -> str:
     """Display label for a linker section (``text`` -> ``code``)."""
     return _SECTION_LABELS.get(section, section)
+
+
+def section_access(section: str) -> str:
+    """The access of a symbol in ``section`` that states none.
+
+    ``ro`` for code and constants (``text``, ``rodata``): the linker put
+    them in flash or a constant pool, so a write is a mistake whatever
+    the device would do with it.  ``rw`` for everything else.
+    """
+    return "ro" if section in _READ_ONLY_SECTIONS else "rw"
+
+
+def _check_access(value: Any, where: str) -> str:
+    """A stated ``access`` field, validated against :data:`ACCESS_MODES`."""
+    if value not in ACCESS_MODES:
+        raise ValueError(f"{where}.access: expected rw, ro or wo")
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +157,8 @@ class Symbol:
             Reserved for the typed-write step.
         access: ``rw`` / ``ro`` / ``wo``.  With ``rmw`` and
             ``read_effect`` this is the safety trio the memory commands
-            act on; device files fill them from the vendor's data.
+            act on; device files fill them from the vendor's data.  Empty
+            at construction means the section's (:func:`section_access`).
         read_effect: True when a READ changes device state -- a FIFO data
             register pops, a status register clears its flags -- so a
             dump or an auto-refreshing view must not read it casually.
@@ -135,8 +172,13 @@ class Symbol:
     type: str = ""
     space: str = ""
     rmw: bool = True
-    access: str = "rw"
+    access: str = ""
     read_effect: bool = False
+
+    def __post_init__(self) -> None:
+        """Resolve an unstated access to the section's, on every construction path."""
+        if not self.access:
+            object.__setattr__(self, "access", section_access(self.section))
 
     @property
     def end(self) -> int:
@@ -165,7 +207,7 @@ class Symbol:
                 out[key] = value
         if not self.rmw:
             out["rmw"] = False
-        if self.access != "rw":
+        if self.access != section_access(self.section):
             out["access"] = self.access
         if self.read_effect:
             out["read_effect"] = True
@@ -208,9 +250,7 @@ class Symbol:
             if not isinstance(value, bool):
                 raise ValueError(f"{where}.{key}: expected a boolean")
             flags[key] = value
-        access = raw.get("access", "rw")
-        if access not in ("rw", "ro", "wo"):
-            raise ValueError(f"{where}.access: expected rw, ro or wo")
+        access = _check_access(raw["access"], where) if "access" in raw else ""
         return cls(
             name,
             addr,
@@ -223,6 +263,86 @@ class Symbol:
             access=access,
             read_effect=flags["read_effect"],
         )
+
+
+@dataclass(frozen=True, slots=True)
+class Region:
+    """One memory region the linker placed sections into (GNU ld ``MEMORY``).
+
+    Attributes:
+        name: The region's name in the linker script (``rom``, ``ram``).
+        start: First address.
+        size: Length in bytes.
+        access: ``rw`` / ``ro`` / ``wo``, or empty when the linker states
+            neither -- unknown, never assumed.
+        space: Reserved for Harvard parts, as on :class:`Symbol`.
+    """
+
+    name: str
+    start: int
+    size: int
+    access: str = ""
+    space: str = ""
+
+    @property
+    def end(self) -> int:
+        """One past the last byte (``start + size``)."""
+        return self.start + self.size
+
+    def to_dict(self, *, address_bits: int = 32) -> dict[str, Any]:
+        """The FILE shape: required keys always, optionals only when set."""
+        out: dict[str, Any] = {
+            "name": self.name,
+            "start": f"0x{self.start:0{hex_digits(address_bits)}X}",
+            "size": self.size,
+        }
+        for key in ("access", "space"):
+            value = getattr(self, key)
+            if value:
+                out[key] = value
+        return out
+
+    @classmethod
+    def from_dict(cls, raw: Any, where: str) -> Region:
+        """Build a Region from one ``regions[i]`` object.
+
+        Raises:
+            ValueError: ``"<where>.<field>: <problem>"`` for the first
+                problem found.  Unknown keys are ignored.
+        """
+        if not isinstance(raw, dict):
+            raise ValueError(f"{where}: expected an object")
+        name = raw.get("name")
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"{where}.name: expected a non-empty string")
+        start = parse_addr_field(raw.get("start"), where, key="start")
+        size = raw.get("size")
+        if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+            raise ValueError(f"{where}.size: expected a non-negative integer")
+        access = _check_access(raw["access"], where) if "access" in raw else ""
+        space = raw.get("space", "")
+        if not isinstance(space, str):
+            raise ValueError(f"{where}.space: expected a string")
+        return cls(name, start, size, access, space)
+
+
+@dataclass(frozen=True, slots=True)
+class Layout:
+    """What a build file says about its table as a whole, beside the symbols.
+
+    A converter's optional ``layout(source)`` returns one.  A linker map
+    states regions and nothing about the target; an ELF states all three.
+
+    Attributes:
+        regions: The memory regions, in the file's order.
+        address_bits: The target's address width, or None when the file
+            does not say.
+        endian: ``"le"`` / ``"be"``, or None when the file does not say.
+    """
+
+    regions: tuple[Region, ...] = ()
+    address_bits: int | None = None
+    endian: str | None = None
 
 
 def parse_addr_field(value: Any, where: str, key: str = "addr") -> int:
@@ -292,7 +412,7 @@ class SymbolTable:
         imported: str = "",
         address_bits: int = 32,
         endian: str = "le",
-        regions: list[dict[str, Any]] | None = None,
+        regions: Iterable[Region] = (),
         recipe: dict[str, Any] | None = None,
         witness: dict[str, Any] | None = None,
     ) -> None:
@@ -305,7 +425,7 @@ class SymbolTable:
             imported: Free text: when (ISO-8601 by convention).
             address_bits: Hex width of every printed address.
             endian: ``"le"`` or ``"be"``; stored for the typed-view step.
-            regions: Linker MEMORY regions, carried opaquely for now.
+            regions: The linker's MEMORY regions, in the map's order.
             recipe: How to rebuild (``{"converter": "xc32"}``), or None
                 when nobody recorded one -- a hand-written table.
             witness: What ``source`` looked like at import
@@ -321,7 +441,7 @@ class SymbolTable:
         self.imported = imported
         self.address_bits = address_bits
         self.endian = endian
-        self.regions: list[dict[str, Any]] = list(regions or [])
+        self.regions: list[Region] = list(regions)
         self.recipe: dict[str, Any] | None = dict(recipe) if recipe else None
         self.witness: dict[str, Any] | None = dict(witness) if witness else None
         # Device files merged into this table at load (termapy.devices).
@@ -460,7 +580,9 @@ class SymbolTable:
             {
                 "address_bits": self.address_bits,
                 "endian": self.endian,
-                "regions": self.regions,
+                "regions": [
+                    region.to_dict(address_bits=self.address_bits) for region in self.regions
+                ],
                 "symbols": [
                     symbol.to_dict(address_bits=self.address_bits) for symbol in self.symbols
                 ],
@@ -502,9 +624,10 @@ class SymbolTable:
         endian = data.get("endian", "le")
         if endian not in _ENDIANS:
             raise ValueError(f"endian: expected le or be, got {endian!r}")
-        regions = data.get("regions", [])
-        if not isinstance(regions, list) or not all(isinstance(region, dict) for region in regions):
-            raise ValueError("regions: expected a list of objects")
+        raw_regions = data.get("regions", [])
+        if not isinstance(raw_regions, list):
+            raise ValueError("regions: expected a list")
+        regions = [Region.from_dict(raw, f"regions[{i}]") for i, raw in enumerate(raw_regions)]
         recipe = _optional_object(data, "recipe")
         witness = _optional_object(data, "witness")
         symbols = [Symbol.from_dict(raw, f"symbols[{i}]") for i, raw in enumerate(raw_symbols)]

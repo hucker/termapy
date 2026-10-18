@@ -32,6 +32,7 @@ def find_converter(
     format_name: str = "",
     text: str = "",
     extra: Iterable[ConverterSpec] = (),
+    data: bytes = b"",
 ) -> ConverterSpec | None:
     """The device registry's lookup -- see :func:`termapy.converters.find_converter`."""
-    return _find_converter(format_name, text, extra, registry=CONVERTERS)
+    return _find_converter(format_name, text, extra, registry=CONVERTERS, data=data)

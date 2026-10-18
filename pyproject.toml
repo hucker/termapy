@@ -1,6 +1,6 @@
 [project]
 name = "termapy"
-version = "0.77.1"
+version = "0.78.0"
 description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
 license = "MIT"
 license-files = ["LICENSE"]

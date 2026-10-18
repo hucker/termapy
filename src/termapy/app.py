@@ -960,6 +960,22 @@ class SerialTerminal(TerminalHost, App):
         self.log_fh = open(log_path, "a", encoding="utf-8")
         self._log_line("#", f"{' Session Start ':-^60s}")
 
+    def _follow_session_log(self, previous: Path | None) -> None:
+        """Move the session log to the config just switched to.
+
+        A config's log is that config's history, so after a switch the
+        session belongs in the new config's file: the old one gets a line
+        saying where the session went and is closed, and the new one is
+        opened.  ``_open_log`` alone kept writing to the first config's
+        file for the whole session, because it returns while any log is
+        open.  Two configs naming one ``log_file`` share it, so a switch
+        between them keeps the open file.
+        """
+        if self.log_fh and self.session_log_path() != previous:
+            self._log_line("#", f"Switched to config: {Path(self.config_path).stem}")
+            self._close_session_log()
+        self._open_log()
+
     def _apply_border_color(self) -> None:
         """Apply border_color from config to title bar and output border."""
         from termapy.defaults import resolve_color
@@ -1722,6 +1738,8 @@ class SerialTerminal(TerminalHost, App):
 
     def _switch_config(self, cfg: dict, path: str) -> None:
         """Apply a new config: disconnect, update state, refresh UI, reconnect."""
+        # Read before the swap: the log the session is leaving.
+        previous_log = self.session_log_path()
         self._clear_output()
         self._save_history()
         migrated_from = cfg.pop("_migrated_from", None)
@@ -1766,7 +1784,7 @@ class SerialTerminal(TerminalHost, App):
         self._sync_hw_visibility()
         self._sync_cmd_prefix()
         self._sync_all_buttons()
-        self._open_log()
+        self._follow_session_log(previous_log)
         # The engine resolves the new config's plugins and symbols here;
         # the cfg may also have swapped the active profile out from under
         # us, so rebuild the suggester after the pass, not before it.

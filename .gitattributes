@@ -7,3 +7,7 @@ scripts/*.sh text eol=lf
 # so a comparison across the 2026-10-17 formatting commit shows real changes
 # only.  Inert until a command opts in with -c diff.ruff-format.textconv=...
 *.py diff=ruff-format
+
+# ELF test fixtures (tests/fixtures/elf/) are compiler output: never
+# convert line endings in them or diff them as text.
+*.elf binary

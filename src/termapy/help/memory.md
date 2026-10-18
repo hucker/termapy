@@ -100,11 +100,16 @@ access:
 | A typed symbol (`gTemp`, `u16`)              | its type                              | a number at its width            |
 | An untyped symbol of 1, 2, 4 or 8 bytes      | the unsigned integer of its size      | a number at its size             |
 | A register                                   | its fields                            | a number: the whole word         |
-| An array, struct or offset (`gTemp+1`)       | needs a type, inside the symbol       | hex bytes, inside the symbol     |
+| A typed array (`sCmdTable`, 16 `u32`)         | one element with a type (`sCmdTable+4 u32`); `/mem.dump sCmdTable u32` for all | hex bytes, inside the array |
+| A struct (`sCfg`, a layout of members)       | every member, decoded                 | hex bytes, inside the struct     |
+| An untyped array or offset (`gTemp+1`)       | needs a type, inside the symbol       | hex bytes, inside the symbol     |
 | A literal address (`0x1000`)                 | needs a type                          | hex bytes, not bounded           |
 
 An untyped symbol of a scalar's size is the linker-map case: a map gives
-every name its size and nothing else. A type wider than the symbol is
+every name its size and nothing else. An ELF import types arrays by their
+element and structs by a layout of their members (see
+[Symbols](symbols.md#types-from-the-debug-info)), and `/mem.read` of a
+struct shows each member, with its value in the JSON record's `fields`. A type wider than the symbol is
 refused (`/mem.read gTemp u32` would read the next variable), and so are
 bytes that run past its end. A literal address names nothing, so it is
 not bounded.

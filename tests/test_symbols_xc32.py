@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from termapy.symbols import Region, SymbolTable
+from termapy.symbols import Layout, Region, SymbolTable
 from termapy.symbols.converters import CONVERTERS, FORMATS, find_converter, xc32
 
 MAPS_DIR = Path(__file__).parent / "fixtures" / "maps"
@@ -237,12 +237,12 @@ class TestXc32ObjectFile:
 
 class TestRegistry:
     def test_formats(self):
-        """The registry exposes exactly one format today, xc32; a new converter updates this."""
+        """The registry exposes xc32 maps and ELF files; a new converter updates this."""
         # Act / Assert
-        assert FORMATS == ("xc32",), "the registry has exactly the xc32 converter today"
+        assert FORMATS == ("xc32", "elf"), "the built-in symbol converters, in sniffing order"
 
     def test_every_spec_is_complete(self):
-        """Each spec has a unique format key, a callable, detect markers and a description."""
+        """Each spec has a unique key, a callable, text markers or a signature, and a description."""
         # Act
         formats = [spec.format for spec in CONVERTERS]
 
@@ -250,7 +250,7 @@ class TestRegistry:
         assert len(set(formats)) == len(formats), "format keys are unique"
         for spec in CONVERTERS:
             assert callable(spec.convert), f"{spec.format}: convert is callable"
-            assert spec.detect, f"{spec.format}: detect has at least one marker"
+            assert spec.detect or spec.magic, f"{spec.format}: text markers or a file signature"
             assert spec.description, f"{spec.format}: description is not empty"
 
     def test_sniff_by_header(self, map_text):
@@ -395,10 +395,20 @@ class TestXc32Regions:
         # Act / Assert
         assert xc32.region_access(attributes) == expected
 
-    def test_the_registry_entry_carries_regions(self):
-        """The built-in xc32 spec hands /sym.import its regions function."""
+    def test_the_registry_entry_carries_the_layout(self):
+        """The built-in xc32 spec hands /sym.import its layout function."""
         # Act
         spec = find_converter("xc32")
 
         # Assert
-        assert spec is not None and spec.regions is xc32.regions
+        assert spec is not None and spec.layout is xc32.layout
+
+    def test_the_layout_is_the_regions_and_nothing_else(self, map_text):
+        """A GNU ld map states regions but no address width or byte order."""
+        # Act
+        actual = xc32.layout(map_text)
+
+        # Assert
+        assert actual == Layout(regions=tuple(xc32.regions(map_text))), (
+            "width and byte order stay the table's defaults"
+        )

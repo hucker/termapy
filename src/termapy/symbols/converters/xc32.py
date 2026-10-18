@@ -17,10 +17,10 @@ GCC merged string-literal pools (``.rodata.str1.1``) are skipped in passes
 1 and 2: they are not symbols, and a C program cannot name one ``str1.1``.
 Dotted names (``count.12``, ``sPacket.1``) are kept verbatim.
 
-:func:`regions` reads GNU ld's ``Memory Configuration`` table, the
-linker script's ``MEMORY`` block as the map prints it.  It is GNU ld's
-format rather than XC32's, so a second GNU ld converter would lift it
-out of this module.
+:func:`layout` (through :func:`regions`) reads GNU ld's ``Memory
+Configuration`` table, the linker script's ``MEMORY`` block as the map
+prints it.  It is GNU ld's format rather than XC32's, so a second GNU ld
+converter would lift it out of this module.
 
 Known limits (converter-only changes if they ever matter): address-level
 dedup drops aliases at the same address; ``file`` stays empty when a map
@@ -34,7 +34,7 @@ from dataclasses import replace
 from pathlib import PureWindowsPath
 from typing import Final
 
-from termapy.symbols.table import Region, Symbol
+from termapy.symbols.table import Layout, Region, Symbol
 
 FORMAT: Final[str] = "xc32"
 DESCRIPTION: Final[str] = "Microchip XC32 (GNU ld) linker map"
@@ -312,3 +312,12 @@ def regions(text: str) -> list[Region]:
         if rows_seen and not line.strip():
             break
     return found
+
+
+def layout(text: str) -> Layout:
+    """The map's table-level facts: its memory regions.
+
+    A GNU ld map states no address width or byte order, so those stay the
+    table's defaults.  Never raises on odd input.
+    """
+    return Layout(regions=tuple(regions(text)))

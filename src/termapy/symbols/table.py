@@ -326,6 +326,25 @@ class Region:
         return cls(name, start, size, access, space)
 
 
+@dataclass(frozen=True, slots=True)
+class Layout:
+    """What a build file says about its table as a whole, beside the symbols.
+
+    A converter's optional ``layout(source)`` returns one.  A linker map
+    states regions and nothing about the target; an ELF states all three.
+
+    Attributes:
+        regions: The memory regions, in the file's order.
+        address_bits: The target's address width, or None when the file
+            does not say.
+        endian: ``"le"`` / ``"be"``, or None when the file does not say.
+    """
+
+    regions: tuple[Region, ...] = ()
+    address_bits: int | None = None
+    endian: str | None = None
+
+
 def parse_addr_field(value: Any, where: str, key: str = "addr") -> int:
     """A ``0x`` hex string or a non-negative int -- nothing guessed.
 

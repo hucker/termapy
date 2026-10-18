@@ -120,7 +120,8 @@ src/termapy/
 │   ├── type_codes.py       #   The format-spec type codes -- one table, every consumer iterates it
 │   └── viz.py              #   Visualizer plugin discovery and loading
 ├── symbols/                # (1890 lines) Symbol tables -- named addresses for a firmware build
-│   ├── converters/         #   Symbol converters -- vendor map text in, termapy symbols out
+│   ├── converters/         #   Symbol converters -- a build's ELF or linker map in, termapy symbols out
+│   │   ├── elf.py          #     ELF converter -- a build's symbols, with their C types from its debug info
 │   │   └── xc32.py         #     Microchip XC32 (GNU ld) linker-map converter -- the only home of XC32 knowledge
 │   ├── address.py          #   The address grammar -- what consumes a symbol table
 │   ├── format.py           #   Prose renderers and their structured `data=` twins, side by side
@@ -148,7 +149,7 @@ src/termapy/
 ├── cli_prompt.py           #              The CLI's interactive prompt: prompt_toolkit history, completion and session
 ├── config.py               # (1601 lines) Config file management - paths, defaults, loading, and serial port setup
 ├── config_resolve.py       #              Config-path resolution helpers
-├── converters.py           #              Converter registries -- vendor text in, termapy data out, one record type
+├── converters.py           #              Converter registries -- vendor files in, termapy data out, one record type
 ├── credits_data.py         #              The dependency and attribution registry -- one table, every consumer iterates it
 ├── defaults.py             # (596 lines)  Default config values and file templates
 ├── demo.py                 # (2122 lines) Simulated serial device for demo mode
@@ -372,9 +373,9 @@ raw line
 
 ### Plugin file convention
 
-A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, a symbol-map converter (the four top-level names `FORMAT` / `DESCRIPTION` / `DETECT` / `convert`, plus an optional `regions` for the map's memory regions, the same shape the built-in converters use), and/or top-level lifecycle functions (`on_app_start`, `on_app_stop`, `on_script_start`, `on_script_stop`). All are optional; the loader picks up whatever's there.
+A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, a symbol converter (the four top-level names `FORMAT` / `DESCRIPTION` / `DETECT` / `convert`, plus an optional `layout` for the file's regions, address width and byte order, and an optional `MAGIC` signature that makes it a binary format reading bytes, the same shape the built-in converters use), and/or top-level lifecycle functions (`on_app_start`, `on_app_stop`, `on_script_start`, `on_script_stop`). All are optional; the loader picks up whatever's there.
 
-A converter is four names rather than a dataclass because it is one function plus two strings — `Command` earns its dataclass through validation and ~15 fields, and a wrapper here would exist only to be unpacked. Plugin converters live on the `ReplEngine` with a `source` label (not in the static `CONVERTERS` tuple), so a config switch drops them exactly like commands; `/sym.import` passes them to `find_converter`, which searches the built-in registry too. An empty `DETECT` means explicit-`format=` only — a board's own pipeline should not join format sniffing.
+A converter is four names rather than a dataclass because it is one function plus two strings — `Command` earns its dataclass through validation and ~15 fields, and a wrapper here would exist only to be unpacked. Plugin converters live on the `ReplEngine` with a `source` label (not in the static `CONVERTERS` tuple), so a config switch drops them exactly like commands; `/sym.import` passes them to `find_converter`, which searches the built-in registry too. An empty `DETECT` means explicit-`format=` only — a board's own pipeline should not join format sniffing. A binary format (`MAGIC`) is recognized by its signature before any text marker is tried, because a binary file can carry another format's marker: an XC32 ELF holds the map converter's `/xc32/` 128 times in its debug strings. The ELF converter is the one built-in binary format and the preferred source: one module reads every toolchain's ELF, the symbol table for names and the DWARF debug info for C types, where a linker map is a per-toolchain text report with no types at all.
 
 ### Device files: the board's registers, not the build's
 
@@ -972,6 +973,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_sw_loopback_io.py              | sw_loopback: end-to-end I/O tests using pyserial's `loop://` backend                                                                               |
 | test_sym_commands.py                | Behavior tests for the built-in `/sym.*` commands and the symbol auto-load                                                                         |
 | test_symbols_address.py             | Tests for `termapy.symbols.address` -- the address grammar                                                                                         |
+| test_symbols_elf.py                 | The ELF converter against three builds of one C file, and its place in the registry                                                                |
 | test_symbols_format.py              | Tests for `termapy.symbols.format` -- prose renderers and their `data=` twins                                                                      |
 | test_symbols_provenance.py          | Unit tests for the symbol-table staleness verdict                                                                                                  |
 | test_symbols_table.py               | Tests for `termapy.symbols.table` -- the model and the file format                                                                                 |

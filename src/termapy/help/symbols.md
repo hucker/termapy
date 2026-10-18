@@ -2,13 +2,12 @@
 
 A symbol table gives names to the addresses in your firmware: `/sym main`
 tells you where `main` lives, `/sym 0x2010` tells you that address is
-`main+0x10`. It is the groundwork for named memory access (`/mem.*`, a
-later step); on its own it replaces the "open the .map file and search"
-ritual.
+`main+0x10`. It is what named memory access (`/mem.*`) reads, and on
+its own it replaces the "open the .map file and search" ritual.
 
 termapy reads exactly one symbol format, its own JSON. Converters turn a
-toolchain's linker map into that file; the runtime never parses a vendor
-map.
+build's ELF, or its linker map, into that file; the runtime never parses
+a vendor file.
 
 ## Where it lives
 
@@ -22,37 +21,65 @@ alike, and a config switch drops the previous table. The demo config ships
 one (`sym/demo.symbols.json`), so `termapy --demo` has names for the addresses
 its `mem` command answers for.
 
-## Importing a linker map
+## Importing your build
 
 ```text
-/sym.import build/default/mem.map
+/sym.import out/default.elf
 ```
 
-writes `sym/<name>.symbols.json` under the config and loads it. The format is
-sniffed from the file; `format=xc32` picks one explicitly. Re-import after
-every build; the sidecar is a generated file and is overwritten without
-asking. Bare `/sym.load` re-reads it after a hand edit.
+writes `sym/<name>.symbols.json` under the config and loads it. Import the
+**ELF** when the build has one: it has every name, address and size, and,
+when the build has debug info (`-g`), each variable's C type, so `/mem.read`
+decodes `int16_t` as signed and `float` as a float. A linker map
+(`/sym.import mem.map`) has names and sizes only; it stays the path for a
+toolchain with no ELF, and the only source of the linker script's named
+memory regions.
 
-After the first import, **bare `/sym.import` re-runs the same map through
+The format is recognized from the file (an ELF by its signature, a map by
+its text); `format=elf` or `format=xc32` picks one explicitly. Re-import
+after every build; the sidecar is a generated file and is overwritten
+without asking. Bare `/sym.load` re-reads it after a hand edit.
+
+After the first import, **bare `/sym.import` re-runs the same file through
 the same converter** — the rebuild step, without retyping a build-tree
 path:
 
 ```text
-/sym.import C:\proj\_build\default\mem.map    # once
-/sym.import                                   # after every rebuild
+/sym.import C:\proj\out\default.elf    # once
+/sym.import                          # after every rebuild
 ```
 
 It reads the source and recipe the sidecar recorded, so it also works on a
 table imported before recipes existed (that re-import is how such a table
 gains one). An explicit `<file>` or `format=` always wins.
 
-| Format | Toolchain                              |
-|--------|----------------------------------------|
-| `xc32` | Microchip XC32 (GNU ld) linker map     |
+| Format | Reads                                                                     |
+|--------|---------------------------------------------------------------------------|
+| `elf`  | An ELF from any toolchain and CPU (GCC, Clang, XC32, IAR, Arm Compiler); types from its DWARF debug info |
+| `xc32` | A Microchip XC32 (GNU ld) linker map                                      |
 
 More converters land in the same registry; `/help sym.import` lists what
 the running build knows. To teach termapy your toolchain, write a
 converter -- see below.
+
+### Types from the debug info
+
+A type is written only where the debug info states it plainly, by its
+encoding and byte size, never by its C name; anything else stays untyped,
+exactly as a map leaves it, and reads by its size.
+
+| C declaration                    | `type`                                              |
+|----------------------------------|-----------------------------------------------------|
+| an integer, `bool`, `char`       | `u8`..`u64` / `i8`..`i64` (`char` signed or not as the CPU's ABI says) |
+| `float`, `double`                | `f32`, `f64`                                        |
+| a pointer                        | the unsigned integer of its size                    |
+| an `enum`                        | its underlying integer                              |
+| an array of those                | the element's type; the size is the whole array     |
+| a `struct`                       | a layout of its members (`count:U4-3 gain:F8-5`) in the ELF's byte order; bit fields wait for a later step |
+| anything `const`                 | the same, with `access: ro`                         |
+
+A build without `-g` imports every symbol untyped; startup and library
+objects that carry their own debug info stay typed.
 
 ## Your own converter, as a plugin
 
@@ -76,7 +103,7 @@ def convert(text):
     return rows + _SFRS
 ```
 
-Same four names a built-in converter exports -- only discovery differs.
+Same names a built-in converter exports -- only discovery differs.
 Because your `convert` is the single producer of the table, a re-import
 after a rebuild reproduces all of it: the rows you filtered stay gone and
 the typed rows stay put. That is the point of doing it here rather than
@@ -87,18 +114,27 @@ A converter may set every `Symbol` field -- `type`, `rmw`, `space`,
 `file` -- so the typed registers and bit fields a linker map cannot
 express become script output instead of hand-maintained data.
 
-A converter may also export `regions(text)`, returning the memory regions
-the map declares as `termapy.symbols.Region` objects (`name`, `start`,
-`size`, `access`). It follows the same contract as `convert`. The built-in
-`xc32` reads GNU ld's `Memory Configuration` table. Without it the table
-has no regions.
+A converter may also export `layout(source)`, returning a
+`termapy.symbols.Layout`: the memory regions the file declares (`Region`
+objects: `name`, `start`, `size`, `access`), and the target's address
+width and byte order when the format states them. It follows the same
+contract as `convert`. The built-in `xc32` reads GNU ld's `Memory
+Configuration` table; `elf` reads the ELF header and its loadable
+segments. Without it the table has no regions and the default width and
+byte order.
+
+A **binary** format adds `MAGIC = b"..."`, its file signature: its
+`convert` and `layout` then receive the file's bytes instead of its text,
+and it is recognized by that signature before any text marker is tried (a
+binary file can contain another format's marker: an XC32 ELF holds
+`/xc32/` in its debug strings). Its `DETECT` is ignored.
 
 ### The contract
 
-`convert(text)` is **pure**: text in, list out. No I/O, no config, no
-globals. It must **never raise on odd input** -- a wrong-format file, a
-truncated build, an empty string all return `[]`, and `/sym.import`
-renders `No symbols found`. Return unsorted; `SymbolTable` sorts by
+`convert(text)` (or `convert(data)` for a binary format) is **pure**:
+the file in, list out. No I/O, no config, no globals. It must **never
+raise on odd input** -- a wrong-format file, a truncated build, an empty
+string all return `[]`, and `/sym.import` renders `No symbols found`. Return unsorted; `SymbolTable` sorts by
 `(addr, size, name)`. Emit each symbol once: a map often lists the same
 symbol in a summary and a detail section, so prefer the detail section
 (full names) and use the summary only for addresses it did not cover.
@@ -235,11 +271,14 @@ the addresses and files listed, so you can pick one or type the address.
 
 `recipe` and `witness` are written by `/sym.import` and drive the staleness
 check below; both are optional, and a table without them is fine.
-`endian` is for reference: `/mem.*` uses the device's own byte order
-(`/mem.info`). `regions` are the linker's memory regions, one per row of
-the map's memory table, each `{name, start, size, access}` with `access`
-left out when the linker states none; `/sym.info` shows them, and
-`/mem.*` does not act on them yet. Unknown keys are ignored. `type` reuses the format-spec language from
+`address_bits` and `endian` come from an ELF's header (a map states
+neither, so they default to 32 and `le`); `endian` is for reference,
+since `/mem.*` uses the device's own byte order (`/mem.info`). `regions`
+are the build's memory regions -- one per row of a map's memory table, or
+one per loadable segment of an ELF -- each `{name, start, size, access}`
+with `access` left out when the file states none; `/sym.info` shows them,
+and `/mem.*` does not act on them yet. Unknown keys are ignored. `type`
+reuses the format-spec language from
 [protocol testing](protocol-testing.md#format-spec-language), so a register
 can carry named bits: `"type": "ON:B.15 UEN:B.8-9 BRGH:B.3"` -- bits of the
 register word, its width from `size` and its byte order from the device

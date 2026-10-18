@@ -229,6 +229,20 @@ class BitTarget:
         return ((1 << self.bit_width) - 1) << self.low
 
 
+def is_word_spec(spec: str) -> bool:
+    """True when a format spec names bits of one word (a register), not a layout.
+
+    A register's fields are all bit columns (``ON:B.15``); a struct's
+    members are byte columns (``count:U4-3``).  The two read the same way
+    but write differently: a word takes one number, a layout takes bytes.
+    """
+    try:
+        columns = parse_format_spec(spec, word=True)
+    except (ValueError, IndexError, KeyError):
+        return False
+    return bool(columns) and all(column.type_code in ("B", "b") for column in columns)
+
+
 def symbol_columns(symbol: Symbol, endian: str) -> list[ColumnSpec]:
     """The format-spec columns of a symbol's type, bound to its word (may be empty).
 

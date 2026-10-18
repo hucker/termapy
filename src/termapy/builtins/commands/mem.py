@@ -62,6 +62,7 @@ from termapy.memory_views import (
     encode_scalar,
     escape_text,
     extract_bits,
+    is_word_spec,
     mask_pair,
     parse_scalar_value,
     render_char,
@@ -72,7 +73,7 @@ from termapy.memory_views import (
 )
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
-from termapy.protocol.core import apply_format, extract_column_value, parse_hex
+from termapy.protocol.core import apply_format, column_value, parse_hex
 from termapy.scripting import strip_ansi
 from termapy.symbols import Address, get_table, parse_address, parse_number, symbolic_name
 from termapy.symbols.format import hex_addr
@@ -251,16 +252,21 @@ def _resolve(
 def _scalar_type(parsed: Address) -> str:
     """The scalar a NAMED whole symbol holds, or ``""``.
 
-    Its declared type when that is a scalar; otherwise, for a symbol the
-    size of one (:data:`SCALAR_BY_SIZE`), the unsigned integer of that
-    width.  ``""`` for an address, an offset or field into a symbol, and
-    an array or struct: those are bytes.
+    Its declared type when that is a scalar and the symbol is one of it
+    (an ELF types an array by its element, so a ``u32`` symbol of 44 bytes
+    is eleven values, not one); a register word, typed by bit fields or
+    not at all, as the unsigned integer of its size
+    (:data:`SCALAR_BY_SIZE`).  ``""`` for an address, an offset or field
+    into a symbol, an array, and a struct (a layout of byte columns):
+    those are bytes.
     """
     symbol = parsed.symbol
     if symbol is None or parsed.offset or parsed.suffix:
         return ""
     if symbol.type in SCALARS:
-        return symbol.type
+        return symbol.type if symbol.size in (0, SCALARS[symbol.type][1]) else ""
+    if symbol.type and not is_word_spec(symbol.type):
+        return ""
     return SCALAR_BY_SIZE.get(symbol.size, "")
 
 
@@ -694,40 +700,47 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         )
 
     if not type_name and symbol is not None and parsed.offset == 0:
-        if symbol.type in SCALARS or symbol.type == "char":
-            type_name = symbol.type
-        else:
-            columns = symbol_columns(symbol, info.endian)
-            if columns:
-                # A register with named fields: show them all.
-                span = max(max(column.byte_indices) for column in columns) + 1
-                length = symbol.size if symbol.size >= span else span
-                try:
-                    data = memory.read(symbol.addr, length)
-                except (ValueError, DeviceMemoryError) as e:
-                    return CmdResult.fail(msg=str(e))
-                _log_peripheral_read(ctx, parsed, length, bits)
-                headers, values = apply_format(data, columns)
-                for header, rendered in zip(headers, values):
-                    ctx.io.output(f"  {header:<8} = {rendered}")
-                fields = {
-                    column.name: extract_column_value(data, column)
-                    for column in columns
-                    if column.type_code in ("B", "b")
-                }
-                return CmdResult.ok(
-                    value=data.hex().upper(),
-                    data={
-                        "target": raw_target,
-                        "addr": symbol.addr,
-                        "addr_hex": hex_addr(symbol.addr, bits),
-                        "bytes_hex": data.hex().upper(),
-                        "fields": fields,
-                    },
-                )
-            # Untyped, or a register without fields: the size says.
-            type_name = _scalar_type(parsed)
+        columns = [] if symbol.type in SCALARS else symbol_columns(symbol, info.endian)
+        if columns:
+            # A register's bit fields or a struct's members: show them all.
+            span = max(max(column.byte_indices) for column in columns) + 1
+            length = symbol.size if symbol.size >= span else span
+            try:
+                data = memory.read(symbol.addr, length)
+            except (ValueError, DeviceMemoryError) as e:
+                return CmdResult.fail(msg=str(e))
+            _log_peripheral_read(ctx, parsed, length, bits)
+            headers, values = apply_format(data, columns)
+            for header, rendered in zip(headers, values):
+                ctx.io.output(f"  {header:<8} = {rendered}")
+            fields = {
+                column.name: column_value(data, column)
+                for column in columns
+                if column.type_code != "_"
+            }
+            return CmdResult.ok(
+                value=data.hex().upper(),
+                data={
+                    "target": raw_target,
+                    "addr": symbol.addr,
+                    "addr_hex": hex_addr(symbol.addr, bits),
+                    "bytes_hex": data.hex().upper(),
+                    "fields": fields,
+                },
+            )
+        # A scalar, an array, or a word: the type and size say which.
+        type_name = _scalar_type(parsed)
     if not type_name:
+        element = symbol.type if symbol is not None and symbol.type in SCALARS else ""
+        if symbol is not None and parsed.offset == 0 and element:
+            width = SCALARS[element][1]
+            return CmdResult.fail(
+                msg=(
+                    f"Type required: {symbol.name} is {symbol.size // width} {element} "
+                    f"values, not one ({ctx.prefix}mem.dump {symbol.name} {element}, "
+                    f"or one with {symbol.name}+{width} {element})"
+                )
+            )
         if symbol is not None and parsed.offset == 0 and symbol.size:
             return CmdResult.fail(
                 msg=(

@@ -1756,3 +1756,68 @@ class TestReadOnlyRegisters:
         # Assert
         assert not result.success, "UCNT_MODE1 is the 2-byte view of the register"
         assert "runs past the end of UCNT_MODE1 (2 bytes)" in result.error
+
+
+class TestArraysAndStructs:
+    """What an ELF types: an array by its element, a struct by its members."""
+
+    def test_an_array_is_not_one_value(self, cli):
+        """mem-named-bounds: a u32 array refuses a bare read and says how to read it."""
+        # Act
+        result = cli.repl.dispatch("mem.read sCmdTable")
+
+        # Assert
+        assert not result.success, "sixteen values are not one"
+        assert result.error.endswith(
+            "Type required: sCmdTable is 16 u32 values, not one "
+            "(/mem.dump sCmdTable u32, or one with sCmdTable+4 u32)"
+        )
+
+    @pytest.mark.parametrize("line", ["mem.read sCmdTable u32", "mem.read sCmdTable+4 u32"])
+    def test_one_element_reads_with_its_type(self, cli, line):
+        """Naming the type reads one element, inside the array."""
+        # Act
+        result = cli.repl.dispatch(line)
+
+        # Assert
+        assert result.success, result.error
+
+    def test_a_struct_reads_as_its_members(self, cli, capsys):
+        """Every member decoded at its offset; the record has each as a JSON value."""
+        # Arrange
+        cli.ctx.wants_data = True
+
+        # Act
+        result = cli.repl.dispatch("mem.read sCfg")
+
+        # Assert
+        assert result.success, result.error
+        assert result.data["fields"] == {
+            "baud_div": 258,
+            "trim": -4,
+            "mode": 3,
+            "gain": 0.5,
+            "inner": "0506",
+        }, "ints, a float and hex, not display strings"
+
+    def test_a_struct_takes_bytes_not_one_number(self, cli):
+        """A layout is not a word: 5 is not hex bytes, 0302 is, and lands at the start."""
+        # Act
+        refused = cli.repl.dispatch("mem.write sCfg 5")
+        written = cli.repl.dispatch("mem.write sCfg 0302")
+        cli.ctx.wants_data = True
+        members = cli.repl.dispatch("mem.read sCfg").data["fields"]
+
+        # Assert
+        assert not refused.success and "Invalid hex: 5" in refused.error, "no whole-value write"
+        assert written.success, written.error
+        assert members["baud_div"] == 515, "0x0203 little-endian"
+
+    def test_a_struct_write_is_bounded(self, cli):
+        """Thirteen bytes into a 12-byte struct would reach the next variable."""
+        # Act
+        result = cli.repl.dispatch("mem.write sCfg " + "00" * 13)
+
+        # Assert
+        assert not result.success, "past the end"
+        assert "run past the end of sCfg (12 bytes)" in result.error

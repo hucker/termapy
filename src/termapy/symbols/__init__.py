@@ -61,6 +61,7 @@ from termapy.symbols.session import (
 from termapy.symbols.table import (
     SCALAR_TYPES,
     SYMBOLS_VERSION,
+    Layout,
     Region,
     Symbol,
     SymbolTable,
@@ -70,6 +71,7 @@ from termapy.symbols.table import (
 __all__ = [
     "SYMBOLS_VERSION",
     "SCALAR_TYPES",
+    "Layout",
     "Region",
     "Symbol",
     "SymbolTable",

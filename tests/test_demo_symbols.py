@@ -24,13 +24,13 @@ class TestBundledSymbols:
         # Assert
         assert DEMO_SYMBOLS.is_file(), f"bundled symbol table missing: {DEMO_SYMBOLS}"
 
-    def test_loads_with_fourteen_symbols(self):
+    def test_loads_with_fifteen_symbols(self):
         """The count and fixed import stamp stay put, so /sym in the CLI gold is stable."""
         # Act
         table = SymbolTable.load(DEMO_SYMBOLS)
 
         # Assert
-        assert len(table) == 14, "the gold pins this count"
+        assert len(table) == 15, "the gold pins this count"
         assert table.imported == "2026-08-29T00:00:00", "fixed timestamp keeps /sym.info gold-safe"
 
     def test_grammar_examples_are_present(self):

@@ -234,6 +234,12 @@ $(BAUD) <- /port.baud_rate
 /mem.read sBanner
 /mem.write sBanner 41
 /mem.not main
+# An ELF types an array by its element and a struct by its members.
+/mem.read sCmdTable
+/mem.dump sCmdTable u32
+/mem.read sCfg
+/mem.write sCfg 0302
+/mem.read sCfg
 MEM.M 0x1000 F0 05 --json
 
 # ── REPL: help for specific commands ────────────────────────────────────────

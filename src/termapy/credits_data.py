@@ -154,6 +154,14 @@ CREDITS: tuple[Credit, ...] = (
         in_tooltip=True,
     ),
     Credit(
+        "pyelftools",
+        "ELF and DWARF reader",
+        "Eli Bendersky",
+        "https://github.com/eliben/pyelftools",
+        note="reads a build's ELF for /sym.import: the symbol table, and each "
+        "variable's C type from its DWARF debug info; public domain.",
+    ),
+    Credit(
         "reveng catalog",
         "CRC algorithms",
         "Greg Cook",

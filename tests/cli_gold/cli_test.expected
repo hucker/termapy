@@ -508,7 +508,7 @@ demo> /sym.info
   imported    : 2026-08-29T00:00:00
   address_bits: 32
   endian      : le
-  symbols     : 14  (bss 6, code 2, const 2, data 1, global 1, sfr 2)
+  symbols     : 15  (bss 6, code 2, const 2, data 2, global 1, sfr 2)
   range       : 0x00001000 - 0xBF806014
   regions     : 2  (ram 0x00001000+0x1000 rw, rom 0x00002000+0x2000 ro)
   [109/308] /sym.info (867us)
@@ -560,8 +560,8 @@ demo> /sym.search zzz
   No symbols matching 'zzz'
   [115/219] /sym.search zzz (141us)
 demo> /sym.import nosuch.map
-  Error: Map file not found: nosuch.map (a relative path is measured from the demo config folder)
-  [116/219] /sym.import nosuch.map (118us)
+  Error: Build file not found: nosuch.map (a relative path is measured from the demo config folder)
+  [125/313] /sym.import nosuch.map (403us)
 demo> /dev.import nosuch.svd
   Error: Source file not found: nosuch.svd (a relative path is measured from the demo config folder)
   [117/220] /dev.import nosuch.svd (100us)
@@ -569,14 +569,14 @@ demo> /sym.load nosuch.json
   Error: Symbols not found: nosuch.json
   [117/219] /sym.load nosuch.json (108us)
 demo> /sym.unload
-  Unloaded symbols (14).
-  [128/308] /sym.unload (188us)
+  Unloaded symbols (15).
+  [128/313] /sym.unload (243us)
 demo> /sym gTemp
   Error: No symbols loaded.
   [119/219] /sym gTemp (21us)
 demo> /sym.load
-  Loaded 14 symbols (demo.symbols.json)
-  [130/308] /sym.load (859us)
+  Loaded 15 symbols (demo.symbols.json)
+  [130/313] /sym.load (1.05ms)
 demo> /print === section: memory ===
   === section: memory ===
   [121/219] /print === section: memory === (175us)
@@ -759,6 +759,32 @@ demo> /mem.write sBanner 41
 demo> /mem.not main
   Error: Write refused: main is access: ro (read-only)
   [183/308] /mem.not main (22us)
+demo> /mem.read sCmdTable
+  Error: Type required: sCmdTable is 16 u32 values, not one (/mem.dump sCmdTable u32, or one with sCmdTable+4 u32)
+  [184/313] /mem.read sCmdTable (34us)
+demo> /mem.dump sCmdTable u32
+  0x00003000  253E3730 011A132C 7D760F08 59526B64  |07>%,.....v}dkRY|  sCmdTable
+  0x00003010  B54E4740 91AAA3BC 8D869F98 E9E2FBF4  |@GN.............|  sCmdTable+0x10
+  0x00003020  C5DED7D0 213A33CC 1D162F28 79720B04  |.....3:!(/....ry|  sCmdTable+0x20
+  0x00003030  556E6760 B14A435C ADA6BFB8 89829B94  |`gnU\CJ.........|  sCmdTable+0x30
+  [185/313] /mem.dump sCmdTable u32 (75.1ms)
+demo> /mem.read sCfg
+    baud_div = 258
+    trim     = -4
+    mode     = 3
+    gain     = 0.5
+    inner    = 0506
+  [186/313] /mem.read sCfg (63ms)
+demo> /mem.write sCfg 0302
+  Wrote 2 bytes at 0x00001028  sCfg  (was 0201)
+  [187/313] /mem.write sCfg 0302 (124ms)
+demo> /mem.read sCfg
+    baud_div = 515
+    trim     = -4
+    mode     = 3
+    gain     = 0.5
+    inner    = 0506
+  [188/313] /mem.read sCfg (64.5ms)
 demo> MEM.M 0x1000 F0 05 --json
 {"cmd": "MEM.M 0x1000 F0 05"}
   {"cmd": "MEM.M 0x1000 F0 05", "success": true, "error": "", "value": "00001000: 2C\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0.0636}
@@ -1074,12 +1100,13 @@ SYNOPSIS
   /sym <addr|name>
 
 DESCRIPTION
-  Current symbols = 14 (sym/demo.symbols.json)
+  Current symbols = 15 (sym/demo.symbols.json)
   
-  Symbols come from your linker map: /sym.import <map> converts it to
-  sym/<cfg>.symbols.json in the config folder (a generated file, overwritten on
-  re-import) and loads it.  The sidecar auto-loads whenever the config
-  loads -- TUI, CLI and MCP alike.
+  Symbols come from your build: /sym.import <file> converts its ELF (names,
+  sizes and the C types in its debug info) or its linker map (names and
+  sizes) to sym/<cfg>.symbols.json in the config folder (a generated file,
+  overwritten on re-import) and loads it.  The sidecar auto-loads whenever
+  the config loads -- TUI, CLI and MCP alike.
   
   Address forms:
     0x1000         hex
@@ -1088,7 +1115,7 @@ DESCRIPTION
     main           symbol name (exact, case-sensitive)
     main+0x10      symbol plus offset (also main-4)
     tick@adc.c     duplicate static, qualified by file (adc or src/adc.c too)
-    name.<bit>     reserved for bit/slice/field access; an exact symbol
+    name.<bit>     a bit, slice or field (see /help mem); an exact symbol
                    name wins, so count.12 is the symbol count.12
   
   Search forms (/sym.search): exact name, glob (*main*, Mon*), regex
@@ -1096,8 +1123,8 @@ DESCRIPTION
   
   Commands:
     /sym <addr|name>        - name -> address, or address -> name+offset
-    /sym.import {map}       - convert a linker map and load it
-                              (bare: re-import the same map, after a rebuild)
+    /sym.import {file}      - convert an ELF or a linker map and load it
+                              (bare: re-import the same file, after a rebuild)
     /sym.load {path}        - reload the sidecar, or load an explicit file
     /sym.unload             - clear the loaded table (file untouched)
     /sym.search <pattern>   - search names
@@ -1107,7 +1134,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /sym.import    Convert a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same map).
+  /sym.import    Convert an ELF or a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same file).
   /sym.info      Show the loaded symbol table: file, source, counts by section, address range.
   /sym.load      Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
   /sym.search    Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.

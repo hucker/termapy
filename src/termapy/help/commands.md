@@ -166,7 +166,7 @@ because its folders hold different types of file.
 | `/ss.txt {name} {N}`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
 | `/sym <addr\|name>`       | Symbol table: name to address, or address to `name+offset`                  |
-| `/sym.import {file} {format=<value>}` | Convert a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same map) |
+| `/sym.import {file} {format=<value>}` | Convert an ELF or a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same file) |
 | `/sym.info`               | Show the loaded symbol table: file, source, counts by section, range        |
 | `/sym.load {path}`        | Load a symbol table (default: the cfg sidecar `/sym.import` writes)         |
 | `/sym.search <pattern>`   | Search symbols by name: exact, glob, regex, or substring                     |

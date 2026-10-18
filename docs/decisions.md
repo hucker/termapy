@@ -435,3 +435,25 @@ named scalar; write `300` or `0x12C`. Bare digits are decimal, as in the
 address grammar. **Where:** registry `mem-named-bounds` and
 `section-default-access`; `tests/test_mem_commands.py`,
 `tests/test_symbols_table.py`.
+
+## 2026-10-18 — A build's ELF is the symbol source; pyelftools reads it
+
+`/sym.import` reads an ELF as well as a linker map, and the ELF is the
+preferred source. Its symbol table gives every name, address and size,
+and its DWARF debug info gives each variable's C type: signedness, float,
+pointer, enum, array element, struct members. A linker map has no types
+at all, and its layout differs by toolchain. A type is written only where
+DWARF states it plainly (registry `elf-types-or-none`). The format is
+recognized by the file's signature before any text marker (registry
+`converter-magic-first`), so there is no separate command. pyelftools
+(public domain, pure Python, no dependencies) is a runtime dependency,
+imported only inside the converter. **Why:** names without types made
+`/mem.read` read every value as unsigned; every current 32-bit toolchain
+writes ELF with DWARF because every debugger reads it. Measured on the
+board build (XC32 v5, DWARF 2): 1,083 of the map's 1,097 symbols
+identical, none missing, 180 more; the 6 that differ are map converter
+errors (a function's `.rodata.<function>` constant pool named after the
+function); 1.46 s per import. The map converter stays for toolchains
+without an ELF, and as the only source of the linker script's named
+regions. **Where:** `symbols/converters/elf.py`, `tests/test_symbols_elf.py`
+(fixtures from GCC and Clang, DWARF 2 and 5, little and big-endian).

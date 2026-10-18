@@ -1864,8 +1864,8 @@ class TestCliFreeOfTextual:
 
 # The heavy imports a path must not pay for, and what each costs (measured
 # 2026-10-17): a UI framework it never shows, or a library only another
-# path needs.
-_HEAVY = ("textual", "prompt_toolkit", "rich", "importlib.metadata", "frist")
+# path needs.  elftools is wanted only by /sym.import of an ELF.
+_HEAVY = ("textual", "prompt_toolkit", "rich", "importlib.metadata", "frist", "elftools")
 
 
 def _loaded_after(*argv: str, cwd: Path) -> set[str]:
@@ -1981,6 +1981,7 @@ class TestPathsStayLight:
         # Assert
         assert "prompt_toolkit" not in actual, "no prompt is built for -e"
         assert "textual" not in actual, "and the CLI never loads Textual"
+        assert "elftools" not in actual, "the ELF reader loads only for an ELF import"
 
 
 class TestPlainFileHistory:

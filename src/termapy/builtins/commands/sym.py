@@ -10,8 +10,8 @@ or ``get_build_table`` and writes through ``session.install_build``.
 Subcommands:
 
 - ``/sym <addr|name>`` -- name -> address, or address -> name+offset.
-- ``/sym.import <file> {format=...}`` -- convert a linker map to
-  ``sym/<cfg>.symbols.json`` and load it.
+- ``/sym.import <file> {format=...}`` -- convert a build file (an ELF or
+  a linker map) to ``sym/<cfg>.symbols.json`` and load it.
 - ``/sym.load {path}`` -- load the sidecar (default) or an explicit file.
 - ``/sym.unload`` -- clear the loaded table.
 - ``/sym.search <pattern>`` -- exact, glob, regex, or substring.
@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from termapy.config import cfg_relative_path, not_found_message
-from termapy.converters import SYMBOLS
+from termapy.converters import SYMBOLS, read_source
 from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import (
@@ -39,6 +39,7 @@ from termapy.plugins import (
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.params import ParamSpec
 from termapy.symbols import (
+    Layout,
     Symbol,
     SymbolTable,
     format_symbol,
@@ -184,7 +185,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
-    """Convert a linker map, write the cfg sidecar, install the table.
+    """Convert a build file (an ELF or a linker map), write the sidecar, install the table.
 
     Bare, it re-runs the loaded table's own recipe against its own
     source -- the rebuild step after every compile, without retyping a
@@ -202,17 +203,17 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         fmt = fmt or recorded_fmt
     # Reading an arbitrary path is a parse/existence oracle under MCP;
     # contain to the sandbox unless the operator opted out.
-    ctx.fs.guard_external_path(raw, "Map path")
+    ctx.fs.guard_external_path(raw, "Build file path")
     path = _anchor(ctx, raw)
     if not path.is_file():
-        return CmdResult.fail(msg=not_found_message("Map file", raw, ctx.config_path))
+        return CmdResult.fail(msg=not_found_message("Build file", raw, ctx.config_path))
     dest = sidecar_path(ctx.config_path)
     assert dest is not None, "/sym.import declares config_loaded"
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        data, text = read_source(path)
     except OSError as e:
         return CmdResult.fail(msg=f"Read error: {e}")
-    spec = find_converter(fmt, text, extra=_plugin_converters(ctx))
+    spec = find_converter(fmt, text, extra=_plugin_converters(ctx), data=data)
     if spec is None:
         # Two different failures: a format= the registry doesn't have
         # (name the token the user typed) versus a map nothing claimed
@@ -221,11 +222,12 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         # runtime -- see the ParamSpec comment below.
         subject = fmt if fmt else path.name
         return CmdResult.fail(
-            msg=f"Unknown map format: {subject} (formats: {', '.join(_known_formats(ctx))})"
+            msg=f"Unknown build format: {subject} (formats: {', '.join(_known_formats(ctx))})"
         )
+    source = spec.source_of(data, text)
     try:
-        symbols = spec.convert(text)
-        regions = spec.regions(text) if spec.regions is not None else []
+        symbols = spec.convert(source)
+        layout = spec.layout(source) if spec.layout is not None else Layout()
     # A plugin converter is third-party code on the dispatch path: a bad
     # regex or a typo must name the converter, not crash the app.  The
     # built-ins are documented as never raising on odd input; this guard
@@ -234,12 +236,16 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")
     if not symbols:
         return CmdResult.fail(msg=f"No symbols found in {path.name} ({spec.format})")
+    if not isinstance(layout, Layout):
+        return CmdResult.fail(msg=f"Converter error: {spec.format}: layout() must return a Layout")
     table = SymbolTable(
         symbols,
         path=dest,
         source=str(path),
         imported=datetime.now().isoformat(timespec="seconds"),
-        regions=regions,
+        address_bits=layout.address_bits or 32,
+        endian=layout.endian or "le",
+        regions=layout.regions,
         # Provenance: what to re-run, and what the map looked like now.
         # The witness is taken AFTER the read, so a map rewritten during
         # the import reads as stale next time rather than in sync.
@@ -375,10 +381,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _GRAMMAR_HELP: Final[str] = (
-    "Symbols come from your linker map: /sym.import <map> converts it to\n"
-    "sym/<cfg>.symbols.json in the config folder (a generated file, overwritten on\n"
-    "re-import) and loads it.  The sidecar auto-loads whenever the config\n"
-    "loads -- TUI, CLI and MCP alike.\n"
+    "Symbols come from your build: /sym.import <file> converts its ELF (names,\n"
+    "sizes and the C types in its debug info) or its linker map (names and\n"
+    "sizes) to sym/<cfg>.symbols.json in the config folder (a generated file,\n"
+    "overwritten on re-import) and loads it.  The sidecar auto-loads whenever\n"
+    "the config loads -- TUI, CLI and MCP alike.\n"
     "\n"
     "Address forms:\n"
     "  0x1000         hex\n"
@@ -387,7 +394,7 @@ _GRAMMAR_HELP: Final[str] = (
     "  main           symbol name (exact, case-sensitive)\n"
     "  main+0x10      symbol plus offset (also main-4)\n"
     "  tick@adc.c     duplicate static, qualified by file (adc or src/adc.c too)\n"
-    "  name.<bit>     reserved for bit/slice/field access; an exact symbol\n"
+    "  name.<bit>     a bit, slice or field (see /help mem); an exact symbol\n"
     "                 name wins, so count.12 is the symbol count.12\n"
     "\n"
     "Search forms (/sym.search): exact name, glob (*main*, Mon*), regex\n"
@@ -395,8 +402,8 @@ _GRAMMAR_HELP: Final[str] = (
     "\n"
     "Commands:\n"
     "  /sym <addr|name>        - name -> address, or address -> name+offset\n"
-    "  /sym.import {map}       - convert a linker map and load it\n"
-    "                            (bare: re-import the same map, after a rebuild)\n"
+    "  /sym.import {file}      - convert an ELF or a linker map and load it\n"
+    "                            (bare: re-import the same file, after a rebuild)\n"
     "  /sym.load {path}        - reload the sidecar, or load an explicit file\n"
     "  /sym.unload             - clear the loaded table (file untouched)\n"
     "  /sym.search <pattern>   - search names\n"
@@ -425,7 +432,7 @@ COMMAND = Command(
                     "path",
                     positional=True,
                     rest=True,
-                    help="linker map to convert (default: re-import the loaded table's own source)",
+                    help="ELF or linker map to convert (default: re-import the loaded table's own source)",
                 ),
                 # A str, not an enum: plugin folders add converters at
                 # runtime (a per-config format is a board's own pipeline),
@@ -435,11 +442,11 @@ COMMAND = Command(
                 ParamSpec(
                     "format",
                     "str",
-                    help=f"map format ({', '.join(FORMATS)}, or a plugin "
+                    help=f"build file format ({', '.join(FORMATS)}, or a plugin "
                     "converter); omitted = sniff the file",
                 ),
             ],
-            help="Convert a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same map).",
+            help="Convert an ELF or a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same file).",
             handler=_handler_import,
             needs=CapabilitySet.CONFIG_LOADED,
         ),

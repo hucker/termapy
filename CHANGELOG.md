@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### The reference MEM module takes the platform's memory map
+
+- `examples/firmware/termapy_mem.c` no longer carries a hard-coded region
+  table. The platform hands its memory map to `TermapyMem_Init` with the
+  other ops: a table of `TermapyMem_Region` (`name`, `start`, `size`,
+  `writable`). The module checks every `MEM.R` against it, and every
+  `MEM.W` and `MEM.M` against its writable regions, before a byte op runs:
+  a range outside the map, across two regions, or a write to a read-only
+  region answers `ERR range` as the whole reply, and a refused `MEM.M`
+  never takes the lock. `TermapyMem_DirectRead/Write` are now pure
+  width-aware movers. An empty map refuses every address.
+- `MEM.INFO` reports the map: a `regions` array after `modify`, each
+  `{"name", "start", "size", "w"}`. It is optional for the host, which
+  stores it with the rest of the record; the demo device reports its
+  windows the same way.
+- The configuration knobs moved to `termapy_mem.h`: `TERMAPY_MEM_MAX_BLOCK`,
+  `TERMAPY_MEM_ADDRESS_BITS`, and the new `TERMAPY_MEM_ROW_BYTES` (bytes per
+  `MEM.R` row, default 16), each refusing an impossible value with an
+  `#error`. `TERMAPY_MEM_LINE_SIZE` is the line buffer a full `MEM.W` needs,
+  `20 + 3 * TERMAPY_MEM_MAX_BLOCK`.
+
 ## 0.78.0 (2026-10-17)
 
 Configs can now be created, deleted and renamed by command, in every

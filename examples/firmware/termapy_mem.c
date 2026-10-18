@@ -9,16 +9,17 @@
  * Structure:
  *
  * - The WIRE MODULE (TermapyMem_Init / TermapyMem_Cmd and everything
- *   static) parses the verb and arguments, calls the platform's read /
- *   write, and formats rows, OK, ERR and the MEM.INFO JSON line.  It
- *   never dereferences memory and holds no address knowledge.  The
- *   platform is injected ONCE: TermapyMem_Init copies the ops struct
- *   into sOps.  One monitor on one link, so nothing threads it through
- *   every call.
+ *   static) parses the verb and arguments, checks the range against the
+ *   platform's memory map, calls the platform's read / write, and
+ *   formats rows, OK, ERR and the MEM.INFO JSON line.  It never
+ *   dereferences memory, and the only addresses it knows are the ones
+ *   the map names.  The platform is injected ONCE: TermapyMem_Init
+ *   copies the ops struct into sOps.  One monitor on one link, so
+ *   nothing threads it through every call.
  * - The DIRECT HELPERS (TermapyMem_DirectRead / TermapyMem_DirectWrite,
  *   at the bottom) are the flat-MCU implementation of the two byte ops:
- *   direct pointers gated by an editable region table, width-aware so
- *   peripheral windows are accessed at word size where possible.
+ *   direct pointers, width-aware so peripheral windows are accessed at
+ *   word size where possible, and no table of their own.
  *
  * MEM.M is composed from the same two byte ops bracketed by lock /
  * unlock: lock -> read word -> (word & and) | or -> write -> unlock,
@@ -30,7 +31,8 @@
  *
  * Every verb takes exactly its arguments: trailing text is "ERR usage",
  * and a number too wide for its field is "ERR usage" rather than a
- * silently wrapped value.  A reply is whole: rows are printed only
+ * silently wrapped value.  A reply is whole: the range is checked
+ * against the map before any byte op runs, and rows are printed only
  * after the entire block was read, so "ERR range" never follows a
  * partial listing.
  *
@@ -45,21 +47,10 @@
 #include <stddef.h>
 #include <string.h>
 
-/* ── Configuration (override with -D, or edit) ─────────────────────────── */
+/* The configuration knobs (TERMAPY_MEM_MAX_BLOCK, TERMAPY_MEM_ADDRESS_BITS,
+ * TERMAPY_MEM_ROW_BYTES) live in termapy_mem.h, where an integrator sees
+ * and checks them; override with -D. */
 
-#ifndef TERMAPY_MEM_MAX_BLOCK
-#define TERMAPY_MEM_MAX_BLOCK 64u   /* largest read/write per exchange   */
-#endif
-
-#ifndef TERMAPY_MEM_ADDRESS_BITS
-#define TERMAPY_MEM_ADDRESS_BITS 32u
-#endif
-#if (TERMAPY_MEM_ADDRESS_BITS > 32) || (TERMAPY_MEM_ADDRESS_BITS < 4) \
-	|| (TERMAPY_MEM_ADDRESS_BITS % 4 != 0)
-#error "TERMAPY_MEM_ADDRESS_BITS: addresses are uint32_t; use 4..32, a multiple of 4"
-#endif
-
-#define ROW_BYTES   16u                                     /* per MEM.R row */
 #define ADDR_DIGITS ((uint8_t)(TERMAPY_MEM_ADDRESS_BITS / 4u))
 
 /* ── The platform, injected once ───────────────────────────────────────── */
@@ -260,6 +251,36 @@ static void StoreNative(uint8_t *bytesP, uint32_t value, uint32_t width)
 	}
 }
 
+/* ── The memory map: range and permission gating ───────────────────────── */
+
+/** The one region holding all of [addr, addr+count), or NULL: none holds
+ *  it, it straddles two, or it wraps past 0xFFFFFFFF.  Measured from each
+ *  region's start, so a region reaching the top of the address space and
+ *  a size-0 entry are both handled without overflow. */
+static const TermapyMem_Region *FindRegion(uint32_t addr, uint32_t count)
+{
+	if (count == 0u || addr + (count - 1u) < addr) { return NULL; }   /* empty, or wraps */
+	if (sOps.regionsP == NULL) { return NULL; }
+	for (uint8_t i = 0u; i < sOps.regionCount; i++)
+	{
+		const TermapyMem_Region *regionP = &sOps.regionsP[i];
+		uint32_t offset = addr - regionP->start;
+		if (addr >= regionP->start && offset < regionP->size
+			&& count <= regionP->size - offset)
+		{
+			return regionP;
+		}
+	}
+	return NULL;
+}
+
+/** True when the map lets [addr, addr+count) be written. */
+static bool Writable(uint32_t addr, uint32_t count)
+{
+	const TermapyMem_Region *regionP = FindRegion(addr, count);
+	return regionP != NULL && regionP->writable;
+}
+
 /* ── The four verbs (wire only -- memory access goes through sOps) ─────── */
 
 static void CmdRead(const char *argsP)
@@ -272,15 +293,16 @@ static void CmdRead(const char *argsP)
 	if (!ParseDecU32(&argsP, &count)) { PutErr("usage"); return; }
 	if (!AtEnd(argsP)) { PutErr("usage"); return; }
 	if (count < 1u || count > TERMAPY_MEM_MAX_BLOCK) { PutErr("length"); return; }
+	if (FindRegion(addr, count) == NULL) { PutErr("range"); return; }
 
 	/* The whole block first, then the rows: one platform call, and a
 	 * refused range is a whole "ERR range", never rows-then-error. */
 	uint8_t data[TERMAPY_MEM_MAX_BLOCK];
 	if (!sOps.read(addr, data, count)) { PutErr("range"); return; }
-	for (uint32_t offset = 0u; offset < count; offset += ROW_BYTES)
+	for (uint32_t offset = 0u; offset < count; offset += TERMAPY_MEM_ROW_BYTES)
 	{
 		uint32_t rowLen = count - offset;
-		if (rowLen > ROW_BYTES) { rowLen = ROW_BYTES; }
+		if (rowLen > TERMAPY_MEM_ROW_BYTES) { rowLen = TERMAPY_MEM_ROW_BYTES; }
 		PutRow(addr + offset, &data[offset], rowLen);
 	}
 	PutOk();
@@ -308,6 +330,7 @@ static void CmdWrite(const char *argsP)
 	}
 	if (count == 0u) { PutErr("usage"); return; }
 
+	if (!Writable(addr, count)) { PutErr("range"); return; }
 	if (!sOps.write(addr, data, count)) { PutErr("range"); return; }
 	PutOk();
 }
@@ -335,6 +358,8 @@ static void CmdModify(const char *argsP)
 	else if (andDigits <= 4u) { width = 2u; }
 	else { width = 4u; }
 	if ((addr & (width - 1u)) != 0u) { PutErr("usage"); return; }
+	/* Before the lock: a refused range never enters the critical section. */
+	if (!Writable(addr, width)) { PutErr("range"); return; }
 
 	uint8_t oldBytes[4];
 	uint8_t newBytes[4];
@@ -374,7 +399,22 @@ static void CmdInfo(const char *argsP)
 	{
 		PutStr(", \"modify\": true");
 	}
-	PutStr("}\r\n");
+	PutStr(", \"regions\": [");
+	for (uint8_t i = 0u; sOps.regionsP != NULL && i < sOps.regionCount; i++)
+	{
+		const TermapyMem_Region *regionP = &sOps.regionsP[i];
+		if (i != 0u) { PutStr(", "); }
+		PutStr("{\"name\": \"");
+		PutStr((regionP->nameP != NULL) ? regionP->nameP : "");
+		PutStr("\", \"start\": \"0x");
+		PutHex(regionP->start, ADDR_DIGITS);
+		PutStr("\", \"size\": ");
+		PutDec(regionP->size);
+		PutStr(", \"w\": ");
+		PutStr(regionP->writable ? "true" : "false");
+		PutChar('}');
+	}
+	PutStr("]}\r\n");
 	PutOk();
 }
 
@@ -418,37 +458,25 @@ void TermapyMem_Cmd(const char *inputP)
 
 /* ── Direct helpers: the flat-MCU implementation of the two byte ops ───── */
 
-/**
- * The memory map: the ONLY addresses the Direct helpers will touch.
- * >>> EDIT FOR YOUR PART before shipping. <<<
- * The defaults are a generic Cortex-M map (flash at 0, SRAM, peripherals,
- * the system control space).
+/*
+ * Pure width-aware movers.  Range and permission gating is done by the
+ * wire layer against sOps.regionsP BEFORE these run, so they consult no
+ * table of their own: the platform's memory map, handed over in the ops,
+ * is the single source of truth.  A generic Cortex-M map, for example:
+ *
+ *     static const TermapyMem_Region sRegions[] = {
+ *         { "flash",  0x00000000u, 0x00080000u, false },   // 512 KB
+ *         { "sram",   0x20000000u, 0x00010000u, true  },   //  64 KB
+ *         { "periph", 0x40000000u, 0x03000000u, true  },   // peripheral bridges
+ *         { "scs",    0xE0000000u, 0x00100000u, true  },   // SCS / NVIC / SysTick
+ *     };
+ *
+ * Flash is read-only there because writing it takes the NVM controller's
+ * sequence, not a store.
  */
-static const struct { uint32_t start; uint32_t size; } sRegionsA[] = {
-	{ 0x00000000u, 0x00080000u },   /* flash   512 KB                    */
-	{ 0x20000000u, 0x00010000u },   /* SRAM     64 KB                    */
-	{ 0x40000000u, 0x03000000u },   /* peripherals                       */
-	{ 0xE0000000u, 0x00100000u },   /* SCS / NVIC / SysTick              */
-};
-
-/** True when [addr, addr+count) lies inside ONE region of the table.
- *  count is at least 1 from every wire path; 0 is refused, not allowed. */
-static bool RangeOk(uint32_t addr, uint32_t count)
-{
-	uint32_t end = addr + count - 1u;
-	if (count == 0u || end < addr) { return false; }   /* empty, or wrap-around */
-	for (size_t i = 0u; i < sizeof(sRegionsA) / sizeof(sRegionsA[0]); i++)
-	{
-		uint32_t start = sRegionsA[i].start;
-		uint32_t last = start + sRegionsA[i].size - 1u;
-		if (addr >= start && end <= last) { return true; }
-	}
-	return false;
-}
 
 bool TermapyMem_DirectRead(uint32_t addr, uint8_t *dstP, uint32_t count)
 {
-	if (!RangeOk(addr, count)) { return false; }
 	while (count > 0u)
 	{
 		if ((addr & 3u) == 0u && count >= 4u)
@@ -474,7 +502,6 @@ bool TermapyMem_DirectRead(uint32_t addr, uint8_t *dstP, uint32_t count)
 
 bool TermapyMem_DirectWrite(uint32_t addr, const uint8_t *srcP, uint32_t count)
 {
-	if (!RangeOk(addr, count)) { return false; }
 	while (count > 0u)
 	{
 		if ((addr & 3u) == 0u && count >= 4u)

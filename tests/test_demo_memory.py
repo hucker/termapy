@@ -52,9 +52,16 @@ class TestMemInfo:
         lines = text.splitlines()
         assert lines[-1] == "OK", "every MEM reply ends with OK"
         record = json.loads(lines[0])
-        assert record == {"max_block": 64, "address_bits": 32, "endian": "le", "modify": True}, (
-            "the facts a native device publishes instead of a profile block"
-        )
+        assert record == {
+            "max_block": 64,
+            "address_bits": 32,
+            "endian": "le",
+            "modify": True,
+            "regions": [
+                {"name": "ram", "start": "0x00000000", "size": 16384, "w": True},
+                {"name": "sfr", "start": "0xBF806000", "size": 32, "w": True},
+            ],
+        }, "the facts a native device publishes instead of a profile block, its map included"
 
 
 class TestMemRead:

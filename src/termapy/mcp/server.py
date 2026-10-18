@@ -144,11 +144,11 @@ class MCPHost(TerminalHost):
         self._call_active: threading.Event = threading.Event()
 
         # Engines (mirroring CLITerminal construction).
-        self.capture = CaptureEngine(
+        self._capture = CaptureEngine(
             on_echo=lambda line: self.write(f"  {line}"),
             on_complete=lambda result: self.status(format_capture_result(result)[0]),
         )
-        self.engine = SerialEngine(
+        self._engine = SerialEngine(
             cfg=cfg,
             capture=self.capture,
             open_fn=open_serial,

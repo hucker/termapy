@@ -26,9 +26,9 @@ class _StubHost(TerminalHost):
     def __init__(self, cfg: dict, config_path: str, engine, repl, capture):
         self.cfg = cfg
         self.config_path = config_path
-        self.engine = engine
+        self._engine = engine
         self.repl = repl
-        self.capture = capture
+        self._capture = capture
         self._output: list[str] = []
         self._markup: list[str] = []
         self._status_msgs: list[str] = []

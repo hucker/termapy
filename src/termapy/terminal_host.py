@@ -112,11 +112,24 @@ class TerminalHost:
 
     cfg: dict
     config_path: str
-    engine: SerialEngine
     repl: ReplEngine
-    capture: CaptureEngine
     ctx: PluginContext
     prefix: str
+    # Set as ``_engine`` / ``_capture``; read through the properties below,
+    # the same in every frontend (the TUI once redeclared them read-only
+    # over attributes this class declared writable).
+    _engine: SerialEngine
+    _capture: CaptureEngine
+
+    @property
+    def engine(self) -> SerialEngine:
+        """This frontend's ``SerialEngine``."""
+        return self._engine
+
+    @property
+    def capture(self) -> CaptureEngine:
+        """This frontend's ``CaptureEngine``."""
+        return self._capture
 
     # -- Override required (subclass must implement) --------------------------
 

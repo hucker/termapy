@@ -3,6 +3,7 @@ name = "termapy"
 version = "0.77.1"
 description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [{name = "Chuck Bass", email = "chuck@acrocad.net"}]
@@ -11,7 +12,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -176,8 +176,9 @@ wheel-exclude = ["*.md", "**/*.md"]
 # Bounded to the uv frontend's series: unbounded, the build pulled uv_build
 # 0.13 under a uv 0.9 frontend, whose tar reader then failed on the new
 # backend's sdist in both `uv build` and `uv publish` (the v0.77.0 release).
-# Move this bound in the same chore as a uv upgrade.
-requires = ["uv_build>=0.9,<0.10"]
+# Move this bound in the same chore as a uv upgrade (0.9 -> 0.13 on
+# 2026-10-17, proven with a `uv build` of sdist and wheel).
+requires = ["uv_build>=0.13,<0.14"]
 build-backend = "uv_build"
 
 [project.scripts]

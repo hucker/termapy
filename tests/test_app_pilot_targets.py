@@ -1,8 +1,9 @@
 """app.py state transitions the August Pilot pass listed as next.
 
 Escape and Down in ``on_key``, the script overlay's mount and teardown,
-the config picker's result dispatch, and the headless ``--proto`` entry
-(a plain call with an argparse-shaped namespace, no Pilot).  Boots the
+the config picker's result dispatch, the session log across a config
+switch, and the headless ``--proto`` entry (a plain call with an
+argparse-shaped namespace, no Pilot).  Boots the
 real ``SerialTerminal`` on a throwaway DEMO config, the
 ``tests/test_app_pilot.py`` pattern.
 """
@@ -529,3 +530,103 @@ class TestHeadlessProto:
             _run_proto_headless(SimpleNamespace(demo=False, config=str(broken), proto="smoke"))
         assert exit_info.value.code == 2
         assert "failed to load config" in capsys.readouterr().err
+
+
+class TestSessionLogFollowsConfig:
+    """The session log is the active config's history, so a switch moves it.
+
+    Until 2026-10-18 a switch kept writing to the FIRST config's log for
+    the whole session, while ``/log.*`` and the Log button named the new
+    config's, so the log a user opened stayed empty.
+    """
+
+    @staticmethod
+    def _text(path) -> str:
+        log = Path(path)
+        return log.read_text(encoding="utf-8") if log.exists() else ""
+
+    def test_a_switch_moves_the_log_to_the_new_config(self, app_factory, tmp_path):
+        """After A -> B a typed line lands in B's log, not A's, and A says where it went."""
+
+        async def scenario():
+            app, _, _ = app_factory(name="first")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                first_log = app.session_log_path()
+                second_cfg, second_path = _write_cfg(tmp_path, name="second")
+
+                # Act
+                app._switch_config(second_cfg, second_path)
+                await pilot.pause()
+                await _submit(pilot, "/print after-the-switch")
+                second_log = app.session_log_path()
+                await until(pilot, lambda: "after-the-switch" in self._text(second_log))
+
+                # Assert
+                assert second_log != first_log, "each config has its own log"
+                assert "after-the-switch" in self._text(second_log), "the session writes B's log"
+                assert "after-the-switch" not in self._text(first_log), "and no longer A's"
+                assert "Switched to config: second" in self._text(first_log), (
+                    "A's log says where the session went"
+                )
+                assert "Session Start" in self._text(second_log), "B's log opens with its marker"
+
+        asyncio.run(scenario())
+
+    def test_switching_back_reopens_the_first_log(self, app_factory, tmp_path):
+        """A -> B -> A: the line after returning is in A's log again, and B says so."""
+
+        async def scenario():
+            app, _, _ = app_factory(name="first")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                first_log = app.session_log_path()
+                second_cfg, second_path = _write_cfg(tmp_path, name="second")
+                app._switch_config(second_cfg, second_path)
+                await pilot.pause()
+                second_log = app.session_log_path()
+                # A fresh dict, as a real switch loads one from disk: the
+                # app owns the dict it booted with.
+                first_again, first_path = _write_cfg(tmp_path, name="first")
+
+                # Act
+                app._switch_config(first_again, first_path)
+                await pilot.pause()
+                await _submit(pilot, "/print back-in-first")
+                await until(pilot, lambda: "back-in-first" in self._text(first_log))
+
+                # Assert
+                assert app.session_log_path() == first_log, "the log is A's again"
+                assert "back-in-first" in self._text(first_log), (
+                    "the line after returning is in A's"
+                )
+                assert "back-in-first" not in self._text(second_log), "not in B's"
+                assert "Switched to config: first" in self._text(second_log), (
+                    "B's log says where the session went"
+                )
+
+        asyncio.run(scenario())
+
+    def test_configs_sharing_one_log_file_keep_it_open(self, app_factory, tmp_path):
+        """Two configs naming one log_file: the switch keeps the file, with no second marker."""
+
+        async def scenario():
+            shared = tmp_path / "shared.log"
+            app, _, _ = app_factory(name="first", log_file=str(shared))
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                second_cfg, second_path = _write_cfg(tmp_path, name="second", log_file=str(shared))
+
+                # Act
+                app._switch_config(second_cfg, second_path)
+                await pilot.pause()
+                await _submit(pilot, "/print still-shared")
+                await until(pilot, lambda: "still-shared" in self._text(shared))
+
+                # Assert
+                logged = self._text(shared)
+                assert "still-shared" in logged, "the session still writes the shared file"
+                assert logged.count("Session Start") == 1, "one file, one session marker"
+                assert "Switched to config" not in logged, "no switch trace when the log stays"
+
+        asyncio.run(scenario())

@@ -136,7 +136,7 @@ dependencies = [
     # positional and multi-frame detect is NOT yet reachable from
     # /proto.crc.detect (single-frame is unaffected).  Surfacing it is a
     # follow-up, not a floor concern.  Floor moves to 0.31.0.
-    "crcglot>=0.31.0",
+    "crcglot>=0.32.1",
 ]
 
 [project.optional-dependencies]

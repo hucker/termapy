@@ -1086,9 +1086,9 @@ def _write_crc_codegen_files(
 
     extensions = LANGUAGES[lang].extensions if lang in LANGUAGES else (".txt",)
     written: list = []
-    # ``str(content)`` casts -- ``result`` comes from a Callable in
-    # GENERATORS so ty widens its elements to ``object``; runtime
-    # always returns strings.
+    # ``str(content)`` casts -- ``result`` comes from a crcglot generator
+    # Callable, so ty widens its elements to ``object``; runtime always
+    # returns strings.
     if isinstance(result, tuple):
         for content, ext in zip(result, extensions):
             path = cwd / f"{file_stem}{ext}"
@@ -1181,9 +1181,8 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """
     from pathlib import Path
 
-    from crcglot import AlgorithmInfo, Crc
+    from crcglot import LANGUAGES, AlgorithmInfo, Crc
 
-    from termapy.protocol import GENERATORS, GENERATORS_FROM_ENTRY
     from termapy.protocol.crc import _generic_crc
 
     # Variant resolution: crcglot 0.10 introduced one ``variant=``
@@ -1406,9 +1405,12 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             or _symbol_from_stem(custom_name)
         )
 
-        gen_entry = GENERATORS_FROM_ENTRY.get(lang)
-        if gen_entry is None:
+        # Looked up here, not in a module-level dict: a language's generator
+        # loads its crcglot.lang module, and only this one is needed.
+        language = LANGUAGES.get(lang)
+        if language is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
+        gen_entry = language.generator_from_entry
         gen_kwargs: dict[str, object] = {"symbol": symbol, "variant": variant}
         if style is not None:
             gen_kwargs["comment_style"] = style
@@ -1433,9 +1435,10 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                 )
             )
 
-        gen = GENERATORS.get(lang)
-        if gen is None:
+        language = LANGUAGES.get(lang)
+        if language is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
+        gen = language.generator
 
         # Multi-algorithm bundle: call the generator once per algorithm,
         # then merge via the language's combiner.  Mirrors crcglot's

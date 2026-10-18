@@ -5,14 +5,13 @@ Pure functions and dataclasses with no Textual or serial dependencies.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import TypeVar, overload
-
-from frist import Age
 
 # Shared ANSI escape regex - matches all CSI sequences (color, cursor, clear, etc.).
 # Use strip_ansi() to remove them from text.
@@ -311,9 +310,6 @@ def parse_duration_ms(text: str) -> int:
 # is a measurement ("1.5s") that gets compared across runs.
 
 _AGE_LABELS = {"seconds": "s", "minutes": "min", "hours": "hr", "days": "day", "months": "mo"}
-_AGE_TIERS = tuple(
-    (threshold, _AGE_LABELS[unit], getter) for threshold, unit, getter in Age.AGE_UNITS
-)
 _DURATION_LABELS = {
     "microseconds": "us",
     "milliseconds": "ms",
@@ -322,9 +318,33 @@ _DURATION_LABELS = {
     "hours": "hr",
     "days": "days",
 }
-_DURATION_TIERS = tuple(
-    (threshold, _DURATION_LABELS[unit], getter) for threshold, unit, getter in Age.DURATION_UNITS
-)
+
+# frist is imported where it is used: this module loads on every termapy
+# path (env_flags reads booleans through it, so even ``--ports`` does), and
+# frist costs ~25 ms to import for the two formatters below.
+
+
+@functools.cache
+def _age_tiers() -> tuple:
+    """frist's humanize tiers, relabeled; built on first use."""
+    from frist import Age
+
+    return tuple(
+        (threshold, _AGE_LABELS[unit], getter) for threshold, unit, getter in Age.AGE_UNITS
+    )
+
+
+@functools.cache
+def _duration_tiers() -> tuple:
+    """frist's clock tiers, relabeled; built on first use."""
+    from frist import Age
+
+    return tuple(
+        (threshold, _DURATION_LABELS[unit], getter)
+        for threshold, unit, getter in Age.DURATION_UNITS
+    )
+
+
 # Under this many seconds an age reads "just now" -- a presentation choice
 # (a file saved 30 s ago has no useful age), so it lives here, not in frist.
 _AGE_JUST_NOW_S = 45
@@ -361,8 +381,10 @@ def format_age(timestamp: float, *, now: float | None = None) -> str:
         now: Reference POSIX timestamp; defaults to the current time.
             Exists so tests can pin the output.
     """
+    from frist import Age
+
     text = Age(timestamp, now).format(
-        units=_AGE_TIERS,
+        units=_age_tiers(),
         fmt="{value:.0f}|{unit}",
         now=_AGE_JUST_NOW_S,
         now_text="just now",
@@ -403,7 +425,9 @@ def format_duration(seconds: float) -> str:
     Returns:
         A compact human-readable string with a unit suffix.
     """
-    text = Age.from_seconds(seconds).format(units=_DURATION_TIERS, fmt="{value}|{unit}")
+    from frist import Age
+
+    text = Age.from_seconds(seconds).format(units=_duration_tiers(), fmt="{value}|{unit}")
     value_text, unit = text.split("|")
     return f"{_three_sig(float(value_text))}{unit}"
 

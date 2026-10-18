@@ -11,8 +11,8 @@ for any program that needs to:
   - **Compute CRCs** from a curated catalog (CRC-8, CRC-16, CRC-32,
     common parameters: MODBUS, CCITT, KERMIT, XMODEM, ARC, ...).
     See :func:`get_crc_registry` and :data:`CRC_CATALOGUE`.
-  - **Generate CRC code** in C / Python / Rust for embedded targets.
-    See :data:`GENERATORS`, :func:`generate_c`, etc.
+  - **Generate CRC code** for embedded targets: crcglot's generators,
+    one per ``crcglot.LANGUAGES`` entry (``/proto.crc.<lang>``).
   - **Collect frames** from a noisy stream with framing delimiters
     and inter-frame gap detection.  See :class:`FrameCollector`.
   - **Run protocol regression tests** from a ``.pro`` file (TOML
@@ -66,18 +66,6 @@ stabilizes; nothing here imports termapy-engine, MCP, or Textual.
 
 from __future__ import annotations
 
-from crcglot import (
-    LANGUAGES,
-    generate_c,
-    generate_c_from_entry,
-    generate_python,
-    generate_python_from_entry,
-    generate_rust,
-    generate_rust_from_entry,
-    generate_vhdl,
-    generate_vhdl_from_entry,
-)
-
 from termapy.protocol.core import (
     DIFF_STYLES,
     ColumnSpec,
@@ -128,17 +116,6 @@ from termapy.protocol.viz import (
     load_visualizers_from_dir,
 )
 
-# crcglot 0.8.0 dropped the module-level GENERATORS / GENERATORS_FROM_ENTRY
-# dicts in favor of LANGUAGES[code].generator.  termapy's proto.py
-# dispatcher keys generators by language code, so rebuild the dicts here.
-# This also automatically picks up languages crcglot adds (csharp, go,
-# typescript, verilog in 0.8.0) -- though termapy only registers REPL
-# commands for the subset it knows about; extra GENERATORS keys are
-# harmless (never dispatched to).
-GENERATORS = {code: info.generator for code, info in LANGUAGES.items()}
-GENERATORS_FROM_ENTRY = {code: info.generator_from_entry for code, info in LANGUAGES.items()}
-
-
 __all__ = [
     # core: format spec + parse/apply
     "DIFF_STYLES",
@@ -175,17 +152,6 @@ __all__ = [
     "get_crc_registry",
     "load_crc_plugins",
     "reset_crc_registry",
-    # crcgen
-    "GENERATORS",
-    "GENERATORS_FROM_ENTRY",
-    "generate_c",
-    "generate_c_from_entry",
-    "generate_python",
-    "generate_python_from_entry",
-    "generate_rust",
-    "generate_rust_from_entry",
-    "generate_vhdl",
-    "generate_vhdl_from_entry",
     # runner
     "build_results",
     "build_test_result",

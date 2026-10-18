@@ -377,3 +377,38 @@ tree, the generated HTML, and the generated `usb/_vendors_full.py`. **Where:**
 `[tool.ruff.format]`; the pre-commit hook and `release_prep` run
 `ruff format --check --no-cache` over the whole project (the cache records
 what `ruff format` wrote, even when a second pass would still move it).
+
+## 2026-10-17 — Each path loads only what it shows
+
+A library is imported on the path that uses it, never at the top of a
+module every path loads. Investigating a slow-feeling TUI start found
+termapy's own startup unchanged since v0.74 (the felt slowdown was `uv run`
+reinstalling the package while the MCP server held `termapy.exe`), but it
+also found the print-and-exit flags and the CLI one-shot paying for
+libraries they never use, each through a transitive import:
+`importlib.metadata` from `entry.py`'s eager `--version` lookup, `frist`
+from tables `scripting.py` built at import, Rich from `termapy.markup`
+reached through the `plugins` package, `urllib` from the update check, and
+prompt_toolkit from `cli.py` even for `-e`. Measured before and after the
+fix, on Windows:
+
+| Path | Before | After |
+|---|---|---|
+| `--ports` | 274 ms | 135 ms |
+| `--usb` | 455 ms | 128 ms |
+| `--chips` | 151 ms | 66 ms |
+| `--check` | 246 ms | 77 ms |
+| `--cli -e` one-shot | 640 modules | 436 modules |
+| `import termapy.app` (TUI) | 0.64 s | 0.52 s |
+
+**Why:** the flags and one-shots are what scripts, agents and the watcher
+run over and over, and a cost one path needs should not be charged to the
+rest. **Where:** the techniques are in ARCHITECTURE.md "Import cost"; the
+guard is `tests/test_cli.py::TestPathsStayLight` (registry
+`flag-paths-light`). The same day `termapy.protocol` stopped building
+`GENERATORS` / `GENERATORS_FROM_ENTRY` at import, a crcglot 0.8.0
+leftover that touched every language's `.generator` and so loaded all
+eleven `crcglot.lang` modules for the one function that generates code;
+it now reads `crcglot.LANGUAGES[lang]` there. The next cost is in
+crcglot itself: building `crcglot.VERBS`, which termapy reads at plugin
+load, imports every language generator though no verb generates code.

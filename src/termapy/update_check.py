@@ -27,8 +27,6 @@ Intentional simplicity:
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
 from datetime import UTC, datetime, timedelta
 
 from packaging.version import InvalidVersion, Version
@@ -109,10 +107,14 @@ def _due_for_check(state: dict, now: datetime) -> bool:
 def _fetch_pypi_latest() -> str | None:
     """Return the latest termapy version from PyPI, or None on any error.
 
-    Uses stdlib ``urllib`` so we don't pull in ``requests``.  Any
-    exception (network, HTTP non-200, JSON parse, missing fields)
-    returns None.
+    Uses stdlib ``urllib`` so we don't pull in ``requests``, imported
+    here because only this background check needs it (~20 ms at startup
+    otherwise).  Any exception (network, HTTP non-200, JSON parse, missing
+    fields) returns None.
     """
+    import urllib.error
+    import urllib.request
+
     try:
         req = urllib.request.Request(
             _PYPI_JSON_URL,

@@ -572,19 +572,15 @@ class SerialTerminal(TerminalHost, App):
         self._shutting_down = False
 
     @property
-    def cfg(self):
-        """Read-only view of the config dict (single source of truth in ReplEngine)."""
+    def cfg(self):  # ty: ignore[invalid-property-type-override] -- read-only by design, see below
+        """Read-only view of the config dict (single source of truth in ReplEngine).
+
+        ``TerminalHost`` declares ``cfg`` writable because the CLI and MCP
+        hosts hold the engine's dict itself and its ``_switch_to_cfg_path``
+        rebinds it.  The TUI overrides ``_switch_to_cfg_path``, that one
+        writer, so nothing assigns here; its writes go through ``_apply_cfg``.
+        """
         return self.repl.cfg
-
-    @property
-    def engine(self) -> SerialEngine:
-        """SerialEngine instance (TerminalHost protocol)."""
-        return self._engine
-
-    @property
-    def capture(self) -> CaptureEngine:
-        """CaptureEngine instance (TerminalHost protocol)."""
-        return self._capture
 
     @property
     def is_connected(self) -> bool:

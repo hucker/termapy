@@ -12,6 +12,7 @@ from pathlib import Path
 
 from rich.text import Text
 from textual import events
+from textual.binding import BindingType
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
@@ -166,8 +167,10 @@ def _highlighted_file(ol: OptionList) -> str | None:
     return str(option_id) if option_id is not None else None
 
 
-# Dismiss bindings shared by all modal dialogs.
-_DISMISS_BINDINGS = [
+# Dismiss bindings shared by all modal dialogs.  Typed as Textual's own
+# element type: list is invariant, so an inferred list[tuple[str, str, str]]
+# is not a list[BindingType] and every ``BINDINGS =`` site would mismatch.
+_DISMISS_BINDINGS: list[BindingType] = [
     ("ctrl+q", "dismiss_modal", "Close"),
     ("escape", "dismiss_modal", "Close"),
 ]

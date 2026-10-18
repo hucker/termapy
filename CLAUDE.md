@@ -454,7 +454,7 @@ Hard gates (`release_prep` aborts):
 Dependency policy, the whole of it:
 
 - Lock everything; `uv.lock` ships with every release.
-- The lock moves at release time only. `release_prep` runs `uv lock --upgrade`; the suite, tox, ruff and ty gate the result. Between releases leave the lock alone -- no Dependabot, no per-package churn under branches in flight. The one exception is a fix worth shipping now (a reachable CVE): `uv lock --upgrade-package <name>` on a chore branch.
+- The lock moves at release time only. `release_prep` runs `uv lock --upgrade`; the suite, tox, ruff and ty gate the result. Between releases leave the lock alone -- no Dependabot version PRs (there is no `.github/dependabot.yml`; Dependabot's security alerts are a repository setting and stay on), no per-package churn under branches in flight. The one exception is a fix worth shipping now (a reachable CVE): `uv lock --upgrade-package <name>` on a chore branch.
 - The audit is of the lock, not of an environment. An environment audit sees only what it installed: the CI job `audit_lock.py` replaced ran `uv sync` without extras and pointed pip-audit at the repo root, so it audited zero packages and stayed green. CI now runs the same script as the release.
 - Exact pins are deliberate and `--upgrade` respects them: ruff and ty in the dev group, pip-audit in `audit_lock.py` (through `uvx` with `==`, the same guarantee, so the audit tool's own tree never joins the lock it audits), and the tree-sitter caps. Each moves on its own chore branch with the findings reviewed.
 - `scripts/check_dep_updates.py` is the complement: it lists which direct-dependency *bounds* are holding back a newer release, the one thing `--upgrade` cannot move.

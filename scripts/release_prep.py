@@ -389,6 +389,11 @@ def update_architecture_md() -> None:
         )
 
     path.write_text(text, encoding="utf-8")
+    # The numbers are ours, the tree's layout is sync_architecture's: a count
+    # that changes width (cli.py 1013 -> 859) would shift its description
+    # column and fail test_architecture_sync, so the tree is re-rendered by
+    # its one writer, which carries the numbers just written.
+    run([sys.executable, "scripts/sync_architecture.py"])
     ok(f"ARCHITECTURE.md updated ({len(ARCHITECTURE_LINE_COUNTS)} line counts)")
 
 

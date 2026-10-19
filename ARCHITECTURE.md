@@ -137,6 +137,7 @@ src/termapy/
 ├── vendor/                 #              Vendored, unmaintained dependencies: pyserial, xmodem, ymodem (licenses in LICENSES.md)
 ├── widgets/                #              Custom Textual widgets for termapy's TUI
 │   ├── checkbox.py         #   StrongCheckbox -- a Checkbox with a clearer on/off glyph
+│   ├── link_log.py         #   LinkLog -- the output pane, whose links say on hover what a click does
 │   ├── status_bar.py       #   The transient status line beside the REPL input
 │   └── suggester.py        #   CommandSuggester -- input type-ahead from REPL commands + history
 ├── app.py                  # (3925 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines

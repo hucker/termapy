@@ -17,6 +17,13 @@ dispatch::
 
 Registry ``list-one-format``.  Pure: no I/O, no Textual, no pyserial.
 
+A column can also say what clicking its cell does (``run=`` / ``prefill=``,
+a :class:`Link`).  The link is data on the view, never markup in the text:
+:meth:`TableView.segment_lines` hands a frontend that can click (the TUI)
+each line as pieces with their links, and :meth:`TableView.lines` joins the
+same pieces, so the CLI and MCP print exactly the bytes they always did and
+nothing has to be stripped.  Registry ``links-are-data``.
+
 A status page (``/term.info``, ``/mcp.info``) is the same idea for ONE
 record: the handler returns ``CmdResult.record(...)``, the record with
 real JSON types is ``data``, and a ``RecordView`` carries the aligned
@@ -32,9 +39,9 @@ prints its rows into a JSON answer.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 from termapy.markup import escape_markup
 from termapy.plugins.output_levels import format_kv_lines
@@ -44,6 +51,52 @@ Record = dict[str, Any]
 KvRow = tuple[str, str] | tuple[str, str, str]
 # One plain line around the rows: (text, color); "" is the plain color.
 Line = tuple[str, str]
+
+
+@dataclass(frozen=True)
+class Link:
+    """What clicking a piece of output does, in a frontend that can click.
+
+    Attributes:
+        command: The REPL command without its prefix (``cfg.load demo``);
+            the frontend adds the configured prefix when it submits it.
+        run: True runs it as if typed, echoed and into history.  False
+            puts it in the input line to finish and press Enter -- for a
+            command that needs more, or one that changes something.
+    """
+
+    command: str
+    run: bool = True
+
+
+class Piece(NamedTuple):
+    """One piece of an output line: its text, what clicking it does, its style.
+
+    A line of pieces with no style renders like an ``output`` line in the
+    line's color (a table row); a line with any styled piece renders like
+    an ``output_markup`` line, each piece in its own style (a help row) --
+    in every frontend, so the two kinds read as they always did.
+
+    Attributes:
+        text: The text, literal (never markup).
+        link: What clicking it does, in a frontend that can click.
+        style: A Rich style for this piece (``cyan``, ``bold``); ``""``
+            takes the line's.
+    """
+
+    text: str
+    link: Link | None = None
+    style: str = ""
+
+
+def pieces_markup(pieces: Iterable[Piece]) -> str:
+    """The markup a styled line renders as where nothing can click: text escaped, style kept."""
+    return "".join(
+        f"[{piece.style}]{escape_markup(piece.text)}[/]"
+        if piece.style
+        else escape_markup(piece.text)
+        for piece in pieces
+    )
 
 
 @dataclass(frozen=True)
@@ -57,11 +110,30 @@ class Column:
         right: Right-align the cells (numbers, sizes).  The header stays
             left-aligned at the column's left edge on every column: one
             rule reads as a header row.
+        run: The command clicking a cell runs, for its record
+            (``cfg.load <name>``), without the prefix.  None: not clickable.
+        prefill: The command clicking a cell puts in the input line
+            instead of running it.  At most one of ``run`` and ``prefill``.
     """
 
     title: str
     cell: Callable[[Record], str]
     right: bool = False
+    run: Callable[[Record], str] | None = None
+    prefill: Callable[[Record], str] | None = None
+
+    def __post_init__(self) -> None:
+        """Refuse a column that would both run and prefill: a click does one thing."""
+        if self.run is not None and self.prefill is not None:
+            raise ValueError(f"Column {self.title}: run= and prefill= are exclusive")
+
+    def link(self, record: Record) -> Link | None:
+        """What clicking this column's cell does for ``record``, or None."""
+        if self.run is not None:
+            return Link(self.run(record))
+        if self.prefill is not None:
+            return Link(self.prefill(record), run=False)
+        return None
 
 
 def counted(count: int, noun: str) -> str:
@@ -79,12 +151,16 @@ class TableView:
         columns: The columns, left to right.
         records: One record per row, in display order -- the same
             records the result carries as ``data``.
+        total: How many there are when ``records`` are the first rows of
+            a longer list (``/help ss`` shows ten), so the title still
+            counts them all; None counts ``records``.
     """
 
     title: str
     noun: str
     columns: tuple[Column, ...]
     records: tuple[Record, ...]
+    total: int | None = None
 
     def lines(self) -> list[tuple[str, str]]:
         """The table as ``(text, color)`` lines; ``""`` is the plain color.
@@ -93,40 +169,60 @@ class TableView:
         output); columns are two spaces apart and as wide as their widest
         cell or title; trailing padding is stripped.  The header and the
         dash row are dim.  An empty table is its title alone,
-        ``<title> - empty``.
+        ``<title> - empty``.  The text of :meth:`segment_lines`, joined.
+        """
+        return [
+            ("".join(piece.text for piece in pieces), color)
+            for pieces, color in self.segment_lines()
+        ]
+
+    def segment_lines(self) -> list[tuple[list[Piece], str]]:
+        """The table as lines of pieces, each with what clicking it does.
+
+        The one layout: :meth:`lines` joins these, so the plain table and
+        the clickable one cannot disagree.  A cell's link covers its text,
+        never the padding beside it; an empty cell has none.
         """
         if not self.records:
-            return [(f"{self.title} - empty", "")]
+            return [([Piece(f"{self.title} - empty")], "")]
         cells = [[column.cell(record) for column in self.columns] for record in self.records]
         widths = [
             max(len(column.title), *(len(row[index]) for row in cells))
             for index, column in enumerate(self.columns)
         ]
-
-        def line(parts: list[str]) -> str:
-            return "  ".join(parts).rstrip()
-
-        lines = [(f"{self.title} - {counted(len(self.records), self.noun)}", "")]
-        lines.append(
-            (
-                line([f"{column.title:<{width}}" for column, width in zip(self.columns, widths)]),
-                "dim",
-            )
-        )
-        lines.append((line(["-" * width for width in widths]), "dim"))
-        for row in cells:
-            lines.append(
-                (
-                    line(
-                        [
-                            f"{cell:>{width}}" if column.right else f"{cell:<{width}}"
-                            for column, cell, width in zip(self.columns, row, widths)
-                        ]
-                    ),
-                    "",
-                )
-            )
+        header = "  ".join(
+            f"{column.title:<{width}}" for column, width in zip(self.columns, widths)
+        ).rstrip()
+        count = len(self.records) if self.total is None else self.total
+        lines: list[tuple[list[Piece], str]] = [
+            ([Piece(f"{self.title} - {counted(count, self.noun)}")], ""),
+            ([Piece(header)], "dim"),
+            ([Piece("  ".join("-" * width for width in widths).rstrip())], "dim"),
+        ]
+        for record, row in zip(self.records, cells):
+            pieces: list[Piece] = []
+            for index, (column, cell, width) in enumerate(zip(self.columns, row, widths)):
+                if index:
+                    pieces.append(Piece("  "))
+                pad = Piece(" " * (width - len(cell)))
+                piece = Piece(cell, column.link(record) if cell else None)
+                pieces.extend((pad, piece) if column.right else (piece, pad))
+            lines.append((_rstripped(pieces), ""))
         return lines
+
+
+def _rstripped(pieces: list[Piece]) -> list[Piece]:
+    """``pieces`` without trailing whitespace or empty pieces: the joined
+    text is exactly ``"".join(...).rstrip()``, as a plain line always was."""
+    length = len("".join(piece.text for piece in pieces).rstrip())
+    kept: list[Piece] = []
+    used = 0
+    for piece in pieces:
+        text = piece.text[: length - used]
+        if text:
+            kept.append(piece._replace(text=text))
+            used += len(text)
+    return kept
 
 
 @dataclass(frozen=True)

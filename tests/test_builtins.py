@@ -2,7 +2,6 @@
 
 import json
 import os
-import re as _re
 import time
 from pathlib import Path
 
@@ -366,7 +365,7 @@ class TestRunDocstring:
         assert listed[0].startswith("z_newer.run"), (
             "newest file lists first even though it sorts last by name"
         )
-        assert "10 B" in listed[1] and "1 hr ago" in listed[1], (
+        assert "10  B" in listed[1] and "1 hr ago" in listed[1], (
             "each line carries the file's size and age"
         )
         assert result.value.splitlines()[0] == "z_newer.run", (
@@ -934,8 +933,10 @@ class TestStop:
 
 
 def _plain(text: str) -> str:
-    """Strip underline markup so substring checks are markup-insensitive."""
-    return _re.sub(r"\[/?u\]", "", text)
+    """The text a line shows, every markup tag gone, so substring checks are markup-insensitive."""
+    from termapy.markup import markup_to_plain
+
+    return markup_to_plain(text)
 
 
 class TestHelp:

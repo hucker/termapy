@@ -11,6 +11,7 @@ reading files elsewhere, and it is capability-gated.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from termapy.folder_ops import _make_dump_handler
 from termapy.plugins import IOHandle, PluginContext
@@ -125,3 +126,58 @@ class TestDumpName:
         # Assert
         assert result.success, result.error
         assert result.value == "/print hi\n", "the stem named run/welcome.run"
+
+
+class TestShowName:
+    """.show shares .dump's lookup: a named file opens, a name outside the folder never does."""
+
+    @staticmethod
+    def _show_ctx(cfg_file):
+        """A ctx with a desktop whose viewer records what it is asked to open."""
+        from termapy.plugins import CapabilitySet, FilesystemHandle
+
+        opened: list[str] = []
+        ctx = PluginContext(
+            io=IOHandle(),
+            fs=FilesystemHandle(_open_file_impl=lambda target: opened.append(str(target))),
+            config_path=str(cfg_file),
+            capabilities=CapabilitySet(gui_apps=True),
+        )
+        return ctx, opened
+
+    def test_show_opens_the_named_file(self, tmp_path):
+        """/cap.show adc opens cap/adc.csv, not the newest file; a bare stem is enough."""
+        # Arrange
+        from termapy.folder_ops import build_folder_subcommands
+
+        cfg_file, cap_dir, _secret = _setup(tmp_path)
+        (cap_dir / "newer.csv").write_text("4\n", encoding="utf-8")
+        ctx, opened = self._show_ctx(cfg_file)
+        show = build_folder_subcommands("cap")["show"].handler
+        assert show is not None, "cap/ is showable"
+
+        # Act
+        result = show(ctx, "adc.csv")
+
+        # Assert
+        assert result.success, result.error
+        assert [Path(target).name for target in opened] == ["adc.csv"], (
+            "the file named, not the newest"
+        )
+
+    def test_show_refuses_a_name_outside_the_folder(self, tmp_path):
+        """A traversal name fails and opens nothing: .show is as contained as .dump."""
+        # Arrange
+        from termapy.folder_ops import build_folder_subcommands
+
+        cfg_file, _cap, _secret = _setup(tmp_path)
+        ctx, opened = self._show_ctx(cfg_file)
+        show = build_folder_subcommands("cap")["show"].handler
+        assert show is not None, "cap/ is showable"
+
+        # Act
+        result = show(ctx, "../secret.txt")
+
+        # Assert
+        assert not result.success, "the name escapes cap/"
+        assert opened == [], "nothing was opened"

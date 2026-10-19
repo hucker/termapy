@@ -350,15 +350,21 @@ def _duration_tiers() -> tuple:
 _AGE_JUST_NOW_S = 45
 
 
-def format_size(byte_count: int) -> str:
+def format_size(byte_count: int, *, column: bool = False) -> str:
     """Render a byte count for humans: ``'512 B'``, ``'1.2 KB'``, ``'45.8 MB'``.
 
     Binary (1024) steps, one decimal above bytes.  The single display
     formatter for file sizes and capture progress; raw data fields
     (``CmdResult.data`` ``bytes`` records) stay numeric.
+
+    Args:
+        byte_count: The size in bytes.
+        column: Pad the unit to two characters (``'512  B'``), so a
+            right-aligned column of sizes lines up on its units.  Prose
+            (capture progress) keeps the single space.
     """
     if byte_count < 1024:
-        return f"{byte_count} B"
+        return f"{byte_count}  B" if column else f"{byte_count} B"
     value = float(byte_count)
     for unit in ("KB", "MB", "GB", "TB"):
         value /= 1024

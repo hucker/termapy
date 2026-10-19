@@ -1260,6 +1260,45 @@ class TestRequirementHints:
             )
 
 
+class TestHelpList:
+    """``help_list`` is validated at load: a real child, and one /help can run bare."""
+
+    @staticmethod
+    def _node(help_list: str, list_args: str = ""):
+        """A ``/tool`` node whose one child, ``list``, takes ``list_args``."""
+        from termapy.plugins import Command
+
+        return Command(
+            name="tool",
+            help="h",
+            help_list=help_list,
+            sub_commands={
+                "list": Command(help="l", args=list_args, handler=lambda ctx, args: None)
+            },
+        )
+
+    def test_a_typo_fails_loud_at_load(self):
+        """A help_list naming no real child raises at load, as a bare_sub does."""
+        from termapy.plugins.loader import _flatten_command
+
+        with pytest.raises(ValueError, match="help_list 'bogus' names no subcommand"):
+            _flatten_command(self._node("bogus"), "", "built-in")
+
+    def test_a_list_that_takes_arguments_fails_at_load(self):
+        """/help runs its help_list bare, so a list declaring arguments is refused at load."""
+        from termapy.plugins.loader import _flatten_command
+
+        with pytest.raises(ValueError, match="help_list 'list' takes arguments"):
+            _flatten_command(self._node("list", list_args="<name>"), "", "built-in")
+
+    def test_a_valid_help_list_reaches_plugin_info(self):
+        """A help_list naming a bare child loads and is carried on the PluginInfo for /help."""
+        from termapy.plugins.loader import _flatten_command
+
+        infos = _flatten_command(self._node("list"), "", "built-in")
+        assert infos[0].help_list == "list", "the root's PluginInfo names its list"
+
+
 class TestBareSub:
     """``bare_sub`` is validated at load, not at use, on any node."""
 

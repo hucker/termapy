@@ -399,6 +399,7 @@ MEM.R 0x1000 2 --json
 /log.dump
 /log.delete
 /log.fingerprint
+/log.list
 /grep OK
 /find OK
 /find.next

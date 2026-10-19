@@ -759,6 +759,9 @@ termapy's own `/mem` runs `/mem.info` this way (bare shows state).  A
 `cfg`, `port`, `proto`) opens that built-in picker on a bare call in the
 TUI; other hosts run your `bare_sub` if you declare one, else your
 handler.  `/help` prints the declarations as the command's bare form.
+Declare `help_list="list"` to end `/help tool` with that subcommand's
+table, as `/help cfg` ends with the configs; it must take no arguments,
+since `/help` runs it bare, and the loader refuses one that does.
 
 ## Example plugins
 

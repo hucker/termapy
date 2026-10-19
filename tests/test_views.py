@@ -13,7 +13,8 @@ import json
 from termapy.config import config_summary
 from termapy.folder_ops import FILE_COLUMNS
 from termapy.plugins import CmdResult, Column, PluginInfo, RecordView, TableView
-from termapy.plugins.views import counted
+from termapy.plugins.handles.io import IOHandle
+from termapy.plugins.views import Link, Piece, counted, pieces_markup
 from termapy.repl import ReplEngine
 
 _COLUMNS = (
@@ -369,6 +370,11 @@ _MAPPINGS: dict[str, str] = {
     "var.list": "one dict per variable namespace (user, launch, ...)",
 }
 
+# Lists this CLI host cannot run, each with where its records are checked.
+_NOT_IN_THE_CLI: dict[str, str] = {
+    "log.list": "the CLI keeps no session log; test_help_links checks it over MCP",
+}
+
 
 def _lists_without_records(eng: ReplEngine) -> list[str]:
     """Every .list / .lib command whose answer to a data caller has the wrong shape.
@@ -377,7 +383,8 @@ def _lists_without_records(eng: ReplEngine) -> list[str]:
     """
     eng.ctx.wants_data = True
     offenders = []
-    for name in sorted(name for name in eng._plugins if name.endswith((".list", ".lib"))):
+    names = (name for name in eng._plugins if name.endswith((".list", ".lib")))
+    for name in sorted(name for name in names if name not in _NOT_IN_THE_CLI):
         result = eng.dispatch(name)
         if name in _MAPPINGS:
             right_shape = isinstance(result.data, dict)
@@ -424,3 +431,191 @@ def test_list_guard_fires_on_a_probe(tmp_path):
     assert offenders == ["probe.list: success=True data=NoneType"], (
         "the printing list is the one flagged"
     )
+
+
+# ── links-are-data: a click target is data on a column, never text ──────────
+
+_LINKED = (
+    Column("NAME", lambda record: record["name"], run=lambda record: f"use {record['name']}"),
+    Column("BAUD", lambda record: str(record["baud"]), right=True, run=lambda r: "baud"),
+    Column("NOTE", lambda record: record["note"], prefill=lambda record: f"note {record['name']}"),
+)
+
+
+def _linked() -> TableView:
+    return TableView("Boards", "board", _LINKED, _RECORDS)
+
+
+def test_segments_join_to_exactly_the_plain_lines():
+    """links-are-data: the joined pieces are the plain table byte for byte, so other frontends see no change."""
+    # Arrange
+    view = _linked()
+
+    # Act
+    joined = [
+        ("".join(piece.text for piece in pieces), color) for pieces, color in view.segment_lines()
+    ]
+
+    # Assert
+    assert joined == view.lines(), "one layout: the clickable table is the plain table"
+    plain = TableView("Boards", "board", _COLUMNS, _RECORDS).lines()
+    assert view.lines() == plain, "declaring links changes nothing a plain frontend prints"
+
+
+def test_a_link_covers_the_cell_text_never_its_padding():
+    """A linked piece is exactly the cell's text; the padding beside it is plain."""
+    # Act
+    rows = [pieces for pieces, _ in _linked().segment_lines()[3:]]
+
+    # Assert
+    linked = [(piece.text, piece.link) for pieces in rows for piece in pieces if piece.link]
+    expected = [
+        ("bench", Link("use bench")),
+        ("115200", Link("baud")),
+        ("the long board", Link("note bench", run=False)),
+        ("lab", Link("use lab")),
+        ("9600", Link("baud")),
+    ]
+    assert linked == expected, "left and right aligned cells alike, prefill kept apart from run"
+
+
+def test_an_empty_cell_is_not_clickable():
+    """A blank cell has nothing to click, so it carries no link and its padding is trimmed."""
+    # Act
+    pieces, _ = _linked().segment_lines()[4]
+
+    # Assert
+    padding = [piece for piece in pieces if not piece.text.strip()]
+    assert all(piece.link is None for piece in padding), "padding is never a link"
+    commands = [piece.link.command for piece in pieces if piece.link]
+    assert "note lab" not in commands, "the empty NOTE has none"
+
+
+def test_run_and_prefill_are_exclusive():
+    """A column that would both run and prefill is refused when it is built."""
+    # Act / Assert
+    try:
+        Column("X", str, run=str, prefill=str)
+    except ValueError as error:
+        assert "exclusive" in str(error), "the reason is named"
+    else:
+        raise AssertionError("a column with both run= and prefill= was accepted")
+
+
+def test_output_segments_joins_where_nothing_can_click():
+    """Without a link renderer the pieces are one plain output line; with one, the pieces go to it."""
+    # Arrange
+    written: list[tuple[str, str]] = []
+    rendered: list[tuple[list, str]] = []
+    pieces = [Piece("bench", Link("use bench")), Piece("  115200")]
+    plain = IOHandle(_write=lambda text, color="dim": written.append((text, color)))
+    linked = IOHandle(
+        _write=lambda text, color="dim": written.append((text, color)),
+        _write_segments=lambda segments, color: rendered.append((segments, color)),
+    )
+
+    # Act
+    plain.output_segments(pieces, "")
+    linked.output_segments(pieces, "")
+
+    # Assert
+    assert written == [("bench  115200", "")], "the CLI and MCP get the joined text, nothing else"
+    assert rendered == [(pieces, "")], "a frontend that can click gets the pieces with their links"
+
+
+def test_output_segments_follows_the_output_level():
+    """At quiet, a segment line is suppressed like any output line."""
+    # Arrange
+    written: list[str] = []
+    io = IOHandle(
+        _write=lambda text, color="dim": written.append(text), output_level_fn=lambda: "quiet"
+    )
+
+    # Act
+    io.output_segments([Piece("bench")])
+
+    # Assert
+    assert written == [], "data output is a normal-level channel"
+
+
+def test_the_three_lists_reach_a_clicking_frontend_with_their_links(tmp_path, monkeypatch):
+    """/cfg.list loads, /run.list and /proto.list run: each name arrives as a link through dispatch."""
+    # Arrange -- a host whose frontend can click, with one config, script and test
+    monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+    eng = _cli_engine(tmp_path)
+    folder = tmp_path / "c"
+    (folder / "run").mkdir()
+    (folder / "run" / "hello.run").write_text("/print hi\n", encoding="utf-8")
+    (folder / "proto").mkdir()
+    (folder / "proto" / "smoke.pro").write_text('[[test]]\nname = "x"\n', encoding="utf-8")
+    links: list[str] = []
+    eng.ctx.io._write_segments = lambda pieces, color: links.extend(
+        piece.link.command for piece in pieces if piece.link is not None
+    )
+
+    # Act
+    for command in ("cfg.list", "run.list", "proto.list"):
+        eng.dispatch(command)
+
+    # Assert
+    expected = ["cfg.load c", "run hello.run", "proto.run smoke.pro"]
+    assert links == expected, "each list's names are the commands a click runs"
+
+
+def test_a_folder_list_opens_each_file_through_its_own_show(tmp_path):
+    """/ss.list and /run.profile.list link each name to its family's .show; prof/ lives under /run.profile."""
+    # Arrange
+    eng = _cli_engine(tmp_path)
+    folder = tmp_path / "c"
+    (folder / "ss").mkdir()
+    (folder / "ss" / "shot.svg").write_text("<svg/>", encoding="utf-8")
+    (folder / "prof").mkdir()
+    (folder / "prof" / "p.csv").write_text("a\n", encoding="utf-8")
+    links: list[str] = []
+    eng.ctx.io._write_segments = lambda pieces, color: links.extend(
+        piece.link.command for piece in pieces if piece.link is not None
+    )
+
+    # Act
+    for command in ("ss.list", "run.profile.list"):
+        eng.dispatch(command)
+
+    # Assert
+    expected = ["ss.show shot.svg", "run.profile.show p.csv"]
+    assert links == expected, (
+        "a click opens that file in the viewer, through the command it lives under"
+    )
+
+
+def test_a_markup_line_is_markup_where_nothing_can_click():
+    """A help row reaches a non-clicking frontend as escaped markup, links dropped."""
+    # Arrange
+    markup: list[str] = []
+    io = IOHandle(_write_markup=markup.append)
+    pieces = [
+        Piece("  "),
+        Piece("/cfg[x]", Link("help cfg"), "cyan"),
+        Piece("  Show [red]config[/]"),
+    ]
+
+    # Act
+    io.output_markup_segments(pieces)
+
+    # Assert
+    expected = "  [cyan]/cfg\\[x][/]  Show \\[red]config\\[/]"
+    assert markup == [expected], "brackets in text stay text; the style is kept, the link is not"
+    assert pieces_markup(pieces) == expected, "one builder for the markup form"
+
+
+def test_a_clicking_frontend_is_told_which_kind_of_line_it_gets():
+    """A table row reaches the link renderer with its color, a help row with None: each draws as it always did."""
+    # Arrange
+    rendered: list[str | None] = []
+    io = IOHandle(_write_segments=lambda segments, color: rendered.append(color))
+
+    # Act
+    io.output_segments([Piece("bench")], "dim")
+    io.output_markup_segments([Piece("/cfg", None, "cyan")])
+
+    # Assert
+    assert rendered == ["dim", None], "an output line in its color, then a markup line"

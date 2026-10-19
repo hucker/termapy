@@ -14,11 +14,14 @@ import sys
 import threading
 import time
 import traceback
+from collections import OrderedDict
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from threading import Event
 
 import serial
+from rich.style import Style
 from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
@@ -87,6 +90,7 @@ from termapy.plugins import (
     CmdResult,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.plugins.views import Link, Piece
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
@@ -482,6 +486,10 @@ class SerialTerminal(TerminalHost, App):
         self._history_mtime_seen: float = 0.0
         self.history: list[str] = self._load_history()
         self._history_nav = HistoryNavigator()
+        # Clickable output (_write_link_segments): link id -> Link, the
+        # newest _LINK_LIMIT kept, so a long session's table stays bounded.
+        self._links: OrderedDict[int, Link] = OrderedDict()
+        self._next_link_id = 0
         self._suggester = CommandSuggester(complete_file=self.repl.complete_file_arg)
         self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
@@ -1181,6 +1189,7 @@ class SerialTerminal(TerminalHost, App):
         # TUI-specific PluginContext overrides
         ctx.io._write = self._status
         ctx.io._write_markup = lambda markup: self._write_output_markup(markup, log=True)
+        ctx.io._write_segments = self._write_link_segments
         ctx.io.log = self._log_line
         ctx.serial.wait_for_data = self._wait_for_data
         ctx.io.status_bar = self._set_status_bar
@@ -3002,6 +3011,15 @@ class SerialTerminal(TerminalHost, App):
                 self._dispatch_on_thread("")
             return
 
+        self.query_one("#cmd", Input).value = ""
+        self._submit_line(cmd)
+
+    def _submit_line(self, cmd: str) -> None:
+        """Run a command line the way Enter does: history, busy prompt, worker dispatch.
+
+        Enter and a clicked link both come here, so a click is recorded,
+        echoed and run exactly like the same command typed by hand.
+        """
         # Add to history (remove earlier duplicate, keep most recent)
         if cmd in self.history:
             self.history.remove(cmd)
@@ -3011,11 +3029,71 @@ class SerialTerminal(TerminalHost, App):
         self._update_suggester()
 
         inp = self.query_one("#cmd", Input)
-        inp.value = ""
         self._saved_placeholder = inp.placeholder
         inp.placeholder = "Running... escape to cancel"
         self._set_input_busy(True)
         self._dispatch_on_thread_interactive(cmd)
+
+    # -- Clickable output ------------------------------------------------------
+
+    _LINK_LIMIT = 5000
+
+    def _register_link(self, link: Link) -> int:
+        """Keep ``link`` under a new id for a click to find; the oldest past the limit go."""
+        link_id = self._next_link_id
+        self._next_link_id += 1
+        self._links[link_id] = link
+        while len(self._links) > self._LINK_LIMIT:
+            self._links.popitem(last=False)
+        return link_id
+
+    def _write_link_segments(self, segments: Sequence[Piece], color: str | None = "dim") -> None:
+        """Write one line whose linked pieces can be clicked (``IOHandle.output_segments``).
+
+        With a ``color`` the line reads as a ``_status`` line in it (a
+        table row); with None, as a markup line, each piece in its own
+        style (a help row, ``output_markup_segments``).  A linked piece is underlined and its
+        click action names the link's id, never its command, so no text
+        from a record (a file name, say) ever reaches an action string.
+        Logged as the plain text.  Device output never comes here: only
+        views and help build pieces (registry ``links-are-data``).
+        """
+        if self._main_thread_id != threading.get_ident():
+            try:
+                self.call_from_thread(self._write_link_segments, segments, color)
+            except RuntimeError:
+                pass
+            return
+        line = Text() if color is None else Text(style=f"bold italic {color}")
+        for piece in segments:
+            style = Style.parse(piece.style) if piece.style else Style()
+            if piece.link is not None:
+                action = f"app.click_link({self._register_link(piece.link)})"
+                style += Style(underline=True, meta={"@click": action})
+            line.append(piece.text, style=style)
+        try:
+            self.query_one("#output", RichLog).write(line)
+        except SHUTDOWN_RACE:
+            pass  # widgets gone during shutdown
+        self._log_lines("#", [line.plain])
+
+    def action_click_link(self, link_id: int) -> None:
+        """Do what a clicked link says: run its command as typed, or put it in the input line."""
+        link = self._links.get(link_id)
+        if link is None:
+            self._status("That link has expired - run its list again.", "yellow")
+            return
+        command = f"{cmd_prefix(self.cfg)}{link.command}"
+        inp = self.query_one("#cmd", Input)
+        if not link.run:
+            inp.value = command
+            inp.cursor_position = len(command)
+            inp.focus()
+            return
+        if self.query_one("#bottom-bar").disabled:
+            self._status(self._BUSY_MSG, "yellow")
+            return
+        self._submit_line(command)
 
     def _restore_input_placeholder(self) -> None:
         """Restore the command input placeholder after execution."""

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -91,7 +91,7 @@ def file_record(path: Path, *, now: float | None = None) -> dict[str, Any]:
 
 def _size_cell(record: dict[str, Any]) -> str:
     """``2.3 KB``, or ``?`` for a file that vanished between glob and stat."""
-    return "?" if record["age_s"] is None else format_size(record["bytes"])
+    return "?" if record["age_s"] is None else format_size(record["bytes"], column=True)
 
 
 def _age_cell(record: dict[str, Any]) -> str:
@@ -143,7 +143,7 @@ def file_columns(files: list[Path]) -> list[FileColumns]:
         except OSError:
             rows.append((file.name, "?", "?"))
             continue
-        rows.append((file.name, format_size(st.st_size), format_age(st.st_mtime)))
+        rows.append((file.name, format_size(st.st_size, column=True), format_age(st.st_mtime)))
     name_width = max(len(name) for name, _, _ in rows)
     size_width = max(len(size) for _, size, _ in rows)
     age_width = max(len(age) for _, _, age in rows)
@@ -196,6 +196,7 @@ def file_table(
     noun: str,
     files: list[Path],
     extra: tuple[tuple[Column, Callable[[Path], Any], str], ...] = (),
+    run: Callable[[dict[str, Any]], str] | None = None,
 ) -> CmdResult:
     """A file list answer (``CmdResult.table``): NAME, SIZE, UPDATED, then ``extra``.
 
@@ -210,6 +211,8 @@ def file_table(
         extra: ``(column, value_of, key)`` for each column after UPDATED:
             ``value_of(path)`` is stored under ``key`` in that file's
             record, and the column shows it (``/run.list``'s SUMMARY).
+        run: The command a click on a file's NAME runs, from its record
+            (``run <name>``); None leaves the names plain text.
     """
     records = []
     for file in files:
@@ -217,17 +220,23 @@ def file_table(
         for _, value_of, key in extra:
             record[key] = value_of(file)
         records.append(record)
-    columns = (*FILE_COLUMNS, *(column for column, _, _ in extra))
+    name = FILE_COLUMNS[0] if run is None else replace(FILE_COLUMNS[0], run=run)
+    columns = (name, *FILE_COLUMNS[1:], *(column for column, _, _ in extra))
     names = "\n".join(file.name for file in files)
     return CmdResult.table(title, noun, columns, records, value=names)
 
 
-def _make_list_handler(folder: str, pattern: str, noun: str = "file"):
-    """Handler: list files in the folder, newest first, with size and age."""
+def _make_list_handler(folder: str, pattern: str, noun: str = "file", show: str = ""):
+    """Handler: list files in the folder, newest first, with size and age.
+
+    With ``show`` (``ss.show``), a click on a name opens that file in the
+    system viewer (registry ``links-are-data``).
+    """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
-        return file_table(f"{folder}/", noun, list_entries(data_dir, pattern))
+        run = (lambda record: f"{show} {record['name']}") if show else None
+        return file_table(f"{folder}/", noun, list_entries(data_dir, pattern), run=run)
 
     return handler
 
@@ -247,74 +256,73 @@ def _make_explore_handler(folder: str):
     return handler
 
 
-def _make_show_handler(folder: str, pattern: str):
-    """Handler: open the newest file in the folder with the system viewer."""
+def _named_or_newest(
+    ctx: PluginContext, folder: str, pattern: str, ext: str, name: str
+) -> Path | CmdResult:
+    """The file ``name`` names in the folder, or its newest file when ``name`` is empty.
 
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        data_dir = _folder_path(ctx, folder)
-        if not data_dir.exists():
-            ctx.io.output(f"  {folder}/ is empty.")
-            return CmdResult.ok(value="")
+    The one lookup of ``.show`` and ``.dump``.  A named file may leave off
+    the folder's ``ext`` (registry ``file-name-default-ext``).  Anything
+    but a file is the handler's answer: a failure for a name that escapes
+    the folder or names nothing, an empty success when there is no file.
+    """
+    data_dir = _folder_path(ctx, folder)
+    if name:
+        # Containment: these commands read files from within the folder
+        # only.  ``data_dir / name`` with an absolute name (or ``../``)
+        # would otherwise escape to any path on disk -- an arbitrary-file
+        # read for an MCP client (/cap.dump C:\\Users\\me\\.secrets).
+        # Resolve and verify the target stays inside the folder, the same
+        # guard the MCP capture resource uses.  /show is the command for
+        # reading files outside the config dir, and it is capability-gated.
+        path = (data_dir / name).resolve()
+        try:
+            inside = path.is_relative_to(data_dir.resolve())
+        except OSError:
+            inside = False
+        if not inside:
+            return CmdResult.fail(msg=f"Path escapes {folder}/: {name}")
+        # After the containment check: the added suffix keeps the path in
+        # the same folder.
+        path = default_file_name(path, ext)
+        if not path.is_file():
+            return CmdResult.fail(msg=f"File not found: {name}")
+        return path
+    files: list[Path] = []
+    if data_dir.exists():
         if pattern == "*":
             files = [file for file in data_dir.glob(pattern) if file.is_file()]
         else:
             files = list(data_dir.glob(pattern))
-        if not files:
-            ctx.io.output(f"  {folder}/ is empty.")
-            return CmdResult.ok(value="")
-        newest = max(files, key=lambda f: f.stat().st_mtime)
-        ctx.io._write(f"Opening {newest.name}")
+    if not files:
+        ctx.io.output(f"  {folder}/ is empty.")
+        return CmdResult.ok(value="")
+    return max(files, key=lambda f: f.stat().st_mtime)
+
+
+def _make_show_handler(folder: str, pattern: str, ext: str = "*"):
+    """Handler: open the newest (or named) file in the folder with the system viewer."""
+
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
+        path = _named_or_newest(ctx, folder, pattern, ext, args.strip())
+        if isinstance(path, CmdResult):
+            return path
+        ctx.io.output(f"Opening {path.name}")
         # Through the fs handle, as .explore does: it carries the gui_apps
         # gate, and a test hands it a recorder instead of a viewer.
-        ctx.fs.open_file(str(newest))
-        return CmdResult.ok(value=newest)
+        ctx.fs.open_file(str(path))
+        return CmdResult.ok(value=path)
 
     return handler
 
 
 def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
-    """Handler: print the newest (or named) file to the terminal.
-
-    A named file may leave off the folder's ``ext`` (registry
-    ``file-name-default-ext``).
-    """
+    """Handler: print the newest (or named) file to the terminal."""
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
-        data_dir = _folder_path(ctx, folder)
-        name = args.strip()
-        if name:
-            # Containment: .dump reads files from within the folder only.
-            # ``data_dir / name`` with an absolute name (or ``../``) would
-            # otherwise escape to any path on disk -- an arbitrary-file
-            # read for an MCP client (/cap.dump C:\\Users\\me\\.secrets).
-            # Resolve and verify the target stays inside the folder, the
-            # same guard the MCP capture resource uses.  /show is the
-            # command for reading files outside the config dir, and it is
-            # capability-gated.
-            path = (data_dir / name).resolve()
-            try:
-                inside = path.is_relative_to(data_dir.resolve())
-            except OSError:
-                inside = False
-            if not inside:
-                return CmdResult.fail(msg=f"Path escapes {folder}/: {name}")
-            # After the containment check: the added suffix keeps the path
-            # in the same folder.
-            path = default_file_name(path, ext)
-            if not path.is_file():
-                return CmdResult.fail(msg=f"File not found: {name}")
-        else:
-            if not data_dir.exists():
-                ctx.io.output(f"  {folder}/ is empty.")
-                return CmdResult.ok(value="")
-            if pattern == "*":
-                files = [file for file in data_dir.glob(pattern) if file.is_file()]
-            else:
-                files = list(data_dir.glob(pattern))
-            if not files:
-                ctx.io.output(f"  {folder}/ is empty.")
-                return CmdResult.ok(value="")
-            path = max(files, key=lambda f: f.stat().st_mtime)
+        path = _named_or_newest(ctx, folder, pattern, ext, args.strip())
+        if isinstance(path, CmdResult):
+            return path
         try:
             text = path.read_text(encoding="utf-8")
             for line in text.splitlines():
@@ -415,13 +423,18 @@ def _spec_for(folder: str) -> FolderSpec | None:
     return None
 
 
-def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Command]:
+def build_folder_subcommands(
+    folder: str, noun: str = "file", command: str = ""
+) -> dict[str, Command]:
     """Build the standard ``list/explore/show/dump/clear`` subcommand family.
 
     Driven by the ``FolderSpec`` for the given folder name.  Always
     includes ``list`` and ``explore``; adds ``show`` / ``dump`` /
     ``clear`` according to the spec's capability flags.  ``noun`` is
     what ``.list``'s title counts in (``proto/ - 6 scripts``).
+    ``command`` is the command the family hangs under when it is not the
+    folder's name (``prof/`` is ``/run.profile``): a listed name links
+    to ``<command>.show <name>``.
 
     Caller merges the result into its plugin's ``sub_commands=`` dict:
 
@@ -435,11 +448,12 @@ def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Comma
     if spec is None:
         raise ValueError(f"Unknown folder: {folder!r}")
     pattern = spec.pattern
+    show = f"{command or folder}.show" if spec.showable else ""
 
     subs: dict[str, Command] = {
         "list": Command(
             help=f"List files in {folder}/, newest first, with size and age.",
-            handler=_make_list_handler(folder, pattern, noun),
+            handler=_make_list_handler(folder, pattern, noun, show),
             needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(
@@ -472,9 +486,11 @@ def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Comma
     }
     if spec.showable:
         subs["show"] = Command(
-            help=f"Open the newest file in {folder}/ with the system viewer.",
-            handler=_make_show_handler(folder, pattern),
+            args="{filename}",
+            help=f"Open the newest (or named) file in {folder}/ with the system viewer.",
+            handler=_make_show_handler(folder, pattern, spec.ext),
             needs=CapabilitySet.CONFIG_GUI_APPS,
+            files=folder,
         )
     if spec.dumpable:
         subs["dump"] = Command(

@@ -648,8 +648,11 @@ class ReplEngine:
                     for line in view.lines():
                         self.ctx.io.output_markup(line)
                 else:
-                    for text, color in view.lines():
-                        self.ctx.io.output(text, color)
+                    # Pieces with their links: the TUI makes them
+                    # clickable, every other frontend prints the joined
+                    # text (registry links-are-data).
+                    for segments, color in view.segment_lines():
+                        self.ctx.io.output_segments(segments, color)
             finally:
                 self.ctx._call_level = saved_level
         return replace(result, view=None)

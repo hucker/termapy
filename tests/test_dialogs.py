@@ -206,7 +206,7 @@ class TestScriptPicker:
                 assert options[0].disabled and options[0].id is None, (
                     "the header is a disabled option: skipped by the cursor, never selected"
                 )
-                assert header.index("SIZE") == rows[0].index("10 B"), (
+                assert header.index("SIZE") == rows[0].index("10  B"), (
                     "SIZE starts at the size column's left edge"
                 )
                 assert header.index("UPDATED") == rows[0].index("just now"), (
@@ -215,7 +215,7 @@ class TestScriptPicker:
                 assert rows[0].startswith("z_newer.run"), (
                     f"newest file lists first even though it sorts last by name: {rows}"
                 )
-                assert "10 B" in rows[0] and "just now" in rows[0], "size and age columns"
+                assert "10  B" in rows[0] and "just now" in rows[0], "size and age columns"
                 assert "1 hr ago" in rows[1] and rows[1].endswith("Old summary."), (
                     "age plus the docstring summary as the detail column"
                 )

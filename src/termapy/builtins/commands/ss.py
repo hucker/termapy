@@ -44,6 +44,9 @@ COMMAND = Command(
     long_help=_ss_long_help,
     # Bare /ss does what the SS button does: open ss/.
     bare_sub="explore",
+    # /help ss ends with /ss.list's table.  explore and list both come
+    # from build_folder_subcommands("ss") at the end of sub_commands.
+    help_list="list",
     sub_commands={
         "svg": Command(
             args="{name}",

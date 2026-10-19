@@ -1,7 +1,6 @@
 """Render a 2-level file tree with box-drawing connectors.
 
-Single source of truth for the tree shape used by ``/cfg.info``,
-``/cfg.help``, ``/run.help``, and ``/proto.help``.
+Single source of truth for the tree shape ``/cfg.info`` shows.
 
 Pure module: no Textual or pyserial deps.  Output is either Rich
 markup (``color=True``) or bare ASCII (``color=False``) suitable
@@ -53,7 +52,11 @@ def file_meta(path: Path) -> tuple[str, str, str]:
         st = path.stat()
     except OSError:
         return ("?", "?", "?")
-    return (format_size(st.st_size), _fmt_time(_created_time(st)), _fmt_time(st.st_mtime))
+    return (
+        format_size(st.st_size, column=True),
+        _fmt_time(_created_time(st)),
+        _fmt_time(st.st_mtime),
+    )
 
 
 # ── Tree renderer ─────────────────────────────────────────────────────────────

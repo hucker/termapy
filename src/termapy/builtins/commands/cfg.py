@@ -176,7 +176,11 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         for path in paths
     ]
     columns = (
-        Column("NAME", lambda record: record["name"] + (" *" if record["active"] else "")),
+        Column(
+            "NAME",
+            lambda record: record["name"] + (" *" if record["active"] else ""),
+            run=lambda record: f"cfg.load {record['name']}",
+        ),
         *FILE_COLUMNS[1:],
         Column("PORT", lambda record: record["port"]),
         Column("BAUD", lambda record: str(record["baud_rate"] or ""), right=True),
@@ -418,16 +422,10 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
-    """Same as ``/help cfg``, plus an AVAILABLE CONFIGS file list."""
-    from termapy.builtins.commands.help import (
-        _show_command_help,
-        append_files_section,
-    )
+    """Same as ``/help cfg``: the page, ending with the configs ``/cfg.list`` shows."""
+    from termapy.builtins.commands.help import _show_command_help
 
-    result = _show_command_help(ctx, "cfg")
-    files = sorted(f"{path.parent.name}/{path.name}" for path in cfg_dir().glob("*/*.cfg"))
-    append_files_section(ctx, "AVAILABLE CONFIGS", files)
-    return result
+    return _show_command_help(ctx, "cfg")
 
 
 # ── Tree-building helpers (shared by info and folder listings) ────────────────
@@ -716,6 +714,7 @@ COMMAND = Command(
     handler=_handler,
     picker="cfg",
     bare_sub="list",
+    help_list="list",
     sub_commands={
         "auto": Command(
             help="Set immediately (no confirmation).",

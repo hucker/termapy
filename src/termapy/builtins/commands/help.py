@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,7 @@ from termapy.plugins import (
     resolve_long_help,
 )
 from termapy.plugins.params import render_parameters_block
+from termapy.plugins.views import Link, Piece, TableView, pieces_markup
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -44,6 +46,9 @@ _REQ_RE = re.compile(r"(<[^>]+>)")
 # can't shove the help column off the right edge.
 _MAX_CMD_COL = 28
 
+# The rows a help page's list shows, newest first; the rest are a click away.
+_HELP_LIST_ROWS = 10
+
 # Sentinel for the "everything-baseline" environment. ``needs.missing_from``
 # against this returns exactly the restrictive capabilities the command
 # opted into.
@@ -65,14 +70,26 @@ def _section_markup(title: str) -> str:
     return f"[bold]{escape_markup(title)}[/]"
 
 
+def _args_pieces(args: str) -> list[Piece]:
+    """A synopsis as pieces: ``{optional}`` groups green, ``<required>`` yellow, the rest plain.
+
+    A ``<required>`` inside an ``{optional}`` group (``{timeout=<dur>}``)
+    is yellow within the green, as the nested tags always drew it.
+    """
+    pieces: list[Piece] = []
+    for group in _OPT_RE.split(args):
+        outer = _OPT if _OPT_RE.fullmatch(group) else ""
+        pieces += [
+            Piece(part, None, _REQ if _REQ_RE.fullmatch(part) else outer)
+            for part in _REQ_RE.split(group)
+            if part
+        ]
+    return pieces
+
+
 def _args_markup(args: str) -> str:
     """A synopsis, escaped, with its ``{optional}`` and ``<required>`` groups colored."""
-    if not args:
-        return ""
-    result = escape_markup(args)
-    result = _OPT_RE.sub(rf"[{_OPT}]\1[/]", result)
-    result = _REQ_RE.sub(rf"[{_REQ}]\1[/]", result)
-    return result
+    return pieces_markup(_args_pieces(args))
 
 
 def _long_help_line_markup(line: str) -> str:
@@ -85,22 +102,48 @@ def _pad_markup(markup: str, width: int) -> str:
     return markup + " " * max(0, width - len(markup_to_plain(markup)))
 
 
-def _underline_markup(text: str, needles: str | list[str]) -> str:
-    """``text`` escaped, every case-insensitive occurrence of a needle in ``[u]...[/u]``."""
+def _match_parts(text: str, needles: str | list[str] | None) -> list[tuple[str, bool]]:
+    """``text`` cut into ``(part, matched)`` around every case-insensitive needle."""
     if isinstance(needles, str):
         needles = [needles]
-    needles = [n for n in needles if n]
+    needles = [needle for needle in needles or [] if needle]
     if not needles or not text:
-        return escape_markup(text)
-    pattern = re.compile("|".join(re.escape(n) for n in needles), re.IGNORECASE)
-    parts: list[str] = []
+        return [(text, False)] if text else []
+    pattern = re.compile("|".join(re.escape(needle) for needle in needles), re.IGNORECASE)
+    parts: list[tuple[str, bool]] = []
     last = 0
-    for m in pattern.finditer(text):
-        parts.append(escape_markup(text[last : m.start()]))
-        parts.append(f"[u]{escape_markup(m.group())}[/u]")
-        last = m.end()
-    parts.append(escape_markup(text[last:]))
-    return "".join(parts)
+    for match in pattern.finditer(text):
+        if match.start() > last:
+            parts.append((text[last : match.start()], False))
+        parts.append((match.group(), True))
+        last = match.end()
+    if last < len(text):
+        parts.append((text[last:], False))
+    return parts
+
+
+def _underline_markup(text: str, needles: str | list[str]) -> str:
+    """``text`` escaped, every case-insensitive occurrence of a needle in ``[u]...[/u]``."""
+    return "".join(
+        f"[u]{escape_markup(part)}[/u]" if matched else escape_markup(part)
+        for part, matched in _match_parts(text, needles)
+    )
+
+
+def _help_link(name: str) -> Link:
+    """A click on a command's name opens its help page: reading help changes nothing."""
+    return Link(f"help {name}")
+
+
+def _try_link(name: str, plugin) -> Link:
+    """A click on a command's name on its own page fills the input line, never runs it.
+
+    Trying the command is then one Enter away, and nothing runs by
+    accident: the safety tier is no guide (``/cap.clear`` deletes every
+    capture and is ``safe``).  A command that takes arguments is filled
+    with a trailing space, ready for them.
+    """
+    return Link(f"{name} " if plugin.args else name, run=False)
 
 
 def _write_docstring(ctx: PluginContext, docstring: str) -> None:
@@ -219,22 +262,29 @@ def _siblings_for_see_also(name: str, plugins: dict) -> list[str]:
 
 def _landscape_row(
     prefix: str, name: str, plugin, cmd_w: int, needles: list[str] | None = None
-) -> str:
-    """Format one row of the clean name + one-liner layout.
+) -> list[Piece]:
+    """One row of the clean name + one-liner layout, as pieces.
 
-    Pass ``needles`` only in search-result contexts; underlining is the
-    "here's why this matched" affordance and does not belong on the
-    no-args landscape or exact-match man page.
+    The command's name links to its help page (registry
+    ``links-are-data``); where nothing can click, the pieces are the
+    markup this row always was.  Pass ``needles`` only in search-result
+    contexts; underlining is the "here's why this matched" affordance and
+    does not belong on the no-args landscape or exact-match man page.
     """
     help_text = interpolate_help(plugin.help, prefix)
-    if needles:
-        name_markup = _underline_markup(name, needles)
-        help_markup = _underline_markup(help_text, needles)
-    else:
-        name_markup = escape_markup(name)
-        help_markup = escape_markup(help_text)
-    cmd_markup = _pad_markup(f"  [{_CMD}]{escape_markup(prefix)}{name_markup}[/]", cmd_w + 2)
-    return f"{cmd_markup}  {help_markup}"
+    link = _help_link(name)
+    pieces = [Piece("  "), Piece(prefix, link, _CMD)]
+    pieces += [
+        Piece(part, link, f"{_CMD} underline" if matched else _CMD)
+        for part, matched in _match_parts(name, needles)
+    ]
+    pad = max(0, cmd_w + 2 - (2 + len(prefix) + len(name)))
+    pieces.append(Piece(" " * pad + "  "))
+    pieces += [
+        Piece(part, None, "underline" if matched else "")
+        for part, matched in _match_parts(help_text, needles)
+    ]
+    return pieces
 
 
 def _compute_cmd_w(names: list[str], prefix: str) -> int:
@@ -252,19 +302,30 @@ def _compute_cmd_w(names: list[str], prefix: str) -> int:
 # ── Man-page detail view ─────────────────────────────────────────────────────
 
 
-def _bare_form(plugin, name: str, prefix: str) -> str:
-    """What a bare invocation does, from ``picker=`` and ``bare_sub=``; "" when undeclared.
+def _bare_pieces(plugin, name: str, prefix: str) -> list[Piece]:
+    """What a bare invocation does, from ``picker=`` and ``bare_sub=``; ``[]`` when undeclared.
 
     The one wording for every command (registry ``bare-declared``), in
     the dispatcher's order -- the picker where the host has one, then the
     subcommand: ``bare: opens the Run picker in the TUI; elsewhere runs
-    /run.list``, ``bare: runs /mem.info``.
+    /run.list``, ``bare: runs /mem.info``.  A click does what the line
+    says: the picker's name runs the bare command, which opens it, as its
+    button does, and the subcommand runs itself.  Safe to run because a
+    bare form only ever opens or shows something (pinned by
+    ``test_a_bare_form_only_opens_or_shows``).
     """
-    sub = f"{prefix}{name}.{plugin.bare_sub}" if plugin.bare_sub else ""
+    sub: list[Piece] = []
+    if plugin.bare_sub:
+        sub_name = f"{name}.{plugin.bare_sub}"
+        sub = [Piece(prefix + sub_name, Link(sub_name))]
     if plugin.picker:
-        picker = f"bare: opens the {plugin.picker.capitalize()} picker in the TUI"
-        return f"{picker}; elsewhere runs {sub}" if sub else picker
-    return f"bare: runs {sub}" if sub else ""
+        picker = [
+            Piece("bare: opens the "),
+            Piece(f"{plugin.picker.capitalize()} picker", Link(name)),
+            Piece(" in the TUI"),
+        ]
+        return [*picker, Piece("; elsewhere runs "), *sub] if sub else picker
+    return [Piece("bare: runs "), *sub] if sub else []
 
 
 def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = False) -> None:
@@ -272,32 +333,36 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
 
     Sections: NAME, SYNOPSIS (if args), DESCRIPTION, FLAGS (if any),
     REQUIRED CAPABILITIES (if restrictive caps), SUBCOMMANDS (if children), SEE ALSO
-    (if siblings/parent exist). Empty sections are skipped so the page
-    stays dense.
+    (if siblings/parent exist), then the ``help_list`` table (if declared).
+    Empty sections are skipped so the page stays dense.
 
     No underlining on this path -- it's an exact-match detail view,
     nothing is a "search hit" to highlight.
     """
     prefix = ctx.prefix
     plugins = ctx.internal.plugins
-    command_markup = escape_markup(f"{prefix}{name}")
+    # The command's name, on each line that starts with it: a click
+    # fills the input line with it (registry links-are-data).
+    command = Piece(prefix + name, _try_link(name, plugin), _CMD)
 
     # NAME ────────────────────────────────────────────────────────────────────
     ctx.io.output_markup(_section_markup("NAME"))
     help_line = interpolate_help(plugin.help, prefix)
-    ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] - {escape_markup(help_line)}")
+    ctx.io.output_markup_segments([Piece("  "), command, Piece(f" - {help_line}")])
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     # A declared bare form gets its own line, built from the declaration,
     # so every command's bare behavior reads the same way.
-    bare = _bare_form(plugin, name, prefix)
+    bare = _bare_pieces(plugin, name, prefix)
     if plugin.args or bare:
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("SYNOPSIS"))
         if plugin.args:
-            ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] {_args_markup(plugin.args)}")
+            ctx.io.output_markup_segments(
+                [Piece("  "), command, Piece(" "), *_args_pieces(plugin.args)]
+            )
         if bare:
-            ctx.io.output_markup(f"  [{_CMD}]{command_markup}[/] -- {escape_markup(bare)}")
+            ctx.io.output_markup_segments([Piece("  "), command, Piece(" -- "), *bare])
 
     # DESCRIPTION ─────────────────────────────────────────────────────────────
     # Developer mode shows the handler's Python docstring instead.
@@ -352,11 +417,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     # no-color output carry the status too.
     required = _required_capability_rows(plugin.needs)
     if required:
-        effective = (
-            ctx.internal.effective_capabilities()
-            if ctx.internal.effective_capabilities is not None
-            else ctx.capabilities
-        )
+        effective = _effective_capabilities(ctx)
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("REQUIRED CAPABILITIES"))
         for cap_name, hint in required:
@@ -427,20 +488,72 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
             ctx.io.output_markup(_section_markup("SUBCOMMANDS"))
             cmd_w = _compute_cmd_w([n for n, _ in children], prefix)
             for child_name, child in children:
-                ctx.io.output_markup(_landscape_row(prefix, child_name, child, cmd_w))
+                ctx.io.output_markup_segments(_landscape_row(prefix, child_name, child, cmd_w))
 
     # SEE ALSO ────────────────────────────────────────────────────────────────
     see = _siblings_for_see_also(name, plugins)
     if see:
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("SEE ALSO"))
-        refs_markup = ", ".join(f"[{_CMD}]{escape_markup(prefix + n)}[/]" for n in see)
-        ctx.io.output_markup(f"  {refs_markup}")
+        refs = [Piece("  ")]
+        for index, ref in enumerate(see):
+            if index:
+                refs.append(Piece(", "))
+            refs.append(Piece(prefix + ref, _help_link(ref), _CMD))
+        ctx.io.output_markup_segments(refs)
 
     # Source annotation for non-built-in plugins (preserved from old renderer).
     if plugin.source not in ("built-in", "app"):
         ctx.io.output_markup("")
         ctx.io.output_markup(f"  [{_SRC}](source: {escape_markup(plugin.source)})[/]")
+
+    _render_help_list(ctx, name, plugin)
+
+
+def _effective_capabilities(ctx: PluginContext) -> CapabilitySet:
+    """What a command can do right now: the set the dispatch gate checks."""
+    if ctx.internal.effective_capabilities is not None:
+        return ctx.internal.effective_capabilities()
+    return ctx.capabilities
+
+
+def _render_help_list(ctx: PluginContext, name: str, plugin) -> None:
+    """End the page with the table of the list ``help_list`` names, indented like a section.
+
+    ``/help cfg`` shows the configs and ``/help run`` the scripts: the
+    command's own list, so its rows, and what a click on a name does
+    (registry ``links-are-data``), are that list's.  Its lines are page
+    lines, each piece in the table line's color, so they sit in the
+    page's column in every frontend.  A folder of hundreds of
+    screenshots shows its newest ``_HELP_LIST_ROWS``, the title still
+    counting them all, then a link to the whole list.  Left off when the
+    list cannot run now (``/help run`` with no config loaded) or holds
+    nothing.
+    """
+    list_name = f"{name}.{plugin.help_list}"
+    child = ctx.internal.plugins.get(list_name) if plugin.help_list else None
+    if child is None or child.needs.missing_from(_effective_capabilities(ctx)):
+        return
+    view = child.handler(ctx, "").view
+    if not isinstance(view, TableView) or not view.records:
+        return
+    shown = replace(view, records=view.records[:_HELP_LIST_ROWS], total=len(view.records))
+    ctx.io.output_markup("")
+    # The heading is the list's noun, plural: CONFIGS, SCRIPTS, SCREENSHOTS,
+    # LOGS, and FILES for cap/ (build_folder_subcommands' default noun).
+    ctx.io.output_markup(_section_markup(f"{view.noun}s".upper()))
+    for segments, color in shown.segment_lines():
+        pieces = [piece._replace(style=piece.style or color) for piece in segments]
+        ctx.io.output_markup_segments([Piece("  "), *pieces])
+    more = len(view.records) - len(shown.records)
+    if more:
+        ctx.io.output_markup_segments(
+            [
+                Piece("  "),
+                Piece(f"... {more} more: ", None, _SEP),
+                Piece(ctx.prefix + list_name, Link(list_name), _CMD),
+            ]
+        )
 
 
 def _render_target_man_page(ctx: PluginContext, tc) -> None:
@@ -509,59 +622,10 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
     cmd_w = _compute_cmd_w(names, prefix)
     for name in names:
         plugin = plugins[name]
-        ctx.io.output_markup(_landscape_row(prefix, name, plugin, cmd_w, needles=words))
+        ctx.io.output_markup_segments(_landscape_row(prefix, name, plugin, cmd_w, needles=words))
 
 
 # ── Extension hook: extra man-page section ───────────────────────────────────
-
-
-def append_files_section(
-    ctx: PluginContext,
-    title: str,
-    files: list[str],
-) -> None:
-    """Append a man-page-styled section listing available files as a tree.
-
-    Used by ``_handler_help`` in /cfg, /run, /proto so that
-    ``/cfg.help`` / ``/run.help`` / ``/proto.help`` show what's
-    actually present in the relevant folder right where the user is
-    reading the help.  ``files`` should already be sorted display
-    strings; entries containing a ``/`` are grouped under their first
-    path component (e.g. ``demo/demo.cfg`` becomes a child of
-    ``demo/``).  Entries without ``/`` render at the root level.
-
-    Style matches ``cfg._build_tree``: ``├── └── │`` connectors in
-    dim, directory names in cyan, file names in blue.
-
-    The plain ``/help <name>`` path bypasses this hook -- it stays
-    purely declarative so its output is reproducible across
-    environments and stable for the gold test.
-    """
-    from termapy.tree_render import FileTree
-
-    ctx.io.output_markup("")
-    ctx.io.output_markup(_section_markup(title))
-    if not files:
-        ctx.io.output_markup("  (none)")
-        return
-
-    # Group "dir/file" entries under their first component; entries
-    # without "/" render as loose files at the root level (after the
-    # directories, matching the `tree` command's order).
-    dirs: dict[str, list[str]] = {}
-    loose: list[str] = []
-    for f in files:
-        head, sep, tail = f.partition("/")
-        if sep:
-            dirs.setdefault(head, []).append(tail)
-        else:
-            loose.append(f)
-
-    sections: list[tuple[str, list[str]]] = [(d + "/", dirs[d]) for d in sorted(dirs)] + [
-        (f, []) for f in loose
-    ]
-    for line in FileTree(sections, indent="  ").render():
-        ctx.io.output_markup(line)
 
 
 # ── Main /help lookup ────────────────────────────────────────────────────────
@@ -727,7 +791,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         first = False
         ctx.io.output_markup(f"[{_SEP}]-- {escape_markup(label)} --[/]")
         for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
-            ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+            ctx.io.output_markup_segments(_landscape_row(prefix, cmd_name, plugin, cmd_w))
 
     if directives:
         ctx.io.output_markup("")
@@ -740,7 +804,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output_markup("")
         ctx.io.output_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
         for cmd_name, plugin in sorted(script_only, key=lambda x: x[0]):
-            ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+            ctx.io.output_markup_segments(_landscape_row(prefix, cmd_name, plugin, cmd_w))
 
     scripts_dir = ctx.fs.scripts_dir
     if scripts_dir.is_dir():
@@ -891,14 +955,14 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
         first = False
         ctx.io.output_markup(f"[{_SEP}]-- {escape_markup(label)} --[/]")
         for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
-            ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+            ctx.io.output_markup_segments(_landscape_row(prefix, cmd_name, plugin, cmd_w))
             total += 1
 
     if script_only:
         ctx.io.output_markup("")
         ctx.io.output_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
         for cmd_name, plugin in sorted(script_only, key=lambda x: x[0]):
-            ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+            ctx.io.output_markup_segments(_landscape_row(prefix, cmd_name, plugin, cmd_w))
             total += 1
 
     ctx.io.result(f"{total} commands.")

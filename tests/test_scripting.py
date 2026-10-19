@@ -404,6 +404,19 @@ class TestFormatSize:
         """Byte counts step through B/KB/MB/TB/PB at 1024 with one decimal above B."""
         assert format_size(byte_count) == expected
 
+    def test_a_column_lines_up_on_its_units(self):
+        """In a column the B is padded to the width of KB, so right-aligned sizes end in one unit column."""
+        # Arrange
+        sizes = [format_size(byte_count, column=True) for byte_count in (64, 47_800)]
+        width = max(len(size) for size in sizes)
+
+        # Act
+        actual = [size.rjust(width) for size in sizes]
+
+        # Assert
+        assert actual == ["  64  B", "46.7 KB"], "units stacked, numbers right-aligned to them"
+        assert format_size(64) == "64 B", "prose keeps the single space"
+
 
 # ── format_age ───────────────────────────────────────────────────
 

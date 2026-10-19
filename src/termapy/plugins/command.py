@@ -425,6 +425,11 @@ class Command:
             handler, which then sees a bare call only in hosts without
             pickers (CLI, MCP).  ``/help`` renders the bare form from this
             and from ``bare_sub``.  Validated at load.
+        help_list: The subcommand whose table ends this command's
+            ``/help`` page -- ``/help cfg`` shows the configs
+            (``help_list="list"``), each name clickable as in the list.
+            Must name a declared subcommand that takes no arguments; the
+            loader fails loud otherwise.
     """
 
     help: str
@@ -442,6 +447,7 @@ class Command:
     safety: str = "safe"
     files: str = ""
     picker: str = ""
+    help_list: str = ""
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -762,6 +768,8 @@ class PluginInfo:
             inherited from ``Command.picker``.
         bare_sub: Subcommand a bare invocation runs (after ``picker``,
             where the host has none), inherited from ``Command.bare_sub``.
+        help_list: Subcommand whose table ends the ``/help`` page,
+            inherited from ``Command.help_list``.
     """
 
     name: str
@@ -780,6 +788,7 @@ class PluginInfo:
     files: str = ""
     picker: str = ""
     bare_sub: str = ""
+    help_list: str = ""
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.

@@ -567,6 +567,25 @@ def append_files_section(
 # ── Main /help lookup ────────────────────────────────────────────────────────
 
 
+def _command_name(ctx: PluginContext, text: str) -> str:
+    """The command ``text`` names, without the REPL prefix it may be typed with.
+
+    The prefix is how a command is typed, not part of its name, so
+    ``/help /cfg.loaded`` reads as ``/help cfg.loaded``.  It is the live
+    ``cmd_prefix`` (``ctx.prefix``), never assumed to be ``/``.  A device
+    command is kept as written: its own name may begin with the same text
+    (``$GPGGA`` under a ``$`` prefix).
+    """
+    from termapy.profile import profile_command_view
+
+    prefix = ctx.prefix
+    if not prefix or not text.startswith(prefix):
+        return text
+    if text in profile_command_view(ctx.ns("active_profile")):
+        return text
+    return text[len(prefix) :]
+
+
 def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) -> CmdResult:
     """Resolve ``name`` with forgiving lookup:
 
@@ -631,7 +650,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # Matching exactly lets both kinds round-trip; users who mistype the
     # casing fall through to the forgiving candidate list, which does its
     # own case-insensitive matching internally.
-    name = args.strip() if isinstance(args, str) else ""
+    name = _command_name(ctx, args.strip() if isinstance(args, str) else "")
     prefix = ctx.prefix
     if name:
         return _show_command_help(ctx, name)
@@ -888,7 +907,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:
     """Show a command handler's Python docstring (developer info)."""
-    name = args.strip() if isinstance(args, str) else ""
+    name = _command_name(ctx, args.strip() if isinstance(args, str) else "")
     if not name:
         raise UsageError()
     return _show_command_help(ctx, name, dev_mode=True)
@@ -913,7 +932,9 @@ Three ways to find things:
   /search <word>     deep search across names, args, flags, long help.
 
 /help is forgiving: if you can't remember the full name, it lists
-candidates. Typing /help with zero matches points you at /search.""",
+candidates, and a name typed with its prefix ({prefix}help {prefix}cfg)
+reads as the name alone. Typing /help with zero matches points you at
+/search.""",
     handler=_handler,
     sub_commands={
         "target": Command(

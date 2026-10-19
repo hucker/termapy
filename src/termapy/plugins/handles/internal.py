@@ -82,6 +82,10 @@ class InternalHandle:
     # handler resolving it itself would read the real termapy_cfg/ from
     # under a test that deliberately overrode it.
     library_layers: Callable | None = None
+    # load_report() -> list[dict]: the rows the last config load reported
+    # (termapy.load_report), what /cfg.loaded shows.  The engine owns
+    # them; a hand-built context has none.
+    load_report: Callable = lambda: []
 
     # Bare REPL dispatch through the plugin pipeline (capability gates,
     # flag parsing) WITHOUT ctx.dispatch's serial-output sugar.  Legacy

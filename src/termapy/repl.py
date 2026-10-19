@@ -19,6 +19,7 @@ from pathlib import Path
 from threading import Event
 from types import MappingProxyType
 
+from termapy import load_report
 from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
 from termapy.folder_ops import list_entries
@@ -35,6 +36,7 @@ from termapy.folders import (
     ensure_folder,
     prune_empty_folders,
 )
+from termapy.load_report import LoadReport, Record
 from termapy.markup import escape_markup, json_markup, markup_to_plain
 from termapy.plugins import (
     LEVEL_FLAGS,
@@ -408,6 +410,9 @@ class ReplEngine:
         # symbols.converters registry, which /sym.import consults too.
         # Only folder-loaded ones need dropping on a config switch.
         self._converters: list = []
+
+        # What the last config load put in the session (fire_lifecycle).
+        self.load_report = LoadReport()
 
         # Load built-in plugins from termapy/builtins/
         self._load_builtins()
@@ -985,7 +990,7 @@ class ReplEngine:
 
     # -- External plugin resolution ------------------------------------------
 
-    def resolve_plugins(self) -> None:
+    def resolve_plugins(self) -> list[Record]:
         """Drop every folder-loaded plugin and load the folders again.
 
         The one resolution step for every frontend, fired from
@@ -1005,15 +1010,15 @@ class ReplEngine:
 
         ``trusted_only`` (the ``TERMAPY_TRUSTED_PLUGINS_ONLY`` policy)
         collapses the trust boundary to the Python environment: the folders
-        are not read at all.  Load lines name the source (``from global``,
-        ``from <cfg>``) so a user opening an unfamiliar config folder can
-        notice what ran and review it before trusting the session.
+        are not read at all.  Each file's load-report row names its layer
+        (``global``, ``<cfg>``) so a user opening an unfamiliar config
+        folder can notice what ran and review it before trusting the
+        session.
+
+        Returns:
+            One load-report row per plugin file (``load_report``).
         """
-        dropped = self._drop_external()
-        if dropped:
-            self._report(
-                f"Unloaded {len(dropped)} plugin(s): " + ", ".join(dropped),
-            )
+        self._drop_external()
         if self.trusted_only:
             if not self._trusted_notice_shown:
                 self.write(
@@ -1021,24 +1026,28 @@ class ReplEngine:
                     "yellow",
                 )
                 self._trusted_notice_shown = True
-            return
+            return []
         from termapy.config import cfg_plugins_dir, global_plugins_dir
 
+        records: list[Record] = []
         layers = [(global_plugins_dir(self.global_root), "global")]
         if self.config_path:
+            cfg_name = Path(self.config_path).stem
             try:
-                layers.append(
-                    (cfg_plugins_dir(self.config_path), Path(self.config_path).stem),
-                )
+                layers.append((cfg_plugins_dir(self.config_path), cfg_name))
             except RuntimeError as e:
                 # A bundled (read-only) cfg has no data folder to scan;
                 # cfg_data_dir refuses it with the remedy spelled out.
                 self.write(f"Plugin error: {e}", "red")
+                records.append(
+                    load_report.load_record(load_report.PLUGIN, layer=cfg_name, error=str(e))
+                )
         for folder, source in layers:
-            self._install_layer(load_plugins_from_dir(folder, source), source)
+            records.extend(self._install_layer(load_plugins_from_dir(folder, source), source))
+        return records
 
-    def _drop_external(self) -> list[str]:
-        """Remove every folder-loaded registration; return the plugin names.
+    def _drop_external(self) -> None:
+        """Remove every folder-loaded registration.
 
         Filters IN PLACE: ``InternalHandle.plugins`` / ``.directives`` alias
         these containers, so rebinding would strand every context.  The
@@ -1060,61 +1069,73 @@ class ReplEngine:
             hook for hook in self._lifecycle_hooks if hook.source in _EXTERNAL_KEEP
         ]
         self._converters[:] = [spec for spec in self._converters if spec.source in _EXTERNAL_KEEP]
-        return dropped
 
-    def _install_layer(self, result: LoadResult, source: str) -> None:
-        """Register one folder's load result and report it.
+    def _install_layer(self, result: LoadResult, source: str) -> list[Record]:
+        """Register one folder's load result; return a load-report row per file.
 
         A plugin whose name the frontend already owns (source ``"app"``) is
         skipped with a warning: a config must not be able to replace the
         app's own command.  Its parent, if any, still registers with the
         child listed, and that child name resolves to the app hook -- which
-        is the point.
+        is the point.  A folder plugin's ``on_app_prestart`` is skipped with
+        a warning too: folder plugins load during ``on_app_start``, after
+        pre-start has fired, so it would never run.  A file that failed or
+        exported nothing is reported here, at once, and is a row with its
+        ``error`` too.
         """
-        loaded: list[str] = []
-        for info in result.plugins:
-            owner = self._plugins.get(info.name)
-            if owner is not None and owner.source == "app":
+        records: list[Record] = []
+        for module in result.modules:
+            commands: list[str] = []
+            hooks: list[str] = []
+            for info in module.plugins:
+                owner = self._plugins.get(info.name)
+                if owner is not None and owner.source == "app":
+                    self.write(
+                        f"Skipped {self.prefix}{info.name} from {source} - "
+                        "an app command has that name",
+                        "yellow",
+                    )
+                    continue
+                self.register_plugin(info)
+                commands.append(info.name)
+            for transform in module.transforms:
+                self.register_transform(transform)
+            for directive in module.directives:
+                self.register_directive(directive)
+            for hook in module.lifecycle_hooks:
+                if hook.name == "on_app_prestart":
+                    self.write(
+                        f"Skipped on_app_prestart in {module.file} from {source} - "
+                        "folder plugins load after pre-start (use on_app_start)",
+                        "yellow",
+                    )
+                    continue
+                self.register_lifecycle_hook(hook)
+                hooks.append(hook.name)
+            for spec in module.converters:
+                self.register_converter(spec)
+            if module.error:
+                self.write(f"Plugin error: {module.file}: {module.error}", "red")
+            elif not module.exported:
                 self.write(
-                    f"Skipped {self.prefix}{info.name} from {source} - "
-                    "an app command has that name",
+                    f"Skipped {module.file} - nothing exported (see plugin docs)",
                     "yellow",
                 )
-                continue
-            self.register_plugin(info)
-            loaded.append(info.name)
-        for transform in result.transforms:
-            self.register_transform(transform)
-            loaded.append(f"~{transform.name}")
-        for directive in result.directives:
-            self.register_directive(directive)
-            loaded.append(f"@{directive.name}")
-        for hook in result.lifecycle_hooks:
-            self.register_lifecycle_hook(hook)
-        for spec in result.converters:
-            self.register_converter(spec)
-            loaded.append(f"={spec.format}")
-        if loaded:
-            self._report(
-                f"Loaded {len(loaded)} plugin(s) from {source}: " + ", ".join(loaded),
-            )
-        for name in result.skipped:
-            self.write(
-                f"Skipped {name} - nothing exported (see plugin docs)",
-                "yellow",
-            )
-        for error in result.errors:
-            self.write(f"Plugin error: {error}", "red")
+            records.append(load_report.plugin_record(module, source, commands, hooks))
+        return records
 
-    def _report(self, text: str) -> None:
-        """A load / unload line: visible interactively, silent for --run / --exec.
+    def _show_load_report(self) -> None:
+        """Print the load report once: interactively, never for --run / --exec.
 
-        ``output`` rather than ``status``: the status channel is verbose-only,
-        which is why the TUI's old load line never showed at the default
-        level.  Errors do not come through here -- they are never silent.
+        ``_render_view`` is the one place a table becomes lines, so this
+        reads exactly as ``/cfg.loaded`` does, and a frontend that wants
+        data (MCP) prints nothing -- it asks ``/cfg.loaded`` for the rows.
+        Nothing loaded prints nothing.  Errors were printed as they
+        happened; they are never silent.
         """
-        if not self.ctx.is_oneshot():
-            self.ctx.io.output(text, "dim")
+        records = self.load_report.records
+        if records and not self.ctx.is_oneshot():
+            self._render_view(load_report.result(records), None)
 
     def _prune_data_folders(self) -> None:
         """Drop the active config's empty data folders and an empty global ``plugin/``.
@@ -1143,7 +1164,8 @@ class ReplEngine:
         / ``on_config_load`` / ``on_app_stop``), then for ``on_app_start`` /
         ``on_config_load`` :meth:`resolve_plugins` (so a folder plugin's
         own hook fires in this same pass) and the symbol auto-load (so a
-        hook already sees ``ctx.ns("symbols")``).  This is the one wiring
+        hook already sees ``ctx.ns("symbols")``), whose rows replace the
+        load report, printed once as a table.  This is the one wiring
         for every frontend -- not a plugin hook (which drifts per frontend)
         and not a ``set_context`` / ``replace_cfg`` side effect (which
         double-loads on the CLI/MCP config switch that rebuilds the ctx).
@@ -1154,8 +1176,13 @@ class ReplEngine:
         if name in _PRUNE_LIFECYCLE:
             self._prune_data_folders()
         if name in _CORE_LIFECYCLE:
-            self.resolve_plugins()
-            symbols_session.autoload(self.ctx, self.config_path, self.global_root)
+            self.load_report.replace(
+                [
+                    *self.resolve_plugins(),
+                    *symbols_session.autoload(self.ctx, self.config_path, self.global_root),
+                ]
+            )
+            self._show_load_report()
         for hook in self._lifecycle_hooks:
             if hook.name != name:
                 continue

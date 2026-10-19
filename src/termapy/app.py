@@ -215,6 +215,7 @@ class SerialTerminal(TerminalHost, App):
             self.done = done
 
     TITLE = "termapy"
+    front_end = "textual"
 
     CSS = """
     Tooltip {
@@ -950,6 +951,10 @@ class SerialTerminal(TerminalHost, App):
             self.log_fh.close()
             self.log_fh = None
 
+    def _on_app_prestart(self) -> None:
+        """Open the session log before the session starts, so startup is in it."""
+        self._open_log()
+
     def _open_log(self) -> None:
         """Open the log file if a config is loaded and log isn't already open."""
         if self.log_fh or not self.config_path:
@@ -988,7 +993,6 @@ class SerialTerminal(TerminalHost, App):
     def on_mount(self) -> None:
         # Authoritative: on_mount runs on the event-loop thread (see D4).
         self._main_thread_id = threading.get_ident()
-        self._setup_vars()
         self._apply_border_color()
         self._build_context()
         # VS Code tip goes first so it's at the top of the startup
@@ -996,12 +1000,13 @@ class SerialTerminal(TerminalHost, App):
         # Easy to miss if it's buried mid-startup.
         self._maybe_show_vscode_tip()
         self._register_tui_hooks()
-        # on_app_start resolves the plugin folders and auto-loads the
-        # symbols (engine core listeners).  Before _run_startup: an
+        # Pre-start opens the session log; on_app_start then resolves the
+        # plugin folders and auto-loads the symbols (engine core listeners),
+        # so the load report lands in the log.  Before _run_startup: an
         # auto_connect config fires on_connect from there, and the CLI/MCP
         # order (on_app_start, then connect) means both are already done
         # when on_connect hooks run.
-        self.repl.fire_lifecycle("on_app_start")
+        self._fire_app_start()
         self._rebuild_suggester_commands()
         self._run_startup()
         self._check_for_updates()
@@ -1149,25 +1154,6 @@ class SerialTerminal(TerminalHost, App):
             callback=_on_result,
         )
 
-    def _setup_vars(self) -> None:
-        """Set launch/context variables for plugin use."""
-        from termapy.variables import (
-            register_cfg_vars,
-            set_context_var,
-            set_launch_var,
-        )
-
-        set_launch_var("FRONT_END", "textual")
-        set_context_var(
-            "CFG",
-            lambda: Path(self.config_path).stem if self.config_path else "termapy",
-        )
-        register_cfg_vars(
-            get_config_path=lambda: self.config_path,
-            get_cfg=lambda: self.cfg,
-            get_log_path=lambda: str(self.session_log_path() or ""),
-        )
-
     def _build_context(self) -> None:
         """Build PluginContext and InternalHandle, wire to REPL."""
         internal = self._build_internal_handle()
@@ -1254,8 +1240,7 @@ class SerialTerminal(TerminalHost, App):
         register_tui_hooks(self)
 
     def _run_startup(self) -> None:
-        """Open log, sync buttons, and show startup screen."""
-        self._open_log()
+        """Sync buttons and show the startup screen (the log opened at pre-start)."""
         if self.config_path:
             self._show_config_info(self.config_path)
         self._sync_all_buttons()

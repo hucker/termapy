@@ -11,7 +11,7 @@ import pytest
 from serial import SerialException
 
 from termapy.capture import CaptureEngine
-from termapy.plugins import CmdResult, InternalHandle, PluginContext
+from termapy.plugins import CmdResult, InternalHandle, LifecycleHook, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
@@ -668,3 +668,84 @@ class TestLogDelete:
         # Assert
         assert result.success is False, "fails on OSError"
         assert result.error.startswith("Delete failed: "), result.error
+
+
+# -- _fire_app_start ------------------------------------------------------------
+
+
+class _PrestartHost(_StubHost):
+    """A host whose pre-start work leaves a marker among the lines it captures."""
+
+    def _on_app_prestart(self) -> None:
+        self._status_msgs.append("PRESTART")
+
+
+class TestFireAppStart:
+    """prestart-before-start: the host's pre-start, then on_app_prestart, then on_app_start."""
+
+    def test_variables_are_registered_before_the_frontends_prestart(
+        self, host, tmp_path, monkeypatch
+    ):
+        """The shared pre-start registers $(FRONT_END) and $(CFG) before the frontend's own runs."""
+        # Arrange -- private copies: the variable stores are process-wide
+        from termapy import variables
+
+        monkeypatch.setattr(variables, "_LAUNCH_VARS", dict(variables._LAUNCH_VARS))
+        monkeypatch.setattr(variables, "_CONTEXT_VARS", dict(variables._CONTEXT_VARS))
+        repl = ReplEngine(
+            host.cfg, host.config_path, write=lambda t, c="": None, global_root=tmp_path
+        )
+        seen: dict[str, str] = {}
+
+        class _NamedHost(_StubHost):
+            front_end = "probe"
+
+            def _on_app_prestart(self) -> None:
+                seen["front_end"] = variables.launch_var("FRONT_END") or ""
+                seen["cfg"] = variables.expand_vars("$(CFG)")
+
+        start_host = _NamedHost(host.cfg, host.config_path, host.engine, repl, host.capture)
+        start_host.ctx = start_host._build_plugin_context(start_host._build_internal_handle())
+        repl.set_context(start_host.ctx)
+        start_host._init_flags()
+
+        # Act
+        start_host._fire_app_start()
+
+        # Assert
+        assert seen["front_end"] == "probe", "each host names itself, once, in the shared step"
+        assert seen["cfg"] == "test", "the CFG variables answer for this host's config"
+
+    def test_prestart_runs_before_the_config_load(self, host, tmp_path):
+        """The frontend's pre-start work and its hooks finish before the config load prints."""
+        # Arrange -- a temp global root: the checkout's termapy_cfg/plugin must not load
+        repl = ReplEngine(
+            host.cfg, host.config_path, write=lambda t, c="": None, global_root=tmp_path
+        )
+        start_host = _PrestartHost(host.cfg, host.config_path, host.engine, repl, host.capture)
+        start_host.ctx = start_host._build_plugin_context(start_host._build_internal_handle())
+        repl.set_context(start_host.ctx)
+        start_host._init_flags()
+        lines = start_host._status_msgs
+        for event in ("on_app_prestart", "on_app_start"):
+            repl.register_lifecycle_hook(
+                LifecycleHook(event, lambda ctx, event=event: lines.append(event))
+            )
+        (Path(host.config_path).parent / "plugin" / "hello.py").write_text(
+            "from termapy.plugins import CmdResult, Command\n\n\n"
+            "def _handler(ctx, args):\n"
+            '    return CmdResult.ok(value="")\n\n\n'
+            'COMMAND = Command(name="hello", help="test", handler=_handler)\n',
+            encoding="utf-8",
+        )
+        marks = {"PRESTART", "on_app_prestart", "Loaded - 1 file", "on_app_start"}
+
+        # Act
+        start_host._fire_app_start()
+
+        # Assert
+        actual = [line for line in lines if line in marks]
+        expected = ["PRESTART", "on_app_prestart", "Loaded - 1 file", "on_app_start"]
+        assert actual == expected, (
+            "the host's pre-start work, its hooks, the config load's table, then the start hooks"
+        )

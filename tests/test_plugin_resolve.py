@@ -153,8 +153,14 @@ def rig(tmp_path):
     return root, _write_cfg(root, "rig")
 
 
-def _load_lines(output) -> list[str]:
-    return [text for text, _ in output if text.startswith("Loaded ")]
+def _report_titles(output) -> list[str]:
+    """The load report's title lines: one per printed table."""
+    return [text for text, _ in output if text.startswith("Loaded - ")]
+
+
+def _rows(engine) -> list[tuple[str, str]]:
+    """The load report as ``(layer, file)`` pairs, in load order."""
+    return [(record["layer"], record["file"]) for record in engine.load_report.records]
 
 
 class TestLayers:
@@ -172,11 +178,9 @@ class TestLayers:
         # Assert
         assert engine._plugins["hello"].source == "global", "the global layer loaded"
         assert engine._plugins["hi"].source == "rig", "the per-config layer is labelled by cfg stem"
-        expected = [
-            "Loaded 1 plugin(s) from global: hello",
-            "Loaded 1 plugin(s) from rig: hi",
-        ]
-        assert _load_lines(output) == expected, "one load line per layer, global first"
+        expected = [("global", "plugin/hello.py"), ("rig", "plugin/hi.py")]
+        assert _rows(engine) == expected, "one report row per file, global layer first"
+        assert _report_titles(output) == ["Loaded - 2 files"], "printed once, as one table"
 
     def test_config_layer_overrides_global(self, rig):
         """A per-config plugin replaces a same-named global one, handler included."""
@@ -291,7 +295,12 @@ class TestConfigSwitch:
         assert engine.ctx.ns("probe")["fired"] == ["otherfull"], (
             "only the new config's on_config_load fired on the switch"
         )
-        assert ("Unloaded 1 plugin(s): rigfull", "dim") in output, "the drop is reported"
+        assert _rows(engine) == [("other", "plugin/otherfull.py")], (
+            "the report is the new config's alone"
+        )
+        assert not any(text.startswith("Unloaded") for text, _ in output), (
+            "the drop is not a line of its own: the new table is the new state"
+        )
 
     def test_list_identity_preserved(self, rig):
         """Resolution filters registries in place, so InternalHandle's aliases stay valid."""
@@ -370,8 +379,9 @@ class TestGateAndReporting:
 
         # Assert
         assert "good" in engine._plugins, "the good sibling still loads"
-        assert _load_lines(output) == [], "no load line under --run / --exec"
+        assert _report_titles(output) == [], "no load table under --run / --exec"
         assert ("Plugin error: broken.py: boom", "red") in output, "an error is never silent"
+        assert ("rig", "plugin/good.py") in _rows(engine), "the rows are kept all the same"
 
     def test_skipped_file_reported(self, rig):
         """A plugin file that exports nothing is reported as skipped, not silently ignored."""
@@ -386,3 +396,168 @@ class TestGateAndReporting:
         # Assert
         expected = ("Skipped noop.py - nothing exported (see plugin docs)", "yellow")
         assert expected in output, "a file with nothing to register is reported"
+
+
+class TestLoadReport:
+    """load-report-one-table: the plugin rows, the printed table and /cfg.loaded."""
+
+    def test_row_names_what_the_file_registered(self, rig):
+        """A plugin row lists each kind its file registered, and counts them."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "full.py", _full_plugin("full"))
+        engine, _ = _build(root, str(config_path))
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        (actual,) = engine.load_report.records
+        expected_detail = {
+            "commands": ["full"],
+            "transforms": ["full_x"],
+            "directives": ["full_d"],
+            "converters": [],
+            "hooks": ["on_app_start", "on_config_load"],
+        }
+        assert actual["detail"] == expected_detail, "every export, by kind"
+        assert actual["count"] == 5, "the count is everything registered"
+        assert actual["name"] == "full", "the row is named for the module"
+        assert actual["error"] == "", "it loaded"
+
+    def test_broken_and_empty_files_are_error_rows(self, rig):
+        """A file that raised, or exported nothing, is a row carrying why."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "broken.py", "raise RuntimeError('boom')\n")
+        _write_plugin(config_path.parent / "plugin", "noop.py", "X = 1\n")
+        engine, _ = _build(root, str(config_path))
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        actual = {record["file"]: record["error"] for record in engine.load_report.records}
+        expected = {"plugin/broken.py": "boom", "plugin/noop.py": "nothing exported"}
+        assert actual == expected, "an agent that never saw the startup lines learns both"
+
+    def test_app_owned_name_is_left_out_of_the_row(self, rig):
+        """A command the frontend owns is skipped, so the row does not claim it."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "hello.py", _command_plugin("hello"))
+        engine, _ = _build(root, str(config_path))
+        engine.register_hook(
+            "hello", "", "app", lambda ctx, args: CmdResult.ok(value="app"), source="app"
+        )
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        (actual,) = engine.load_report.records
+        assert actual["detail"]["commands"] == [], "the skipped command is not listed"
+        assert actual["count"] == 0, "nor counted"
+
+    def test_second_load_replaces_the_rows(self, rig):
+        """Loading twice leaves one set of rows, and each pass prints its own table."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "hi.py", _command_plugin("hi"))
+        engine, output = _build(root, str(config_path))
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+        engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert _rows(engine) == [("rig", "plugin/hi.py")], "replaced, never appended"
+        assert _report_titles(output) == ["Loaded - 1 file", "Loaded - 1 file"], (
+            "one table per load"
+        )
+
+    def test_repeated_loads_stay_bounded(self, rig):
+        """Many config loads with no reader hold one load's rows, not a history."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "hi.py", _command_plugin("hi"))
+        engine, _ = _build(root, str(config_path))
+
+        # Act
+        for _ in range(50):
+            engine.fire_lifecycle("on_config_load")
+
+        # Assert
+        assert len(engine.load_report.records) == 1, "the report is the last load only"
+
+    def test_nothing_loaded_prints_nothing(self, rig):
+        """With no plugin, symbol or device file there is no table at all."""
+        # Arrange
+        root, config_path = rig
+        engine, output = _build(root, str(config_path))
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert _report_titles(output) == [], "an empty report is not printed"
+
+    def test_other_events_leave_the_report_alone(self, rig):
+        """Only a config load replaces the rows; a connect or a script does not."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "hi.py", _command_plugin("hi"))
+        engine, _ = _build(root, str(config_path))
+        engine.fire_lifecycle("on_app_start")
+        expected = engine.load_report.records
+
+        # Act
+        engine.fire_lifecycle("on_connect")
+        engine.fire_lifecycle("on_script_start")
+
+        # Assert
+        assert engine.load_report.records == expected, "the rows are the config load's"
+
+    def test_cfg_loaded_answers_with_the_rows(self, rig):
+        """/cfg.loaded returns the report's rows as data and the startup table as prose."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(root / "plugin", "hello.py", _command_plugin("hello"))
+        engine, output = _build(root, str(config_path))
+        engine.ctx.internal.load_report = lambda: engine.load_report.records
+        engine.fire_lifecycle("on_app_start")
+        startup = list(output)
+        output.clear()
+
+        # Act
+        result = engine.dispatch("cfg.loaded")
+
+        # Assert
+        assert result.success, result.error
+        assert result.data == engine.load_report.records, "data is the rows themselves"
+        assert result.value == "plugin/hello.py", "value is the loaded files"
+        assert output == startup, "the command prints exactly the startup table"
+
+    def test_folder_prestart_hook_is_skipped_with_a_warning(self, rig):
+        """prestart-before-start: a folder plugin loads after pre-start, so its on_app_prestart is refused aloud."""
+        # Arrange
+        root, config_path = rig
+        source = _command_plugin("early") + "\n\ndef on_app_prestart(ctx):\n    pass\n"
+        _write_plugin(config_path.parent / "plugin", "early.py", source)
+        engine, output = _build(root, str(config_path))
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        actual = [hook.name for hook in engine._lifecycle_hooks if hook.plugin == "early"]
+        assert actual == [], "the folder plugin's hook is never registered"
+        expected = (
+            "Skipped on_app_prestart in early.py from rig - "
+            "folder plugins load after pre-start (use on_app_start)",
+            "yellow",
+        )
+        assert expected in output, "a hook that could never fire is not dropped silently"
+        (row,) = engine.load_report.records
+        assert row["detail"]["hooks"] == [], "and the row does not claim it"
+        assert row["detail"]["commands"] == ["early"], "the rest of the file still loads"

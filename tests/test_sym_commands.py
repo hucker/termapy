@@ -129,6 +129,7 @@ def _texts(output) -> list[str]:
 
 class TestAutoload:
     def test_sidecar_present_loads_on_app_start(self, sym_env):
+        """The sidecar loads on app start and is the load report's symbols row."""
         # Arrange
         engine, config_path, output = sym_env
         _install_sidecar(config_path)
@@ -140,9 +141,23 @@ class TestAutoload:
         table = get_table(engine.ctx)
         assert table is not None, "table installed in the namespace"
         assert len(table) == DEMO_COUNT, "every demo symbol loaded"
-        assert (f"Loaded {DEMO_COUNT} symbols (rig{SYMBOLS_SUFFIX})", "dim") in output, (
-            "interactive sessions see the load line on the output channel"
-        )
+        (actual,) = engine.load_report.records
+        expected = {
+            "kind": "symbols",
+            "name": "demo firmware (hand-written)",
+            "layer": "rig",
+            "file": f"sym/rig{SYMBOLS_SUFFIX}",
+            "count": DEMO_COUNT,
+            "detail": {
+                "source": "demo firmware (hand-written)",
+                "converter": "",
+                "typed": sum(1 for symbol in table.symbols if symbol.type),
+                "status": "unknown",
+            },
+            "error": "",
+        }
+        assert actual == expected, "named for its build, counted, with no verdict to give"
+        assert "Loaded - 1 file" in _texts(output), "interactive sessions see the report"
 
     def test_absent_sidecar_is_silent(self, sym_env):
         # Arrange
@@ -170,6 +185,10 @@ class TestAutoload:
         assert errors == [
             (f"Symbols: rig{SYMBOLS_SUFFIX}: symbols_version: expected 1, got 2", "yellow"),
         ], "the error is reported once, field-qualified, and never raised"
+        (row,) = engine.load_report.records
+        actual = (row["kind"], row["file"], row["error"])
+        expected = ("symbols", f"sym/rig{SYMBOLS_SUFFIX}", "symbols_version: expected 1, got 2")
+        assert actual == expected, "and it is the report's symbols row, with the reason"
 
     def test_oneshot_loads_silently(self, tmp_path):
         # Arrange -- --run / --exec stdout must carry only the user's output
@@ -182,6 +201,7 @@ class TestAutoload:
         # Assert
         assert get_table(engine.ctx) is not None, "the table still loads"
         assert not any(text.startswith("Loaded ") for text in _texts(output)), "but says nothing"
+        assert len(engine.load_report.records) == 1, "the report still has its row"
 
     def test_config_switch_without_sidecar_clears_table(self, sym_env, tmp_path):
         # Arrange -- the TUI keeps its ctx across a switch, so the seam must clear
@@ -589,6 +609,63 @@ class TestDevices:
         assert len(table) == DEMO_COUNT + 2, "build symbols plus the part's registers"
         result = engine.dispatch("sym REG_A")
         assert result.value == "0x50000000", "a register resolves like any symbol"
+
+    def test_each_device_file_is_a_report_row(self, sym_env):
+        """A device file's row names the part, its layer, its file and its registers."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_device(config_path.parent / "dev", "part", _PART)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        (actual,) = engine.load_report.records
+        expected = {
+            "kind": "device",
+            "name": "part",
+            "layer": "rig",
+            "file": "dev/part.device.json",
+            "count": 2,
+            "detail": {"ref": ""},
+            "error": "",
+        }
+        assert actual == expected, "a file holding its own registers names no ref"
+
+    def test_reference_row_names_the_library_part(self, sym_env, tmp_path):
+        """A reference file's row says which library part it placed."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        _install_library(tmp_path, "vendor", "fixedpart")
+        dev = config_path.parent / "dev"
+        dev.mkdir()
+        (dev / "board.device.json").write_text(
+            json.dumps({"device_version": 1, "ref": "fixedpart"}), encoding="utf-8"
+        )
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        (actual,) = engine.load_report.records
+        assert actual["file"] == "dev/board.device.json", "the row is the board's file"
+        assert actual["detail"] == {"ref": "fixedpart"}, "and names the part it placed"
+
+    def test_broken_device_file_is_an_error_row(self, sym_env):
+        """A device file that does not load is a row carrying the loader's reason."""
+        # Arrange
+        engine, config_path, _ = sym_env
+        dev = config_path.parent / "dev"
+        dev.mkdir()
+        (dev / "bad.device.json").write_text("{", encoding="utf-8")
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        (actual,) = engine.load_report.records
+        assert actual["kind"] == "device", "a device row"
+        assert actual["error"].startswith("bad.device.json: "), "the loader's own message"
 
     def test_devices_load_with_no_sidecar(self, sym_env):
         """A board whose firmware map you lack still has registers."""

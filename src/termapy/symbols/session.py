@@ -28,8 +28,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from termapy import devices as devices_mod
-from termapy.symbols.provenance import check_staleness
+from termapy import devices as devices_mod, folders
+from termapy.load_report import DEVICE, SYMBOLS, Record, load_record
+from termapy.symbols.provenance import Staleness, check_staleness
 from termapy.symbols.table import SymbolTable, sidecar_path
 
 if TYPE_CHECKING:
@@ -130,15 +131,15 @@ def autoload(
     ctx: PluginContext,
     config_path: str,
     global_root: Path | None = None,
-) -> SymbolTable | None:
+) -> list[Record]:
     """Load the sidecar and the config's device files; never raises.
 
     Always clears the previous state first: a config switch drops the
     previous build's names and the previous board's registers even when
     the new cfg has neither.  A missing sidecar is silent; a broken file
     of either kind is reported on ``ctx.io.output`` (an error is never
-    silent) and skipped.  The success lines are suppressed for ``--run``
-    / ``--exec`` so captured stdout contains only the user's output.
+    silent) and skipped.  What loaded is not printed here: it is the
+    caller's load report (``termapy.load_report``).
 
     Devices load even when there is NO sidecar -- a board whose firmware
     map you do not have still has registers at addresses the silicon
@@ -152,12 +153,18 @@ def autoload(
             device layer; None resolves the real one.
 
     Returns:
-        The merged table, or None when neither source produced one.
+        The load-report rows: the sidecar's, then one per device file
+        and one per device error.
     """
     ctx.ns(SYMBOLS_NS).clear()
-    build = _load_sidecar(ctx, config_path)
-    devices, _ = _resolve_and_report(ctx, config_path, global_root, announce=True)
-    return _install(ctx, build, devices)
+    build, records = _load_sidecar(ctx, config_path)
+    devices, errors = _resolve_and_report(ctx, config_path, global_root)
+    _install(ctx, build, devices)
+    return [
+        *records,
+        *(_device_record(device) for device in devices),
+        *(load_record(DEVICE, error=error) for error in errors),
+    ]
 
 
 def reload_devices(
@@ -176,7 +183,7 @@ def reload_devices(
         command that just wrote a file can tell whether its file is among
         them and say why instead of guessing.
     """
-    devices, errors = _resolve_and_report(ctx, config_path, global_root, announce=False)
+    devices, errors = _resolve_and_report(ctx, config_path, global_root)
     install_devices(ctx, devices)
     return errors
 
@@ -185,37 +192,63 @@ def _resolve_and_report(
     ctx: PluginContext,
     config_path: str,
     global_root: Path | None,
-    *,
-    announce: bool,
 ) -> tuple[list[Device], list[str]]:
-    """Resolve the layers; report every error; optionally the load line."""
+    """Resolve the layers and report every error."""
     devices, errors = devices_mod.resolve_devices(config_path, global_root)
     for error in errors:
         ctx.io.output(f"Device: {error}", "yellow")
-    if announce and devices and not ctx.is_oneshot():
-        count = sum(len(device) for device in devices)
-        names = ", ".join(device.name for device in devices)
-        ctx.io.output(f"Loaded {count} device registers ({names})", "dim")
     return devices, errors
 
 
-def _load_sidecar(ctx: PluginContext, config_path: str) -> SymbolTable | None:
-    """The build's own table, reported and staleness-checked, or None."""
+def _device_record(device: Device) -> Record:
+    """A device file's load-report row; ``ref`` names the library part it placed."""
+    return load_record(
+        DEVICE,
+        name=device.name,
+        layer=device.layer,
+        file=Path(folders.DEV, device.path.name).as_posix() if device.path else "",
+        count=len(device),
+        detail={"ref": device.ref},
+    )
+
+
+def _load_sidecar(ctx: PluginContext, config_path: str) -> tuple[SymbolTable | None, list[Record]]:
+    """The build's own table, staleness-checked, and its load-report row.
+
+    Returns:
+        ``(table, rows)``: no sidecar is ``(None, [])``, a broken one is
+        ``(None, [its error row])``.
+    """
     path = sidecar_path(config_path)
     if path is None or not path.is_file():
-        return None
+        return None, []
+    layer = Path(config_path).stem
+    file = Path(folders.SYM, path.name).as_posix()
     try:
         table = SymbolTable.load(path)
     except (OSError, ValueError) as e:
         ctx.io.output(f"Symbols: {path.name}: {e}", "yellow")
-        return None
-    if not ctx.is_oneshot():
-        ctx.io.output(f"Loaded {len(table)} symbols ({path.name})", "dim")
-    _report_staleness(ctx, table)
-    return table
+        return None, [load_record(SYMBOLS, layer=layer, file=file, error=str(e))]
+    verdict = check_staleness(table, prefix=ctx.prefix)
+    _report_staleness(ctx, verdict)
+    recipe = table.recipe or {}
+    record = load_record(
+        SYMBOLS,
+        name=Path(table.source).name if table.source else path.stem,
+        layer=layer,
+        file=file,
+        count=len(table),
+        detail={
+            "source": table.source,
+            "converter": recipe.get("converter", ""),
+            "typed": sum(1 for symbol in table.symbols if symbol.type),
+            "status": verdict.status,
+        },
+    )
+    return table, [record]
 
 
-def _report_staleness(ctx: PluginContext, table: SymbolTable) -> None:
+def _report_staleness(ctx: PluginContext, verdict: Staleness) -> None:
     """Warn when the map moved under a loaded table.  Never regenerates.
 
     A rebuild is the COMMON case, so this reports and stops: a terminal
@@ -229,7 +262,6 @@ def _report_staleness(ctx: PluginContext, table: SymbolTable) -> None:
     addresses is exactly the case worth interrupting, and this goes to
     the output channel, not the captured value.
     """
-    verdict = check_staleness(table, prefix=ctx.prefix)
     if not verdict.is_stale:
         return
     ctx.io.output(f"Symbols may be out of date: {verdict.reason}", "yellow")

@@ -239,6 +239,28 @@ demo> /cfg.dump
       ]
   }
   [50/219] /cfg.dump (2.1ms)
+demo> /print === section: config loaded ===
+  === section: config loaded ===
+demo> /cfg.loaded
+  Loaded - 4 files
+  KIND     NAME                          LAYER  FILE                   COUNT  NOTE
+  -------  ----------------------------  -----  ---------------------  -----  ------------------
+  plugin   cmd                           demo   plugin/cmd.py              1  commands crcsend
+  plugin   probe                         demo   plugin/probe.py            1  commands probe
+  plugin   temp_plot                     demo   plugin/temp_plot.py        1  commands temp_plot
+  symbols  demo firmware (hand-written)  demo   sym/demo.symbols.json     15  10 typed
+demo> /help /cfg.loaded
+NAME
+  /cfg.loaded - Show what the config load loaded: plugins, symbols, devices.
+
+DESCRIPTION
+  The table printed at startup and on every config switch: one row per plugin file, symbol table and device file the load read, from the global layer and the config's own, with what each registered.  A file that failed is a row with its error.  Under MCP the profile auto-loaded on connect is a row too.  Later imports and loads (/sym.import, /dev.import, /profile.load) answer for themselves and are not added.
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /cfg.auto, /cfg.delete, /cfg.dump, /cfg.edit, /cfg.explore, /cfg.file, /cfg.help, /cfg.icon, /cfg.info, /cfg.list, /cfg.load, /cfg.new, /cfg.rename, /cfg.show, /cfg
 demo> /print === section: config new ===
   === section: config new ===
 demo> /cfg.new gold_new loop:// 9600 E71
@@ -885,6 +907,7 @@ SUBCOMMANDS
   /cfg.info       Print project summary (tree + config + buttons).
   /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (hot-swap).
+  /cfg.loaded     Show what the config load loaded: plugins, symbols, devices.
   /cfg.new        Create a config for a port; /cfg.load <name> switches to it.
   /cfg.rename     Rename a config, folder and file together.
   /cfg.show       Open the current config file in the system viewer.

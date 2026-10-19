@@ -43,6 +43,10 @@ def host(tmp_path):
     for sub in ("plugin", "ss", "run", "cap"):
         (config_path.parent / sub).mkdir(exist_ok=True)
     h = MCPHost(cfg, str(config_path), verbose=False)
+    # Started as the server starts it, so the session variables are
+    # registered; a temp global root keeps the checkout's plugins out.
+    h.repl.global_root = tmp_path
+    h._fire_app_start()
     return h
 
 

@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy import load_report
 from termapy.builtins.commands._cfg_icon import (
     _FLAGS as _ICON_FLAGS,
     _LONG_HELP as _ICON_LONG_HELP,
@@ -183,6 +184,22 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     )
     names = "\n".join(path.stem for path in paths)
     return CmdResult.table(f"{root.name}/", "config", columns, records, value=names)
+
+
+# ── /cfg.loaded handler ───────────────────────────────────────────────────
+
+
+def _handler_loaded(ctx: PluginContext, args: str) -> CmdResult:
+    """What the last config load put in the session: the startup table again.
+
+    One row per plugin file, symbol table, device file and (MCP) profile,
+    loaded or failed (``termapy.load_report``); ``data`` is the rows.
+
+    Args:
+        ctx: Plugin context; the rows come through ``ctx.internal``.
+        args: Unused.
+    """
+    return load_report.result(ctx.internal.load_report())
 
 
 # ── /cfg.load handler ──────────────────────────────────────────────────────
@@ -723,6 +740,19 @@ COMMAND = Command(
             args="<name>",
             help="Load a different config in this session (hot-swap).",
             handler=_handler_load,
+        ),
+        "loaded": Command(
+            help="Show what the config load loaded: plugins, symbols, devices.",
+            long_help=(
+                "The table printed at startup and on every config switch: one "
+                "row per plugin file, symbol table and device file the load "
+                "read, from the global layer and the config's own, with what "
+                "each registered.  A file that failed is a row with its error.  "
+                "Under MCP the profile auto-loaded on connect is a row too.  "
+                "Later imports and loads ({prefix}sym.import, {prefix}dev.import, "
+                "{prefix}profile.load) answer for themselves and are not added."
+            ),
+            handler=_handler_loaded,
         ),
         "new": Command(
             args="<name> <port> {baud} {mode}",

@@ -28,6 +28,7 @@ from termapy.plugins.command import (
     DirectiveInfo,
     LifecycleHook,
     LoadResult,
+    ModuleLoad,
     PluginInfo,
     Transform,
     TransformInfo,
@@ -84,8 +85,8 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
         source: Label for where the plugin came from (e.g. "global", config name).
 
     Returns:
-        LoadResult with plugins, transforms, directives, lifecycle hooks,
-        converters, skipped file names, and error file names.
+        LoadResult with one ModuleLoad per file: its exports, or the
+        error that stopped it.
     """
     result = LoadResult()
     if not folder.is_dir():
@@ -94,25 +95,21 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
     for py_file in sorted(folder.glob("*.py")):
         if py_file.name.startswith("_"):
             continue
+        module = ModuleLoad(py_file.name)
         try:
-            infos, xforms, dirs, hooks, convs = _load_plugin_file(py_file, source)
-            if infos:
-                result.plugins.extend(infos)
-            if xforms:
-                result.transforms.extend(xforms)
-            if dirs:
-                result.directives.extend(dirs)
-            if hooks:
-                result.lifecycle_hooks.extend(hooks)
-            if convs:
-                result.converters.extend(convs)
-            if not infos and not xforms and not dirs and not hooks and not convs:
-                result.skipped.append(py_file.name)
+            (
+                module.plugins,
+                module.transforms,
+                module.directives,
+                module.lifecycle_hooks,
+                module.converters,
+            ) = _load_plugin_file(py_file, source)
         # Plugin file being loaded is third-party code; its top-level
         # can raise anything (import errors, syntax, config reads).
         # Record the failure for reporting and keep loading the rest.
         except BoundaryException as e:
-            result.errors.append(f"{py_file.name}: {e}")
+            module.error = str(e)
+        result.modules.append(module)
     return result
 
 

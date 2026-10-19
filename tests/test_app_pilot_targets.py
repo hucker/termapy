@@ -800,7 +800,9 @@ class TestClickableOutput:
 
                 # Assert
                 actual = app.query_one("#cmd", Input).value
-                assert actual == "/dev.use part", "the command waits in the input line"
+                assert actual == "/dev.use part ", (
+                    "the command waits in the input line, a space after it"
+                )
                 assert "/dev.use part" not in app.history, "nothing ran"
 
         asyncio.run(scenario())
@@ -988,6 +990,31 @@ class TestClickableOutput:
                 )
                 assert app._describe_link(10**9) == app._EXPIRED_LINK_MSG, (
                     "an old link says so before the click, not after"
+                )
+
+        asyncio.run(scenario())
+
+    def test_a_filled_command_takes_what_you_type_next(self, app_factory):
+        """A clicked name fills the input with a trailing space, nothing selected, so typing adds to it."""
+
+        async def scenario():
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/help cfg.loaded")
+                await until(pilot, lambda: any("/cfg.loaded - " in line for line in _screen(app)))
+                inp = app.query_one("#cmd", Input)
+
+                # Act
+                await _click_text(pilot, app, "/cfg.loaded - ")
+                await until(pilot, lambda: inp.has_focus)
+                filled = inp.value
+                await pilot.press("x")
+
+                # Assert
+                assert filled == "/cfg.loaded ", "ends with a space, ready for what follows"
+                assert inp.value == "/cfg.loaded x", (
+                    "the first key adds to the command, not over it"
                 )
 
         asyncio.run(scenario())

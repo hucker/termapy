@@ -14,7 +14,10 @@
   `/help.plugin`. Browsing the commands is clicking through them. The
   CLI, MCP and the log show help exactly as before, colors included.
 - On a command's own help page, its name under NAME and SYNOPSIS puts the
-  command in the input line, ready for its arguments: Enter runs it. The
+  command in the input line followed by a space, with the cursor after it
+  and nothing selected, so you type its arguments straight away; Enter
+  runs it. The prompt no longer selects what you typed when focus comes
+  back to it (after a click or a closed dialog), so a key never erases it. The
   bare line does what the button does: in `/help run`, click "Run picker"
   to open the Run picker, or `/run.list` to list the scripts. Nothing on a
   page runs by accident: a click there opens a page, a picker or a list,

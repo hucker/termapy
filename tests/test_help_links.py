@@ -187,7 +187,7 @@ def test_a_bare_form_only_opens_or_shows(tmp_path):
 
 
 def test_a_command_name_on_its_page_fills_the_input_line(tmp_path):
-    """NAME and SYNOPSIS put the command in the input line; one that takes arguments gets a space for them."""
+    """NAME and SYNOPSIS put the command in the input line, never run it; the TUI adds the space after it."""
     # Arrange
     eng = _engine(tmp_path)
 
@@ -199,8 +199,8 @@ def test_a_command_name_on_its_page_fills_the_input_line(tmp_path):
 
     # Assert
     assert loaded[1].link == Link("cfg.loaded", run=False), "Enter runs it, nothing runs on its own"
-    assert run_name[1].link == Link("run ", run=False), "ready for the file name"
-    assert run_synopsis[1].link == Link("run ", run=False), "the synopsis line does the same"
+    assert run_name[1].link == Link("run", run=False), "fills, for the file name to follow"
+    assert run_synopsis[1].link == Link("run", run=False), "the synopsis line does the same"
 
 
 def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
@@ -217,7 +217,7 @@ def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
     assert actual_text == expected_text
     actual_links = {piece.text: piece.link for piece in line if piece.link is not None}
     expected_links = {
-        "/run": Link("run ", run=False),
+        "/run": Link("run", run=False),
         "Run picker": Link("run"),
         "/run.list": Link("run.list"),
     }

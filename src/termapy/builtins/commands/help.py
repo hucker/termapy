@@ -136,15 +136,14 @@ def _help_link(name: str) -> Link:
     return Link(f"help {name}")
 
 
-def _try_link(name: str, plugin) -> Link:
+def _try_link(name: str) -> Link:
     """A click on a command's name on its own page fills the input line, never runs it.
 
     Trying the command is then one Enter away, and nothing runs by
     accident: the safety tier is no guide (``/cap.clear`` deletes every
-    capture and is ``safe``).  A command that takes arguments is filled
-    with a trailing space, ready for them.
+    capture and is ``safe``).  The frontend adds the space after it.
     """
-    return Link(f"{name} " if plugin.args else name, run=False)
+    return Link(name, run=False)
 
 
 def _write_docstring(ctx: PluginContext, docstring: str) -> None:
@@ -344,7 +343,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     plugins = ctx.internal.plugins
     # The command's name, on each line that starts with it: a click
     # fills the input line with it (registry links-are-data).
-    command = Piece(prefix + name, _try_link(name, plugin), _CMD)
+    command = Piece(prefix + name, _try_link(name), _CMD)
 
     # NAME ────────────────────────────────────────────────────────────────────
     ctx.io.output_markup(_section_markup("NAME"))

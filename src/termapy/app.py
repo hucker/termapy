@@ -842,6 +842,10 @@ class SerialTerminal(TerminalHost, App):
                     placeholder=f"{prefix} for REPL, {PALETTE_HOTKEY} for palette",
                     id="cmd",
                     suggester=self._suggester,
+                    # A prompt keeps what is typed when focus comes back
+                    # (a filled link, a closed dialog): selecting it all
+                    # would let the next key erase it.
+                    select_on_focus=False,
                 )
                 # Record button toggles /run.record.  Sits at the
                 # right edge of the REPL input.  Green when idle,
@@ -3110,8 +3114,10 @@ class SerialTerminal(TerminalHost, App):
         command = f"{cmd_prefix(self.cfg)}{link.command}"
         inp = self.query_one("#cmd", Input)
         if not link.run:
-            inp.value = command
-            inp.cursor_position = len(command)
+            # Ready for what follows: the cursor after a space, nothing
+            # selected (the prompt does not select on focus).
+            inp.value = f"{command.rstrip()} "
+            inp.cursor_position = len(inp.value)
             inp.focus()
             return
         if self.query_one("#bottom-bar").disabled:

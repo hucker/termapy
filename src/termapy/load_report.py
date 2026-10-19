@@ -23,6 +23,8 @@ A record's keys are the same for every kind:
 - ``name``: what loaded (the plugin module, the build, the device, the profile)
 - ``layer``: ``global`` or the config's name
 - ``file``: the file, relative to that layer's folder
+- ``path``: the same file in full, ``""`` when there is none (a device
+  error names its file only in ``error``)
 - ``count``: what it registered (commands and hooks, symbols, registers,
   profile commands)
 - ``detail``: the kind's own facts, a fixed set of keys per kind
@@ -31,7 +33,9 @@ A record's keys are the same for every kind:
 A failure is printed where it happens, as it always was (an error is
 never silent), and is also a row here, so an agent that never saw the
 startup output learns what failed.  The rows are reported, the table is
-not printed, for ``--run`` / ``--exec``.  Registry ``load-report-one-table``.
+not printed, for ``--run`` / ``--exec``.  Under ``quiet_start`` the table
+goes to the session log and the screen names only the files that describe
+the target (:func:`startup_lines`).  Registry ``load-report-one-table``.
 Pure: no I/O, no Textual, no pyserial.
 """
 
@@ -61,6 +65,7 @@ def load_record(
     name: str = "",
     layer: str = "",
     file: str = "",
+    path: str = "",
     count: int = 0,
     detail: dict[str, Any] | None = None,
     error: str = "",
@@ -71,18 +76,22 @@ def load_record(
         "name": name,
         "layer": layer,
         "file": file,
+        "path": path,
         "count": count,
         "detail": detail or {},
         "error": error,
     }
 
 
-def plugin_record(module: ModuleLoad, layer: str, commands: list[str], hooks: list[str]) -> Record:
+def plugin_record(
+    module: ModuleLoad, layer: str, folder: Path, commands: list[str], hooks: list[str]
+) -> Record:
     """A plugin file's row: what it registered, by kind.
 
     Args:
         module: The file's load result.
         layer: ``global`` or the config's name.
+        folder: The ``plugin/`` folder the file is in.
         commands: The command names actually registered -- a name the
             frontend owns is skipped, so it is not ``module.plugins``.
         hooks: The lifecycle hooks actually registered -- a folder
@@ -106,18 +115,20 @@ def plugin_record(module: ModuleLoad, layer: str, commands: list[str], hooks: li
         name=Path(module.file).stem,
         layer=layer,
         file=Path(PLUGIN_FOLDER, module.file).as_posix(),
+        path=str((folder / module.file).resolve()),
         count=sum(len(names) for names in detail.values()),
         detail=detail,
         error=error,
     )
 
 
-def profile_record(profile: dict[str, Any], *, file: str, layer: str) -> Record:
+def profile_record(profile: dict[str, Any], *, file: str, path: str, layer: str) -> Record:
     """An auto-loaded profile's row: the device it describes, its command count.
 
     Args:
         profile: The installed profile (``ctx.ns("active_profile")``).
         file: The profile file, relative to the config folder when inside it.
+        path: The same file in full.
         layer: The config's name.
     """
     device = profile.get("device")
@@ -126,9 +137,29 @@ def profile_record(profile: dict[str, Any], *, file: str, layer: str) -> Record:
         name=str(device.get("name", "")) if isinstance(device, dict) else "",
         layer=layer,
         file=file,
+        path=path,
         count=len(profile.get("commands") or {}),
         detail={"revision": str(profile.get("profile_revision") or "")},
     )
+
+
+# What a quiet startup names on screen: the files that describe the
+# target, its memory map and its registers.  Plugins are code; their rows
+# stay in the log and /cfg.loaded.
+_STARTUP_LABELS: Final[dict[str, str]] = {SYMBOLS: "Symbols:", DEVICE: "Device: "}
+
+
+def startup_lines(records: Iterable[Record]) -> list[str]:
+    """The screen's lines for a quiet startup: one per symbol table and device file.
+
+    Each names the file in full, which the TUI makes clickable; one that
+    failed is left out here, since its error was printed where it failed.
+    """
+    return [
+        f"{_STARTUP_LABELS[record['kind']]} {record['path']}"
+        for record in records
+        if record["kind"] in _STARTUP_LABELS and record["path"] and not record["error"]
+    ]
 
 
 class LoadReport:

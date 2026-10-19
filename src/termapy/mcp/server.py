@@ -54,7 +54,7 @@ from termapy.plugins import (
 from termapy.repl import ReplEngine
 from termapy.scripting import format_duration, strip_ansi
 from termapy.serial_engine import SerialEngine
-from termapy.terminal_host import TerminalHost
+from termapy.terminal_host import SESSION_END, SESSION_START, TerminalHost
 
 if TYPE_CHECKING:
     import argparse
@@ -123,6 +123,9 @@ class MCPHost(TerminalHost):
         self._mcp_dir: Path | None = None
         self._log_path: Path | None = None
         self._log_lock = threading.Lock()
+        # Set at pre-start: from then on a /cfg.load that moves the log
+        # ends the old file and starts the new one.
+        self._session_started = False
         self._refresh_log_paths()
 
         # device_state tracking (served by termapy://device_state.json).
@@ -185,13 +188,42 @@ class MCPHost(TerminalHost):
         Called at construction and after each ``/cfg.load`` (via
         ``_switch_to_cfg_path``) so a slot's log routes to the active
         cfg's ``mcp/`` directory.  Idempotent: safe to call any time.
+        Once the session has started, a call that moves the log ends the
+        old file and starts the new one (:meth:`_follow_session_log`).
         """
+        previous = self._log_path
         self._mcp_dir = self._resolve_mcp_dir()
         if self._mcp_dir is not None:
             self._mcp_dir.mkdir(parents=True, exist_ok=True)
             self._log_path = mcp_log_path(self.config_path)
         else:
             self._log_path = None
+        if self._session_started and self._log_path != previous:
+            self._follow_session_log(previous)
+
+    def _on_app_prestart(self) -> None:
+        """Start the session in its log: the MCP log needs no opening, only its marker."""
+        self._session_started = True
+        self._log_line(SESSION_START)
+
+    def _follow_session_log(self, previous: Path | None) -> None:
+        """A ``/cfg.load`` moved the session to another config's log: end the old, start the new.
+
+        The TUI's ``_follow_session_log`` for a log written one open per
+        call: the old file gets where the session went and its
+        ``Session End``, the new one its ``Session Start``.  A bare slot
+        (no previous file) only starts the new one.
+        """
+        with self._log_lock:
+            self._append_log(
+                previous,
+                [f"Switched to config: {Path(self.config_path).stem}", SESSION_END],
+            )
+        self._log_line(SESSION_START)
+
+    def _end_session_log(self) -> None:
+        """End the session in its log: the server's last line, after the disconnect."""
+        self._log_line(SESSION_END)
 
     def session_log_path(self) -> Path | None:
         """The MCP server's session log, ``mcp/session.log``: /log.* over MCP reads the agent's own."""
@@ -309,21 +341,27 @@ class MCPHost(TerminalHost):
         if not lines:
             return
         with self._log_lock:
-            if self._log_path is not None:
-                # Defensive: ensure the log file isn't aliased to stdout.
-                # In normal operation log_path is a regular file under
-                # the cfg's mcp/ dir; the check here is cheap insurance.
-                assert self._log_path != Path("/dev/stdout"), (
-                    "MCP session log MUST NOT alias stdout (would corrupt protocol)"
-                )
-                try:
-                    with self._log_path.open("a", encoding="utf-8") as f:
-                        f.writelines(line.rstrip("\n") + "\n" for line in lines)
-                except OSError:
-                    pass  # logging is non-critical
+            self._append_log(self._log_path, lines)
             if self.verbose:
                 for line in lines:
                     print(line.rstrip("\n"), file=sys.stderr, flush=True)
+
+    @staticmethod
+    def _append_log(path: Path | None, lines: list[str]) -> None:
+        """Append lines to one log file; None writes nothing.  Callers hold ``_log_lock``."""
+        if path is None:
+            return
+        # Defensive: ensure the log file isn't aliased to stdout.  In
+        # normal operation the path is a regular file under the cfg's
+        # mcp/ dir; the check here is cheap insurance.
+        assert path != Path("/dev/stdout"), (
+            "MCP session log MUST NOT alias stdout (would corrupt protocol)"
+        )
+        try:
+            with path.open("a", encoding="utf-8") as f:
+                f.writelines(line.rstrip("\n") + "\n" for line in lines)
+        except OSError:
+            pass  # logging is non-critical
 
     def _record_async_event(self, line: str, *, source: str) -> None:
         """Append an async serial event with a UTC timestamp and source tag.
@@ -566,7 +604,9 @@ class MCPHost(TerminalHost):
             folder = cfg_path.parent.resolve()
             if candidate.resolve().is_relative_to(folder):
                 file = candidate.resolve().relative_to(folder).as_posix()
-        record = load_report.profile_record(ctx.ns("active_profile"), file=file, layer=layer)
+        record = load_report.profile_record(
+            ctx.ns("active_profile"), file=file, path=str(candidate.resolve()), layer=layer
+        )
         self.repl.load_report.put(load_report.PROFILE, [record])
 
     def _on_connect_run_commands(self, ctx: PluginContext) -> None:
@@ -1459,3 +1499,4 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
         host.repl.fire_lifecycle("on_app_stop")
         if host.engine.is_connected:
             host._disconnect()
+        host._end_session_log()

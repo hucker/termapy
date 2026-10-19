@@ -1,4 +1,4 @@
-Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
+Connected: DEMO
   === section: device commands ===
   [1/219] /print === section: device commands === (280us)
 demo> AT
@@ -126,6 +126,8 @@ demo> /cfg send_bare_enter
 demo> /cfg cmd_prefix
   /
   [43/219] /cfg cmd_prefix (106us)
+demo> /cfg quiet_start
+  True
 demo> /print === section: config auto-set ===
   === section: config auto-set ===
   [44/219] /print === section: config auto-set === (117us)
@@ -149,6 +151,7 @@ demo> /cfg.dump
       "config_version": 30,
       "default_ui": "tui",
       "vt100_hint": true,
+      "quiet_start": true,
       "title": "Demo Device",
       "border_color": "",
       "max_lines": 10000,
@@ -254,7 +257,7 @@ NAME
   /cfg.loaded - Show what the config load loaded: plugins, symbols, devices.
 
 DESCRIPTION
-  The table printed at startup and on every config switch: one row per plugin file, symbol table and device file the load read, from the global layer and the config's own, with what each registered.  A file that failed is a row with its error.  Under MCP the profile auto-loaded on connect is a row too.  Later imports and loads (/sym.import, /dev.import, /profile.load) answer for themselves and are not added.
+  The table every config load reports, at startup and on a switch: one row per plugin file, symbol table and device file the load read, from the global layer and the config's own, with what each registered.  A file that failed is a row with its error.  It goes to the session log, and to the screen too when quiet_start is off.  Under MCP the profile auto-loaded on connect is a row too.  Later imports and loads (/sym.import, /dev.import, /profile.load) answer for themselves and are not added.
 
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
@@ -394,7 +397,7 @@ demo> /port.baud_rate
   115200 (disconnected)
   [76/219] /port.baud_rate (131us)
 demo> /port.connect
-Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
+Connected: DEMO
   [77/219] /port.connect (7.37ms)
 demo> /port.baud_rate
   115200

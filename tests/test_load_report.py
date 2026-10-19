@@ -41,6 +41,7 @@ class TestRecord:
             "name": "",
             "layer": "",
             "file": "",
+            "path": "",
             "count": 0,
             "detail": {},
             "error": "",
@@ -58,7 +59,9 @@ class TestRecord:
         }
 
         # Act
-        actual = load_report.profile_record(profile, file="rig.profile.json", layer="rig")
+        actual = load_report.profile_record(
+            profile, file="rig.profile.json", path="/cfg/rig/rig.profile.json", layer="rig"
+        )
 
         # Assert
         assert actual["name"] == "Widget", "the device the profile describes"
@@ -101,6 +104,30 @@ class TestNotes:
         # Assert
         assert lines[-1].split() == ["device", "error:", "bad.device.json:", "invalid", "JSON"], (
             "kind, then the error; the blank name, layer, file and count take no cell text"
+        )
+
+
+class TestStartupLines:
+    def test_names_the_symbol_and_device_files_in_full(self):
+        """A quiet startup names each symbol table and device file by full path, nothing else."""
+        # Arrange
+        records = [
+            load_record(PLUGIN, file="plugin/x.py", path="/cfg/rig/plugin/x.py"),
+            load_record(SYMBOLS, file="sym/rig.symbols.json", path="/cfg/rig/sym/rig.symbols.json"),
+            load_record(DEVICE, file="dev/adc.device.json", path="/cfg/rig/dev/adc.device.json"),
+            load_record(DEVICE, path="/cfg/rig/dev/bad.device.json", error="invalid JSON"),
+        ]
+
+        # Act
+        actual = load_report.startup_lines(records)
+
+        # Assert
+        expected = [
+            "Symbols: /cfg/rig/sym/rig.symbols.json",
+            "Device:  /cfg/rig/dev/adc.device.json",
+        ]
+        assert actual == expected, (
+            "plugins stay in the log, and a failed file was already reported where it failed"
         )
 
 

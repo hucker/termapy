@@ -92,7 +92,7 @@ from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
-from termapy.terminal_host import TerminalHost
+from termapy.terminal_host import SESSION_END, SESSION_START, TerminalHost
 from termapy.widgets import CommandSuggester, StatusBar
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
@@ -951,9 +951,29 @@ class SerialTerminal(TerminalHost, App):
             self.log_fh.close()
             self.log_fh = None
 
+    def _end_session_log(self) -> None:
+        """Write the ``Session End`` marker into the open log, then close it.
+
+        The session leaves a log two ways, both while it is still open: the
+        app exits (``on_unmount``) or a switch moves the session to another
+        config's file (``_follow_session_log``).  So every ``Session Start``
+        has its ``Session End`` -- unless the session did not end cleanly,
+        which is what a start without an end then says.  ``/log.delete``
+        closes without one: the file is going.
+        """
+        if self.log_fh and not self.log_fh.closed:
+            self._log_line("#", SESSION_END)
+        self._close_session_log()
+
     def _on_app_prestart(self) -> None:
-        """Open the session log before the session starts, so startup is in it."""
+        """Open the session log, then show the VS Code tip, so startup is in the log.
+
+        The tip comes first on screen, ahead of anything the config load
+        prints, and pre-start fires once per run, so a config switch never
+        repeats it.
+        """
         self._open_log()
+        self._maybe_show_vscode_tip()
 
     def _open_log(self) -> None:
         """Open the log file if a config is loaded and log isn't already open."""
@@ -963,22 +983,22 @@ class SerialTerminal(TerminalHost, App):
         if log_path is None:
             return
         self.log_fh = open(log_path, "a", encoding="utf-8")
-        self._log_line("#", f"{' Session Start ':-^60s}")
+        self._log_line("#", SESSION_START)
 
     def _follow_session_log(self, previous: Path | None) -> None:
         """Move the session log to the config just switched to.
 
         A config's log is that config's history, so after a switch the
         session belongs in the new config's file: the old one gets a line
-        saying where the session went and is closed, and the new one is
-        opened.  ``_open_log`` alone kept writing to the first config's
+        saying where the session went and its ``Session End``, and the new
+        one is opened with its ``Session Start``.  ``_open_log`` alone kept writing to the first config's
         file for the whole session, because it returns while any log is
         open.  Two configs naming one ``log_file`` share it, so a switch
         between them keeps the open file.
         """
         if self.log_fh and self.session_log_path() != previous:
             self._log_line("#", f"Switched to config: {Path(self.config_path).stem}")
-            self._close_session_log()
+            self._end_session_log()
         self._open_log()
 
     def _apply_border_color(self) -> None:
@@ -995,14 +1015,11 @@ class SerialTerminal(TerminalHost, App):
         self._main_thread_id = threading.get_ident()
         self._apply_border_color()
         self._build_context()
-        # VS Code tip goes first so it's at the top of the startup
-        # output -- before the plugin-load summary and anything else.
-        # Easy to miss if it's buried mid-startup.
-        self._maybe_show_vscode_tip()
         self._register_tui_hooks()
-        # Pre-start opens the session log; on_app_start then resolves the
-        # plugin folders and auto-loads the symbols (engine core listeners),
-        # so the load report lands in the log.  Before _run_startup: an
+        # Pre-start opens the session log and shows the VS Code tip, first
+        # on screen; on_app_start then resolves the plugin folders and
+        # auto-loads the symbols (engine core listeners), so the load
+        # report lands in the log.  Before _run_startup: an
         # auto_connect config fires on_connect from there, and the CLI/MCP
         # order (on_app_start, then connect) means both are already done
         # when on_connect hooks run.
@@ -1022,7 +1039,8 @@ class SerialTerminal(TerminalHost, App):
 
         The Alt+* aliases are bound unconditionally (they cost nothing
         on non-VS-Code terminals), so on macOS we stay silent even
-        though the bindings still work.
+        though the bindings still work.  Shown once per run whatever
+        ``quiet_start`` says, and every line goes to the session log.
         """
         if os.environ.get("TERM_PROGRAM") != "vscode":
             return
@@ -1036,30 +1054,16 @@ class SerialTerminal(TerminalHost, App):
             output = self.query_one("#output", RichLog)
         except SHUTDOWN_RACE:
             return
-        rule = Text("-" * 72, style="bold green")
-        output.write(rule)
-        output.write(
-            Text(
-                "VS Code detected: F-keys and Ctrl+P/S/T are captured by VS Code.",
-                style="bold green",
-            )
-        )
-        output.write(
-            Text(
-                "Top buttons: Ctrl+Shift+1=Help, 2=Cfg, 3=Run, 4=Proto, 5=Open Config.",
-                style="bold green",
-            )
-        )
-        output.write(
-            Text(
-                "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
-                style="bold green",
-            )
-        )
-        output.write(rule)
-        self._log_line(
-            "#", "VS Code terminal detected -- Ctrl+Shift+N and Alt-key fallbacks bound."
-        )
+        rule = "-" * 72
+        for line in (
+            rule,
+            "VS Code detected: F-keys and Ctrl+P/S/T are captured by VS Code.",
+            "Top buttons: Ctrl+Shift+1=Help, 2=Cfg, 3=Run, 4=Proto, 5=Open Config.",
+            "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
+            rule,
+        ):
+            output.write(Text(line, style="bold green"))
+            self._log_line("#", line)
 
     @work(thread=True)
     def _check_for_updates(self) -> None:
@@ -1288,10 +1292,9 @@ class SerialTerminal(TerminalHost, App):
         self.repl._script_stop.set()
         self._disconnect()
         # No settle needed: _disconnect joins the reader, so by here it has
-        # genuinely exited rather than probably-exited.
-        if self.log_fh:
-            self.log_fh.close()
-            self.log_fh = None
+        # genuinely exited rather than probably-exited.  Last, so the end
+        # marker follows the Disconnected line and the stop hooks' output.
+        self._end_session_log()
 
     def _connect(self, port: str | None = None, *, report: bool = True) -> bool:
         if self.is_connected:

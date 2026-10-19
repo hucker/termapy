@@ -103,7 +103,7 @@ class TestCliResolvedFromBanner:
         # wins and the banner should announce the resolution.
         result = _run_cli(
             tmp_path,
-            cfg_overrides={"port": "UNKNOWN_SN|DEMO"},
+            cfg_overrides={"port": "UNKNOWN_SN|DEMO", "quiet_start": False},
             script_lines=["/echo done"],
         )
 
@@ -114,6 +114,22 @@ class TestCliResolvedFromBanner:
         assert "Resolved UNKNOWN_SN|DEMO -> DEMO" in result.stdout, (
             f"banner should announce resolution to DEMO. stdout: {result.stdout!r}"
         )
+
+    def test_quiet_start_names_only_the_port(self, tmp_path):
+        """quiet_start: the screen says Connected: DEMO; the resolution and settings are log-only."""
+        # Arrange -- the default config: quiet
+        result = _run_cli(
+            tmp_path,
+            cfg_overrides={"port": "UNKNOWN_SN|DEMO"},
+            script_lines=["/echo done"],
+        )
+
+        # Assert
+        assert result.returncode == 0, f"stderr: {result.stderr!r}"
+        lines = [line.strip() for line in result.stdout.splitlines()]
+        assert "Connected: DEMO" in lines, f"the port alone. stdout: {result.stdout!r}"
+        assert "Resolved " not in result.stdout, "the resolution is detail, kept for the log"
+        assert "115200" not in result.stdout, "so are the settings and signal lines"
 
     def test_literal_port_no_resolved_line(self, tmp_path):
         """A literal port that opens as itself prints no Resolved line at all."""

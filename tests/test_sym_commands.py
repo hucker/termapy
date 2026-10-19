@@ -133,6 +133,7 @@ class TestAutoload:
         # Arrange
         engine, config_path, output = sym_env
         _install_sidecar(config_path)
+        engine.ctx.cfg["quiet_start"] = False  # the printed table, below
 
         # Act
         engine.fire_lifecycle("on_app_start")
@@ -147,6 +148,7 @@ class TestAutoload:
             "name": "demo firmware (hand-written)",
             "layer": "rig",
             "file": f"sym/rig{SYMBOLS_SUFFIX}",
+            "path": str((config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}").resolve()),
             "count": DEMO_COUNT,
             "detail": {
                 "source": "demo firmware (hand-written)",
@@ -626,11 +628,32 @@ class TestDevices:
             "name": "part",
             "layer": "rig",
             "file": "dev/part.device.json",
+            "path": str((config_path.parent / "dev" / "part.device.json").resolve()),
             "count": 2,
             "detail": {"ref": ""},
             "error": "",
         }
         assert actual == expected, "a file holding its own registers names no ref"
+
+    def test_quiet_start_names_the_files_in_full(self, sym_env):
+        """quiet_start: the screen names the sidecar and each device file by full path, no table."""
+        # Arrange
+        engine, config_path, output = sym_env
+        _install_sidecar(config_path)
+        _install_device(config_path.parent / "dev", "part", _PART)
+        engine.ctx.cfg["quiet_start"] = True
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        sidecar = (config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}").resolve()
+        device = (config_path.parent / "dev" / "part.device.json").resolve()
+        assert (f"Symbols: {sidecar}", "green") in output, "the memory map, clickable in the TUI"
+        assert (f"Device:  {device}", "green") in output, "and the register map"
+        assert not any(text.startswith("Loaded - ") for text in _texts(output)), (
+            "the table itself is the log's"
+        )
 
     def test_reference_row_names_the_library_part(self, sym_env, tmp_path):
         """A reference file's row says which library part it placed."""

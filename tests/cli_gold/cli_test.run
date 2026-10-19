@@ -58,6 +58,7 @@ $(BAUD) <- /port.baud_rate
 /cfg echo
 /cfg send_bare_enter
 /cfg cmd_prefix
+/cfg quiet_start
 
 # ── REPL: config auto-set (no confirmation dialog) ──────────────────────────
 /print === section: config auto-set ===

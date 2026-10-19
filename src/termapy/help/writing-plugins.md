@@ -13,10 +13,12 @@ any other tool that reads code from a directory. **Treat
 you treat those: don't point termapy at config folders you don't
 trust.**
 
-Every config load shows what ran: a table with one row per plugin
+Every config load records what ran: a table with one row per plugin
 file, its layer (`global` or the config's name) and what it registered,
-beside the symbol and device files the config loaded. `/cfg.loaded`
-shows it again, and gives the same rows as JSON under MCP.
+beside the symbol and device files the config loaded. It is in the
+session log, and on screen too when `quiet_start` is off; `/cfg.loaded`
+shows it any time, and gives the same rows as JSON under MCP. A plugin
+that fails to load is always reported on screen.
 
 If you need a stronger guarantee — for example when running
 `--mcp` with an LLM driver, or in CI, or against a freshly cloned

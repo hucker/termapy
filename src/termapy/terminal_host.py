@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Final
 
 from termapy import load_report
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
+from termapy.defaults import quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_port import eol_label
@@ -89,6 +90,12 @@ def _is_recording() -> bool:
     from termapy.builtins.commands import _run_record
 
     return _run_record.is_active()
+
+
+# A session's first and last line in each session log it writes, the TUI's
+# and MCP's alike.  A start with no end is a session that did not end cleanly.
+SESSION_START: Final[str] = f"{' Session Start ':-^60s}"
+SESSION_END: Final[str] = f"{' Session End ':-^60s}"
 
 
 class TerminalHost:
@@ -301,8 +308,7 @@ class TerminalHost:
         # A1B2C3D4" never becomes a support question.
         spec = self.cfg["serial"]["port"]
         actual = getattr(self.engine.port_obj, "port", spec) or spec
-        if spec != actual:
-            self.write(_format_resolved_line(spec, actual), "green")
+        resolved = _format_resolved_line(spec, actual) if spec != actual else ""
 
         conn = connection_string(self.cfg, actual_port=actual)
         hw = hardware_signals(self.engine.port_obj)
@@ -311,8 +317,20 @@ class TerminalHost:
         # would corrupt captured stdout.  Run mode keeps it -- the
         # gold test asserts on it, and human script output benefits
         # from the confirmation.
-        if not getattr(self, "exec_cmd", None):
-            self.write(full, "green")
+        banner = not getattr(self, "exec_cmd", None)
+        if quiet_start(self.cfg):
+            # The screen says where; the session log keeps how: the
+            # device the spec resolved to, the settings, the signal lines.
+            if resolved:
+                self._log("#", resolved)
+            if banner:
+                self.write(f"Connected: {actual}", "green")
+            self._log("#", f"  {conn}  {hw}".rstrip())
+        else:
+            if resolved:
+                self.write(resolved, "green")
+            if banner:
+                self.write(full, "green")
         self.repl.fire_lifecycle("on_connect")
         self._start_reader()
         self._on_connected(full)

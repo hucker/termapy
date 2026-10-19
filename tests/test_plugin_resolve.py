@@ -89,6 +89,9 @@ def _write_cfg(root: Path, name: str) -> Path:
         },
         "echo": False,
         "eol": "\r",
+        # These tests read the printed load table; TestQuietStart covers
+        # the quiet default, where it goes to the log instead.
+        "quiet_start": False,
     }
     path = root / name / f"{name}.cfg"
     path.parent.mkdir(parents=True)
@@ -561,3 +564,59 @@ class TestLoadReport:
         (row,) = engine.load_report.records
         assert row["detail"]["hooks"] == [], "and the row does not claim it"
         assert row["detail"]["commands"] == ["early"], "the rest of the file still loads"
+
+
+class TestQuietStart:
+    """quiet_start: the load table goes to the session log, problems stay on screen."""
+
+    @staticmethod
+    def _quiet(engine) -> list[str]:
+        """Turn quiet_start on and capture what reaches the session log."""
+        logged: list[str] = []
+        engine.ctx.cfg["quiet_start"] = True
+        engine.ctx.io.log = lambda prefix, text: logged.append(text)
+        return logged
+
+    def test_the_table_goes_to_the_log_not_the_screen(self, rig):
+        """Quiet keeps the whole table, in the log, and prints none of it."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "hi.py", _command_plugin("hi"))
+        engine, output = _build(root, str(config_path))
+        logged = self._quiet(engine)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert _report_titles(output) == [], "nothing of the table on screen"
+        assert "Loaded - 1 file" in logged, "the table is in the log"
+        assert any("plugin/hi.py" in text for text in logged), "rows and all"
+
+    def test_a_broken_plugin_still_reaches_the_screen(self, rig):
+        """Quiet hides success, never a failure: the error prints as it always did."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "broken.py", "raise RuntimeError('boom')\n")
+        engine, output = _build(root, str(config_path))
+        self._quiet(engine)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert ("Plugin error: broken.py: boom", "red") in output, "an error is never silent"
+
+    def test_a_cfg_without_the_key_starts_quiet(self, rig):
+        """A cfg dict with no quiet_start key behaves like a loaded one: quiet."""
+        # Arrange
+        root, config_path = rig
+        _write_plugin(config_path.parent / "plugin", "hi.py", _command_plugin("hi"))
+        engine, output = _build(root, str(config_path))
+        del engine.ctx.cfg["quiet_start"]
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert _report_titles(output) == [], "the default is quiet"

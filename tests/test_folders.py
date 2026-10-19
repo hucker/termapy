@@ -8,6 +8,7 @@ from termapy.folders import (
     CLEARABLE,
     DUMPABLE,
     EXT_TO_FOLDER,
+    FOLDER_EXTS,
     FOLDER_MIGRATIONS,
     FOLDER_NAMES,
     FOLDER_PATTERNS,
@@ -20,6 +21,7 @@ from termapy.folders import (
     SYMBOLS_SUFFIX,
     FolderSpec,
     default_file_name,
+    new_file_name,
 )
 
 
@@ -100,6 +102,27 @@ class TestFolders:
             "symbol sidecar is a dotted .json suffix beside the cfg"
         )
         assert PROFILE_TMP_GLOB == "_profile_tmp_*.run", "temp profiles"
+
+
+class TestNewFileName:
+    """A new file gets its folder's extension once, appended when the typed name lacks it."""
+
+    def test_a_bare_name_gets_the_extension_and_a_full_one_keeps_it(self):
+        """file-name-default-ext, write side: boot -> boot.run, boot.run stays, never boot.run.run."""
+        # Act
+        actual = [new_file_name(name, ".run") for name in ("boot", "boot.run")]
+
+        # Assert
+        assert actual == ["boot.run", "boot.run"], "appended once, never doubled"
+
+    def test_the_extension_table_mirrors_folders(self):
+        """FOLDER_EXTS holds each folder's FolderSpec.ext, the one place a file type is said."""
+        # Act
+        actual = FOLDER_EXTS
+
+        # Assert
+        assert actual == {spec.name: spec.ext for spec in FOLDERS}, "derived, never hand-kept"
+        assert actual["run"] == ".run" and actual["proto"] == ".pro", "termapy's own two types"
 
 
 class TestDefaultFileName:

@@ -79,7 +79,7 @@ from termapy.dialogs import (
     ScriptPicker,
     UpdateAvailableDialog,
 )
-from termapy.folders import FOLDER_PATTERNS, ensure_folder
+from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, ensure_folder
 from termapy.help_tooltip import build_help_tooltip
 from termapy.history_nav import HistoryNavigator, merge_history, read_history
 from termapy.markup import markup_to_plain
@@ -2522,14 +2522,14 @@ class SerialTerminal(TerminalHost, App):
                     ConfigEditor(dict(self.cfg), config_path),
                     callback=self._on_config_result,
                 )
-        elif ext == ".run":
+        elif ext == FOLDER_EXTS["run"]:
 
             def open_editor() -> None:
                 self.push_screen(
                     ScriptEditor(self.repl.scripts_dir, str(path)),
                     callback=self._on_script_saved,
                 )
-        elif ext == ".pro":
+        elif ext == FOLDER_EXTS["proto"]:
 
             def open_editor() -> None:
                 self.push_screen(

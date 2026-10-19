@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from termapy.folders import default_file_name
+from termapy.folders import FOLDER_EXTS, PROTO, default_file_name, new_file_name
 
 
 def find_config() -> tuple[str | None, bool]:
@@ -132,7 +132,7 @@ def proto_script_name(name: str) -> str:
     Returns:
         The name with a single ``.pro`` extension.
     """
-    return name if name.endswith(".pro") else name + ".pro"
+    return new_file_name(name, FOLDER_EXTS[PROTO])
 
 
 def resolve_proto_path(name: str, config_path: str) -> Path | None:
@@ -154,7 +154,7 @@ def resolve_proto_path(name: str, config_path: str) -> Path | None:
         The resolved path, or None when neither location has the file.
     """
     for path in (Path(name), proto_dir_for(config_path) / name):
-        found = default_file_name(path, ".pro")
+        found = default_file_name(path, FOLDER_EXTS[PROTO])
         if found.is_file():
             return found
     return None

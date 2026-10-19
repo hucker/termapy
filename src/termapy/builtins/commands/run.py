@@ -52,6 +52,7 @@ from termapy.folder_ops import (
     list_entries,
 )
 from termapy.folders import (
+    FOLDER_EXTS,
     FOLDER_PATTERNS,
     PROFILE_TMP_PREFIX,
     RUN,
@@ -72,7 +73,7 @@ def _resolve_script(ctx: PluginContext, name: str) -> Path | None:
     (``welcome.run``), through ``folders.default_file_name``.  Returns
     ``None`` if the file doesn't exist or no config is loaded.
     """
-    path = default_file_name(ctx.fs.scripts_dir / name, ".run")
+    path = default_file_name(ctx.fs.scripts_dir / name, FOLDER_EXTS[RUN])
     return path if path.is_file() else None
 
 
@@ -179,7 +180,7 @@ def _handler_profile_cmd(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="This host does not support script execution.")
     if not line.startswith(ctx.prefix) and "." in line.split()[0]:
         line = ctx.prefix + line
-    name = f"{PROFILE_TMP_PREFIX}{int(time.time() * 1000)}.run"
+    name = f"{PROFILE_TMP_PREFIX}{int(time.time() * 1000)}{FOLDER_EXTS[RUN]}"
     (ensure_folder(ctx.fs.scripts_dir) / name).write_text(line + "\n", encoding="utf-8")
     path, result = ctx.internal.start_script(name)
     if path:

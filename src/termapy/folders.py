@@ -113,6 +113,9 @@ FOLDER_NAMES = tuple(f.name for f in FOLDERS)
 # Folder name -> glob pattern
 FOLDER_PATTERNS = {f.name: f.pattern for f in FOLDERS}
 
+# Folder name -> file extension (``"*"`` for a mixed folder)
+FOLDER_EXTS = {f.name: f.ext for f in FOLDERS}
+
 # File extension -> folder name (first folder wins for shared extensions)
 EXT_TO_FOLDER = {}
 for _f in FOLDERS:
@@ -149,7 +152,7 @@ SYMBOLS_SUFFIX = ".symbols.json"
 SEQ_FILE = ".cap_seq"
 # /run.profile.cmd's temporary one-line script, deleted at the next load.
 PROFILE_TMP_PREFIX = "_profile_tmp_"
-PROFILE_TMP_GLOB = f"{PROFILE_TMP_PREFIX}*.run"
+PROFILE_TMP_GLOB = f"{PROFILE_TMP_PREFIX}*{FOLDER_EXTS[RUN]}"
 
 # -- Stem-named sidecars ------------------------------------------------------
 
@@ -239,3 +242,21 @@ def default_file_name(name: str | Path, ext: str) -> Path:
         return path
     with_ext = Path(f"{path}{ext}")
     return with_ext if with_ext.is_file() else path
+
+
+def new_file_name(name: str, ext: str) -> str:
+    """The name a NEW file gets: ``name`` with ``ext`` appended when it lacks it.
+
+    The write-side twin of :func:`default_file_name` (registry
+    ``file-name-default-ext``): a command or editor that creates a file
+    names it in its folder's type, ``boot`` -> ``boot.run``, and never
+    doubles it, ``boot.run`` stays ``boot.run``.
+
+    Args:
+        name: The name as typed.
+        ext: The extension (``FOLDER_EXTS[RUN]``).
+
+    Returns:
+        ``name``, ending in ``ext``.
+    """
+    return name if name.endswith(ext) else name + ext

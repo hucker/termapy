@@ -24,7 +24,15 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.folders import EXT_TO_FOLDER, FOLDERS, default_file_name, ensure_folder
+from termapy.folders import (
+    EXT_TO_FOLDER,
+    FOLDER_EXTS,
+    FOLDERS,
+    PROTO,
+    RUN,
+    default_file_name,
+    ensure_folder,
+)
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.command import PICKERS
@@ -42,8 +50,8 @@ def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
     Checks run/, proto/, plugin/ dirs by prefix or extension.
     """
     dir_map = {
-        "run": (ctx.fs.scripts_dir, ".run"),
-        "proto": (ctx.fs.proto_dir, ".pro"),
+        "run": (ctx.fs.scripts_dir, FOLDER_EXTS[RUN]),
+        "proto": (ctx.fs.proto_dir, FOLDER_EXTS[PROTO]),
     }
     parts = Path(name).parts
     if len(parts) == 2:
@@ -164,7 +172,7 @@ def _folder_dir(folder: str) -> Callable[[PluginContext], Path]:
 
 # Extensions the TUI opens in its own editor (``app._edit_file``); the rest
 # go to the system editor.
-_TERMAPY_EDITS = frozenset({".run", ".pro"})
+_TERMAPY_EDITS = frozenset({FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO]})
 
 # The word ``folder_line`` counts files in, where "file" would read wrong.
 _NOUNS = {"run": "script", "proto": "script"}

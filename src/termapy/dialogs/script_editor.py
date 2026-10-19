@@ -17,7 +17,7 @@ from textual.widgets import Button, Input, TextArea
 
 from termapy.defaults import SCRIPT_TEMPLATE
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
-from termapy.folders import ensure_folder
+from termapy.folders import FOLDER_EXTS, RUN, ensure_folder, new_file_name
 
 
 class ScriptEditor(ModalScreen[str | None]):
@@ -129,8 +129,7 @@ class ScriptEditor(ModalScreen[str | None]):
         if not name:
             self._show_error("Enter a script name")
             return
-        if not name.endswith(".run"):
-            name += ".run"
+        name = new_file_name(name, FOLDER_EXTS[RUN])
         content = self.query_one("#sed-editor", TextArea).text
         path = ensure_folder(self.scripts_dir) / name
         path.write_text(content, encoding="utf-8")
@@ -153,8 +152,7 @@ class ScriptEditor(ModalScreen[str | None]):
         if not name:
             self._show_error("Enter a filename")
             return
-        if not name.endswith(".run"):
-            name += ".run"
+        name = new_file_name(name, FOLDER_EXTS[RUN])
         path = self.scripts_dir / name
         if path.exists() and not self._overwrite_ok:
             self._show_error(f"{name} exists - click Save again to overwrite")

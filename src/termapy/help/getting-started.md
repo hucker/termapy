@@ -190,6 +190,18 @@ screenshots, captures) are clickable in terminals that support hyperlinks
 (Windows Terminal, iTerm2, VS Code terminal, most modern terminals). Click a
 path to open it in your default application.
 
+**Clickable lists and help.** In the TUI, underlined names are links. In
+`/cfg.list`, `/run.list` and `/proto.list`, click a config to load it or a
+script or test to run it. In help, click any command name -- in `/help`,
+SUBCOMMANDS, SEE ALSO or a `/help <term>` list -- to open its help page, so
+you can browse the commands without remembering them. On a command's own
+page, click its name to put it in the input line (Enter runs it), or a
+picker on the bare line (`/help run`'s "Run picker") to open it, as its
+button does. `/help cfg`, `/help run`, `/help proto`, `/help ss`,
+`/help cap` and `/help log` end with what is in their folder, ready to
+click: a config loads, a script runs, a screenshot or log opens. A click runs exactly what you would type, so the command shows
+in the output and lands in your history (Up repeats it).
+
 ## Command input
 
 ![Help command output](img/doc_02_help.svg)

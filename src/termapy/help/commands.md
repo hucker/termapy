@@ -92,6 +92,7 @@ because its folders hold different types of file.
 | `/log.delete`             | Delete the session log file (TUI only; the CLI keeps no log)                |
 | `/log.dump {N}`           | Print the session log (all, or an N-line slice) to the terminal             |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
+| `/log.list`               | List the session log file with its size and age (`/help log` ends with it)  |
 | `/log.show`               | Open the session log in the system viewer                                   |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
 | `/mcp.info`               | Show MCP-mode status (pid, catalog size, port, profile, captures)           |
@@ -229,7 +230,7 @@ family of file subcommands:
 | --------------------- | ------------------------------------------------------- | ------------------------------ |
 | `.list`               | List files, newest first, with size and age             | all                            |
 | `.explore`            | Open the folder in the system file explorer             | all                            |
-| `.show`               | Open the newest file in the system viewer               | all                            |
+| `.show {name}`        | Open the newest (or named) file in the system viewer    | all                            |
 | `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
 | `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | all                            |
 | `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin |
@@ -240,6 +241,8 @@ Examples:
 - `/run.list`: list scripts with size, age, and docstring summary
 - `/run.dump`: print the newest script to the terminal
 - `/proto.show`: open the newest .pro file in the system viewer
+- `/run.show welcome`: open `run/welcome.run` (the extension is optional where the folder has one; `ss/` and `cap/` take the full name)
+- `/ss.list`: list screenshots; in the TUI a click on a name opens that file
 - `/run.rename old.run new`: rename a script (`.run` is kept)
 - `/cap.clear`: delete all capture files
 - `/run.profile.dump`: print the newest profile CSV to the terminal

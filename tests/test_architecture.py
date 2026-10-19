@@ -135,10 +135,11 @@ def test_allowlist_has_no_stale_entries():
 
 # ── Engine-internal IO primitives ────────────────────────────────────────────
 
-# ``ctx.io._write`` / ``._write_markup`` are the raw primitives the frontends
-# implement.  Handlers use the semantic channels (result / output / status)
-# instead, so the frontend decides how each kind of message is rendered.
-IO_PRIMITIVES: frozenset[str] = frozenset({"_write", "_write_markup"})
+# ``ctx.io._write`` / ``._write_markup`` / ``._write_segments`` are the raw
+# primitives the frontends implement.  Handlers use the semantic channels
+# (result / output / status / the ``*_segments`` pair) instead, so the frontend
+# decides how each kind of message is rendered.
+IO_PRIMITIVES: frozenset[str] = frozenset({"_write", "_write_markup", "_write_segments"})
 
 
 def _plugin_python_files() -> list[Path]:
@@ -992,11 +993,9 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
     {
         "app.state.edit",
         "cap.hex",
-        "cfg.help",
         "edit.plugin.list",
         "edit.proto.list",
         "edit.run.list",
-        "help.plugin",
         "help.target",
         "ping.quiet",
         "term.encoding",
@@ -2151,8 +2150,11 @@ _OUTPUT_SINKS = frozenset(
         "result_markup",
         "status",
         "status_markup",
+        "output_segments",
+        "output_markup_segments",
         "_write",
         "_write_markup",
+        "_write_segments",
         "write",
         "notify",
     }

@@ -117,16 +117,14 @@ expect = '"x"'
 
 class TestHelpAndRoot:
     def test_proto_help_renders_the_page_and_lists_the_scripts(self, cli, capsys):
-        """/proto.help is /help proto plus an AVAILABLE PROTO FILES tree of the proto folder."""
+        """/proto.help is /help proto, ending with /proto.list's table under SCRIPTS."""
         _pro(_proto_folder(cli), "probe.pro", "@name x\n")
         capsys.readouterr()
         result = cli.repl.dispatch_full("/proto.help")
         out = capsys.readouterr().out
         assert result.value == "proto", "the resolved name, so a script can confirm the match"
         assert "/proto.send" in out, "the page lists the subcommands"
-        assert "AVAILABLE PROTO FILES" in out and "probe.pro" in out, (
-            "the folder's scripts are appended"
-        )
+        assert "SCRIPTS" in out and "probe.pro" in out, "the folder's scripts are appended"
 
     def test_bare_proto_lists_without_a_picker(self, cli):
         """bare-declared: a bare /proto runs /proto.list where no picker exists (the CLI); the TUI opens its picker."""

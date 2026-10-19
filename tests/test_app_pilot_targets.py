@@ -723,3 +723,204 @@ class TestSessionLogFollowsConfig:
                 assert "Switched to config" not in logged, "no switch trace when the log stays"
 
         asyncio.run(scenario())
+
+
+# ── Clickable output ────────────────────────────────────────────────────────
+
+
+def _screen(app) -> list[str]:
+    """The output pane's lines as text."""
+    return [strip.text for strip in app.query_one("#output", RichLog).lines]
+
+
+async def _click_text(pilot, app, text: str) -> None:
+    """Click the first visible occurrence of ``text`` in the output pane with the mouse."""
+    log = app.query_one("#output", RichLog)
+    lines = _screen(app)
+    index = next(i for i, line in enumerate(lines) if text in line)
+    x = log.content_region.x - log.region.x + lines[index].index(text) + 1
+    y = log.content_region.y - log.region.y + index - round(log.scroll_offset.y)
+    await pilot.click("#output", offset=(x, y))
+    await pilot.pause()
+
+
+class TestClickableOutput:
+    """links-are-data: a clicked list entry runs as if typed; links live in a bounded table."""
+
+    def test_clicking_a_listed_script_runs_it_twice_like_typing(self, app_factory):
+        """A click on /run.list's NAME runs the script, echoed and into history, and again on a second click."""
+
+        async def scenario():
+            app, _, path = app_factory(quiet_start=True)
+            _write_scripts(path, hello="/print clicked-ok\n")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/run.list")
+                await until(pilot, lambda: any("hello.run" in line for line in _screen(app)))
+
+                # Act
+                await _click_text(pilot, app, "hello.run")
+                await until(pilot, lambda: sum("clicked-ok" in line for line in _screen(app)) == 1)
+                await until(pilot, lambda: not app.query_one("#bottom-bar").disabled)
+                await _click_text(pilot, app, "hello.run")
+                await until(pilot, lambda: sum("clicked-ok" in line for line in _screen(app)) == 2)
+
+                # Assert
+                runs = sum("clicked-ok" in line for line in _screen(app))
+                assert runs == 2, "each click runs the script, the second as well as the first"
+                assert app.history[-1] == "/run hello.run", "the click went into history as typed"
+
+        asyncio.run(scenario())
+
+    def test_a_prefill_link_fills_the_input_and_runs_nothing(self, app_factory):
+        """A prefill link puts its command, with the prefix, in the input line for Enter."""
+
+        async def scenario():
+            from termapy.plugins.views import Link
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                link_id = app._register_link(Link("dev.use part", run=False))
+
+                # Act
+                app.action_click_link(link_id)
+                await pilot.pause()
+
+                # Assert
+                actual = app.query_one("#cmd", Input).value
+                assert actual == "/dev.use part", "the command waits in the input line"
+                assert "/dev.use part" not in app.history, "nothing ran"
+
+        asyncio.run(scenario())
+
+    def test_an_expired_link_says_so(self, app_factory):
+        """A click on a link no longer in the table runs nothing and tells the user why."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                app.action_click_link(10**9)
+                await pilot.pause()
+
+                # Assert
+                assert any("That link has expired" in line for line in _screen(app)), (
+                    "an old link is never a silent no-op"
+                )
+
+        asyncio.run(scenario())
+
+    def test_the_link_table_stays_bounded(self, app_factory):
+        """Registering far more links than the limit keeps only the newest, the oldest gone."""
+
+        async def scenario():
+            from termapy.plugins.views import Link
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                ids = [app._register_link(Link(f"x {n}")) for n in range(app._LINK_LIMIT + 50)]
+
+                # Assert
+                assert len(app._links) == app._LINK_LIMIT, "a long session holds a bounded table"
+                assert ids[0] not in app._links and ids[-1] in app._links, "the oldest go first"
+
+        asyncio.run(scenario())
+
+    def test_text_that_looks_like_a_link_stays_text(self, app_factory):
+        """Output carrying click markup prints it literally: only a view's column makes a link."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                bait = "[@click=app.click_link(0)]bait[/]"
+
+                # Act
+                app.repl.ctx.io.output(bait)
+                await pilot.pause()
+
+                # Assert
+                log = app.query_one("#output", RichLog)
+                line = next(strip for strip in log.lines if "bait" in strip.text)
+                assert bait in line.text, "the markup is shown as characters"
+                metas = [segment.style.meta for segment in line if segment.style]
+                assert not any("@click" in meta for meta in metas), "and carries no action"
+
+        asyncio.run(scenario())
+
+    def test_a_help_link_follows_the_configured_prefix(self, app_factory):
+        """With cmd_prefix "!", a SUBCOMMANDS name opens !help <name>, and the log holds plain text."""
+
+        async def scenario():
+            app, _, _ = app_factory(cmd_prefix="!")
+            async with app.run_test(size=(120, 80)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "!help cfg")
+                await until(pilot, lambda: any("!cfg.loaded " in line for line in _screen(app)))
+
+                # Act
+                await _click_text(pilot, app, "!cfg.loaded ")
+                await until(pilot, lambda: app.history[-1] == "!help cfg.loaded")
+
+                # Assert
+                assert app.history[-1] == "!help cfg.loaded", (
+                    "the live prefix, never a hard-coded /"
+                )
+                logged = Path(app.session_log_path()).read_text(encoding="utf-8")
+                assert "  !cfg.loaded" in logged, "the help rows are in the log"
+                assert "[cyan]" not in logged, "as the text they show, never their markup"
+
+        asyncio.run(scenario())
+
+    def test_the_help_page_opens_the_picker_its_button_opens(self, app_factory):
+        """In /help run a click on the name fills the input, and on "Run picker" opens the Run picker."""
+
+        async def scenario():
+            from termapy.dialogs import ScriptPicker
+
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/help run")
+                await until(pilot, lambda: any("Run picker" in line for line in _screen(app)))
+
+                # Act
+                await _click_text(pilot, app, "/run - ")
+                filled = app.query_one("#cmd", Input).value
+                await _click_text(pilot, app, "Run picker")
+                await until(pilot, lambda: isinstance(app.screen, ScriptPicker))
+
+                # Assert
+                assert filled == "/run ", "the name waits in the input line, ready for a file"
+                assert isinstance(app.screen, ScriptPicker), "the words do what the Run button does"
+                assert app.history[-1] == "/run", "the click went into history as typed"
+
+        asyncio.run(scenario())
+
+    def test_help_run_ends_with_the_scripts_indented_and_clickable(self, app_factory):
+        """/help run lists the scripts 2 spaces in, as the page's rows are, and a click on one runs it."""
+
+        async def scenario():
+            app, _, path = app_factory(quiet_start=True)
+            _write_scripts(path, hello="/print clicked-ok\n")
+            async with app.run_test(size=(120, 60)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/help run")
+                await until(pilot, lambda: any("hello.run" in line for line in _screen(app)))
+                row = next(line for line in _screen(app) if "hello.run" in line)
+
+                # Act
+                await _click_text(pilot, app, "hello.run")
+                await until(pilot, lambda: any("clicked-ok" in line for line in _screen(app)))
+
+                # Assert
+                assert row.startswith("  hello.run"), "in the page's column, not flush left"
+                assert app.history[-1] == "/run hello.run", "the click runs it, as in /run.list"
+
+        asyncio.run(scenario())

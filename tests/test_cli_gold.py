@@ -31,6 +31,11 @@ def _run_cli_script(script_name: str, tmp_path: Path) -> subprocess.CompletedPro
         The completed subprocess (stdout/stderr captured as text).
     """
     script_path = GOLD_DIR / script_name
+    # A config root with a fixed name, as an install has: a listing's title
+    # (/help cfg's "termapy_cfg/ - 2 configs") must not carry pytest's
+    # temp folder name.
+    cfg_root = tmp_path / "termapy_cfg"
+    cfg_root.mkdir()
     return subprocess.run(
         [
             sys.executable,
@@ -39,7 +44,7 @@ def _run_cli_script(script_name: str, tmp_path: Path) -> subprocess.CompletedPro
             f"sys.argv = ['termapy', '--cli', '--demo', "
             f"'--run', {str(script_path)!r}, "
             f"'--no-color', '--term-width', '120', "
-            f"'--cfg-dir', {str(tmp_path)!r}]; "
+            f"'--cfg-dir', {str(cfg_root)!r}]; "
             "from termapy.entry import main; main()",
         ],
         capture_output=True,
@@ -58,10 +63,10 @@ _ELAPSED_RE = re.compile(r'"elapsed_s": \d+(?:\.\d+)?')
 # files are copied from the checkout, and a checkout is CRLF on Windows
 # (core.autocrlf) but LF on Linux CI, so the byte counts differ per
 # platform.  Mask the size column INCLUDING the padding in front of it (the
-# column is right-aligned, so "1.0 KB" and "990 B" pad differently); the
+# column is right-aligned, so "1.0 KB" and "990  B" pad differently); the
 # age column stays literal because --demo writes the files seconds before
 # the listing runs ("just now").
-_SIZE_RE = re.compile(r"\s+\d+(?:\.\d)? (?:B|KB|MB)\b")
+_SIZE_RE = re.compile(r"\s+\d+(?:\.\d)? +(?:B|KB|MB)\b")
 
 
 def _normalize(text: str) -> list[str]:

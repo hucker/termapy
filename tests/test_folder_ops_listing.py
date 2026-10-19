@@ -65,8 +65,8 @@ class TestFileColumns:
         assert rows[0].name == "longer_name.run" and rows[1].name == "a.run          ", (
             "names padded to the widest name"
         )
-        assert rows[0].size == "2.0 KB" and rows[1].size == "  10 B", (
-            "sizes right-aligned to the widest size"
+        assert rows[0].size == "2.0 KB" and rows[1].size == " 10  B", (
+            "sizes right-aligned to the widest size, B under the B of KB"
         )
         assert rows[0].age == "1 hr ago" and rows[1].age == "just now"
 
@@ -84,7 +84,7 @@ class TestFileColumns:
     def test_format_file_lines_joins_with_two_spaces(self, tmp_path):
         """Each line is name, size, and age separated by exactly two spaces."""
         path = _make(tmp_path, "a.run", b"x" * 10)
-        assert format_file_lines([path]) == ["a.run  10 B  just now"]
+        assert format_file_lines([path]) == ["a.run  10  B  just now"]
 
 
 class TestFileRecord:

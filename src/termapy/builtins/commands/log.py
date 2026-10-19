@@ -3,6 +3,7 @@
 * ``/log.delete``      -- delete the session log file
 * ``/log.dump``        -- print the log to the terminal (all or an N-line slice)
 * ``/log.fingerprint`` -- write a provenance fingerprint to the log
+* ``/log.list``        -- the log as a one-row file list (``/help log`` ends with it)
 * ``/log.show``        -- open the log in the system viewer
 
 "The session log" is the frontend's own: the TUI's ``<cfg>.log`` (or
@@ -23,6 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import open_with_system
+from termapy.folder_ops import file_table
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.scripting import select_lines
 
@@ -312,6 +314,24 @@ _FINGERPRINT_LONG_HELP = (
 _FINGERPRINT_FLAGS = {"--show": "Also echo the fingerprint to the terminal output."}
 
 
+# ── /log.list ─────────────────────────────────────────────────────────────────
+
+
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
+    """The session log as a file list of one row; a click on its name opens it."""
+    path = ctx.internal.session_log_path()
+    assert path is not None, "/log.list declares session_log"
+    files = [path] if path.is_file() else []
+    return file_table(f"{path.parent.name}/", "log", files, run=lambda record: "log.show")
+
+
+_LIST_HELP = "List the session log file with its size and age."
+_LIST_LONG_HELP = (
+    "One row, the file a /log.show opens, so /help log can end with it;\n"
+    "in the TUI a click on its name opens it.  Empty until the log exists."
+)
+
+
 # ── /log.show ─────────────────────────────────────────────────────────────────
 
 
@@ -367,6 +387,7 @@ COMMAND = Command(
     help="Session log: print, fingerprint, or open it.",
     # Bare /log does what the Log button does: open the session log.
     bare_sub="show",
+    help_list="list",
     long_help=(
         "The session log is the frontend's own: the TUI's <cfg>.log (or\n"
         "the log_file key), the MCP server's mcp/session.log, none in the\n"
@@ -395,6 +416,12 @@ COMMAND = Command(
             flags=_FINGERPRINT_FLAGS,
             # It writes to the session log: in the CLI, which keeps none, it
             # said "written to log" and wrote nowhere.
+            needs=CapabilitySet.SESSION_LOG,
+        ),
+        "list": Command(
+            help=_LIST_HELP,
+            long_help=_LIST_LONG_HELP,
+            handler=_handler_list,
             needs=CapabilitySet.SESSION_LOG,
         ),
         "show": Command(

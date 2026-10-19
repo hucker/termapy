@@ -914,6 +914,13 @@ SUBCOMMANDS
   /cfg.new        Create a config for a port; /cfg.load <name> switches to it.
   /cfg.rename     Rename a config, folder and file together.
   /cfg.show       Open the current config file in the system viewer.
+
+CONFIGS
+  termapy_cfg/ - 2 configs
+  NAME          SIZE    UPDATED   PORT     BAUD    TITLE
+  ------------  ------  --------  -------  ------  -----------
+  gold_renamed  2.3 KB  just now  loop://    9600  gold_new
+  demo *        2.2 KB  just now  DEMO     115200  Demo Device
   [167/219] /help cfg (6.35ms)
 demo> /help var
 NAME
@@ -1021,7 +1028,7 @@ SUBCOMMANDS
   /cap.list       List files in cap/, newest first, with size and age.
   /cap.poll       Poll commands on a schedule, display (and optionally save) results.
   /cap.rename     Rename a file in cap/ (extension kept; never overwrites).
-  /cap.show       Open the newest file in cap/ with the system viewer.
+  /cap.show       Open the newest (or named) file in cap/ with the system viewer.
   /cap.stop       Stop an active capture.
   /cap.struct     Capture raw bytes, decode with format spec to CSV.
   /cap.text       Capture serial text to a file for a timed duration.
@@ -1045,7 +1052,7 @@ SUBCOMMANDS
   /ss.explore    Open ss/ in the system file explorer.
   /ss.list       List files in ss/, newest first, with size and age.
   /ss.rename     Rename a file in ss/ (extension kept; never overwrites).
-  /ss.show       Open the newest file in ss/ with the system viewer.
+  /ss.show       Open the newest (or named) file in ss/ with the system viewer.
   /ss.svg        Save an SVG screenshot of the terminal.
   /ss.txt        Save a text screenshot (optionally last/first N lines).
   [170/219] /help ss (2.87ms)
@@ -1101,7 +1108,15 @@ SUBCOMMANDS
   /proto.rename     Rename a file in proto/ (extension kept; never overwrites).
   /proto.run        Run a protocol test script.
   /proto.send       Send raw bytes (with optional CRC), show response.
-  /proto.show       Open the newest file in proto/ with the system viewer.
+  /proto.show       Open the newest (or named) file in proto/ with the system viewer.
+
+SCRIPTS
+  proto/ - 3 scripts
+  NAME                 SIZE    UPDATED   TITLE
+  -------------------  ------  --------  ---------------------------
+  modbus_inline.pro    2.2 KB  just now  Demo Modbus Inline Format
+  bitfield_inline.pro  2.7 KB  just now  Demo Bitfield Inline Format
+  at_test.pro           829 B  just now  Demo AT Command Test
   [171/219] /help proto (5.89ms)
 demo> /help plugin
 NAME
@@ -1116,7 +1131,7 @@ SUBCOMMANDS
   /plugin.explore    Open plugin/ in the system file explorer.
   /plugin.list       List files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
-  /plugin.show       Open the newest file in plugin/ with the system viewer.
+  /plugin.show       Open the newest (or named) file in plugin/ with the system viewer.
   [172/219] /help plugin (1.56ms)
 demo> /help sym
 NAME
@@ -1249,7 +1264,21 @@ SUBCOMMANDS
   /run.profile    Run a script with per-line timing (CSV to prof/).
   /run.record     Record commands to a .run script (bare /run.record stops).
   /run.rename     Rename a file in run/ (extension kept; never overwrites).
-  /run.show       Open the newest file in run/ with the system viewer.
+  /run.show       Open the newest (or named) file in run/ with the system viewer.
+
+SCRIPTS
+  run/ - 9 scripts
+  NAME                 SIZE    UPDATED   SUMMARY
+  -------------------  ------  --------  -----------------------------------------------------------
+  crc_tour.run         2.3 KB  just now  the whole /proto.crc.* API in one screen
+  doc_screenshots.run  3.3 KB  just now  Generate documentation images
+  expect_test.run       354 B  just now  Expect command test
+  var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
+  status_check.run       72 B  just now  Quick status check
+  gps_demo.run          622 B  just now  GPS/NMEA Demo -- Query simulated GPS receiver
+  smoke_test.run       1.1 KB  just now  Smoke test for demo device
+  at_demo.run           825 B  just now  AT Command Demo -- Walks through all demo device commands
+  welcome.run           978 B  just now  Welcome script -- Runs on connect via on_connect_cmd config
   [175/219] /help run (3.13ms)
 demo> /print === section: help required capabilities ===
   === section: help required capabilities ===
@@ -1725,6 +1754,8 @@ demo> /log.delete
   Error: /log.delete requires: session_log (not available in this environment)
 demo> /log.fingerprint
   Error: /log.fingerprint requires: session_log (not available in this environment)
+demo> /log.list
+  Error: /log.list requires: session_log (not available in this environment)
 demo> /grep OK
   Error: Grep not available: no scrollback in CLI mode
 demo> /find OK

@@ -796,6 +796,9 @@ COMMAND = Command(
     handler=None,
     # Bare /cap does what the Cap button does: open cap/.
     bare_sub="explore",
+    # /help cap ends with /cap.list's table.  explore and list both come
+    # from build_folder_subcommands("cap") at the end of sub_commands.
+    help_list="list",
     sub_commands={
         "text": Command(
             help="Capture serial text to a file for a timed duration.",

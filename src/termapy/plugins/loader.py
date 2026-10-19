@@ -272,7 +272,12 @@ def _flatten_command(
         result.extend(child_infos)
         children.append(f"{full_name}.{sub_name}".lower())
 
-    _check_bare_sub(full_name, children, node.bare_sub)
+    _check_child(full_name, children, "bare_sub", node.bare_sub)
+    _check_child(full_name, children, "help_list", node.help_list)
+    listing = sub_commands.get(node.help_list) if node.help_list else None
+    if listing is not None and (listing.args or listing.params):
+        # /help runs it bare, as a list is run.
+        raise ValueError(f"{full_name}: help_list {node.help_list!r} takes arguments")
     handler = node.handler
     if not handler and children:
         # Synthetic handler for interior nodes: lists subcommands, or
@@ -306,25 +311,27 @@ def _flatten_command(
         files=node.files,
         picker=node.picker,
         bare_sub=node.bare_sub,
+        help_list=node.help_list,
     )
     result.insert(0, info)
     return result
 
 
-def _check_bare_sub(full_name: str, children: list[str], bare_sub: str) -> None:
-    """Fail at load when ``bare_sub`` names no child of ``full_name``.
+def _check_child(full_name: str, children: list[str], key: str, sub: str) -> None:
+    """Fail at load when a declaration (``bare_sub``, ``help_list``) names no child of ``full_name``.
 
     Load time, so a typo fails at boot rather than rendering a wrong bare
-    behavior.  Any node may declare one, with or without a handler; the
-    dispatcher runs it (``ReplEngine._bare_handler``).
+    behavior or help page.  Any node may declare one, with or without a
+    handler; the dispatcher runs a ``bare_sub``
+    (``ReplEngine._bare_handler``), ``/help`` a ``help_list``.
 
     Raises:
-        ValueError: ``bare_sub`` names no declared subcommand.
+        ValueError: ``sub`` names no declared subcommand.
     """
-    if bare_sub and f"{full_name}.{bare_sub}".lower() not in children:
+    if sub and f"{full_name}.{sub}".lower() not in children:
         short_names = ", ".join(name.rsplit(".", 1)[1] for name in children)
         raise ValueError(
-            f"{full_name}: bare_sub {bare_sub!r} names no subcommand (subcommands: {short_names})"
+            f"{full_name}: {key} {sub!r} names no subcommand (subcommands: {short_names})"
         )
 
 

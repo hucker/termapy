@@ -803,7 +803,13 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """
     files = list_entries(ctx.fs.proto_dir, "*.pro")
     title = Column("TITLE", lambda record: record["title"])
-    return file_table("proto/", "script", files, extra=((title, script_name, "title"),))
+    return file_table(
+        "proto/",
+        "script",
+        files,
+        extra=((title, script_name, "title"),),
+        run=lambda record: f"proto.run {record['name']}",
+    )
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
@@ -2256,17 +2262,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
-    """Same as /help proto, plus an AVAILABLE PROTO FILES list."""
-    from termapy.builtins.commands.help import (
-        _show_command_help,
-        append_files_section,
-    )
+    """Same as /help proto: the page, ending with the scripts ``/proto.list`` shows."""
+    from termapy.builtins.commands.help import _show_command_help
 
-    result = _show_command_help(ctx, "proto")
-    proto_dir = ctx.fs.proto_dir
-    files = sorted(path.name for path in proto_dir.glob("*.pro")) if proto_dir.is_dir() else []
-    append_files_section(ctx, "AVAILABLE PROTO FILES", files)
-    return result
+    return _show_command_help(ctx, "proto")
 
 
 def _build_one_crc_lang_command(code: str, info) -> Command:
@@ -2417,6 +2416,7 @@ COMMAND = Command(
     handler=_handler,
     picker="proto",
     bare_sub="list",
+    help_list="list",
     sub_commands={
         "help": Command(
             help="Show /proto help.",

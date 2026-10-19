@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+### Clickable lists in the TUI
+
+- The names in `/cfg.list`, `/run.list` and `/proto.list` are underlined
+  links in the TUI: click a config to load it, a script or a protocol test
+  to run it. A click runs exactly what you would type, so the command shows
+  in the output and goes into your history. The CLI, MCP and the session
+  log print the same text as before.
+- In help, every command name is a link to its help page: the `/help`
+  list, a page's SUBCOMMANDS and SEE ALSO, the `/help <term>` matches and
+  `/help.plugin`. Browsing the commands is clicking through them. The
+  CLI, MCP and the log show help exactly as before, colors included.
+- On a command's own help page, its name under NAME and SYNOPSIS puts the
+  command in the input line, ready for its arguments: Enter runs it. The
+  bare line does what the button does: in `/help run`, click "Run picker"
+  to open the Run picker, or `/run.list` to list the scripts. Nothing on a
+  page runs by accident: a click there opens a page, a picker or a list,
+  so `/help cap.clear` cannot delete your captures.
+- `/help cfg`, `/help run` and `/help proto` end with your configs,
+  scripts or protocol tests: the table `/cfg.list`, `/run.list` and
+  `/proto.list` print, indented under the page's other sections, so a click
+  on a config loads it and on a script runs it. `/help ss`, `/help cap`
+  and `/help log` do the same for screenshots, captures and the session
+  log, where a click opens the file in the system viewer. A page shows the
+  newest ten and links the rest (`... 204 more: /ss.list`). `/cfg.help`,
+  `/run.help` and `/proto.help` show the same page; they used to add a tree
+  of file names that plain `/help` lacked. A plugin gets the same for its
+  own list by declaring `help_list="list"` on its command.
+- `.show` takes a file name: `/ss.show shot.svg` opens that screenshot,
+  as `.dump` already took one for printing; bare `.show` still opens the
+  newest.
+  Every folder list (`/ss.list`, `/cap.list`, `/plugin.list`,
+  `/run.profile.list`) links each name to it, so a click opens that file.
+- New `/log.list`: the session log as a one-row list (name, size, age),
+  what `/help log` ends with.
+- File sizes in a column line up on their units: a byte count reads
+  `354  B`, its `B` under the `B` of `2.3 KB`, in every file list, the
+  pickers and `/cfg.info`. Prose such as capture progress keeps `354 B`.
+- Behind it, any list can make a column clickable (`Column(run=...)` or
+  `prefill=`, which puts the command in the input line instead of running
+  it), and help builds its rows from styled pieces, so more lists and help
+  sections can follow without new plumbing.
+
 ### One load report
 
 - Loading a config now reports one table of what it loaded, in place of

@@ -45,10 +45,7 @@ from termapy.builtins.commands._run_record import (
     _handler as _handler_record,
 )
 from termapy.builtins.commands.edit import edit_command
-from termapy.builtins.commands.help import (
-    _show_command_help,
-    append_files_section,
-)
+from termapy.builtins.commands.help import _show_command_help
 from termapy.folder_ops import (
     build_folder_subcommands,
     file_table,
@@ -76,7 +73,7 @@ def _resolve_script(ctx: PluginContext, name: str) -> Path | None:
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     """``/run.help`` (bare) or ``/run.help <script>``.
 
-    Bare: same as ``/help run`` with the AVAILABLE RUN FILES list.
+    Bare: same as ``/help run``, which ends with the scripts ``/run.list`` shows.
     With an argument: print the script's leading ``#`` docstring
     block (the convention is described in
     ``termapy.run_docstring``).  Missing or undocumented scripts
@@ -93,12 +90,8 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(full)
         return CmdResult.ok(value=full)
 
-    # Bare /run.help -- the original behavior.
-    result = _show_command_help(ctx, "run")
-    scripts_dir = ctx.fs.scripts_dir
-    files = sorted(f.name for f in scripts_dir.glob("*.run")) if scripts_dir.is_dir() else []
-    append_files_section(ctx, "AVAILABLE RUN FILES", files)
-    return result
+    # Bare /run.help is /help run: the page, ending with /run.list's scripts.
+    return _show_command_help(ctx, "run")
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
@@ -115,6 +108,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         "script",
         files,
         extra=((summary, lambda file: extract_docstring(file)[0], "summary"),),
+        run=lambda record: f"run {record['name']}",
     )
 
 
@@ -208,6 +202,7 @@ COMMAND = Command(
     files="run",
     picker="run",
     bare_sub="list",
+    help_list="list",
     sub_commands={
         "help": Command(
             args="{script}",
@@ -255,7 +250,7 @@ COMMAND = Command(
                     help="Profile a single command.",
                     handler=_handler_profile_cmd,
                 ),
-                **build_folder_subcommands("prof", noun="profile"),
+                **build_folder_subcommands("prof", noun="profile", command="run.profile"),
             },
         ),
         **_FOLDER_SUBS,

@@ -31,8 +31,9 @@ dispatcher's ``Command.needs.satisfied_by`` check is sufficient.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from termapy.plugins.output_levels import (
     DEFAULT_OUTPUT_LEVEL,
@@ -41,6 +42,9 @@ from termapy.plugins.output_levels import (
     RESULT_MIN_RANK,
     STATUS_MIN_RANK,
 )
+
+if TYPE_CHECKING:
+    from termapy.plugins.views import Piece
 
 
 @dataclass
@@ -61,6 +65,11 @@ class IOHandle:
     # every plugin (registry io-semantic-channels).
     _write: Callable = lambda text, color="dim": None
     _write_markup: Callable = lambda text: None
+    # A frontend that can click (the TUI) renders linked pieces itself,
+    # (pieces, color): an output line in ``color``, or a markup line when
+    # color is None.  None means it can't, and the two ``*_segments``
+    # channels write the plain text or the markup instead.
+    _write_segments: Callable | None = None
     log: Callable = lambda prefix, text: None
 
     # ── Always-works fallbacks for TUI features ──────────────────────
@@ -99,6 +108,38 @@ class IOHandle:
         """Write a status/progress message.  Shown only at verbose."""
         if self._shows(STATUS_MIN_RANK):
             self._write(text, "dim")
+
+    def output_segments(self, segments: Sequence[Piece], color: str = "dim") -> None:
+        """Write one ``output`` line built from pieces, some clickable: a table row.  Shown at normal+.
+
+        A frontend that can click supplies ``_write_segments`` and renders
+        each linked piece as a link.  Everywhere else the pieces are joined
+        into the plain ``output`` line in ``color`` the row always was --
+        registry ``links-are-data``.
+        """
+        if not self._shows(OUTPUT_MIN_RANK):
+            return
+        if self._write_segments is not None:
+            self._write_segments(segments, color)
+        else:
+            self._write("".join(piece.text for piece in segments), color)
+
+    def output_markup_segments(self, segments: Sequence[Piece]) -> None:
+        """Write one ``output_markup`` line built from pieces, each in its own style: a help row.
+
+        The markup twin of :meth:`output_segments`: a frontend that can
+        click gets the pieces (``color`` None says "a markup line"), and
+        everywhere else they are the escaped markup the line always was.
+        Shown at normal+.
+        """
+        if not self._shows(OUTPUT_MIN_RANK):
+            return
+        if self._write_segments is not None:
+            self._write_segments(segments, None)
+        else:
+            from termapy.plugins.views import pieces_markup
+
+            self._write_markup(pieces_markup(segments))
 
     # Markup channels.  Use these when ``text`` contains Rich markup
     # tags like ``[red]error[/]`` that should be parsed and rendered.

@@ -692,8 +692,8 @@ class SerialTerminal(TerminalHost, App):
         """
         names: list[str] = []
         for d, pattern in [
-            (self.repl.scripts_dir, "*.run"),
-            (self.repl.proto_dir, "*.pro"),
+            (self.repl.scripts_dir, FOLDER_PATTERNS["run"]),
+            (self.repl.proto_dir, FOLDER_PATTERNS["proto"]),
         ]:
             if d.exists():
                 for f in sorted(d.glob(pattern)):

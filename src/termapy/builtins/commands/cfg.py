@@ -34,7 +34,7 @@ from termapy.config import (
 )
 from termapy.config_resolve import resolve_config
 from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
-from termapy.folders import FOLDERS, INFO_REPORT_SUFFIX
+from termapy.folders import FOLDER_PATTERNS, FOLDERS, INFO_REPORT_SUFFIX, PLUGIN
 from termapy.help_dynamic import cfg_status, compose
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.plugins.params import ParamSpec
@@ -595,7 +595,7 @@ def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
         RuntimeError: The config is a bundled read-only template.
     """
     sections = _all_sections(ctx.config_path)
-    global_names = _names(global_plugins_dir(), "*.py")
+    global_names = _names(global_plugins_dir(), FOLDER_PATTERNS[PLUGIN])
     colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
 
     cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}

@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.help_dynamic import is_state_line
 from termapy.markup import markup_to_plain
 from termapy.plugins import (
@@ -808,7 +809,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     scripts_dir = ctx.fs.scripts_dir
     if scripts_dir.is_dir():
-        scripts = sorted(scripts_dir.glob("*.run"))
+        scripts = sorted(scripts_dir.glob(FOLDER_PATTERNS[RUN]))
         if scripts:
             ctx.io.output_markup("")
             _render_scripts(ctx, scripts, prefix, cmd_w)
@@ -902,7 +903,7 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
     if not scripts_dir.is_dir():
         ctx.io.result("No scripts directory.")
         return CmdResult.ok(value="")
-    scripts = sorted(scripts_dir.glob("*.run"))
+    scripts = sorted(scripts_dir.glob(FOLDER_PATTERNS[RUN]))
     if not scripts:
         ctx.io.result("No .run scripts found.")
         return CmdResult.ok(value="")

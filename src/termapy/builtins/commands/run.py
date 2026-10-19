@@ -51,7 +51,13 @@ from termapy.folder_ops import (
     file_table,
     list_entries,
 )
-from termapy.folders import PROFILE_TMP_PREFIX, default_file_name, ensure_folder
+from termapy.folders import (
+    FOLDER_PATTERNS,
+    PROFILE_TMP_PREFIX,
+    RUN,
+    default_file_name,
+    ensure_folder,
+)
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError
 from termapy.run_docstring import extract_docstring
 
@@ -101,7 +107,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     key in each data record).  Scripts without a docstring still appear
     with an empty summary, so the listing is never silently filtered.
     """
-    files = list_entries(ctx.fs.scripts_dir, "*.run")
+    files = list_entries(ctx.fs.scripts_dir, FOLDER_PATTERNS[RUN])
     summary = Column("SUMMARY", lambda record: record["summary"])
     return file_table(
         "run/",

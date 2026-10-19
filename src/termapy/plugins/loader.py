@@ -19,6 +19,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from termapy.converters import converter_from_module
+from termapy.folders import FOLDER_PATTERNS, PLUGIN
 from termapy.plugins.command import (
     LIFECYCLE_HOOK_NAMES,
     BoundaryException,
@@ -92,7 +93,7 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
     if not folder.is_dir():
         return result
     _clean_stale_pyc(folder)
-    for py_file in sorted(folder.glob("*.py")):
+    for py_file in sorted(folder.glob(FOLDER_PATTERNS[PLUGIN])):
         if py_file.name.startswith("_"):
             continue
         module = ModuleLoad(py_file.name)

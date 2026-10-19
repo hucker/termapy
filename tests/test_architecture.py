@@ -527,6 +527,64 @@ def test_data_folders_are_created_only_by_ensure_folder():
     )
 
 
+# Files that type a folder glob for a folder FOLDERS does not hold, with why.
+# Only shrinks: a data folder's glob is read from FOLDER_PATTERNS.
+ALLOWED_TYPED_GLOBS: dict[str, str] = {
+    "termapy/protocol/crc.py": "scans the package's built-in crc/ modules, not a data folder",
+}
+
+
+def _typed_folder_globs(tree: ast.AST, rel: str, patterns: frozenset[str]) -> list[str]:
+    """Every string constant in ``rel`` that is a data folder's glob (``"*.run"``)."""
+    return [
+        f"{rel}:{node.lineno}  {node.value!r}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and node.value in patterns
+    ]
+
+
+def test_folder_globs_are_read_from_the_table():
+    """folder-globs-from-table: A data folder's glob comes from FOLDER_PATTERNS, never typed.
+
+    ``folders.FOLDERS`` says once that run/ holds ``.run`` files.  A
+    ``"*.run"`` typed at a reader is a second copy that drifts when the
+    table changes: ``app.py`` read the table in one method and typed the
+    glob in another.  Only ``folders.py``, the owner, spells them out.
+    """
+    # Arrange
+    from termapy.folders import FOLDER_PATTERNS
+
+    patterns = frozenset(pattern for pattern in FOLDER_PATTERNS.values() if pattern != "*")
+    exempt = {"termapy/folders.py", *ALLOWED_TYPED_GLOBS}
+
+    # Act
+    violations: list[str] = []
+    for path in _package_python_files():
+        rel = path.relative_to(SRC.parent).as_posix()
+        if rel not in exempt:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            violations += _typed_folder_globs(tree, rel, patterns)
+
+    # Assert
+    assert violations == [], (
+        "a data folder's glob is FOLDER_PATTERNS[<folder>], never typed:\n  "
+        + "\n  ".join(violations)
+        + "\n\nIf the folder is not in folders.FOLDERS, add the FILE to ALLOWED_TYPED_GLOBS."
+    )
+
+
+def test_typed_glob_guard_fires_on_a_probe():
+    """The guard flags a typed folder glob and passes a read from the table."""
+    # Arrange
+    probe = 'folder.glob("*.run")\nfolder.glob(FOLDER_PATTERNS[RUN])\n'
+
+    # Act
+    found = _typed_folder_globs(ast.parse(probe), "probe", frozenset({"*.run"}))
+
+    # Assert
+    assert len(found) == 1, "the typed glob is flagged; the table read is not"
+
+
 def test_raw_mkdir_guard_fires_on_a_probe():
     """The guard actually detects the shapes it exists to forbid."""
     # Arrange -- a bare receiver and a chained one, as the eager loop had

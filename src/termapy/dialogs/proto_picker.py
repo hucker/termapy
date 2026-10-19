@@ -29,6 +29,7 @@ from termapy.dialogs._common import (
     _title_row_width,
 )
 from termapy.folder_ops import list_entries
+from termapy.folders import FOLDER_PATTERNS, PROTO
 from termapy.protocol import script_name
 
 _TITLE = "Select Protocol Script"
@@ -111,7 +112,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
 
-        protos = list_entries(self.proto_dir, "*.pro")  # newest first
+        protos = list_entries(self.proto_dir, FOLDER_PATTERNS[PROTO])  # newest first
         # Every path the title row can show; the first is shown on open.
         paths = [_option_path(str(proto), self.proto_dir) for proto in protos] or [
             self.proto_dir.resolve()

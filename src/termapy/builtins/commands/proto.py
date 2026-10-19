@@ -13,7 +13,7 @@ from crcglot import DetectMatch, DetectResult, detect
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.builtins.commands.edit import edit_command
 from termapy.folder_ops import build_folder_subcommands, file_table, list_entries
-from termapy.folders import default_file_name
+from termapy.folders import FOLDER_PATTERNS, PROTO, default_file_name
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.plugins.capabilities import STATE_MESSAGES
@@ -801,7 +801,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     for both.  A script without a name, or one that does not parse, still
     appears with an empty title.
     """
-    files = list_entries(ctx.fs.proto_dir, "*.pro")
+    files = list_entries(ctx.fs.proto_dir, FOLDER_PATTERNS[PROTO])
     title = Column("TITLE", lambda record: record["title"])
     return file_table(
         "proto/",

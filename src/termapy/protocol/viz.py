@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from termapy.folders import FOLDER_PATTERNS, VIZ
 from termapy.plugins import BoundaryException
 
 
@@ -75,7 +76,7 @@ def load_visualizers_from_dir(folder: Path, source: str = "global") -> list[Visu
     visualizers: list[VisualizerInfo] = []
     if not folder.is_dir():
         return visualizers
-    for py_file in sorted(folder.glob("*.py")):
+    for py_file in sorted(folder.glob(FOLDER_PATTERNS[VIZ])):
         if py_file.name.startswith("_"):
             continue
         # Plugin file: third-party code being imported; its top-level

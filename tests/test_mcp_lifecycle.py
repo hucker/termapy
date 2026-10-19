@@ -28,6 +28,7 @@ from termapy.defaults import default_cfg  # noqa: E402
 from termapy.mcp.catalog import build_device_state  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
 from termapy.profile import validate_profile  # noqa: E402
+from termapy.terminal_host import SESSION_END, SESSION_START  # noqa: E402
 
 DEMO_NDJSON_PROFILE = (
     Path(__file__).parent.parent
@@ -387,6 +388,7 @@ class TestAutoLoadProfileOnConnect:
                     "name": "Test Device",
                     "layer": "test",
                     "file": "test.profile.json",
+                    "path": str((cfg_dir / "test.profile.json").resolve()),
                     "count": 1,
                     "detail": {"revision": "1.0.0"},
                     "error": "",
@@ -549,3 +551,69 @@ class TestOnConnectCmd:
         log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
         assert "(on_connect_cmd)" not in log, "no universal cmd ran"
         assert "(mcp_on_connect_cmd)" not in log, "no mcp-only cmd ran"
+
+
+# ── Session markers ─────────────────────────────────────────────────────────
+
+
+class TestSessionMarkers:
+    """Every Session Start in an MCP log has its Session End: at a /cfg.load and at shutdown."""
+
+    @staticmethod
+    def _cfg(tmp_path: Path, name: str) -> Path:
+        """A portless config at ``<tmp>/<name>/<name>.cfg``: no connect, no device."""
+        cfg = default_cfg()
+        cfg["serial"]["port"] = ""
+        path = tmp_path / name / f"{name}.cfg"
+        path.parent.mkdir()
+        path.write_text(json.dumps(cfg), encoding="utf-8")
+        return path
+
+    def test_a_switch_and_the_shutdown_each_end_their_log(self, tmp_path):
+        """Pre-start starts A's log; a switch ends it and starts B's; the shutdown ends B's."""
+        # Arrange
+        first = self._cfg(tmp_path, "first")
+        second = self._cfg(tmp_path, "second")
+        h = MCPHost(json.loads(first.read_text(encoding="utf-8")), str(first), verbose=False)
+        h.repl.global_root = tmp_path
+        h._fire_app_start()
+        first_log = h.session_log_path()
+
+        # Act
+        h._switch_to_cfg_path(str(second))
+        second_log = h.session_log_path()
+        h._end_session_log()
+
+        # Assert
+        assert first_log is not None and second_log is not None, "both configs log"
+        assert first_log != second_log, "each config has its own mcp/session.log"
+        a = first_log.read_text(encoding="utf-8").splitlines()
+        b = second_log.read_text(encoding="utf-8").splitlines()
+        assert a[0] == SESSION_START, "pre-start starts the first log"
+        assert a[-2:] == ["Switched to config: second", SESSION_END], (
+            "the switch says where the session went, then ends the old log"
+        )
+        assert b[0] == SESSION_START, "and starts the new one"
+        assert b[-1] == SESSION_END, "the shutdown ends the log the session is in"
+        for lines in (a, b):
+            assert lines.count(SESSION_START) == lines.count(SESSION_END) == 1, (
+                "each log: one start, one end"
+            )
+
+    def test_reloading_the_same_config_adds_no_markers(self, tmp_path):
+        """A /cfg.load of the config already active keeps the log, so it starts nothing new."""
+        # Arrange
+        first = self._cfg(tmp_path, "first")
+        h = MCPHost(json.loads(first.read_text(encoding="utf-8")), str(first), verbose=False)
+        h.repl.global_root = tmp_path
+        h._fire_app_start()
+
+        # Act
+        h._switch_to_cfg_path(str(first))
+        log = h.session_log_path()
+
+        # Assert
+        assert log is not None, "the config logs"
+        lines = log.read_text(encoding="utf-8").splitlines()
+        assert lines.count(SESSION_START) == 1, "one session, one start"
+        assert SESSION_END not in lines, "and no end until it ends"

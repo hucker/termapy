@@ -4,8 +4,9 @@
 
 ### One load report
 
-- Loading a config now prints one table of what it loaded, in place of
-  the separate plugin, symbol and device lines: a row per plugin file,
+- Loading a config now reports one table of what it loaded, in place of
+  the separate plugin, symbol and device lines (in the session log, and on
+  screen with `quiet_start` off; see below): a row per plugin file,
   symbol table and device file, with its layer (`global` or the config),
   its file, a count and what it registered. A plugin row names its file
   and lists its commands, transforms, directives, converters and hooks in
@@ -14,7 +15,8 @@
   device row names the library part a reference file placed. A file that
   failed is a row with its error, and is still reported where it failed.
 - **`/cfg.loaded`** shows the table again, and `--json` and MCP get the
-  same rows as data. Under MCP the profile auto-loaded on connect is a
+  same rows as data, each with the file's full `path` beside the
+  layer-relative `file`. Under MCP the profile auto-loaded on connect is a
   row too, until the disconnect.
 - A config switch no longer prints `Unloaded N plugin(s): ...`; the new
   table is the new state. `--run` and `--exec` print no table, as they
@@ -29,6 +31,28 @@
   config's plugins and symbols loaded. The event is for built-ins: a
   folder plugin loads after it fires, so a folder plugin's
   `on_app_prestart` is skipped with a warning instead of never running.
+
+### A quiet startup
+
+- **New config key `quiet_start`, on by default.** Startup shows
+  `Connected: COM3`, the config's symbol table and device files by full
+  path (`Symbols: C:\...\sym\board.symbols.json`, `Device:  ...`;
+  clickable in the TUI), and anything that went wrong; the detail goes to
+  the session log, one click away on the Log button: the load table, the full
+  connect line (settings and DTR/RTS/CTS/DSR/RI/CD) and which device a
+  port spec resolved to. A failed plugin, device file or symbol table, a
+  stale symbol table and a config warning still print on screen. Set
+  `quiet_start` to `false` for the full startup. The CLI keeps no log, so
+  there the detail is `/cfg.loaded` and `/port.info`.
+- The VS Code key tip still shows once per run, first on screen, whatever
+  `quiet_start` says, and now all of it is in the session log. It used to
+  be written before the log opened, so even its one-line note was lost.
+- **Every `Session Start` now has a `Session End`**, in the TUI's log and
+  in MCP's `mcp/session.log`, which had neither marker before: the end is
+  written at exit, after the `Disconnected` line, and in the old config's
+  log when a switch moves the session to another file, which then starts
+  with its own `Session Start`. A start with no end is a session that did
+  not end cleanly.
 
 ### `/help` takes a command as you type it
 

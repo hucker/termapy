@@ -50,6 +50,7 @@ DEFAULT_CFG = {
     "max_lines": 10000,
     "default_ui": "tui",
     "vt100_hint": True,
+    "quiet_start": True,
     "cmd_prefix": DEFAULT_CMD_PREFIX,
     "cli_prompt": "$(CFG)> ",
     "cli_completion": True,
@@ -168,6 +169,16 @@ def cmd_prefix(cfg: Mapping) -> str:
     exactly one place.
     """
     return cfg.get("cmd_prefix", DEFAULT_CMD_PREFIX)
+
+
+def quiet_start(cfg: Mapping) -> bool:
+    """True when the startup shows only the connection and any problem.
+
+    ``cfg["quiet_start"]`` with the project default as fallback, read by
+    everything the setting quiets (the load report, the connect line), so
+    a cfg dict built without the key still behaves like a loaded one.
+    """
+    return bool(cfg.get("quiet_start", DEFAULT_CFG["quiet_start"]))
 
 
 # ── Config field help (description, valid values or callable) ──────────────────
@@ -413,6 +424,10 @@ CFG_HELP: dict[str, tuple] = {
     "vt100_hint": (
         "Show a VS Code key-capture tip in --vt100 mode.",
         "Valid: true, false. VS Code terminals capture some keys before the device.",
+    ),
+    "quiet_start": (
+        "Start quietly: show the connection and any problem, keep the detail in the log.",
+        "Valid: true, false. False also shows the load table and the full connect line.",
     ),
     "cmd_prefix": (
         "Prefix for local REPL commands.",

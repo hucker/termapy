@@ -43,6 +43,7 @@ Here is an example config for a device called `iot_device`:
     "max_lines": 10000,
     "default_ui": "tui",
     "vt100_hint": true,
+    "quiet_start": true,
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_completion": true,
@@ -170,6 +171,7 @@ reported as a type warning.
 | `max_lines`                   | `10000`                       | Scrollback buffer size |
 | `default_ui`                  | `tui`                         | Default UI mode: `tui`, `cli`, or `vt100` |
 | `vt100_hint`                  | `true`                        | Show a VS Code key-capture tip in `--vt100` mode (set `false` to hide) |
+| `quiet_start`                 | `true`                        | Start quietly: the symbol table and device files by full path, `Connected: <port>` and any problem on screen; the load table, the full connect line and the resolved port go to the log (`/cfg.loaded` shows the table again). `false` shows them too |
 | `cmd_prefix`                  | `/`                           | Prefix for local REPL commands |
 | `cli_prompt`                  | `"$(CFG)> "`                  | Prompt string in CLI mode (supports variables) |
 | `cli_completion`              | `true`                        | Enable CLI tab completion, auto-suggest, and help toolbar |

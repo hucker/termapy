@@ -20,7 +20,7 @@ from threading import Event
 from types import MappingProxyType
 
 from termapy import load_report
-from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
+from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix, quiet_start
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
 from termapy.folder_ops import list_entries
 from termapy.folders import (
@@ -53,6 +53,7 @@ from termapy.plugins import (
     PluginContext,
     PluginInfo,
     RecordView,
+    TableView,
     TransformInfo,
     UsageError,
     builtins_dir,
@@ -1043,7 +1044,9 @@ class ReplEngine:
                     load_report.load_record(load_report.PLUGIN, layer=cfg_name, error=str(e))
                 )
         for folder, source in layers:
-            records.extend(self._install_layer(load_plugins_from_dir(folder, source), source))
+            records.extend(
+                self._install_layer(load_plugins_from_dir(folder, source), source, folder)
+            )
         return records
 
     def _drop_external(self) -> None:
@@ -1070,7 +1073,7 @@ class ReplEngine:
         ]
         self._converters[:] = [spec for spec in self._converters if spec.source in _EXTERNAL_KEEP]
 
-    def _install_layer(self, result: LoadResult, source: str) -> list[Record]:
+    def _install_layer(self, result: LoadResult, source: str, folder: Path) -> list[Record]:
         """Register one folder's load result; return a load-report row per file.
 
         A plugin whose name the frontend already owns (source ``"app"``) is
@@ -1121,7 +1124,7 @@ class ReplEngine:
                     f"Skipped {module.file} - nothing exported (see plugin docs)",
                     "yellow",
                 )
-            records.append(load_report.plugin_record(module, source, commands, hooks))
+            records.append(load_report.plugin_record(module, source, folder, commands, hooks))
         return records
 
     def _show_load_report(self) -> None:
@@ -1130,12 +1133,25 @@ class ReplEngine:
         ``_render_view`` is the one place a table becomes lines, so this
         reads exactly as ``/cfg.loaded`` does, and a frontend that wants
         data (MCP) prints nothing -- it asks ``/cfg.loaded`` for the rows.
-        Nothing loaded prints nothing.  Errors were printed as they
-        happened; they are never silent.
+        Under ``quiet_start`` the same lines go to the session log only,
+        and the screen names just the symbol table and device files, in
+        full (``load_report.startup_lines``); the problems were printed as
+        they happened (an error is never silent).  Nothing loaded prints
+        nothing.
         """
         records = self.load_report.records
-        if records and not self.ctx.is_oneshot():
-            self._render_view(load_report.result(records), None)
+        if not records or self.ctx.is_oneshot():
+            return
+        result = load_report.result(records)
+        if not quiet_start(self._cfg_data):
+            self._render_view(result, None)
+            return
+        view = result.view
+        assert isinstance(view, TableView), "load_report.result is a table"
+        for text, _ in view.lines():
+            self.ctx.io.log("#", text)
+        for line in load_report.startup_lines(records):
+            self.ctx.io.output(line, "green")
 
     def _prune_data_folders(self) -> None:
         """Drop the active config's empty data folders and an empty global ``plugin/``.

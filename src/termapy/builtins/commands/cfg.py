@@ -744,10 +744,12 @@ COMMAND = Command(
         "loaded": Command(
             help="Show what the config load loaded: plugins, symbols, devices.",
             long_help=(
-                "The table printed at startup and on every config switch: one "
-                "row per plugin file, symbol table and device file the load "
-                "read, from the global layer and the config's own, with what "
-                "each registered.  A file that failed is a row with its error.  "
+                "The table every config load reports, at startup and on a "
+                "switch: one row per plugin file, symbol table and device file "
+                "the load read, from the global layer and the config's own, "
+                "with what each registered.  A file that failed is a row with "
+                "its error.  It goes to the session log, and to the screen too "
+                "when quiet_start is off.  "
                 "Under MCP the profile auto-loaded on connect is a row too.  "
                 "Later imports and loads ({prefix}sym.import, {prefix}dev.import, "
                 "{prefix}profile.load) answer for themselves and are not added."

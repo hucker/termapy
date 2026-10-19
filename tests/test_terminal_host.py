@@ -722,6 +722,7 @@ class TestFireAppStart:
         repl = ReplEngine(
             host.cfg, host.config_path, write=lambda t, c="": None, global_root=tmp_path
         )
+        host.cfg["quiet_start"] = False  # the table on screen marks the config load
         start_host = _PrestartHost(host.cfg, host.config_path, host.engine, repl, host.capture)
         start_host.ctx = start_host._build_plugin_context(start_host._build_internal_handle())
         repl.set_context(start_host.ctx)

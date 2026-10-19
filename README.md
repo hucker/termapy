@@ -532,6 +532,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "max_lines": 10000,
     "default_ui": "tui",
     "vt100_hint": true,
+    "quiet_start": true,
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_completion": true,

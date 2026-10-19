@@ -207,6 +207,7 @@ def _device_record(device: Device) -> Record:
         name=device.name,
         layer=device.layer,
         file=Path(folders.DEV, device.path.name).as_posix() if device.path else "",
+        path=str(device.path.resolve()) if device.path else "",
         count=len(device),
         detail={"ref": device.ref},
     )
@@ -224,11 +225,12 @@ def _load_sidecar(ctx: PluginContext, config_path: str) -> tuple[SymbolTable | N
         return None, []
     layer = Path(config_path).stem
     file = Path(folders.SYM, path.name).as_posix()
+    full = str(path.resolve())
     try:
         table = SymbolTable.load(path)
     except (OSError, ValueError) as e:
         ctx.io.output(f"Symbols: {path.name}: {e}", "yellow")
-        return None, [load_record(SYMBOLS, layer=layer, file=file, error=str(e))]
+        return None, [load_record(SYMBOLS, layer=layer, file=file, path=full, error=str(e))]
     verdict = check_staleness(table, prefix=ctx.prefix)
     _report_staleness(ctx, verdict)
     recipe = table.recipe or {}
@@ -237,6 +239,7 @@ def _load_sidecar(ctx: PluginContext, config_path: str) -> tuple[SymbolTable | N
         name=Path(table.source).name if table.source else path.stem,
         layer=layer,
         file=file,
+        path=full,
         count=len(table),
         detail={
             "source": table.source,

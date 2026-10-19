@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from pilot_wait import until
-from textual.widgets import Input, OptionList, Static
+from textual.widgets import Input, OptionList, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog
@@ -607,6 +608,34 @@ class TestSessionLogFollowsConfig:
 
         asyncio.run(scenario())
 
+    def test_every_session_start_has_its_end(self, app_factory, tmp_path):
+        """A switch ends A's log after its Switched line, and the exit ends B's, one end per start."""
+
+        async def scenario():
+            app, _, _ = app_factory(name="first")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                first_log = app.session_log_path()
+                second_cfg, second_path = _write_cfg(tmp_path, name="second")
+
+                # Act -- switch, then leave the context: the app exits
+                app._switch_config(second_cfg, second_path)
+                await pilot.pause()
+                second_log = app.session_log_path()
+
+            # Assert
+            first = self._text(first_log).splitlines()
+            second = self._text(second_log).splitlines()
+            assert "Switched to config: second" in first[-2], "A says where the session went"
+            assert "Session End" in first[-1], "and then that it ended there"
+            assert "Session End" in second[-1], "the exit ends the log the session is in"
+            for lines in (first, second):
+                starts = sum("Session Start" in line for line in lines)
+                ends = sum("Session End" in line for line in lines)
+                assert starts == ends == 1, "each log: one start, one end"
+
+        asyncio.run(scenario())
+
     def test_startup_load_report_is_in_the_session_log(self, app_factory):
         """prestart-before-start: the log opens at pre-start, so the startup load table is in it."""
 
@@ -634,6 +663,40 @@ class TestSessionLogFollowsConfig:
                     "the log was open before the config load printed its table"
                 )
                 assert "plugin/hello.py" in logged, "the table's rows are logged too"
+
+        asyncio.run(scenario())
+
+    @pytest.mark.skipif(sys.platform == "darwin", reason="macOS VS Code passes Ctrl keys through")
+    def test_vscode_tip_shows_once_and_is_logged(self, app_factory, tmp_path, monkeypatch):
+        """The VS Code tip is first on screen once per run, not again on a switch, and all of it is logged."""
+        monkeypatch.setenv("TERM_PROGRAM", "vscode")
+
+        def screen(app) -> list[str]:
+            return [strip.text.strip() for strip in app.query_one("#output", RichLog).lines]
+
+        async def scenario():
+            app, _, _ = app_factory(name="first")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                first_log = app.session_log_path()
+                at_start = screen(app)
+                second_cfg, second_path = _write_cfg(tmp_path, name="second")
+
+                # Act -- a switch clears the pane; the tip must not come back
+                app._switch_config(second_cfg, second_path)
+                await pilot.pause()
+                after_switch = screen(app)
+
+                # Assert
+                tips = [line for line in at_start if line.startswith("VS Code detected")]
+                assert len(tips) == 1, "shown once at start"
+                assert at_start[1].startswith("VS Code detected"), "first on screen, under its rule"
+                assert not any(line.startswith("VS Code detected") for line in after_switch), (
+                    "once per run, not once per config load"
+                )
+                logged = self._text(first_log)
+                assert "VS Code detected: F-keys" in logged, "the tip is in the log"
+                assert "Other:       Alt+P=palette" in logged, "every line of it, not a summary"
 
         asyncio.run(scenario())
 

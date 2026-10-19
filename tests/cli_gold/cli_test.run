@@ -411,4 +411,6 @@ MEM.R 0x1000 2 --json
 /run.rename status_probe status_check
 /delay 1ms
 /run.record
-/cap.clear
+/cap.delete
+/cap.delete nosuch.txt
+/cap.delete *

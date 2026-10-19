@@ -191,13 +191,13 @@ class TestPruneAtLoadAndStop:
         assert not (tmp_path / "plugin").exists(), "the global plugin/ follows the same rule"
 
     def test_app_stop_drops_a_folder_the_user_emptied_during_the_session(self, cli):
-        """A folder emptied by /cap.clear mid-session is removed when the app stops."""
-        # Arrange -- a capture landed in cap/, then the user cleared it
+        """A folder emptied by /cap.delete mid-session is removed when the app stops."""
+        # Arrange -- a capture landed in cap/, then the user deleted it
         parent = Path(cli.config_path).parent
         (ensure_folder(parent / "cap") / "old.txt").write_text("x", encoding="utf-8")
-        cleared = cli.repl.dispatch("cap.clear")
+        cleared = cli.repl.dispatch("cap.delete old.txt")
         assert cleared.success and (parent / "cap").is_dir(), (
-            "precondition: /cap.clear empties the folder but does not remove it"
+            "precondition: /cap.delete empties the folder but does not remove it"
         )
 
         # Act

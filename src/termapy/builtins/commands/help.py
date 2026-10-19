@@ -140,9 +140,9 @@ def _try_link(name: str) -> Link:
     """A click on a command's name on its own page fills the input line, never runs it.
 
     Trying the command is then one Enter away, and nothing runs by
-    accident: the safety tier gates only MCP, so in the TUI ``/cap.clear``
-    deletes every capture without asking.  The frontend adds the space
-    after it.
+    accident: the safety tier gates only MCP, and in the TUI
+    ``/cap.delete <name>`` deletes a capture without asking.  The
+    frontend adds the space after it.
     """
     return Link(name, run=False)
 

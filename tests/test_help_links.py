@@ -169,7 +169,7 @@ def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
         for command in runs
         if not command.startswith("help ") and command not in bare_forms | list_rows
     )
-    assert bad == [], "one click on /help cap.clear must never delete the captures"
+    assert bad == [], "one click on /help cap.delete must never delete the captures"
 
 
 def test_a_bare_form_only_opens_or_shows(tmp_path):

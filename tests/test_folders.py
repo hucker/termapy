@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from termapy.folders import (
-    CLEARABLE,
+    DELETABLE,
     DUMPABLE,
     EXT_TO_FOLDER,
     FOLDER_EXTS,
@@ -34,11 +34,11 @@ class TestFolderSpec:
             spec.name = "other"  # ty: ignore[invalid-assignment]
 
     def test_defaults(self):
-        """A bare FolderSpec is listable and dumpable but never clearable -- wiping is opt-in."""
+        """A bare FolderSpec is listable and dumpable but never deletable -- wiping is opt-in."""
         # Defaults represent the "standard browsable folder" case:
         # user-facing, contents safe to inspect/export, NOT safe to wipe.
         spec = FolderSpec("test", "*.txt")
-        assert spec.clearable is False, "clearable default (destructive opt-in)"
+        assert spec.deletable is False, "deletable default (destructive opt-in)"
         assert spec.showable is True, "showable default (user-facing)"
         assert spec.dumpable is True, "dumpable default (exportable)"
 
@@ -58,12 +58,12 @@ class TestFolders:
         assert "plugin" in FOLDER_NAMES, "plugins"
         assert "sym" in FOLDER_NAMES, "symbol tables"
 
-    def test_clearable_derived(self):
+    def test_deletable_derived(self):
         """Only output folders (ss, cap, prof) are wipeable; user-authored run scripts are not."""
-        assert "ss" in CLEARABLE, "screenshots clearable"
-        assert "cap" in CLEARABLE, "captures clearable"
-        assert "prof" in CLEARABLE, "profiles clearable"
-        assert "run" not in CLEARABLE, "scripts not clearable"
+        assert "ss" in DELETABLE, "screenshots deletable"
+        assert "cap" in DELETABLE, "captures deletable"
+        assert "prof" in DELETABLE, "profiles deletable"
+        assert "run" not in DELETABLE, "scripts not deletable"
 
     def test_showable_derived(self):
         """Both generated screenshots and authored scripts appear in folder listings."""

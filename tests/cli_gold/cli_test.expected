@@ -1021,7 +1021,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /cap.bin        Capture raw binary bytes.
-  /cap.clear      Delete all files in cap/.
+  /cap.delete     Delete a file from cap/; * deletes them all, after a yes.
   /cap.dump       Print the newest (or named) file from cap/ to the terminal.
   /cap.explore    Open cap/ in the system file explorer.
   /cap.hex        Capture hex text lines, decode with format spec to CSV.
@@ -1048,7 +1048,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /ss.clear      Delete all files in ss/.
+  /ss.delete     Delete a file from ss/; * deletes them all, after a yes.
   /ss.explore    Open ss/ in the system file explorer.
   /ss.list       List files in ss/, newest first, with size and age.
   /ss.rename     Rename a file in ss/ (extension kept; never overwrites).
@@ -1347,7 +1347,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SEE ALSO
-  /cap.bin, /cap.clear, /cap.dump, /cap.explore, /cap.hex, /cap.list, /cap.poll, /cap.rename, /cap.show, /cap.stop, /cap.struct, /cap.wire, /cap
+  /cap.bin, /cap.delete, /cap.dump, /cap.explore, /cap.hex, /cap.list, /cap.poll, /cap.rename, /cap.show, /cap.stop, /cap.struct, /cap.wire, /cap
 demo> /profile.save
   Error: No profile loaded.
 demo> /print === section: help.run ===
@@ -1777,6 +1777,10 @@ demo> /delay 1ms
   Delay 1ms done.
 demo> /run.record
   Error: Not recording.
-demo> /cap.clear
+demo> /cap.delete
+  Error: Usage: /cap.delete <name|*>
+demo> /cap.delete nosuch.txt
+  Error: File not found: nosuch.txt
+demo> /cap.delete *
     cap/ is already empty.
 Disconnected: DEMO

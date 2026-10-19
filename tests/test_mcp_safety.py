@@ -102,9 +102,9 @@ class TestCommandDeclaration:
     @pytest.mark.parametrize(
         ("command", "expected"),
         [
-            ("cap.clear", "destructive"),  # every capture
-            ("ss.clear", "destructive"),  # every screenshot
-            ("run.profile.clear", "destructive"),  # every saved profile
+            ("cap.delete", "destructive"),  # a capture, or every one
+            ("ss.delete", "destructive"),  # a screenshot, or every one
+            ("run.profile.delete", "destructive"),  # a saved profile, or every one
             ("log.delete", "destructive"),  # the session log
             ("cfg.delete", "destructive"),  # a whole config folder
             ("demo.force", "destructive"),  # rewrites the demo config over its edits
@@ -159,21 +159,21 @@ class TestMcpGate:
         )
         assert result["value"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
 
-    def test_cap_clear_waits_for_confirm(self, host, tmp_path):
-        """/cap.clear refused without confirm deletes nothing; with confirm it deletes the captures."""
+    def test_cap_delete_waits_for_confirm(self, host, tmp_path):
+        """/cap.delete * refused without confirm deletes nothing; with confirm it deletes the captures."""
         # Arrange
         capture = tmp_path / "cfg" / "cap" / "kept.txt"
         capture.write_text("data", encoding="utf-8")
 
         # Act / Assert -- refused: the marker, and the file is still there
-        refused = _run(host, "/cap.clear")
+        refused = _run(host, "/cap.delete *")
         assert refused["value"]["needs_confirmation"] is True, "deleting captures asks first"
-        assert capture.exists(), "a refused clear deletes nothing"
+        assert capture.exists(), "a refused delete deletes nothing"
 
-        # Act / Assert -- confirmed: the handler runs
-        confirmed = _run(host, "/cap.clear", confirm=True)
+        # Act / Assert -- confirmed: the gate was the question, so the handler asks nothing more
+        confirmed = _run(host, "/cap.delete *", confirm=True)
         assert confirmed["success"] is True, confirmed["error"]
-        assert not capture.exists(), "the confirmed clear deleted the capture"
+        assert not capture.exists(), "the confirmed delete removed the capture"
 
     def test_a_command_mcp_cannot_run_is_refused_not_gated(self, host):
         """/demo.force needs a human, so MCP answers why it cannot run, never asks for confirm."""

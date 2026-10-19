@@ -764,6 +764,19 @@ class TestVer:
 
 
 class TestSeq:
+    def test_session_clock_starts_at_prestart(self, repl_env):
+        """seq seeds {starttime} / {elapsed} at pre-start, before the config load, not at app start."""
+        # Arrange
+        engine, _, _, _ = repl_env
+        seq = engine.ctx.ns("seq")
+
+        # Act
+        engine.fire_lifecycle("on_app_prestart")
+
+        # Assert
+        assert "_start_time" in seq, "the {starttime} stamp is set at pre-start"
+        assert "_start_perf" in seq, "and the clock behind {elapsed}"
+
     def test_seq_show_empty(self, repl_env):
         """With no counters, /seq prints a notice and returns '' so captures never see None."""
         engine, _, _, output = repl_env
@@ -1091,6 +1104,62 @@ class TestHelp:
         assert result.success is False, "zero-hit miss hard-fails"
         assert "No command matches" in result.error, "error names the miss"
         assert "/search" in result.error, "hint points at /search"
+
+    def test_help_accepts_a_name_typed_with_its_prefix(self, repl_env):
+        """/help /cfg.loaded is /help cfg.loaded: the prefix is how a command is typed."""
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("help /cfg.loaded")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "cfg.loaded", "the exact page, under the bare name"
+
+    def test_help_strips_the_configured_prefix_not_a_slash(self, repl_env):
+        """With cmd_prefix "!", /help strips "!" and leaves a typed "/" alone."""
+        # Arrange
+        engine, _, _, _ = repl_env
+        engine.ctx.cfg["cmd_prefix"] = "!"
+
+        # Act
+        stripped = engine.dispatch("help !cfg.loaded")
+        kept = engine.dispatch("help /cfg.loaded")
+
+        # Assert
+        assert stripped.value == "cfg.loaded", "the live prefix is stripped"
+        assert kept.value != "cfg.loaded", "a slash is not this config's prefix"
+
+    def test_help_keeps_a_device_command_that_starts_with_the_prefix(self, repl_env):
+        """A device command spelled with the prefix's character is looked up as written."""
+        # Arrange
+        engine, _, _, _ = repl_env
+        engine.ctx.cfg["cmd_prefix"] = "$"
+        engine.ctx.ns("active_profile")["commands"] = {"$GPGGA": {"help": "fix data"}}
+
+        # Act
+        device = engine.dispatch("help $GPGGA")
+        command = engine.dispatch("help $cfg.loaded")
+
+        # Assert
+        assert device.value == "$GPGGA", "the device's own name, not GPGGA"
+        assert command.value == "cfg.loaded", "while a termapy command still loses the prefix"
+
+    def test_bare_prefix_is_the_landscape(self, repl_env):
+        """/help / names no command, so it shows the landscape like bare /help."""
+        # Arrange
+        engine, _, _, output = repl_env
+        engine.dispatch("help")
+        expected = list(output)
+        output.clear()
+
+        # Act
+        result = engine.dispatch("help /")
+
+        # Assert
+        assert result.success, result.error
+        assert output == expected, "the same page as bare /help"
 
     def test_help_term_shows_candidates_when_no_exact(self, repl_env):
         """/help <term> with no exact match renders a candidate list."""

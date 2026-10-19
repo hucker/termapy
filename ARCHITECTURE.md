@@ -22,7 +22,7 @@ The whole system fits in your head once these pieces click. Each is detailed in 
 - **CmdResult & output levels** — every handler returns one uniform `CmdResult` (success / value / error / timing). The active output level (silent / quiet / normal / verbose) decides which channels actually render, so a single handler is correct from a quiet script to a verbose TUI to an MCP caller that wants only `value`. An answer is data plus a view (`CmdResult.table` / `.record`): dispatch prints the view unless the caller wants the data.
 - **Three kinds of text, kept apart** — device text (which may carry ANSI), Rich markup and plain text each cross into the others one way. Device ANSI renders as color in the TUI and is stripped from what the session log, `/expect` and capture see; a value going into markup is escaped (`escape_markup`); a Textual widget takes literal text; agents and the log get `markup_to_plain`.
 - **Variables** — `$(NAME)` placeholders, expanded during the transform stage from three sources: user-assigned (`/var`, `$(NAME) = ...`), the loaded config, and the environment (`$(env.NAME)`).
-- **Lifecycle events** — plugins react to app start/stop and script start/stop, so session-scoped state sets up and tears down without the engine knowing about it.
+- **Lifecycle** — every frontend announces the same eight session moments (pre-start, app start and stop, a config load, a connect and a disconnect, a script's start and stop) to the engine. At a config load the engine runs its own loaders first (plugins, symbols, device files, reported as one load table), then the plugins' hooks, so setup and teardown happen the same way in every frontend without the engine knowing what a plugin keeps.
 - **The config folder is the unit of state** — each project folder has its own `termapy_cfg/`. A config is a folder whose data folders appear at the first write and are pruned when empty; a read never writes; a global layer at the root supplies shared plugins and device files.
 - **Config migration** — every config carries a schema version and is auto-upgraded on load through a chain of small migrators, so schema and command changes ship without breaking existing user configs.
 
@@ -165,6 +165,7 @@ src/termapy/
 ├── info_views.py           #              Read-only info views for the TUI
 ├── install_info.py         #              Detect how termapy was installed, for upgrade-command hints
 ├── legacy.py               #              Legacy-command forwarding helper
+├── load_report.py          #              The load report: what the last config load put in the session, one row per file
 ├── markup.py               #              Rich markup: the one home for turning text into markup and back
 ├── memory.py               # (880 lines)  Device memory access -- bytes in, bytes out, over an injected exchange
 ├── memory_views.py         # (317 lines)  Typed views over device bytes -- layer 3 of the memory design
@@ -295,22 +296,7 @@ The `flags` namespace is engine-reserved. Third-party plugins should use their o
 
 Contrast with `ctx.internal`: `InternalHandle` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction - `ctx.internal` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
 
-#### Lifecycle hooks
-
-Plugins that need setup, teardown, or per-script reset can export top-level lifecycle functions. There is no `Plugin` base class and no decorators - a plugin is a module that exports stuff, and lifecycle functions are just more stuff it can export.
-
-```text
-on_app_start(ctx)     - once after plugins load and ctx is wired, before first dispatch
-on_app_stop(ctx)      - once during graceful shutdown (not guaranteed on crash)
-on_script_start(ctx)  - when the outermost script begins (nested /run does NOT fire)
-on_script_stop(ctx)   - when the outermost script ends, including on /stop or error
-```
-
-Script hooks fire only at the top level - nested `/run` inside a running script does not re-fire `on_script_start`. A plugin that clears state in `on_script_start` will not have its state wiped by inner scripts. Plugins that need per-file nesting can track depth themselves via `ctx.internal.in_script()`.
-
-Hooks are stored in a flat list in load order (`ReplEngine._lifecycle_hooks`). `fire_lifecycle(name)` filters by name and calls matching handlers in registration order, catching exceptions per-hook so one bad plugin can't prevent later hooks from running. Errors surface through `ctx.status()`. Three core listeners run inside `fire_lifecycle` BEFORE the plugin hooks: the empty data-folder prune (`folders.prune_empty_folders`, on `on_app_start`, `on_config_load` and `on_app_stop`; see "Config and filesystem"), then on `on_app_start` and `on_config_load` external plugin resolution (`ReplEngine.resolve_plugins`: drop every folder-loaded registration, then load `termapy_cfg/plugin/` and `termapy_cfg/<name>/plugin/` again, so a folder plugin's own hook fires in that same pass), then the symbol auto-load (`symbols.session.autoload`). So every frontend resolves plugins and loads `sym/<cfg>.symbols.json` at the same moment -- `on_app_start` fires BEFORE the startup auto-connect in the TUI, CLI and MCP server alike, so an `on_connect` hook or `on_connect_cmd` already has the table -- and a plugin's own hook already sees `ctx.ns("symbols")`. None of the three is a plugin hook (which would drift per frontend) or a `set_context` / `replace_cfg` side effect (which double-loads on the CLI/MCP config switch that rebuilds the ctx).
-
-Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` and wires `on_script_start` to clear it, so scripts start with a clean counter set without `ReplEngine` knowing anything about sequence counters. This is the pattern to follow for any plugin with session-scoped state that needs lifecycle management.
+Session moments (app start, a config load, a connect, a script) reach plugins as lifecycle hooks; see [Lifecycle](#lifecycle), which is the one home for them.
 
 ### Loading order (later overrides earlier)
 
@@ -373,7 +359,7 @@ raw line
 
 ### Plugin file convention
 
-A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, a symbol converter (the four top-level names `FORMAT` / `DESCRIPTION` / `DETECT` / `convert`, plus an optional `layout` for the file's regions, address width and byte order, and an optional `MAGIC` signature that makes it a binary format reading bytes, the same shape the built-in converters use), and/or top-level lifecycle functions (`on_app_start`, `on_app_stop`, `on_script_start`, `on_script_stop`). All are optional; the loader picks up whatever's there.
+A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, a symbol converter (the four top-level names `FORMAT` / `DESCRIPTION` / `DETECT` / `convert`, plus an optional `layout` for the file's regions, address width and byte order, and an optional `MAGIC` signature that makes it a binary format reading bytes, the same shape the built-in converters use), and/or top-level lifecycle functions, one per event in [Lifecycle](#lifecycle) (`on_app_start`, `on_config_load`, `on_connect`, ...). All are optional; the loader picks up whatever's there.
 
 A converter is four names rather than a dataclass because it is one function plus two strings — `Command` earns its dataclass through validation and ~15 fields, and a wrapper here would exist only to be unpacked. Plugin converters live on the `ReplEngine` with a `source` label (not in the static `CONVERTERS` tuple), so a config switch drops them exactly like commands; `/sym.import` passes them to `find_converter`, which searches the built-in registry too. An empty `DETECT` means explicit-`format=` only — a board's own pipeline should not join format sniffing. A binary format (`MAGIC`) is recognized by its signature before any text marker is tried, because a binary file can carry another format's marker: an XC32 ELF holds the map converter's `/xc32/` 128 times in its debug strings. The ELF converter is the one built-in binary format and the preferred source: one module reads every toolchain's ELF, the symbol table for names and the DWARF debug info for C types, where a linker map is a per-toolchain text report with no types at all.
 
@@ -414,7 +400,7 @@ def _now() -> str:
 # --- lifecycle: set up / reset the shared state at session boundaries ---
 
 
-def on_app_start(ctx):  # fires once, after plugins load
+def on_app_prestart(ctx):  # fires once, before the config load
     ctx.ns("seq")["_start_time"] = _now()
 
 
@@ -443,11 +429,61 @@ COMMAND = Command(name="seq", help="Print sequence counters.", handler=_handler)
 What it demonstrates:
 
 - **Global/session state** lives in `ctx.ns("seq")` — a plain dict shared across every call for the life of the `PluginContext`. The `{seqN+}` transform writes counters here; `_handler` and the template engine read them. No module-level globals, no monkeypatching `ctx`.
-- **Lifecycle** keeps that state honest: `on_app_start` seeds it once; `on_script_start` clears it at the top of each outermost script so runs don't bleed into each other — and since nested `/run` doesn't re-fire, inner scripts inherit the outer run's counters. The engine knows nothing about sequence counters; the plugin owns the policy.
+- **Lifecycle** keeps that state honest: `on_app_prestart` seeds it once, before the config load, so `{starttime}` and `{elapsed}` count from the start of the session; `on_script_start` clears it at the top of each outermost script so runs don't bleed into each other — and since nested `/run` doesn't re-fire, inner scripts inherit the outer run's counters. The engine knows nothing about sequence counters; the plugin owns the policy.
 
 - **A record answer**: the handler prints nothing.  `CmdResult.record` carries the counters as `data` (`{"seq1": 3}`) and the rows a person reads; dispatch prints the rows, or hands the record alone to `--json` or MCP (registry `record-one-format`).
 
 Copy this shape for any plugin that needs per-session state with setup/reset semantics. (The full file adds a `_start_time` for the `{starttime}` placeholder, a `seq.reset` subcommand, and a dynamic `long_help` that reads the live state.)
+
+## Lifecycle
+
+The frontends decide **when** a session moment happens; the engine decides **what** happens at it. Every frontend announces the same eight moments with `ReplEngine.fire_lifecycle(name)`, and whatever must happen the same way in the TUI, the CLI and the MCP server hangs off those calls instead of off frontend code. That is why a config's plugins, symbols and device files load identically everywhere, and why a new load-time step is one edit in the engine rather than three in the frontends.
+
+| Event | When | Fired by | Core listeners, before the plugin hooks |
+| --- | --- | --- | --- |
+| `on_app_prestart` | once, first: after the session variables are registered and the frontend's own pre-start work (the TUI's session log opens) | `TerminalHost._fire_app_start` | none |
+| `on_app_start` | once, after pre-start, before the first dispatch and the startup auto-connect | `TerminalHost._fire_app_start` | prune, plugin resolution, symbol and device auto-load, the load report |
+| `on_config_load` | a config switch (`/cfg.load`, the picker) | `app.py`, `TerminalHost._switch_to_cfg_path` | the same as `on_app_start` |
+| `on_app_stop` | graceful shutdown (not a crash) | `app.py`, `cli.py`, `mcp/server.py` | prune |
+| `on_connect` | a port opened, before the reader starts | `TerminalHost._connect` | none |
+| `on_disconnect` | before a port closes, a switch's included | `TerminalHost` | none |
+| `on_script_start` | the outermost script begins | `ReplEngine` | none |
+| `on_script_stop` | the outermost script ends, on `/stop` or an error too | `ReplEngine` | none |
+
+### Pre-start
+
+Some things must be running before the session starts, and depend on nothing the config load brings: the session variables, which every hook and command after them may expand, and the session log, since the startup load report should be in it. `TerminalHost._fire_app_start` is the one place the app start is announced, in every frontend: the shared pre-start work (`_register_vars`: `$(FRONT_END)` from the host's `front_end` name, `$(CFG)` and `$(CFG.*)`), then the frontend's own (`_on_app_prestart`, where the TUI opens its log; the MCP log needs no opening and the CLI keeps none), then the `on_app_prestart` hooks, then `on_app_start`. A host that was built but never started has no variables, no folder plugins and no symbols, so a test that drives one starts it the same way. A test fails if any other code fires either event (registry `prestart-before-start`). Only built-ins and the frontend can use pre-start (`seq` starts the session clock there): folder plugins load during `on_app_start`, so a folder plugin's `on_app_prestart` would never run, and the engine skips it with a warning rather than drop it silently.
+
+### One config-load pass
+
+```text
+fire_lifecycle("on_app_start" | "on_config_load")
+  → prune empty data folders       folders.prune_empty_folders
+  → resolve_plugins()              drop every folder registration, then load
+                                   termapy_cfg/plugin/ and <cfg>/plugin/
+                                   → a row per plugin file
+  → symbols_session.autoload()     sidecar + dev/ files → ctx.ns("symbols")
+                                   → the sidecar's row, a row per device file
+  → load_report.replace(rows)      the session's load report (below)
+  → print it once                  not for --run / --exec, not to MCP
+  → plugin hooks, in load order    each in its own try; a failure to status
+```
+
+The order is the contract. Resolution runs before the hooks, so a folder plugin's own `on_app_start` / `on_config_load` fires in the pass that loaded it; the symbol auto-load runs before them, so a hook already sees `ctx.ns("symbols")`; and `on_app_start` runs before the startup auto-connect in every frontend, so an `on_connect` hook or `on_connect_cmd` already has the table. A switch rebuilds both plugin layers from scratch: a per-config transform, directive or hook goes away with its config, and a global module runs again, which is why session state belongs in `ctx.ns()` and not in module globals.
+
+The core listeners are deliberately not plugin hooks, which would drift per frontend, and not a `set_context` / `replace_cfg` side effect, which double-loads on the CLI/MCP switch that rebuilds the context. Work tied to one frontend's moment stays in that frontend: MCP's profile auto-load runs from `_on_connected`, after the reader starts, because `/profile.load cmd=` needs the device's reply and `on_connect` fires before the reader pumps.
+
+### The load report
+
+Each loader in the pass returns rows instead of printing a load line, all of one shape (`load_report.load_record`): kind, name, layer (`global` or the config), file (relative to its layer's folder), count, the kind's own detail, and an error. `fire_lifecycle` replaces the engine's `LoadReport` with them and prints it through `_render_view`, the one place a table becomes lines, so startup reads exactly as `/cfg.loaded` does and `--json` and MCP get the same rows as data. A file that failed is reported where it failed, as before, and is also a row with its error, so an agent that never saw startup still learns it. MCP adds the profile it auto-loads on connect and drops it at the disconnect. A later `/sym.import`, `/dev.import` or `/profile.load` is that command's own answer and leaves the report alone (registry `load-report-one-table`).
+
+### Plugin hooks
+
+A plugin reacts to any of the eight moments (pre-start only from a built-in) by exporting a top-level function named for the event, taking `ctx`. There is no `Plugin` base class and no decorators: a plugin is a module that exports things, and lifecycle functions are more things it can export. Hooks live in one flat list in load order (`ReplEngine._lifecycle_hooks`); `fire_lifecycle(name)` calls the matching ones in registration order, catching exceptions per hook so one bad plugin cannot stop the rest, and reports a failure through `ctx.io.status`.
+
+Script hooks fire only at the top level: a nested `/run` does not fire `on_script_start` again, so a plugin that clears state there keeps it through inner scripts. A plugin that needs per-file nesting tracks depth itself through `ctx.internal.in_script()`. The `seq` plugin ([worked example](#worked-example-the-seq-plugin)) is the pattern: it owns its counters in `ctx.ns("seq")` and clears them in `on_script_start`, so each run starts clean without `ReplEngine` knowing anything about sequence counters.
+
+Adding an event is two edits: append its name to `LIFECYCLE_HOOK_NAMES` (`plugins/command.py`), and call `fire_lifecycle(name)` once from the moment it names, in the shared code (`TerminalHost` or `ReplEngine`) wherever that moment is shared.
 
 ## Rules
 
@@ -497,7 +533,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 │  • dispatch_full() - full command routing        │
 │  • dispatch() - REPL command → plugin handler    │
 │  • Script runner with nested /run support        │
-│  • fire_lifecycle() - run on_*_start/stop hooks  │
+│  • fire_lifecycle() - core loaders, then hooks   │
 ├──────────────────────────────────────────────────┤
 │  plugins/ - Plugin System (package)              │
 │  • command.py: Command, CmdResult, Transform,    │
@@ -902,6 +938,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_install_info.py                | Tests for `termapy.install_info.upgrade_command`                                                                                                   |
 | test_lazy_folders.py                | The data-folder rule, driven end to end from a config with NO data folders                                                                         |
 | test_legacy_migration.py            | Tests for the verbose/.quiet -> output-level migration                                                                                             |
+| test_load_report.py                 | Tests for termapy.load_report: the record shape, the table and the session report                                                                  |
 | test_log_fingerprint.py             | `/log.fingerprint`: the session provenance report and each of its sections                                                                         |
 | test_markup_escape.py               | markup-escape: text reaches the terminal as typed, through every markup path                                                                       |
 | test_mcp_cfg_load.py                | Tests for /cfg.load via MCP frontend                                                                                                               |

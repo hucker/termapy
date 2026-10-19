@@ -36,6 +36,7 @@ from datetime import UTC
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from termapy import load_report
 from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import mcp_dir, mcp_log_path, on_connect_commands, open_serial
 from termapy.folder_ops import file_record
@@ -90,6 +91,8 @@ class MCPHost(TerminalHost):
     response) and to ``<cfg_dir>/mcp/session.log``.  Optionally tees
     log events to stderr when ``--mcp-verbose`` is set.
     """
+
+    front_end = "mcp"
 
     # Lazily attached by ``_serialize_lock`` (created on first
     # ``run_command_async`` call so the lock binds to whichever event
@@ -159,23 +162,6 @@ class MCPHost(TerminalHost):
         # the same buffer the handler-level writes feed.
         self.repl = ReplEngine(cfg, config_path, write=self.write)
 
-        # Var/cfg interpolation, matching CLITerminal.
-        from termapy.variables import (
-            register_cfg_vars,
-            set_context_var,
-            set_launch_var,
-        )
-
-        set_launch_var("FRONT_END", "mcp")
-        set_context_var(
-            "CFG",
-            lambda: Path(self.config_path).stem if self.config_path else "termapy",
-        )
-        register_cfg_vars(
-            get_config_path=lambda: self.config_path,
-            get_cfg=lambda: self.cfg,
-            get_log_path=lambda: str(self.session_log_path() or ""),
-        )
         self._setup_context()
 
     # -- mcp/ state directory --------------------------------------------------
@@ -545,7 +531,9 @@ class MCPHost(TerminalHost):
            against an unprofiled device for exploratory work.
 
         Errors are non-fatal: a malformed or unreadable profile logs
-        a warning but doesn't block the connect.
+        a warning but doesn't block the connect.  A profile that loads is
+        the load report's profile row (``/cfg.loaded``) until the
+        disconnect clears it.
         """
         explicit = ctx.cfg.get("profile_path", "")
         candidate: Path | None = None
@@ -569,6 +557,17 @@ class MCPHost(TerminalHost):
             return
         if not result.success:
             self._log_line(f"! auto-load profile: {result.error}")
+            return
+        layer = ""
+        file = str(candidate)
+        if self.config_path:
+            cfg_path = Path(self.config_path)
+            layer = cfg_path.stem
+            folder = cfg_path.parent.resolve()
+            if candidate.resolve().is_relative_to(folder):
+                file = candidate.resolve().relative_to(folder).as_posix()
+        record = load_report.profile_record(ctx.ns("active_profile"), file=file, layer=layer)
+        self.repl.load_report.put(load_report.PROFILE, [record])
 
     def _on_connect_run_commands(self, ctx: PluginContext) -> None:
         """Fire ``on_connect_cmd`` then ``mcp_on_connect_cmd`` after connect.
@@ -1403,11 +1402,11 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
 
-    # Fire on_app_start lifecycle so plugins that registered hooks at
-    # plugin-load time get a chance to initialize.  Before the auto-connect,
-    # matching the CLI and TUI: the symbol auto-load runs here, so on_connect
-    # hooks already see the table.
-    host.repl.fire_lifecycle("on_app_start")
+    # Start the lifecycle (pre-start, then on_app_start) so plugins that
+    # registered hooks at plugin-load time get a chance to initialize.
+    # Before the auto-connect, matching the CLI and TUI: the symbol
+    # auto-load runs here, so on_connect hooks already see the table.
+    host._fire_app_start()
 
     # Auto-connect if a port is configured.  Failure to open a port
     # doesn't abort the server -- Claude can /port.connect later.

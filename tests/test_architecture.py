@@ -650,6 +650,64 @@ def test_symbols_namespace_owner_still_touches_it():
     )
 
 
+# ── The app start is announced in one place ──────────────────────────────────
+
+# TerminalHost._fire_app_start: the frontend's pre-start work, then
+# on_app_prestart, then on_app_start.  A frontend firing on_app_start itself
+# would skip pre-start, and the startup load report would miss the log.
+_APP_START_EVENTS: frozenset[str] = frozenset({"on_app_prestart", "on_app_start"})
+_APP_START_OWNER = "termapy/terminal_host.py"
+
+
+def _app_start_calls(tree: ast.AST, rel: str) -> list[str]:
+    """Every ``fire_lifecycle("on_app_prestart" | "on_app_start")`` call in ``rel``."""
+    return [
+        f"{rel}:{node.lineno}  {ast.unparse(node)}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "fire_lifecycle"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value in _APP_START_EVENTS
+    ]
+
+
+def test_app_start_is_announced_only_by_the_host():
+    """prestart-before-start: only TerminalHost fires the app-start events, so pre-start always comes first."""
+    # Arrange / Act
+    violations = [
+        line
+        for path in _package_python_files()
+        if (rel := path.relative_to(SRC.parent).as_posix()) != _APP_START_OWNER
+        for line in _app_start_calls(ast.parse(path.read_text(encoding="utf-8")), rel)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "the app start is announced by TerminalHost._fire_app_start alone:\n  "
+        + "\n  ".join(violations)
+        + "\n\nCall self._fire_app_start() (the host's pre-start work, then"
+        "\non_app_prestart, then on_app_start) instead of firing either event."
+    )
+
+
+def test_app_start_guard_fires_on_a_probe():
+    """The guard flags both app-start events, aliased receiver or not, and no other event."""
+    # Arrange
+    probe = (
+        'self.repl.fire_lifecycle("on_app_start")\n'
+        'host.repl.fire_lifecycle("on_app_prestart")\n'
+        'self.repl.fire_lifecycle("on_connect")\n'
+    )
+
+    # Act
+    found = _app_start_calls(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 2, "both app-start calls flagged; on_connect is not"
+
+
 # ── Test headers ─────────────────────────────────────────────────────────────
 
 TESTS = Path(__file__).parent

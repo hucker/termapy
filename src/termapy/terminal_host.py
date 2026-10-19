@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
+from termapy import load_report
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
@@ -107,6 +108,8 @@ class TerminalHost:
 
     _HISTORY_LIMIT: int = 30
     _help_server_port: int = 0
+    # The frontend's name, ``$(FRONT_END)``; each frontend sets its own.
+    front_end: ClassVar[str] = "unknown"
 
     # -- Attributes set by subclass __init__ ----------------------------------
 
@@ -189,6 +192,51 @@ class TerminalHost:
             )
         except KeyboardInterrupt:
             self.status("Script interrupted", "red")
+
+    def _fire_app_start(self) -> None:
+        """Start the session's lifecycle: pre-start, then start, in every frontend.
+
+        The one place the app start is announced (registry
+        ``prestart-before-start``).  Pre-start first: the shared work every
+        frontend needs (:meth:`_register_vars`), the frontend's own
+        (:meth:`_on_app_prestart`), then the ``on_app_prestart`` hooks.
+        Then ``on_app_start``, whose config load prints the load report --
+        so what pre-start sets up, the variables and the session log, is
+        in place before anything else happens.
+        """
+        self._register_vars()
+        self._on_app_prestart()
+        self.repl.fire_lifecycle("on_app_prestart")
+        self.repl.fire_lifecycle("on_app_start")
+
+    def _register_vars(self) -> None:
+        """Register the session's variables: ``$(FRONT_END)``, ``$(CFG)``, ``$(CFG.*)``.
+
+        The same set in every frontend, named by its :attr:`front_end`.
+        The ``CFG`` values are read when expanded, so a config switch
+        needs no second registration.
+        """
+        from termapy.variables import register_cfg_vars, set_context_var, set_launch_var
+
+        set_launch_var("FRONT_END", self.front_end)
+        set_context_var(
+            "CFG",
+            lambda: Path(self.config_path).stem if self.config_path else "termapy",
+        )
+        register_cfg_vars(
+            get_config_path=lambda: self.config_path,
+            get_cfg=lambda: self.cfg,
+            get_log_path=lambda: str(self.session_log_path() or ""),
+        )
+
+    def _on_app_prestart(self) -> None:
+        """The frontend's own pre-start work, after the shared variables.
+
+        Override for something independent of the config's plugins that
+        everything after it relies on (the TUI opens its session log here).
+        The base has none: the MCP log needs no opening and the CLI keeps
+        none.
+        """
 
     def _connect(self, port: str | None = None, *, report: bool = True) -> bool:
         """Connect to a serial port.
@@ -328,8 +376,10 @@ class TerminalHost:
 
         Subclasses with frontend-specific device state (e.g. MCPHost's
         banner-watch attrs) should extend this rather than override it.
+        The load report's profile row goes with the profile.
         """
         self.ctx.ns("active_profile").clear()
+        self.repl.load_report.put(load_report.PROFILE, [])
 
     def _on_disconnected(self) -> None:
         """Called after disconnection.  Override for UI updates."""
@@ -351,6 +401,7 @@ class TerminalHost:
             converters=self.repl.converters,
             reload_devices=self.repl.reload_devices,
             library_layers=self.repl.library_layers,
+            load_report=lambda: self.repl.load_report.records,
             port=lambda: self.engine.port_obj if self.engine.is_connected else None,
             in_script=lambda: self.repl.in_script,
             # The dispatch gate's own "right now" answer (static env set

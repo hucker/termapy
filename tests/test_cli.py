@@ -43,10 +43,17 @@ def cli(tmp_path):
     config_path = tmp_path / "test_cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
+
+    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=80)
+    # Started as run() starts it, so the session variables are registered;
+    # a temp global root keeps the checkout's termapy_cfg/plugin/ out.
+    terminal.repl.global_root = tmp_path
+    terminal._fire_app_start()
+    # After the start: its config load prunes empty data folders, and the
+    # tests write into these.
     for sub in ("plugin", "ss", "run", "proto", "cap", "prof"):
         (config_path.parent / sub).mkdir(exist_ok=True)
-
-    return CLITerminal(cfg, str(config_path), no_color=True, term_width=80)
+    return terminal
 
 
 def _grant_gui_apps(cli):

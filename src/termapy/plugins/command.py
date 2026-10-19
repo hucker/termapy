@@ -23,7 +23,8 @@ Plus the small return shapes:
 
   - ``CmdResult`` -- the value every handler returns.
   - ``DirectiveResult`` -- the value every directive returns.
-  - ``LoadResult`` -- the bundle returned by ``load_plugins_from_dir``.
+  - ``LoadResult`` -- the bundle returned by ``load_plugins_from_dir``,
+    one ``ModuleLoad`` per plugin file.
 
 And a couple of small utilities:
 
@@ -588,6 +589,12 @@ class LifecycleHook:
 
     Supported hook names (see :data:`LIFECYCLE_HOOK_NAMES`):
 
+    - ``on_app_prestart`` - fires once before ``on_app_start``, after the
+                            frontend's own pre-start work (the TUI's session
+                            log opens), for what must run before the session
+                            starts.  Built-ins only: folder plugins load
+                            during ``on_app_start``, so the engine skips a
+                            folder plugin's ``on_app_prestart`` with a warning.
     - ``on_app_start``    - fires once after plugins are loaded and the
                             context is wired, before first dispatch and
                             before any startup auto-connect (every frontend).
@@ -623,6 +630,7 @@ class LifecycleHook:
 # a new hook is: append here, then call ReplEngine.fire_lifecycle(name)
 # from the matching dispatch point.
 LIFECYCLE_HOOK_NAMES = (
+    "on_app_prestart",
     "on_app_start",
     "on_app_stop",
     "on_connect",
@@ -634,27 +642,90 @@ LIFECYCLE_HOOK_NAMES = (
 
 
 @dataclass
-class LoadResult:
-    """Result of loading plugins from a directory.
+class ModuleLoad:
+    """What one plugin file produced: its exports, or why it has none.
 
     Attributes:
-        plugins: Successfully loaded PluginInfo entries.
-        transforms: Successfully loaded TransformInfo entries.
-        directives: Successfully loaded DirectiveInfo entries.
-        lifecycle_hooks: LifecycleHook entries discovered on plugin modules.
-        converters: ConverterSpec entries discovered on plugin modules
-            (symbol and device converters; see ``termapy.converters``).
-        skipped: File names that were skipped (no COMMAND instance).
-        errors: File names that raised exceptions during loading.
+        file: The file name (``traffic.py``).
+        plugins: Its PluginInfo entries (one per command node).
+        transforms: Its TransformInfo entries.
+        directives: Its DirectiveInfo entries.
+        lifecycle_hooks: Its LifecycleHook entries.
+        converters: Its ConverterSpec entries (``termapy.converters``).
+        error: Why the file failed to load; ``""`` when it loaded.
     """
 
+    file: str
     plugins: list = field(default_factory=list)
     transforms: list = field(default_factory=list)
     directives: list = field(default_factory=list)
     lifecycle_hooks: list[LifecycleHook] = field(default_factory=list)
     converters: list = field(default_factory=list)
-    skipped: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
+    error: str = ""
+
+    @property
+    def exported(self) -> bool:
+        """True when the file exported anything the loader recognizes."""
+        return bool(
+            self.plugins
+            or self.transforms
+            or self.directives
+            or self.lifecycle_hooks
+            or self.converters
+        )
+
+
+@dataclass
+class LoadResult:
+    """Result of loading plugins from a directory: one ``ModuleLoad`` per file.
+
+    The per-kind lists are views across every file, in file order, for
+    callers that register everything regardless of where it came from;
+    the load report reads ``modules`` to name each file.
+
+    Attributes:
+        modules: Every plugin file seen, in file order, loaded or not.
+    """
+
+    modules: list[ModuleLoad] = field(default_factory=list)
+
+    def _every(self, kind: str) -> list:
+        return [item for module in self.modules for item in getattr(module, kind)]
+
+    @property
+    def plugins(self) -> list:
+        """Successfully loaded PluginInfo entries."""
+        return self._every("plugins")
+
+    @property
+    def transforms(self) -> list:
+        """Successfully loaded TransformInfo entries."""
+        return self._every("transforms")
+
+    @property
+    def directives(self) -> list:
+        """Successfully loaded DirectiveInfo entries."""
+        return self._every("directives")
+
+    @property
+    def lifecycle_hooks(self) -> list[LifecycleHook]:
+        """LifecycleHook entries discovered on plugin modules."""
+        return self._every("lifecycle_hooks")
+
+    @property
+    def converters(self) -> list:
+        """ConverterSpec entries discovered on plugin modules."""
+        return self._every("converters")
+
+    @property
+    def skipped(self) -> list[str]:
+        """File names that loaded but exported nothing."""
+        return [module.file for module in self.modules if not module.error and not module.exported]
+
+    @property
+    def errors(self) -> list[str]:
+        """``"<file>: <problem>"`` for each file that raised during loading."""
+        return [f"{module.file}: {module.error}" for module in self.modules if module.error]
 
 
 @dataclass

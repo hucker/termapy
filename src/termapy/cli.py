@@ -60,6 +60,8 @@ class CLITerminal(TerminalHost):
         run_script: Optional .run script to execute then exit.
     """
 
+    front_end = "cli"
+
     def __init__(
         self,
         cfg: dict,
@@ -154,22 +156,6 @@ class CLITerminal(TerminalHost):
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status)
 
-        from termapy.variables import (
-            register_cfg_vars,
-            set_context_var,
-            set_launch_var,
-        )
-
-        set_launch_var("FRONT_END", "cli")
-        set_context_var(
-            "CFG",
-            lambda: Path(self.config_path).stem if self.config_path else "termapy",
-        )
-        register_cfg_vars(
-            get_config_path=lambda: self.config_path,
-            get_cfg=lambda: self.cfg,
-            get_log_path=lambda: str(self.session_log_path() or ""),
-        )
         self._setup_context()
         self._register_hooks()
 
@@ -657,7 +643,7 @@ class CLITerminal(TerminalHost):
         Returns:
             Mode to switch to ("tui") or None for normal exit.
         """
-        self.repl.fire_lifecycle("on_app_start")
+        self._fire_app_start()
 
         # Zero-config mode: show a welcome banner with available ports,
         # skip the initial connect (no port selected yet), and let the

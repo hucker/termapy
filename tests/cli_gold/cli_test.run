@@ -70,6 +70,11 @@ $(BAUD) <- /port.baud_rate
 /print === section: config dump ===
 /cfg.dump
 
+# ── REPL: what the config load loaded (the startup table) ───────────────────
+/print === section: config loaded ===
+/cfg.loaded
+/help /cfg.loaded
+
 # ── REPL: config new / rename / delete (never the active config) ────────────
 /print === section: config new ===
 /cfg.new gold_new loop:// 9600 E71

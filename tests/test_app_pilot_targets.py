@@ -607,6 +607,36 @@ class TestSessionLogFollowsConfig:
 
         asyncio.run(scenario())
 
+    def test_startup_load_report_is_in_the_session_log(self, app_factory):
+        """prestart-before-start: the log opens at pre-start, so the startup load table is in it."""
+
+        async def scenario():
+            app, _, path = app_factory(name="first")
+            plugin = Path(path).parent / "plugin"
+            plugin.mkdir()
+            (plugin / "hello.py").write_text(
+                "from termapy.plugins import CmdResult, Command\n\n\n"
+                "def _handler(ctx, args):\n"
+                '    return CmdResult.ok(value="")\n\n\n'
+                'COMMAND = Command(name="hello", help="test", handler=_handler)\n',
+                encoding="utf-8",
+            )
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.session_log_path()
+
+                # Act
+                await until(pilot, lambda: "Loaded - 1 file" in self._text(log))
+
+                # Assert
+                logged = self._text(log)
+                assert logged.index("Session Start") < logged.index("Loaded - 1 file"), (
+                    "the log was open before the config load printed its table"
+                )
+                assert "plugin/hello.py" in logged, "the table's rows are logged too"
+
+        asyncio.run(scenario())
+
     def test_configs_sharing_one_log_file_keep_it_open(self, app_factory, tmp_path):
         """Two configs naming one log_file: the switch keeps the file, with no second marker."""
 

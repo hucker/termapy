@@ -5,7 +5,7 @@ This plugin owns the ``seq`` namespace.  Layout:
 - Integer keys ``0..9`` hold the counter values used by ``{seqN}`` and
   ``{seqN+}`` template expansions in scripts.
 - String key ``"_start_time"`` holds the timestamp substituted for the
-  ``{starttime}`` placeholder.  Set on ``on_app_start`` and refreshed
+  ``{starttime}`` placeholder.  Set on ``on_app_prestart`` and refreshed
   on every ``on_script_start``.
 
 The leading underscore on ``_start_time`` is a convention signaling
@@ -30,11 +30,14 @@ def _now() -> str:
     return filename_timestamp()
 
 
-def on_app_start(ctx: PluginContext) -> None:
-    """Seed the seq namespace with a start-time timestamp.
+def on_app_prestart(ctx: PluginContext) -> None:
+    """Start the session clock: seed the seq namespace with a start-time timestamp.
 
-    Fires once after plugins load and the context is wired.  Counters
-    start empty; they are created on first ``{seqN+}`` expansion.
+    Fires once at pre-start, before the config load, so ``{starttime}``
+    and ``{elapsed}`` measure from the start of the session rather than
+    from after the plugins and symbols loaded; the clock depends on
+    nothing the config brings.  Counters start empty; they are created on
+    first ``{seqN+}`` expansion.
     ``_start_time`` is the frozen string for ``{starttime}``; ``_start_perf``
     is the raw monotonic clock behind ``{elapsed}``.
     """

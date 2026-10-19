@@ -198,6 +198,7 @@ The most common ones:
 | `/cfg.auto <key> <value>`            | Set an in-memory config key immediately (no confirmation)                     |
 | `/cfg.list`                          | List all config files                                                         |
 | `/cfg.load <name>`                   | Switch to a different config by name                                          |
+| `/cfg.loaded`                        | Show what the config load loaded: plugin files, symbols, device files         |
 | `/cfg.show`                          | Open the current config file in the system viewer                             |
 | `/cfg.help`                          | Same as `/help cfg`                                                           |
 | `/ss.svg {name}`                     | Save SVG screenshot                                                           |

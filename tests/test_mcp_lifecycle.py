@@ -363,6 +363,43 @@ class TestAutoLoadProfileOnConnect:
             "MCPHost auto-loads profiles on connect"
         )
 
+    def test_auto_loaded_profile_is_a_report_row(self, cfg_dir):
+        """load-report-one-table: the profile loaded on connect is a /cfg.loaded row until disconnect."""
+        # Arrange
+        self._write_profile(cfg_dir / "test.profile.json")
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
+        config_path = cfg_dir / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        h = MCPHost(cfg, str(config_path), verbose=False)
+        try:
+            # Act -- connect twice: a reconnect must not add a second row
+            h._connect()
+            h._disconnect()
+            h._connect()
+            rows = h.repl.dispatch("cfg.loaded").data
+
+            # Assert
+            actual = [row for row in rows if row["kind"] == "profile"]
+            expected = [
+                {
+                    "kind": "profile",
+                    "name": "Test Device",
+                    "layer": "test",
+                    "file": "test.profile.json",
+                    "count": 1,
+                    "detail": {"revision": "1.0.0"},
+                    "error": "",
+                }
+            ]
+            assert actual == expected, "one row, the file relative to the config folder"
+            h._disconnect()
+            remaining = [row for row in h.repl.load_report.records if row["kind"] == "profile"]
+            assert remaining == [], "the row goes with the profile on disconnect"
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
     def test_explicit_path_beats_convention(self, cfg_dir):
         """When both files exist, profile_path wins and the convention file is skipped."""
         # Arrange -- both files exist, explicit must win

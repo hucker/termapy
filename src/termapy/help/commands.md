@@ -58,6 +58,7 @@ because its folders hold different types of file.
 | `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
 | `/cfg.info {--display}`   | Write and show the project report (tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
+| `/cfg.loaded`             | Show the load report: one row per plugin file, symbol table and device file the config load read, failures included (MCP: the auto-loaded profile too) |
 | `/cfg.new <name> <port> {baud} {mode}` | Create a config for a port (settings as `/port.connect`); asks before replacing one; TUI bare: the New Config wizard. `/cfg.load <name>` switches to it |
 | `/cfg.rename <name> <new>` | Rename a config, folder and file together; never the active one           |
 | `/cfg.show`               | Open the current config file in the system viewer                           |

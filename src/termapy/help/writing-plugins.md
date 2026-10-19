@@ -13,6 +13,11 @@ any other tool that reads code from a directory. **Treat
 you treat those: don't point termapy at config folders you don't
 trust.**
 
+Every config load shows what ran: a table with one row per plugin
+file, its layer (`global` or the config's name) and what it registered,
+beside the symbol and device files the config loaded. `/cfg.loaded`
+shows it again, and gives the same rows as JSON under MCP.
+
 If you need a stronger guarantee — for example when running
 `--mcp` with an LLM driver, or in CI, or against a freshly cloned
 project repo — set the env var:
@@ -128,7 +133,7 @@ makes the file a plugin, and one file may export several:
 | `COMMAND` | A REPL command (this page) |
 | `TRANSFORM` | A rewriter for REPL or serial input |
 | `DIRECTIVE` | A pre-dispatch line rewriter |
-| `on_app_start` / `on_config_load` / ... | Lifecycle hooks |
+| `on_app_start` / `on_config_load` / ... | Lifecycle hooks (`on_app_prestart` is for built-ins: a folder plugin loads after it fires, so its copy is skipped with a warning) |
 | `FORMAT` + `DESCRIPTION` + `DETECT` + `convert` | A linker-map converter for `/sym.import` (see [symbols.md](symbols.md)) |
 
 A file exporting none of them is skipped with a warning.

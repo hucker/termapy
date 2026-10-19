@@ -49,7 +49,7 @@ def cli(tmp_path):
     terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
     # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
     terminal.repl.global_root = tmp_path
-    terminal.repl.fire_lifecycle("on_app_start")
+    terminal._fire_app_start()
     logged: list[tuple[str, str]] = []
     terminal.ctx.io.log = lambda prefix, text: logged.append((prefix, text))
     terminal.audit = logged  # ty: ignore[unresolved-attribute]

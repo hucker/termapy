@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### One load report
+
+- Loading a config now prints one table of what it loaded, in place of
+  the separate plugin, symbol and device lines: a row per plugin file,
+  symbol table and device file, with its layer (`global` or the config),
+  its file, a count and what it registered. A plugin row names its file
+  and lists its commands, transforms, directives, converters and hooks in
+  words (the `~` `@` `=` sigils are gone); a symbol row names the build
+  and how many symbols are typed, and says STALE when the map moved; a
+  device row names the library part a reference file placed. A file that
+  failed is a row with its error, and is still reported where it failed.
+- **`/cfg.loaded`** shows the table again, and `--json` and MCP get the
+  same rows as data. Under MCP the profile auto-loaded on connect is a
+  row too, until the disconnect.
+- A config switch no longer prints `Unloaded N plugin(s): ...`; the new
+  table is the new state. `--run` and `--exec` print no table, as they
+  printed no load lines.
+- **The TUI's session log now has the startup in it.** The log used to
+  open after the config had loaded, so what startup printed never
+  reached the log; a config switch did. A new lifecycle event,
+  **`on_app_prestart`**, fires once before `on_app_start` in every
+  frontend, after the frontend's own pre-start work, and the TUI opens
+  its log there. The script placeholders `{starttime}` and `{elapsed}`
+  now count from there too, the start of the session, not from after the
+  config's plugins and symbols loaded. The event is for built-ins: a
+  folder plugin loads after it fires, so a folder plugin's
+  `on_app_prestart` is skipped with a warning instead of never running.
+
+### `/help` takes a command as you type it
+
+- `/help /cfg.load` now shows `/cfg.load`'s page instead of "No command
+  matches". The prefix stripped is the config's own `cmd_prefix`, not a
+  hard-coded `/`, and a device command whose name starts with the prefix
+  (`$GPGGA` under a `$` prefix) is still found as written. `/help.dev`
+  does the same, and `/help /` is the landscape.
+
 ### The reference MEM module takes the platform's memory map
 
 - `examples/firmware/termapy_mem.c` no longer carries a hard-coded region
@@ -1594,7 +1630,7 @@ subpackage as a viable standalone PyPI release when ready:
 - ARCHITECTURE.md fully refreshed to reflect post-refactor tree;
   release scripts updated to handle subpackage line counts.
 
-## Unreleased
+## 0.65.0 (2026-05-14), continued
 
 ### Added
 

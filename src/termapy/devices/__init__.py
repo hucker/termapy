@@ -231,6 +231,8 @@ class Device:
             relocatable).
         path: File it came from.
         layer: ``"global"`` or the config name.
+        ref: The library part a reference file placed (``resolve_ref``);
+            ``""`` for a file that holds its own registers.
     """
 
     name: str
@@ -243,6 +245,7 @@ class Device:
     instances: tuple[Instance, ...] = ()
     path: Path | None = None
     layer: str = ""
+    ref: str = ""
 
     def __len__(self) -> int:
         return sum(len(instance.registers) for instance in self.instances)
@@ -526,7 +529,8 @@ def load_device(path: Path, layer: str = "", library: LibrarySource = None) -> D
     """
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict) and "ref" in data:
-        data = resolve_ref(data, library)
+        part = resolve_ref(data, library)
+        return replace(parse_device(part, path=path, layer=layer), ref=data["ref"])
     return parse_device(data, path=path, layer=layer)
 
 

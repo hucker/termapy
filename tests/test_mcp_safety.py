@@ -87,6 +87,40 @@ class TestCommandDeclaration:
         assert loaded["boom"].safety == "readonly", "root tier carried into PluginInfo"
         assert loaded["boom.now"].safety == "destructive", "subcommand tier carried too"
 
+    def test_every_delete_command_is_destructive(self, host):
+        """destructive-declared: the delete verb means removal from disk, so its command is destructive."""
+        # Act
+        undeclared = sorted(
+            name
+            for name, plugin in host.repl._plugins.items()
+            if name.rsplit(".", 1)[-1] == "delete" and plugin.safety != "destructive"
+        )
+
+        # Assert
+        assert undeclared == [], "declare each of these safety='destructive'"
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("cap.clear", "destructive"),  # every capture
+            ("ss.clear", "destructive"),  # every screenshot
+            ("run.profile.clear", "destructive"),  # every saved profile
+            ("log.delete", "destructive"),  # the session log
+            ("cfg.delete", "destructive"),  # a whole config folder
+            ("demo.force", "destructive"),  # rewrites the demo config over its edits
+            ("cfg.icon.remove", "mutable"),  # /cfg.icon makes it again
+            ("exit", "mutable"),  # ends the session; nothing is lost
+        ],
+    )
+    def test_each_command_declares_its_tier(self, host, command, expected):
+        """destructive-declared: a command that removes the user's files is destructive, one undone by a command is mutable."""
+        # Act
+        plugin = host.repl.plugin_for(command)
+
+        # Assert
+        assert plugin is not None, f"/{command} is registered"
+        assert plugin.safety == expected
+
 
 class TestMcpGate:
     def test_destructive_refused_without_confirm(self, host):
@@ -124,6 +158,33 @@ class TestMcpGate:
             "/mem.write pokes memory: confirm first"
         )
         assert result["value"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
+
+    def test_cap_clear_waits_for_confirm(self, host, tmp_path):
+        """/cap.clear refused without confirm deletes nothing; with confirm it deletes the captures."""
+        # Arrange
+        capture = tmp_path / "cfg" / "cap" / "kept.txt"
+        capture.write_text("data", encoding="utf-8")
+
+        # Act / Assert -- refused: the marker, and the file is still there
+        refused = _run(host, "/cap.clear")
+        assert refused["value"]["needs_confirmation"] is True, "deleting captures asks first"
+        assert capture.exists(), "a refused clear deletes nothing"
+
+        # Act / Assert -- confirmed: the handler runs
+        confirmed = _run(host, "/cap.clear", confirm=True)
+        assert confirmed["success"] is True, confirmed["error"]
+        assert not capture.exists(), "the confirmed clear deleted the capture"
+
+    def test_a_command_mcp_cannot_run_is_refused_not_gated(self, host):
+        """/demo.force needs a human, so MCP answers why it cannot run, never asks for confirm."""
+        # Act
+        result = _run(host, "/demo.force", confirm=False)
+
+        # Assert
+        assert "interactive" in result["error"], "the capability refusal, from dispatch"
+        assert (
+            not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"]
+        ), "a confirm request would invite a retry that fails anyway"
 
     def test_mem_dump_is_not_gated(self, host):
         """Readonly /mem.dump never asks for confirm; with no port it fails on that instead."""

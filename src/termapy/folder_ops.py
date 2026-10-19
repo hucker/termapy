@@ -505,5 +505,6 @@ def build_folder_subcommands(
             help=f"Delete all files in {folder}/.",
             handler=_make_clear_handler(folder, pattern),
             needs=CapabilitySet.CONFIG_LOADED,
+            safety="destructive",
         )
     return subs

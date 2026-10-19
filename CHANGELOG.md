@@ -131,6 +131,14 @@
   `#error`. `TERMAPY_MEM_LINE_SIZE` is the line buffer a full `MEM.W` needs,
   `20 + 3 * TERMAPY_MEM_MAX_BLOCK`.
 
+### Deleting files over MCP needs confirm
+
+- `/cap.clear`, `/ss.clear` and `/run.profile.clear` delete every file in
+  their folder, and over MCP they now refuse without `confirm=true`, like
+  `/cfg.delete` and `/mem.write`. `/log.delete` and `/demo.force` are
+  marked destructive too, though MCP cannot run either. The TUI and CLI
+  are unchanged: these commands still run without asking.
+
 ## 0.78.0 (2026-10-17)
 
 Configs can now be created, deleted and renamed by command, in every

@@ -51,6 +51,7 @@ from termapy.plugins import (
     CmdResult,
     PluginContext,
 )
+from termapy.plugins.capabilities import attainable
 from termapy.repl import ReplEngine
 from termapy.scripting import format_duration, strip_ansi
 from termapy.serial_engine import SerialEngine
@@ -1099,11 +1100,15 @@ def _gate_slash_command(host: MCPHost, line: str, *, confirm: bool) -> CmdResult
     Resolves the command the way dispatch will (``ReplEngine.plugin_for``),
     so a ``.silent`` suffix or a subcommand cannot slip past the tier its
     declaration carries.  Bare device lines are the profile gate's job.
+    A command this host can never run (``/log.delete`` needs an
+    interactive session) is left to dispatch's capability refusal, as the
+    catalog leaves it out: asking for confirm would only invite a retry
+    that fails for another reason.
     """
     if not line.startswith(host.prefix):
         return None
     plugin = host.repl.plugin_for(line[len(host.prefix) :])
-    if plugin is None:
+    if plugin is None or plugin.needs.missing_from(attainable(host.ctx.capabilities)):
         return None
     return _confirmation_required(
         host.prefix + plugin.name,

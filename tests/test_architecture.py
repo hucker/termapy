@@ -661,6 +661,59 @@ def test_raw_mkdir_allowlist_has_no_stale_entries():
     )
 
 
+# ── Name patterns have one reader ─────────────────────────────────────────────
+#
+# A typed name pattern (a list filter, a file glob) is read by
+# ``matching.matches``: a wildcard makes an anchored glob, plain text means
+# contains, case never matters.  Before it, three modules each called
+# ``fnmatch.fnmatch`` with their own wildcard test, and its case follows the
+# OS.  Importing ``fnmatch`` anywhere else is a second vocabulary.
+MATCHER_OWNER = "termapy/matching.py"
+
+
+def _fnmatch_imports(tree: ast.AST, rel: str) -> list[str]:
+    """Every import of the ``fnmatch`` module in ``rel``."""
+    return [
+        f"{rel}:{node.lineno}  {ast.unparse(node)}"
+        for node in ast.walk(tree)
+        if (isinstance(node, ast.Import) and any(alias.name == "fnmatch" for alias in node.names))
+        or (isinstance(node, ast.ImportFrom) and node.module == "fnmatch")
+    ]
+
+
+def test_name_patterns_are_read_only_by_the_matcher():
+    """name-one-matcher: only termapy/matching.py imports fnmatch."""
+    # Arrange / Act
+    violations = [
+        line
+        for path in _package_python_files()
+        if (rel := path.relative_to(SRC.parent).as_posix()) != MATCHER_OWNER
+        for line in _fnmatch_imports(ast.parse(path.read_text(encoding="utf-8")), rel)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a typed name pattern is read by termapy.matching.matches:\n  "
+        + "\n  ".join(violations)
+        + "\n\nCall matches(name, pattern) (and is_glob(pattern) where plain"
+        "\ntext names one thing) instead of fnmatch."
+    )
+
+
+def test_matcher_guard_fires_on_a_probe():
+    """The guard flags both import forms of fnmatch and passes the matcher's own import."""
+    # Arrange
+    probe = (
+        "import fnmatch\nfrom fnmatch import fnmatchcase\nfrom termapy.matching import matches\n"
+    )
+
+    # Act
+    found = _fnmatch_imports(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 2, "both fnmatch imports flagged; the matcher import is not"
+
+
 # ── The symbols namespace has one writer ──────────────────────────────────────
 #
 # ``ctx.ns("symbols")`` holds the build table, the device list and the merged

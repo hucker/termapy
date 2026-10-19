@@ -1478,18 +1478,26 @@ demo> /repeat foo count=1 cmd=AT
 demo> /print === section: env vars ===
   === section: env vars ===
   [191/219] /print === section: env vars === (123us)
-demo> /env.set TEST_VAR hello_world
-    TEST_VAR=hello_world
-  [192/219] /env.set TEST_VAR hello_world (113us)
-demo> /env.list TEST_VAR
-    TEST_VAR=hello_world
-  [193/219] /env.list TEST_VAR (127us)
-demo> /env.set TEST_VAR updated
-    TEST_VAR=updated
-  [194/219] /env.set TEST_VAR updated (108us)
-demo> /env.list TEST_VAR
-    TEST_VAR=updated
-  [195/219] /env.list TEST_VAR (109us)
+demo> /env.set TERMAPY_GOLD_VAR hello_world
+    TERMAPY_GOLD_VAR=hello_world
+  [192/219] /env.set TERMAPY_GOLD_VAR hello_world (113us)
+demo> /env.list TERMAPY_GOLD_VAR
+  Environment snapshot - 1 variable
+  NAME              VALUE
+  ----------------  -----------
+  TERMAPY_GOLD_VAR  hello_world
+  [193/219] /env.list TERMAPY_GOLD_VAR (127us)
+demo> /env.set TERMAPY_GOLD_VAR updated
+    TERMAPY_GOLD_VAR=updated
+  [194/219] /env.set TERMAPY_GOLD_VAR updated (108us)
+demo> /env.list TERMAPY_GOLD_VAR
+  Environment snapshot - 1 variable
+  NAME              VALUE
+  ----------------  -------
+  TERMAPY_GOLD_VAR  updated
+  [195/219] /env.list TERMAPY_GOLD_VAR (109us)
+demo> /env.list zzz_no_such_*
+  Environment snapshot - empty
 demo> /print === section: errors ===
   === section: errors ===
   [196/219] /print === section: errors === (105us)
@@ -1684,6 +1692,8 @@ demo> /dev.list
     (no devices loaded)
 demo> /dev.lib
     (no library parts)
+demo> /dev.lib zzz*
+    (no library parts matching 'zzz*')
 demo> /dev.use nosuch
   Error: No library part named nosuch (try /dev.lib to see what there is)
 demo> /cap.stop

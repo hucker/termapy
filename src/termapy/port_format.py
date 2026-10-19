@@ -16,13 +16,16 @@ Public API:
 - ``format_row(row, widths, columns)`` -- format one data row.
 - ``format_table(rows, row_width)`` -- convenience wrapper that returns
   a full list of lines (header + separator + rows).
+- ``find_chips(pattern)`` -- the known USB-serial chips a name pattern
+  picks, for ``/port.chip.list`` and ``--chips``.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.usb import mfg as _mfg_alias
+from termapy.matching import matches
+from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, mfg as _mfg_alias
 
 if TYPE_CHECKING:
     from termapy.port_control import ChipFacts
@@ -188,6 +191,21 @@ def split_vid_pid(vid_pid: str | None) -> tuple[int | None, int | None]:
         return int(vid_text, 16), int(pid_text, 16)
     except ValueError:
         return None, None
+
+
+def find_chips(pattern: str = "") -> list[tuple[int, int, ChipInfo]]:
+    """The known USB-serial chips whose model or speed matches ``pattern``, by VID:PID.
+
+    The one filter of ``/port.chip.list`` and ``--chips`` (registry
+    ``name-one-matcher``): ``ftdi`` finds the FTDI models, ``high`` the
+    high-speed chips, and an empty pattern every chip.
+    """
+    rows = [
+        (vid, pid, info)
+        for (vid, pid), info in USB_SERIAL_CHIPS.items()
+        if matches(info.model, pattern) or matches(info.speed, pattern)
+    ]
+    return sorted(rows, key=lambda row: (row[0], row[1]))
 
 
 def facts_to_json_record(facts: ChipFacts) -> dict:

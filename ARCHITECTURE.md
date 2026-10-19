@@ -168,6 +168,7 @@ src/termapy/
 ├── legacy.py               #              Legacy-command forwarding helper
 ├── load_report.py          #              The load report: what the last config load put in the session, one row per file
 ├── markup.py               #              Rich markup: the one home for turning text into markup and back
+├── matching.py             #              The one reader for a typed name pattern: every name filter shares its rules
 ├── memory.py               # (880 lines)  Device memory access -- bytes in, bytes out, over an injected exchange
 ├── memory_views.py         # (317 lines)  Typed views over device bytes -- layer 3 of the memory design
 ├── migration.py            # (749 lines)  Config schema versioning and migration chain
@@ -944,6 +945,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_load_report.py                 | Tests for termapy.load_report: the record shape, the table and the session report                                                                  |
 | test_log_fingerprint.py             | `/log.fingerprint`: the session provenance report and each of its sections                                                                         |
 | test_markup_escape.py               | markup-escape: text reaches the terminal as typed, through every markup path                                                                       |
+| test_matching.py                    | `termapy.matching`: the one name-pattern reader every name filter shares                                                                           |
 | test_mcp_cfg_load.py                | Tests for /cfg.load via MCP frontend                                                                                                               |
 | test_mcp_entry.py                   | Tests for the --mcp / --mcp-verbose entry-point wiring                                                                                             |
 | test_mcp_lifecycle.py               | Tests for MCP lifecycle: profile-load rejection, on-connect fetch, banner watcher                                                                  |
@@ -982,6 +984,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_proto_crc_errors.py            | Regression test: /proto.crc.{c,python,rust} with an unknown algorithm                                                                              |
 | test_proto_crc_find.py              | Tests for /proto.crc.find -- CRC algorithm identification                                                                                          |
 | test_proto_crc_form.py              | Tests for /proto.crc.find `form=NAME` (crcglot 0.23+ payload forms)                                                                                |
+| test_proto_crc_list.py              | `/proto.crc.list {pattern}`: the CRC catalogue filtered by a name pattern                                                                          |
 | test_proto_crc_reverse.py           | End-to-end tests for /proto.crc.reverse and /proto.crc.find cmd=                                                                                   |
 | test_proto_crc_styles_and_bundle.py | Tests for the `style=` kv arg and multi-algorithm bundling on `/proto.crc.<lang>`                                                                  |
 | test_proto_crc_suggest.py           | Tests for the "did you mean" suggestion suffix on unknown algorithm names                                                                          |

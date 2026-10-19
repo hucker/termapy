@@ -38,6 +38,24 @@ finds `v1.2.run`. `.rename` changes the name and never the extension:
 `/run.rename v1.2 v1.3` gives `v1.3.run`. `/edit` needs the extension,
 because its folders hold different types of file.
 
+## Name patterns
+
+A command that filters a list by name reads its pattern one way. Plain
+text lists the names that contain it, and a wildcard makes a glob that
+has to match the whole name. Case never matters. With
+`/proto.crc.list`:
+
+| Pattern       | Lists                                                  |
+| ------------- | ------------------------------------------------------ |
+| `modbus`      | names containing `modbus`: `crc16-modbus`              |
+| `crc16*`      | names starting with `crc16`                            |
+| `crc?-*`      | `?` is any one character: `crc8-...`, not `crc16-...`  |
+| `crc32-[bc]*` | `[bc]` is one of the listed characters                 |
+
+A pattern that matches nothing gives an empty list, not an error. The
+filters are `/env`, `/dev.lib`, `/proto.crc.list`, `/port.chip.list` and
+`termapy --chips`.
+
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/cap`                    | Open the cap/ folder (same as the Cap button and `/cap.explore`)            |
@@ -72,7 +90,7 @@ because its folders hold different types of file.
 | `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given (also `/plugin.edit`) |
 | `/edit.proto {file}`      | Edit a .pro file. Bare: TUI opens the Proto picker, CLI lists (also `/proto.edit`) |
 | `/edit.run {file}`        | Edit a .run script. Bare: TUI opens the Run picker, CLI lists (also `/run.edit`) |
-| `/env.list {pattern}`     | List environment variables (all, by name, or glob)                          |
+| `/env.list {pattern}`     | List environment variables (all, or a [name pattern](#name-patterns))       |
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
 | `/exit`                   | Exit termapy                                                                |
@@ -140,7 +158,7 @@ because its folders hold different types of file.
 | `/proto.crc.detect {<frames>...}` | Name the catalog CRC on a batch of frames' trailing bytes            |
 | `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify the CRC algorithm from a captured packet, or from a trigger's response |
 | `/proto.crc.info <name>`  | Show CRC algorithm parameters and description                               |
-| `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
+| `/proto.crc.list {pat}`   | List CRC algorithms (optional [name pattern](#name-patterns))               |
 | `/proto.crc.reverse {cmd=<trigger> count=<N>} {packet-hex}...` | Recover the Rocksoft parameters of an unknown CRC |
 | `/proto.crc.verify <name> {endian=be\|le} <hex>...` | Verify a packet's trailing CRC against a named algorithm |
 | `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script (bare: Proto picker) |

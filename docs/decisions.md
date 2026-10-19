@@ -457,3 +457,24 @@ function); 1.46 s per import. The map converter stays for toolchains
 without an ELF, and as the only source of the linker script's named
 regions. **Where:** `symbols/converters/elf.py`, `tests/test_symbols_elf.py`
 (fixtures from GCC and Clang, DWARF 2 and 5, little and big-endian).
+
+## 2026-10-19 — A name pattern reads one way everywhere
+
+Every command that filters or picks names by a typed pattern reads it
+through `matching.matches`: a wildcard (`*`, `?`, `[`) makes a glob
+anchored at both ends, plain text means contains, and case is ignored on
+every platform. A filter that matches nothing answers with no rows and
+succeeds; a command that acts on what it picks (deleting files) fails
+when it finds nothing, as it does for a name that is not there. **Why:**
+the 2026-10-15 review (V4, decision 1) found six matchers: glob only,
+glob-else-exact, glob-or-substring, substring, an exact-glob-regex-substring
+ladder and regex, each with its own wildcard test, and misses that failed
+in some commands and succeeded in others. `fnmatch.fnmatch` follows the
+OS, so `/env pa*` found PATH on Windows while `/env path` failed. Chuck
+chose contains for plain text (`/dev.lib pic32` keeps working), an empty
+success for a miss (a script or agent tests the value), and glob-only for
+`/sym.search` (its regex mode goes). Text search over prose or output
+(`/grep`, `/find`, `/search`, `/help <term>`), identity lookups (ports,
+symbols) and prefix completion are not name filters. crcglot's own
+`algorithms=` and `form=` globs are crcglot's. **Where:** registry
+`name-one-matcher`; `termapy/matching.py`, `tests/test_matching.py`.

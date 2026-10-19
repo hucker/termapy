@@ -146,6 +146,21 @@
   and `/mem.write`: the folder `.delete` commands, and `/log.delete` and
   `/demo.force`, which MCP cannot run anyway.
 
+### One way to filter by name
+
+- `/env`, `/dev.lib`, `/proto.crc.list`, `/port.chip.list` and
+  `termapy --chips` read a name pattern the same way: plain text lists the
+  names containing it, a wildcard (`*`, `?`, `[`) makes a glob that matches
+  the whole name, and case never matters, on Windows or Linux. Before,
+  each had its own rules: `/proto.crc.list modbus` found nothing without
+  `*modbus*`, and on Windows `/env pa*` found PATH while `/env path` failed.
+- A pattern that matches nothing is an empty list, not an error, in all of
+  them. `/proto.crc.list` and `/env` used to fail.
+- `/env NAME` lists every variable whose name contains NAME, so its value is
+  `NAME=value` lines; a script reads one variable with `$(env.NAME)`.
+- `/port.chip.list high` lists the high-speed chips, as its help always
+  said: the pattern now reads the speed as well as the model.
+
 ## 0.78.0 (2026-10-17)
 
 Configs can now be created, deleted and renamed by command, in every

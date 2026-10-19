@@ -8,7 +8,7 @@ from termapy import port_control
 from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError
-from termapy.usb import USB_SERIAL_CHIPS, ChipInfo
+from termapy.port_format import find_chips
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -223,26 +223,17 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
     """Dump the USB-serial chip lookup table.
 
     Prints one row per known (VID:PID, chip model, speed, max_baud).
-    An optional filter argument narrows the output to rows whose chip
-    model contains the filter substring (case-insensitive).  Typical
-    use: ``/port.chip.list ftdi``, ``/port.chip.list high``.
+    An optional name pattern narrows it to the chips whose model or
+    speed matches (``port_format.find_chips``).  Typical use:
+    ``/port.chip.list ftdi``, ``/port.chip.list high``.
 
     ``CmdResult.value`` is ``"Count=<N>"`` where ``<N>`` is the number
     of chips matching the filter (or the total when unfiltered), so a
     script can capture the match count with
-    ``$(COUNT) <- /port.chip.list ftdi``.
+    ``$(COUNT) <- /port.chip.list ftdi``.  None matching is an empty
+    table and ``Count=0``.
     """
-    needle = args.strip().lower()
-    rows: list[tuple[int, int, ChipInfo]] = []
-    for (vid, pid), info in USB_SERIAL_CHIPS.items():
-        if needle and needle not in info.model.lower():
-            continue
-        rows.append((vid, pid, info))
-    rows.sort(key=lambda row: (row[0], row[1]))
-
-    if not rows:
-        ctx.io.output(f"No chips match '{args.strip()}'.", "yellow")
-        return CmdResult.ok(value="Count=0")
+    rows = find_chips(args.strip())
 
     records = [
         {
@@ -640,12 +631,13 @@ COMMAND = Command(
             handler=_handler_chip,
             sub_commands={
                 "list": Command(
-                    args="{filter}",
+                    args="{pattern}",
                     help="Dump the USB-serial chip lookup table.",
                     long_help=(
-                        "Show every chip termapy recognizes.  With a filter\n"
-                        "argument, only chips whose model name contains the\n"
-                        "filter substring (case-insensitive) are listed.\n"
+                        "Show every chip termapy recognizes.  With a pattern,\n"
+                        "only chips whose model or speed matches it: plain\n"
+                        "text is contained, a wildcard (* ? [) makes a glob,\n"
+                        "and case is ignored.\n"
                         "\n"
                         "Examples:\n"
                         "  {prefix}port.chip.list           -- every chip\n"

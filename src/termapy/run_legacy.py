@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.folders import default_file_name
+from termapy.folders import FOLDER_PATTERNS, RUN, default_file_name
 from termapy.help_dynamic import folder_line
 from termapy.legacy import LEGACY_COMMANDS, LEGACY_REWRITES
 from termapy.markup import escape_markup
@@ -171,7 +171,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if name == "*":
         scripts_dir = Path(ctx.fs.scripts_dir)
         # A missing folder is an empty one: data folders appear on first write.
-        paths = sorted(scripts_dir.glob("*.run"))
+        paths = sorted(scripts_dir.glob(FOLDER_PATTERNS[RUN]))
         if not paths:
             ctx.io._write(f"  No .run files in {scripts_dir}.", "yellow")
             return CmdResult.ok(value="0")

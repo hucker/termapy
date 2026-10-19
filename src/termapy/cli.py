@@ -30,6 +30,7 @@ from termapy.config import (
 )
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
 from termapy.defaults import cmd_prefix
+from termapy.folders import FOLDER_EXTS, RUN
 from termapy.markup import escape_markup
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
@@ -763,7 +764,7 @@ def _run_cli_mode(args) -> str | None:
     exec_cmd = getattr(args, "exec_cmd", None)
 
     # If a positional arg is a .run file, treat it as --run
-    if args.config and args.config.endswith(".run") and not run_script:
+    if args.config and args.config.endswith(FOLDER_EXTS[RUN]) and not run_script:
         run_script = args.config
         args.config = None
 

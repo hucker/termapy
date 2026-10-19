@@ -52,7 +52,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, TextIO
 
-from termapy.folders import ensure_folder
+from termapy.folders import FOLDER_EXTS, RUN, ensure_folder, new_file_name
 from termapy.plugins import CmdResult, UsageError
 
 if TYPE_CHECKING:
@@ -110,14 +110,12 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
         raise UsageError()
     if "/" in name or "\\" in name:
         return CmdResult.fail(msg="Recording target must be a bare filename, not a path")
-    if name.endswith(".run"):
-        target = name
-    elif "." in name:
+    ext = FOLDER_EXTS[RUN]
+    if "." in name and not name.endswith(ext):
         return CmdResult.fail(
-            msg=f"Recording target must be a .run file: got {name!r}",
+            msg=f"Recording target must be a {ext} file: got {name!r}",
         )
-    else:
-        target = name + ".run"
+    target = new_file_name(name, ext)
 
     scripts_dir = ensure_folder(ctx.fs.scripts_dir)
     path = scripts_dir / target

@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.folders import FOLDER_PATTERNS, RUN, default_file_name
+from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, RUN, default_file_name
 from termapy.help_dynamic import folder_line
 from termapy.legacy import LEGACY_COMMANDS, LEGACY_REWRITES
 from termapy.markup import escape_markup
@@ -86,7 +86,7 @@ def _resolve_script(ctx: PluginContext, name: str) -> Path | None:
     if not raw:
         return None
     for folder in (Path(ctx.fs.scripts_dir), Path.cwd()):
-        candidate = default_file_name(folder / raw, ".run")
+        candidate = default_file_name(folder / raw, FOLDER_EXTS[RUN])
         if candidate.is_file():
             return candidate
     return None

@@ -534,13 +534,23 @@ ALLOWED_TYPED_GLOBS: dict[str, str] = {
 }
 
 
-def _typed_folder_globs(tree: ast.AST, rel: str, patterns: frozenset[str]) -> list[str]:
-    """Every string constant in ``rel`` that is a data folder's glob (``"*.run"``)."""
+def _typed_constants(tree: ast.AST, rel: str, values: frozenset[str]) -> list[str]:
+    """Every string constant in ``rel`` that is one of ``values`` (``"*.run"``, ``".pro"``)."""
     return [
         f"{rel}:{node.lineno}  {node.value!r}"
         for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and node.value in patterns
+        if isinstance(node, ast.Constant) and node.value in values
     ]
+
+
+def _typed_outside(values: frozenset[str], exempt: set[str]) -> list[str]:
+    """``values`` typed anywhere in the package but the ``exempt`` files."""
+    found: list[str] = []
+    for path in _package_python_files():
+        rel = path.relative_to(SRC.parent).as_posix()
+        if rel not in exempt:
+            found += _typed_constants(ast.parse(path.read_text(encoding="utf-8")), rel, values)
+    return found
 
 
 def test_folder_globs_are_read_from_the_table():
@@ -555,15 +565,9 @@ def test_folder_globs_are_read_from_the_table():
     from termapy.folders import FOLDER_PATTERNS
 
     patterns = frozenset(pattern for pattern in FOLDER_PATTERNS.values() if pattern != "*")
-    exempt = {"termapy/folders.py", *ALLOWED_TYPED_GLOBS}
 
     # Act
-    violations: list[str] = []
-    for path in _package_python_files():
-        rel = path.relative_to(SRC.parent).as_posix()
-        if rel not in exempt:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            violations += _typed_folder_globs(tree, rel, patterns)
+    violations = _typed_outside(patterns, {"termapy/folders.py", *ALLOWED_TYPED_GLOBS})
 
     # Assert
     assert violations == [], (
@@ -579,10 +583,53 @@ def test_typed_glob_guard_fires_on_a_probe():
     probe = 'folder.glob("*.run")\nfolder.glob(FOLDER_PATTERNS[RUN])\n'
 
     # Act
-    found = _typed_folder_globs(ast.parse(probe), "probe", frozenset({"*.run"}))
+    found = _typed_constants(ast.parse(probe), "probe", frozenset({"*.run"}))
 
     # Assert
     assert len(found) == 1, "the typed glob is flagged; the table read is not"
+
+
+def test_termapy_extensions_are_read_from_the_table():
+    """folder-exts-from-table: termapy's own file types, .run and .pro, come from FOLDER_EXTS.
+
+    Checking a suffix (``ext == ".run"``), adding one
+    (``new_file_name(name, FOLDER_EXTS[RUN])``) or probing for one
+    (``default_file_name(path, FOLDER_EXTS[PROTO])``) reads the table, so
+    ``FolderSpec("run", ".run")`` is the one place the type is said.  Only
+    the two types termapy invented: ``.py``, ``.csv`` and ``.json`` are
+    general formats a module may name for its own reasons (a capture's
+    CSV output is not prof/).
+    """
+    # Arrange
+    from termapy.folders import FOLDER_EXTS, PROTO, RUN
+
+    exts = frozenset({FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO]})
+
+    # Act
+    violations = _typed_outside(exts, {"termapy/folders.py"})
+
+    # Assert
+    assert violations == [], (
+        "termapy's own file types are FOLDER_EXTS[RUN] / FOLDER_EXTS[PROTO], never typed:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_typed_ext_guard_fires_on_a_probe():
+    """The guard flags a typed .run or .pro and passes a read from the table and prose."""
+    # Arrange
+    probe = (
+        'if name.endswith(".run"): pass\n'
+        'name = name + ".pro"\n'
+        "if name.endswith(FOLDER_EXTS[RUN]): pass\n"
+        '"""Saves a .run script."""\n'
+    )
+
+    # Act
+    found = _typed_constants(ast.parse(probe), "probe", frozenset({".run", ".pro"}))
+
+    # Assert
+    assert len(found) == 2, "both typed extensions; not the table read, not the prose"
 
 
 def test_raw_mkdir_guard_fires_on_a_probe():

@@ -13,7 +13,7 @@ from crcglot import DetectMatch, DetectResult, detect
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.builtins.commands.edit import edit_command
 from termapy.folder_ops import build_folder_subcommands, file_table, list_entries
-from termapy.folders import FOLDER_PATTERNS, PROTO, default_file_name
+from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, PROTO, default_file_name
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.plugins.capabilities import STATE_MESSAGES
@@ -152,7 +152,7 @@ def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path:
             is not the working directory.
     """
     for path in (Path(filename), ctx.fs.proto_dir / Path(filename).name):
-        found = default_file_name(path, ".pro")
+        found = default_file_name(path, FOLDER_EXTS[PROTO])
         if found.is_file():
             return found
     message = f"File not found: {filename}"

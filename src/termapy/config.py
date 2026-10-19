@@ -30,6 +30,7 @@ from termapy.defaults import (
 )
 from termapy.folders import (
     DEV,
+    FOLDER_EXTS,
     FOLDER_MIGRATIONS,
     HISTORY_FILE,
     HISTORY_SUFFIX,
@@ -1148,12 +1149,13 @@ def _write_migration_run_files(cfg: dict, path: str) -> list[str]:
     warnings: list[str] = []
     for key, (name, text) in pending.items():
         stem, number = name, 1
-        while (run_folder / f"{stem}.run").exists() and (
-            (run_folder / f"{stem}.run").read_text(encoding="utf-8") != text
+        ext = FOLDER_EXTS[RUN]
+        while (run_folder / f"{stem}{ext}").exists() and (
+            (run_folder / f"{stem}{ext}").read_text(encoding="utf-8") != text
         ):
             number += 1
             stem = f"{name}_{number}"
-        (run_folder / f"{stem}.run").write_text(text, encoding="utf-8")
+        (run_folder / f"{stem}{ext}").write_text(text, encoding="utf-8")
         cfg[key] = f"{cmd_prefix(cfg)}run {stem}"
         warnings.append(
             f"{key} held {len(text.splitlines())} commands; they are now "

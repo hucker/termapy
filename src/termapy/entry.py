@@ -427,8 +427,10 @@ def main() -> None:
     # matters for --run and --proto; done here so both TUI and CLI
     # see the same shape.
     if args.config:
+        from termapy.folders import FOLDER_EXTS, PROTO, RUN
+
         ext = Path(args.config).suffix.lower()
-        if ext == ".run" and not args.run:
+        if ext == FOLDER_EXTS[RUN] and not args.run:
             args.run = args.config
             args.config = None
             if not args.cli:
@@ -446,7 +448,7 @@ def main() -> None:
                         file=sys.stderr,
                     )
                     sys.exit(1)
-        elif ext == ".pro" and not args.proto:
+        elif ext == FOLDER_EXTS[PROTO] and not args.proto:
             from termapy.config_resolve import infer_config_from_run_file
 
             inferred = infer_config_from_run_file(args.config)

@@ -25,6 +25,7 @@ from termapy.env_flags import TRUSTED_PLUGINS_ONLY
 from termapy.folder_ops import list_entries
 from termapy.folders import (
     CAP,
+    FOLDER_EXTS,
     FOLDER_NAMES,
     FOLDER_PATTERNS,
     PLUGIN,
@@ -2130,7 +2131,7 @@ class ReplEngine:
             # Adding the extension keeps the path in the folder resolve()
             # checked, so containment holds.
             try:
-                path = default_file_name(self.ctx.fs.resolve(filename, "scripts"), ".run")
+                path = default_file_name(self.ctx.fs.resolve(filename, "scripts"), FOLDER_EXTS[RUN])
             except MissingCapability as e:
                 return None, CmdResult.fail(msg=str(e))
             if not path.is_file():
@@ -2138,9 +2139,9 @@ class ReplEngine:
         else:
             # The name as typed (cwd), then in run/; either may leave off
             # .run (registry ``file-name-default-ext``).
-            path = default_file_name(filename, ".run")
+            path = default_file_name(filename, FOLDER_EXTS[RUN])
             if not path.is_file():
-                path = default_file_name(self.scripts_dir / Path(filename).name, ".run")
+                path = default_file_name(self.scripts_dir / Path(filename).name, FOLDER_EXTS[RUN])
             if not path.is_file():
                 return None, CmdResult.fail(msg=f"File not found: {filename}")
         if self._script_depth >= self._max_script_depth:

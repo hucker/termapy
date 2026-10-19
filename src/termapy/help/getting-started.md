@@ -200,7 +200,9 @@ picker on the bare line (`/help run`'s "Run picker") to open it, as its
 button does. `/help cfg`, `/help run`, `/help proto`, `/help ss`,
 `/help cap` and `/help log` end with what is in their folder, ready to
 click: a config loads, a script runs, a screenshot or log opens. A click runs exactly what you would type, so the command shows
-in the output and lands in your history (Up repeats it).
+in the output and lands in your history (Up repeats it). Rest the mouse on
+a link to see what a click does first: the command it runs, or the one it
+puts in the input line.
 
 ## Command input
 

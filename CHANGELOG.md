@@ -39,6 +39,9 @@
 - File sizes in a column line up on their units: a byte count reads
   `354  B`, its `B` under the `B` of `2.3 KB`, in every file list, the
   pickers and `/cfg.info`. Prose such as capture progress keeps `354 B`.
+- Rest the mouse on a link to see what a click does before you click:
+  `Click to run: /cfg.load bench`, or `Click to fill the input: /run` for
+  a name that waits for Enter. A link from long ago says it has expired.
 - Behind it, any list can make a column clickable (`Column(run=...)` or
   `prefill=`, which puts the command in the input line instead of running
   it), and help builds its rows from styled pieces, so more lists and help

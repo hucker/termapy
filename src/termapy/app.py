@@ -97,7 +97,7 @@ from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 from termapy.terminal_host import SESSION_END, SESSION_START, TerminalHost
-from termapy.widgets import CommandSuggester, StatusBar
+from termapy.widgets import LINK_META, CommandSuggester, LinkLog, StatusBar
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
 # or reader-thread post-back fires during app teardown.  NoMatches
@@ -803,7 +803,14 @@ class SerialTerminal(TerminalHost, App):
             if exit_on_right:
                 yield _make_exit_btn()
         max_lines = self.cfg.get("max_lines", 10000)
-        yield RichLog(highlight=False, markup=True, wrap=True, id="output", max_lines=max_lines)
+        yield LinkLog(
+            highlight=False,
+            markup=True,
+            wrap=True,
+            id="output",
+            max_lines=max_lines,
+            describe=self._describe_link,
+        )
         # Frozen-view companion for /find.  Hidden by default; when
         # find activates, _update_find_bar populates it with a
         # markup-styled copy of the current scrollback (matched
@@ -3068,8 +3075,11 @@ class SerialTerminal(TerminalHost, App):
         for piece in segments:
             style = Style.parse(piece.style) if piece.style else Style()
             if piece.link is not None:
-                action = f"app.click_link({self._register_link(piece.link)})"
-                style += Style(underline=True, meta={"@click": action})
+                link_id = self._register_link(piece.link)
+                # The id twice: the click action, and the key LinkLog's
+                # hover reads to say what the click does.
+                meta = {"@click": f"app.click_link({link_id})", LINK_META: link_id}
+                style += Style(underline=True, meta=meta)
             line.append(piece.text, style=style)
         try:
             self.query_one("#output", RichLog).write(line)
@@ -3077,11 +3087,25 @@ class SerialTerminal(TerminalHost, App):
             pass  # widgets gone during shutdown
         self._log_lines("#", [line.plain])
 
+    _EXPIRED_LINK_MSG = "That link has expired - run its list again."
+
+    def _describe_link(self, link_id: int) -> str:
+        """What a click on link ``link_id`` does, for its tooltip (``LinkLog``).
+
+        The command as it will be typed, with the live prefix: the one a
+        click runs, or the one it puts in the input line for Enter.
+        """
+        link = self._links.get(link_id)
+        if link is None:
+            return self._EXPIRED_LINK_MSG
+        command = f"{cmd_prefix(self.cfg)}{link.command}".rstrip()
+        return f"Click to run: {command}" if link.run else f"Click to fill the input: {command}"
+
     def action_click_link(self, link_id: int) -> None:
         """Do what a clicked link says: run its command as typed, or put it in the input line."""
         link = self._links.get(link_id)
         if link is None:
-            self._status("That link has expired - run its list again.", "yellow")
+            self._status(self._EXPIRED_LINK_MSG, "yellow")
             return
         command = f"{cmd_prefix(self.cfg)}{link.command}"
         inp = self.query_one("#cmd", Input)

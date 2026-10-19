@@ -733,14 +733,25 @@ def _screen(app) -> list[str]:
     return [strip.text for strip in app.query_one("#output", RichLog).lines]
 
 
-async def _click_text(pilot, app, text: str) -> None:
-    """Click the first visible occurrence of ``text`` in the output pane with the mouse."""
+def _text_offset(app, text: str) -> tuple[int, int]:
+    """The output pane offset of the first visible occurrence of ``text``."""
     log = app.query_one("#output", RichLog)
     lines = _screen(app)
     index = next(i for i, line in enumerate(lines) if text in line)
     x = log.content_region.x - log.region.x + lines[index].index(text) + 1
     y = log.content_region.y - log.region.y + index - round(log.scroll_offset.y)
-    await pilot.click("#output", offset=(x, y))
+    return x, y
+
+
+async def _click_text(pilot, app, text: str) -> None:
+    """Click the first visible occurrence of ``text`` in the output pane with the mouse."""
+    await pilot.click("#output", offset=_text_offset(app, text))
+    await pilot.pause()
+
+
+async def _hover_text(pilot, app, text: str) -> None:
+    """Rest the mouse on the first visible occurrence of ``text`` in the output pane."""
+    await pilot.hover("#output", offset=_text_offset(app, text))
     await pilot.pause()
 
 
@@ -922,5 +933,61 @@ class TestClickableOutput:
                 # Assert
                 assert row.startswith("  hello.run"), "in the page's column, not flush left"
                 assert app.history[-1] == "/run hello.run", "the click runs it, as in /run.list"
+
+        asyncio.run(scenario())
+
+    def test_hovering_a_link_says_what_a_click_runs(self, app_factory):
+        """Over a /run.list name Textual shows the command a click runs; over plain text it clears."""
+
+        async def scenario():
+            from rich.text import Text
+            from textual.widgets import Tooltip
+
+            app, _, path = app_factory(quiet_start=True)
+            _write_scripts(path, hello="/print hi\n")
+            async with app.run_test(size=(120, 40), tooltips=True) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/run.list")
+                await until(pilot, lambda: any("hello.run" in line for line in _screen(app)))
+                log = app.query_one("#output", RichLog)
+                tooltip = app.screen.get_child_by_type(Tooltip)
+
+                # Act
+                await _hover_text(pilot, app, "hello.run")
+                over = log.tooltip
+                shown = await until(pilot, lambda: tooltip.display, seconds=2)
+                await _hover_text(pilot, app, "run/ - ")
+                off = log.tooltip
+
+                # Assert
+                assert isinstance(over, Text), "a Text: a command's [brackets] stay literal"
+                assert over.plain == "Click to run: /run hello.run", "the command, as typed"
+                assert shown, "Textual displays it once the mouse rests, not just holds it"
+                assert off is None, "plain text has no tooltip"
+
+        asyncio.run(scenario())
+
+    def test_a_fill_link_and_an_expired_link_say_so(self, app_factory):
+        """A command's name on its own page says it fills the input; a link no longer held says it expired."""
+
+        async def scenario():
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60), tooltips=True) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/help run")
+                await until(pilot, lambda: any("Run picker" in line for line in _screen(app)))
+                log = app.query_one("#output", RichLog)
+
+                # Act
+                await _hover_text(pilot, app, "/run - ")
+                fill = log.tooltip
+
+                # Assert
+                assert fill is not None and fill.plain == "Click to fill the input: /run", (
+                    "nothing runs: Enter does"
+                )
+                assert app._describe_link(10**9) == app._EXPIRED_LINK_MSG, (
+                    "an old link says so before the click, not after"
+                )
 
         asyncio.run(scenario())

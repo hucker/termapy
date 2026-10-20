@@ -1274,6 +1274,9 @@ SYNOPSIS
   /run {filename}
   /run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list
 
+FLAGS
+  --echo - Echo each command line as it runs (a script is quiet by default).
+
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 

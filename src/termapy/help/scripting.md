@@ -33,6 +33,27 @@ non-comment line) is the script's docstring: the first line is the
 summary shown by `/run.list`; the full block is what `/run.help <script>`
 prints.
 
+## Watching a run: `/run --echo`
+
+A script runs quiet: its command lines are not echoed, only their output,
+so a script does not flood the prompt with its own text. To follow along,
+add `--echo` and each line prints as it runs, as if typed:
+
+```text
+/run --echo smoke_test
+demo> /print one
+  one
+demo> /mem.dump gTemp 16
+  1B 00 ...
+```
+
+`--echo` turns command echo on for that run only, regardless of the
+session's `echo_repl` setting, and restores it when the script ends. It
+pairs with `/run.verbose`, which adds a per-line `[step/total] (time)`
+progress line, and with the output level, so `/run.verbose --echo` shows
+the command, its full verbose output, and the timing. Useful when a script
+misbehaves and you need to see which line did what.
+
 ## Recording a session
 
 The fastest way to make a `.run` script is to record what you typed.

@@ -141,9 +141,13 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="This host does not support script execution.")
 
     verbose = ctx.output_level == "verbose"
+    # --echo shows each command line as it runs, as if typed at the prompt
+    # (a script otherwise forces echo off).  The locals name what the user
+    # watches: the progress/timing line (verbose) and the command echo.
+    echo = ctx.flag("--echo")
     path, result = ctx.internal.start_script(arg)
     if path:
-        ctx.internal.run_script(path, verbose=verbose)
+        ctx.internal.run_script(path, verbose=verbose, echo=echo)
     return result
 
 
@@ -206,6 +210,7 @@ COMMAND = Command(
     args="{filename}",
     help="Run a script file, or list available scripts.",
     handler=_handler_root,
+    flags={"--echo": "Echo each command line as it runs (a script is quiet by default)."},
     files="run",
     picker="run",
     bare_sub="list",

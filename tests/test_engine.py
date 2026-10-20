@@ -365,6 +365,63 @@ class TestRunScript:
             "interactive echo_repl restored after the outermost script"
         )
 
+    def _outermost(self, eng):
+        """Reset to the real outermost entry and grant unconfined caps for the path."""
+        eng._script_depth = 0
+        caps = CapabilitySet(filesystem_unconfined=True)
+        eng.ctx.capabilities = caps
+        eng.ctx.fs.capabilities = caps
+
+    def _echo_during_body(self, eng, script):
+        """The value of the echo_repl flag while the script body runs.
+
+        Command echo is a ``dispatch_full`` behavior keyed on this flag; the
+        script runner's job is to have it set during the body, which this
+        captures through the per-line dispatch callback.
+        """
+        seen: list[bool] = []
+
+        def _dispatch(line, report=True):
+            seen.append(eng.ctx.ns("flags").get("echo_repl", False))
+            return eng.dispatch(line, report=report)
+
+        eng.run_script(script, dispatch=_dispatch, echo=getattr(self, "_echo_arg", False))
+        return seen
+
+    def test_run_echo_turns_command_echo_on_for_the_run_then_restores(self, tmp_path):
+        """run --echo sets echo_repl for the body even with it off interactively; it is restored after."""
+        # Arrange -- interactive echo_repl OFF, so only --echo could set it
+        eng, output, writes, script = self._make_engine(tmp_path, "/print hi\n")
+        flags = eng.ctx.ns("flags")
+        flags["echo_repl"] = False
+        self._outermost(eng)
+        path, result = eng.start_script(str(script))
+        self._echo_arg = True
+
+        # Act -- the flag is sampled on each dispatched line
+        during = self._echo_during_body(eng, path)
+
+        # Assert
+        assert result.success, "script started"
+        assert during == [True], "echo_repl on for the body, so dispatch_full echoes the command"
+        assert flags["echo_repl"] is False, "the interactive value (off) is restored after the run"
+
+    def test_run_without_echo_leaves_the_body_quiet(self, tmp_path):
+        """Without --echo the body runs with echo_repl off -- the default, so no command echo."""
+        # Arrange
+        eng, output, writes, script = self._make_engine(tmp_path, "/print hi\n")
+        eng.ctx.ns("flags")["echo_repl"] = False
+        self._outermost(eng)
+        path, result = eng.start_script(str(script))
+        self._echo_arg = False
+
+        # Act
+        during = self._echo_during_body(eng, path)
+
+        # Assert
+        assert result.success, "script started"
+        assert during == [False], "echo_repl stays off, so the body is quiet"
+
     def test_delay_command(self, tmp_path):
         """/delay inside a script runs and confirms the pause."""
         # Arrange

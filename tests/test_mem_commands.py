@@ -72,9 +72,9 @@ class TestDump:
         assert len(result.value) == 32, "16 bytes -> 32 hex digits"
 
     def test_rows_render_with_symbol_annotation(self, cli, capsys):
-        """Each dump row is address, hex pairs, ASCII, then the symbol that contains it."""
-        # Act
-        cli.repl.dispatch("mem.dump gTemp 16")
+        """At .verbose a dump row is address, hex pairs, ASCII, then the symbol that contains it."""
+        # Act -- the address column is verbose-only
+        cli.repl.dispatch("mem.dump.verbose gTemp 16")
 
         # Assert
         line = next(line for line in capsys.readouterr().out.splitlines() if "0x00001000" in line)
@@ -82,6 +82,27 @@ class TestDump:
             "address, then hex pairs (CLI indents output)"
         )
         assert line.rstrip().endswith("|  gTemp"), "ASCII column, then the containing symbol"
+
+    def test_normal_rows_keep_ascii_and_label_but_drop_the_address(self, cli, capsys):
+        """mem-output-levels: a plain dump shows hex + ASCII + label; the address waits for .verbose."""
+        # Act
+        cli.repl.dispatch("mem.dump gTemp 16")
+
+        # Assert
+        line = next(line for line in capsys.readouterr().out.splitlines() if "1B 00" in line)
+        stripped = line.lstrip()
+        assert not stripped.startswith("0x"), "no address column at the normal level"
+        assert stripped.startswith("1B 00 "), "hex pairs lead the row"
+        assert line.rstrip().endswith("|  gTemp"), "the ASCII column and the symbol label stay"
+
+    def test_quiet_rows_are_bytes_only(self, cli, capsys):
+        """mem-output-levels: .quiet drops the address, ASCII and label -- just the hex bytes."""
+        # Act
+        cli.repl.dispatch("mem.dump.quiet gTemp 16")
+
+        # Assert
+        line = capsys.readouterr().out.splitlines()[0].lstrip()
+        assert line == "1B 00 00 50 7D 44 3A 21 05 00 00 00 0C 00 00 00", "bytes, nothing else"
 
     def test_default_length_is_64(self, cli):
         """A bare address with no length reads 64 bytes, the explore-sized default."""
@@ -188,7 +209,7 @@ class TestWrite:
     def test_result_line_shows_what_was_there(self, cli, capsys):
         """The feedback line names the symbol and shows the bytes the write replaced."""
         # sCal is a linker global: no size, so a name with no scalar to hold.
-        cli.repl.dispatch("mem.write sCal 2C01")
+        cli.repl.dispatch("mem.write.verbose sCal 2C01")
         out = capsys.readouterr().out
         assert "Wrote 2 bytes at 0x00001020  sCal  (was " in out, "before-bytes in the feedback"
 
@@ -358,8 +379,8 @@ class TestValueWrites:
 
     def test_result_line(self, cli, capsys):
         """The feedback line reads like /mem.read: the value, its hex twin, what was there."""
-        # Act
-        cli.repl.dispatch("mem.write gTemp 300")
+        # Act -- the hex twin and the before-value are verbose detail
+        cli.repl.dispatch("mem.write.verbose gTemp 300")
 
         # Assert
         assert "Set gTemp = 300  (0x012C, was 27)" in capsys.readouterr().out
@@ -383,8 +404,8 @@ class TestNamedBounds:
 
     def test_an_untyped_symbol_reads_at_its_size(self, cli, capsys):
         """mem-named-bounds: /mem.read of a 2-byte symbol with no type decodes a u16."""
-        # Act
-        result = cli.repl.dispatch("mem.read sCount")
+        # Act -- the hex twin is verbose detail
+        result = cli.repl.dispatch("mem.read.verbose sCount")
 
         # Assert
         assert result.success, result.error
@@ -516,8 +537,8 @@ class TestRead:
         # bytes on the wire are 1B 00 while the VALUE is 0x001B.  Printing
         # the bytes with an 0x prefix reads as a byte-swapped register.
 
-        # Act
-        cli.repl.dispatch("mem.read gTemp")
+        # Act -- the hex twin is verbose detail
+        cli.repl.dispatch("mem.read.verbose gTemp")
 
         # Assert
         actual = capsys.readouterr().out
@@ -532,8 +553,8 @@ class TestRead:
         cli.repl.dispatch("mem.write gFlags -2")
         capsys.readouterr()
 
-        # Act
-        result = cli.repl.dispatch("mem.read gFlags i32")
+        # Act -- the hex twin is verbose detail
+        result = cli.repl.dispatch("mem.read.verbose gFlags i32")
 
         # Assert
         assert result.value == "-2", "the decoded signed value"
@@ -615,8 +636,27 @@ class TestBitWrites:
         assert result.value == "0", "the field value written"
         assert result.data["atomic"] is True, "the demo advertises MEM.M"
         assert result.data["before_word"] == 0x8008 and result.data["after_word"] == 0x0008
-        assert "Set U1MODE.ON = 0  (0x00008008 -> 0x00000008)" in capsys.readouterr().out
         assert cli.repl.dispatch("mem.read U1MODE.ON").value == "0", "read-back"
+
+    def test_the_word_change_clause_is_verbose(self, cli, capsys):
+        """mem-output-levels: a bit write shows its value at any level, the word change only at .verbose."""
+        # Act -- write the same bit twice so the before/after word is stable
+        cli.repl.dispatch("mem.write U1MODE.ON 1")
+        capsys.readouterr()
+        normal = cli.repl.dispatch("mem.write U1MODE.ON 0")
+        normal_out = capsys.readouterr().out
+        cli.repl.dispatch("mem.write U1MODE.ON 1")
+        capsys.readouterr()
+        verbose = cli.repl.dispatch("mem.write.verbose U1MODE.ON 0")
+        verbose_out = capsys.readouterr().out
+
+        # Assert
+        assert normal.success and verbose.success, "both writes succeed"
+        assert "Set U1MODE.ON = 0\n" in normal_out, "normal stops at the value"
+        assert "(0x00008008 -> 0x00000008)" not in normal_out, "no word-change clause at normal"
+        assert "Set U1MODE.ON = 0  (0x00008008 -> 0x00000008)" in verbose_out, (
+            "the word-change clause is verbose detail"
+        )
 
     def test_audit_carries_the_word_change(self, cli):
         """An atomic modify logs a MEM.M line with whole-word before/after in memory order."""
@@ -659,10 +699,20 @@ class TestMaskOps:
         assert result.success, result.error
         assert result.value == "00000015", "the new word"
         assert result.data["atomic"] is True, "or rides MEM.M"
-        assert (
-            "OR 0x00000010 at 0x00001008  gFlags  (0x00000005 -> 0x00000015)"
-            in capsys.readouterr().out
+        assert "OR 0x00000010 at 0x00001008  gFlags\n" in capsys.readouterr().out, (
+            "the answer names the op, mask and where; the word change is verbose"
         )
+
+    def test_the_word_change_clause_is_verbose(self, cli, capsys):
+        """mem-output-levels: .verbose adds the before/after word to a mask op."""
+        # Act -- OR a bit already set, so the word is unchanged and stable to assert
+        cli.repl.dispatch("mem.or.verbose gFlags 0x04")
+
+        # Assert
+        assert (
+            "OR 0x00000004 at 0x00001008  gFlags  (0x00000005 -> 0x00000005)"
+            in capsys.readouterr().out
+        ), "the word-change clause appears at .verbose"
 
     def test_and(self, cli):
         """AND keeps only the mask bits and returns the new word as hex."""
@@ -730,7 +780,13 @@ class TestStr:
         assert result.success, result.error
         assert result.value == "Bassomatic v77", "the NUL-terminated string is the value"
         assert result.data["length"] == 14 and result.data["truncated"] is False
-        assert '0x00003100  sBanner  "Bassomatic v77"' in capsys.readouterr().out
+        # At the normal level the string is the whole answer, no address prefix.
+        assert '"Bassomatic v77"' in capsys.readouterr().out
+        verbose = cli.repl.dispatch("mem.str.verbose sBanner")
+        assert verbose.success, verbose.error
+        assert '0x00003100  sBanner  "Bassomatic v77"' in capsys.readouterr().out, (
+            "the address prefix is verbose detail"
+        )
 
     def test_cap_truncates(self, cli):
         """A cap reached with no NUL ends the scan there and flags the result truncated."""
@@ -748,8 +804,8 @@ class TestStr:
 class TestDumpModes:
     def test_u16_word_columns(self, cli, capsys):
         """A u16 mode renders LE hex words per column while the value stays raw bytes."""
-        # Act
-        result = cli.repl.dispatch("mem.dump gTemp 16 u16")
+        # Act -- .verbose to keep the address column alongside the word columns
+        result = cli.repl.dispatch("mem.dump.verbose gTemp 16 u16")
 
         # Assert
         assert result.success, result.error
@@ -766,13 +822,22 @@ class TestDumpModes:
         )
 
     def test_bare_mode(self, cli, capsys):
-        """With addr and ascii both off, each row is only hex values, with no symbol label."""
-        # Act -- both columns off: nothing but values
-        cli.repl.dispatch("mem.dump gTemp 4 addr=off ascii=off")
+        """mem-output-levels: .quiet is bytes only; addr=/ascii= default off so they add nothing."""
+        # Act -- quiet drops every column; the flags here are already the default
+        cli.repl.dispatch("mem.dump.quiet gTemp 4 addr=off ascii=off")
 
         # Assert
         line = capsys.readouterr().out.splitlines()[0].lstrip()
         assert line == "1B 00 00 50", "no address, no ascii, no label"
+
+    def test_a_flag_forces_a_column_on_above_its_floor(self, cli, capsys):
+        """mem-output-levels: addr=on forces the address column even at .quiet, where it is off by default."""
+        # Act
+        cli.repl.dispatch("mem.dump.quiet gTemp 4 addr=on")
+
+        # Assert
+        line = capsys.readouterr().out.splitlines()[0].lstrip()
+        assert line == "0x00001000  1B 00 00 50", "the flag adds the address the level would hide"
 
     def test_addr_off_keeps_ascii(self, cli, capsys):
         """Turning off only the address column keeps the ASCII column."""
@@ -790,8 +855,8 @@ class TestDumpModes:
     @pytest.mark.parametrize(
         "line",
         [
-            "mem.dump gTemp 4 addr=false ascii=no",
-            "mem.dump gTemp 4 addr=0 ascii=OFF",
+            "mem.dump.quiet gTemp 4 addr=false ascii=no",
+            "mem.dump.quiet gTemp 4 addr=0 ascii=OFF",
         ],
     )
     def test_toggles_take_the_whole_parse_bool_vocabulary(self, cli, line, capsys):
@@ -1609,8 +1674,8 @@ class TestWritePathReadGates:
 
     def test_the_skipped_pre_read_is_explained_in_the_result_line(self, sfr_cli, capsys):
         """The feedback line says the target was not read first and gives the reason."""
-        # Act
-        sfr_cli.repl.dispatch("mem.write UTXREG 0x41")
+        # Act -- the not-read-first note is verbose detail
+        sfr_cli.repl.dispatch("mem.write.verbose UTXREG 0x41")
 
         # Assert
         assert "Set UTXREG = 65  (0x00000041, not read first: UTXREG is access: wo)" in (

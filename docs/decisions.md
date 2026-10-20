@@ -510,3 +510,31 @@ tables of structs (PinDiag's own tables) once struct-member access lands.
 `tests/test_devices.py::TestAliasBlocks`,
 `tests/test_sym_commands.py::TestBlockAliases`; the ELF fixtures rebuilt
 from `tests/fixtures/elf/elf_sample.c` with the constants added.
+
+## 2026-10-20 — The /mem commands follow the output level
+
+Every `/mem.*` command reads at the session output level, so it is as loud
+or as terse as the rest of the prompt. The value a command computes is the
+answer and rides the result channel (quiet and up), so a script in quiet
+mode still gets it: `/mem.read gTemp` is `gTemp = 27`, `/mem.dump.quiet` is a
+bare byte grid. Normal adds the readable context -- the dump ASCII column
+and the symbol label. Verbose adds the locators that repeat what you
+already know: the dump address column, the `(word 0x.. at 0x..)` after a
+field read or write, the hex twin after a scalar read, and the `(was ..)`
+before-value after a write or mask. The dump `addr=`/`ascii=` flags default
+off and coexist with the level by raising it: `shown = flag OR the level
+says so`, so `addr=on` forces the address column even at quiet, and the
+level can only add a column a flag left off, never remove one a flag set.
+**Why:** Chuck asked for /mem to be consistent with termapy's verbose/quiet
+dial, and for a way to dump bytes with no addresses and no strings. The
+dial already existed (`/term.output`, `cmd.<level>`, `cmd --<level>`) and
+gated whole channels; the work was re-tiering the existing lines onto it
+and moving the dump grid from the output channel (normal+) to the result
+channel so quiet keeps the bytes. No raw-args re-parse: the flags became
+plain off-default bools and the level is read with `ctx.output_level`. The
+address column moved off the normal default deliberately -- it is the most
+redundant element when you know where you are -- which is a visible change
+to a plain `/mem.dump`. **Where:** `builtins/commands/mem.py` (`_verbose`,
+`_normal_or_louder`, the dump column gates); registry `mem-output-levels`;
+`tests/test_mem_commands.py`; the gold exercises every tier at the default
+level.

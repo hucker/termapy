@@ -8,20 +8,41 @@ termapy's job.
 
 ```text
 /mem.dump gTemp 16
-00001000  1B 00 40 06 7D 44 05 00 00 00 0C 00 00 00 00 00  |..@.}D..........|  gTemp
+1B 00 40 06 7D 44 05 00 00 00 0C 00 00 00 00 00  |..@.}D..........|  gTemp
 /mem.write gFlags 7
-Set gFlags = 7  (0x00000007, was 5)
+Set gFlags = 7
 ```
 
 Addresses take every `/sym` form: `0x1000`, `1000h`, `1000` (decimal),
 `gTemp`, `main+0x10`, `tick@adc.c`. Dump rows are annotated with the
 symbol that contains them when a table is loaded.
 
+## How much each command shows
+
+The `/mem.*` commands follow termapy's output level, so they read the same
+way as the rest of the prompt. The level is the session default
+(`/term.output quiet|normal|verbose`) or a per-call suffix (`/mem.dump.quiet`,
+`/mem.read.verbose`):
+
+| Level     | `/mem.dump` row                | A read / write / mask line             |
+|-----------|--------------------------------|----------------------------------------|
+| `quiet`   | hex bytes only                 | just the value (`gTemp = 27`)          |
+| `normal`  | + ASCII column + symbol label  | the value                              |
+| `verbose` | + the address column           | + the locator or before/after word (`(word 0x8008 at 0xBF806000)`, `(was 27)`) |
+
+The headline cases: `/mem.dump.quiet gTemp 16` is a clean byte grid to copy
+or script, and `/mem.dump.verbose` is the full annotated hexdump. The
+address column, the `(word .. at ..)` locator and the `(was ..)` before-value
+are verbose detail; the value itself prints at every level above silent, so a
+script in quiet mode still gets it. `addr=on` / `ascii=on` force a dump column
+on even at a level that would hide it (the flag raises what the level set,
+never lowers it).
+
 ## Commands
 
 | Command                     | Example                      | Does                                                        |
 |-----------------------------|------------------------------|-------------------------------------------------------------|
-| `/mem.dump <target> {len} {type}` | `/mem.dump gTemp 0x10`  | Hexdump; `u16`/`u32` hex-word columns, `i*` decimal, `f*` floats; `addr=off` / `ascii=off` drop columns (both off = bare values). No `len` dumps the symbol's own size, else 64 bytes |
+| `/mem.dump <target> {len} {type}` | `/mem.dump gTemp 0x10`  | Hexdump; `u16`/`u32` hex-word columns, `i*` decimal, `f*` floats. Columns follow the level (address at verbose, ASCII + label at normal, bytes only at quiet); `addr=on` / `ascii=on` force a column on. No `len` dumps the symbol's own size, else 64 bytes |
 | `/mem.read <target> {type}` | `/mem.read U1MODE.ON`        | One typed value: scalar, `char`, register field, bit (`.15`) or slice (`.4-6`) |
 | `/mem.write <target> <value>` | `/mem.write gFlags 7`      | A number at a named symbol or register, at its width; hex bytes at an address, an offset or an array; with a `.field`/`.bit` target the value is masked in (audited) |
 | `/mem.or <target> <mask>`   | `/mem.or gFlags 0x10`        | The boolean set on one word: `.or` set, `.and` keep, `.clear` = `word &= ~mask`, `.xor` toggle, `.not` invert; atomic via `MEM.M` where expressible |
@@ -65,7 +86,7 @@ field is addressable -- readable and writable -- by name:
 
 ```text
 /mem.read U1MODE            ->   ON = 1   UEN = 0   BRGH = 1
-/mem.read U1MODE.ON         ->   U1MODE.ON = 1  (word 0x00008008 at 0xBF806000)
+/mem.read U1MODE.ON         ->   U1MODE.ON = 1   (the word and its address at .verbose)
 /mem.write U1MODE.ON 0      ->   Set U1MODE.ON = 0  (0x00008008 -> 0x00000008)
 /mem.write gFlags.4-6 5     ->   a three-bit slice, LSB0
 /mem.or gFlags 0x10         ->   OR 0x00000010 at 0x00001008  gFlags  (0x00000005 -> 0x00000015)

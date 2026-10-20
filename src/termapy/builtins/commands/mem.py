@@ -298,6 +298,24 @@ def _origin() -> str:
     return _ORIGINS.get(launch_var("FRONT_END"), "unknown")
 
 
+def _verbose(ctx: PluginContext) -> bool:
+    """True at the ``verbose`` output level.
+
+    The memory commands add a locator or before/after clause only when
+    verbose: the answer itself is on the result channel (quiet+), so a
+    read, write or mask still prints its value at any level, while the
+    ``(word 0x.. at 0x..)`` / ``(was ..)`` detail appears only when asked
+    for it.  Consistent with the ``/mem.dump`` address column, which is
+    verbose too (see the handler).
+    """
+    return ctx.output_level == "verbose"
+
+
+def _normal_or_louder(ctx: PluginContext) -> bool:
+    """True at ``normal`` or ``verbose`` -- the level floor for the ASCII column and row labels."""
+    return ctx.output_level in ("normal", "verbose")
+
+
 def _where(parsed: Address, bits: int) -> str:
     """``0x00001000  gTemp`` when the user named a symbol, else the address."""
     addr_hex = hex_addr(parsed.addr, bits)
@@ -585,8 +603,14 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(
             msg=f"Unknown type: {type_name} (types: {', '.join(sorted(TYPE_TOKENS))})"
         )
-    show_addr = bool(ctx.arg("addr"))
-    show_ascii = bool(ctx.arg("ascii"))
+    # shown = the flag OR the level says so.  Flags default off; the level
+    # raises the floor: the address column at verbose, the ASCII column at
+    # normal+.  So bare /mem.dump is bytes + ASCII + labels, .quiet is bytes
+    # only, .verbose adds addresses, and addr=on forces the column at any
+    # level.  Symbol labels follow the ASCII floor.
+    show_addr = bool(ctx.arg("addr")) or _verbose(ctx)
+    show_ascii = bool(ctx.arg("ascii")) or _normal_or_louder(ctx)
+    show_labels = _normal_or_louder(ctx)
     refusal = _guard_bulk_read(ctx, parsed, length)
     if refusal is not None:
         return refusal
@@ -639,14 +663,20 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
             cell_width = max((len(cell) for cell in cells), default=1)
             body = " ".join(f"{cell:>{cell_width}}" for cell in cells)
             pad = (cell_width + 1) * per_row - 1
-            parts.append(f"{body:<{pad}}" if show_ascii or row.label else body)
+            labelled = show_labels and row.label
+            parts.append(f"{body:<{pad}}" if show_ascii or labelled else body)
         else:
-            parts.append(f"{row.hex:<47}" if show_ascii or row.label else row.hex)
+            labelled = show_labels and row.label
+            parts.append(f"{row.hex:<47}" if show_ascii or labelled else row.hex)
         if show_ascii:
             parts.append(f"|{row.ascii}|")
-        if row.label and (show_addr or show_ascii):
+        if show_labels and row.label and (show_addr or show_ascii):
             parts.append(row.label)
-        ctx.io.output("  ".join(parts).rstrip())
+        # The dump grid is the command's answer, so it rides the result
+        # channel (quiet+) -- .quiet still prints the bytes.  Which COLUMNS
+        # appear is the level's job above (show_addr / show_ascii /
+        # show_labels), not the channel's.
+        ctx.io.result("  ".join(parts).rstrip())
     return CmdResult.ok(value=value)
 
 
@@ -681,10 +711,10 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         field_value = extract_bits(word, target)
         label = target.field or parsed.suffix
         digits = target.width * 2
-        ctx.io.result(
-            f"{raw_target} = {field_value}  (word 0x{word:0{digits}X} "
-            f"at {hex_addr(word_addr, bits)})"
+        locator = (
+            f"  (word 0x{word:0{digits}X} at {hex_addr(word_addr, bits)})" if _verbose(ctx) else ""
         )
+        ctx.io.result(f"{raw_target} = {field_value}{locator}")
         return CmdResult.ok(
             value=str(field_value),
             data={
@@ -712,7 +742,8 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
             _log_peripheral_read(ctx, parsed, length, bits)
             headers, values = apply_format(data, columns)
             for header, rendered in zip(headers, values):
-                ctx.io.output(f"  {header:<8} = {rendered}")
+                # The field rows are the answer -- result channel (quiet+).
+                ctx.io.result(f"  {header:<8} = {rendered}")
             fields = {
                 column.name: column_value(data, column)
                 for column in columns
@@ -782,7 +813,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         )
     scalar = decode_scalar(data, type_name, info.endian)
     shown = _shown(scalar)
-    twin = _hex_twin(scalar, len(data))
+    twin = _hex_twin(scalar, len(data)) if _verbose(ctx) else ""
     ctx.io.result(f"{raw_target} = {shown}  ({twin})" if twin else f"{raw_target} = {shown}")
     return CmdResult.ok(
         value=shown,
@@ -880,9 +911,10 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
             return outcome
         old, new = outcome
         word_addr = parsed.addr + target.offset
-        ctx.io.result(
-            f"Set {raw_target} = {value}  ({_word_change(old, new, target.width, info.byte_order)})"
+        change = (
+            f"  ({_word_change(old, new, target.width, info.byte_order)})" if _verbose(ctx) else ""
         )
+        ctx.io.result(f"Set {raw_target} = {value}{change}")
         record = _modify_record(memory, word_addr, target, old, new)
         record["value"] = value
         record["target"] = raw_target
@@ -924,16 +956,26 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
         "origin": _origin(),
     }
     if not type_name:
-        was = f"was {before.hex().upper()}" if before is not None else f"not read first: {skipped}"
-        ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}  ({was})")
+        if _verbose(ctx):
+            was = (
+                f"was {before.hex().upper()}"
+                if before is not None
+                else f"not read first: {skipped}"
+            )
+            ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}  ({was})")
+        else:
+            ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}")
         return CmdResult.ok(value=str(count), data=record)
     # Shown as the type decodes what was stored -- the actual, so -1 into
     # a u16 reads back 65535 here exactly as /mem.read will show it.
     value = decode_scalar(data, type_name, info.endian)
     previous = decode_scalar(before, type_name, info.endian) if before is not None else None
-    was = f"was {_shown(previous)}" if previous is not None else f"not read first: {skipped}"
-    notes = ", ".join(note for note in (_hex_twin(value, len(data)), was) if note)
-    ctx.io.result(f"Set {raw_target} = {_shown(value)}  ({notes})")
+    if _verbose(ctx):
+        was = f"was {_shown(previous)}" if previous is not None else f"not read first: {skipped}"
+        notes = ", ".join(note for note in (_hex_twin(value, len(data)), was) if note)
+        ctx.io.result(f"Set {raw_target} = {_shown(value)}  ({notes})")
+    else:
+        ctx.io.result(f"Set {raw_target} = {_shown(value)}")
     record |= {"target": raw_target, "type": type_name, "value": value, "before": previous}
     return CmdResult.ok(value=_shown(value), data=record)
 
@@ -1002,9 +1044,9 @@ def _handler_mask(ctx: PluginContext, args: str, *, op: str) -> CmdResult:
             return outcome
         old, new = outcome
     digits = width * 2
+    change = f"  ({_word_change(old, new, width, info.byte_order)})" if _verbose(ctx) else ""
     ctx.io.result(
-        f"{op.upper()} 0x{mask:0{digits}X} at {_where(parsed, info.address_bits)}  "
-        f"({_word_change(old, new, width, info.byte_order)})"
+        f"{op.upper()} 0x{mask:0{digits}X} at {_where(parsed, info.address_bits)}{change}"
     )
     record = _modify_record(memory, parsed.addr, target, old, new)
     record["op"] = op
@@ -1122,7 +1164,9 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
     text = collected.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace")
     bits = memory.info.address_bits
     suffix = "  ... (truncated)" if truncated else ""
-    ctx.io.result(f'{_where(parsed, bits)}  "{escape_text(text)}"{suffix}')
+    # The address prefix is a locator (verbose); the string is the answer.
+    where = f"{_where(parsed, bits)}  " if _verbose(ctx) else ""
+    ctx.io.result(f'{where}"{escape_text(text)}"{suffix}')
     return CmdResult.ok(
         value=text,
         data={
@@ -1277,8 +1321,12 @@ COMMAND = Command(
                     default="",
                     help="u8 (default) | u16/u32/u64 hex words | i8..i64 | f32/f64",
                 ),
-                ParamSpec("addr", "bool", default=True, help="address column"),
-                ParamSpec("ascii", "bool", default=True, help="ASCII column"),
+                ParamSpec(
+                    "addr", "bool", default=False, help="force the address column (on at .verbose)"
+                ),
+                ParamSpec(
+                    "ascii", "bool", default=False, help="force the ASCII column (on at normal+)"
+                ),
             ],
             help="Hexdump or word columns at an address or symbol (default: the symbol's size, else 64).",
             handler=_handler_dump,

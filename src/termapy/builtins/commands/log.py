@@ -400,6 +400,7 @@ COMMAND = Command(
             long_help=_DELETE_LONG_HELP,
             handler=_handler_delete,
             needs=CapabilitySet(session_log=True, config_loaded=True, interactive=True),
+            safety="destructive",
         ),
         "dump": Command(
             args="{N}",

@@ -860,6 +860,7 @@ COMMAND = Command(
                     help="Delete the launcher for the current cfg.",
                     handler=_handler_icon_remove,
                     needs=CapabilitySet.CONFIG_GUI_APPS,
+                    safety="mutable",
                 ),
                 "list": Command(
                     help=("List every termapy launcher this platform can see."),

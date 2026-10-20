@@ -21,7 +21,7 @@
   bare line does what the button does: in `/help run`, click "Run picker"
   to open the Run picker, or `/run.list` to list the scripts. Nothing on a
   page runs by accident: a click there opens a page, a picker or a list,
-  so `/help cap.clear` cannot delete your captures.
+  so `/help cap.delete` cannot delete your captures.
 - `/help cfg`, `/help run` and `/help proto` end with your configs,
   scripts or protocol tests: the table `/cfg.list`, `/run.list` and
   `/proto.list` print, indented under the page's other sections, so a click
@@ -130,6 +130,21 @@
   `MEM.R` row, default 16), each refusing an impossible value with an
   `#error`. `TERMAPY_MEM_LINE_SIZE` is the line buffer a full `MEM.W` needs,
   `20 + 3 * TERMAPY_MEM_MAX_BLOCK`.
+
+### `.clear` is now `.delete`, and deleting asks first
+
+- `/cap.clear`, `/ss.clear` and `/run.profile.clear` are gone: they
+  deleted files from disk, and "clear" in termapy empties what you see.
+  `/cap.delete <name>`, `/ss.delete <name>` and `/run.profile.delete
+  <name>` delete one file (the extension is optional where the folder has
+  one), and `*` in place of the name deletes every file in the folder.
+  `*` asks first in the TUI and CLI, as `/cfg.delete` does; one named file
+  does not. Bare `/cap.delete` is a usage error, so nothing empties a
+  folder by accident. A `.run` script that used `/cap.clear` now needs
+  `/cap.delete *`.
+- Over MCP every deleting command needs `confirm=true`, like `/cfg.delete`
+  and `/mem.write`: the folder `.delete` commands, and `/log.delete` and
+  `/demo.force`, which MCP cannot run anyway.
 
 ## 0.78.0 (2026-10-17)
 

@@ -30,4 +30,5 @@ COMMAND = Command(
     help="Exit termapy.",
     handler=_handler,
     needs=CapabilitySet.INTERACTIVE,  # interactive shutdown only
+    safety="mutable",
 )

@@ -9,10 +9,11 @@ the same uniform subcommand family:
   - ``show``    -- open the newest file in the system viewer (showable)
   - ``dump``    -- print the newest (or named) file to the terminal
                    (dumpable)
-  - ``clear``   -- delete all files in the folder (clearable)
+  - ``delete``  -- delete one named file, or every file with ``*``
+                   (deletable)
 
-Which of ``show``, ``dump``, ``clear`` are exposed is driven by the
-``showable / dumpable / clearable`` flags on each ``FolderSpec`` in
+Which of ``show``, ``dump``, ``delete`` are exposed is driven by the
+``showable / dumpable / deletable`` flags on each ``FolderSpec`` in
 ``termapy.folders`` -- no per-plugin decision, no duplication.
 
 These factories used to live in ``cfg.py``.  They moved here so that
@@ -32,7 +33,7 @@ from typing import TYPE_CHECKING, Any
 
 from termapy.config import validate_file_stem
 from termapy.folders import FOLDERS, FolderSpec, default_file_name, ensure_folder
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.plugins.views import Column
 from termapy.scripting import format_age, format_size
@@ -256,38 +257,47 @@ def _make_explore_handler(folder: str):
     return handler
 
 
+def _named_file(ctx: PluginContext, folder: str, ext: str, name: str) -> Path | CmdResult:
+    """The file ``name`` names in the folder, or the failure that answers it.
+
+    The one lookup of ``.show``, ``.dump`` and ``.delete``.  The name may
+    leave off the folder's ``ext`` (registry ``file-name-default-ext``); a
+    name that escapes the folder or names nothing is a failure.
+    """
+    data_dir = _folder_path(ctx, folder)
+    # Containment: these commands touch files within the folder only.
+    # ``data_dir / name`` with an absolute name (or ``../``) would
+    # otherwise escape to any path on disk -- an arbitrary-file read or
+    # delete for an MCP client (/cap.dump C:\\Users\\me\\.secrets).
+    # Resolve and verify the target stays inside the folder, the same
+    # guard the MCP capture resource uses.  /show is the command for
+    # reading files outside the config dir, and it is capability-gated.
+    path = (data_dir / name).resolve()
+    try:
+        inside = path.is_relative_to(data_dir.resolve())
+    except OSError:
+        inside = False
+    if not inside:
+        return CmdResult.fail(msg=f"Path escapes {folder}/: {name}")
+    # After the containment check: the added suffix keeps the path in
+    # the same folder.
+    path = default_file_name(path, ext)
+    if not path.is_file():
+        return CmdResult.fail(msg=f"File not found: {name}")
+    return path
+
+
 def _named_or_newest(
     ctx: PluginContext, folder: str, pattern: str, ext: str, name: str
 ) -> Path | CmdResult:
     """The file ``name`` names in the folder, or its newest file when ``name`` is empty.
 
-    The one lookup of ``.show`` and ``.dump``.  A named file may leave off
-    the folder's ``ext`` (registry ``file-name-default-ext``).  Anything
-    but a file is the handler's answer: a failure for a name that escapes
-    the folder or names nothing, an empty success when there is no file.
+    Anything but a file is the handler's answer: ``_named_file``'s failure
+    for a name, an empty success when there is no file.
     """
-    data_dir = _folder_path(ctx, folder)
     if name:
-        # Containment: these commands read files from within the folder
-        # only.  ``data_dir / name`` with an absolute name (or ``../``)
-        # would otherwise escape to any path on disk -- an arbitrary-file
-        # read for an MCP client (/cap.dump C:\\Users\\me\\.secrets).
-        # Resolve and verify the target stays inside the folder, the same
-        # guard the MCP capture resource uses.  /show is the command for
-        # reading files outside the config dir, and it is capability-gated.
-        path = (data_dir / name).resolve()
-        try:
-            inside = path.is_relative_to(data_dir.resolve())
-        except OSError:
-            inside = False
-        if not inside:
-            return CmdResult.fail(msg=f"Path escapes {folder}/: {name}")
-        # After the containment check: the added suffix keeps the path in
-        # the same folder.
-        path = default_file_name(path, ext)
-        if not path.is_file():
-            return CmdResult.fail(msg=f"File not found: {name}")
-        return path
+        return _named_file(ctx, folder, ext, name)
+    data_dir = _folder_path(ctx, folder)
     files: list[Path] = []
     if data_dir.exists():
         if pattern == "*":
@@ -335,24 +345,39 @@ def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
     return handler
 
 
-def _make_clear_handler(folder: str, pattern: str):
-    """Handler: delete all files in the folder matching the pattern."""
+def _make_delete_handler(folder: str, pattern: str, ext: str):
+    """Handler: delete one named file from the folder, or every file with ``*``.
+
+    ``*`` asks first where there is someone to ask (the TUI and CLI, as
+    ``/cfg.delete`` does); MCP has asked already, through its destructive
+    gate.  One named file goes without a question.  The value is the count
+    deleted, for either form.
+    """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
-        data_dir = _folder_path(ctx, folder)
-        if not data_dir.exists():
-            ctx.io.output(f"  {folder}/ is already empty.")
-            return CmdResult.ok(value="0")
-        if pattern == "*":
-            files = [file for file in data_dir.glob(pattern) if file.is_file()]
+        name = args.strip()
+        if not name:
+            raise UsageError()
+        if name == "*":
+            files = list_entries(_folder_path(ctx, folder), pattern)
+            if not files:
+                ctx.io.output(f"  {folder}/ is already empty.")
+                return CmdResult.ok(value="0")
+            shown = f"{len(files)} file" if len(files) == 1 else f"{len(files)} files"
+            question = f"Delete every file in {folder}/ ({shown})? This cannot be undone."
+            if ctx.capabilities.confirm_dialog and not ctx.ui.confirm(question):
+                return CmdResult.fail(msg=f"Nothing deleted from {folder}/")
         else:
-            files = list(data_dir.glob(pattern))
-        if not files:
-            ctx.io.output(f"  {folder}/ is already empty.")
-            return CmdResult.ok(value="0")
+            path = _named_file(ctx, folder, ext, name)
+            if isinstance(path, CmdResult):
+                return path
+            files, shown = [path], path.name
         for file in files:
-            file.unlink()
-        ctx.io._write(f"  Deleted {len(files)} file(s) from {folder}/.")
+            try:
+                file.unlink()
+            except OSError as e:
+                return CmdResult.fail(msg=f"Delete failed: {e}")
+        ctx.io.output(f"  Deleted {shown} from {folder}/.")
         return CmdResult.ok(value=str(len(files)))
 
     return handler
@@ -500,10 +525,16 @@ def build_folder_subcommands(
             needs=CapabilitySet.CONFIG_LOADED,
             files=folder,
         )
-    if spec.clearable:
-        subs["clear"] = Command(
-            help=f"Delete all files in {folder}/.",
-            handler=_make_clear_handler(folder, pattern),
+    if spec.deletable:
+        subs["delete"] = Command(
+            # Hand-rolled like .show and .dump: a positional param's synopsis
+            # is always <name>, and this one takes * too (CLAUDE.md,
+            # "Declarative Command Parameters").
+            args="<name|*>",
+            help=f"Delete a file from {folder}/; * deletes them all, after a yes.",
+            handler=_make_delete_handler(folder, pattern, spec.ext),
             needs=CapabilitySet.CONFIG_LOADED,
+            files=folder,
+            safety="destructive",
         )
     return subs

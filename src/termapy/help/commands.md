@@ -234,7 +234,7 @@ family of file subcommands:
 | `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
 | `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | all                            |
 | `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin |
-| `.clear`              | Delete all files                                        | ss, cap, prof (generated output only) |
+| `.delete <name\|*>`   | Delete a file; `*` deletes them all, after a yes        | ss, cap, prof (generated output only) |
 
 Examples:
 
@@ -244,5 +244,5 @@ Examples:
 - `/run.show welcome`: open `run/welcome.run` (the extension is optional where the folder has one; `ss/` and `cap/` take the full name)
 - `/ss.list`: list screenshots; in the TUI a click on a name opens that file
 - `/run.rename old.run new`: rename a script (`.run` is kept)
-- `/cap.clear`: delete all capture files
+- `/cap.delete *`: delete every capture file (asks first)
 - `/run.profile.dump`: print the newest profile CSV to the terminal

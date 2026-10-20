@@ -53,6 +53,7 @@ COMMAND = Command(
             help="Reset the demo config to its defaults and switch to it.",
             handler=_handler_force,
             needs=CapabilitySet.INTERACTIVE,
+            safety="destructive",
         ),
     },
 )

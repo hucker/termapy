@@ -9,7 +9,7 @@ docstring summary, and has six actions:
 - **Edit:** open the highlighted script in the editor
 - **New:** create a new script (opens the editor with a template)
 - **Rename:** rename the highlighted script (`.run` is kept; never overwrites)
-- **Delete:** delete the highlighted script (asks for confirmation)
+- **Delete:** delete the highlighted script, after a yes: it runs `/run.delete <name>`
 - **Cancel:** close the picker
 
 ![Script picker](img/doc_21_script_picker.svg)
@@ -162,7 +162,8 @@ so silent mode is useful.
 > `/term.verbose on/off`, or `*.quiet` as a "set silently" idiom keep
 > working via hidden forwarders. Run `/run.legacy <file>` to preview
 > the canonical replacements, or `/run.legacy --fix <file>` to rewrite
-> in place. `/run.legacy *` processes every script in `run/`.
+> in place. A [name pattern](commands.md#name-patterns) processes every
+> script it matches: `/run.legacy *` is all of `run/`.
 
 ## Example script
 

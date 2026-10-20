@@ -56,6 +56,12 @@ A pattern that matches nothing gives an empty list, not an error. The
 filters are `/env`, `/dev.lib`, `/proto.crc.list`, `/port.chip.list` and
 `termapy --chips`.
 
+A command that deletes or rewrites files takes a pattern the same way,
+but plain text there is one file's name, and a pattern that matches
+nothing is an error: `/cap.delete adc_*`, `/run.legacy test_*`. Only the
+folders termapy writes (`ss/`, `cap/`, `prof/`) delete by pattern; a
+script or plugin you wrote is deleted one name at a time, after a yes.
+
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/cap`                    | Open the cap/ folder (same as the Cap button and `/cap.explore`)            |
@@ -174,7 +180,7 @@ filters are `/env`, `/dev.lib`, `/proto.crc.list`, `/port.chip.list` and
 | `/run {file}`             | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
-| `/run.legacy <file\|*>`   | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
+| `/run.legacy <file\|pat>` | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
 | `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |
@@ -252,7 +258,8 @@ family of file subcommands:
 | `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
 | `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | all                            |
 | `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin |
-| `.delete <name\|*>`   | Delete a file; `*` deletes them all, after a yes        | ss, cap, prof (generated output only) |
+| `.delete <name>`      | Delete a file someone wrote, after a yes                | run, proto, plugin             |
+| `.delete <name\|pattern>` | Delete a file, or after a yes every file a [pattern](#name-patterns) matches (`*` for all) | ss, cap, prof (generated output only) |
 
 Examples:
 
@@ -262,5 +269,5 @@ Examples:
 - `/run.show welcome`: open `run/welcome.run` (the extension is optional where the folder has one; `ss/` and `cap/` take the full name)
 - `/ss.list`: list screenshots; in the TUI a click on a name opens that file
 - `/run.rename old.run new`: rename a script (`.run` is kept)
-- `/cap.delete *`: delete every capture file (asks first)
+- `/cap.delete adc_*`: delete the captures whose names start `adc_` (asks first; `*` is every capture)
 - `/run.profile.dump`: print the newest profile CSV to the terminal

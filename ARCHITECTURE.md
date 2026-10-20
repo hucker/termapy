@@ -924,7 +924,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_file_completion.py             | File-argument completion: the `Command.files` declaration and the engine's reader                                                                  |
 | test_find.py                        | Tests for /find -- interactive scrollback match navigation                                                                                         |
 | test_firmware_mem.py                | The drop-in MEM handler, `examples/firmware/termapy_mem.c`, run on the host                                                                        |
-| test_folder_ops_delete.py           | The shared `.delete <name\|*>` folder handler (`/cap.delete`, `/ss.delete`, ...)                                                                   |
+| test_folder_ops_delete.py           | The shared `.delete` folder handler (`/cap.delete`, `/run.delete`, ...)                                                                            |
 | test_folder_ops_dump.py             | Containment tests for the shared `.dump` folder handler                                                                                            |
 | test_folder_ops_listing.py          | Tests for the shared listing producers in `folder_ops`                                                                                             |
 | test_folders.py                     | Tests for termapy.folders -- folder/file constants                                                                                                 |

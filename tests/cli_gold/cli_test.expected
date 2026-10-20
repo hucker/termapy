@@ -1021,7 +1021,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /cap.bin        Capture raw binary bytes.
-  /cap.delete     Delete a file from cap/; * deletes them all, after a yes.
+  /cap.delete     Delete a file from cap/; a pattern (* for all) deletes its matches, after a yes.
   /cap.dump       Print the newest (or named) file from cap/ to the terminal.
   /cap.explore    Open cap/ in the system file explorer.
   /cap.hex        Capture hex text lines, decode with format spec to CSV.
@@ -1048,7 +1048,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /ss.delete     Delete a file from ss/; * deletes them all, after a yes.
+  /ss.delete     Delete a file from ss/; a pattern (* for all) deletes its matches, after a yes.
   /ss.explore    Open ss/ in the system file explorer.
   /ss.list       List files in ss/, newest first, with size and age.
   /ss.rename     Rename a file in ss/ (extension kept; never overwrites).
@@ -1098,6 +1098,7 @@ AVAILABLE
 SUBCOMMANDS
   /proto.crc        Browse and compute CRC algorithms.
   /proto.debug      Interactive protocol debug screen.
+  /proto.delete     Delete a file from proto/, after a yes.
   /proto.dump       Print the newest (or named) file from proto/ to the terminal.
   /proto.edit       Open a .pro file for editing.
   /proto.explore    Open proto/ in the system file explorer.
@@ -1126,6 +1127,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
+  /plugin.delete     Delete a file from plugin/, after a yes.
   /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
   /plugin.edit       Open a .py file for editing.
   /plugin.explore    Open plugin/ in the system file explorer.
@@ -1255,6 +1257,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
+  /run.delete     Delete a file from run/, after a yes.
   /run.dump       Print the newest (or named) file from run/ to the terminal.
   /run.edit       Open a .run file for editing.
   /run.explore    Open run/ in the system file explorer.
@@ -1626,6 +1629,8 @@ demo> /run.help at_demo
   AT Command Demo -- Walks through all demo device commands
 demo> /run.legacy at_demo
     at_demo.run: no legacy commands found.
+demo> /run.legacy zz*
+  Error: No scripts in run/ match: zz*
 demo> /edit.run.list
   run/ - 9 scripts
   NAME SIZE UPDATED SUMMARY
@@ -1788,9 +1793,13 @@ demo> /delay 1ms
 demo> /run.record
   Error: Not recording.
 demo> /cap.delete
-  Error: Usage: /cap.delete <name|*>
+  Error: Usage: /cap.delete <name|pattern>
 demo> /cap.delete nosuch.txt
   Error: File not found: nosuch.txt
 demo> /cap.delete *
-    cap/ is already empty.
+  Error: No files in cap/ match: *
+demo> /run.delete nosuch
+  Error: File not found: nosuch
+demo> /run.delete *
+  Error: Invalid name: * (run/ deletes one named file at a time)
 Disconnected: DEMO

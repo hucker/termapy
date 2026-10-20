@@ -188,7 +188,7 @@ def on_script_picked(app, result: tuple | None) -> None:
     Dispatches to one of: run the script (clears vars, calls
     ``app._run_script``), new (opens ScriptEditor), edit (opens
     ScriptEditor on the selected file), rename (name prompt, then
-    ``/run.rename``), or delete (confirmation dialog).
+    ``/run.rename``), or delete (``/run.delete``, which asks first).
 
     Args:
         app: The SerialTerminal instance.
@@ -220,11 +220,9 @@ def on_script_picked(app, result: tuple | None) -> None:
             callback=app._on_script_saved,
         )
     elif action == "delete":
-        app._confirm_delete(
-            result[1],
-            "script",
-            on_deleted=app._sync_scripts_button,
-        )
+        # The button is the command, as the config picker's is /cfg.delete:
+        # /run.delete asks, deletes, and refreshes the Scripts button.
+        app._dispatch_on_thread(f"{cmd_prefix(app.cfg)}run.delete {Path(result[1]).name}")
 
 
 def on_proto_picked(app, result: tuple | None) -> None:
@@ -257,11 +255,8 @@ def on_proto_picked(app, result: tuple | None) -> None:
             callback=app._on_proto_saved,
         )
     elif action == "delete":
-        app._confirm_delete(
-            result[1],
-            "proto script",
-            on_deleted=app._sync_proto_button,
-        )
+        # The button is the command: /proto.delete asks, deletes, refreshes.
+        app._dispatch_on_thread(f"{cmd_prefix(app.cfg)}proto.delete {Path(result[1]).name}")
 
 
 def open_picker(app, name: str) -> CmdResult:

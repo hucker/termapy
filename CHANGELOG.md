@@ -135,13 +135,22 @@
 
 - `/cap.clear`, `/ss.clear` and `/run.profile.clear` are gone: they
   deleted files from disk, and "clear" in termapy empties what you see.
-  `/cap.delete <name>`, `/ss.delete <name>` and `/run.profile.delete
-  <name>` delete one file (the extension is optional where the folder has
-  one), and `*` in place of the name deletes every file in the folder.
-  `*` asks first in the TUI and CLI, as `/cfg.delete` does; one named file
-  does not. Bare `/cap.delete` is a usage error, so nothing empties a
-  folder by accident. A `.run` script that used `/cap.clear` now needs
-  `/cap.delete *`.
+  Every folder command family has `.delete` now. `/cap.delete <name>`,
+  `/ss.delete` and `/run.profile.delete` delete one file (the extension is
+  optional where the folder has one), or every file a name pattern
+  matches (`/cap.delete adc_*`; `*` is every file), asking first for a
+  pattern in the TUI and CLI. `/run.delete`, `/proto.delete` and
+  `/plugin.delete` delete one script or plugin you wrote, by name, after a
+  yes; they take no pattern. Bare `.delete` is a usage error, and a
+  pattern that matches nothing is an error (`*` in an empty folder too),
+  so nothing empties a folder by accident. A `.run` script that used
+  `/cap.clear` now needs `/cap.delete *`.
+- The Run and Proto pickers' Delete runs `/run.delete` and
+  `/proto.delete`, so the CLI and MCP can delete a script too, and the
+  folder buttons' file counts update after any delete.
+- `/run.legacy` takes a name pattern as well as `*`: `/run.legacy
+  test_*` scans the matching scripts, and a pattern that matches none is
+  an error.
 - Over MCP every deleting command needs `confirm=true`, like `/cfg.delete`
   and `/mem.write`: the folder `.delete` commands, and `/log.delete` and
   `/demo.force`, which MCP cannot run anyway.

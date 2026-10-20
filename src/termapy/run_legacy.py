@@ -29,6 +29,7 @@ from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, RUN, default_file_name
 from termapy.help_dynamic import folder_line
 from termapy.legacy import LEGACY_COMMANDS, LEGACY_REWRITES
 from termapy.markup import escape_markup
+from termapy.matching import is_glob, matches
 from termapy.plugins import CmdResult, UsageError
 
 if TYPE_CHECKING:
@@ -102,7 +103,7 @@ def _scan_one_file(ctx: PluginContext, path: Path, prefix: str, fix_mode: bool) 
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as e:
-        ctx.io._write(f"  {path.name}: read error: {e}", "red")
+        ctx.io.output(f"  {path.name}: read error: {e}", "red")
         return 0
 
     lines = text.splitlines(keepends=True)
@@ -125,40 +126,43 @@ def _scan_one_file(ctx: PluginContext, path: Path, prefix: str, fix_mode: bool) 
             hits.append((i, old, new, body))
 
     if not hits:
-        ctx.io._write(f"  {path.name}: no legacy commands found.", "green")
+        ctx.io.output(f"  {path.name}: no legacy commands found.", "green")
         return 0
 
     if fix_mode:
         try:
             path.write_text("".join(rewritten_lines), encoding="utf-8")
         except OSError as e:
-            ctx.io._write(f"  {path.name}: write error: {e}", "red")
+            ctx.io.output(f"  {path.name}: write error: {e}", "red")
             return 0
-        ctx.io._write(f"  {path.name}: rewrote {len(hits)} line(s).", "green")
+        ctx.io.output(f"  {path.name}: rewrote {len(hits)} line(s).", "green")
         for lineno, old, new, _original in hits:
-            ctx.io._write_markup(
+            ctx.io.output_markup(
                 f"    line {lineno:d}: [yellow]{escape_markup(prefix + old)}[/] -> "
                 f"[green]{escape_markup(prefix + new)}[/]"
             )
         return len(hits)
 
-    ctx.io._write(
+    ctx.io.output(
         f"  {path.name}: {len(hits)} legacy command(s) found (run with --fix to rewrite):",
         "yellow",
     )
     for lineno, old, new, original in hits:
-        ctx.io._write_markup(
+        ctx.io.output_markup(
             f"    line {lineno:d}: [yellow]{escape_markup(prefix + old)}[/] -> "
             f"[green]{escape_markup(prefix + new)}[/]"
         )
-        ctx.io._write(f"      {original}", "dim")
+        ctx.io.output(f"      {original}", "dim")
     return len(hits)
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Report legacy commands in a script file (or all with ``*``).
+    """Report legacy commands in a script file, or in every one a pattern matches.
 
-    With ``--fix``, rewrites the file(s) in place.
+    The pattern is a name pattern over run/'s scripts (registry
+    ``name-one-matcher``; ``*`` is every script), and one that matches
+    nothing fails, as a missing name does.  With ``--fix``, rewrites the
+    file(s) in place.
     """
     fix_mode = ctx.flag("--fix")
     name = args.strip()
@@ -167,14 +171,16 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     prefix = ctx.prefix
 
-    # ``*`` scans every .run file in the config's scripts directory.
-    if name == "*":
+    if is_glob(name):
         scripts_dir = Path(ctx.fs.scripts_dir)
         # A missing folder is an empty one: data folders appear on first write.
-        paths = sorted(scripts_dir.glob(FOLDER_PATTERNS[RUN]))
+        paths = [
+            path
+            for path in sorted(scripts_dir.glob(FOLDER_PATTERNS[RUN]))
+            if matches(path.name, name)
+        ]
         if not paths:
-            ctx.io._write(f"  No .run files in {scripts_dir}.", "yellow")
-            return CmdResult.ok(value="0")
+            return CmdResult.fail(msg=f"No scripts in run/ match: {name}")
         total_hits = 0
         total_files_with_hits = 0
         for path in paths:
@@ -182,9 +188,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             total_hits += hits
             if hits:
                 total_files_with_hits += 1
-        ctx.io._write("")
+        ctx.io.output("")
         verb = "rewrote" if fix_mode else "found"
-        ctx.io._write(
+        ctx.io.output(
             f"  Summary: {verb} {total_hits} legacy command(s) "
             f"across {total_files_with_hits}/{len(paths)} file(s).",
             "green" if fix_mode else "yellow",
@@ -207,8 +213,8 @@ def _run_long_help(ctx: PluginContext) -> str:
     folder = folder_line(ctx, "run", noun="script")
     body = (
         "Scan a .run script for command names that have been renamed.\n"
-        "Pass a filename to scan one file, or ``*`` to scan every\n"
-        ".run file in the config's scripts/ directory.\n"
+        "Pass a filename to scan one file, or a name pattern (* for\n"
+        "all) to scan every .run file in run/ it matches.\n"
         "Without --fix, reports the hits line by line.  With --fix,\n"
         "rewrites the file(s) in place.\n"
         "\n"
@@ -226,5 +232,5 @@ def _run_long_help(ctx: PluginContext) -> str:
 HANDLER = _handler
 HELP = "Scan a .run script for legacy command names (report, or --fix to rewrite)."
 LONG_HELP = _run_long_help
-ARGS = "<filename|*> {--fix}"
+ARGS = "<filename|pattern> {--fix}"
 FLAGS = {"--fix": "Rewrite the file in place instead of just reporting."}

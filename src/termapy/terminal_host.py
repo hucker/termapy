@@ -459,6 +459,8 @@ class TerminalHost:
             close_session_log=lambda: self._close_session_log(),
             # How this frontend opens a file for editing (/edit decides which).
             edit_file=lambda path: self._edit_file(path),
+            # What this frontend refreshes when a command deletes files.
+            folder_changed=lambda folder: self._folder_changed(folder),
             # Post-dispatch observer pair, shared by all hosts.  /run.record
             # registers via add_post_dispatch_observer; future audit-log /
             # repeat-last / event-stream features will use the same hook.
@@ -946,6 +948,12 @@ class TerminalHost:
         overrides this with its own editors.
         """
         self.repl.ctx.fs.open_file(path)
+
+    def _folder_changed(self, folder: str) -> None:
+        """``ctx.internal.folder_changed``: the CLI and MCP show no file counts to refresh.
+
+        The TUI overrides this to refresh its folder buttons' tooltips.
+        """
 
     # -- Session log ------------------------------------------------------------
 

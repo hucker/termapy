@@ -1829,26 +1829,6 @@ class SerialTerminal(TerminalHost, App):
         self.exit()
         return CmdResult.ok(value="vt100")
 
-    def _confirm_delete(self, path: str, label: str, on_deleted=None) -> None:
-        """Show a confirmation dialog and delete a file if confirmed."""
-        name = Path(path).name
-
-        def _on_confirm(confirmed: bool) -> None:
-            if not confirmed:
-                return
-            try:
-                Path(path).unlink()
-                self._status(f"Deleted {label}: {name}", "green")
-                if on_deleted:
-                    on_deleted()
-            except OSError as e:
-                self._status(f"Delete failed: {e}", "red")
-
-        self.push_screen(  # ty: ignore[no-matching-overload] -- no (screen, callback=) overload
-            ConfirmDialog(f"Delete {label} '{name}'?"),
-            callback=_on_confirm,
-        )
-
     def _check_port_and_switch(self, cfg: dict, path: str) -> None:
         """If the configured port doesn't exist, prompt with PortPicker."""
         port = cfg["serial"]["port"]
@@ -3457,11 +3437,19 @@ class SerialTerminal(TerminalHost, App):
 
     def _sync_all_buttons(self) -> None:
         """Refresh all file-count button tooltips and custom buttons."""
+        self._sync_file_buttons()
+        self.run_worker(self._sync_custom_buttons())
+
+    def _sync_file_buttons(self) -> None:
+        """Refresh the tooltips that count a folder's files (SS, Scripts, Proto, Cap)."""
         self._sync_ss_button()
         self._sync_scripts_button()
         self._sync_proto_button()
         self._sync_cap_button()
-        self.run_worker(self._sync_custom_buttons())
+
+    def _folder_changed(self, folder: str) -> None:
+        """``ctx.internal.folder_changed``: a delete left the folder buttons' counts stale."""
+        self._on_main(self._sync_file_buttons)
 
     @staticmethod
     def _count_files(directory: Path, pattern: str) -> int:

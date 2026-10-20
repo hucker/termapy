@@ -165,6 +165,8 @@ $(BAUD) <- /port.baud_rate
 /sym main+0x10
 /sym count.12
 /sym count.12+4
+/sym kBaud
+/sym CONSOLE
 /sym tick
 /sym tick@adc.c
 /sym U1MODE.ON

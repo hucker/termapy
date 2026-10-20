@@ -324,6 +324,62 @@ class TestSectionAccess:
             SymbolTable.from_dict(doc)
 
 
+class TestConstantFields:
+    """value, pointee and alias_of: optional on every path, absent on a variable."""
+
+    def test_a_plain_symbol_writes_none_of_them(self):
+        """A variable's file shape is unchanged: no value, pointee or alias_of key."""
+        # Act
+        doc = Symbol("gTemp", 0x1000, 2, "bss").to_dict()
+
+        # Assert
+        assert not {"value", "pointee", "alias_of"} & doc.keys()
+
+    def test_round_trip_keeps_a_constant_and_an_alias(self):
+        """An integer value, a float value, a pointee and an alias_of all survive save and load."""
+        # Arrange
+        original = SymbolTable(
+            [
+                Symbol("kBaud", 0x3200, 4, "rodata", type="u32", value=115200),
+                Symbol("kGain", 0x3208, 4, "rodata", type="f32", value=0.1),
+                Symbol(
+                    "pUart", 0x3204, 4, "rodata", type="u32", value=0xBF806000, pointee="struct"
+                ),
+                Symbol("SPI_DIR", 0x41008080, 4, "sfr", alias_of="PORTC_DIR"),
+            ]
+        )
+
+        # Act
+        rebuilt = SymbolTable.from_dict(json.loads(json.dumps(original.to_dict())))
+
+        # Assert
+        actual = [(s.name, s.value, s.pointee, s.alias_of) for s in rebuilt.symbols]
+        assert actual == [
+            ("kBaud", 115200, "", ""),
+            ("pUart", 0xBF806000, "struct", ""),
+            ("kGain", 0.1, "", ""),
+            ("SPI_DIR", None, "", "PORTC_DIR"),
+        ]
+
+    @pytest.mark.parametrize(
+        ("extra", "expected"),
+        [
+            ({"value": "4"}, r"symbols\[0\]\.value: expected a number"),
+            ({"value": True}, r"symbols\[0\]\.value: expected a number"),
+            ({"pointee": "block"}, r"symbols\[0\]\.pointee: expected one of scalar, struct, other"),
+        ],
+        ids=["value-text", "value-bool", "pointee-vocabulary"],
+    )
+    def test_bad_constant_fields_name_the_field(self, extra, expected):
+        """A value that is not a number, or a pointee outside the vocabulary, is refused with its path."""
+        # Arrange
+        doc = _doc(symbols=[{"name": "k", "addr": "0x10", "size": 4} | extra])
+
+        # Act / Assert
+        with pytest.raises(ValueError, match=expected):
+            SymbolTable.from_dict(doc)
+
+
 # ── SymbolTable.lookup ──────────────────────────────────────────────────────
 
 

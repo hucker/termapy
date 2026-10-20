@@ -42,6 +42,9 @@ def format_symbol(
 ) -> str:
     """One display line: ``0x00002010  main+0x10  [code 442 bytes main.c]``.
 
+    A constant ends with its value (``= 4``; a pointer ``-> 0x41008080``),
+    an alias with the register it names (``= PORTC_DIR``).
+
     Args:
         symbol: The symbol to render.
         query_addr: The address that was asked for; when given, the line
@@ -55,7 +58,19 @@ def format_symbol(
     name = symbol.name if query_addr is None else symbolic_name(symbol, query_addr)
     size_str = f" {symbol.size} bytes" if symbol.size else ""
     file_str = f" {symbol.file}" if symbol.file else ""
-    return f"{hex_addr(addr, address_bits)}  {name}  [{symbol.section_label}{size_str}{file_str}]"
+    tail = _value_text(symbol, address_bits)
+    return f"{hex_addr(addr, address_bits)}  {name}  [{symbol.section_label}{size_str}{file_str}]{tail}"
+
+
+def _value_text(symbol: Symbol, address_bits: int) -> str:
+    """The display tail: ``  = PORTC_DIR`` (alias), ``  -> 0x...`` (pointer), ``  = 4`` (value)."""
+    if symbol.alias_of:
+        return f"  = {symbol.alias_of}"
+    if symbol.value is None:
+        return ""
+    if symbol.pointee and isinstance(symbol.value, int):
+        return f"  -> {hex_addr(symbol.value, address_bits)}"
+    return f"  = {symbol.value}"
 
 
 def symbol_record(symbol: Symbol, *, address_bits: int = 32) -> dict[str, Any]:
@@ -73,6 +88,9 @@ def symbol_record(symbol: Symbol, *, address_bits: int = 32) -> dict[str, Any]:
         "rmw": symbol.rmw,
         "access": symbol.access,
         "read_effect": symbol.read_effect,
+        "value": symbol.value,
+        "pointee": symbol.pointee,
+        "alias_of": symbol.alias_of,
     }
 
 
@@ -231,6 +249,17 @@ def table_record(table: SymbolTable, *, file: str = "") -> dict[str, Any]:
         "endian": table.endian,
         "count": len(table),
         "devices": device_records(table.devices),
+        "aliases": [
+            {
+                "name": alias.name,
+                "block": alias.block,
+                "device": alias.device,
+                "base": alias.base,
+                "base_hex": hex_addr(alias.base, bits),
+                "count": alias.count,
+            }
+            for alias in table.aliases
+        ],
         "sections": table.stats(),
         "range": None
         if span is None
@@ -291,4 +320,13 @@ def info_rows(table: SymbolTable, *, file: str = "") -> list[tuple[str, str]]:
         )
         detail = f"  {placed}" if placed else ""
         rows.append(("device", f"{device.name}{detail}  ({len(device)} registers)"))
+    # A block the build named: the pointer constant, the peripheral it
+    # points at, and how many of its registers answer to the new prefix.
+    for alias in table.aliases:
+        rows.append(
+            (
+                "alias",
+                f"{alias.name} -> {alias.block}@{hex_addr(alias.base, bits)}  ({alias.count} registers)",
+            )
+        )
     return rows

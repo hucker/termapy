@@ -786,6 +786,109 @@ def merge_into(
     return merged, shadowed
 
 
+@dataclass(frozen=True)
+class BlockAlias:
+    """One block the build named: a pointer constant and the peripheral at its value.
+
+    Attributes:
+        name: The pointer constant (``SPI_PORT``); the prefix of every alias.
+        block: The peripheral or instance it names (``PORTC``).
+        device: The device file the block comes from.
+        base: The block's base, the pointer's value.
+        count: Registers aliased.
+    """
+
+    name: str
+    block: str
+    device: str
+    base: int
+    count: int
+
+
+def alias_blocks(
+    symbols: list[Symbol],
+    devices: list[Device],
+) -> tuple[list[Symbol], list[BlockAlias], list[str]]:
+    """Register aliases from the build's pointer constants: a pointer to a block names it.
+
+    A firmware constant such as ``volatile PortGroup *const SPI_PORT =
+    &PORT->Group[2]`` says, in C, what the board uses PORTC for.  The ELF
+    converter records it as a ``rodata`` symbol with ``value`` (the address
+    it holds) and ``pointee: "struct"`` (it points at a block, not at one
+    word).  When that address is exactly one loaded peripheral's base,
+    every register of the peripheral gains a second name under the
+    constant's: ``PORTC_DIR`` is also ``SPI_PORT_DIR``.  An alias copies the
+    register's address, size, type and safety trio unchanged and records
+    ``alias_of``, so the memory commands treat both names as one register.
+
+    Nothing is guessed: a pointer to one word (``pointee: "scalar"``), a
+    value that is no peripheral's base, or a base two blocks share gives
+    no alias, and a name already taken keeps its owner.  The misses a user
+    would want to hear about come back as notes.
+
+    Args:
+        symbols: The merged symbols so far (build plus device registers);
+            the pointer constants are found among them and the names an
+            alias would take are checked against them.
+        devices: The loaded devices.
+
+    Returns:
+        ``(aliases, blocks, notes)``: the new symbols, one record per block
+        named, and one line per skipped alias (a shared base, a taken name).
+    """
+    by_base = _blocks_by_base(devices)
+    taken = {symbol.name for symbol in symbols}
+    aliases: list[Symbol] = []
+    blocks: list[BlockAlias] = []
+    notes: list[str] = []
+    for pointer in symbols:
+        if pointer.pointee != "struct" or not isinstance(pointer.value, int):
+            continue
+        found = by_base.get(pointer.value, [])
+        if not found:
+            continue
+        if len(found) > 1:
+            names = ", ".join(sorted(f"{device}/{block}" for device, block, _ in found))
+            notes.append(f"{pointer.name}: 0x{pointer.value:X} is the base of {names}; no alias")
+            continue
+        device, block, registers = found[0]
+        count = 0
+        for register in registers:
+            name = f"{pointer.name}_{_relative_name(register.symbol.name, block)}"
+            if name in taken:
+                notes.append(
+                    f"{pointer.name}: {name} is taken; no alias for {register.symbol.name}"
+                )
+                continue
+            taken.add(name)
+            aliases.append(replace(register.symbol, name=name, alias_of=register.symbol.name))
+            count += 1
+        if count:
+            blocks.append(BlockAlias(pointer.name, block, device, pointer.value, count))
+    return aliases, blocks, notes
+
+
+def _blocks_by_base(devices: list[Device]) -> dict[int, list[tuple[str, str, list[Register]]]]:
+    """Every block (a peripheral, else an instance, else the part) keyed by its lowest address."""
+    grouped: dict[tuple[str, str], list[Register]] = {}
+    for device in devices:
+        for instance in device.instances:
+            for register in instance.registers:
+                block = register.peripheral or instance.name or device.name
+                grouped.setdefault((device.name, block), []).append(register)
+    by_base: dict[int, list[tuple[str, str, list[Register]]]] = {}
+    for (device_name, block), registers in grouped.items():
+        base = min(register.symbol.addr for register in registers)
+        by_base.setdefault(base, []).append((device_name, block, registers))
+    return by_base
+
+
+def _relative_name(name: str, block: str) -> str:
+    """``PORTC_DIR`` within ``PORTC`` is ``DIR``; a name without the block's prefix stays whole."""
+    prefix = f"{block}_"
+    return name[len(prefix) :] if name.startswith(prefix) and len(name) > len(prefix) else name
+
+
 # ── Peripheral space ───────────────────────────────────────────────────────
 
 

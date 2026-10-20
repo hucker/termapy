@@ -40,7 +40,13 @@ map gives (registry ``elf-types-or-none``):
 - a struct: a format spec of its members in memory order, byte ranges in
   the ELF's byte order (``count:U4-3`` little-endian), ``S`` for a char
   array, ``H`` for anything else; bit-field members are left out for now;
-- ``const`` anywhere in the chain: ``access: ro``.
+- ``const`` anywhere in the chain: ``access: ro``;
+- a ``const`` scalar carries its initializer as ``value``, decoded from
+  the bytes the file loads at its address (an integer, an enumerator, a
+  float to single precision, the address a pointer holds), and a pointer
+  says what it points at in ``pointee`` (``scalar``, ``struct``,
+  ``other``); a variable, an array and a struct carry no value (registry
+  ``elf-values-const-only``).
 
 Producer flavors handled: a fixed address as ``DW_OP_addr`` or Clang's
 DWARF 5 ``DW_OP_addrx``; a definition that names its declaration with
@@ -96,6 +102,9 @@ _QUALIFIERS: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Byte size of every scalar token; a constant is read only at exactly its size.
+_SCALAR_BYTES: Final[dict[str, int]] = {token: int(token[1:]) // 8 for token in SCALAR_TYPES}
+
 # A struct member becomes a format-spec column under its own name.
 _MEMBER_NAME_RE: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -123,11 +132,16 @@ def _open(data: bytes) -> ELFFile | None:
 
 @dataclass(frozen=True, slots=True)
 class _Facts:
-    """What DWARF says about the variable at one address."""
+    """What DWARF says about the variable at one address.
+
+    ``pointee`` is what a pointer-typed variable points at (``scalar``,
+    ``struct``, ``other``), ``""`` for anything else.
+    """
 
     type: str
     readonly: bool
     file: str
+    pointee: str
 
 
 def convert(data: bytes) -> list[Symbol]:
@@ -237,6 +251,9 @@ def _read_symbols(
     first_global = symtab["sh_info"]
     local_file = ""
     seen: set[tuple[str, int]] = set()
+    endian = _endian(elf)
+    errors = _parse_errors()
+    images: dict[int, tuple[int, bytes] | None] = {}
     for index, sym in enumerate(symtab.iter_symbols()):
         info = sym["st_info"]
         kind = info["type"]
@@ -272,6 +289,19 @@ def _read_symbols(
             # A linker-script symbol: it may share a function's address,
             # but no source file defines it.
             file = ""
+        value: int | float | None = None
+        pointee = ""
+        if facts is not None and facts.readonly and isinstance(shndx, int):
+            # A const object's bytes are its value for the program's life;
+            # a variable's are only its initializer, so nothing is read.
+            try:
+                value = _constant_value(
+                    elf, images, shndx, addr, sym["st_size"], facts.type, endian
+                )
+            except errors:
+                value = None
+            if value is not None:
+                pointee = facts.pointee
         out.append(
             Symbol(
                 sym.name,
@@ -281,6 +311,8 @@ def _read_symbols(
                 file=file,
                 type=facts.type if facts is not None else "",
                 access="ro" if facts is not None and facts.readonly else "",
+                value=value,
+                pointee=pointee,
             )
         )
 
@@ -297,6 +329,54 @@ def _section_kind(section: Any) -> str:
     if flags & SH_FLAGS.SHF_WRITE:
         return "bss" if section["sh_type"] == "SHT_NOBITS" else "data"
     return "rodata"
+
+
+def _constant_value(
+    elf: ELFFile,
+    images: dict[int, tuple[int, bytes] | None],
+    shndx: int,
+    addr: int,
+    size: int,
+    token: str,
+    endian: str,
+) -> int | float | None:
+    """A const scalar's initializer: the bytes its section loads, decoded by its type.
+
+    None when the type is not a scalar (an array, a struct, untyped), the
+    size is not the scalar's (an array typed by its element), or the
+    section has no file contents.
+    """
+    if token not in _SCALAR_BYTES or size != _SCALAR_BYTES[token]:
+        return None
+    image = _section_image(elf, images, shndx)
+    if image is None:
+        return None
+    start, data = image
+    offset = addr - start
+    if offset < 0 or offset + size > len(data):
+        return None
+    raw = data[offset : offset + size]
+    if token[0] == "f":
+        code = ("<" if endian == "le" else ">") + ("f" if size == 4 else "d")
+        number = float(struct.unpack(code, raw)[0])
+        # A float's shortest spelling at its own precision: 0.1f reads
+        # back as 0.1, not as its 17-digit double expansion.
+        return float(f"{number:.7g}") if size == 4 else number
+    return int.from_bytes(raw, "little" if endian == "le" else "big", signed=token[0] == "i")
+
+
+def _section_image(
+    elf: ELFFile,
+    images: dict[int, tuple[int, bytes] | None],
+    shndx: int,
+) -> tuple[int, bytes] | None:
+    """``(sh_addr, contents)`` of a section, read once per index; None for a NOBITS section."""
+    if shndx not in images:
+        section = elf.get_section(shndx)
+        images[shndx] = (
+            None if section["sh_type"] == "SHT_NOBITS" else (section["sh_addr"], section.data())
+        )
+    return images[shndx]
 
 
 # ── the debug info ──────────────────────────────────────────────────────────
@@ -327,13 +407,14 @@ def _dwarf_facts(elf: ELFFile) -> tuple[dict[int, _Facts], dict[int, str]]:
             addr = _fixed_address(die, parser, dwarf)
             if addr is None:
                 continue
-            spec, readonly = _type_of(_declaration_of(die), endian, parser)
-            facts = _Facts(spec, readonly, unit_file)
+            declaration = _declaration_of(die)
+            spec, readonly = _type_of(declaration, endian, parser)
+            facts = _Facts(spec, readonly, unit_file, _pointee_of(declaration))
             known = variables.setdefault(addr, facts)
             if known.type != facts.type:
                 disputed.add(addr)
     for addr in disputed:
-        variables[addr] = replace(variables[addr], type="")
+        variables[addr] = replace(variables[addr], type="", pointee="")
     return variables, functions
 
 
@@ -401,6 +482,31 @@ def _referenced(die: DIE) -> DIE | None:
     if "DW_AT_type" not in die.attributes:
         return None
     return die.get_DIE_from_attribute("DW_AT_type")
+
+
+def _pointee_of(die: DIE) -> str:
+    """What a pointer variable points at: ``scalar``, ``struct`` or ``other``; ``""`` if no pointer.
+
+    Qualifiers are skipped on both sides, so ``volatile PortGroup *const``
+    is a pointer to a struct.  A pointer to void, to a function, to an
+    array or to a union is ``other``: nothing downstream knows what to
+    make of it, and the alias rule must not guess.
+    """
+    node = _referenced(die)
+    while node is not None and node.tag in _QUALIFIERS:
+        node = _referenced(node)
+    if node is None or node.tag not in ("DW_TAG_pointer_type", "DW_TAG_reference_type"):
+        return ""
+    target = _referenced(node)
+    while target is not None and target.tag in _QUALIFIERS:
+        target = _referenced(target)
+    if target is None:
+        return "other"
+    if target.tag == "DW_TAG_structure_type":
+        return "struct"
+    if target.tag in ("DW_TAG_base_type", "DW_TAG_enumeration_type", "DW_TAG_pointer_type"):
+        return "scalar"
+    return "other"
 
 
 def _scalar(node: DIE) -> str:

@@ -478,3 +478,35 @@ success for a miss (a script or agent tests the value), and glob-only for
 symbols) and prefix completion are not name filters. crcglot's own
 `algorithms=` and `form=` globs are crcglot's. **Where:** registry
 `name-one-matcher`; `termapy/matching.py`, `tests/test_matching.py`.
+
+## 2026-10-20 — A system name comes from the code: typed constants, never macros
+
+The firmware says what a peripheral is for in one place a build keeps: a
+typed constant. `volatile PortGroup *const SPI_PORT = &PORT->Group[2];`
+reaches the ELF with its name, its pointer type and its value, so
+`/sym.import` reads the initializer of every `const` scalar (registry
+`elf-values-const-only`) and, when a pointer to a struct holds exactly one
+loaded block's base, the merged table names that block's registers under
+the constant's name: `PORTC_DIR` is also `SPI_PORT_DIR`, with the
+register's address, size, type and safety trio unchanged (registry
+`alias-from-pointer-constant`). An alias lives in the merged view only: it
+needs the build half and the device half, is rebuilt with them, and goes
+away with the code that defined it. **Why:** Chuck wanted system names
+(`SPI_PINS`, not `PORTC`) and wanted them to come from the code rather
+than from a hand-written board file whose addresses are copied and drift.
+Of the three places such a fact can live, a `#define` does not survive
+preprocessing (reading it would need DWARF macro info pyelftools does not
+parse, or a C parser, ruled out with the register-table design), an
+X-macro table was deferred with `feat/regs-table`, and a typed constant is
+what every `-g` build already carries. The firmware side is one line with
+external linkage; a `static const` pointer is folded away and never
+reaches the ELF. A pointer to one register is a value, not an alias:
+naming the register after it would collide with the pointer object's own
+name. A pin is a pair, port and bit, so pin-level names wait for `const`
+tables of structs (PinDiag's own tables) once struct-member access lands.
+**Where:** `symbols/converters/elf.py` (`_constant_value`,
+`_pointee_of`), `devices.alias_blocks`, `symbols/session.py`;
+`tests/test_symbols_elf.py::TestConstants`,
+`tests/test_devices.py::TestAliasBlocks`,
+`tests/test_sym_commands.py::TestBlockAliases`; the ELF fixtures rebuilt
+from `tests/fixtures/elf/elf_sample.c` with the constants added.

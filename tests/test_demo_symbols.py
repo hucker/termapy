@@ -7,9 +7,11 @@ device's ``mem`` command answers for, and the CLI gold can pin ``/sym``.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from termapy.config import setup_demo_config
+from termapy.devices import alias_blocks, parse_device
 from termapy.folders import SYMBOLS_SUFFIX
 from termapy.protocol.core import parse_format_spec
 from termapy.symbols import SymbolTable
@@ -104,3 +106,45 @@ class TestSetupDemoConfig:
 
         # Assert
         assert sidecar.read_bytes() == DEMO_SYMBOLS.read_bytes(), "force rewrites the sidecar"
+
+
+DEMO_DEVICE = DEMO_SYMBOLS.parent / "dev" / "console.device.json"
+
+
+class TestBundledDeviceFile:
+    """The demo ships one device file: the UART block the CONSOLE constant points at."""
+
+    def test_the_console_pointer_names_the_uart_block(self):
+        """alias-from-pointer-constant: CONSOLE holds the bundled block's base, so the demo has an alias out of the box."""
+        # Arrange
+        table = SymbolTable.load(DEMO_SYMBOLS)
+        device = parse_device(json.loads(DEMO_DEVICE.read_text(encoding="utf-8")))
+        (console,) = table.by_name("CONSOLE")
+        merged = [*table.symbols, *(register.symbol for register in device.registers())]
+
+        # Act
+        aliases, blocks, notes = alias_blocks(merged, [device])
+
+        # Assert
+        assert [alias.name for alias in aliases] == ["CONSOLE_MODE", "CONSOLE_STA"]
+        assert (blocks[0].base, console.value, notes) == (0xBF806000, 0xBF806000, []), (
+            "the constant and the block agree on the address, and nothing is skipped"
+        )
+
+    def test_the_block_matches_the_demo_devices_emulation(self):
+        """The device file describes what demo.py answers: U1MODE at 0xBF806000, U1STA at 0xBF806010."""
+        # Act
+        device = parse_device(json.loads(DEMO_DEVICE.read_text(encoding="utf-8")))
+
+        # Assert
+        actual = [(register.symbol.name, register.symbol.addr) for register in device.registers()]
+        assert actual == [("U1_MODE", 0xBF806000), ("U1_STA", 0xBF806010)]
+
+    def test_setup_materializes_the_device_file_byte_identical(self, tmp_path):
+        """A fresh demo config gets the bundled device file under dev/ as an exact byte copy."""
+        # Act
+        config_path = setup_demo_config(tmp_path)
+
+        # Assert
+        copy = config_path.parent / "dev" / "console.device.json"
+        assert copy.read_bytes() == DEMO_DEVICE.read_bytes(), "bundled file copied verbatim"

@@ -1,0 +1,18 @@
+{
+  "device_version": 1,
+  "device": "demo_uart",
+  "description": "BASSOMATIC-77 UART block; the symbol table's CONSOLE constant points here",
+  "vendor": "termapy",
+  "source": "hand-written from the demo device's register emulation (demo.py)",
+  "registers": [
+    {"name": "U1_MODE", "addr": "0xBF806000", "size": 4, "peripheral": "U1", "group": "UART",
+     "description": "Mode", "reset": "0x00000000",
+     "fields": [
+       {"name": "BRGH", "bit": 3, "description": "High-speed baud generator"},
+       {"name": "UEN", "bit": 8, "width": 2, "description": "Pins the UART drives"},
+       {"name": "ON", "bit": 15, "description": "UART enabled"}
+     ]},
+    {"name": "U1_STA", "addr": "0xBF806010", "size": 4, "peripheral": "U1", "group": "UART",
+     "description": "Status and control; flags clear on write", "rmw": false}
+  ]
+}

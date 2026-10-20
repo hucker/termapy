@@ -313,6 +313,7 @@ termapy_cfg/
     │   ├── temp_plot.py
     │   └── traffic.py
     ├── sym/                            # symbol tables (demo.symbols.json, auto-loaded)
+    ├── dev/                            # device files (console.device.json: the UART block CONSOLE names)
     └── proto/                          # protocol test scripts
         ├── at_test.pro
         ├── bitfield_inline.pro

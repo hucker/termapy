@@ -1518,7 +1518,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     """Copy bundled demo config files to the target directory.
 
     Creates ``<target_path>/demo/`` with config, scripts, and proto files.
-    Only the folders it populates (``run/ proto/ plugin/ sym/``) are
+    Only the folders it populates (``run/ proto/ plugin/ sym/ dev/``) are
     created; the rest appear on first use, like any config's.
     Does not overwrite existing files unless *force* is True.
 
@@ -1549,6 +1549,14 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     if force or not symbols_path.exists():
         src = pkg / f"demo{SYMBOLS_SUFFIX}"
         symbols_path.write_bytes(src.read_bytes())
+
+    # The board's UART block as a device file, auto-loaded beside the symbols.
+    # The table's CONSOLE pointer constant holds this block's base, so the
+    # demo shows an alias from the build out of the box (/sym CONSOLE_MODE).
+    device_path = ensure_folder(demo_dir / DEV) / f"console{FOLDER_EXTS[DEV]}"
+    if force or not device_path.exists():
+        src = pkg / "dev" / f"console{FOLDER_EXTS[DEV]}"
+        device_path.write_bytes(src.read_bytes())
 
     # The legacy-grammar memory profile: /profile.load demo_legacy.profile.json
     # drives /mem.* through the device's own `mem` syntax (template dialect).

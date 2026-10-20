@@ -28,7 +28,7 @@ DEMO_SYMBOLS = (
 )
 XC32_MAP = Path(__file__).parent / "fixtures" / "maps" / "xc32_sample.map"
 XC32_COUNT = 17  # symbols in the fixture (see test_symbols_xc32.py)
-DEMO_COUNT = 15
+DEMO_COUNT = 17
 
 
 def _build(tmp_path: Path, *, unconfined: bool = True, oneshot: bool = False):
@@ -2563,4 +2563,85 @@ class TestBinaryConverters:
         errors = [text for text in _texts(output) if "Plugin error" in text]
         assert any("textmagic" in text and "MAGIC" in text for text in errors), (
             "the report names the converter and the export"
+        )
+
+
+class TestBlockAliases:
+    """A pointer constant in the build names a device block: the merged view carries the aliases."""
+
+    def test_a_pointer_constant_names_the_blocks_registers(self, sym_env):
+        """alias-from-pointer-constant: BUS -> the part's base; /sym resolves an alias, /sym.info lists the block."""
+        # Arrange -- a sidecar holding one pointer constant to _PART's base
+        engine, config_path, output = sym_env
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        constant = {
+            "name": "BUS",
+            "addr": "0x3000",
+            "size": 4,
+            "section": "rodata",
+            "type": "u32",
+            "value": 0x50000000,
+            "pointee": "struct",
+        }
+        sidecar.write_text(
+            json.dumps({"symbols_version": 1, "symbols": [constant]}), encoding="utf-8"
+        )
+        _install_device(config_path.parent / "dev", "part", _PART)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        table = get_table(engine.ctx)
+        assert table is not None, "a table is loaded"
+        assert [s.name for s in table.symbols if s.alias_of] == ["BUS_REG_A", "BUS_REG_B"]
+        assert engine.dispatch("sym BUS_REG_B").value == "0x50000004", (
+            "an alias resolves like the register it names"
+        )
+        engine.dispatch("sym BUS")
+        assert any("BUS  [const 4 bytes]  -> 0x50000000" in line for line in _texts(output)), (
+            "the pointer constant shows the address it holds"
+        )
+        info = engine.dispatch("sym.info")
+        assert info.data["aliases"] == [
+            {
+                "name": "BUS",
+                "block": "part",
+                "device": "part",
+                "base": 0x50000000,
+                "base_hex": "0x50000000",
+                "count": 2,
+            }
+        ], "the record names the block once, not per register"
+        assert any("BUS -> part@0x50000000  (2 registers)" in line for line in _texts(output)), (
+            "and the prose has the same row"
+        )
+
+    def test_a_skipped_alias_is_said_at_load(self, sym_env):
+        """alias-from-pointer-constant: a name the build already owns keeps it, and the load says so."""
+        # Arrange
+        engine, config_path, output = sym_env
+        sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
+        symbols = [
+            {
+                "name": "BUS",
+                "addr": "0x3000",
+                "size": 4,
+                "section": "rodata",
+                "type": "u32",
+                "value": 0x50000000,
+                "pointee": "struct",
+            },
+            {"name": "BUS_REG_A", "addr": "0x1000", "size": 4, "section": "bss"},
+        ]
+        sidecar.write_text(json.dumps({"symbols_version": 1, "symbols": symbols}), encoding="utf-8")
+        _install_device(config_path.parent / "dev", "part", _PART)
+
+        # Act
+        engine.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert "Symbols: BUS: BUS_REG_A is taken; no alias for REG_A" in _texts(output)
+        assert engine.dispatch("sym BUS_REG_A").value == "0x00001000", (
+            "the build's own symbol stays"
         )

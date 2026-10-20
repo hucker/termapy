@@ -77,9 +77,42 @@ exactly as a map leaves it, and reads by its size.
 | an array of those                | the element's type; the size is the whole array     |
 | a `struct`                       | a layout of its members (`count:U4-3 gain:F8-5`) in the ELF's byte order; bit fields wait for a later step |
 | anything `const`                 | the same, with `access: ro`                         |
+| a `const` scalar                 | the same, plus `value`: its initializer (an integer, an enumerator, a float, the address a pointer holds); a pointer also records what it points at (`pointee`) |
 
 A build without `-g` imports every symbol untyped; startup and library
 objects that carry their own debug info stay typed.
+
+### Constants and aliases from the build
+
+A `const` scalar's bytes are its value for the program's life, so the
+import reads them: `/sym kBaud` ends with `= 115200`, a pointer constant
+with `-> 0x41008080`. A variable's initializer is not its value and is
+never read; arrays and structs of constants wait for a later step.
+
+A pointer constant to a register block is how firmware says what a
+peripheral is for, and termapy turns it into names:
+
+```c
+volatile PortGroup *const SPI_PORT = &PORT->Group[2];   /* PORTC on this board */
+```
+
+When a loaded device file places a block at exactly that address, every
+register of the block gains a second name under the constant's:
+`PORTC_DIR` is also `SPI_PORT_DIR`, with the register's address, size,
+fields and safety flags unchanged, so `/mem.read SPI_PORT_DIR.P4` reads the
+same bits under the board's own vocabulary. `/sym.info` lists each block
+named (`alias: SPI_PORT -> PORTC@0x41008080  (6 registers)`), and `/sym`
+shows an alias as `= PORTC_DIR`.
+
+The rules, so nothing is guessed: the constant must be a pointer to a
+struct (a pointer to one register is a value, not a name for the block);
+its value must be one block's base, not an address inside it or one that
+two blocks share; a name the build already owns stays the build's, and
+the load says which alias it skipped. Aliases exist only in the merged
+table -- they need the build and the device file -- and are rebuilt with
+it; the sidecar never holds one. The firmware side is one line with
+external linkage: a `static const` pointer is folded away by the optimizer
+and never reaches the ELF.
 
 ## Your own converter, as a plugin
 
@@ -268,6 +301,9 @@ the addresses and files listed, so you can pick one or type the address.
 | `access`  | no       | `rw` / `ro` / `wo`; absent = the section's (`ro` for `text` and `rodata`, else `rw`) |
 | `rmw`     | no       | `false` forbids bit and mask writes (W1C / self-clearing registers)             |
 | `space`   | no       | Reserved for Harvard parts                                                     |
+| `value`   | no       | A constant's initializer as the build holds it (a number); the ELF converter writes it for every `const` scalar |
+| `pointee` | no       | For a pointer constant, what it points at: `scalar`, `struct` or `other`       |
+| `alias_of`| no       | The register this name stands for; set on the aliases the load derives          |
 
 `recipe` and `witness` are written by `/sym.import` and drive the staleness
 check below; both are optional, and a table without them is fine.

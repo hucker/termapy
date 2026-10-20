@@ -23,6 +23,9 @@ File shape (``<cfg_dir>/sym/<cfg_stem>.symbols.json``, see :func:`sidecar_path`)
       "symbols": [
         {"name": "gTemp", "addr": "0x00001000", "size": 2,
          "section": "bss", "file": "sensor.c", "type": "u16"},
+        {"name": "pUart", "addr": "0x00003204", "size": 4,
+         "section": "rodata", "type": "u32", "value": 3213713408,
+         "pointee": "struct"},
         {"name": "U1STA", "addr": "0xBF806010", "size": 4,
          "section": "sfr", "type": "u32", "rmw": false}
       ]
@@ -32,6 +35,14 @@ A symbol with no ``access`` takes its section's (:func:`section_access`):
 code and constants are read-only, everything else read-write, so a map
 converter, a hand-written table and a file written before the rule all
 read the same way.  The file stores ``access`` only where it differs.
+
+``value`` is a constant's initializer as the build holds it -- the ELF
+converter reads it for every ``const`` scalar
+(:mod:`termapy.symbols.converters.elf`); ``pointee`` says what a pointer
+constant points at (``scalar``, ``struct``, ``other``); ``alias_of`` marks
+a register's second name, derived at load from a pointer constant to a
+block (:func:`termapy.devices.alias_blocks`).  All three are optional and
+absent on a variable.
 
 ``recipe`` and ``witness`` are the provenance pair, both optional and both
 written by ``/sym.import``: the witness answers "is this stale", the recipe
@@ -105,6 +116,9 @@ _HEX_ADDR_RE: Final = re.compile(r"^0[xX][0-9a-fA-F]+$")
 # The one access vocabulary, shared with device files and regions.
 ACCESS_MODES: Final[tuple[str, ...]] = ("rw", "ro", "wo")
 
+# What a pointer constant points at (``Symbol.pointee``).
+POINTEES: Final[tuple[str, ...]] = ("scalar", "struct", "other")
+
 # Sections a running program cannot write: its code and its constants.
 _READ_ONLY_SECTIONS: Final[frozenset[str]] = frozenset({"text", "rodata"})
 
@@ -163,6 +177,18 @@ class Symbol:
         read_effect: True when a READ changes device state -- a FIFO data
             register pops, a status register clears its flags -- so a
             dump or an auto-refreshing view must not read it casually.
+        value: A constant's value as the build holds it, read by the ELF
+            converter from the bytes a ``const`` scalar loads: a count, a
+            pin number, an enumerator, the address a pointer holds.  None =
+            not a constant.  Never a variable's current value.
+        pointee: For a pointer constant, what it points at: ``scalar``
+            (one value), ``struct`` (a block -- the alias rule's trigger)
+            or ``other`` (void, a function, an array ...).  Empty = not a
+            pointer.
+        alias_of: The register this symbol is another name for.  Set on
+            the aliases the session derives (a pointer constant whose value
+            is a peripheral's base names its registers); such a symbol
+            copies the register's address, size, type and safety trio.
     """
 
     name: str
@@ -175,6 +201,9 @@ class Symbol:
     rmw: bool = True
     access: str = ""
     read_effect: bool = False
+    value: int | float | None = None
+    pointee: str = ""
+    alias_of: str = ""
 
     def __post_init__(self) -> None:
         """Resolve an unstated access to the section's, on every construction path."""
@@ -202,7 +231,7 @@ class Symbol:
             "addr": f"0x{self.addr:0{hex_digits(address_bits)}X}",
             "size": self.size,
         }
-        for key in ("section", "file", "type", "space"):
+        for key in ("section", "file", "type", "space", "pointee", "alias_of"):
             value = getattr(self, key)
             if value:
                 out[key] = value
@@ -212,6 +241,8 @@ class Symbol:
             out["access"] = self.access
         if self.read_effect:
             out["read_effect"] = True
+        if self.value is not None:
+            out["value"] = self.value
         return out
 
     @classmethod
@@ -239,12 +270,19 @@ class Symbol:
         if isinstance(size, bool) or not isinstance(size, int) or size < 0:
             raise ValueError(f"{where}.size: expected a non-negative integer")
         texts: dict[str, str] = {}
-        for key in ("section", "file", "type", "space"):
+        for key in ("section", "file", "type", "space", "pointee", "alias_of"):
             value = raw.get(key, "")
             if not isinstance(value, str):
                 raise ValueError(f"{where}.{key}: expected a string")
             texts[key] = value
         check_type(texts["type"], where)
+        if texts["pointee"] and texts["pointee"] not in POINTEES:
+            raise ValueError(f"{where}.pointee: expected one of {', '.join(POINTEES)}")
+        constant = raw.get("value")
+        if constant is not None and (
+            isinstance(constant, bool) or not isinstance(constant, (int, float))
+        ):
+            raise ValueError(f"{where}.value: expected a number")
         flags: dict[str, bool] = {}
         for key, default in (("rmw", True), ("read_effect", False)):
             value = raw.get(key, default)
@@ -263,6 +301,9 @@ class Symbol:
             rmw=flags["rmw"],
             access=access,
             read_effect=flags["read_effect"],
+            value=constant,
+            pointee=texts["pointee"],
+            alias_of=texts["alias_of"],
         )
 
 
@@ -450,6 +491,11 @@ class SymbolTable:
         # own files and must not be written back into the build's sidecar,
         # where the next /sym.import would have to preserve them.
         self.devices: list[Any] = []
+        # The block aliases derived from those devices and the build's
+        # pointer constants (``devices.BlockAlias``), for ``/sym.info``.
+        # Session state like ``devices``: the alias symbols themselves are
+        # in ``symbols``, never serialized.
+        self.aliases: list[Any] = []
 
     def __len__(self) -> int:
         return len(self.symbols)

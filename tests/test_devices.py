@@ -16,6 +16,7 @@ import termapy
 from termapy.config import cfg_data_dir
 from termapy.devices import (
     Field,
+    alias_blocks,
     config_library_dir,
     derive_type,
     device_dir,
@@ -459,6 +460,129 @@ class TestMerge:
         # Assert
         assert [symbol.addr for symbol in merged] == [0x2000], "the user's own symbol stays"
         assert shadowed == ["CTRL"], "and the shadowed register is named"
+
+
+# ── Aliases from the build ──────────────────────────────────────────────────
+
+_PORTS = _doc(
+    device="mcu",
+    registers=[
+        {"name": "PORTC_DIR", "addr": "0x41008080", "size": 4, "peripheral": "PORTC"},
+        {
+            "name": "PORTC_OUT",
+            "addr": "0x41008090",
+            "size": 4,
+            "peripheral": "PORTC",
+            "access": "wo",
+            "read_effect": True,
+            "rmw": False,
+            "fields": [{"name": "P4", "bit": 4}],
+        },
+        {"name": "PORTD_DIR", "addr": "0x41008100", "size": 4, "peripheral": "PORTD"},
+    ],
+)
+
+
+def _pointer(name: str = "SPI_PORT", value: int = 0x41008080, pointee: str = "struct") -> Symbol:
+    """A build constant as the ELF converter records a pointer to a block."""
+    return Symbol(name, 0x3000, 4, "rodata", type="u32", value=value, pointee=pointee)
+
+
+def _aliases(build: list[Symbol], devices: list) -> tuple[list[Symbol], list, list[str]]:
+    """Merge, then derive: what the session does with a build and its devices."""
+    merged, _ = merge_into(build, devices)
+    return alias_blocks(merged, devices)
+
+
+class TestAliasBlocks:
+    def test_a_pointer_to_a_block_names_its_registers(self):
+        """alias-from-pointer-constant: SPI_PORT at PORTC's base gives SPI_PORT_DIR and SPI_PORT_OUT, nothing of PORTD."""
+        # Act
+        aliases, blocks, notes = _aliases([_pointer()], [parse_device(_PORTS)])
+
+        # Assert
+        assert [(a.name, a.alias_of, a.addr) for a in aliases] == [
+            ("SPI_PORT_DIR", "PORTC_DIR", 0x41008080),
+            ("SPI_PORT_OUT", "PORTC_OUT", 0x41008090),
+        ]
+        assert [(b.name, b.block, b.device, b.base, b.count) for b in blocks] == [
+            ("SPI_PORT", "PORTC", "mcu", 0x41008080, 2)
+        ]
+        assert notes == []
+
+    def test_an_alias_keeps_the_registers_safety_trio_and_type(self):
+        """alias-from-pointer-constant: the copy differs from the register in name and alias_of only."""
+        # Act
+        aliases, _, _ = _aliases([_pointer()], [parse_device(_PORTS)])
+        alias = next(a for a in aliases if a.name == "SPI_PORT_OUT")
+
+        # Assert
+        actual = (alias.access, alias.read_effect, alias.rmw, alias.type, alias.size, alias.section)
+        assert actual == ("wo", True, False, "P4:B.4", 4, "sfr"), (
+            "a wo register stays wo under its alias"
+        )
+
+    def test_a_pointer_to_one_word_is_not_an_alias(self):
+        """alias-from-pointer-constant: a pointer to a register (pointee scalar) is a value, not a block name."""
+        # Act
+        actual = _aliases([_pointer(pointee="scalar")], [parse_device(_PORTS)])
+
+        # Assert
+        assert actual == ([], [], [])
+
+    def test_a_value_at_no_base_is_not_an_alias(self):
+        """alias-from-pointer-constant: PORTC_OUT's address is inside the block but not its base; nothing, silently."""
+        # Act
+        aliases, _, notes = _aliases([_pointer(value=0x41008090)], [parse_device(_PORTS)])
+
+        # Assert
+        assert (aliases, notes) == ([], [])
+
+    def test_a_base_two_blocks_share_is_refused_and_said(self):
+        """alias-from-pointer-constant: two files place a block at one address: no guess, one note naming both."""
+        # Arrange
+        twin = parse_device(
+            _doc(device="fpga", registers=[{"name": "CTRL", "addr": "0x41008080", "size": 4}])
+        )
+
+        # Act
+        aliases, _, notes = _aliases([_pointer()], [parse_device(_PORTS), twin])
+
+        # Assert
+        assert aliases == []
+        assert notes == ["SPI_PORT: 0x41008080 is the base of fpga/fpga, mcu/PORTC; no alias"]
+
+    def test_a_taken_name_keeps_its_owner_and_is_said(self):
+        """alias-from-pointer-constant: the build already has SPI_PORT_DIR; that alias is skipped and said, the other made."""
+        # Arrange
+        build = [_pointer(), Symbol("SPI_PORT_DIR", 0x1000, 4, "bss")]
+
+        # Act
+        aliases, blocks, notes = _aliases(build, [parse_device(_PORTS)])
+
+        # Assert
+        assert [a.name for a in aliases] == ["SPI_PORT_OUT"]
+        assert notes == ["SPI_PORT: SPI_PORT_DIR is taken; no alias for PORTC_DIR"]
+        assert blocks[0].count == 1, "the block record counts what was actually aliased"
+
+    def test_an_instance_block_strips_the_instance_prefix(self):
+        """A relocatable part placed as ADC1: a pointer to its base names ADC1_STATUS as BUS_STATUS."""
+        # Arrange
+        part = parse_device(
+            _doc(
+                device="adc",
+                relocatable=True,
+                instances=[{"name": "ADC1", "base": "0x60000000"}],
+                registers=[{"name": "STATUS", "addr": "0x00", "size": 1}],
+            )
+        )
+
+        # Act
+        aliases, blocks, _ = _aliases([_pointer("BUS", 0x60000000)], [part])
+
+        # Assert
+        assert [(a.name, a.alias_of) for a in aliases] == [("BUS_STATUS", "ADC1_STATUS")]
+        assert blocks[0].block == "ADC1"
 
 
 # ── Peripheral space ────────────────────────────────────────────────────────

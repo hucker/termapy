@@ -6,7 +6,9 @@ writes them:
 - ``"build"``   -- the sidecar table (what ``/sym.import`` produced), or None
 - ``"devices"`` -- the loaded device files (:mod:`termapy.devices`)
 - ``"table"``   -- the MERGED view every lookup uses: build symbols plus
-  device registers, the build winning a name clash
+  device registers, the build winning a name clash, plus the aliases a
+  pointer constant in the build gives a block's registers
+  (:func:`termapy.devices.alias_blocks`)
 
 :func:`install_build` and :func:`install_devices` each replace one input
 and rebuild the merged view, so ``/sym.import``, ``/sym.load``,
@@ -78,8 +80,8 @@ def _install(
     build: SymbolTable | None,
     devices: list[Device],
 ) -> SymbolTable | None:
-    """The single writer.  Merges, installs, reports shadowed registers."""
-    merged, shadowed = _merge(build, devices)
+    """The single writer.  Merges, installs, reports shadowed registers and skipped aliases."""
+    merged, shadowed, notes = _merge(build, devices)
     ns = ctx.ns(SYMBOLS_NS)
     ns.clear()
     ns["build"] = build
@@ -91,24 +93,32 @@ def _install(
             f"Symbols: build symbol {name} shadows the device register of the same name",
             "yellow",
         )
+    for note in notes:
+        ctx.io.output(f"Symbols: {note}", "yellow")
     return merged
 
 
 def _merge(
     build: SymbolTable | None,
     devices: list[Device],
-) -> tuple[SymbolTable | None, list[str]]:
-    """Build plus devices -> the merged table, and the shadowed names.
+) -> tuple[SymbolTable | None, list[str], list[str]]:
+    """Build plus devices -> the merged table, the shadowed names, the alias notes.
 
     With no devices the build table is returned AS IS -- same object, so
     nothing that was true of it (path, provenance) changes.  A table made
     from devices alone carries no source, recipe or witness: it derives
     from no build, so there is nothing to be stale against.
+
+    The aliases need both halves -- a pointer constant from the build, a
+    block at its value from a device -- so they exist only in the merged
+    view and are rebuilt with it; the sidecar never holds one.
     """
     if not devices:
-        return build, []
+        return build, [], []
     base = list(build.symbols) if build is not None else []
     symbols, shadowed = devices_mod.merge_into(base, devices)
+    aliases, blocks, notes = devices_mod.alias_blocks(symbols, devices)
+    symbols = [*symbols, *aliases]
     if build is None:
         merged = SymbolTable(symbols)
     else:
@@ -124,7 +134,8 @@ def _merge(
             witness=build.witness,
         )
     merged.devices = list(devices)
-    return merged, shadowed
+    merged.aliases = blocks
+    return merged, shadowed, notes
 
 
 def autoload(

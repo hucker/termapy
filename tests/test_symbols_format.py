@@ -121,6 +121,9 @@ class TestSymbolRecord:
             "rmw": True,
             "access": "ro",
             "read_effect": False,
+            "value": None,
+            "pointee": "",
+            "alias_of": "",
         }
         assert actual == expected, (
             "int and hex addr side by side; every key present; code is read-only by its section"

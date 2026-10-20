@@ -75,6 +75,10 @@ _TYPES = [
     ("gName", "u8", "u8"),
     ("gDeclared", "u32", "u32"),
     ("gSink", "u32", "u64"),
+    ("kSpiSckPin", "u8", "u8"),
+    ("kTrim", "i16", "i16"),
+    ("kLevel", "u8", "u32"),
+    ("SPI_PORT", "u32", "u64"),
 ]
 
 
@@ -182,6 +186,65 @@ class TestStructs:
 
         # Assert
         assert "ready" not in names and "level" not in names
+
+
+# ── constants ───────────────────────────────────────────────────────────────
+
+# (name, value): the C initializer each const scalar carries, in both builds.
+_VALUES = [
+    ("kSpiSckPin", 4),
+    ("kTrim", -7),
+    ("kGain", 0.1),
+    ("kLevel", 1),
+    ("SPI_PORT", 0x41008080),
+    ("SPI_DIR", 0x41008080),
+]
+
+
+class TestConstants:
+    @pytest.mark.parametrize(("name", "expected"), _VALUES, ids=[row[0] for row in _VALUES])
+    def test_a_const_scalar_carries_its_initializer(self, xc32, clang, name, expected):
+        """elf-values-const-only: the bytes the file loads, decoded by the DWARF type, in both builds."""
+        # Act / Assert
+        assert (xc32[name].value, clang[name].value) == (expected, expected)
+
+    def test_a_variable_never_carries_a_value(self, xc32):
+        """elf-values-const-only: gU16 is initialized to 0x1234, but a variable's bytes are not its value."""
+        # Act
+        actual = [xc32[name].value for name in ("gU16", "gPtr", "gConfig", "gName")]
+
+        # Assert
+        assert actual == [None] * 4, "only a const object has a value"
+
+    def test_a_const_array_has_no_value_yet(self, xc32):
+        """elf-values-const-only: kTable is const but an array; tables are a later step."""
+        # Act / Assert
+        assert xc32["kTable"].value is None
+
+    def test_a_float_reads_at_its_own_precision(self, xc32):
+        """0.1f is 0.100000001490116 as a double; the value reads back as the 0.1 that was written."""
+        # Act / Assert
+        assert xc32["kGain"].value == 0.1
+
+    def test_a_pointer_constant_says_what_it_points_at(self, xc32, clang):
+        """A pointer to a struct is a block (the alias trigger), to a word a scalar; a number is no pointer."""
+        # Act
+        actual = [
+            (table["SPI_PORT"].pointee, table["SPI_DIR"].pointee, table["kSpiSckPin"].pointee)
+            for table in (xc32, clang)
+        ]
+
+        # Assert
+        assert actual == [("struct", "scalar", "")] * 2
+
+    def test_no_debug_info_no_values(self):
+        """elf-values-const-only: without DWARF a const is an address and a size, never a value."""
+        # Act
+        bare = _symbols(NODEBUG)
+
+        # Assert
+        actual = [(bare[name].value, bare[name].pointee) for name, _ in _VALUES]
+        assert actual == [(None, "")] * len(_VALUES)
 
 
 # ── the symbol table ────────────────────────────────────────────────────────

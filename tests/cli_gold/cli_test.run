@@ -170,6 +170,7 @@ $(BAUD) <- /port.baud_rate
 /sym U1MODE.ON
 /sym nosuch
 /sym.search g*
+/sym.search mon
 /sym.search ^Mon
 /sym.search zzz
 /sym.import nosuch.map

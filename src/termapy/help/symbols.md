@@ -212,7 +212,7 @@ build symbol with the same name wins, with a warning.
 | `/sym.import {file} {format=<value>}` | `/sym.import build/mem.map` | Convert a linker map to the sidecar and load it (bare: re-import the same map) |
 | `/sym.load {path}`                 | `/sym.load`                 | Reload the sidecar, or load an explicit file            |
 | `/sym.unload`                      | `/sym.unload`               | Clear the loaded table (file untouched)                 |
-| `/sym.search <pattern>`            | `/sym.search Mon*`          | Search names: exact, glob, regex, or substring          |
+| `/sym.search <pattern>`            | `/sym.search Mon*`          | Search names: the exact name, else contains or a glob   |
 | `/sym.info`                        | `/sym.info`                 | File, source, counts by section, address range, regions |
 
 `/sym` returns the *other* representation as its value: `$(A) <- /sym gTemp`

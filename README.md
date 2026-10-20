@@ -260,7 +260,7 @@ The most common ones:
 | `/sym.import {file} {format=<value>}` | Convert an ELF or a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same file) |
 | `/sym.info`                          | Show the loaded symbol table: file, source, counts by section, range          |
 | `/sym.load {path}`                   | Load a symbol table (default: the cfg sidecar `/sym.import` writes)           |
-| `/sym.search <pattern>`              | Search symbols by name: exact, glob, regex, or substring                      |
+| `/sym.search <pattern>`              | Search symbols by name: the exact name, else a name pattern (`gpio`, `Mon*`)  |
 | `/sym.unload`                        | Clear the loaded symbol table                                                 |
 | `/dev.import <file> {format=<value>} {category=<value>} {to=<value>} {use=on\|off}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
 | `/dev.lib {pattern}`                 | List the parts the libraries hold (available, not loaded), with their layer  |

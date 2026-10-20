@@ -509,13 +509,22 @@ class TestSymbolTableSearch:
         assert any(symbol.name == "MonGpio" for symbol in matches), "glob Mon* finds MonGpio"
         assert not any(symbol.name == "main" for symbol in matches), "glob Mon* is anchored"
 
-    def test_regex_anchor(self, table):
-        """A ^-led pattern is treated as a regular expression."""
+    def test_a_regex_is_plain_text(self, table):
+        """name-one-matcher: search reads no regex, so ^Mon is text no name contains (Mon* is the glob)."""
         # Act
         matches = table.search("^Mon")
 
         # Assert
-        assert [symbol.name for symbol in matches] == ["MonGpio"], "regex ^Mon finds MonGpio only"
+        assert matches == [], "^ is an ordinary character in a name pattern"
+
+    def test_a_bracket_is_a_glob_class(self, table):
+        """name-one-matcher: [gm]* is a glob class, anchored, case ignored."""
+        # Act
+        names = {symbol.name for symbol in table.search("[gm]*")}
+
+        # Assert
+        assert {"main", "MonGpio", "gTemp"} <= names, "every name starting g or m"
+        assert all(name[0].lower() in "gm" for name in names), "nothing else"
 
     def test_exact_first(self):
         """An exact name hit returns only that symbol, not its substring matches."""

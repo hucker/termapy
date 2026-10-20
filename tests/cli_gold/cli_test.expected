@@ -578,9 +578,11 @@ demo> /sym.search g*
     0x00001002  gPressure  [bss 4 bytes sensor.c]
     0x00001008  gFlags  [data 4 bytes main.c]
   [113/219] /sym.search g* (454us)
-demo> /sym.search ^Mon
+demo> /sym.search mon
     0x00002200  MonGpio  [code 776 bytes mon.c]
-  [114/219] /sym.search ^Mon (163us)
+  [114/219] /sym.search mon (163us)
+demo> /sym.search ^Mon
+  No symbols matching '^Mon'
 demo> /sym.search zzz
   No symbols matching 'zzz'
   [115/219] /sym.search zzz (141us)
@@ -1161,8 +1163,8 @@ DESCRIPTION
     name.<bit>     a bit, slice or field (see /help mem); an exact symbol
                    name wins, so count.12 is the symbol count.12
   
-  Search forms (/sym.search): exact name, glob (*main*, Mon*), regex
-  (^Mon), or a case-insensitive substring.
+  Search forms (/sym.search): the exact name first, else a name
+  pattern: plain text is contained (gpio), a wildcard globs (Mon*).
   
   Commands:
     /sym <addr|name>        - name -> address, or address -> name+offset
@@ -1180,7 +1182,7 @@ SUBCOMMANDS
   /sym.import    Convert an ELF or a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same file).
   /sym.info      Show the loaded symbol table: file, source, counts by section, address range.
   /sym.load      Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
-  /sym.search    Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.
+  /sym.search    Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
   /sym.unload    Clear the loaded symbol table.
   [173/219] /help sym (6.65ms)
 demo> /help mem
@@ -1309,7 +1311,7 @@ SEE ALSO
   /profile.info, /profile.load, /profile.unload, /profile.validate, /profile
 demo> /help sym.search
 NAME
-  /sym.search - Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.
+  /sym.search - Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
 
 SYNOPSIS
   /sym.search <pattern>

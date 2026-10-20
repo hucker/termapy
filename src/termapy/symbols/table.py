@@ -59,6 +59,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any, Final
 
 from termapy import folders
+from termapy.matching import matches
 
 SYMBOLS_VERSION: Final[int] = 1
 
@@ -509,37 +510,24 @@ class SymbolTable:
         ]
 
     def search(self, pattern: str) -> list[Symbol]:
-        """Search symbols by name: exact, then glob/regex, then substring.
+        """Search symbols by name: the exact name first, else a name pattern.
 
-        Supports glob wildcards (``*main*``, ``Mon*``), regex patterns
-        (``^Mon``, ``SERCOM[0-4]``), and plain substring matching.
+        An exact, case-sensitive name answers with just that name's
+        symbols (one name can sit in several files).  Otherwise the
+        pattern reads as every name filter does (registry
+        ``name-one-matcher``): plain text contains (``gpio``), a
+        wildcard makes an anchored glob (``Mon*``, ``SERCOM[0-4]*``).
 
         Args:
-            pattern: Exact name, glob/regex pattern, or substring.
+            pattern: An exact name or a name pattern.
 
         Returns:
             List of matching symbols, sorted by address.
         """
-        # 1. Exact match
         exact = [symbol for symbol in self.symbols if symbol.name == pattern]
         if exact:
             return exact
-        # 2. Convert glob-style wildcards to regex, then try as regex
-        rx_str = pattern
-        if "*" in pattern or "?" in pattern:
-            # Glob -> regex: escape everything except * and ?
-            rx_str = re.escape(pattern).replace(r"\*", ".*").replace(r"\?", ".")
-            rx_str = f"^{rx_str}$"
-        try:
-            rx = re.compile(rx_str, re.IGNORECASE)
-            matches = [symbol for symbol in self.symbols if rx.search(symbol.name)]
-            if matches:
-                return matches
-        except re.error:
-            pass
-        # 3. Plain substring fallback
-        lowered = pattern.lower()
-        return [symbol for symbol in self.symbols if lowered in symbol.name.lower()]
+        return [symbol for symbol in self.symbols if matches(symbol.name, pattern)]
 
     def stats(self) -> dict[str, int]:
         """Return symbol counts by section."""

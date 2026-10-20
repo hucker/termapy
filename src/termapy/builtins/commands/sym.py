@@ -14,7 +14,7 @@ Subcommands:
   a linker map) to ``sym/<cfg>.symbols.json`` and load it.
 - ``/sym.load {path}`` -- load the sidecar (default) or an explicit file.
 - ``/sym.unload`` -- clear the loaded table.
-- ``/sym.search <pattern>`` -- exact, glob, regex, or substring.
+- ``/sym.search <pattern>`` -- the exact name, else a name pattern.
 - ``/sym.info`` -- file, source, counts by section, address range.
 """
 
@@ -333,7 +333,7 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
-    """Search symbol names: exact, glob, regex, or substring."""
+    """Search symbol names: the exact name, else a name pattern (``SymbolTable.search``)."""
     # Hand-rolled: trivial single-arg (CLAUDE.md rates the migration
     # net-zero); a params positional would render <pattern> identically.
     pattern = args.strip()
@@ -397,8 +397,8 @@ _GRAMMAR_HELP: Final[str] = (
     "  name.<bit>     a bit, slice or field (see /help mem); an exact symbol\n"
     "                 name wins, so count.12 is the symbol count.12\n"
     "\n"
-    "Search forms (/sym.search): exact name, glob (*main*, Mon*), regex\n"
-    "(^Mon), or a case-insensitive substring.\n"
+    "Search forms (/sym.search): the exact name first, else a name\n"
+    "pattern: plain text is contained (gpio), a wildcard globs (Mon*).\n"
     "\n"
     "Commands:\n"
     "  /sym <addr|name>        - name -> address, or address -> name+offset\n"
@@ -471,7 +471,7 @@ COMMAND = Command(
         ),
         "search": Command(
             args="<pattern>",
-            help="Search symbols by name: exact, glob (*main*), regex (^Mon), or substring.",
+            help="Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).",
             handler=_handler_search,
             needs=CapabilitySet(symbols_loaded=True),
         ),

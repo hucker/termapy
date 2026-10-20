@@ -169,6 +169,10 @@
   `NAME=value` lines; a script reads one variable with `$(env.NAME)`.
 - `/port.chip.list high` lists the high-speed chips, as its help always
   said: the pattern now reads the speed as well as the model.
+- `/sym.search` still shows an exact name alone first, and otherwise reads
+  the same patterns. Its regex mode is gone: `^Mon` is now `Mon*`, and
+  `SERCOM[0-4]` matches only those five names (`SERCOM[0-4]*` for their
+  registers).
 
 ## 0.78.0 (2026-10-17)
 

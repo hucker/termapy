@@ -2294,8 +2294,15 @@ class ReplEngine:
         return result
 
     @contextmanager
-    def _script_session(self, path, w, dispatch, profile, verbose, progress, on_nest):
+    def _script_session(self, path, w, dispatch, profile, verbose, echo, progress, on_nest):
         """Context manager for script lifecycle - setup, yield, teardown."""
+        # --echo overrides the force-off that start_script applied for the
+        # outermost run, so the body echoes each command; the restore
+        # below still puts the user's interactive value back.  Outermost
+        # only (depth 1 after start_script's increment); a nested /run
+        # inherits whatever is in effect.
+        if echo and self._script_depth == 1:
+            self.ctx.ns("flags")["echo_repl"] = True
         sctx = ScriptCtx(
             w=w,
             dispatch_fn=dispatch,
@@ -2364,6 +2371,7 @@ class ReplEngine:
         progress: Callable[[int, int], None] | None = None,
         on_nest: Callable[[], None] | None = None,
         verbose: bool = False,
+        echo: bool = False,
     ) -> None:
         """Execute a script file line by line (call from a background thread).
 
@@ -2375,6 +2383,10 @@ class ReplEngine:
             progress: Callback for progress updates (step, total).
             on_nest: Callback when a nested script starts.
             verbose: Show per-command timing output.
+            echo: Echo each slash-command line as it runs, as if typed at
+                the prompt (``/run --echo``).  Overrides the default of
+                forcing ``echo_repl`` off for a script, for this run only;
+                the user's interactive value is restored when it ends.
         """
         w = write or self.write
         # The frontend may hand the run to a different thread than the one
@@ -2383,7 +2395,9 @@ class ReplEngine:
         # thread that actually executes, so a nested /run is recognized as
         # nesting and any other thread's launch is refused.
         self._script_owner = threading.get_ident()
-        with self._script_session(path, w, dispatch, profile, verbose, progress, on_nest) as sctx:
+        with self._script_session(
+            path, w, dispatch, profile, verbose, echo, progress, on_nest
+        ) as sctx:
             for step, raw_line in enumerate(sctx.lines, 1):
                 if self._script_stop.is_set():
                     w("Script stopped.")

@@ -206,7 +206,7 @@ The most common ones:
 | `/ss.list`                           | List screenshots, newest first, with size and age                             |
 | `/ss.explore`                        | Open the screenshot folder in the system file explorer                        |
 | `/cls`                               | Clear the terminal screen                                                     |
-| `/run {filename}`                    | Open Run picker (bare TUI), list scripts (bare CLI), or run; nests 5 deep     |
+| `/run {filename}`                    | Open Run picker (bare TUI), list scripts (bare CLI), or run; nests 5 deep; `--echo` shows each command line as it runs |
 | `/run.list`                          | List .run files in run/, newest first, with size, age, and summary            |
 | `/run.rename <old> <new>`            | Rename a script (`.run` kept; never overwrites)                               |
 | `/run.help`                          | Same as `/help run`                                                           |

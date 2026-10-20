@@ -3746,6 +3746,7 @@ class SerialTerminal(TerminalHost, App):
         path: Path,
         profile: bool = False,
         verbose: bool = False,
+        echo: bool = False,
     ) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator).
 
@@ -3767,6 +3768,7 @@ class SerialTerminal(TerminalHost, App):
                 dispatch=self._dispatch_single,
                 profile=profile,
                 verbose=verbose,
+                echo=echo,
                 progress=_progress,
                 on_nest=_on_nest,
             )

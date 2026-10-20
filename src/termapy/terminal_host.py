@@ -176,6 +176,7 @@ class TerminalHost:
         path: Path,
         profile: bool = False,
         verbose: bool = False,
+        echo: bool = False,
     ) -> None:
         """Run a .run script through the REPL engine (default: synchronous).
 
@@ -196,6 +197,7 @@ class TerminalHost:
                 dispatch=self.ctx.dispatch,
                 profile=profile,
                 verbose=verbose,
+                echo=echo,
             )
         except KeyboardInterrupt:
             self.status("Script interrupted", "red")
@@ -450,8 +452,8 @@ class TerminalHost:
             # synchronous TerminalHost._run_script, TUI overrides with
             # @work(thread=True).
             start_script=lambda args: self.repl.start_script(args),
-            run_script=lambda path, profile=False, verbose=False: self._run_script(
-                path, profile=profile, verbose=verbose
+            run_script=lambda path, profile=False, verbose=False, echo=False: self._run_script(
+                path, profile=profile, verbose=verbose, echo=echo
             ),
             # Which file this frontend's session log is: one owner, the
             # host's session_log_path (registry session-log-one-owner).

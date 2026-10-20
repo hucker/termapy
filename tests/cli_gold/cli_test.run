@@ -170,6 +170,7 @@ $(BAUD) <- /port.baud_rate
 /sym U1MODE.ON
 /sym nosuch
 /sym.search g*
+/sym.search mon
 /sym.search ^Mon
 /sym.search zzz
 /sym.import nosuch.map
@@ -293,10 +294,11 @@ MEM.M 0x1000 F0 05 --json
 
 # ── REPL: environment variables ─────────────────────────────────────────────
 /print === section: env vars ===
-/env.set TEST_VAR hello_world
-/env.list TEST_VAR
-/env.set TEST_VAR updated
-/env.list TEST_VAR
+/env.set TERMAPY_GOLD_VAR hello_world
+/env.list TERMAPY_GOLD_VAR
+/env.set TERMAPY_GOLD_VAR updated
+/env.list TERMAPY_GOLD_VAR
+/env.list zzz_no_such_*
 
 # ── REPL: error handling ────────────────────────────────────────────────────
 /print === section: errors ===
@@ -369,6 +371,7 @@ MEM.R 0x1000 2 --json
 /print === section: coverage: folders ===
 /run.help at_demo
 /run.legacy at_demo
+/run.legacy zz*
 /edit.run.list
 /run.dump status_check
 /proto
@@ -376,6 +379,7 @@ MEM.R 0x1000 2 --json
 /cfg.file demo_legacy.profile.json
 /dev.list
 /dev.lib
+/dev.lib zzz*
 /dev.use nosuch
 /cap.stop
 /print === section: coverage: protocol ===
@@ -414,3 +418,5 @@ MEM.R 0x1000 2 --json
 /cap.delete
 /cap.delete nosuch.txt
 /cap.delete *
+/run.delete nosuch
+/run.delete *

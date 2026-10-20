@@ -1,20 +1,24 @@
 """Shared folder-operation handlers for per-config data folders.
 
-Every top-level plugin that owns a data folder (run/, proto/, ss/,
-cap/, prof/, viz/, plugin/, or the cfg config dir itself) exposes
-the same uniform subcommand family:
+Every top-level plugin that owns a data folder (run/, proto/, plugin/,
+ss/, cap/, and prof/ as ``/run.profile``) exposes the same uniform
+subcommand family:
 
   - ``list``    -- list files in the folder
   - ``explore`` -- open the folder in the system file explorer
-  - ``show``    -- open the newest file in the system viewer (showable)
+  - ``show``    -- open the newest (or named) file in the system viewer
+                   (showable)
   - ``dump``    -- print the newest (or named) file to the terminal
                    (dumpable)
-  - ``delete``  -- delete one named file, or every file with ``*``
-                   (deletable)
+  - ``rename``  -- rename a file, keeping its extension
+  - ``delete``  -- delete one named file, or in a folder of termapy's own
+                   output every file a pattern matches (generated)
 
-Which of ``show``, ``dump``, ``delete`` are exposed is driven by the
-``showable / dumpable / deletable`` flags on each ``FolderSpec`` in
-``termapy.folders`` -- no per-plugin decision, no duplication.
+Which of ``show`` and ``dump`` exist, and whether ``delete`` takes a
+pattern, is driven by the ``showable / dumpable / generated`` flags on
+each ``FolderSpec`` in ``termapy.folders`` -- no per-plugin decision, no
+duplication.  viz/ has no command family (the proto debug screen loads
+it), and a config folder is not a data folder: ``/cfg`` has its own verbs.
 
 These factories used to live in ``cfg.py``.  They moved here so that
 ``ss.py``, ``cap.py``, ``proto.py``, and the ``/run.*`` hook registrations
@@ -33,6 +37,7 @@ from typing import TYPE_CHECKING, Any
 
 from termapy.config import validate_file_stem
 from termapy.folders import FOLDERS, FolderSpec, default_file_name, ensure_folder
+from termapy.matching import is_glob, matches
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.plugins.views import Column
@@ -345,38 +350,51 @@ def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
     return handler
 
 
-def _make_delete_handler(folder: str, pattern: str, ext: str):
-    """Handler: delete one named file from the folder, or every file with ``*``.
+def _make_delete_handler(folder: str, pattern: str, ext: str, generated: bool):
+    """Handler: delete one named file from the folder, or every file a pattern matches.
 
-    ``*`` asks first where there is someone to ask (the TUI and CLI, as
-    ``/cfg.delete`` does); MCP has asked already, through its destructive
-    gate.  One named file goes without a question.  The value is the count
-    deleted, for either form.
+    A pattern (registry ``name-one-matcher``; ``*`` is every file) works
+    only in a folder of termapy's own output (``generated``); a folder of
+    what someone wrote deletes one named file at a time.  Where there is
+    someone to ask (the TUI and CLI) a pattern asks first, and so does a
+    file someone wrote; one generated file goes without a question.  MCP
+    has asked already, through its destructive gate.  Finding nothing to
+    delete fails, for a pattern as for a name.  The value is the count.
     """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         name = args.strip()
         if not name:
             raise UsageError()
-        if name == "*":
-            files = list_entries(_folder_path(ctx, folder), pattern)
+        if is_glob(name):
+            if not generated:
+                return CmdResult.fail(
+                    msg=f"Invalid name: {name} ({folder}/ deletes one named file at a time)"
+                )
+            files = [
+                file
+                for file in list_entries(_folder_path(ctx, folder), pattern)
+                if matches(file.name, name)
+            ]
             if not files:
-                ctx.io.output(f"  {folder}/ is already empty.")
-                return CmdResult.ok(value="0")
+                return CmdResult.fail(msg=f"No files in {folder}/ match: {name}")
             shown = f"{len(files)} file" if len(files) == 1 else f"{len(files)} files"
-            question = f"Delete every file in {folder}/ ({shown})? This cannot be undone."
-            if ctx.capabilities.confirm_dialog and not ctx.ui.confirm(question):
-                return CmdResult.fail(msg=f"Nothing deleted from {folder}/")
+            question = f"Delete {shown} from {folder}/ ({name})? This cannot be undone."
         else:
             path = _named_file(ctx, folder, ext, name)
             if isinstance(path, CmdResult):
                 return path
             files, shown = [path], path.name
-        for file in files:
-            try:
+            question = "" if generated else f"Delete {shown} from {folder}/? This cannot be undone."
+        if question and ctx.capabilities.confirm_dialog and not ctx.ui.confirm(question):
+            return CmdResult.fail(msg=f"Nothing deleted from {folder}/")
+        try:
+            for file in files:
                 file.unlink()
-            except OSError as e:
-                return CmdResult.fail(msg=f"Delete failed: {e}")
+        except OSError as e:
+            return CmdResult.fail(msg=f"Delete failed: {e}")
+        finally:
+            ctx.internal.folder_changed(folder)
         ctx.io.output(f"  Deleted {shown} from {folder}/.")
         return CmdResult.ok(value=str(len(files)))
 
@@ -525,16 +543,19 @@ def build_folder_subcommands(
             needs=CapabilitySet.CONFIG_LOADED,
             files=folder,
         )
-    if spec.deletable:
-        subs["delete"] = Command(
-            # Hand-rolled like .show and .dump: a positional param's synopsis
-            # is always <name>, and this one takes * too (CLAUDE.md,
-            # "Declarative Command Parameters").
-            args="<name|*>",
-            help=f"Delete a file from {folder}/; * deletes them all, after a yes.",
-            handler=_make_delete_handler(folder, pattern, spec.ext),
-            needs=CapabilitySet.CONFIG_LOADED,
-            files=folder,
-            safety="destructive",
-        )
+    subs["delete"] = Command(
+        # Hand-rolled like .show and .dump: a positional param's synopsis is
+        # always <name>, and a generated folder's takes a pattern too
+        # (CLAUDE.md, "Declarative Command Parameters").
+        args="<name|pattern>" if spec.generated else "<name>",
+        help=(
+            f"Delete a file from {folder}/; a pattern (* for all) deletes its matches, after a yes."
+            if spec.generated
+            else f"Delete a file from {folder}/, after a yes."
+        ),
+        handler=_make_delete_handler(folder, pattern, spec.ext, spec.generated),
+        needs=CapabilitySet.CONFIG_LOADED,
+        files=folder,
+        safety="destructive",
+    )
     return subs

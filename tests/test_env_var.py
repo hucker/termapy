@@ -188,18 +188,20 @@ class TestEnvCommands:
         expected = "connect COM99"
         assert actual == expected, "set var is expanded by transform"
 
-    def test_list_single_var(self):
-        """/env NAME prints NAME=value and returns the bare value for scripts."""
+    def test_plain_text_lists_every_name_containing_it(self):
+        """name-one-matcher: /env list_test lists each name containing it, case ignored."""
         # Arrange
-        ctx, output = self._ctx()
+        ctx, _output = self._ctx()
         _ENV["LIST_TEST"] = "abc"
+        _ENV["MY_LIST_TEST_TWO"] = "d"
 
         # Act
-        result = _handler_list(ctx, "LIST_TEST")
+        result = _handler_list(ctx, "list_test")
 
         # Assert
-        assert any("LIST_TEST=abc" in t for t, _ in output), "var shown"
-        assert result.value == "abc", "value returned for scripting"
+        assert result.data["LIST_TEST"] == "abc", "the exact name is one of the matches"
+        assert result.data["MY_LIST_TEST_TWO"] == "d", "plain text is contained, not exact"
+        assert "LIST_TEST=abc" in result.value.split("\n"), "NAME=value lines for scripting"
 
     def test_list_glob_pattern(self):
         """A glob answers with a name-to-value mapping of only the matches, and NAME=value lines as the value."""
@@ -221,30 +223,18 @@ class TestEnvCommands:
         assert "USER_ALPHA=a" in lines, "glob value includes first match"
         assert "USER_BETA=b" in lines, "glob value includes second match"
 
-    def test_list_glob_no_matches(self):
-        """A glob that matches nothing fails with an error instead of printing nothing."""
+    @pytest.mark.parametrize("pattern", ["ZZ_NO_EXIST_*", "ZZ_NO_EXIST_PLAIN"])
+    def test_a_filter_matching_nothing_is_an_empty_answer(self, pattern):
+        """name-one-matcher: a glob or plain text that matches nothing succeeds with no rows."""
         # Arrange
-        ctx, output = self._ctx()
+        ctx, _output = self._ctx()
 
         # Act
-        result = _handler_list(ctx, "ZZ_NO_EXIST_*")
+        result = _handler_list(ctx, pattern)
 
         # Assert
-        assert not result.success, "handler reports failure"
-        assert "No variables matching" in result.error, "error returned"
-
-    def test_list_unknown_var(self):
-        """Asking for an unset name fails with a not-set error rather than an empty value."""
-        # Arrange
-        ctx, output = self._ctx()
-        _ENV.pop("NOPE_XYZ", None)
-
-        # Act
-        result = _handler_list(ctx, "NOPE_XYZ")
-
-        # Assert
-        assert not result.success, "handler reports failure"
-        assert "not set" in result.error, "error returned"
+        assert result.success, "zero rows is an answer, not an error"
+        assert (result.value, result.data) == ("", {}), "nothing matched"
 
     def test_reload_resets_snapshot(self):
         """/env.reload drops session-only sets and returns the new variable count."""

@@ -38,6 +38,31 @@ finds `v1.2.run`. `.rename` changes the name and never the extension:
 `/run.rename v1.2 v1.3` gives `v1.3.run`. `/edit` needs the extension,
 because its folders hold different types of file.
 
+## Name patterns
+
+A command that filters a list by name reads its pattern one way. Plain
+text lists the names that contain it, and a wildcard makes a glob that
+has to match the whole name. Case never matters. With
+`/proto.crc.list`:
+
+| Pattern       | Lists                                                  |
+| ------------- | ------------------------------------------------------ |
+| `modbus`      | names containing `modbus`: `crc16-modbus`              |
+| `crc16*`      | names starting with `crc16`                            |
+| `crc?-*`      | `?` is any one character: `crc8-...`, not `crc16-...`  |
+| `crc32-[bc]*` | `[bc]` is one of the listed characters                 |
+
+A pattern that matches nothing gives an empty list, not an error. The
+filters are `/env`, `/dev.lib`, `/proto.crc.list`, `/port.chip.list`,
+`termapy --chips` and `/sym.search`, which shows an exact name alone
+before it reads the text as a pattern.
+
+A command that deletes or rewrites files takes a pattern the same way,
+but plain text there is one file's name, and a pattern that matches
+nothing is an error: `/cap.delete adc_*`, `/run.legacy test_*`. Only the
+folders termapy writes (`ss/`, `cap/`, `prof/`) delete by pattern; a
+script or plugin you wrote is deleted one name at a time, after a yes.
+
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/cap`                    | Open the cap/ folder (same as the Cap button and `/cap.explore`)            |
@@ -72,7 +97,7 @@ because its folders hold different types of file.
 | `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given (also `/plugin.edit`) |
 | `/edit.proto {file}`      | Edit a .pro file. Bare: TUI opens the Proto picker, CLI lists (also `/proto.edit`) |
 | `/edit.run {file}`        | Edit a .run script. Bare: TUI opens the Run picker, CLI lists (also `/run.edit`) |
-| `/env.list {pattern}`     | List environment variables (all, by name, or glob)                          |
+| `/env.list {pattern}`     | List environment variables (all, or a [name pattern](#name-patterns))       |
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
 | `/exit`                   | Exit termapy                                                                |
@@ -140,7 +165,7 @@ because its folders hold different types of file.
 | `/proto.crc.detect {<frames>...}` | Name the catalog CRC on a batch of frames' trailing bytes            |
 | `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify the CRC algorithm from a captured packet, or from a trigger's response |
 | `/proto.crc.info <name>`  | Show CRC algorithm parameters and description                               |
-| `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
+| `/proto.crc.list {pat}`   | List CRC algorithms (optional [name pattern](#name-patterns))               |
 | `/proto.crc.reverse {cmd=<trigger> count=<N>} {packet-hex}...` | Recover the Rocksoft parameters of an unknown CRC |
 | `/proto.crc.verify <name> {endian=be\|le} <hex>...` | Verify a packet's trailing CRC against a named algorithm |
 | `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script (bare: Proto picker) |
@@ -156,7 +181,7 @@ because its folders hold different types of file.
 | `/run {file}`             | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
-| `/run.legacy <file\|*>`   | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
+| `/run.legacy <file\|pat>` | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
 | `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |
@@ -171,7 +196,7 @@ because its folders hold different types of file.
 | `/sym.import {file} {format=<value>}` | Convert an ELF or a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same file) |
 | `/sym.info`               | Show the loaded symbol table: file, source, counts by section, range        |
 | `/sym.load {path}`        | Load a symbol table (default: the cfg sidecar `/sym.import` writes)         |
-| `/sym.search <pattern>`   | Search symbols by name: exact, glob, regex, or substring                     |
+| `/sym.search <pattern>`   | Search symbols by name: the exact name, else a [name pattern](#name-patterns) |
 | `/sym.unload`             | Clear the loaded symbol table                                               |
 | `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
 | `/dev.lib {pattern}`      | List the parts the libraries hold (available, not loaded), with their layer |
@@ -234,7 +259,8 @@ family of file subcommands:
 | `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
 | `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | all                            |
 | `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin |
-| `.delete <name\|*>`   | Delete a file; `*` deletes them all, after a yes        | ss, cap, prof (generated output only) |
+| `.delete <name>`      | Delete a file someone wrote, after a yes                | run, proto, plugin             |
+| `.delete <name\|pattern>` | Delete a file, or after a yes every file a [pattern](#name-patterns) matches (`*` for all) | ss, cap, prof (generated output only) |
 
 Examples:
 
@@ -244,5 +270,5 @@ Examples:
 - `/run.show welcome`: open `run/welcome.run` (the extension is optional where the folder has one; `ss/` and `cap/` take the full name)
 - `/ss.list`: list screenshots; in the TUI a click on a name opens that file
 - `/run.rename old.run new`: rename a script (`.run` is kept)
-- `/cap.delete *`: delete every capture file (asks first)
+- `/cap.delete adc_*`: delete the captures whose names start `adc_` (asks first; `*` is every capture)
 - `/run.profile.dump`: print the newest profile CSV to the terminal

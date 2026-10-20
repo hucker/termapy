@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import re
 from typing import TYPE_CHECKING
 
 from termapy.env_flags import env_access_blocked
 from termapy.help_dynamic import compose, green
+from termapy.matching import matches
 from termapy.plugins import CmdResult, Column, Command, Transform, UsageError
 
 if TYPE_CHECKING:
@@ -68,28 +68,21 @@ def _cli_transform(text: str) -> str:
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List environment variables available for $(env.NAME) expansion.
 
-    With no arguments, lists all captured variables (sorted).
-    With a glob pattern (e.g. USER*), lists matching variables.
-    With an exact name, shows that single variable's value.
+    With no arguments, lists all captured variables (sorted).  A name
+    pattern filters them (registry ``name-one-matcher``): ``path`` lists
+    every name containing it, ``USER*`` is a glob, and none matching is
+    an empty table.  A script reads one value with ``$(env.NAME)``.
 
     Args:
         ctx: Plugin context for output.
-        args: Optional variable name or glob pattern to filter by.
+        args: Optional name pattern to filter by.
     """
     if env_access_blocked():
         return CmdResult.fail(msg=_MCP_BLOCKED_MSG)
     pattern = args.strip()
-    if pattern and not any(c in pattern for c in "*?[]"):
-        val = _ENV.get(pattern)
-        if val is not None:
-            ctx.io.output(f"  {pattern}={val}")
-            return CmdResult.ok(value=val)
-        return CmdResult.fail(msg=f"Environment variable not set: {pattern}")
-    # A list answer (registry list-one-format): every variable, or the glob's.
-    # The data is the name -> value mapping, so a consumer looks a name up.
-    names = sorted(name for name in _ENV if not pattern or fnmatch.fnmatch(name, pattern))
-    if pattern and not names:
-        return CmdResult.fail(msg=f"No variables matching: {pattern}")
+    # A list answer (registry list-one-format).  The data is the
+    # name -> value mapping, so a consumer looks a name up.
+    names = sorted(name for name in _ENV if matches(name, pattern))
     records = [{"name": name, "value": _ENV[name]} for name in names]
     return CmdResult.table(
         "Environment snapshot",
@@ -161,7 +154,7 @@ Syntax:
 
 Commands:
   /env.list              - list all captured variables
-  /env.list PATH         - show a single variable's value
+  /env.list path         - the names containing path (USER* globs)
   /env.set PORT COM7     - set a session-scoped variable
   /env.reload            - re-snapshot from OS environment"""
 

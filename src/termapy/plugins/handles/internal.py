@@ -170,6 +170,11 @@ class InternalHandle:
     # (review 2026-10-15, D5); gated by the file_editor capability.
     edit_file: Callable = lambda path: None
 
+    # folder_changed(folder) -> None: a command just removed files from a
+    # data folder (a folder's /<name>.delete).  The TUI refreshes the file
+    # counts its folder buttons show; nothing else has any to refresh.
+    folder_changed: Callable = lambda folder: None
+
     xfer_cancel: Any = None  # threading.Event - Escape cancels a transfer
 
     # open_picker(name, one of command.PICKERS) -> CmdResult; opens the

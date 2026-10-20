@@ -1935,6 +1935,19 @@ class TestDevLib:
             "the wildcard matched both families and excluded the rest"
         )
 
+    def test_a_filter_matching_nothing_is_an_empty_answer(self, sym_env, tmp_path):
+        """name-one-matcher: a pattern no part matches succeeds with no names."""
+        # Arrange
+        engine, _, _ = sym_env
+        _install_library(tmp_path, "m", "alpha")
+
+        # Act
+        result = engine.dispatch("dev.lib zzz*")
+
+        # Assert
+        assert result.success, result.error
+        assert result.value == "", "no part matched"
+
     def test_a_loaded_part_is_marked(self, sym_env, config_dev_part, tmp_path):
         """The listing answers 'do I already have this?' in the same glance."""
         # Arrange

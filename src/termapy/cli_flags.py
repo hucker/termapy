@@ -525,26 +525,18 @@ def _emit_diff(
 def run_chips(args: argparse.Namespace) -> None:
     """Dump the USB-serial chip lookup table to stdout.
 
-    Optional filter narrows to rows whose chip model contains the
-    filter substring (case-insensitive).  Mirrors the REPL
-    ``/port.chip.list`` command.  ``--json`` produces an array of
-    chip records instead of the column-aligned table.
+    An optional name pattern narrows it to the chips whose model or
+    speed matches, through the one filter ``/port.chip.list`` uses
+    (``port_format.find_chips``); the bare flag's ``*`` matches them
+    all.  ``--json`` produces an array of chip records instead of the
+    column-aligned table.
 
     Exits 0 even on no matches; a zero-match filter is a legitimate
     query, not an error.
     """
-    from termapy.usb import USB_SERIAL_CHIPS
+    from termapy.port_format import find_chips
 
-    needle = (args.chips or "").strip().lower()
-    if needle == "*":
-        needle = ""
-
-    rows = []
-    for (vid, pid), info in USB_SERIAL_CHIPS.items():
-        if needle and needle not in info.model.lower():
-            continue
-        rows.append((vid, pid, info))
-    rows.sort(key=lambda row: (row[0], row[1]))
+    rows = find_chips((args.chips or "").strip())
 
     if args.json:
         records = [

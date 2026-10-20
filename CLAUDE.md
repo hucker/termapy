@@ -153,6 +153,16 @@ All other paths relative to `src/termapy/`.
     `Command(files="run")`, and every frontend's completion reads that
     declaration; no frontend keeps a command-to-folder table (registry
     `file-arg-declared`).
+  - **Name patterns.** A typed pattern that picks names (a list filter,
+    a file glob) is read by `matching.matches`: a wildcard (`*`, `?`,
+    `[`) makes a glob anchored at both ends, plain text means contains,
+    case is ignored on every platform. A command that acts on what it
+    picks reads plain text as one exact name (`matching.is_glob`
+    first). A filter matching nothing is an empty answer; an action
+    finding nothing fails. Text search (`/grep`, `/search`) and
+    identity lookups (ports, symbols) are not name patterns (decision
+    2026-10-19). **Enforced by `tests/test_architecture.py` (registry
+    `name-one-matcher`)**: only `matching.py` imports `fnmatch`.
   - No ast guard for numbers, durations or strings: unlike bool tokens
     and hex, an `int()` on user text is indistinguishable from internal
     arithmetic, so enforcement there is this rule plus review.

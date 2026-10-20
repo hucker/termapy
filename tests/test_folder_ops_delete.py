@@ -1,9 +1,10 @@
-"""The shared ``.delete <name|*>`` folder handler (``/cap.delete``, ``/ss.delete``, ...).
+"""The shared ``.delete`` folder handler (``/cap.delete``, ``/run.delete``, ...).
 
-One named file goes without a question; ``*`` deletes every file in the
-folder after a yes where the host can ask (the TUI and CLI), and without
-one where it cannot (MCP, whose destructive gate asked already).  A name
-stays inside its folder, like ``.show`` and ``.dump``.
+A folder of termapy's own output (ss/, cap/, prof/) takes a name or a
+pattern; a folder of what someone wrote (run/, proto/, plugin/) takes one
+name and asks first.  A pattern asks first too, where the host can ask
+(the TUI and CLI); MCP's destructive gate asked already.  Finding nothing
+to delete fails.  A name stays inside its folder, like ``.show``.
 """
 
 from __future__ import annotations
@@ -13,11 +14,11 @@ import json
 import pytest
 
 from termapy.folder_ops import build_folder_subcommands
-from termapy.plugins import CapabilitySet, IOHandle, PluginContext, UsageError
+from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext, UsageError
 from termapy.plugins.handles.ui import UIHandle
 
 
-def _ctx(cfg_file, *, answer: bool | None = None):
+def _ctx(cfg_file, *, answer: bool | None = None, changed: list[str] | None = None):
     """A ctx on ``cfg_file``; ``answer`` is the user's reply, None for a host that cannot ask."""
     questions: list[str] = []
 
@@ -30,6 +31,7 @@ def _ctx(cfg_file, *, answer: bool | None = None):
         config_path=str(cfg_file),
         capabilities=CapabilitySet(confirm_dialog=answer is not None),
         ui=UIHandle(_confirm_impl=confirm),
+        internal=InternalHandle(folder_changed=(changed if changed is not None else []).append),
     )
     return ctx, questions
 
@@ -55,8 +57,13 @@ def _delete(folder: str):
     return handler
 
 
-class TestOneFile:
-    def test_a_named_file_goes_without_a_question(self, tmp_path):
+def _names(data_dir) -> list[str]:
+    """The files left in ``data_dir``, sorted."""
+    return sorted(path.name for path in data_dir.iterdir())
+
+
+class TestGeneratedFile:
+    def test_one_named_file_goes_without_a_question(self, tmp_path):
         """/cap.delete a.txt removes that file only, and asks nothing."""
         # Arrange
         cfg_file, data_dir = _setup(tmp_path)
@@ -66,11 +73,9 @@ class TestOneFile:
         result = _delete("cap")(ctx, "a.txt")
 
         # Assert
-        assert result.success, result.error
-        assert result.value == "1", "the count deleted"
-        assert not (data_dir / "a.txt").exists(), "the named file is gone"
-        assert (data_dir / "b.txt").exists(), "its neighbor stays"
-        assert questions == [], "one named file is not asked about"
+        assert result.value == "1", result.error
+        assert _names(data_dir) == [".gitignore", "b.txt"], "only the named file is gone"
+        assert questions == [], "one generated file is not asked about"
 
     def test_the_extension_is_optional(self, tmp_path):
         """/run.profile.delete boot finds boot.csv, the folder's extension added."""
@@ -114,23 +119,33 @@ class TestOneFile:
         assert (tmp_path / "cfg" / "outside.txt").exists(), "nothing outside the folder is touched"
 
 
-class TestEveryFile:
-    def test_a_yes_deletes_every_file(self, tmp_path):
-        """/cap.delete * asks with the count, then deletes every file but the dotfile."""
+class TestPattern:
+    def test_a_yes_deletes_what_the_pattern_matches(self, tmp_path):
+        """/cap.delete adc_* asks with the count, then deletes the matches and nothing else."""
+        # Arrange
+        cfg_file, data_dir = _setup(tmp_path, names=("adc_1.csv", "ADC_2.csv", "notes.txt"))
+        ctx, questions = _ctx(cfg_file, answer=True)
+
+        # Act
+        result = _delete("cap")(ctx, "adc_*")
+
+        # Assert
+        assert result.value == "2", "both matches deleted, case ignored"
+        assert questions == ["Delete 2 files from cap/ (adc_*)? This cannot be undone."]
+        assert _names(data_dir) == [".gitignore", "notes.txt"], "what the pattern missed stays"
+
+    def test_star_deletes_every_listed_file_but_a_dotfile(self, tmp_path):
+        """* is the pattern of every file; a dotfile is not a listed file, so it stays."""
         # Arrange
         cfg_file, data_dir = _setup(tmp_path)
-        ctx, questions = _ctx(cfg_file, answer=True)
+        ctx, _ = _ctx(cfg_file, answer=True)
 
         # Act
         result = _delete("cap")(ctx, "*")
 
         # Assert
-        assert result.success, result.error
-        assert result.value == "2", "the count deleted"
-        assert questions == ["Delete every file in cap/ (2 files)? This cannot be undone."]
-        actual = sorted(path.name for path in data_dir.iterdir())
-        expected = [".gitignore"]
-        assert actual == expected, "a dotfile is not a listed file, so * leaves it"
+        assert result.value == "2", "both files deleted"
+        assert _names(data_dir) == [".gitignore"], "the dotfile is left"
 
     def test_a_no_deletes_nothing(self, tmp_path):
         """Declining the question fails the command and keeps every file."""
@@ -143,10 +158,10 @@ class TestEveryFile:
 
         # Assert
         assert result.error == "Nothing deleted from cap/"
-        assert (data_dir / "a.txt").exists() and (data_dir / "b.txt").exists(), "both kept"
+        assert _names(data_dir) == [".gitignore", "a.txt", "b.txt"], "every file kept"
 
     def test_a_host_that_cannot_ask_deletes_without_a_question(self, tmp_path):
-        """With no prompt (MCP, whose gate asked already) * deletes straight away."""
+        """With no prompt (MCP, whose gate asked already) a pattern deletes straight away."""
         # Arrange
         cfg_file, data_dir = _setup(tmp_path)
         ctx, questions = _ctx(cfg_file, answer=None)
@@ -157,10 +172,9 @@ class TestEveryFile:
         # Assert
         assert result.value == "2", "both files deleted"
         assert questions == [], "there was no one to ask"
-        assert not (data_dir / "a.txt").exists(), "deleted"
 
-    def test_an_empty_folder_asks_nothing(self, tmp_path):
-        """* on an empty folder succeeds with 0 and no question, the second time as the first."""
+    def test_matching_nothing_fails_the_second_time_as_the_first(self, tmp_path):
+        """A pattern that finds nothing to delete fails, * on an empty folder included, every time."""
         # Arrange
         cfg_file, _ = _setup(tmp_path, names=())
         ctx, questions = _ctx(cfg_file, answer=True)
@@ -171,8 +185,64 @@ class TestEveryFile:
         second = handler(ctx, "*")
 
         # Assert
-        assert (first.value, second.value) == ("0", "0"), "nothing to delete, twice"
-        assert questions == [], "an empty folder is not asked about"
+        assert (first.error, second.error) == ("No files in cap/ match: *",) * 2
+        assert questions == [], "nothing to delete, nothing to ask"
+
+
+class TestAuthored:
+    def test_a_file_someone_wrote_asks_first(self, tmp_path):
+        """/run.delete foo asks, naming the file, and deletes it on a yes."""
+        # Arrange
+        cfg_file, data_dir = _setup(tmp_path, "run", ("foo.run", "bar.run"))
+        ctx, questions = _ctx(cfg_file, answer=True)
+
+        # Act
+        result = _delete("run")(ctx, "foo")
+
+        # Assert
+        assert result.value == "1", result.error
+        assert questions == ["Delete foo.run from run/? This cannot be undone."]
+        assert _names(data_dir) == [".gitignore", "bar.run"], "only foo.run is gone"
+
+    def test_a_no_keeps_the_file(self, tmp_path):
+        """Declining keeps the script and fails the command."""
+        # Arrange
+        cfg_file, data_dir = _setup(tmp_path, "proto", ("modbus.pro",))
+        ctx, _ = _ctx(cfg_file, answer=False)
+
+        # Act
+        result = _delete("proto")(ctx, "modbus")
+
+        # Assert
+        assert result.error == "Nothing deleted from proto/"
+        assert (data_dir / "modbus.pro").exists(), "kept"
+
+    def test_a_pattern_is_refused(self, tmp_path):
+        """run/ deletes one named file at a time: a pattern is refused before anything is asked."""
+        # Arrange
+        cfg_file, data_dir = _setup(tmp_path, "run", ("foo.run",))
+        ctx, questions = _ctx(cfg_file, answer=True)
+
+        # Act
+        result = _delete("run")(ctx, "*")
+
+        # Assert
+        assert result.error == "Invalid name: * (run/ deletes one named file at a time)"
+        assert (data_dir / "foo.run").exists() and questions == [], "nothing asked, nothing deleted"
+
+
+def test_a_delete_tells_the_frontend_the_folder_changed(tmp_path):
+    """After deleting, the handler calls ctx.internal.folder_changed so the TUI refreshes its counts."""
+    # Arrange
+    cfg_file, _ = _setup(tmp_path)
+    changed: list[str] = []
+    ctx, _ = _ctx(cfg_file, changed=changed)
+
+    # Act
+    _delete("cap")(ctx, "a.txt")
+
+    # Assert
+    assert changed == ["cap"], "the folder that changed, once"
 
 
 def test_bare_is_a_usage_error(tmp_path):

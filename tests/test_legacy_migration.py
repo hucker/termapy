@@ -359,3 +359,38 @@ class TestSimpleForwarderRuntime:
         )
         printed = [text for text, _ in writes if expected in text]
         assert len(printed) == 1, "printed once, by the forwarder's exit"
+
+
+# ── /run.legacy: which scripts a pattern scans ──────────────────────────────
+
+
+def _legacy_run(tmp_path, args: str, names: tuple[str, ...]):
+    """Run the /run.legacy handler over ``names`` in a scratch run/; return (result, texts)."""
+    from termapy.plugins import IOHandle, PluginContext
+    from termapy.run_legacy import HANDLER
+
+    scripts = tmp_path / "run"
+    scripts.mkdir()
+    for name in names:
+        (scripts / name).write_text("/print clean\n", encoding="utf-8")
+    texts: list[str] = []
+    ctx = PluginContext(io=IOHandle(_write=lambda text, color=None: texts.append(text)))
+    ctx.fs.scripts_dir = scripts
+    return HANDLER(ctx, args), texts
+
+
+class TestRunLegacyPattern:
+    def test_a_pattern_scans_only_the_scripts_it_matches(self, tmp_path):
+        """name-one-matcher: /run.legacy a_* scans a_one and a_two, never b."""
+        # Act
+        result, texts = _legacy_run(tmp_path, "a_*", ("a_one.run", "a_two.run", "b.run"))
+
+        # Assert
+        assert result.success, result.error
+        scanned = sorted(text.split(":")[0].strip() for text in texts if ".run:" in text)
+        assert scanned == ["a_one.run", "a_two.run"], "the pattern picked the scripts"
+
+    def test_a_pattern_matching_nothing_fails(self, tmp_path):
+        """name-one-matcher: a pattern that picks no script fails, as a missing name does."""
+        result, _ = _legacy_run(tmp_path, "zz*", ("a_one.run",))
+        assert result.error == "No scripts in run/ match: zz*"

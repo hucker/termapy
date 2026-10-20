@@ -3525,8 +3525,8 @@ class TestPortChipList:
         count = int(result.value.split("=")[1])
         assert count > 0, "entries found despite uppercase filter"
 
-    def test_no_matches_prints_yellow_warning(self, repl_env):
-        """No matches is still success: the value is Count=0 and a yellow warning prints."""
+    def test_no_matches_is_an_empty_table(self, repl_env):
+        """name-one-matcher: no matches is still success, Count=0 and the table's empty line."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -3536,10 +3536,21 @@ class TestPortChipList:
         # Assert
         assert result.success, "no-match still returns ok"
         assert result.value == "Count=0", f"Count=0 on no matches, got: {result.value!r}"
-        texts_and_colors = [(t, c) for t, c in output]
-        assert any("No chips match" in t and c == "yellow" for t, c in texts_and_colors), (
-            "no-match warning rendered in yellow"
+        assert any("USB-serial chips - empty" in text for text, _ in output), (
+            "the empty table says so, like every list"
         )
+
+    def test_high_lists_the_high_speed_chips(self, repl_env):
+        """The filter reads the speed column too, so /port.chip.list high finds what its help promises."""
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("port.chip.list high")
+
+        # Assert
+        actual = int(result.value.split("=")[1])
+        assert actual > 0, "the high-speed chips are found by their speed"
 
 
 class TestPortHandlerValues:

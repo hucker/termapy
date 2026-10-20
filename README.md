@@ -245,7 +245,7 @@ The most common ones:
 | `/proto.list`                        | List .pro files in proto/, newest first, with size, age and each one's `name`  |
 | `/proto.rename <old> <new>`          | Rename a protocol script (`.pro` kept; never overwrites)                      |
 | `/proto.hex {on\|off\|toggle}`        | Same flag as `/term.hex`                                                      |
-| `/proto.crc.list {pat}`              | List available CRC algorithms (optional glob filter)                          |
+| `/proto.crc.list {pat}`              | List available CRC algorithms (optional name pattern: `modbus`, `crc16*`)     |
 | `/proto.crc.info <name>`             | Show CRC algorithm parameters and description                                 |
 | `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, quoted text, or a file; omit data to verify check string |
 | `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify CRC algorithm from a captured packet, text, or a command's reply |
@@ -260,7 +260,7 @@ The most common ones:
 | `/sym.import {file} {format=<value>}` | Convert an ELF or a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same file) |
 | `/sym.info`                          | Show the loaded symbol table: file, source, counts by section, range          |
 | `/sym.load {path}`                   | Load a symbol table (default: the cfg sidecar `/sym.import` writes)           |
-| `/sym.search <pattern>`              | Search symbols by name: exact, glob, regex, or substring                      |
+| `/sym.search <pattern>`              | Search symbols by name: the exact name, else a name pattern (`gpio`, `Mon*`)  |
 | `/sym.unload`                        | Clear the loaded symbol table                                                 |
 | `/dev.import <file> {format=<value>} {category=<value>} {to=<value>} {use=on\|off}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
 | `/dev.lib {pattern}`                 | List the parts the libraries hold (available, not loaded), with their layer  |
@@ -269,7 +269,7 @@ The most common ones:
 | `/var {name}`                        | List user variables, or show one by name                                      |
 | `/var.set <NAME> <value>`            | Set a user variable                                                           |
 | `/var.clear`                         | Clear all user variables                                                      |
-| `/env.list {pattern}`                | List environment variables (all, by name, or glob)                            |
+| `/env.list {pattern}`                | List environment variables (all, or a name pattern: `path`, `COM*`)           |
 | `/env.set <name> <value>`            | Set a session-scoped environment variable                                     |
 | `/env.reload`                        | Re-snapshot variables from the OS environment                                 |
 | `/cap.text <f> ...`                  | Capture serial text to file for a timed duration                              |
@@ -356,7 +356,7 @@ You can also manage environment variables at runtime with REPL commands:
 
 | Command                 | Description                                        |
 | ----------------------- | -------------------------------------------------- |
-| `/env.list {pattern}`   | List variables (all, by name, or glob like `COM*`) |
+| `/env.list {pattern}`   | List variables (all, or a name pattern: `COM*`)    |
 | `/env.set <name> <val>` | Set a session-scoped variable (in-memory only)     |
 | `/env.reload`           | Re-snapshot variables from the OS environment      |
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fnmatch
 import threading
 import time
 from pathlib import Path
@@ -15,6 +14,7 @@ from termapy.builtins.commands.edit import edit_command
 from termapy.folder_ops import build_folder_subcommands, file_table, list_entries
 from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, PROTO, default_file_name
 from termapy.help_dynamic import compose, folder_line
+from termapy.matching import matches
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.protocol import (
@@ -837,23 +837,20 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_crc_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List available CRC algorithms, optionally filtered by glob pattern.
+    """List available CRC algorithms, optionally filtered by a name pattern.
 
     Args:
         ctx: Plugin context for output.
-        args: Optional glob pattern (e.g. ``"*modbus*"``).
+        args: Optional name pattern (registry ``name-one-matcher``):
+            ``modbus`` contains, ``crc16*`` a glob.  None matching is an
+            empty table.
     """
     registry = get_crc_registry()
-    pattern = args.strip().lower() if args.strip() else ""
+    pattern = args.strip()
 
     # Skip backward-compat aliases (crc16m, crc16x)
     aliases = {"crc16m", "crc16x"}
-    names = sorted(n for n in registry if n not in aliases)
-    if pattern:
-        names = [n for n in names if fnmatch.fnmatch(n, pattern)]
-
-    if not names:
-        return CmdResult.fail(msg=f"No algorithms matching '{pattern}'")
+    names = sorted(name for name in registry if name not in aliases and matches(name, pattern))
 
     # A list answer (registry list-one-format), narrowest CRCs first.
     records = []
@@ -2475,7 +2472,7 @@ COMMAND = Command(
             sub_commands={
                 "list": Command(
                     args="{pattern}",
-                    help="List algorithms (optional glob filter).",
+                    help="List algorithms; a pattern filters (modbus, crc16*).",
                     handler=_handler_crc_list,
                 ),
                 "info": Command(

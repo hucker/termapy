@@ -34,15 +34,17 @@ class FolderSpec:
     """Definition of a per-config data folder.
 
     Defaults represent the common ("standard browsable folder") case:
-    user-facing, contents safe to inspect/export, NOT safe to wipe.
+    user-facing, contents safe to inspect/export, written by a person.
     Override flags only when an entry departs from that shape.
 
     Attributes:
         name: Folder name under the cfg dir.
         ext: File extension that identifies entries (``.run``, ``.py``,
             ...).  Use ``"*"`` for mixed-content folders (``ss``, ``cap``).
-        deletable: True when ``/<name>.delete`` may remove a file, or all of
-            them.  Default False -- destructive ops are explicit opt-in.
+        generated: True when termapy writes the folder's files (screenshots,
+            captures, profiles), so ``/<name>.delete`` takes a pattern and
+            may remove many at once.  Default False: a folder of what a
+            person wrote deletes one named file at a time, after a yes.
         showable: True when the folder appears in user-facing listings
             (``/help``, ``/cfg.info``, the title-bar buttons).  Default
             True -- override to False for an internal/secret folder.
@@ -54,7 +56,7 @@ class FolderSpec:
 
     name: str
     ext: str
-    deletable: bool = False
+    generated: bool = False
     showable: bool = True
     dumpable: bool = True
 
@@ -66,17 +68,17 @@ class FolderSpec:
 
 # Per-config data folders -- the master list.  Everything else derives
 # from this.  Convention: a folder with no flags is a standard browsable
-# folder (showable + dumpable, not deletable).  Add ``deletable=True``
-# for folders safe to wipe; add ``dumpable=False`` when contents are
+# folder (showable + dumpable, written by a person).  Add ``generated=True``
+# for folders of termapy's own output, safe to wipe by pattern; add ``dumpable=False`` when contents are
 # binary / shouldn't be exported.
 FOLDERS = [
     FolderSpec("run", ".run"),
     FolderSpec("proto", ".pro"),
     FolderSpec("plugin", ".py"),
-    FolderSpec("ss", "*", deletable=True, dumpable=False),
+    FolderSpec("ss", "*", generated=True, dumpable=False),
     FolderSpec("viz", ".py"),
-    FolderSpec("cap", "*", deletable=True),
-    FolderSpec("prof", ".csv", deletable=True),
+    FolderSpec("cap", "*", generated=True),
+    FolderSpec("prof", ".csv", generated=True),
     # Symbol tables (*.symbols.json) and, later, user converter modules.
     FolderSpec("sym", "*"),
     # Memory-mapped device register files (*.device.json).  Static chip
@@ -123,7 +125,7 @@ for _f in FOLDERS:
         EXT_TO_FOLDER[_f.ext] = _f.name
 
 # Capability sets
-DELETABLE = frozenset(f.name for f in FOLDERS if f.deletable)
+GENERATED = frozenset(f.name for f in FOLDERS if f.generated)
 SHOWABLE = frozenset(f.name for f in FOLDERS if f.showable)
 DUMPABLE = frozenset(f.name for f in FOLDERS if f.dumpable)
 

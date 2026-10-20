@@ -6,9 +6,9 @@ is the canonical way to see installed plugin files.  The root
 ``/plugin`` command itself has no handler (invoking bare ``/plugin``
 lists its subcommands like any other parent command).
 
-``plugin/`` is not ``deletable`` in ``FolderSpec`` -- plugin files
+``plugin/`` is not ``generated`` in ``FolderSpec`` -- plugin files
 are user-authored and shouldn't be mass-deletable -- so ``.delete``
-is deliberately absent.
+takes one name and asks first.
 
 The richer "list plugins by source" command is ``/help.plugin``;
 this one just lists files on disk.

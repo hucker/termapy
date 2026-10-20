@@ -23,7 +23,6 @@ none of it lives here (CLAUDE.md: infrastructure never lives under
 from __future__ import annotations
 
 import json
-from fnmatch import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -43,6 +42,7 @@ from termapy.devices import (
 from termapy.devices.converters import FORMATS, find_converter
 from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, state_line
+from termapy.matching import matches
 from termapy.plugins import BoundaryException, CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.symbols import get_devices, install_devices, parse_number
@@ -310,21 +310,11 @@ def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
     parts, errors = scan_libraries(_library_layers(ctx))
     for error in errors:
         ctx.io.output(f"Library: {error}", "yellow")
-    # Glob if the user typed a wildcard, else a case-insensitive substring
-    # over name AND category, so "microchip" finds a vendor folder and
-    # "pic32cm*" finds a family.  Deliberately not the symbol-search
-    # vocabulary (exact -> regex -> substring): a library listing is
-    # browsing, and a half-copy of that ladder would be two grammars to
-    # learn for one job.
-    matched = (
-        [
-            part
-            for part in parts
-            if _matches(pattern, part.device) or _matches(pattern, part.category)
-        ]
-        if pattern
-        else parts
-    )
+    # A name pattern (registry name-one-matcher) over name AND category, so
+    # "microchip" finds a vendor folder and "pic32cm*" finds a family.
+    matched = [
+        part for part in parts if matches(part.device, pattern) or matches(part.category, pattern)
+    ]
     if not matched:
         where = f" matching '{pattern}'" if pattern else ""
         ctx.io.output(f"  (no library parts{where})")
@@ -348,15 +338,6 @@ def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
         )
     ctx.io.output(f"  ({len(matched)} of {len(parts)} parts; * = loaded here)")
     return CmdResult.ok(value="\n".join(part.device for part in matched))
-
-
-def _matches(pattern: str, text: str) -> bool:
-    """Glob when the pattern has a wildcard, else case-insensitive substring."""
-    if not text:
-        return False
-    if "*" in pattern or "?" in pattern:
-        return fnmatch(text.lower(), pattern.lower())
-    return pattern.lower() in text.lower()
 
 
 def _library_layers(ctx: PluginContext) -> list[tuple[Path, str]]:
@@ -513,7 +494,7 @@ COMMAND = Command(
                     "str",
                     positional=True,
                     rest=True,
-                    help="filter by part or category; glob (pic32*) or substring",
+                    help="filter by part or category: pic32 contains, pic32cm* a glob",
                 ),
             ],
             help="List the parts the device library holds (available, not loaded).",

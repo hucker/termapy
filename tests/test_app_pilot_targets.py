@@ -301,6 +301,19 @@ class TestScriptOverlay:
 # ── config picker results ────────────────────────────────────────────────────
 
 
+def _confirm_ready(app) -> bool:
+    """A ConfirmDialog is up with both buttons laid out, so a click lands.
+
+    The dialog is pushed from the command's worker; its buttons mount a
+    beat later and get a place on screen later still, and a click before
+    layout misses (seen under suite load).
+    """
+    if not isinstance(app.screen, ConfirmDialog):
+        return False
+    buttons = app.screen.query("#confirm-yes, #confirm-no")
+    return len(buttons) == 2 and all(button.region.width > 0 for button in buttons)
+
+
 class TestConfigPicked:
     def test_none_is_a_no_op(self, app_factory):
         """Cancelling the picker changes nothing."""
@@ -403,21 +416,12 @@ class TestConfigPicked:
             (Path(other).parent / "run").mkdir()
             (Path(other).parent / "run" / "x.run").write_text("/print hi\n", encoding="utf-8")
 
-            def _asking() -> bool:
-                # The dialog is pushed from the command's worker; its buttons
-                # mount a beat later and get a place on screen later still,
-                # and a click before layout misses (seen under suite load).
-                if not isinstance(app.screen, ConfirmDialog):
-                    return False
-                buttons = app.screen.query("#confirm-yes, #confirm-no")
-                return len(buttons) == 2 and all(button.region.width > 0 for button in buttons)
-
             async with app.run_test() as pilot:
                 await pilot.pause()
 
                 # Act / Assert -- No first
                 app._on_config_picked(("delete", other))
-                asked = await until(pilot, _asking)
+                asked = await until(pilot, lambda: _confirm_ready(app))
                 assert asked, "the delete question is asked"
                 await pilot.click("#confirm-no")
                 # Wait for the first round to finish -- its dialog gone and
@@ -435,7 +439,7 @@ class TestConfigPicked:
 
                 # Act / Assert -- then Yes
                 app._on_config_picked(("delete", other))
-                await until(pilot, _asking)
+                await until(pilot, lambda: _confirm_ready(app))
                 await pilot.click("#confirm-yes")
                 gone = await until(pilot, lambda: not Path(other).parent.exists())
                 assert gone, "Yes deletes the whole folder, run script and all"
@@ -465,6 +469,40 @@ class TestConfigPicked:
                 assert refused, "the refusal is reported"
                 assert Path(path).exists(), "the active config is untouched"
                 assert app.config_path == path, "the session keeps its config"
+
+        _run(scenario)
+
+
+# ── script picker results ────────────────────────────────────────────────────
+
+
+class TestScriptPickedDelete:
+    def test_the_pickers_delete_is_run_delete(self, app_factory):
+        """one-handler-per-command: the Run picker's Delete is /run.delete, which asks, deletes and recounts the Scripts button."""
+
+        async def scenario():
+            app, _, path = app_factory()
+            _write_scripts(path, x="/print hi\n")
+            script = Path(path).parent / "run" / "x.run"
+
+            def _scripts_tooltip() -> str:
+                return str(app.query_one("#btn-scripts").tooltip)
+
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert "1 available" in _scripts_tooltip(), "precondition: one script counted"
+
+                # Act
+                app._on_script_picked(("delete", str(script)))
+                asked = await until(pilot, lambda: _confirm_ready(app))
+                await pilot.click("#confirm-yes")
+                gone = await until(pilot, lambda: not script.exists())
+                recounted = await until(pilot, lambda: "empty" in _scripts_tooltip())
+
+                # Assert
+                assert asked, "the command asks before deleting a script someone wrote"
+                assert gone, "Yes deletes the script"
+                assert recounted, "folder_changed refreshes the Scripts tooltip"
 
         _run(scenario)
 

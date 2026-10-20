@@ -167,6 +167,9 @@ $(BAUD) <- /port.baud_rate
 /sym count.12+4
 /sym kBaud
 /sym CONSOLE
+/sym CONSOLE_MODE
+/sym.search CONSOLE_*
+/mem.read CONSOLE_MODE.ON
 /sym tick
 /sym tick@adc.c
 /sym U1MODE.ON

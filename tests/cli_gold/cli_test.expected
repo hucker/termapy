@@ -245,13 +245,14 @@ demo> /cfg.dump
 demo> /print === section: config loaded ===
   === section: config loaded ===
 demo> /cfg.loaded
-  Loaded - 4 files
-  KIND     NAME                          LAYER  FILE                   COUNT  NOTE
-  -------  ----------------------------  -----  ---------------------  -----  ------------------
-  plugin   cmd                           demo   plugin/cmd.py              1  commands crcsend
-  plugin   probe                         demo   plugin/probe.py            1  commands probe
-  plugin   temp_plot                     demo   plugin/temp_plot.py        1  commands temp_plot
-  symbols  demo firmware (hand-written)  demo   sym/demo.symbols.json     17  12 typed
+  Loaded - 5 files
+  KIND     NAME                          LAYER  FILE                     COUNT  NOTE
+  -------  ----------------------------  -----  -----------------------  -----  ------------------
+  plugin   cmd                           demo   plugin/cmd.py                1  commands crcsend
+  plugin   probe                         demo   plugin/probe.py              1  commands probe
+  plugin   temp_plot                     demo   plugin/temp_plot.py          1  commands temp_plot
+  symbols  demo firmware (hand-written)  demo   sym/demo.symbols.json       17  12 typed
+  device   demo_uart                     demo   dev/console.device.json      2
 demo> /help /cfg.loaded
 NAME
   /cfg.loaded - Show what the config load loaded: plugins, symbols, devices.
@@ -533,9 +534,11 @@ demo> /sym.info
   imported    : 2026-08-29T00:00:00
   address_bits: 32
   endian      : le
-  symbols     : 17  (bss 6, code 2, const 4, data 2, global 1, sfr 2)
+  symbols     : 21  (bss 6, code 2, const 4, data 2, global 1, sfr 6)
   range       : 0x00001000 - 0xBF806014
   regions     : 2  (ram 0x00001000+0x1000 rw, rom 0x00002000+0x2000 ro)
+  device      : demo_uart  (2 registers)
+  alias       : CONSOLE -> U1@0xBF806000  (2 registers)
   [109/308] /sym.info (867us)
 demo> /sym main
     0x00002000  main  [code 442 bytes main.c]
@@ -567,6 +570,16 @@ demo> /sym kBaud
 demo> /sym CONSOLE
     0x00003204  CONSOLE  [const 4 bytes main.c]  -> 0xBF806000
   [123/328] /sym CONSOLE (138us)
+demo> /sym CONSOLE_MODE
+    0xBF806000  CONSOLE_MODE  [sfr 4 bytes demo_uart]  = U1_MODE
+  [124/331] /sym CONSOLE_MODE (262us)
+demo> /sym.search CONSOLE_*
+    0xBF806000  CONSOLE_MODE  [sfr 4 bytes demo_uart]  = U1_MODE
+    0xBF806010  CONSOLE_STA  [sfr 4 bytes demo_uart]  = U1_STA
+  [125/331] /sym.search CONSOLE_* (383us)
+demo> /mem.read CONSOLE_MODE.ON
+  CONSOLE_MODE.ON = 1  (word 0x00008008 at 0xBF806000)
+  [126/331] /mem.read CONSOLE_MODE.ON (115ms)
 demo> /sym tick
   Error: Ambiguous symbol: tick (0x00001010 mon.c, 0x00001014 adc.c; use tick@mon.c or the address)
   [109/219] /sym tick (25us)
@@ -602,10 +615,10 @@ demo> /sym.load nosuch.json
   Error: Symbols not found: nosuch.json
   [117/219] /sym.load nosuch.json (108us)
 demo> /sym.unload
-  Unloaded symbols (17).
+  Unloaded build symbols (17); 2 device registers remain.
   [128/313] /sym.unload (243us)
 demo> /sym gTemp
-  Error: No symbols loaded.
+  Error: Unknown symbol: gTemp
   [119/219] /sym gTemp (21us)
 demo> /sym.load
   Loaded 17 symbols (demo.symbols.json)
@@ -1151,7 +1164,7 @@ SYNOPSIS
   /sym <addr|name>
 
 DESCRIPTION
-  Current symbols = 17 (sym/demo.symbols.json)
+  Current symbols = 21 (sym/demo.symbols.json)
   
   Symbols come from your build: /sym.import <file> converts its ELF (names,
   sizes and the C types in its debug info) or its linker map (names and
@@ -1702,7 +1715,8 @@ demo> /cfg.file demo_legacy.profile.json
     }
   }
 demo> /dev.list
-    (no devices loaded)
+    DEVICE     REGISTERS  LAYER  PLACEMENT
+    demo_uart  2          demo
 demo> /dev.lib
     (no library parts)
 demo> /dev.lib zzz*

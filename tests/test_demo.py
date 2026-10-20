@@ -464,9 +464,10 @@ class TestDemoConfigSetup:
         assert (tmp_path / "demo" / "run").is_dir(), "run dir created"
         assert (tmp_path / "demo" / "proto").is_dir(), "proto dir created"
         assert (tmp_path / "demo" / "plugin" / "probe.py").exists(), "demo plugin copied"
+        assert (tmp_path / "demo" / "dev" / "console.device.json").exists(), "device file copied"
 
     def test_setup_creates_only_the_folders_it_populates(self, tmp_path) -> None:
-        """``--demo`` ships run/ proto/ plugin/ sym/; the rest appear on first use."""
+        """``--demo`` ships run/ proto/ plugin/ sym/ dev/; the rest appear on first use."""
         from termapy.config import setup_demo_config
 
         # Act
@@ -474,7 +475,7 @@ class TestDemoConfigSetup:
 
         # Assert
         actual = sorted(path.name for path in config_path.parent.iterdir() if path.is_dir())
-        expected = ["plugin", "proto", "run", "sym"]
+        expected = ["dev", "plugin", "proto", "run", "sym"]
         assert actual == expected, "no empty ss/ cap/ prof/ viz/ shipped with the demo"
 
     def test_setup_idempotent(self, tmp_path) -> None:

@@ -102,7 +102,9 @@ register of the block gains a second name under the constant's:
 fields and safety flags unchanged, so `/mem.read SPI_PORT_DIR.P4` reads the
 same bits under the board's own vocabulary. `/sym.info` lists each block
 named (`alias: SPI_PORT -> PORTC@0x41008080  (6 registers)`), and `/sym`
-shows an alias as `= PORTC_DIR`.
+shows an alias as `= PORTC_DIR`. The demo has one: its `CONSOLE` constant
+points at the UART block in `dev/console.device.json`, so `/sym CONSOLE_MODE`
+and `/mem.read CONSOLE_MODE.ON` work out of the box.
 
 The rules, so nothing is guessed: the constant must be a pointer to a
 struct (a pointer to one register is a value, not a name for the block);

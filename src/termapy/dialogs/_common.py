@@ -12,11 +12,29 @@ from pathlib import Path
 
 from rich.text import Text
 from textual import events
-from textual.binding import BindingType
-from textual.widgets import OptionList, Static
+from textual.binding import Binding, BindingType
+from textual.widgets import OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
 from termapy.folder_ops import file_columns, format_file_header
+
+
+class EditorTextArea(TextArea):
+    """A ``TextArea`` with Ctrl+A as select-all, for termapy's modal editors.
+
+    Textual's ``TextArea`` binds Ctrl+A to ``cursor_line_start`` (an Emacs
+    convention) and leaves ``action_select_all`` with no key.  The config,
+    script and proto editors are full-screen replace-the-whole-file
+    editors, where the familiar "select all, then paste over it" is what a
+    user reaches for -- and Textual's ``paste`` already replaces the
+    selection, so Ctrl+A then Ctrl+V overwrites the file.  Line-start stays
+    on Home (its other default key), so nothing is lost.  Copy / cut /
+    paste (Ctrl+C / X / V) are already bound by the base class; this adds
+    only the missing select-all.
+    """
+
+    BINDINGS = [Binding("ctrl+a", "select_all", "Select all", show=False)]
+
 
 # Shared CSS for modal dialog buttons.
 _MODAL_BTN_CSS = """

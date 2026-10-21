@@ -16,7 +16,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, TextArea
 
 from termapy.defaults import PROTO_TEMPLATE
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
 from termapy.folders import FOLDER_EXTS, PROTO, ensure_folder, new_file_name
 
 
@@ -88,7 +88,7 @@ class ProtoEditor(ModalScreen[str | None]):
 
         with Vertical(id="ped-dialog"):
             yield Static(title, id="ped-title", markup=False)
-            yield TextArea(
+            yield EditorTextArea(
                 content,
                 language="toml",
                 show_line_numbers=True,

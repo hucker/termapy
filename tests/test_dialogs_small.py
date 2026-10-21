@@ -640,3 +640,31 @@ class TestFileEditors:
                 assert not folder.exists(), "nothing written"
 
         _run(scenario)
+
+    @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
+    def test_ctrl_a_selects_all_so_a_paste_replaces_the_file(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
+        """Ctrl+A selects the whole buffer; Textual's paste then replaces it (select-all + paste overwrites)."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                await _push(app, pilot, editor_cls(tmp_path / "folder"))
+                editor = app.screen.query_one(f"#{prefix}-editor", TextArea)
+                editor.focus()
+                await pilot.pause()
+
+                # Act -- Ctrl+A, then paste over the selection
+                await pilot.press("ctrl+a")
+                await pilot.pause()
+                selected = editor.selected_text
+                app.copy_to_clipboard("/print replaced\n")
+                editor.action_paste()
+                await pilot.pause()
+
+                # Assert
+                assert selected == template, "Ctrl+A selected the entire buffer"
+                assert editor.text == "/print replaced\n", "paste replaced the selection"
+
+        _run(scenario)

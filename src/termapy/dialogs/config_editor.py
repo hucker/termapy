@@ -28,7 +28,7 @@ from termapy.config import (
     prepare_cfg_folder,
 )
 from termapy.defaults import DEFAULT_CFG
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
 from termapy.scripting import parse_bool
@@ -102,7 +102,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
         with Vertical(id="config-dialog"):
             yield Static(f"JSON: {self.config_path}", id="config-title", markup=False)
-            yield TextArea(
+            yield EditorTextArea(
                 json.dumps(self._disk_cfg, indent=4),
                 language="json",
                 theme="monokai",

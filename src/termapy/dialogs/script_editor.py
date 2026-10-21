@@ -16,7 +16,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, TextArea
 
 from termapy.defaults import SCRIPT_TEMPLATE
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
+from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
 from termapy.folders import FOLDER_EXTS, RUN, ensure_folder, new_file_name
 
 
@@ -90,7 +90,7 @@ class ScriptEditor(ModalScreen[str | None]):
 
         with Vertical(id="sed-dialog"):
             yield Static(title, id="sed-title", markup=False)
-            yield TextArea(
+            yield EditorTextArea(
                 content,
                 language="bash",
                 show_line_numbers=True,

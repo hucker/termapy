@@ -8,15 +8,20 @@ hardware.
 **Wire format (matches smart_sensor.profile.json):**
 
 Request (write):
-    ``{"cmd": "<name>", "args": {...}, "id": <int>}\\n``
+    ``{"cmd": "<name>", "args": {...}, "id": <int>}\\n``  or the JSON-RPC
+    spelling ``{"jsonrpc": "2.0", "method": "<name>", "params": {...}, "id": <int>}\\n``
 
-Response (read):
-    ``{"ok": true, "result": {...}, "id": <int>}\\n``  or
-    ``{"ok": false, "error": "<msg>", "code": <int>, "id": <int>}\\n``
+Response (read), the JSON-RPC 2.0 response shape:
+    ``{"result": {...}, "id": <int>}\\n``  or
+    ``{"error": {"code": <int>, "message": "<msg>"}, "id": <int>}\\n``
+
+    ``"jsonrpc": "2.0"`` leads the reply only when the request carried it, and
+    such a reply always has an ``id`` (``null`` when the request had none).
+    An untagged reply omits ``id`` when the request had none.
 
 Async (read, no preceding request):
     ``{"event": "<name>", ...}\\n``  or
-    ``{"error": "<msg>", "code": <int>}\\n``
+    ``{"error": {"code": <int>, "message": "<msg>"}}\\n``
 
 **Startup:** the first read after open delivers a ``ready`` banner:
     ``{"event": "ready", "device": "BASSOMATIC", "fw": "1.2.3"}\\n``
@@ -57,6 +62,20 @@ def _line(obj: dict) -> bytes:
     Unicode display happens in termapy's terminal layer.
     """
     return (json.dumps(obj, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def _envelope(body: dict, req_id: Any, tagged: bool) -> dict:
+    """Order a reply the JSON-RPC way: optional ``jsonrpc`` tag, ``body``, ``id``.
+
+    ``id`` is included only when the request had one, unless the request was
+    tagged: then it is always present (``null`` for none), so the reply is a
+    complete JSON-RPC response object.  Mirrors examples/firmware/termapy_json.c.
+    """
+    out: dict[str, Any] = {"jsonrpc": "2.0"} if tagged else {}
+    out.update(body)
+    if req_id is not None or tagged:
+        out["id"] = req_id
+    return out
 
 
 class FakeSerialNDJSON:
@@ -273,7 +292,7 @@ class FakeSerialNDJSON:
     def emit_async_error(self, message: str, code: int = -1) -> None:
         """Queue an async (un-id'd) error line for the next read."""
         with self._lock:
-            self._output_buf.extend(_line({"error": message, "code": code}))
+            self._output_buf.extend(_line({"error": {"code": code, "message": message}}))
 
     # -- Internal -----------------------------------------------------------
 
@@ -309,10 +328,12 @@ class FakeSerialNDJSON:
         except json.JSONDecodeError as e:
             # Malformed input: respond with an error.  No id available
             # so the bridge will route this as an async error.
-            self._output_buf.extend(_line({"error": f"invalid json: {e}", "code": -2}))
+            self._output_buf.extend(_line({"error": {"code": -2, "message": f"invalid json: {e}"}}))
             return
         if not isinstance(req, dict):
-            self._output_buf.extend(_line({"error": "request must be a JSON object", "code": -3}))
+            self._output_buf.extend(
+                _line({"error": {"code": -3, "message": "request must be a JSON object"}})
+            )
             return
         response = self._dispatch_request(req)
         if response is not None:
@@ -325,52 +346,47 @@ class FakeSerialNDJSON:
         ``reset`` uses this to mimic real-device behavior where the
         next thing the host sees is the post-reset banner.
         """
-        cmd = req.get("cmd", "")
-        raw_args = req.get("args")
+        cmd = req.get("cmd", req.get("method", ""))
+        raw_args = req.get("args", req.get("params"))
         args: dict = raw_args if isinstance(raw_args, dict) else {}
         req_id = req.get("id")
+        tagged = "jsonrpc" in req
 
         # Update the live uptime so /get_status sees a moving value.
         self._state["uptime_s"] = int(time.time() - self._start_time)
 
         if cmd == "get_temp":
-            return self._ok({"celsius": self._state["temp_c"]}, req_id)
+            return self._ok({"celsius": self._state["temp_c"]}, req_id, tagged)
         if cmd == "get_status":
-            return self._ok(dict(self._state), req_id)
+            return self._ok(dict(self._state), req_id, tagged)
         if cmd == "set_threshold":
             try:
                 celsius = float(args.get("celsius", self._state["threshold_c"]))
             except (TypeError, ValueError):
-                return self._err("celsius must be a number", -10, req_id)
+                return self._err("celsius must be a number", -10, req_id, tagged)
             self._state["threshold_c"] = celsius
-            return self._ok({"set": celsius}, req_id)
+            return self._ok({"set": celsius}, req_id, tagged)
         if cmd == "set_mode":
             mode = str(args.get("mode", ""))
             if mode not in ("idle", "active", "sleep", "diagnostic"):
-                return self._err(f"unknown mode: {mode}", -11, req_id)
+                return self._err(f"unknown mode: {mode}", -11, req_id, tagged)
             self._state["mode"] = mode
-            return self._ok({"mode": mode}, req_id)
+            return self._ok({"mode": mode}, req_id, tagged)
         if cmd == "calibrate":
-            return self._ok({"calibrated": True}, req_id)
+            return self._ok({"calibrated": True}, req_id, tagged)
         if cmd == "reset":
             # Fire-and-forget: re-arm the banner so the next read sees it.
             self._banner_pending = True
             self._state["mode"] = "idle"
             return None
-        return self._err(f"unknown cmd: {cmd}", -1, req_id)
+        return self._err(f"unknown cmd: {cmd}", -1, req_id, tagged)
 
     @staticmethod
-    def _ok(result: dict, req_id: Any) -> dict:
-        """Build a success response.  Includes ``id`` only when the request had one."""
-        out: dict[str, Any] = {"ok": True, "result": result}
-        if req_id is not None:
-            out["id"] = req_id
-        return out
+    def _ok(result: dict, req_id: Any, tagged: bool = False) -> dict:
+        """Build a success response: ``result``, then ``id`` per ``_envelope``."""
+        return _envelope({"result": result}, req_id, tagged)
 
     @staticmethod
-    def _err(message: str, code: int, req_id: Any) -> dict:
-        """Build an error response.  Includes ``id`` only when the request had one."""
-        out: dict[str, Any] = {"ok": False, "error": message, "code": code}
-        if req_id is not None:
-            out["id"] = req_id
-        return out
+    def _err(message: str, code: int, req_id: Any, tagged: bool = False) -> dict:
+        """Build an error response: the JSON-RPC error object, then ``id``."""
+        return _envelope({"error": {"code": code, "message": message}}, req_id, tagged)

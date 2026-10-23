@@ -10,29 +10,38 @@
  * behaviour) or a JSON envelope.
  *
  *     fw        ->  SB_0_8                                (text mode)
- *     fw        ->  {"ok":true,"result":"SB_0_8"}         (JSON mode)
- *     tick      ->  12345            /  {"ok":true,"result":12345}
- *     temp_c    ->  21.5             /  {"ok":true,"result":21.5}
+ *     fw        ->  {"result":"SB_0_8"}                   (JSON mode)
+ *     tick      ->  12345            /  {"result":12345}
+ *     temp_c    ->  21.5             /  {"result":21.5}
  *
  * The device decodes NOTHING by default: the host (termapy's REPL or MCP
  * server) already turns a request into the plain command line this monitor
  * understands, so the device only encodes replies.  A request parser for
- * {"cmd":...} lines is available behind TERMAPY_JSON_HAS_EXTRACT for a
- * monitor that wants symmetric JSON without a termapy host.
+ * {"cmd":...} / {"method":...} lines is available behind
+ * TERMAPY_JSON_HAS_EXTRACT for a monitor that wants symmetric JSON without a
+ * termapy host.
  *
- * The envelope matches termapy's NDJSON contract (src/termapy/demo_ndjson.py)
- * byte for byte, so a profile with a ``"format": "json"`` response parses
- * each reply into typed ``data``:
+ * The envelope is the JSON-RPC 2.0 response shape, which termapy's NDJSON
+ * contract (src/termapy/demo_ndjson.py) mirrors byte for byte, so a profile
+ * with a ``"format": "json"`` response parses each reply into typed ``data``
+ * and a stock JSON-RPC client can talk to the device:
  *
- *     success  {"ok":true,"result":<value>,"id":<int>}
- *     error    {"ok":false,"error":"<msg>","code":<int>,"id":<int>}
+ *     success  {"result":<value>,"id":<int>}
+ *     error    {"error":{"code":<int>,"message":"<msg>"},"id":<int>}
  *
- * ``result`` is any JSON value: a string, a number, ``null``, or an array /
- * object streamed with the builder below.  Fields are compact (no spaces),
- * ``id`` is last, and ``id`` is OMITTED entirely when the request carried
- * none (not 0, not null).  JSON lines end in ``\n`` (NDJSON framing); text
- * lines end in ``\r\n`` (the sibling monitor convention, matching
- * termapy_mem.c).
+ * Exactly one of ``result`` and ``error`` is present: a host checks for
+ * ``error`` first and otherwise uses ``result``.  ``result`` is any JSON
+ * value: a string, a number, ``null``, or an array / object streamed with the
+ * builder below.  Fields are compact (no spaces) and ``id`` is last.
+ *
+ * The ``"jsonrpc":"2.0"`` member is MIRRORED: a reply carries it, first, only
+ * when the request did.  A tagged reply is a complete JSON-RPC response
+ * object and always carries ``id``, ``null`` when the request had none.  An
+ * untagged reply omits ``id`` entirely when the request carried none (not 0,
+ * not null), which keeps termapy's replies short.  One deviation from the
+ * spec, forced by a serial link: a request without ``id`` (a "notification")
+ * is still answered.  JSON lines end in ``\n`` (NDJSON framing); text lines
+ * end in ``\r\n`` (the sibling monitor convention, matching termapy_mem.c).
  *
  * Three ways to answer, from cheapest to richest:
  *
@@ -51,7 +60,7 @@
  *
  * 3. PASSTHROUGH for unconverted commands.  Route the monitor's ordinary
  *    text output through TermapyJson_PassthroughPut in JSON mode: the first
- *    byte opens ``{"ok":true,"result":"``, every byte is JSON-escaped, and
+ *    byte opens ``{"result":"``, every byte is JSON-escaped, and
  *    TermapyJson_PassthroughEnd (called by the dispatcher after the handler
  *    returns) closes the envelope.  Every command then yields one valid JSON
  *    line with zero handler changes; converted handlers never touch the
@@ -131,8 +140,9 @@ extern "C" {
 
 /* ── Configuration (override with -D) ──────────────────────────────────── */
 
-/** Compile the {"cmd":...} request extractor (TermapyJson_Extract) and its
- *  helpers.  Default on for parity with termapy's NDJSON reference device.
+/** Compile the {"cmd":...} / {"method":...} request extractor
+ *  (TermapyJson_Extract) and its helpers.  Default on for parity with
+ *  termapy's NDJSON reference device.
  *  A monitor driven by termapy's REPL receives plain text and can set this
  *  to 0: the host already did the decoding.  Unreferenced API is also
  *  removed by --gc-sections, so this knob matters only for footprint
@@ -150,9 +160,10 @@ extern "C" {
 #error "TERMAPY_JSON_ID_MAX_DIGITS must be between 1 and 18"
 #endif
 
-/** Size of the copy the extractor makes of a request's "args" string, NUL
- *  included.  A longer "args" answers TERMAPY_JSON_IN_BAD (never silently
- *  truncated).  Stack, only while Extract runs. */
+/** Size of the copy the extractor makes of a request's "args" string, or of
+ *  each element of a "params" array, NUL included.  A longer value answers
+ *  TERMAPY_JSON_IN_BAD (never silently truncated).  Stack, only while
+ *  Extract runs. */
 #ifndef TERMAPY_JSON_ARGS_MAX
 #define TERMAPY_JSON_ARGS_MAX 64u
 #endif
@@ -193,7 +204,7 @@ extern "C" {
  */
 typedef enum {
 	TERMAPY_JSON_TEXT = 0, /* bare value + \r\n, today's behaviour (default) */
-	TERMAPY_JSON_JSON = 1  /* {"ok":...,"result":...,"id":N} + \n            */
+	TERMAPY_JSON_JSON = 1  /* {"result":...,"id":N} / {"error":{...}} + \n   */
 } TermapyJson_Mode;
 
 /**
@@ -229,7 +240,7 @@ typedef struct {
  */
 typedef enum {
 	TERMAPY_JSON_IN_TEXT = 0, /* not a JSON object; dispatch the line as-is   */
-	TERMAPY_JSON_IN_JSON = 1, /* a {"cmd":...} object; command extracted      */
+	TERMAPY_JSON_IN_JSON = 1, /* a {"cmd"|"method":...} object; extracted      */
 	TERMAPY_JSON_IN_BAD = 2   /* looked like JSON ('{') but was malformed     */
 } TermapyJson_InResult;
 #endif
@@ -243,7 +254,8 @@ typedef enum {
  * ``{ MyPut }`` leaves ``fmtFloat`` NULL.  Until this is called, or if
  * ``put`` is NULL, every writer emits nothing -- there is no output path to
  * answer on -- which a host reports as a device without JSON support.  Also
- * resets the builder and passthrough state.
+ * resets the builder and passthrough state and drops any pending id or
+ * ``jsonrpc`` tag; the mode is kept.
  *
  * @param opsP The platform operations; copied, not retained.
  */
@@ -273,11 +285,13 @@ void TermapyJson_ModeCmd(const char *argP);
  *
  * The extractor calls this with the inbound ``"id"`` (or ClearId when the
  * line had none).  A monitor may call it directly for a request that
- * carries an id out of band.  Ignored in text mode.
+ * carries an id out of band.  Ignored in text mode.  Leaves the ``jsonrpc``
+ * tag as the extractor found it.
  */
 void TermapyJson_SetId(long id);
 
-/** @brief Drop the current id, so the next JSON reply omits ``"id"``. */
+/** @brief Drop the current id and ``jsonrpc`` tag, so the next JSON reply
+ *         omits ``"id"`` and is untagged. */
 void TermapyJson_ClearId(void);
 
 /* ── Scalar replies: one call, one value ───────────────────────────────── */
@@ -286,7 +300,7 @@ void TermapyJson_ClearId(void);
  * @brief Reply with a STRING result -- the common case.
  *
  * TEXT: ``resultP`` then the text EOL, exactly like puts.  JSON:
- * ``{"ok":true,"result":"<escaped>","id":N}``.
+ * ``{"result":"<escaped>","id":N}``.
  */
 void TermapyJson_Reply(const char *resultP);
 
@@ -323,10 +337,12 @@ void TermapyJson_ReplyFloat(double value, uint8_t decimals);
  *
  * TEXT: ``msgP`` then the text EOL -- bare, transparent like puts (add your
  * own ``ERR`` prefix in the message if you want termapy_mem parity).  JSON:
- * ``{"ok":false,"error":"<escaped>","code":<code>,"id":N}``.  A convention
- * that works: negative codes for protocol and usage errors (JSON-RPC
- * numbers: -32601 unknown command, -32602 bad arguments, -32700 parse),
- * positive codes for a device error code passed straight through.
+ * ``{"error":{"code":<code>,"message":"<escaped>"},"id":N}``, the JSON-RPC
+ * error object (its optional ``data`` member is reserved for structured
+ * detail; nothing emits it yet).  A convention that works: negative codes
+ * for protocol and usage errors (JSON-RPC numbers: -32601 unknown command,
+ * -32602 bad arguments, -32700 parse), positive codes for a device error
+ * code passed straight through.
  */
 void TermapyJson_ReplyError(const char *msgP, int code);
 
@@ -336,8 +352,9 @@ void TermapyJson_ReplyError(const char *msgP, int code);
  * @brief Open an array (``[``) or object (``{``) as the reply or as the next
  *        item of the enclosing container.
  *
- * The OUTERMOST Begin emits the envelope head ``{"ok":true,"result":``; the
- * matching End emits the id tail, ``}`` and the line end.  Nested Begins are
+ * The OUTERMOST Begin emits the envelope head ``{"result":`` (tagged when the
+ * request was); the matching End emits the id tail, ``}`` and the line end.
+ * Nested Begins are
  * items of their parent and get their comma automatically.  In TEXT mode the
  * containers print nothing.  Nest at most TERMAPY_JSON_MAX_DEPTH levels.
  */
@@ -378,7 +395,8 @@ void TermapyJson_FieldFloat(const char *keyP, double value, uint8_t decimals);
  * @brief putchar-compatible output for a monitor's ordinary text printer.
  *
  * TEXT mode: forwards the byte unchanged.  JSON mode: the first byte emits
- * ``{"ok":true,"result":"``, then every byte is JSON-escaped into that
+ * ``{"result":"`` (tagged when the request was), then every byte is
+ * JSON-escaped into that
  * string.  A single trailing newline is dropped at PassthroughEnd (a puts
  * style ``value\n`` becomes ``"value"``); inner newlines are kept as ``\n``.
  * Returns the byte, or -1 before Init.  Expects a line feed to be ``\n``
@@ -402,30 +420,47 @@ void TermapyJson_PassthroughEnd(void);
  * @brief Inspect one received line; if a JSON command object, extract it.
  *
  * Skips leading whitespace.  If the first non-space is not ``{`` the line is
- * plain text: the pending id is cleared, nothing else is touched, and
- * TERMAPY_JSON_IN_TEXT is returned so the caller dispatches it unchanged.
+ * plain text: the pending id and ``jsonrpc`` tag are cleared, nothing else
+ * is touched, and TERMAPY_JSON_IN_TEXT is returned so the caller dispatches
+ * it unchanged.
  *
- * Otherwise the line is treated as a JSON command object and output flips to
+ * Otherwise the line is treated as a JSON request object and output flips to
  * JSON mode immediately (so even a malformed object is answered in JSON, as
- * termapy's NDJSON peer expects).  On success the command name is copied into
- * ``cmdOutP`` (bounded by ``cmdOutCap``); an optional string ``"args"`` is
- * appended after a space (``{"cmd":"echo","args":"hi"}`` -> ``echo hi``); an
- * optional integer ``"id"`` is captured for the reply (absent -> cleared).
- * Returns TERMAPY_JSON_IN_JSON.
+ * termapy's NDJSON peer expects).  The tag and the id are captured first,
+ * whatever follows: an optional integer ``"id"`` for the reply (absent or
+ * not an integer -> none), and whether a ``"jsonrpc"`` key is present (its
+ * value is not checked).  Then the command name, ``"cmd"`` or else
+ * ``"method"`` (``cmd`` wins when both are present), is copied into
+ * ``cmdOutP`` (bounded by ``cmdOutCap``), and an optional ``"args"`` or else
+ * ``"params"`` is appended after a space so a space-splitting dispatcher
+ * sees one ``cmd args`` line:
  *
- * A ``{`` line with no usable ``"cmd"`` string, an unterminated string, an
- * ``"args"`` that is not a string or does not fit TERMAPY_JSON_ARGS_MAX, or
- * a command plus args longer than ``cmdOutCap`` returns TERMAPY_JSON_IN_BAD;
- * the caller answers ReplyError (already in JSON mode).  Never crashes, never
- * reads past the terminating NUL, never silently drops part of a request.
+ *     {"cmd":"echo","args":"hi"}                  ->  echo hi
+ *     {"method":"blink","params":"5ms 2s"}        ->  blink 5ms 2s
+ *     {"method":"blink","params":["5ms","2s"]}    ->  blink 5ms 2s
+ *     {"method":"set","params":[1,true,"x y"]}    ->  set 1 true x y
  *
- * NOTE: ``"cmd"`` / ``"args"`` / ``"id"`` are found by exact substring, not a
- * full JSON parse (deliberate, for a tiny footprint).  A string value
- * elsewhere that literally contains ``"cmd"`` could mislead it; the monitor's
- * own well-formed command lines never do.
+ * ``args`` must be a string.  ``params`` may be a string or a FLAT array
+ * whose elements are strings or bare scalars (copied verbatim, joined by
+ * single spaces; ``[]`` appends nothing).  Returns TERMAPY_JSON_IN_JSON.
+ *
+ * A ``{`` line with no usable command string, an unterminated string, an
+ * ``args`` / ``params`` of the wrong type (an object, a nested array, a bare
+ * number where a string is required), an element that does not fit
+ * TERMAPY_JSON_ARGS_MAX, or a command plus arguments longer than
+ * ``cmdOutCap`` returns TERMAPY_JSON_IN_BAD; the caller answers ReplyError
+ * (already in JSON mode, with the request's tag and id).  ``cmdOutP`` is
+ * unspecified on BAD.  Never crashes, never reads past the terminating NUL,
+ * never silently drops part of a request.
+ *
+ * NOTE: the six keys are found by exact substring followed by a colon, not a
+ * full JSON parse (deliberate, for a tiny footprint).  A string VALUE equal
+ * to a key name is skipped by the colon check, so ``{"cmd":"params"}`` runs;
+ * a string value that literally contains ``"id":`` or ``"jsonrpc":`` could
+ * still mislead it.  The monitor's own well-formed command lines never do.
  *
  * @param lineP     The received line (NUL-terminated).
- * @param cmdOutP   Buffer for the extracted ``cmd`` (+ inline args).
+ * @param cmdOutP   Buffer for the extracted command (+ inline arguments).
  * @param cmdOutCap Size of ``cmdOutP`` in bytes, including the NUL.
  */
 TermapyJson_InResult TermapyJson_Extract(const char *lineP, char *cmdOutP, size_t cmdOutCap);

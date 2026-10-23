@@ -33,8 +33,8 @@ Every field, every default, every constraint is evaluated against this test: **d
 If you control the firmware, do this:
 
 - **Emit NDJSON.** One JSON object per line, `\n` delimited. Even for trivial messages — `{"event": "ready"}` beats `READY`. You're talking to robots; speak the robot dialect.
-- **Use `id` for request/response correlation.** The bridge will match `{"ok": true, "result": ..., "id": 7}` to the request that sent `id=7`.
-- **Use `error` for errors.** A response with an `error` field flips the bridge's `success=false` automatically.
+- **Use `id` for request/response correlation.** The bridge will match `{"result": ..., "id": 7}` to the request that sent `id=7`. The JSON-RPC 2.0 response shape is the reference (`examples/firmware/termapy_json.c`).
+- **Use `error` for errors.** A response with an `error` object (`{"error": {"code": -1, "message": "..."}, "id": 7}`) and no `result` flips the bridge's `success=false` automatically.
 - **Use `event` for async messages.** Telemetry, faults, banners — `{"event": "tick", "value": 42}`. The bridge routes them to a separate stream so they don't pollute command responses.
 
 For these devices the profile is shockingly small (~20 lines of JSON). The bridge does almost nothing per-device.

@@ -2,17 +2,19 @@
  * @file termapy_json.c
  * @brief Reference implementation of termapy's JSON reply wrapper.
  *
- * See termapy_json.h for the wire contract and integration notes, and
- * termapy's NDJSON contract in src/termapy/demo_ndjson.py (the envelope this
- * matches byte for byte).  Portable C99; only <stdbool.h>, <stdint.h>,
- * <stddef.h> and <string.h> are used.
+ * See termapy_json.h for the wire contract and integration notes.  The
+ * envelope is the JSON-RPC 2.0 response shape (``result`` or an ``error``
+ * object, then ``id``), which src/termapy/demo_ndjson.py mirrors byte for
+ * byte.  Portable C99; only <stdbool.h>, <stdint.h>, <stddef.h> and
+ * <string.h> are used.
  *
  * Structure:
  *
  * - OUTPUT: everything reaches the serial line through sState.ops.put, one
  *   char at a time (PutChar / PutStr), so there is no output buffer and no
  *   limit on a result's length.  PutDecUnsigned / PutDecSigned, PutJsonChar /
- *   PutJsonStr and PutFloat are the value writers; PutIdTail appends the
+ *   PutJsonStr and PutFloat are the value writers; PutHead opens the reply
+ *   (mirroring the request's "jsonrpc" tag) and PutIdTail appends the
  *   echoed id.
  * - THE SLOT: SlotBegin / SlotEnd place one value.  At depth 0 that is the
  *   whole reply, so they write the envelope head and tail; inside a
@@ -23,8 +25,9 @@
  * - PASSTHROUGH: a lazily opened string envelope for text a handler prints
  *   through the monitor's ordinary putc.
  * - INPUT (optional): Extract() is a tiny exact-substring matcher (NOT a
- *   JSON parser) that pulls "cmd", optional string "args", and an optional
- *   integer "id" out of a {"cmd":...} line, as blessed by the contract.
+ *   JSON parser) that pulls "cmd" or "method", optional "args" or "params",
+ *   an optional integer "id" and the "jsonrpc" tag out of a {...} request
+ *   line, as blessed by the contract.
  *
  * The module owns the framing only; the command table and dispatch are the
  * integrator's.
@@ -42,6 +45,7 @@ typedef struct {
 	TermapyJson_Mode mode;   /* TERMAPY_JSON_TEXT (0) until SetMode / Extract   */
 	bool idPresent;          /* did the current request carry an id?           */
 	long id;                 /* its value; valid only when idPresent           */
+	bool tagged;             /* request carried "jsonrpc": mirror it, always emit id */
 	uint8_t depth;           /* open builder containers                         */
 	uint32_t itemMask;       /* bit L-1 set: container at level L has an item   */
 	bool passOpen;           /* the passthrough envelope is open                */
@@ -57,6 +61,7 @@ void TermapyJson_Init(const TermapyJson_Ops *opsP)
 	sState.itemMask = 0u;
 	sState.passOpen = false;
 	sState.passPendingNl = false;
+	TermapyJson_ClearId(); /* no pending id or tag from before the platform existed */
 }
 
 static bool Initialized(void)
@@ -92,6 +97,7 @@ void TermapyJson_ClearId(void)
 {
 	sState.idPresent = false;
 	sState.id = 0;
+	sState.tagged = false;
 }
 
 /* ── Output helpers (everything goes through sState.ops.put) ───────────── */
@@ -178,13 +184,28 @@ static void PutJsonStr(const char *stringP)
 	PutChar('"');
 }
 
-/** The ``,"id":<n>`` tail, only when the current request carried an id. */
+/** The reply head: ``{``, the mirrored ``"jsonrpc":"2.0",`` when the request
+ *  carried the key, then ``"<key>":`` for the one value (result or error). */
+static void PutHead(const char *keyP)
+{
+	PutStr(sState.tagged ? "{\"jsonrpc\":\"2.0\",\"" : "{\"");
+	PutStr(keyP);
+	PutStr("\":");
+}
+
+/** The ``,"id":<n>`` tail when the current request carried an id.  A tagged
+ *  request always gets an id, ``null`` when it had none, so the reply is a
+ *  complete JSON-RPC response object.  Untagged and id-less: nothing. */
 static void PutIdTail(void)
 {
 	if (sState.idPresent)
 	{
 		PutStr(",\"id\":");
 		PutDecSigned(sState.id);
+	}
+	else if (sState.tagged)
+	{
+		PutStr(",\"id\":null");
 	}
 }
 
@@ -249,14 +270,14 @@ static void LevelClear(void)
 }
 
 /** JSON mode: open the place for one value.  At depth 0 that is the reply
- *  itself, so write the envelope head (a key is meaningless there and
- *  dropped).  Inside a container, write the separating comma, then the key
- *  for a field. */
+ *  itself, so write the envelope head up to ``"result":`` (a key is
+ *  meaningless there and dropped).  Inside a container, write the separating
+ *  comma, then the key for a field. */
 static void SlotBegin(const char *keyP)
 {
 	if (sState.depth == 0u)
 	{
-		PutStr("{\"ok\":true,\"result\":");
+		PutHead("result");
 		return;
 	}
 	if (LevelHasItem())
@@ -408,10 +429,12 @@ static void EmitError(const char *msgP, int code)
 		TextEnd();
 		return;
 	}
-	PutStr("{\"ok\":false,\"error\":");
-	PutJsonStr(msgP);
-	PutStr(",\"code\":");
+	PutHead("error");
+	PutStr("{\"code\":");
 	PutDecSigned((long)code);
+	PutStr(",\"message\":");
+	PutJsonStr(msgP);
+	PutChar('}');
 	PutIdTail();
 	PutChar('}');
 	PutStr(TERMAPY_JSON_LINE_EOL);
@@ -576,7 +599,8 @@ int TermapyJson_PassthroughPut(int c)
 	}
 	if (!sState.passOpen)
 	{
-		PutStr("{\"ok\":true,\"result\":\"");
+		PutHead("result");
+		PutChar('"');
 		sState.passOpen = true;
 		sState.passPendingNl = false;
 	}
@@ -620,13 +644,15 @@ static void SkipSpaces(const char **cursorPP)
 	}
 }
 
-/** Advance *cursorPP past the literal ``"key"`` and return true, or leave it
- *  and return false.  A plain substring scan (strstr), per the contract. */
+/** Find the literal ``"key"`` followed (spaces allowed) by ``:`` and leave
+ *  the cursor just past the colon; false when there is no such key.  A plain
+ *  substring scan (strstr), per the contract; the colon check skips a VALUE
+ *  that merely equals a key name, so {"cmd":"params"} still runs. */
 static bool FindKey(const char **cursorPP, const char *keyP)
 {
-	char quoted[16]; /* "args" is the longest key we look for */
+	char quoted[16]; /* "jsonrpc" is the longest key: 10 bytes quoted */
 	size_t n = strlen(keyP);
-	const char *hit;
+	const char *scan = *cursorPP;
 	if (n + 3u > sizeof quoted)
 	{
 		return false;
@@ -635,23 +661,30 @@ static bool FindKey(const char **cursorPP, const char *keyP)
 	memcpy(quoted + 1, keyP, n);
 	quoted[n + 1u] = '"';
 	quoted[n + 2u] = '\0';
-	hit = strstr(*cursorPP, quoted);
-	if (hit == NULL)
+	for (;;)
 	{
-		return false;
+		const char *hit = strstr(scan, quoted);
+		const char *p;
+		if (hit == NULL)
+		{
+			return false;
+		}
+		p = hit + (n + 2u);
+		SkipSpaces(&p);
+		if (*p == ':')
+		{
+			*cursorPP = p + 1;
+			return true;
+		}
+		scan = hit + 1; /* a value that happens to equal the key name */
 	}
-	*cursorPP = hit + (n + 2u);
-	return true;
 }
 
-/** After a key: require ``:`` then ``"`` (spaces allowed around the colon).
- *  Leaves the cursor just past the opening quote. */
-static bool ExpectColonQuote(const char **cursorPP)
+/** After a key's colon: require ``"`` (spaces allowed before it).  Leaves
+ *  the cursor just past the opening quote. */
+static bool ExpectQuote(const char **cursorPP)
 {
 	const char *p = *cursorPP;
-	SkipSpaces(&p);
-	if (*p != ':') { return false; }
-	p++;
 	SkipSpaces(&p);
 	if (*p != '"') { return false; }
 	p++;
@@ -700,34 +733,104 @@ static bool CopyJsonString(const char **cursorPP, char *outP, size_t cap)
 }
 
 /** Append a space and a string to a buffer already holding a NUL-terminated
- *  token; false on overflow (buffer left as it was up to the overflow). */
+ *  token; false on overflow (buffer restored to what it held before). */
 static bool AppendArg(char *outP, size_t cap, const char *argP)
 {
-	size_t n = strlen(outP);
+	size_t n0 = strlen(outP);
+	size_t n = n0;
 	if (n + 1u >= cap) { return false; }
 	outP[n++] = ' ';
 	while (*argP != '\0')
 	{
-		if (n + 1u >= cap) { return false; }
+		if (n + 1u >= cap) { outP[n0] = '\0'; return false; }
 		outP[n++] = *argP++;
 	}
 	outP[n] = '\0';
 	return true;
 }
 
-/** Signed decimal for a numeric key.  The cursor is just past the key name
- *  (e.g. after ``"id"``), so consume spaces then the ``:`` then spaces, then
- *  optional ``-`` and up to TERMAPY_JSON_ID_MAX_DIGITS digits.  False when
- *  the colon is missing, no digit follows, or the run is too long. */
+/** A bare array element (number, true, false, null): everything up to ``,``
+ *  ``]`` space tab or NUL.  False when empty, over long, or when it opens a
+ *  container (``[`` or ``{``): nested params are malformed. */
+static bool CopyBareToken(const char **cursorPP, char *outP, size_t cap)
+{
+	const char *p = *cursorPP;
+	size_t n = 0u;
+	if (*p == '[' || *p == '{') { return false; }
+	while (*p != '\0' && *p != ',' && *p != ']' && *p != ' ' && *p != '\t')
+	{
+		if (n + 1u >= cap) { return false; }
+		outP[n++] = *p++;
+	}
+	if (n == 0u) { return false; }
+	outP[n] = '\0';
+	*cursorPP = p;
+	return true;
+}
+
+/** The value of "args" / "params", cursor just past the key's colon.  A
+ *  string is appended as one token after a space.  An array (allowArray,
+ *  the "params" form) appends each element -- quoted string or bare scalar
+ *  -- after a space; ``[]`` appends nothing.  Anything else (a number, an
+ *  object, null, a nested array, a trailing comma, an unterminated value)
+ *  is false.  Each element must fit TERMAPY_JSON_ARGS_MAX; the whole line
+ *  must fit cap. */
+static bool AppendArgs(const char **cursorPP, char *outP, size_t cap, bool allowArray)
+{
+	char buf[TERMAPY_JSON_ARGS_MAX];
+	const char *p = *cursorPP;
+	SkipSpaces(&p);
+	if (*p == '"')
+	{
+		p++;
+		if (!CopyJsonString(&p, buf, sizeof buf) || !AppendArg(outP, cap, buf))
+		{
+			return false;
+		}
+		*cursorPP = p;
+		return true;
+	}
+	if (*p != '[' || !allowArray)
+	{
+		return false;
+	}
+	p++;
+	SkipSpaces(&p);
+	if (*p == ']')
+	{
+		*cursorPP = p + 1; /* []: nothing appended */
+		return true;
+	}
+	for (;;)
+	{
+		SkipSpaces(&p);
+		if (*p == '"')
+		{
+			p++;
+			if (!CopyJsonString(&p, buf, sizeof buf)) { return false; }
+		}
+		else if (!CopyBareToken(&p, buf, sizeof buf))
+		{
+			return false; /* empty element, trailing comma, nested, line end */
+		}
+		if (!AppendArg(outP, cap, buf)) { return false; }
+		SkipSpaces(&p);
+		if (*p == ',') { p++; continue; }
+		if (*p == ']') { *cursorPP = p + 1; return true; }
+		return false; /* two elements with no comma, or the line ended */
+	}
+}
+
+/** Signed decimal for a numeric key.  The cursor is just past the key's
+ *  colon (e.g. after ``"id":``), so consume spaces, then an optional ``-``
+ *  and up to TERMAPY_JSON_ID_MAX_DIGITS digits.  False when no digit follows
+ *  or the run is too long. */
 static bool ParseIntSigned(const char **cursorPP, long *outP)
 {
 	const char *p = *cursorPP;
 	long value = 0;
 	bool negative = false;
 	unsigned digits = 0u;
-	SkipSpaces(&p);
-	if (*p != ':') { return false; }
-	p++;
 	SkipSpaces(&p);
 	if (*p == '-') { negative = true; p++; }
 	while (*p >= '0' && *p <= '9')
@@ -746,15 +849,14 @@ static bool ParseIntSigned(const char **cursorPP, long *outP)
 TermapyJson_InResult TermapyJson_Extract(const char *lineP, char *cmdOutP, size_t cmdOutCap)
 {
 	const char *p = lineP;
-	const char *argCursor;
-	const char *idCursor;
+	const char *cursor;
 	long id;
 
 	SkipSpaces(&p);
 	if (*p != '{')
 	{
-		/* A plain line carries no id: a reply to it must not echo the last
-		 * request's.  Nothing else is touched. */
+		/* A plain line carries no id and no tag: a reply to it must not
+		 * echo the last request's.  Nothing else is touched. */
 		TermapyJson_ClearId();
 		return TERMAPY_JSON_IN_TEXT;
 	}
@@ -763,32 +865,52 @@ TermapyJson_InResult TermapyJson_Extract(const char *lineP, char *cmdOutP, size_
 	sState.mode = TERMAPY_JSON_JSON;
 	TermapyJson_ClearId();
 
-	if (!FindKey(&p, "cmd") || !ExpectColonQuote(&p) || !CopyJsonString(&p, cmdOutP, cmdOutCap))
+	/* Tag and id first, so even a BAD request is answered with the mirrored
+	 * tag and its id (null when there is none), as JSON-RPC asks.  Every key
+	 * is scanned from the line start: key order on the wire is not
+	 * guaranteed. */
+	cursor = lineP;
+	sState.tagged = FindKey(&cursor, "jsonrpc"); /* the value is not checked */
+	cursor = lineP;
+	if (FindKey(&cursor, "id") && ParseIntSigned(&cursor, &id))
 	{
-		return TERMAPY_JSON_IN_BAD;
+		TermapyJson_SetId(id);
 	}
 
-	/* Optional string "args": append after a space so a space-splitting
-	 * dispatcher sees "cmd args".  Scan from the line start -- key order on
-	 * the wire is not guaranteed.  Present but unusable (not a string, too
-	 * long for the copy or for the output) is BAD, never a silent drop. */
-	argCursor = lineP;
-	if (FindKey(&argCursor, "args"))
+	/* "cmd", else "method"; cmd wins when both are present. */
+	cursor = lineP;
+	if (!FindKey(&cursor, "cmd"))
 	{
-		char argBuf[TERMAPY_JSON_ARGS_MAX];
-		if (!ExpectColonQuote(&argCursor) ||
-		    !CopyJsonString(&argCursor, argBuf, sizeof argBuf) ||
-		    !AppendArg(cmdOutP, cmdOutCap, argBuf))
+		cursor = lineP;
+		if (!FindKey(&cursor, "method"))
 		{
 			return TERMAPY_JSON_IN_BAD;
 		}
 	}
-
-	/* Optional integer "id" to echo in the reply. */
-	idCursor = lineP;
-	if (FindKey(&idCursor, "id") && ParseIntSigned(&idCursor, &id))
+	if (!ExpectQuote(&cursor) || !CopyJsonString(&cursor, cmdOutP, cmdOutCap))
 	{
-		TermapyJson_SetId(id);
+		return TERMAPY_JSON_IN_BAD;
+	}
+
+	/* Optional "args" (a string), else "params" (a string or a flat array):
+	 * appended after a space so a space-splitting dispatcher sees "cmd args".
+	 * Present but unusable (wrong type, too long for the copy or for the
+	 * output) is BAD, never a silent drop. */
+	cursor = lineP;
+	if (FindKey(&cursor, "args"))
+	{
+		if (!AppendArgs(&cursor, cmdOutP, cmdOutCap, false))
+		{
+			return TERMAPY_JSON_IN_BAD;
+		}
+	}
+	else
+	{
+		cursor = lineP;
+		if (FindKey(&cursor, "params") && !AppendArgs(&cursor, cmdOutP, cmdOutCap, true))
+		{
+			return TERMAPY_JSON_IN_BAD;
+		}
 	}
 
 	return TERMAPY_JSON_IN_JSON;

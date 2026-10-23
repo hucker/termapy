@@ -11,7 +11,7 @@
   },
 
   "error_detection": {
-    "pattern": "\"error\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
+    "pattern": "\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
     "async": true,
     "types": {"message": "str"}
   },

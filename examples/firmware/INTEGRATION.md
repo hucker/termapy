@@ -21,7 +21,8 @@ passthrough), and inside each converted handler where it used to print.
 
 The device decodes nothing by default. termapy's REPL and MCP server already
 turn a request into the plain command line your monitor understands, so the
-device only encodes replies. A `{"cmd":...}` request extractor exists behind
+device only encodes replies. A `{"cmd":...}` / `{"method":...}` request
+extractor exists behind
 `TERMAPY_JSON_HAS_EXTRACT` for a monitor that wants symmetric JSON without a
 termapy host; it is on by default for parity with termapy's reference device
 and costs nothing when unreferenced under `--gc-sections`.
@@ -108,7 +109,7 @@ void OnLine(const char *lineP) {           /* your per-line entry point */
 ```
 
 In text mode `PassthroughPut` is the plain putc. In JSON mode the first byte a
-handler prints opens `{"ok":true,"result":"`, every byte is JSON-escaped, and
+handler prints opens `{"result":"`, every byte is JSON-escaped, and
 `PassthroughEnd` writes the closing quote, the id tail and the newline. A
 `puts`-style `value\n` becomes `"value"` (one trailing newline is dropped);
 multi-line output becomes one string with `\n` inside. Two rules:
@@ -117,9 +118,9 @@ multi-line output becomes one string with `\n` inside. Two rules:
   text mode, not before the passthrough, or the string carries `\r`.
 - Turn ANSI color off in JSON mode, or the escape codes end up in the string.
 
-An unconverted command always answers `ok:true`, even when it printed an
-error message. That is the trade for touching no handlers; convert the
-commands whose errors the host must see.
+An unconverted command always answers with `result`, even when the text it
+printed is an error message. That is the trade for touching no handlers;
+convert the commands whose errors the host must see as an `error` object.
 
 ## Step 5 — convert handlers where a typed value is worth it
 
@@ -132,7 +133,7 @@ call. Text output stays byte-identical, so existing tests keep passing.
 | prints an int | `TermapyJson_ReplyInt(v)` / `ReplyUInt(v)` | `v` |
 | prints a float | `TermapyJson_ReplyFloat(v, decimals)` | `v` or `null` |
 | prints a JSON value it built | `TermapyJson_ReplyRaw(s)` | `s` verbatim |
-| prints an error | `TermapyJson_ReplyError(msg, code)` | `ok:false` envelope |
+| prints an error | `TermapyJson_ReplyError(msg, code)` | `error` object, no `result` |
 
 ```c
 /* before */
@@ -143,7 +144,7 @@ static void CmdTick(const char *argP) { (void)argP; TermapyJson_ReplyUInt(TickGe
 ```
 
 Convert every exit of a handler, not just the success line: a handler that
-prints `ERR: bad value` through the old path still answers `ok:true` until
+prints `ERR: bad value` through the old path still answers with `result` until
 that print becomes `ReplyError`. A convention that works: negative codes for
 protocol and usage errors (JSON-RPC numbers, -32601 unknown command, -32602
 bad arguments), positive codes for a device error code passed straight
@@ -174,7 +175,7 @@ static void CmdHwm(const char *argP)
     }
     TermapyJson_ArrayEnd();
 }
-/* json: {"ok":true,"result":[{"name":"stack","used":812,"max":4096},...]} */
+/* json: {"result":[{"name":"stack","used":812,"max":4096},...]} */
 ```
 
 `FieldArrayBegin(key)` / `FieldObjectBegin(key)` open a named child inside an
@@ -185,40 +186,56 @@ optional: drop it and the text form is that fallback layout. Nest at most
 
 ## The wire contract you are now speaking
 
-In JSON mode a reply is one JSON object per line, matching termapy's NDJSON
-contract so a termapy profile with a `"format": "json"` response parses it into
-typed `data`:
+In JSON mode a reply is one JSON object per line in the JSON-RPC 2.0 response
+shape, matching termapy's NDJSON contract so a termapy profile with a
+`"format": "json"` response parses it into typed `data`, and so a stock
+JSON-RPC client can talk to the device:
 
 ```text
-success   {"ok":true,"result":<value>,"id":<int>}
-error     {"ok":false,"error":"<msg>","code":<int>,"id":<int>}
+success   {"result":<value>,"id":<int>}
+error     {"error":{"code":<int>,"message":"<msg>"},"id":<int>}
 ```
 
-`result` is any JSON value: string, number, `null`, array or object. Fields
-are compact (no spaces after `:` or `,`), `id` is last, and `id` is
-**omitted entirely** when no id was set. JSON lines end in `\n`; text lines
-end in `\r\n`.
+Exactly one of `result` and `error` is present; a host checks for `error`
+first. `result` is any JSON value: string, number, `null`, array or object.
+`error.data` is reserved for structured detail (nothing emits it yet). Fields
+are compact (no spaces after `:` or `,`) and `id` is last. JSON lines end in
+`\n`; text lines end in `\r\n`.
+
+The `"jsonrpc":"2.0"` member is mirrored: a reply carries it, first, only
+when the request did. A tagged reply is a complete JSON-RPC response object
+and always carries `id`, `null` when the request had none. An untagged reply
+**omits** `id` entirely when no id was set, which keeps termapy's replies
+short. One deviation from the spec, forced by a serial link: a request
+without `id` (a JSON-RPC "notification") is still answered.
 
 With `TERMAPY_JSON_HAS_EXTRACT` on, the extractor also accepts:
 
 ```text
-{"cmd":"<name>"}                      bare command
-{"cmd":"<name>","args":"<text>"}      command with a string argument
-{"cmd":"<name>","id":<int>}           id echoed in the reply
+{"cmd":"<name>"}                               bare command
+{"cmd":"<name>","args":"<text>"}               command with a string argument
+{"cmd":"<name>","id":<int>}                    id echoed in the reply
+{"method":"<name>","params":"<text>"}          JSON-RPC spelling, string params
+{"method":"<name>","params":["<a>",<n>,...]}   flat array, joined by spaces
+{"jsonrpc":"2.0","method":"<name>","id":<int>} tagged: reply is tagged too
 ```
 
-Run it on each received line before dispatch; `IN_JSON` hands you the plain
-`cmd args` line and flips framing to JSON, `IN_BAD` wants a `ReplyError`,
-`IN_TEXT` means dispatch the line as it came (and the pending id is cleared).
-An `args` that is not a string or does not fit `TERMAPY_JSON_ARGS_MAX` is
-`IN_BAD`, never silently dropped.
+`cmd` wins over `method` and `args` over `params` when both are present.
+`args` must be a string; `params` may be a string or a flat array of strings
+and bare scalars (`[]` appends nothing). Run the extractor on each received
+line before dispatch; `IN_JSON` hands you the plain `cmd args` line and flips
+framing to JSON, `IN_BAD` wants a `ReplyError` (the tag and id were captured
+first, so even that reply is correctly addressed), `IN_TEXT` means dispatch
+the line as it came (and the pending id and tag are cleared). A value of the
+wrong type, an element that does not fit `TERMAPY_JSON_ARGS_MAX`, or a line
+that does not fit your buffer is `IN_BAD`, never silently dropped.
 
 ## Compile-time knobs
 
 | Knob | Default | Purpose |
 |---|---|---|
-| `TERMAPY_JSON_HAS_EXTRACT` | 1 | Compile the `{"cmd":...}` extractor |
-| `TERMAPY_JSON_ARGS_MAX` | 64 | Size of the extractor's `args` copy |
+| `TERMAPY_JSON_HAS_EXTRACT` | 1 | Compile the `{"cmd":...}` / `{"method":...}` extractor |
+| `TERMAPY_JSON_ARGS_MAX` | 64 | Size of the extractor's copy of `args` or of one `params` element |
 | `TERMAPY_JSON_ID_MAX_DIGITS` | 10 | Bound on a parsed `id` |
 | `TERMAPY_JSON_FLOAT_BUF` | 24 | Buffer handed to the float formatter |
 | `TERMAPY_JSON_TEXT_EOL` | `"\r\n"` | Text-mode line ending |
@@ -239,9 +256,10 @@ deliberate choice rather than a linker side effect.
 5. Handlers whose values or errors the host must see use the typed replies;
    each has exactly one reply per exit.
 6. Smoke test both framings: `fw` returns `SB_0_8`; after `json on`, `fw`
-   returns `{"ok":true,"result":"SB_0_8"}`, an unconverted command returns
-   `{"ok":true,"result":"<its text>"}`, and a converted error returns an
-   `ok:false` envelope.
+   returns `{"result":"SB_0_8"}`, an unconverted command returns
+   `{"result":"<its text>"}`, a converted error returns an `error` object,
+   and `{"jsonrpc":"2.0","method":"fw","id":1}` returns
+   `{"jsonrpc":"2.0","result":"SB_0_8","id":1}`.
 
 ## Pitfalls
 
@@ -259,8 +277,10 @@ deliberate choice rather than a linker side effect.
 - **Balance the builder.** A missing `End` leaves the envelope open and every
   later reply lands inside it. An extra `End` is ignored.
 - **The extractor is a substring matcher, not a JSON parser.** It finds
-  `"cmd"` / `"args"` / `"id"` by substring. Your own well-formed command lines
-  are fine; do not rely on it for arbitrary nested JSON input.
+  `"cmd"` / `"method"` / `"args"` / `"params"` / `"id"` / `"jsonrpc"` by
+  substring followed by a colon. A value equal to a key name is skipped, but a
+  string value that literally contains `"id":` is not. Your own well-formed
+  command lines are fine; do not rely on it for arbitrary nested JSON input.
 
 ## Reference
 

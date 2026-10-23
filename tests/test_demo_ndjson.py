@@ -46,7 +46,7 @@ class TestSimulatorBasics:
         assert "fw" in parsed, "firmware version in banner"
 
     def test_request_with_id_correlates_in_response(self):
-        """A request id is echoed in its ok response so callers can match replies to requests."""
+        """A request id is echoed in its response so callers can match replies to requests."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -57,8 +57,26 @@ class TestSimulatorBasics:
         # Assert
         parsed = json.loads(line)
         assert parsed["id"] == 7, "id round-trips for correlation"
-        assert parsed["ok"] is True, "ok=True on success"
+        assert "error" not in parsed, "no error member on success"
         assert "celsius" in parsed["result"], "result has celsius"
+
+    def test_jsonrpc_spelling_is_mirrored(self):
+        """A tagged method/params request gets a tagged reply that always carries an id."""
+        # Arrange
+        port = FakeSerialNDJSON()
+        port.timeout = 0.5
+        _drain_banner(port)
+        # Act
+        port.write(b'{"jsonrpc":"2.0","method":"get_temp","id":7}\n')
+        tagged_line = port.read(200).decode()
+        port.write(b'{"jsonrpc":"2.0","method":"calibrate"}\n')
+        id_less_line = port.read(200).decode()
+        # Assert
+        assert tagged_line.startswith('{"jsonrpc":"2.0","result":'), "tag leads the reply"
+        assert tagged_line.endswith(',"id":7}\n'), "id last"
+        assert id_less_line == '{"jsonrpc":"2.0","result":{"calibrated":true},"id":null}\n', (
+            "tagged and id-less: id is present and null"
+        )
 
     def test_request_without_id_omits_id_in_response(self):
         """A request without an id gets a reply without one; the simulator invents no id."""
@@ -74,7 +92,7 @@ class TestSimulatorBasics:
         assert "id" not in parsed, "no id in => no id out"
 
     def test_unknown_cmd_returns_error_with_code(self):
-        """An unknown cmd answers ok=false with code -1 and an error naming the cmd."""
+        """An unknown cmd answers an error object with code -1 and a message naming the cmd."""
         # Arrange
         port = FakeSerialNDJSON()
         port.timeout = 0.5
@@ -84,9 +102,9 @@ class TestSimulatorBasics:
         line = port.read(200).decode().strip()
         # Assert
         parsed = json.loads(line)
-        assert parsed["ok"] is False, "ok=False on unknown"
-        assert parsed["code"] == -1, "unknown cmd has code -1"
-        assert "nope" in parsed["error"], "error names the unknown cmd"
+        assert "result" not in parsed, "no result member on an error"
+        assert parsed["error"]["code"] == -1, "unknown cmd has code -1"
+        assert "nope" in parsed["error"]["message"], "error names the unknown cmd"
 
     def test_malformed_json_routes_as_async_error(self):
         """Unparseable input yields an id-less error, which the bridge routes as async."""
@@ -101,7 +119,7 @@ class TestSimulatorBasics:
         # Assert
         parsed = json.loads(line)
         assert "id" not in parsed, "malformed -> async error (no id)"
-        assert parsed["error"], "error message present"
+        assert parsed["error"]["message"], "error message present"
 
     def test_set_threshold_updates_state(self):
         """set_threshold changes device state that a later get_status reports back."""
@@ -131,8 +149,8 @@ class TestSimulatorBasics:
         line = port.read(200).decode().strip()
         # Assert
         parsed = json.loads(line)
-        assert parsed["ok"] is False, "invalid enum rejected"
-        assert "unknown mode" in parsed["error"].lower(), "error names unknown mode"
+        assert "result" not in parsed, "invalid enum rejected"
+        assert "unknown mode" in parsed["error"]["message"].lower(), "error names unknown mode"
 
     def test_reset_is_fire_and_forget_re_emits_banner(self):
         """reset sends no response; the next read is a fresh ready banner."""
@@ -172,8 +190,8 @@ class TestSimulatorBasics:
         line = port.read(200).decode().strip()
         # Assert
         parsed = json.loads(line)
-        assert parsed["error"] == "watchdog", "error message preserved"
-        assert parsed["code"] == -99, "code preserved"
+        assert parsed["error"]["message"] == "watchdog", "error message preserved"
+        assert parsed["error"]["code"] == -99, "code preserved"
         assert "id" not in parsed, "no id => async error per field_routing"
 
 

@@ -166,12 +166,12 @@ class TestTextMode:
 
 class TestJsonMode:
     def test_success_with_id(self, json_host):
-        """A string result with an id: ok, result quoted, id last; compact, LF."""
+        """A string result with an id: result quoted, id last; compact, LF."""
         # Act
         out = _run(json_host, ["init", "mode json", "setid 7", "reply 1.23"])
 
         # Assert
-        assert out[3] == '{"ok":true,"result":"1.23","id":7}\n', "matches demo_ndjson _ok"
+        assert out[3] == '{"result":"1.23","id":7}\n', "matches demo_ndjson _ok"
 
     def test_success_without_id_omits_id(self, json_host):
         """No id: the id field is OMITTED entirely (not 0, not null) -- the parity case."""
@@ -179,7 +179,7 @@ class TestJsonMode:
         out = _run(json_host, ["init", "mode json", "clearid", "reply 1.23"])
 
         # Assert
-        assert out[3] == '{"ok":true,"result":"1.23"}\n', "id omitted when the request had none"
+        assert out[3] == '{"result":"1.23"}\n', "id omitted when the request had none"
 
     def test_raw_value_is_unquoted(self, json_host):
         """A raw result is spliced verbatim: a number is a JSON number, not a string."""
@@ -187,15 +187,15 @@ class TestJsonMode:
         out = _run(json_host, ["init", "mode json", "clearid", "replyraw 42"])
 
         # Assert
-        assert out[3] == '{"ok":true,"result":42}\n', "raw value unquoted"
+        assert out[3] == '{"result":42}\n', "raw value unquoted"
 
     def test_error_envelope(self, json_host):
-        """An error: ok false, error quoted, code, id last."""
+        """An error: the JSON-RPC error object (code, then message), id last."""
         # Act
         out = _run(json_host, ["init", "mode json", "setid 3", "error -11 unknown mode"])
 
         # Assert
-        assert out[3] == '{"ok":false,"error":"unknown mode","code":-11,"id":3}\n'
+        assert out[3] == '{"error":{"code":-11,"message":"unknown mode"},"id":3}\n'
 
     def test_string_escaping(self, json_host):
         """A quote and a tab in a result are JSON-escaped inside the string."""
@@ -204,7 +204,7 @@ class TestJsonMode:
         out = _run(json_host, ["init", "mode json", "clearid", 'reply he said "hi"'])
 
         # Assert
-        assert out[3] == '{"ok":true,"result":"he said \\"hi\\""}\n', "inner quotes escaped"
+        assert out[3] == '{"result":"he said \\"hi\\""}\n', "inner quotes escaped"
 
 
 # ── typed scalar replies ──────────────────────────────────────────────────────
@@ -217,8 +217,8 @@ class TestTypedReplies:
         out = _run(json_host, ["init", "mode json", "clearid", "replyint -7", "replyint 0"])
 
         # Assert
-        assert out[3] == '{"ok":true,"result":-7}\n', "signed number, not a string"
-        assert out[4] == '{"ok":true,"result":0}\n', "zero prints as 0"
+        assert out[3] == '{"result":-7}\n', "signed number, not a string"
+        assert out[4] == '{"result":0}\n', "zero prints as 0"
 
     def test_uint_covers_the_full_32_bit_range(self, json_host):
         """ReplyUInt is for ticks and counters that exceed LONG_MAX on a 32-bit long."""
@@ -226,7 +226,7 @@ class TestTypedReplies:
         out = _run(json_host, ["init", "mode json", "setid 1", "replyuint 4294967295"])
 
         # Assert
-        assert out[3] == '{"ok":true,"result":4294967295,"id":1}\n'
+        assert out[3] == '{"result":4294967295,"id":1}\n'
 
     def test_float_uses_the_injected_formatter(self, json_host):
         """ReplyFloat hands value and decimals to the platform's formatter."""
@@ -236,8 +236,8 @@ class TestTypedReplies:
         )
 
         # Assert
-        assert out[3] == '{"ok":true,"result":3.14}\n', "two decimals as asked"
-        assert out[4] == '{"ok":true,"result":-0.5}\n', "negative float"
+        assert out[3] == '{"result":3.14}\n', "two decimals as asked"
+        assert out[4] == '{"result":-0.5}\n', "negative float"
 
     def test_float_without_a_formatter_is_null(self, json_host):
         """A platform with fmtFloat NULL links no float code and answers null / empty."""
@@ -255,7 +255,7 @@ class TestTypedReplies:
         )
 
         # Assert
-        assert out[3] == '{"ok":true,"result":null}\n', "JSON has null for 'no value'"
+        assert out[3] == '{"result":null}\n', "JSON has null for 'no value'"
         assert out[5] == "\r\n", "text mode: an empty value line"
 
     def test_non_finite_float_is_null(self, json_host):
@@ -266,8 +266,8 @@ class TestTypedReplies:
         )
 
         # Assert
-        assert out[3] == '{"ok":true,"result":null}\n', "nan -> null"
-        assert out[4] == '{"ok":true,"result":null}\n', "inf -> null"
+        assert out[3] == '{"result":null}\n', "nan -> null"
+        assert out[4] == '{"result":null}\n', "inf -> null"
 
 
 # ── the streaming builder ─────────────────────────────────────────────────────
@@ -294,7 +294,7 @@ class TestBuilder:
         )
 
         # Assert
-        assert actual == '{"ok":true,"result":[1,"two",3.5,true]}\n'
+        assert actual == '{"result":[1,"two",3.5,true]}\n'
 
     def test_object_of_fields_with_id(self, json_host):
         """ObjectBegin..ObjectEnd: "key":value pairs, id last on the envelope."""
@@ -315,7 +315,7 @@ class TestBuilder:
         )
 
         # Assert
-        assert actual == '{"ok":true,"result":{"name":"stack","used":812,"max":4096},"id":9}\n'
+        assert actual == '{"result":{"name":"stack","used":812,"max":4096},"id":9}\n'
 
     def test_nested_array_of_objects_is_a_table(self, json_host):
         """The hwm shape: an array of row objects, commas placed at every level."""
@@ -341,7 +341,7 @@ class TestBuilder:
         )
 
         # Assert
-        assert actual == '{"ok":true,"result":[{"name":"a","v":1},{"name":"b","v":2}]}\n'
+        assert actual == '{"result":[{"name":"a","v":1},{"name":"b","v":2}]}\n'
 
     def test_keyed_containers_inside_an_object(self, json_host):
         """FieldArrayBegin / FieldObjectBegin open a named child, like MEM.INFO's regions."""
@@ -367,10 +367,7 @@ class TestBuilder:
         )
 
         # Assert
-        assert (
-            actual
-            == '{"ok":true,"result":{"n":2,"regions":["sram","flash"],"caps":{"modify":true}}}\n'
-        )
+        assert actual == '{"result":{"n":2,"regions":["sram","flash"],"caps":{"modify":true}}}\n'
 
     def test_empty_containers(self, json_host):
         """No items: [] and {} with no stray comma."""
@@ -380,7 +377,7 @@ class TestBuilder:
         )
 
         # Assert
-        assert actual == '{"ok":true,"result":[]}\n{"ok":true,"result":{}}\n'
+        assert actual == '{"result":[]}\n{"result":{}}\n'
 
     def test_text_mode_prints_one_line_per_value(self, json_host):
         """In text mode containers print nothing; items are 'value', fields 'key value'."""
@@ -410,8 +407,8 @@ class TestBuilder:
         out = _run(json_host, ["init", "mode json", "clearid", "iint 5", "fstr k v"])
 
         # Assert
-        assert out[3] == '{"ok":true,"result":5}\n'
-        assert out[4] == '{"ok":true,"result":"v"}\n', "no key where there is no object"
+        assert out[3] == '{"result":5}\n'
+        assert out[4] == '{"result":"v"}\n', "no key where there is no object"
 
     def test_extra_end_is_ignored(self, json_host):
         """An unbalanced End emits nothing and does not corrupt the next reply."""
@@ -420,7 +417,7 @@ class TestBuilder:
 
         # Assert
         assert out[3] == "", "nothing to close"
-        assert out[4] == '{"ok":true,"result":"ok"}\n'
+        assert out[4] == '{"result":"ok"}\n'
 
 
 # ── the passthrough for unconverted commands ──────────────────────────────────
@@ -441,9 +438,7 @@ class TestPassthrough:
         actual = _joined(json_host, ["init", "mode json", "setid 4", "pass SB_0_8", "passend"], 3)
 
         # Assert
-        assert actual == '{"ok":true,"result":"SB_0_8","id":4}\n', (
-            "a puts-style value\\n becomes the value"
-        )
+        assert actual == '{"result":"SB_0_8","id":4}\n', "a puts-style value\\n becomes the value"
 
     def test_inner_newlines_are_kept_escaped(self, json_host):
         """Multi-line output is one string with \\n inside; only the last newline goes."""
@@ -455,7 +450,7 @@ class TestPassthrough:
         )
 
         # Assert
-        assert actual == '{"ok":true,"result":"line one\\nline two"}\n'
+        assert actual == '{"result":"line one\\nline two"}\n'
 
     def test_quotes_and_controls_are_escaped(self, json_host):
         """Handler text with quotes stays valid JSON."""
@@ -465,7 +460,7 @@ class TestPassthrough:
         )
 
         # Assert
-        assert actual == '{"ok":true,"result":"say \\"hi\\""}\n'
+        assert actual == '{"result":"say \\"hi\\""}\n'
 
     def test_end_without_output_is_a_no_op(self, json_host):
         """A converted handler prints nothing through the passthrough, so End emits nothing."""
@@ -473,7 +468,7 @@ class TestPassthrough:
         out = _run(json_host, ["init", "mode json", "clearid", "reply done", "passend"])
 
         # Assert
-        assert out[3] == '{"ok":true,"result":"done"}\n'
+        assert out[3] == '{"result":"done"}\n'
         assert out[4] == "", "nothing was open"
 
 
@@ -499,7 +494,7 @@ class TestExtract:
 
         # Assert
         assert out[3] == "TEXT\n"
-        assert out[4] == '{"ok":true,"result":"1.23"}\n', "no id after a text line"
+        assert out[4] == '{"result":"1.23"}\n', "no id after a text line"
 
     def test_json_command_extracts_the_name(self, json_host):
         """{\"cmd\":\"ver\"} yields the bare command name."""
@@ -568,9 +563,7 @@ class TestExtract:
 
         # Assert
         assert out[2] == "JSON|ver\n", "extracted"
-        assert out[3] == '{"ok":true,"result":"1.23","id":9}\n', (
-            "extract flipped to JSON and captured id 9"
-        )
+        assert out[3] == '{"result":"1.23","id":9}\n', "extract flipped to JSON and captured id 9"
 
     def test_bad_json_still_flips_to_json(self, json_host):
         """A '{' line that is malformed still switches to JSON, so the error is an envelope."""
@@ -581,7 +574,7 @@ class TestExtract:
 
         # Assert
         assert out[2] == "BAD\n", "malformed"
-        assert out[3] == '{"ok":false,"error":"malformed json","code":-32700}\n', (
+        assert out[3] == '{"error":{"code":-32700,"message":"malformed json"}}\n', (
             "the error after a bad JSON line is itself JSON"
         )
 
@@ -599,7 +592,7 @@ class TestModeCmdAndLine:
         )
 
         # Assert
-        assert out[4] == '{"ok":true,"result":"A"}\n', "flipped to JSON"
+        assert out[4] == '{"result":"A"}\n', "flipped to JSON"
         assert out[6] == "B\r\n", "second reply is the text form of B"
 
     def test_line_runs_the_full_flow(self, json_host):
@@ -608,9 +601,7 @@ class TestModeCmdAndLine:
         out = _run(json_host, ["init", 'line {"cmd":"echo","args":"hi","id":2}'])
 
         # Assert
-        assert out[1] == '{"ok":true,"result":"hi","id":2}\n', (
-            "end to end: extract + dispatch + reply"
-        )
+        assert out[1] == '{"result":"hi","id":2}\n', "end to end: extract + dispatch + reply"
 
     def test_line_plain_text_dispatches_as_text(self, json_host):
         """A plain ver line (no JSON) dispatches and replies in the current (text) mode."""
@@ -619,6 +610,247 @@ class TestModeCmdAndLine:
 
         # Assert
         assert out[2] == "1.23\r\n", "plain line, text reply"
+
+
+# ── the mirrored JSON-RPC tag ─────────────────────────────────────────────────
+
+
+class TestJsonRpcTag:
+    def test_tagged_request_gets_a_tagged_reply_with_its_id(self, json_host):
+        """A request carrying "jsonrpc" is answered as a full JSON-RPC response object."""
+        # Act
+        out = _run(json_host, ["init", 'line {"jsonrpc":"2.0","method":"ver","id":7}'])
+
+        # Assert
+        assert out[1] == '{"jsonrpc":"2.0","result":"1.23","id":7}\n', "tag first, id last"
+
+    def test_tagged_request_without_id_answers_id_null(self, json_host):
+        """Tagged and id-less: the id member is present and null, as the spec shapes it."""
+        # Act
+        out = _run(json_host, ["init", 'line {"jsonrpc":"2.0","method":"ver"}'])
+
+        # Assert
+        assert out[1] == '{"jsonrpc":"2.0","result":"1.23","id":null}\n'
+
+    def test_untagged_request_without_id_omits_id(self, json_host):
+        """Untagged and id-less stays short: no tag, no id member at all."""
+        # Act
+        out = _run(json_host, ["init", 'line {"cmd":"ver"}'])
+
+        # Assert
+        assert out[1] == '{"result":"1.23"}\n'
+
+    def test_tagged_error_and_malformed_request(self, json_host):
+        """The tag and id rules hold for an error object and for a malformed request."""
+        # Act
+        out = _run(
+            json_host,
+            [
+                "init",
+                'line {"jsonrpc":"2.0","method":"nope","id":5}',
+                'line {"jsonrpc":"2.0","method":5}',
+                'line {"cmd":5,"id":3}',
+            ],
+        )
+
+        # Assert
+        assert (
+            out[1] == '{"jsonrpc":"2.0","error":{"code":-2,"message":"unknown command"},"id":5}\n'
+        )
+        assert (
+            out[2]
+            == '{"jsonrpc":"2.0","error":{"code":-32700,"message":"malformed json"},"id":null}\n'
+        )
+        assert out[3] == '{"error":{"code":-32700,"message":"malformed json"},"id":3}\n', (
+            "the id is captured before the request is judged, so a BAD request keeps it"
+        )
+
+    def test_tag_reaches_the_builder_and_the_passthrough(self, json_host):
+        """Every head writer mirrors the tag: scalar, container and passthrough."""
+        # Act
+        out = _run(
+            json_host,
+            [
+                "init",
+                'extract {"jsonrpc":"2.0","method":"x","id":2}',
+                "pass SB_0_8",
+                "passend",
+                'extract {"jsonrpc":"2.0","method":"x"}',
+                "abegin",
+                "iint 1",
+                "aend",
+                'extract {"jsonrpc":"2.0","method":"x","id":3}',
+                'error -11 he said "x"',
+            ],
+        )
+
+        # Assert
+        assert "".join(out[2:4]) == '{"jsonrpc":"2.0","result":"SB_0_8","id":2}\n', "passthrough"
+        assert "".join(out[5:8]) == '{"jsonrpc":"2.0","result":[1],"id":null}\n', "builder"
+        assert (
+            out[9] == '{"jsonrpc":"2.0","error":{"code":-11,"message":"he said \\"x\\""},"id":3}\n'
+        )
+
+    def test_tag_is_dropped_with_the_id(self, json_host):
+        """A text line, ClearId and Init all drop the tag; SetId alone keeps it."""
+        # Act
+        out = _run(
+            json_host,
+            [
+                "init",
+                'extract {"jsonrpc":"2.0","method":"ver","id":1}',
+                "extract ver",
+                "reply 1.23",
+                'extract {"jsonrpc":"2.0","method":"ver","id":1}',
+                "clearid",
+                "reply 1.23",
+                'extract {"jsonrpc":"2.0","method":"ver","id":1}',
+                "init",
+                "reply 1.23",
+                'extract {"jsonrpc":"2.0","method":"ver"}',
+                "setid 9",
+                "reply 1.23",
+            ],
+        )
+
+        # Assert
+        assert out[3] == '{"result":"1.23"}\n', "a text line clears tag and id"
+        assert out[6] == '{"result":"1.23"}\n', "ClearId clears the tag too"
+        assert out[9] == '{"result":"1.23"}\n', "Init drops a pending tag and id, keeps JSON mode"
+        assert out[12] == '{"jsonrpc":"2.0","result":"1.23","id":9}\n', "SetId leaves the tag alone"
+
+    def test_tag_means_nothing_in_text_mode(self, json_host):
+        """Text mode output is untouched by the tag."""
+        # Act
+        out = _run(
+            json_host,
+            [
+                "init",
+                'extract {"jsonrpc":"2.0","method":"ver","id":1}',
+                "mode text",
+                "reply 1.23",
+                "error -1 nope",
+            ],
+        )
+
+        # Assert
+        assert out[3] == "1.23\r\n"
+        assert out[4] == "nope\r\n"
+
+
+# ── the JSON-RPC request spelling: method and params ──────────────────────────
+
+
+class TestRequestKeys:
+    def test_method_is_an_alias_of_cmd_and_cmd_wins(self, json_host):
+        """{"method":...} extracts like {"cmd":...}; with both present, cmd is taken."""
+        # Act
+        out = _run(
+            json_host, ["init", 'extract {"method":"ver"}', 'extract {"method":"a","cmd":"b"}']
+        )
+
+        # Assert
+        assert out[1] == "JSON|ver\n"
+        assert out[2] == "JSON|b\n"
+
+    def test_params_string_and_array_join_with_spaces(self, json_host):
+        """params as a string, or a flat array of strings and bare scalars, becomes one arg line."""
+        # Act
+        out = _run(
+            json_host,
+            [
+                "init",
+                'extract {"method":"echo","params":"hi there"}',
+                'extract {"method":"echo","params":["5ms","2s"]}',
+                'extract {"method":"set","params":[1, true, -2.5, null, "x y"]}',
+                'extract {"method":"ver","params":[]}',
+                'extract {"method":"ver","params":[ ]}',
+                'line {"jsonrpc":"2.0","method":"echo","params":["5ms","2s"],"id":1}',
+            ],
+        )
+
+        # Assert
+        assert out[1] == "JSON|echo hi there\n"
+        assert out[2] == "JSON|echo 5ms 2s\n"
+        assert out[3] == "JSON|set 1 true -2.5 null x y\n", "bare scalars copied verbatim"
+        assert out[4] == "JSON|ver\n", "an empty array appends nothing"
+        assert out[5] == "JSON|ver\n"
+        assert out[6] == '{"jsonrpc":"2.0","result":"5ms 2s","id":1}\n', "end to end"
+
+    def test_malformed_params_are_bad(self, json_host):
+        """Objects, nested arrays, trailing commas, missing commas and bare non-strings are BAD."""
+        # Act
+        out = _run(
+            json_host,
+            [
+                "init",
+                'extract {"method":"ver","params":{}}',
+                'extract {"method":"ver","params":{"a":1}}',
+                'extract {"method":"ver","params":[[1]]}',
+                'extract {"method":"ver","params":["a",]}',
+                'extract {"method":"ver","params":["a"',
+                'extract {"method":"ver","params":["a',
+                'extract {"method":"ver","params":[1 2]}',
+                'extract {"method":"echo","params":5}',
+                'extract {"method":"echo","params":null}',
+                'extract {"cmd":"echo","args":["A"]}',
+            ],
+        )
+
+        # Assert
+        assert out[1:11] == ["BAD\n"] * 10, (
+            "args stays string-only; params rejects anything not flat"
+        )
+
+    def test_args_wins_over_params(self, json_host):
+        """With both present, args is taken; params is ignored."""
+        # Act
+        out = _run(json_host, ["init", 'extract {"cmd":"echo","args":"A","params":"B"}'])
+
+        # Assert
+        assert out[1] == "JSON|echo A\n"
+
+    def test_params_bounds(self, json_host):
+        """Each element must fit TERMAPY_JSON_ARGS_MAX; the whole line must fit the caller's buffer."""
+        # Act
+        out = _run(
+            json_host,
+            [
+                "init",
+                f'extract {{"method":"echo","params":["{"x" * 63}"]}}',
+                f'extract {{"method":"echo","params":["{"x" * 64}"]}}',
+                f'extract {{"method":"echo","params":["{"a" * 40}","{"b" * 40}"]}}',
+                f'extract {{"method":"echo","params":["{"a" * 40}","{"b" * 40}","{"c" * 40}"]}}',
+            ],
+        )
+
+        # Assert
+        assert out[1] == f"JSON|echo {'x' * 63}\n", "63 chars fit the 64-byte element copy"
+        assert out[2] == "BAD\n", "64 do not"
+        assert out[3] == f"JSON|echo {'a' * 40} {'b' * 40}\n", "86 bytes fit the 96-byte line"
+        assert out[4] == "BAD\n", "a third element overflows the line"
+
+    def test_a_value_equal_to_a_key_name_is_not_a_key(self, json_host):
+        """The colon check lets {"cmd":"params"} run and keeps "jsonrpc" in args from tagging."""
+        # Act
+        out = _run(
+            json_host,
+            [
+                "init",
+                'extract {"cmd":"params"}',
+                'extract {"cmd":"id","id":5}',
+                "reply x",
+                'extract {"cmd":"echo","args":"jsonrpc"}',
+                "reply x",
+            ],
+        )
+
+        # Assert
+        assert out[1] == "JSON|params\n"
+        assert out[2] == "JSON|id\n"
+        assert out[3] == '{"result":"x","id":5}\n'
+        assert out[4] == "JSON|echo jsonrpc\n"
+        assert out[5] == '{"result":"x"}\n', "not tagged"
 
 
 # ── compile-time knobs ────────────────────────────────────────────────────────

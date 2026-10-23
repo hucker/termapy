@@ -923,6 +923,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_expect.py                      | Tests for the /expect and /expect.regex commands                                                                                                   |
 | test_file_completion.py             | File-argument completion: the `Command.files` declaration and the engine's reader                                                                  |
 | test_find.py                        | Tests for /find -- interactive scrollback match navigation                                                                                         |
+| test_firmware_json.py               | The drop-in JSON wrapper, `examples/firmware/termapy_json.c`, on the host                                                                          |
 | test_firmware_mem.py                | The drop-in MEM handler, `examples/firmware/termapy_mem.c`, run on the host                                                                        |
 | test_folder_ops_delete.py           | The shared `.delete` folder handler (`/cap.delete`, `/run.delete`, ...)                                                                            |
 | test_folder_ops_dump.py             | Containment tests for the shared `.dump` folder handler                                                                                            |

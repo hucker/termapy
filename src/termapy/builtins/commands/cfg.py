@@ -651,7 +651,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         args: ``"--display"`` to open report externally.
     """
     try:
-        report_path, colored_tree = write_info_report(ctx, trigger="by /cfg.info")
+        report_path, colored_tree = write_info_report(ctx, trigger=f"by {ctx.prefix}cfg.info")
         ctx.io.output_markup(colored_tree)
         if ctx.flag("--display"):
             open_with_system(str(report_path))
@@ -840,7 +840,7 @@ COMMAND = Command(
             needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
         "help": Command(
-            help="Show /cfg help.",
+            help="Show {prefix}cfg help.",
             handler=_handler_help,
         ),
         # Desktop/menu launchers only make sense on a graphical host, and

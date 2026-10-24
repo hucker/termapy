@@ -135,7 +135,7 @@ DEFAULT_CFG = {
         {
             "enabled": True,
             "name": "Info",
-            "command": "/cfg.info",
+            "command": "{prefix}cfg.info",
             "tooltip": "Project info",
         },
         {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
@@ -339,15 +339,15 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: none, rtscts, xonxoff, manual (shows DTR/RTS/Break buttons)",
     ),
     "encoding": (
-        "Character encoding for serial data (set: /term.encoding).",
+        "Character encoding for serial data (set: {prefix}term.encoding).",
         "Common: utf-8, latin-1, ascii, cp437",
     ),
     "eol": (
-        "Appended to each sent command (set: /term.eol).",
+        "Appended to each sent command (set: {prefix}term.eol).",
         r'"\r" (CR), "\n" (LF), "\r\n" (CRLF), or a combination; also \0 \x03 \x04.',
     ),
     "eol_rx": (
-        "How received device output is split into lines (set: /term.eol.rx).",
+        "How received device output is split into lines (set: {prefix}term.eol.rx).",
         "auto (CR/LF/CRLF all break), cr, lf, or crlf. Default: auto",
     ),
     "cmd_delay_ms": (
@@ -389,7 +389,7 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "on_connect_cmd": (
         "Command to run after connecting (all frontends).",
-        "One command; for several, a .run file. Example: /run welcome",
+        "One command; for several, a .run file. Example: {prefix}run welcome",
     ),
     "tui_on_connect_cmd": (
         "Extra command to run after connecting in TUI mode (after on_connect_cmd).",
@@ -405,11 +405,11 @@ CFG_HELP: dict[str, tuple] = {
     ),
     # Input
     "send_bare_enter": (
-        "Send the line ending on an empty Enter (toggle: /term.send_bare_enter).",
+        "Send the line ending on an empty Enter (toggle: {prefix}term.send_bare_enter).",
         "Valid: true, false",
     ),
     "echo": (
-        "Echo device commands sent to the wire (toggle: /term.echo).",
+        "Echo device commands sent to the wire (toggle: {prefix}term.echo).",
         "Valid: true, false",
     ),
     "echo_fmt": (
@@ -453,39 +453,39 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "max_lines": ("Scrollback buffer size.", "Positive integer. Default: 10000"),
     "timestamps": (
-        "Prefix each line with [HH:MM:SS.mmm] (toggle: /term.timestamps).",
+        "Prefix each line with [HH:MM:SS.mmm] (toggle: {prefix}term.timestamps).",
         "Valid: true, false",
     ),
     "eol_markers": (
-        "Show dim \\r \\n markers in serial output (toggle: /term.eol.markers).",
+        "Show dim \\r \\n markers in serial output (toggle: {prefix}term.eol.markers).",
         "Valid: true, false. Debug mode for line-ending issues.",
     ),
     "line_no": (
-        "Show line numbers in serial output (toggle: /term.line_no).",
+        "Show line numbers in serial output (toggle: {prefix}term.line_no).",
         "Valid: true, false",
     ),
     "hex": (
-        "Display received bytes as hex instead of text (toggle: /term.hex).",
+        "Display received bytes as hex instead of text (toggle: {prefix}term.hex).",
         "Valid: true, false",
     ),
     "request_mode": (
         "Session JSON mode: device exchanges AND termapy commands.",
-        "true/false. On: everything answers as a JSON envelope. See /term.request.",
+        "true/false. On: everything answers as a JSON envelope. See {prefix}term.request.",
     ),
     "request_err_pattern": (
         "Regex on request_mode responses that flags a device-side error.",
-        r"Match => success=false. Empty disables. Override: /term.request on err=<re>.",
+        r"Match => success=false. Empty disables. Override: {prefix}term.request on err=<re>.",
     ),
     "json_style": (
         "How JSON prints (request_mode, --json): compact, indent, or color.",
-        "compact = one line per answer; indent; color = indented + highlighted. /term.json",
+        "compact = one line per answer; indent; color = indented + highlighted. {prefix}term.json",
     ),
     "strip_device_echo": (
         "Drop a half-duplex device's echoed command from request_mode replies.",
         "true/false. On: a reply's leading line matching the command is removed.",
     ),
     "max_grep_lines": (
-        "Maximum lines shown by /grep.",
+        "Maximum lines shown by {prefix}grep.",
         "Positive integer. Default: 100",
     ),
     "file_xfer_root": (
@@ -510,7 +510,7 @@ CFG_HELP: dict[str, tuple] = {
     # Access
     "config_read_only": (
         "Disable Edit button in pickers.",
-        "Valid: true, false. /cfg still changes in-memory values.",
+        "Valid: true, false. {prefix}cfg still changes in-memory values.",
     ),
     "profile_path": (
         "Explicit path to a v2 device profile.  MCP-only: --mcp loads it on connect.",
@@ -534,7 +534,7 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: true, false.",
     ),
     "record_enabled": (
-        "Show the Record button next to the REPL prompt (toggles /run.record).",
+        "Show the Record button next to the REPL prompt (toggles {prefix}run.record).",
         "Valid: true, false.",
     ),
     # Custom buttons (nested keys)
@@ -555,7 +555,7 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "custom_buttons": (
         "Array of custom toolbar button objects.",
-        "Each has: enabled, name, command, tooltip",
+        "Each has: enabled, name, command, tooltip. See help: custom-buttons.",
     ),
 }
 
@@ -563,11 +563,11 @@ CFG_HELP: dict[str, tuple] = {
 SCRIPT_TEMPLATE = """\
 # Script: {name}
 # Lines starting with # are comments
-# Lines starting with / are REPL commands
+# Lines starting with {prefix} are REPL commands
 # All other lines are sent to the serial device
 #
 # Example:
-# /delay 500ms
+# {prefix}delay 500ms
 # AT+INFO
 """
 

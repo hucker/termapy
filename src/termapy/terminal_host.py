@@ -19,7 +19,7 @@ from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.defaults import quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
-from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.serial_port import eol_label
 
 if TYPE_CHECKING:
@@ -839,7 +839,7 @@ class TerminalHost:
         Subclasses may override to add UI (timer, progress).
         """
         if self.capture.active:
-            self.status(STATE_MESSAGES["capture_idle"])
+            self.status(state_message("capture_idle", self.prefix))
             return False
         started = self.capture.start(**kwargs)
         if not started:

@@ -533,7 +533,7 @@ COMMAND = Command(
         "Runtime display and session toggles.  Collapses what used to be\n"
         "scattered top-level commands (/echo, /line_no, /show_line_endings)\n"
         "under one namespace and adds runtime access to a handful of\n"
-        "config-key toggles that previously required /cfg, plus the\n"
+        "config-key toggles that previously required {prefix}cfg, plus the\n"
         "{prefix}term.output level dial.\n"
         "\n"
         "Toggles accept ``on|off|true|false|1|0|yes|no``; {prefix}term.output\n"
@@ -564,7 +564,7 @@ COMMAND = Command(
         ),
         "echo_repl": Command(
             args="{on|off|toggle}",
-            help="Local echo of REPL/slash commands like /cfg (session only).",
+            help="Local echo of REPL/slash commands like {prefix}cfg (session only).",
             long_help=(
                 "Local echo of REPL/slash commands ({prefix}cfg, {prefix}help,\n"
                 "...).  Session-only (no cfg key); default on for the TUI,\n"
@@ -623,7 +623,7 @@ COMMAND = Command(
         ),
         "line_endings": Command(
             args="{on|off|toggle}",
-            help="Hidden alias for /term.eol.markers.",
+            help="Hidden alias for {prefix}term.eol.markers.",
             handler=_handler_eol_markers,
             hidden=True,
         ),
@@ -699,7 +699,7 @@ COMMAND = Command(
         ),
         "verbose": Command(
             args="{on|off}",
-            help="Legacy alias for /term.output (verbose|normal).",
+            help="Legacy alias for {prefix}term.output (verbose|normal).",
             handler=_handler_verbose_legacy,
             hidden=True,
             needs=CapabilitySet.INTERACTIVE,  # legacy alias
@@ -802,7 +802,7 @@ COMMAND = Command(
             handler=_handler_encoding,
         ),
         "info": Command(
-            help="Snapshot the state of every /term.* toggle.",
+            help="Snapshot the state of every {prefix}term.* toggle.",
             handler=_handler_info,
         ),
         "usb_db": Command(

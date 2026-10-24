@@ -113,7 +113,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if err is not None:
         if "No scrollback" in err:
             return CmdResult.fail(
-                msg="Find not available: no scrollback in CLI mode (try /grep instead)",
+                msg=f"Find not available: no scrollback in CLI mode (try {ctx.prefix}grep instead)",
             )
         if "Pattern required" in err:
             raise UsageError("Pattern required")
@@ -193,7 +193,7 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
     global _max_count
     raw = args.strip()
     if not raw:
-        ctx.io.result(f"/find.max_count = {_max_count}")
+        ctx.io.result(f"{ctx.prefix}find.max_count = {_max_count}")
         return CmdResult.ok(value=str(_max_count))
     try:
         n = int(raw)
@@ -202,7 +202,7 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
     if n < 1:
         return CmdResult.fail(msg="Max count must be >= 1")
     _max_count = n
-    ctx.io.result(f"/find.max_count = {n}")
+    ctx.io.result(f"{ctx.prefix}find.max_count = {n}")
     return CmdResult.ok(value=str(n))
 
 
@@ -213,23 +213,23 @@ frozen snapshot of the scrollback; arrow buttons in the bottom row
 step through them.
 
 Usage:
-  /find <pattern>           Start a search; show the highlighted view.
-  /find                     Close the search.
-  /find.next                Step to the next match (wraps at end).
-  /find.prev                Step to the previous match (wraps at start).
-  /find.clear               Same as /find with no args.
-  /find.max_count <N>       Raise/lower per-session match cap (default 100).
-  /find.max_count           Show the current cap.
+  {prefix}find <pattern>           Start a search; show the highlighted view.
+  {prefix}find                     Close the search.
+  {prefix}find.next                Step to the next match (wraps at end).
+  {prefix}find.prev                Step to the previous match (wraps at start).
+  {prefix}find.clear               Same as {prefix}find with no args.
+  {prefix}find.max_count <N>       Raise/lower per-session match cap (default 100).
+  {prefix}find.max_count           Show the current cap.
 
-The search regex is case-insensitive (same as /grep).  Matches are
-computed once at /find time; new lines arriving on the live log
-automatically dismiss the frozen view -- rerun /find to refresh
+The search regex is case-insensitive (same as {prefix}grep).  Matches are
+computed once at {prefix}find time; new lines arriving on the live log
+automatically dismiss the frozen view -- rerun {prefix}find to refresh
 against the latest scrollback.
 
 Requires the TUI -- the highlighted-view widget is what makes this
-useful.  In CLI / MCP modes, use /grep instead.
+useful.  In CLI / MCP modes, use {prefix}grep instead.
 
-See also: /grep (print all matches in one listing), /search (search
+See also: {prefix}grep (print all matches in one listing), {prefix}search (search
 command help instead of scrollback).
 """
 

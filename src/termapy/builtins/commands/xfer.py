@@ -74,16 +74,16 @@ COMMAND = Command(
         "link.\n"
         "\n"
         "Settings:\n"
-        "  /xfer.root [path]            Show or set the transfer root "
+        "  {prefix}xfer.root [path]            Show or set the transfer root "
         "directory.\n"
         "\n"
         "XMODEM (single file, 128-byte blocks):\n"
-        "  /xfer.xmodem.send <file>     Send a file to the device.\n"
-        "  /xfer.xmodem.recv <file>     Receive a file from the device.\n"
+        "  {prefix}xfer.xmodem.send <file>     Send a file to the device.\n"
+        "  {prefix}xfer.xmodem.recv <file>     Receive a file from the device.\n"
         "\n"
         "YMODEM (batch, 1K blocks):\n"
-        "  /xfer.ymodem.send <file> ... Send one or more files.\n"
-        "  /xfer.ymodem.recv {dir}      Receive into a directory.\n"
+        "  {prefix}xfer.ymodem.send <file> ... Send one or more files.\n"
+        "  {prefix}xfer.ymodem.recv {dir}      Receive into a directory.\n"
     ),
     handler=None,
     sub_commands={

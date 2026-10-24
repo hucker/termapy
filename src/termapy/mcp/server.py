@@ -52,6 +52,7 @@ from termapy.plugins import (
     PluginContext,
 )
 from termapy.plugins.capabilities import attainable
+from termapy.plugins.command import interpolate_help
 from termapy.repl import ReplEngine
 from termapy.scripting import format_duration, strip_ansi
 from termapy.serial_engine import SerialEngine
@@ -269,7 +270,9 @@ class MCPHost(TerminalHost):
         """
         active = self._active_cap_dir()
         if active is None:
-            raise FileNotFoundError("No captures available: load a cfg first (/cfg.load <name>).")
+            raise FileNotFoundError(
+                f"No captures available: load a cfg first ({self.prefix}cfg.load <name>)."
+            )
         cap_dir = active.resolve()
         target = (cap_dir / filename).resolve()
         if not target.is_relative_to(cap_dir):
@@ -588,7 +591,7 @@ class MCPHost(TerminalHost):
         if not candidate.exists():
             self._log_line(f"! auto-load profile: not found: {candidate}")
             return
-        self._log_line(f"$ /profile.load {candidate}  (auto-load on connect)")
+        self._log_line(f"$ {self.prefix}profile.load {candidate}  (auto-load on connect)")
         try:
             result = self.repl.dispatch(f"profile.load {candidate}")
         except Exception as exc:  # noqa: BLE001 -- boundary
@@ -1113,7 +1116,7 @@ def _gate_slash_command(host: MCPHost, line: str, *, confirm: bool) -> CmdResult
     return _confirmation_required(
         host.prefix + plugin.name,
         plugin.safety,
-        plugin.help,
+        interpolate_help(plugin.help or "", host.prefix),
         confirm=confirm,
     )
 

@@ -17,6 +17,7 @@ from threading import Event
 from typing import TYPE_CHECKING, Any
 
 from termapy.capture import CaptureEngine
+from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
 from termapy.plugins import BoundaryException
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_port import SerialPort, SerialReader
@@ -111,7 +112,11 @@ def _find_port_holder(port_name: str) -> str | None:
 
 
 def _classify_serial_error(
-    exc: Exception, port_name: str = "", *, source: PortSource | None = None
+    exc: Exception,
+    port_name: str = "",
+    *,
+    source: PortSource | None = None,
+    prefix: str = DEFAULT_CMD_PREFIX,
 ) -> str:
     """Turn a serial open exception into a user-friendly message.
 
@@ -157,7 +162,7 @@ def _classify_serial_error(
         return f"{base}: held by {holder}" if holder else base
 
     def _not_found() -> str:
-        base = "Port not found -- check the port name with /port.list"
+        base = f"Port not found -- check the port name with {prefix}port.list"
         if not port_name or "|" not in port_name:
             return base
         # Multi-candidate spec: walk the trace and list what's plugged
@@ -452,7 +457,9 @@ class SerialEngine:
             )
             return False
         except (_serial.SerialException, OSError, ValueError) as e:
-            self.last_error = _classify_serial_error(e, self._cfg["serial"]["port"])
+            self.last_error = _classify_serial_error(
+                e, self._cfg["serial"]["port"], prefix=cmd_prefix(self._cfg)
+            )
             return False
 
         self._last_rx_monotonic = time.monotonic()

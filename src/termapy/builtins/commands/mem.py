@@ -234,7 +234,7 @@ def _resolve(
         return CmdResult.fail(msg=str(e))
     if parsed.suffix and not suffix_ok:
         return CmdResult.fail(
-            msg=f"Unsupported address suffix here: .{parsed.suffix} (use /mem.read or /mem.write)"
+            msg=f"Unsupported address suffix here: .{parsed.suffix} (use {ctx.prefix}mem.read or {ctx.prefix}mem.write)"
         )
     symbol = parsed.symbol
     if reads and symbol is not None and symbol.access == "wo":
@@ -780,7 +780,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
                 )
             )
         return CmdResult.fail(
-            msg="Type required: /mem.read <target> <type> "
+            msg=f"Type required: {ctx.prefix}mem.read <target> <type> "
             "(u8..u64, i8..i64, f32, f64, char) -- or target a typed symbol"
         )
     size = scalar_size(type_name)
@@ -1253,7 +1253,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 _LONG_HELP: Final[str] = (
     "Reads and writes device memory.  Native firmware implements the\n"
-    "termapy MEM spec (see /help memory):\n"
+    "termapy MEM spec (see {prefix}help memory):\n"
     "\n"
     '  MEM.R <addr> <len>      -> rows "<ADDR>: <XX XX ...>" then OK\n'
     "  MEM.W <addr> <hex>      -> OK\n"
@@ -1262,7 +1262,7 @@ _LONG_HELP: Final[str] = (
     "  any failure             -> ERR <reason>\n"
     "\n"
     "A device with its own peek/poke grammar is described by the profile's\n"
-    '"memory" block (dialect template).  Targets take every /sym form plus\n'
+    '"memory" block (dialect template).  Targets take every {prefix}sym form plus\n'
     "bits: gTemp, main+0x10, U1MODE.ON, gFlags.4-6, 0x1000.15.  Bit and\n"
     "mask writes use the device's atomic MEM.M when advertised, else a\n"
     "read + write-back that can race an ISR (xor always does).\n"
@@ -1277,25 +1277,25 @@ _LONG_HELP: Final[str] = (
     "destructive: confirm=true.\n"
     "\n"
     "Commands:\n"
-    "  /mem.dump <target> {len} {type}  - hexdump; u16/u32 word columns,\n"
+    "  {prefix}mem.dump <target> {len} {type}  - hexdump; u16/u32 word columns,\n"
     "                                     i*/f* decimal/float; addr= ascii=\n"
     "                                     toggle columns (both off = bare)\n"
-    "  /mem.read <target> {type}        - one typed value, field, bit or slice\n"
-    "  /mem.write <target> <value>      - a number at a named symbol or field;\n"
+    "  {prefix}mem.read <target> {type}        - one typed value, field, bit or slice\n"
+    "  {prefix}mem.write <target> <value>      - a number at a named symbol or field;\n"
     "                                     hex bytes at an address or array\n"
-    "  /mem.or|and|xor|clear <target> <mask> - mask ops (clear: word &= ~mask)\n"
-    "  /mem.not <target>                - invert one word\n"
-    "  /mem.str <target> {max}          - NUL-terminated string (default cap 256)\n"
-    "  /mem.info                        - dialect, limits, endian, atomic modify\n"
+    "  {prefix}mem.or|and|xor|clear <target> <mask> - mask ops (clear: word &= ~mask)\n"
+    "  {prefix}mem.not <target>                - invert one word\n"
+    "  {prefix}mem.str <target> {max}          - NUL-terminated string (default cap 256)\n"
+    "  {prefix}mem.info                        - dialect, limits, endian, atomic modify\n"
     "\n"
-    "Bare /mem is /mem.info: it probes the device (MEM.INFO) and shows\n"
+    "Bare {prefix}mem is {prefix}mem.info: it probes the device (MEM.INFO) and shows\n"
     "the availability verdict, so it doubles as the check after connect."
 )
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="mem",
-    help="Device memory: dump, typed reads, writes and bit ops via /sym names.",
+    help="Device memory: dump, typed reads, writes and bit ops via {prefix}sym names.",
     long_help=_LONG_HELP,
     # Bare /mem = /mem.info: the availability check/status page, so the
     # natural first thing to type both probes the device and shows the

@@ -208,7 +208,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     if not path.is_file():
         return CmdResult.fail(msg=not_found_message("Build file", raw, ctx.config_path))
     dest = sidecar_path(ctx.config_path)
-    assert dest is not None, "/sym.import declares config_loaded"
+    assert dest is not None, "sym.import declares config_loaded"
     try:
         data, text = read_source(path)
     except OSError as e:
@@ -294,7 +294,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
                 path = in_sym
     else:
         default = sidecar_path(ctx.config_path)
-        assert default is not None, "/sym.load declares config_loaded"
+        assert default is not None, "sym.load declares config_loaded"
         path = default
     if not path.is_file():
         return CmdResult.fail(msg=f"Symbols not found: {raw or path}")
@@ -365,7 +365,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     table = get_table(ctx)
     if table is None:
         ctx.io.result(
-            f"{STATE_MESSAGES['symbols_loaded']}  /sym.import <map> or /sym.load {{path}} to load one.",
+            f"{STATE_MESSAGES['symbols_loaded']}  {ctx.prefix}sym.import <map> or {ctx.prefix}sym.load {{path}} to load one.",
             "yellow",
         )
         return CmdResult.ok(value="")
@@ -381,7 +381,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _GRAMMAR_HELP: Final[str] = (
-    "Symbols come from your build: /sym.import <file> converts its ELF (names,\n"
+    "Symbols come from your build: {prefix}sym.import <file> converts its ELF (names,\n"
     "sizes and the C types in its debug info) or its linker map (names and\n"
     "sizes) to sym/<cfg>.symbols.json in the config folder (a generated file,\n"
     "overwritten on re-import) and loads it.  The sidecar auto-loads whenever\n"
@@ -394,20 +394,20 @@ _GRAMMAR_HELP: Final[str] = (
     "  main           symbol name (exact, case-sensitive)\n"
     "  main+0x10      symbol plus offset (also main-4)\n"
     "  tick@adc.c     duplicate static, qualified by file (adc or src/adc.c too)\n"
-    "  name.<bit>     a bit, slice or field (see /help mem); an exact symbol\n"
+    "  name.<bit>     a bit, slice or field (see {prefix}help mem); an exact symbol\n"
     "                 name wins, so count.12 is the symbol count.12\n"
     "\n"
-    "Search forms (/sym.search): the exact name first, else a name\n"
+    "Search forms ({prefix}sym.search): the exact name first, else a name\n"
     "pattern: plain text is contained (gpio), a wildcard globs (Mon*).\n"
     "\n"
     "Commands:\n"
-    "  /sym <addr|name>        - name -> address, or address -> name+offset\n"
-    "  /sym.import {file}      - convert an ELF or a linker map and load it\n"
+    "  {prefix}sym <addr|name>        - name -> address, or address -> name+offset\n"
+    "  {prefix}sym.import {file}      - convert an ELF or a linker map and load it\n"
     "                            (bare: re-import the same file, after a rebuild)\n"
-    "  /sym.load {path}        - reload the sidecar, or load an explicit file\n"
-    "  /sym.unload             - clear the loaded table (file untouched)\n"
-    "  /sym.search <pattern>   - search names\n"
-    "  /sym.info               - file, source, counts by section, range"
+    "  {prefix}sym.load {path}        - reload the sidecar, or load an explicit file\n"
+    "  {prefix}sym.unload             - clear the loaded table (file untouched)\n"
+    "  {prefix}sym.search <pattern>   - search names\n"
+    "  {prefix}sym.info               - file, source, counts by section, range"
 )
 
 
@@ -460,7 +460,7 @@ COMMAND = Command(
                     help="symbols JSON file (default: the cfg's sidecar)",
                 ),
             ],
-            help="Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).",
+            help="Load a symbol table (default: sym/<cfg>.symbols.json, the file {prefix}sym.import writes).",
             handler=_handler_load,
             files="sym",
             needs=CapabilitySet.CONFIG_LOADED,

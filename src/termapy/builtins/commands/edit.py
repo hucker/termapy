@@ -94,7 +94,7 @@ def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     path = ctx.internal.session_log_path()
-    assert path is not None, "/edit.log declares session_log"
+    assert path is not None, "edit.log declares session_log"
     ctx.internal.edit_file(path)
     return CmdResult.ok(value=path)
 
@@ -106,7 +106,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ctx.internal.edit_file(path)
         return CmdResult.ok(value=path)
     else:
-        return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
+        return CmdResult.fail(msg=f"No info report yet. Run {ctx.prefix}cfg.info first.")
 
 
 # ── Folder subcommand factories ──────────────────────────────────────────────
@@ -218,7 +218,7 @@ def edit_command(folder: str) -> Command:
     text = (
         f"With a name, opens that existing file from {folder}/ in {where} "
         f"(the {spec.ext} is optional); a missing name fails.  {bare}  "
-        f"/{folder}.edit and /edit.{folder} are the same command."
+        f"/{folder}.edit and {{prefix}}edit.{folder} are the same command."
     )
     return Command(
         args="{filename}",
@@ -237,8 +237,8 @@ def edit_cfg_command() -> Command:
         help="Edit the current config file.",
         long_help=(
             "Opens the loaded config in termapy's config editor in the TUI, "
-            "as F10 does, and in the system editor in the CLI.  /cfg.edit "
-            "and /edit.cfg are the same command."
+            "as F10 does, and in the system editor in the CLI.  {prefix}cfg.edit "
+            "and {prefix}edit.cfg are the same command."
         ),
         handler=_handler_cfg,
         needs=CapabilitySet(file_editor=True, config_loaded=True),

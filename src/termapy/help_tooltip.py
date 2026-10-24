@@ -14,10 +14,12 @@ from rich.table import Table
 from rich.text import Text
 
 from termapy.credits_data import tooltip_credits
+from termapy.defaults import DEFAULT_CMD_PREFIX
+from termapy.markup import escape_markup
 from termapy.update_check import cached_status
 
 
-def build_help_tooltip(ver: str, hint: str = "") -> Group:
+def build_help_tooltip(ver: str, hint: str = "", *, prefix: str = DEFAULT_CMD_PREFIX) -> Group:
     """Build the Help-button tooltip as a Rich renderable.
 
     ``hint`` is the hotkey label (e.g. ``"F1"``) shown in parentheses next
@@ -71,6 +73,8 @@ def build_help_tooltip(ver: str, hint: str = "") -> Group:
         Text.from_markup("[bold]Built on open source:[/]"),
         grid,
         Text(""),
-        Text.from_markup("Type [bold cyan]/credits[/] for full attribution."),
+        Text.from_markup(
+            f"Type [bold cyan]{escape_markup(prefix)}credits[/] for full attribution."
+        ),
     ]
     return Group(*parts)

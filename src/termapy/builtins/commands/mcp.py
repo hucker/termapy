@@ -263,12 +263,12 @@ COMMAND = Command(
     name="mcp",
     help="MCP catalog and status (Model Context Protocol).",
     long_help=(
-        "MCP-mode tools.  /mcp.catalog dumps the JSON command catalog\n"
+        "MCP-mode tools.  {prefix}mcp.catalog dumps the JSON command catalog\n"
         "(same content as the termapy://commands.json MCP resource).\n"
-        "/mcp.info shows MCP-mode state: this process's pid, catalog\n"
+        "{prefix}mcp.info shows MCP-mode state: this process's pid, catalog\n"
         "size, port, active profile metadata, capture artifact count.\n"
-        "/mcp.log opens the MCP session log written by termapy --mcp;\n"
-        "/mcp.log.dump prints it inline; /mcp.log.path reports its\n"
+        "{prefix}mcp.log opens the MCP session log written by termapy --mcp;\n"
+        "{prefix}mcp.log.dump prints it inline; {prefix}mcp.log.path reports its\n"
         "location.\n"
         "\n"
         "Every termapy MCP server has the same command line, so the pid\n"
@@ -278,8 +278,8 @@ COMMAND = Command(
         "launchers too and frees termapy.exe.\n"
         "\n"
         "Both commands work in any frontend (TUI/CLI/MCP); they don't\n"
-        "require --mcp to be running.  See also: /profile, /port.info,\n"
-        "/term.info, /log.show (for the regular session log)."
+        "require --mcp to be running.  See also: {prefix}profile, {prefix}port.info,\n"
+        "{prefix}term.info, {prefix}log.show (for the regular session log)."
     ),
     handler=None,
     sub_commands={

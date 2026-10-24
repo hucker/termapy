@@ -64,7 +64,7 @@ from termapy.config_resolve import (
     resolve_config as _resolve_config,
     resolve_proto_path,
 )
-from termapy.defaults import cmd_prefix, default_cfg
+from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix, default_cfg
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -767,7 +767,9 @@ class SerialTerminal(TerminalHost, App):
             if not exit_on_right:
                 yield _make_exit_btn()
             help_btn = Button("Help", id="btn-help")
-            help_btn.tooltip = build_help_tooltip(ver, _hotkey_label("btn-help"))
+            help_btn.tooltip = build_help_tooltip(
+                ver, _hotkey_label("btn-help"), prefix=cmd_prefix(self.cfg)
+            )
             yield help_btn
             if self.cfg.get("cfg_enabled", True):
                 cfg_btn = Button("Cfg", id="btn-cfg")
@@ -882,7 +884,9 @@ class SerialTerminal(TerminalHost, App):
                         id="btn-find-prev",
                         variant="default",
                     )
-                    prev_btn.tooltip = "Previous find match (/find.prev)"
+                    prev_btn.tooltip = Text(
+                        f"Previous find match ({cmd_prefix(self.cfg)}find.prev)"
+                    )
                     prev_btn.display = False
                     yield prev_btn
                     next_btn = Button(
@@ -890,7 +894,7 @@ class SerialTerminal(TerminalHost, App):
                         id="btn-find-next",
                         variant="default",
                     )
-                    next_btn.tooltip = "Next find match (/find.next)"
+                    next_btn.tooltip = Text(f"Next find match ({cmd_prefix(self.cfg)}find.next)")
                     next_btn.display = False
                     yield next_btn
                     close_btn = Button(
@@ -898,7 +902,7 @@ class SerialTerminal(TerminalHost, App):
                         id="btn-find-close",
                         variant="default",
                     )
-                    close_btn.tooltip = "Close find (/find.clear)"
+                    close_btn.tooltip = Text(f"Close find ({cmd_prefix(self.cfg)}find.clear)")
                     close_btn.display = False
                     yield close_btn
                 yield StatusBar(id="status-bar")
@@ -1156,7 +1160,7 @@ class SerialTerminal(TerminalHost, App):
             ver = "?"
         try:
             self.query_one("#btn-help", Button).tooltip = build_help_tooltip(
-                ver, _hotkey_label("btn-help")
+                ver, _hotkey_label("btn-help"), prefix=cmd_prefix(self.cfg)
             )
         except SHUTDOWN_RACE:
             pass  # button gone (shutdown) or not yet composed
@@ -1646,7 +1650,7 @@ class SerialTerminal(TerminalHost, App):
         """
         answer = self._ask(ConfirmDialog(message))
         if answer is None:
-            self._status("/confirm can only be used in scripts.", "yellow")
+            self._status(f"{cmd_prefix(self.cfg)}confirm can only be used in scripts.", "yellow")
             return False
         return answer
 
@@ -1924,7 +1928,10 @@ class SerialTerminal(TerminalHost, App):
             retired = retire_launcher(Path(path))
             if retired is not None:
                 message, color = retired
-                self._status(f"{message} -- run /cfg.icon to recreate it for '{new_name}'", color)
+                self._status(
+                    f"{message} -- run {cmd_prefix(self.cfg)}cfg.icon to recreate it for '{new_name}'",
+                    color,
+                )
             if not was_active:
                 return
             try:
@@ -2203,7 +2210,7 @@ class SerialTerminal(TerminalHost, App):
             # Active: dispatch bare /run.record to stop.  The handler
             # closes the file, deregisters the observer, and prints
             # the "Recorded N commands" message.
-            self._dispatch_on_thread("/run.record")
+            self._dispatch_on_thread(self._repl_line("run.record"))
             self._refresh_record_button()
         else:
             # Idle: prompt for the filename, then dispatch
@@ -2220,7 +2227,7 @@ class SerialTerminal(TerminalHost, App):
         """Modal callback for the Record button's filename prompt."""
         if not name:
             return  # canceled
-        self._dispatch_on_thread(f"/run.record {name}")
+        self._dispatch_on_thread(self._repl_line(f"run.record {name}"))
         self._refresh_record_button()
 
     def _refresh_record_button(self) -> None:
@@ -2419,13 +2426,13 @@ class SerialTerminal(TerminalHost, App):
     def _btn_find_prev(self) -> None:
         # Quiet dispatch: clicking the button shouldn't fill the
         # scrollback with "/find.prev" echo lines.
-        self._dispatch_quiet("/find.prev")
+        self._dispatch_quiet(self._repl_line("find.prev"))
 
     def _btn_find_next(self) -> None:
-        self._dispatch_quiet("/find.next")
+        self._dispatch_quiet(self._repl_line("find.next"))
 
     def _btn_find_close(self) -> None:
-        self._dispatch_quiet("/find.clear")
+        self._dispatch_quiet(self._repl_line("find.clear"))
 
     def _btn_script_stop(self) -> None:
         self.repl._script_stop.set()
@@ -2448,7 +2455,10 @@ class SerialTerminal(TerminalHost, App):
         buttons = self.cfg.get("custom_buttons", [])
         if idx >= len(buttons):
             return
-        parts = split_cmd_lines(buttons[idx].get("command", ""))
+        # "{prefix}" in a button command is the config's REPL prefix, so the
+        # shipped Info button follows cmd_prefix (help: custom-buttons).
+        command = buttons[idx].get("command", "").replace("{prefix}", cmd_prefix(self.cfg))
+        parts = split_cmd_lines(command)
         if len(parts) > 1:
             self._dispatch_sequence_on_thread(parts)
         elif parts:
@@ -2506,7 +2516,7 @@ class SerialTerminal(TerminalHost, App):
 
             def open_editor() -> None:
                 self.push_screen(
-                    ScriptEditor(self.repl.scripts_dir, str(path)),
+                    ScriptEditor(self.repl.scripts_dir, str(path), prefix=cmd_prefix(self.cfg)),
                     callback=self._on_script_saved,
                 )
         elif ext == FOLDER_EXTS["proto"]:
@@ -2565,10 +2575,10 @@ class SerialTerminal(TerminalHost, App):
             pass
 
     def _palette_list_ports(self) -> None:
-        self._dispatch_quiet("/port.list")
+        self._dispatch_quiet(self._repl_line("port.list"))
 
     def _palette_list_vars(self) -> None:
-        self._dispatch_quiet("/var")
+        self._dispatch_quiet(self._repl_line("var"))
 
     def _palette_set_var(self) -> None:
         """Push a SetVarDialog; on submit, dispatch /var.set NAME value."""
@@ -2585,7 +2595,7 @@ class SerialTerminal(TerminalHost, App):
             # before /var.set runs, producing the wrong dispatch.
             if name.startswith("$(") and name.endswith(")"):
                 name = name[2:-1].strip()
-            self._dispatch_quiet(f"/var.set {name} {value}")
+            self._dispatch_quiet(self._repl_line(f"var.set {name} {value}"))
 
         self.push_screen(SetVarDialog(), callback=_on_submit)
 
@@ -2593,22 +2603,22 @@ class SerialTerminal(TerminalHost, App):
     # bare invocation now QUERIES (never mutates), per the settings-grammar
     # rule in CLAUDE.md.
     def _palette_toggle_line_numbers(self) -> None:
-        self._dispatch_quiet("/term.line_no toggle")
+        self._dispatch_quiet(self._repl_line("term.line_no toggle"))
 
     def _palette_toggle_echo(self) -> None:
-        self._dispatch_quiet("/term.echo toggle")
+        self._dispatch_quiet(self._repl_line("term.echo toggle"))
 
     def _palette_toggle_timestamps(self) -> None:
-        self._dispatch_quiet("/term.timestamps toggle")
+        self._dispatch_quiet(self._repl_line("term.timestamps toggle"))
 
     def _palette_toggle_hex(self) -> None:
-        self._dispatch_quiet("/term.hex toggle")
+        self._dispatch_quiet(self._repl_line("term.hex toggle"))
 
     def _palette_toggle_line_endings(self) -> None:
-        self._dispatch_quiet("/term.line_endings toggle")
+        self._dispatch_quiet(self._repl_line("term.line_endings toggle"))
 
     def _palette_term_info(self) -> None:
-        self._dispatch_quiet("/term.info")
+        self._dispatch_quiet(self._repl_line("term.info"))
 
     def _palette_ss_svg(self) -> None:
         # call_after_refresh defers one tick so the CommandPalette
@@ -2628,15 +2638,15 @@ class SerialTerminal(TerminalHost, App):
 
     def _palette_find(self) -> None:
         """Prompt for a pattern, then dispatch ``/find <pattern>``."""
-        self._prompt_then_dispatch("Find pattern:", "/find ")
+        self._prompt_then_dispatch("Find pattern:", self._repl_line("find "))
 
     def _palette_grep(self) -> None:
         """Prompt for a pattern, then dispatch ``/grep <pattern>``."""
-        self._prompt_then_dispatch("Grep pattern:", "/grep ")
+        self._prompt_then_dispatch("Grep pattern:", self._repl_line("grep "))
 
     def _palette_search_help(self) -> None:
         """Prompt for a term, then dispatch ``/search <term>``."""
-        self._prompt_then_dispatch("Search help for:", "/search ")
+        self._prompt_then_dispatch("Search help for:", self._repl_line("search "))
 
     def _prompt_then_dispatch(
         self,
@@ -3219,6 +3229,15 @@ class SerialTerminal(TerminalHost, App):
             )
         finally:
             self._dispatch_guard.release()
+
+    def _repl_line(self, command: str) -> str:
+        """``command`` as a REPL line under the config's prefix.
+
+        Every line the TUI synthesizes (a button, a menu action, a palette
+        entry) is built here, so the prefix is never spelled in code
+        (registry ``prefix-never-hardcoded``).
+        """
+        return f"{cmd_prefix(self.cfg)}{command}"
 
     def _dispatch_quiet(self, cmd: str) -> CmdResult:
         """Dispatch without echoing the command line to the output.
@@ -3884,8 +3903,10 @@ def _run_web_mode(args) -> None:
 
     print("=" * 60)
     print("  EXPERIMENTAL: Web mode via textual-serve")
-    print("  /tui and /cli mode switching are not available.")
-    print("  /help.open may not work in the browser.")
+    print(
+        f"  {DEFAULT_CMD_PREFIX}tui and {DEFAULT_CMD_PREFIX}cli mode switching are not available."
+    )
+    print(f"  {DEFAULT_CMD_PREFIX}help.open may not work in the browser.")
     print("=" * 60)
     print()
 

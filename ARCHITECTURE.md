@@ -872,6 +872,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_app_config.py                  | Tests for app.py config utilities, custom buttons, and script editor                                                                               |
 | test_app_dirs.py                    | Tests for app_dirs.app_state_dir and app_config_dir                                                                                                |
 | test_app_pilot.py                   | Pilot-driven tests for the real SerialTerminal app                                                                                                 |
+| test_app_pilot_prefix.py            | The TUI's own buttons, menus and palette actions under a non-default REPL prefix                                                                   |
 | test_app_pilot_targets.py           | app.py state transitions the August Pilot pass listed as next                                                                                      |
 | test_app_pilot_views.py             | The capture overlay, the delay bar, and the read-only info views, driven in the real app                                                           |
 | test_app_plugin.py                  | Tests for the /app builtin plugin                                                                                                                  |

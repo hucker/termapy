@@ -143,7 +143,7 @@ def on_quick_setup(app, result: tuple | None) -> None:
         if add_icon:
             # Cfg is loaded; ctx.config_path now points at the new file
             # so /cfg.icon picks it up automatically.
-            app.ctx.dispatch("/cfg.icon")
+            app.ctx.dispatch(f"{app.ctx.prefix}cfg.icon")
         if port:
             app._connect()
 

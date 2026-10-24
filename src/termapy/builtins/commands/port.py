@@ -189,8 +189,8 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     if arg:
         return CmdResult.fail(
             msg=(
-                f"/port.info only reports on the connected port. "
-                f"For chip info on {arg!r}, use /port.chip {arg}"
+                f"{ctx.prefix}port.info only reports on the connected port. "
+                f"For chip info on {arg!r}, use {ctx.prefix}port.chip {arg}"
             )
         )
     return _page(ctx, port_control.port_info(ctx.cfg, ctx.internal.port()))
@@ -480,10 +480,10 @@ COMMAND = Command(
                 "physically connected, and mark the nodes that carry a\n"
                 "serial port.\n"
                 "\n"
-                "Use it to answer questions /port.list cannot: which hub\n"
+                "Use it to answer questions {prefix}port.list cannot: which hub\n"
                 "is this adapter on, is that COM port one function of a\n"
                 "larger device, did the cable move.  Non-serial devices\n"
-                "are shown here and deliberately never in /port.list.\n"
+                "are shown here and deliberately never in {prefix}port.list.\n"
                 "\n"
                 "A path reads bus-port, one dot per hub tier: 1-8.4 is\n"
                 "bus 1, root-hub port 8, then port 4 of the hub there.\n"
@@ -495,7 +495,7 @@ COMMAND = Command(
             handler=_handler_usb,
         ),
         "help": Command(
-            help="Show /port help.",
+            help="Show {prefix}port help.",
             handler=_handler_help,
         ),
         "connect": Command(
@@ -526,7 +526,7 @@ COMMAND = Command(
             handler=_handler_connect,
         ),
         "open": Command(
-            help="Legacy alias for /port.connect.",
+            help="Legacy alias for {prefix}port.connect.",
             handler=make_forwarder("port.open", "port.connect"),
             hidden=True,
         ),
@@ -542,7 +542,7 @@ COMMAND = Command(
             handler=_handler_disconnect,
         ),
         "close": Command(
-            help="Legacy alias for /port.disconnect.",
+            help="Legacy alias for {prefix}port.disconnect.",
             handler=make_forwarder("port.close", "port.disconnect"),
             hidden=True,
         ),

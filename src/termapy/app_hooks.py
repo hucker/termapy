@@ -150,7 +150,7 @@ def register_tui_hooks(app) -> None:
     app.repl.register_hook(
         "ss.svg.quiet",
         "{name}",
-        "Legacy alias for /ss.svg.silent.",
+        "Legacy alias for {prefix}ss.svg.silent.",
         make_forwarder("ss.svg.quiet", "ss.svg.silent"),
         source="app",
         needs=CapabilitySet.SCREEN_CAPTURE,

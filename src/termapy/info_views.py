@@ -29,6 +29,7 @@ from textual.widgets.option_list import Option
 
 from termapy.defaults import cmd_prefix
 from termapy.dialogs import PortPicker
+from termapy.plugins import interpolate_help
 
 if TYPE_CHECKING:
     from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
@@ -143,11 +144,11 @@ def show_commands(app) -> None:
             has_required = "<" in plugin.args if plugin.args else False
             has_optional = "{" in plugin.args if plugin.args else False
             if not plugin.args or (has_optional and not has_required):
-                _add_row(f"{prefix}{name}", plugin.help, f"run:{name}")
+                _add_row(f"{prefix}{name}", interpolate_help(plugin.help, prefix), f"run:{name}")
             if plugin.args:
                 _add_row(
                     f"{prefix}{name} {plugin.args}",
-                    plugin.help,
+                    interpolate_help(plugin.help, prefix),
                     f"repl:{name}",
                 )
     popup.add_class("visible")

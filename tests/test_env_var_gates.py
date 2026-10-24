@@ -158,6 +158,7 @@ class TestOsCmdGate:
 
         class _Ctx:
             io = _IO()
+            prefix = "/"
 
         # Act
         result = os_cmd._handler(_Ctx(), "echo hi")  # ty: ignore[invalid-argument-type]
@@ -183,6 +184,7 @@ class TestOsCmdGate:
 
         class _Ctx:
             io = _IO()
+            prefix = "/"
 
         # Act -- a portable echo via python so the test works on Windows
         result = os_cmd._handler(_Ctx(), "python -c \"print('zz_marker')\"")  # ty: ignore[invalid-argument-type]
@@ -210,6 +212,7 @@ class TestOsCmdGate:
 
         class _Ctx:
             io = _IO()
+            prefix = "/"
             cfg = {"os_cmd_enabled": True}  # noise; should be ignored
 
         # Act

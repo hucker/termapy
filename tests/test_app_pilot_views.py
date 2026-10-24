@@ -19,7 +19,7 @@ from textual.widgets import Input, OptionList, Static
 from termapy import info_views
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import PortPicker
-from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.plugins.capabilities import state_message
 
 # Wide enough that a temp-folder path renders on one line; at the 80x24
 # headless default the info view wraps them and the text is unmatchable.
@@ -162,9 +162,10 @@ class TestCaptureOverlay:
 
                 # Assert
                 assert first.success is True, first.error
-                assert (second.success, second.error) == (False, STATE_MESSAGES["capture_idle"]), (
-                    "the gate's reason is the one failure, not 'Capture not started.'"
-                )
+                assert (second.success, second.error) == (
+                    False,
+                    state_message("capture_idle", app.repl.prefix),
+                ), "the gate's reason is the one failure, not 'Capture not started.'"
                 app._dispatch_single("/cap.stop")
                 await pilot.pause()
                 third = app._dispatch_single("/cap.text c.txt timeout=5s")

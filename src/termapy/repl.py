@@ -61,7 +61,7 @@ from termapy.plugins import (
     format_usage,
     load_plugins_from_dir,
 )
-from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.params import parse_params
 from termapy.scripting import (
     expand_template,
@@ -1631,8 +1631,8 @@ class ReplEngine:
             _echo(self.format_echo_markup(cmd, eol_label))
 
         if is_connected and not is_connected():
-            _fail_status(STATE_MESSAGES["serial_connected"], "red")
-            return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
+            _fail_status(state_message("serial_connected", self.prefix), "red")
+            return CmdResult.fail(msg=state_message("serial_connected", self.prefix))
 
         # Opt-in typed-arg validation against the active profile.  Off by
         # default so a typist gets raw wire access -- device errors are
@@ -2146,7 +2146,7 @@ class ReplEngine:
                 return None, CmdResult.fail(msg=f"File not found: {filename}")
         if self._script_depth >= self._max_script_depth:
             return None, CmdResult.fail(
-                msg=f"Script nesting too deep ({self._max_script_depth} levels). Use /stop first."
+                msg=f"Script nesting too deep ({self._max_script_depth} levels). Use {self.prefix}stop first."
             )
         # One outermost script at a time.  A nested /run reaches here on
         # the SAME thread as the run in progress (it executes inline via
@@ -2157,7 +2157,7 @@ class ReplEngine:
         if self._script_depth > 0 and threading.get_ident() != self._script_owner:
             running = self._script_stack[0] if self._script_stack else "a script"
             return None, CmdResult.fail(
-                msg=f"A script is already running ({running}). Use /stop first."
+                msg=f"A script is already running ({running}). Use {self.prefix}stop first."
             )
         outermost = self._script_depth == 0
         if outermost:
@@ -2485,7 +2485,9 @@ class ReplEngine:
         """
         missing = plugin.needs.missing_from(self._effective_capabilities())
         if missing and set(missing) <= STATE_MESSAGES.keys():
-            return STATE_MESSAGES[next(need for need in STATE_MESSAGES if need in missing)]
+            return state_message(
+                next(need for need in STATE_MESSAGES if need in missing), self.prefix
+            )
         if missing:
             return (
                 f"{self.prefix}{name} requires: {', '.join(missing)} "

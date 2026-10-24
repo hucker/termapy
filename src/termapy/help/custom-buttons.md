@@ -44,6 +44,8 @@ Each button object has these fields:
 
 - Plain text is sent to the serial device (e.g. `"ATZ"`)
 - Commands starting with `/` run as REPL commands (e.g. `"/run test.run"`)
+- `{prefix}` at the start of a command stands for the config's `cmd_prefix`, so a button
+  keeps working when the prefix is not `/`; the shipped Info button is `"{prefix}cfg.info"`
 - Use `\n` to chain multiple commands (e.g. `"ATZ\nAT+INFO"`)
 - Mixed serial and REPL commands work: `"ATZ\n/delay 500ms\nAT+INFO"`
 

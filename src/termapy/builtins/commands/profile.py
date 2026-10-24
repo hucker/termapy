@@ -355,7 +355,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
     if not ns:
         ctx.io.result(
-            f"{STATE_MESSAGES['profile_loaded']}  /profile.load <path> to load one.",
+            f"{STATE_MESSAGES['profile_loaded']}  {ctx.prefix}profile.load <path> to load one.",
             "yellow",
         )
         return CmdResult.ok(value="")
@@ -447,9 +447,9 @@ COMMAND = Command(
             long_help=(
                 "Three forms:\n"
                 "\n"
-                "  /profile.load <path>            -- load from file\n"
-                "  /profile.load cmd=<command>     -- fetch from device\n"
-                "  /profile.load                   -- reload current source\n"
+                "  {prefix}profile.load <path>            -- load from file\n"
+                "  {prefix}profile.load cmd=<command>     -- fetch from device\n"
+                "  {prefix}profile.load                   -- reload current source\n"
                 "\n"
                 "The cmd= form sends <command> to the connected device, "
                 "reads a v2 profile JSON response, and installs it as the "
@@ -486,7 +486,7 @@ COMMAND = Command(
             long_help=(
                 "Empties the active_profile namespace.  The session "
                 "remains connected; subsequent bare commands fall "
-                "through to /term.send (literal-bytes path, no "
+                "through to {prefix}term.send (literal-bytes path, no "
                 "profile-aware dispatch)."
             ),
             handler=_handler_unload,

@@ -27,10 +27,11 @@ from termapy.config import (
     create_config,
     prepare_cfg_folder,
 )
-from termapy.defaults import DEFAULT_CFG
+from termapy.defaults import DEFAULT_CFG, cmd_prefix
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
+from termapy.plugins import interpolate_help
 from termapy.scripting import parse_bool
 
 
@@ -370,12 +371,17 @@ class ConfigEditor(ModalScreen[tuple | None]):
             help_widget.update(unknown)
             return
 
-        desc = entry[0]
+        prefix = cmd_prefix(self.cfg)
+        desc = interpolate_help(entry[0], prefix)
         valid = entry[1]
         preview_fn = entry[2] if len(entry) > 2 else None
 
         if callable(valid):
             valid = valid()
+        if valid:
+            valid = interpolate_help(valid, prefix)
+        if valid:
+            valid = interpolate_help(valid, prefix)
 
         status_markup, error_markup = self._validate_value(key, raw_val)
 

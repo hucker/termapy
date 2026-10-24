@@ -58,6 +58,7 @@ from termapy.plugins.capabilities import (
     CapabilitySet,
     MissingCapability,
     detect_gui_apps,
+    state_message,
 )
 from termapy.plugins.command import (
     LIFECYCLE_HOOK_NAMES,
@@ -111,6 +112,8 @@ __all__ = [
     "MissingCapability",
     "REQUIREMENT_HINTS",
     "detect_gui_apps",
+    "state_message",
+    "state_message",
     # Command + return types + helpers
     "BoundaryException",
     "CmdResult",

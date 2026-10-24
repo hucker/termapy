@@ -20,7 +20,7 @@ import pytest
 
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
-from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.plugins.capabilities import state_message
 
 
 @pytest.fixture
@@ -62,7 +62,7 @@ class TestOneCaptureAtATime:
         # Assert
         assert first.success is True, first.error
         refused = [(result.success, result.error) for result in (second, third)]
-        assert refused == [(False, STATE_MESSAGES["capture_idle"])] * 2, (
+        assert refused == [(False, state_message("capture_idle", cli.repl.prefix))] * 2, (
             "refused twice in a row, each kind"
         )
         assert fourth.success is True, f"the stop frees the next start: {fourth.error}"

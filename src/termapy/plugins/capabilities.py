@@ -194,7 +194,7 @@ class CapabilitySet:
     # Where: TUI only.  Distinct from ``screen_capture`` -- that's about
     #        *reading* the render surface; this is about *using* TUI-only
     #        features at runtime.
-    tui_mode: bool = _restricted("the TUI (switch with /tui)")
+    tui_mode: bool = _restricted("the TUI (switch with {prefix}tui)")
 
     # What:  A config is loaded: ``ctx.config_path`` names its file, so
     #        the config's folder and the data folders under it are
@@ -253,7 +253,7 @@ class CapabilitySet:
     #        generic "Capture not started.".
     capture_idle: bool = _restricted(
         "no capture already running",
-        state="Capture already active - use /cap.stop first.",
+        state="Capture already active - use {prefix}cap.stop first.",
         attainable=True,
     )
 
@@ -478,6 +478,19 @@ STATE_MESSAGES: dict[str, str] = {
 # (``ReplEngine._effective_capabilities``); whatever answers "can this
 # command EVER run here" -- /help's AVAILABLE row, ``/help --mcp``, the MCP
 # catalog -- grants them through ``attainable``.
+
+
+def state_message(need: str, prefix: str) -> str:
+    """``STATE_MESSAGES[need]`` with the REPL prefix filled in.
+
+    The one reader of a state message that names a command (``capture_idle``
+    says "use {prefix}cap.stop first"), so the text follows ``cmd_prefix``
+    in every frontend (registry ``state-messages-one-owner``,
+    ``prefix-never-hardcoded``).
+    """
+    return STATE_MESSAGES[need].replace("{prefix}", prefix)
+
+
 ATTAINABLE: tuple[str, ...] = tuple(
     spec.name for spec in fields(CapabilitySet) if spec.metadata.get("attainable")
 )

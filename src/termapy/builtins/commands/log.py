@@ -69,7 +69,7 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     """Print the session log: all, last N (N>0), or first N (N<0) lines."""
     p = ctx.internal.session_log_path()
-    assert p is not None, "/log.dump declares session_log"
+    assert p is not None, "log.dump declares session_log"
     # Sandbox: cfg["log_file"] can be pointed at any file (via /cfg.auto),
     # turning /log.dump into an arbitrary-file read.  Under the MCP host,
     # refuse a log path outside the config directory.  Reading the cfg's
@@ -94,7 +94,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     return dump_text_slice(ctx, p, args)
 
 
-_DUMP_HELP = "Print the session log; /log.dump N for last N lines, -N for first N."
+_DUMP_HELP = "Print the session log; {prefix}log.dump N for last N lines, -N for first N."
 _DUMP_LONG_HELP = (
     "With no argument, prints the entire session log.  With a signed "
     "integer N, prints a slice: N>0 the last N lines (most recent), "
@@ -320,14 +320,14 @@ _FINGERPRINT_FLAGS = {"--show": "Also echo the fingerprint to the terminal outpu
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """The session log as a file list of one row; a click on its name opens it."""
     path = ctx.internal.session_log_path()
-    assert path is not None, "/log.list declares session_log"
+    assert path is not None, "log.list declares session_log"
     files = [path] if path.is_file() else []
     return file_table(f"{path.parent.name}/", "log", files, run=lambda record: "log.show")
 
 
 _LIST_HELP = "List the session log file with its size and age."
 _LIST_LONG_HELP = (
-    "One row, the file a /log.show opens, so /help log can end with it;\n"
+    "One row, the file a {prefix}log.show opens, so {prefix}help log can end with it;\n"
     "in the TUI a click on its name opens it.  Empty until the log exists."
 )
 
@@ -338,7 +338,7 @@ _LIST_LONG_HELP = (
 def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     """Open the session log in the system viewer."""
     path = ctx.internal.session_log_path()
-    assert path is not None, "/log.show declares session_log"
+    assert path is not None, "log.show declares session_log"
     if not path.exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
     open_with_system(str(path))
@@ -350,7 +350,7 @@ _SHOW_HELP = "Open the session log in the system viewer."
 _SHOW_LONG_HELP = (
     "Launches the platform's default handler for the session log file "
     "(Notepad / TextEdit / xdg-open) in a separate process.  Use "
-    "/log.dump to print the log to this terminal instead."
+    "{prefix}log.dump to print the log to this terminal instead."
 )
 
 
@@ -360,7 +360,7 @@ _SHOW_LONG_HELP = (
 def _handler_delete(ctx: PluginContext, args: str) -> CmdResult:
     """Delete the session log file; the frontend lets go of it first."""
     path = ctx.internal.session_log_path()
-    assert path is not None, "/log.delete declares session_log"
+    assert path is not None, "log.delete declares session_log"
     if not path.exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
     ctx.internal.close_session_log()
@@ -377,7 +377,7 @@ _DELETE_HELP = "Delete the session log file."
 _DELETE_LONG_HELP = (
     "Removes the session log from disk (the TUI closes it first).  Not\n"
     "over MCP: an agent cannot erase the log of what it did.  The CLI\n"
-    "keeps no session log, so it has no /log commands."
+    "keeps no session log, so it has no {prefix}log commands."
 )
 
 

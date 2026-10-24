@@ -218,18 +218,18 @@ COMMAND = Command(
     sub_commands={
         "help": Command(
             args="{script}",
-            help="Show /run help, or print a script's docstring.",
+            help="Show {prefix}run help, or print a script's docstring.",
             long_help=(
-                "Bare /run.help shows the /help run landscape with "
+                "Bare {prefix}run.help shows the {prefix}help run landscape with "
                 "the list of available .run scripts.\n"
                 "\n"
-                "/run.help <script> prints the script's leading "
+                "{prefix}run.help <script> prints the script's leading "
                 "# docstring block -- the convention is one or more "
                 "# comments at the very top of the file, ending at the "
                 "first blank or non-comment line.  Mirrors Python's "
                 "module-docstring shape.\n"
                 "\n"
-                "If the script has no docstring, /run.help reports "
+                "If the script has no docstring, {prefix}run.help reports "
                 "that rather than printing silence -- the LLM / human "
                 "knows whether to look inside the file."
             ),
@@ -246,7 +246,7 @@ COMMAND = Command(
         ),
         "record": Command(
             args="{filename}",
-            help="Record commands to a .run script (bare /run.record stops).",
+            help="Record commands to a .run script (bare {prefix}run.record stops).",
             long_help=_RECORD_LONG_HELP,
             handler=_handler_record,
         ),

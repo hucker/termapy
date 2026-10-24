@@ -123,6 +123,7 @@ class TestPromptThenDispatch:
         # Bind the real method to a SimpleNamespace + manually
         # wired stubs.  Avoids spinning up Textual.
         app = SimpleNamespace(
+            _repl_line=lambda command: f"/{command}",  # the app's prefix helper, default prefix
             _dispatch_quiet=dispatched.append,
             push_screen=fake_push_screen,
         )
@@ -151,6 +152,7 @@ class TestPromptThenDispatch:
             captured_callback.append(callback)
 
         app = SimpleNamespace(
+            _repl_line=lambda command: f"/{command}",  # the app's prefix helper, default prefix
             _dispatch_quiet=dispatched.append,
             push_screen=fake_push_screen,
         )
@@ -193,6 +195,7 @@ class TestPaletteSetVar:
             captured_callback.append(callback)
 
         app = SimpleNamespace(
+            _repl_line=lambda command: f"/{command}",  # the app's prefix helper, default prefix
             _dispatch_quiet=dispatched.append,
             push_screen=fake_push_screen,
         )

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from termapy.folder_ops import file_record, list_entries
-from termapy.plugins import CapabilitySet, resolve_long_help
+from termapy.plugins import CapabilitySet, interpolate_help, resolve_long_help
 from termapy.plugins.capabilities import attainable
 from termapy.profile import TypeRegistry, typedef_to_catalog
 
@@ -298,7 +298,7 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     entry: dict[str, Any] = {
         "name": ctx.prefix + plugin.name,
         "args": plugin.args or "",
-        "help": plugin.help or "",
+        "help": interpolate_help(plugin.help or "", ctx.prefix),
         "long_help": long_help_text,
         "flags": dict(plugin.flags) if plugin.flags else {},
         "needs": _needs_list(plugin.needs),

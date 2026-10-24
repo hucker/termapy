@@ -29,6 +29,7 @@ class _StubHost(TerminalHost):
         self._engine = engine
         self.repl = repl
         self._capture = capture
+        self.prefix = "/"
         self._output: list[str] = []
         self._markup: list[str] = []
         self._status_msgs: list[str] = []

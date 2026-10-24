@@ -1278,7 +1278,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         supported = sorted(LANGUAGES[lang].variants) if lang in LANGUAGES else []
         disp = LANGUAGES[lang].display_name if lang in LANGUAGES else lang
         return CmdResult.fail(
-            msg=f"/proto.crc.{lang} doesn't accept {stray} "
+            msg=f"{ctx.prefix}proto.crc.{lang} doesn't accept {stray} "
             f"({disp} emits {', '.join(supported) or 'bitwise'} only)"
         )
 
@@ -1961,7 +1961,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(
                 msg=(
                     "cmd= mode requires count=N (>=2). "
-                    'Try: /proto.crc.reverse cmd="<trigger>\\r" '
+                    f'Try: {ctx.prefix}proto.crc.reverse cmd="<trigger>\\r" '
                     "count=13 crc_bytes=<width-in-bytes>"
                 )
             )
@@ -2187,20 +2187,20 @@ def _render_detect_result(
 
 _PROTO_PROSE = """\
 Send examples:
-  /proto.send 01 02 03         - send three hex bytes
-  /proto.send "AT\\r"           - send text with carriage return
-  /proto.send 0x01 "hello" 0D  - mix hex and text
-  /proto.send 00 ~25ms "AT\\r"  - wake byte, 25ms pause, then command
-  /proto.send ~500us 01 02     - 500us delay before data
+  {prefix}proto.send 01 02 03         - send three hex bytes
+  {prefix}proto.send "AT\\r"           - send text with carriage return
+  {prefix}proto.send 0x01 "hello" 0D  - mix hex and text
+  {prefix}proto.send 00 ~25ms "AT\\r"  - wake byte, 25ms pause, then command
+  {prefix}proto.send ~500us 01 02     - 500us delay before data
 
 Inline delays use ~duration syntax (us, ms, s). Delays under
 1ms use spin-wait for precision. Delays >= 1ms use OS sleep.
 
 Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
-  /proto.send crc16-modbus 01 03 00 00 00 0A            - append LE CRC (default)
-  /proto.send crc16-modbus_be 01 03 00 00 00 0A         - append BE CRC
-  /proto.send crc16-modbus_ascii "READ 0000"             - append CRC as hex text
-  /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
+  {prefix}proto.send crc16-modbus 01 03 00 00 00 0A            - append LE CRC (default)
+  {prefix}proto.send crc16-modbus_be 01 03 00 00 00 0A         - append BE CRC
+  {prefix}proto.send crc16-modbus_ascii "READ 0000"             - append CRC as hex text
+  {prefix}proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
 
 CRC tools:
   {prefix}proto.crc.list              - list all 100+ algorithms
@@ -2209,7 +2209,7 @@ CRC tools:
   {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
 
 Script files (.pro) support TOML format with [[test]] sections
-or flat format with send:/expect: directives. Scripts are found
+or flat format with send:{prefix}expect: directives. Scripts are found
 in the proto/ subfolder of your config directory."""
 
 
@@ -2416,7 +2416,7 @@ COMMAND = Command(
     help_list="list",
     sub_commands={
         "help": Command(
-            help="Show /proto help.",
+            help="Show {prefix}proto help.",
             handler=_handler_help,
         ),
         "send": Command(

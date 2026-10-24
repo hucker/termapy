@@ -387,27 +387,27 @@ def _reload(ctx: PluginContext) -> list[str]:
 
 _GRAMMAR_HELP: Final[str] = (
     "A device file is a part's registers as data, merged over the build's symbols\n"
-    "at load and untouched by /sym.import.  Parts live ONCE in a library -- the\n"
+    "at load and untouched by {prefix}sym.import.  Parts live ONCE in a library -- the\n"
     "config's own lib/ (default; check the folder in and it still works) or the\n"
     "shared termapy_cfg/lib/ -- and a config says which it uses with a three-line\n"
     "dev/ file:\n"
     "\n"
-    "  /dev.import ATSAME54P20A.svd          - convert into <cfg>/lib/, use it here\n"
-    "  /dev.import p.svd to=global           - into termapy_cfg/lib/, for every config\n"
-    "  /dev.import p.svd category=mcu/pic32  - file it under <lib>/<vendor>/mcu/pic32\n"
-    "  /dev.import p.svd use=off             - library only, do not add it here\n"
-    "  /dev.use <part>                       - add a library part to this config\n"
-    "  /dev.use <part> at=ADC1@0x60000000    - ... and say where it sits\n"
-    "  /dev.list                             - what this config has loaded\n"
-    "  /dev.lib {pattern}                    - what the library offers\n"
+    "  {prefix}dev.import ATSAME54P20A.svd          - convert into <cfg>/lib/, use it here\n"
+    "  {prefix}dev.import p.svd to=global           - into termapy_cfg/lib/, for every config\n"
+    "  {prefix}dev.import p.svd category=mcu/pic32  - file it under <lib>/<vendor>/mcu/pic32\n"
+    "  {prefix}dev.import p.svd use=off             - library only, do not add it here\n"
+    "  {prefix}dev.use <part>                       - add a library part to this config\n"
+    "  {prefix}dev.use <part> at=ADC1@0x60000000    - ... and say where it sits\n"
+    "  {prefix}dev.list                             - what this config has loaded\n"
+    "  {prefix}dev.lib {pattern}                    - what the library offers\n"
     "\n"
     "Storing a part once is the point: a 2500-register MCU is a fact about the\n"
     "silicon, not about one board, and the reference keeps this board's addresses\n"
     "so re-importing a newer conversion cannot lose them.  A self-contained\n"
-    "dev/*.device.json still works for a one-off part.  /sym.info lists loaded\n"
-    "devices, /sym.search finds registers, /mem.* reads them by name.  Vendor SVDs\n"
+    "dev/*.device.json still works for a one-off part.  {prefix}sym.info lists loaded\n"
+    "devices, {prefix}sym.search finds registers, {prefix}mem.* reads them by name.  Vendor SVDs\n"
     "come from the chip vendor's CMSIS pack or the cmsis-svd-data repository.\n"
-    "See /help devices."
+    "See {prefix}help devices."
 )
 
 
@@ -420,7 +420,7 @@ def _long_help(ctx: PluginContext) -> str:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="dev",
-    help="Device files: a part's registers as data (see /help devices).",
+    help="Device files: a part's registers as data (see {prefix}help devices).",
     long_help=_long_help,
     sub_commands={
         "import": Command(
@@ -474,7 +474,7 @@ COMMAND = Command(
                     "str",
                     positional=True,
                     required=True,
-                    help="library part name (see /dev.lib)",
+                    help="library part name (see {prefix}dev.lib)",
                 ),
                 ParamSpec(
                     "at",

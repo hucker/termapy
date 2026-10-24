@@ -459,7 +459,7 @@ _EDITORS = [
         "sed",
         ".run",
         "New Script",
-        SCRIPT_TEMPLATE.format(name="untitled"),
+        SCRIPT_TEMPLATE.format(name="untitled", prefix="/"),
         id="script",
     ),
 ]

@@ -29,7 +29,7 @@ class _StubApp:
         self.dispatched: list[str] = []
         self.config_results: list[tuple] = []
         self.connect_calls: int = 0
-        self.ctx = SimpleNamespace(dispatch=self.dispatched.append)
+        self.ctx = SimpleNamespace(prefix="/", dispatch=self.dispatched.append)
 
     def _on_config_result(self, result: tuple) -> None:
         self.config_results.append(result)

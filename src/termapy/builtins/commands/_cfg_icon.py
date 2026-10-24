@@ -526,10 +526,10 @@ non-CLI users can double-click to open a terminal with termapy
 running their device's config.
 
 Usage:
-  /cfg.icon              Create the launcher.
-  /cfg.icon --force      Overwrite an existing launcher.
-  /cfg.icon.remove       Delete the launcher for the current cfg.
-  /cfg.icon.list         List every termapy launcher this platform sees
+  {prefix}cfg.icon              Create the launcher.
+  {prefix}cfg.icon --force      Overwrite an existing launcher.
+  {prefix}cfg.icon.remove       Delete the launcher for the current cfg.
+  {prefix}cfg.icon.list         List every termapy launcher this platform sees
                          (doesn't need a cfg loaded).
 
 Per platform:
@@ -545,7 +545,7 @@ Per platform:
 
 The launcher embeds the absolute path to this .cfg file and to the
 python that's currently running termapy, so it stays tied to this
-install instead of following PATH later.  Rerun /cfg.icon to refresh
+install instead of following PATH later.  Rerun {prefix}cfg.icon to refresh
 if you move/rename the cfg or change termapy installs.
 
 All three platforms get the same custom termapy icon (DB9 connector

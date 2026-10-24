@@ -116,12 +116,12 @@ before display. Grep's own output is excluded from results.
 Max results controlled by max_grep_lines config (default 100).
 
 Examples:
-  /grep error          - find lines containing 'error'
-  /grep ^OK            - lines starting with 'OK'
-  /grep temp.*\\d+      - 'temp' followed by digits
+  {prefix}grep error          - find lines containing 'error'
+  {prefix}grep ^OK            - lines starting with 'OK'
+  {prefix}grep temp.*\\d+      - 'temp' followed by digits
 
-See also: /find (interactive navigation through matches with
-highlighted lines and arrow-button paging), /search (search the
+See also: {prefix}find (interactive navigation through matches with
+highlighted lines and arrow-button paging), {prefix}search (search the
 command-help corpus rather than the scrollback).""",
     handler=_handler,
     needs=CapabilitySet.INTERACTIVE,  # scrollback only exists interactively

@@ -328,7 +328,7 @@ class TestDefaultCfg:
         info_btn = _custom_buttons()[0]
         assert info_btn["enabled"] is True, "Info button enabled"
         assert info_btn["name"] == "Info", "named Info"
-        assert info_btn["command"] == "/cfg.info", "runs /cfg.info"
+        assert info_btn["command"] == "{prefix}cfg.info", "runs cfg.info under the config's prefix"
 
     def test_custom_buttons_placeholders_disabled(self):
         """Remaining default buttons are disabled placeholders."""
@@ -446,18 +446,18 @@ class TestLoadConfig:
 class TestScriptTemplate:
     def test_has_placeholder(self):
         """The new-script template substitutes the script name."""
-        actual = SCRIPT_TEMPLATE.format(name="test_script")
+        actual = SCRIPT_TEMPLATE.format(name="test_script", prefix="/")
         assert "test_script" in actual, "name placeholder expanded"
 
     def test_has_comments(self):
         """Every non-blank template line is a comment, so a fresh script sends nothing."""
-        actual = SCRIPT_TEMPLATE.format(name="x")
+        actual = SCRIPT_TEMPLATE.format(name="x", prefix="/")
         lines = actual.strip().splitlines()
         assert all(line.startswith("#") for line in lines if line.strip()), "all lines are comments"
 
     def test_has_example_commands(self):
         """The template shows a REPL command example (/delay) for the user to copy."""
-        actual = SCRIPT_TEMPLATE.format(name="x")
+        actual = SCRIPT_TEMPLATE.format(name="x", prefix="/")
         assert "/delay" in actual, "contains REPL example"
 
 

@@ -15,7 +15,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, TextArea
 
-from termapy.defaults import SCRIPT_TEMPLATE
+from termapy.defaults import DEFAULT_CMD_PREFIX, SCRIPT_TEMPLATE
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
 from termapy.folders import FOLDER_EXTS, RUN, ensure_folder, new_file_name
 
@@ -66,10 +66,14 @@ class ScriptEditor(ModalScreen[str | None]):
         self.query_one("#sed-save-as", Button).tooltip = "Save the script to a new filename."
         self.query_one("#sed-cancel", Button).tooltip = "Discard changes and close."
 
-    def __init__(self, scripts_dir: Path, path: str | None = None) -> None:
+    def __init__(
+        self, scripts_dir: Path, path: str | None = None, *, prefix: str = DEFAULT_CMD_PREFIX
+    ) -> None:
         super().__init__()
         self.scripts_dir = scripts_dir
         self.edit_path = path
+        self.prefix = prefix
+        self.prefix = prefix
         self._save_as_mode = False
         self._overwrite_ok = False
 
@@ -85,7 +89,7 @@ class ScriptEditor(ModalScreen[str | None]):
             title = f"Edit: {Path(self.edit_path).name}"
         else:
             name = ""
-            content = SCRIPT_TEMPLATE.format(name="untitled")
+            content = SCRIPT_TEMPLATE.format(name="untitled", prefix=self.prefix)
             title = "New Script"
 
         with Vertical(id="sed-dialog"):

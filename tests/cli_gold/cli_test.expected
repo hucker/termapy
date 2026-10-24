@@ -212,31 +212,31 @@ demo> /cfg.dump
           {
               "enabled": true,
               "name": "Demo Help",
-              "command": "/cls\\n/help",
+              "command": "{prefix}cls\\n{prefix}help",
               "tooltip": "Show all commands (termapy + device)"
           },
           {
               "enabled": true,
               "name": "AT Demo",
-              "command": "/cls\\n/run at_demo.run",
+              "command": "{prefix}cls\\n{prefix}run at_demo.run",
               "tooltip": "Run all AT commands with delays"
           },
           {
               "enabled": true,
               "name": "Info",
-              "command": "/cfg.info",
+              "command": "{prefix}cfg.info",
               "tooltip": "Project info"
           },
           {
               "enabled": true,
               "name": "Probe",
-              "command": "/probe",
+              "command": "{prefix}probe",
               "tooltip": "Demo plugin: query the device"
           },
           {
               "enabled": true,
               "name": "TempPlot",
-              "command": "/temp_plot 30",
+              "command": "{prefix}temp_plot 30",
               "tooltip": "Demo plugin: temperature sparkline"
           }
       ]

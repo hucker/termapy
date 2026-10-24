@@ -2526,6 +2526,8 @@ def _is_state_answer(node: ast.expr | None) -> bool:
             isinstance(part, ast.FormattedValue) and _is_state_answer(part.value)
             for part in node.values
         )
+    if isinstance(node, ast.Call) and _sink_name(node) == "state_message":
+        return True  # the prefix-filling reader of the same table
     return (
         isinstance(node, ast.Subscript)
         and isinstance(node.value, ast.Name)
@@ -2579,6 +2581,8 @@ def handler(ctx, args):
         return CmdResult.fail(msg=f"{STATE_MESSAGES['profile_loaded']}  Nothing to reload.")
     if d:
         return CmdResult.fail(msg=f"Unknown symbol: {name}")
+    if e:
+        return CmdResult.fail(msg=state_message("capture_idle", ctx.prefix))
     return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
 """
 
@@ -2586,8 +2590,9 @@ def handler(ctx, args):
     lines = [line for _, line in _state_answers(ast.parse(source))]
 
     # Assert
-    assert lines == [4, 6, 12, 15], (
-        "spelled, read, or built on; not another state, a variable or another f-string"
+    assert lines == [4, 6, 12, 16, 17], (
+        "spelled, read, read through state_message, or built on; "
+        "not another state, a variable or another f-string"
     )
 
 
@@ -3117,3 +3122,219 @@ def test_mojibake_guard_fires_on_a_probe():
     # Assert
     expected = [close, up, rule, rule, rule, smile]
     assert actual == expected, "each garbled character once; never the real ones or accented prose"
+
+
+# ── prefix-never-hardcoded ─────────────────────────────────────────────────────
+
+# Files allowed to spell "/<command>" in a non-docstring string, each with the
+# reason it is legitimately literal.  The list only shrinks (see the stale-entry
+# test); the fix for a new hit is {prefix} or ctx.prefix, never a new entry.
+ALLOWED_PREFIX_SPELLINGS: dict[str, str] = {
+    "termapy/builtins/commands/credits.py": (
+        "the acknowledgments page, generated into help/, where documentation shows the default prefix"
+    ),
+    "termapy/credits_data.py": "Credit notes feed that same generated page",
+    "termapy/demo.py": "the DEMO device's own help text is device output, not termapy's",
+    "termapy/entry.py": "argparse help, shown before any config exists; only the default prefix applies there",
+    "termapy/migration.py": "translates files written when / was the only prefix, and quotes them back",
+}
+
+_DISPATCH_FUNCS: frozenset[str] = frozenset(
+    {
+        "dispatch",
+        "dispatch_full",
+        "_dispatch_quiet",
+        "_dispatch_single",
+        "_dispatch_on_thread",
+        "_dispatch_on_thread_interactive",
+        "_prompt_then_dispatch",
+    }
+)
+_HOOK_SOURCES = ("termapy/app.py", "termapy/cli.py", "termapy/app_hooks.py")
+# A slash, a command token, an optional dotted tail; not inside a path (/dev/tty) or a word.
+_SPELLING = re.compile(r"(?<![\w/])/([a-z][a-z0-9_]*)(?:\.[a-z0-9_]+)*(?![\w/])")
+
+
+def _command_tokens() -> frozenset[str]:
+    """Top-level names of every built-in command plus every host-registered hook."""
+    from termapy.plugins import builtins_dir, load_plugins_from_dir
+
+    tokens = {
+        info.name.split(".")[0]
+        for info in load_plugins_from_dir(builtins_dir(), source="built-in").plugins
+    }
+    for rel in _HOOK_SOURCES:
+        tree = ast.parse((SRC.parent / rel).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and _call_name(node).endswith("register_hook")
+                and node.args
+            ):
+                first = node.args[0]
+                if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                    tokens.add(first.value.split(".")[0])
+    return frozenset(tokens)
+
+
+def _call_name(call: ast.Call) -> str:
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    return ""
+
+
+def _documentation_strings(tree: ast.AST) -> set[int]:
+    """ids of every statement-level string: docstrings and attribute docs, never rendered."""
+    return {
+        id(node.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    }
+
+
+def _leading_literal(node: ast.AST) -> str | None:
+    """The literal text an argument starts with: a plain string, or an f-string's first piece."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr) and node.values and isinstance(node.values[0], ast.Constant):
+        return str(node.values[0].value)
+    return None
+
+
+def _dispatch_literals(tree: ast.AST, rel: str) -> list[str]:
+    """Every dispatch call handed a string that starts with a typed slash."""
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _call_name(node) in _DISPATCH_FUNCS:
+            for arg in [*node.args, *(kw.value for kw in node.keywords)]:
+                text = _leading_literal(arg)
+                if text is not None and text.startswith("/"):
+                    found.append(f"{rel}:{node.lineno}  {_call_name(node)}({text!r})")
+    return found
+
+
+def _prefix_spellings(tree: ast.AST, rel: str, tokens: frozenset[str]) -> list[str]:
+    """Every non-documentation string constant that spells a command with a slash."""
+    docs = _documentation_strings(tree)
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docs:
+            hits = [m.group(0) for m in _SPELLING.finditer(node.value) if m.group(1) in tokens]
+            if hits:
+                found.append(f"{rel}:{node.lineno}  {', '.join(hits)}")
+    return found
+
+
+def test_dispatch_lines_use_the_live_prefix():
+    """prefix-never-hardcoded: a line handed to dispatch is built from the config's prefix, never typed as /cmd.
+
+    With ``cmd_prefix: "!"`` a typed ``"/find.prev"`` is not a command but
+    device text, so every button, menu action and palette entry that
+    spelled the slash sent its command to the wire (nineteen sites,
+    2026-10-24).  A synthesized line goes through ``cmd_prefix(cfg)`` or
+    ``ctx.prefix``; the test has no allowlist because no dispatch literal
+    is ever legitimate.
+    """
+    # Act
+    violations = [
+        hit
+        for path in _package_python_files()
+        for hit in _dispatch_literals(
+            ast.parse(path.read_text(encoding="utf-8")), path.relative_to(SRC.parent).as_posix()
+        )
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a dispatched line is built from the live prefix (app._repl_line, ctx.prefix), never typed:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_command_spellings_use_the_prefix_placeholder():
+    """prefix-never-hardcoded: help and message text writes {prefix}cmd, which every renderer fills in; docs alone show /.
+
+    ``interpolate_help`` substitutes the placeholder in ``help`` and
+    ``long_help``, the MCP catalog and the config editor; a message built in
+    a handler uses ``ctx.prefix``, the engine ``self.prefix``, a gate message
+    ``state_message``.  Docstrings, comments and attribute docs are not
+    rendered and are not checked; the Markdown help pages are documentation
+    and show the default on purpose.
+    """
+    # Arrange
+    tokens = _command_tokens()
+
+    # Act
+    violations = [
+        hit
+        for path in _package_python_files()
+        if path.relative_to(SRC.parent).as_posix() not in ALLOWED_PREFIX_SPELLINGS
+        for hit in _prefix_spellings(
+            ast.parse(path.read_text(encoding="utf-8")),
+            path.relative_to(SRC.parent).as_posix(),
+            tokens,
+        )
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a command in rendered text is {prefix}cmd (or ctx.prefix in a message), never /cmd:\n  "
+        + "\n  ".join(violations)
+        + "\n\nOnly text that is literal by nature (see ALLOWED_PREFIX_SPELLINGS) may keep the slash."
+    )
+
+
+def test_prefix_guard_fires_on_a_probe():
+    """Both scans flag a typed slash and pass the placeholder, a device path and a docstring."""
+    # Arrange
+    probe = (
+        '"""Module doc mentions /cfg and is fine."""\n'
+        'self._dispatch_quiet("/find.prev")\n'
+        'self._dispatch_quiet(self._repl_line("find.prev"))\n'
+        'self._dispatch_on_thread(f"/run.record {name}")\n'
+        'help_text = "See /cfg.auto for details"\n'
+        'placeholder = "See {prefix}cfg.auto for details"\n'
+        'port = "/dev/ttyUSB0"\n'
+        "X = 1\n"
+        '"""Attribute doc: /log commands need a config."""\n'
+    )
+    tree = ast.parse(probe)
+    tokens = frozenset({"find", "run", "cfg", "dev", "log"})
+
+    # Act
+    dispatch_hits = _dispatch_literals(tree, "probe")
+    spelling_hits = _prefix_spellings(tree, "probe", tokens)
+
+    # Assert
+    assert sorted(hit.split("  ")[0] for hit in dispatch_hits) == ["probe:2", "probe:4"], (
+        "the two typed dispatch lines are flagged; the _repl_line one is not"
+    )
+    assert sorted(hit.split("  ")[0] for hit in spelling_hits) == [
+        "probe:2",
+        "probe:4",
+        "probe:5",
+    ], (
+        "the typed help string is flagged; the placeholder, the device path and both docstrings are not"
+    )
+
+
+def test_prefix_allowlist_has_no_stale_entries():
+    """Every allowlisted file still spells a command; one that was cleaned up comes off the list."""
+    # Arrange
+    tokens = _command_tokens()
+
+    # Act
+    stale = [
+        rel
+        for rel in ALLOWED_PREFIX_SPELLINGS
+        if not _prefix_spellings(
+            ast.parse((SRC.parent / rel).read_text(encoding="utf-8")), rel, tokens
+        )
+    ]
+
+    # Assert
+    assert stale == [], f"no longer spell a command; remove from ALLOWED_PREFIX_SPELLINGS: {stale}"

@@ -423,7 +423,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
         ctx.io.output_markup(_section_markup("REQUIRED CAPABILITIES"))
         for cap_name, hint in required:
             cap_markup = escape_markup(cap_name)
-            hint_markup = escape_markup(hint)
+            hint_markup = escape_markup(interpolate_help(hint, ctx.prefix))
             if getattr(effective, cap_name):
                 ctx.io.output_markup(f"  [{_OPT}]{cap_markup}[/] - [{_SEP}]{hint_markup}[/]")
             else:
@@ -843,8 +843,8 @@ def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
     target_cmds = profile_command_view(ctx.ns("active_profile"))
     if not target_cmds:
         ctx.io.result(
-            "No device commands available.  /profile.load <path> "
-            "or /profile.load cmd=<command> to load one."
+            f"No device commands available.  {ctx.prefix}profile.load <path> "
+            f"or {ctx.prefix}profile.load cmd=<command> to load one."
         )
         return CmdResult.ok(value="")
     _render_target(ctx)
@@ -989,17 +989,17 @@ COMMAND = Command(
     long_help="""\
 Three ways to find things:
 
-  /help              landscape of all commands (name + one-liner).
-  /help <term>       exact match -> detail; otherwise a candidate list
+  {prefix}help              landscape of all commands (name + one-liner).
+  {prefix}help <term>       exact match -> detail; otherwise a candidate list
                      by substring match on name + short help.
-  /help --mcp        landscape filtered to MCP-visible commands only
+  {prefix}help --mcp        landscape filtered to MCP-visible commands only
                      (same set the LLM sees via {prefix}mcp.catalog).
-  /search <word>     deep search across names, args, flags, long help.
+  {prefix}search <word>     deep search across names, args, flags, long help.
 
-/help is forgiving: if you can't remember the full name, it lists
+{prefix}help is forgiving: if you can't remember the full name, it lists
 candidates, and a name typed with its prefix ({prefix}help {prefix}cfg)
-reads as the name alone. Typing /help with zero matches points you at
-/search.""",
+reads as the name alone. Typing {prefix}help with zero matches points you at
+{prefix}search.""",
     handler=_handler,
     sub_commands={
         "target": Command(

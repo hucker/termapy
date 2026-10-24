@@ -322,15 +322,15 @@ COMMAND = Command(
                     long_help=(
                         "Fetches the latest termapy version from PyPI and "
                         "prints just the version string -- the data-getter "
-                        "symmetric to /app.ver (which reports installed).  "
+                        "symmetric to {prefix}app.ver (which reports installed).  "
                         "Set as CmdResult.value so scripts can capture it "
-                        "with $(LATEST) <- /app.ver.latest.\n"
+                        "with $(LATEST) <- {prefix}app.ver.latest.\n"
                         "\n"
                         "Bypasses the 7-day throttle used by the background "
                         "banner -- this always hits PyPI fresh.  Network "
                         "failure returns an error.  Times out after 2 seconds.\n"
                         "\n"
-                        "See /app.ver.info for a verbose installed-vs-PyPI compare."
+                        "See {prefix}app.ver.info for a verbose installed-vs-PyPI compare."
                     ),
                     handler=_handler_ver_latest,
                 ),
@@ -347,8 +347,8 @@ COMMAND = Command(
                         "failure returns an error.  Times out after 2 seconds.\n"
                         "\n"
                         "Sets CmdResult.value to the latest PyPI version.  "
-                        "See /app.ver.latest for just the bare PyPI value, or "
-                        "/app.ver for just the installed version."
+                        "See {prefix}app.ver.latest for just the bare PyPI value, or "
+                        "{prefix}app.ver for just the installed version."
                     ),
                     handler=_handler_ver_info,
                 ),

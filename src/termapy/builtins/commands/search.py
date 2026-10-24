@@ -406,27 +406,27 @@ COMMAND = Command(
     args="{--dev} <pattern>",
     help="Deep-search every command's metadata (name, help, args, flags, long help).",
     long_help="""\
-/search hits every searchable field -- name, short help, args, flags,
-long help. It's the deep counterpart to /help's forgiving lookup.
+{prefix}search hits every searchable field -- name, short help, args, flags,
+long help. It's the deep counterpart to {prefix}help's forgiving lookup.
 
 Scope: all REPL commands (plugins) plus target-device commands brought
 in by /include. Device-command hits render without the / prefix and are
 tagged "(target)" so they're easy to spot in results.
 
 Grammar (literal mode, no regex metacharacters):
-  /search timeout             all commands mentioning "timeout" somewhere.
-  /search table crc           AND: must match both words.
-  /search port baud -break    exclude matches that also mention "break".
+  {prefix}search timeout             all commands mentioning "timeout" somewhere.
+  {prefix}search table crc           AND: must match both words.
+  {prefix}search port baud -break    exclude matches that also mention "break".
 
 Grammar (regex mode, auto-detected on metacharacters):
-  /search ^proto\\.            commands starting with "proto."
-  /search --dev ctx\\.result   also searches handler docstrings.
+  {prefix}search ^proto\\.            commands starting with "proto."
+  {prefix}search --dev ctx\\.result   also searches handler docstrings.
 
 Returns matching command names as CmdResult.value (newline-joined),
 suitable for $(VAR) <- capture in scripts.
 
-See also: /grep (search scrollback text and print matching lines),
-/find (search scrollback and navigate matches interactively).""",
+See also: {prefix}grep (search scrollback text and print matching lines),
+{prefix}find (search scrollback and navigate matches interactively).""",
     handler=_handler,
     raw_args=True,
 )

@@ -35,7 +35,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not OS_CMD_ENABLED:
         return CmdResult.fail(
             msg=(
-                "/os is disabled.  Set TERMAPY_OS_CMD_ENABLED=1 in "
+                f"{ctx.prefix}os is disabled.  Set TERMAPY_OS_CMD_ENABLED=1 in "
                 "your shell to enable.  (Was a cfg key through v0.65; "
                 "retired to env-var-only because the cfg cannot defend "
                 "against the cfg.)"
@@ -76,10 +76,10 @@ for safety).  Set it to 1 in your shell to enable:
 Commands time out after 10 seconds.
 
 Examples:
-  /os dir                - list files (Windows)
-  /os ls -la             - list files (Unix)
-  /os python --version   - check Python version
-  /os ping -c 1 host     - network test""",
+  {prefix}os dir                - list files (Windows)
+  {prefix}os ls -la             - list files (Unix)
+  {prefix}os python --version   - check Python version
+  {prefix}os ping -c 1 host     - network test""",
     handler=_handler,
     needs=CapabilitySet.INTERACTIVE,  # shell exec; interactive only
 )

@@ -167,6 +167,17 @@ All other paths relative to `src/termapy/`.
     and hex, an `int()` on user text is indistinguishable from internal
     arithmetic, so enforcement there is this rule plus review.
 - REPL prefix: `/`
+- **The REPL prefix is never spelled in code** (registry `prefix-never-hardcoded`).
+  A line the TUI or a plugin hands to dispatch is built from `cmd_prefix(cfg)`
+  (`app._repl_line`) or `ctx.prefix`; help and message text writes `{prefix}cmd`,
+  which `interpolate_help` fills in for `/help`, search, the MCP catalog and the
+  config editor, and a gate message that names a command is read through
+  `capabilities.state_message`. A custom button's command may start with the same
+  placeholder. Documentation (README, `help/*.md`) shows the default `/` on purpose.
+  **Enforced by `tests/test_architecture.py`**: no dispatch call takes a slash
+  literal, and only the files in `ALLOWED_PREFIX_SPELLINGS` (text that is literal by
+  nature) may spell `/cmd` in a non-docstring string. Found 2026-10-24: nineteen TUI
+  affordances sent their command to the device under `cmd_prefix: "!"`.
 - Modals return tuples: `("run", path)`, `("new",)`, `("edit", path)`
 - Buttons: rainbow palette, Exit always red (`error`)
 - SS/Scripts buttons always visible with file-count tooltips

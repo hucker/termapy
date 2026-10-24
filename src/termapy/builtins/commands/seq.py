@@ -127,7 +127,7 @@ Use cases:
     {seq1+}.{seq2+}   -> 2.1  (new section resets the step, then +)
 
   Automatic file naming (e.g. screenshots in a script):
-    /ss.txt capture_{seq1+}  -> capture_1.txt, capture_2.txt, ..."""
+    {prefix}ss.txt capture_{seq1+}  -> capture_1.txt, capture_2.txt, ..."""
 
 
 def _seq_state_line(ctx: PluginContext) -> str:

@@ -89,7 +89,7 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
 
     if _active is not None:
         return CmdResult.fail(
-            msg=f"Already recording to {_active.path.name}; stop with /run.record first.",
+            msg=f"Already recording to {_active.path.name}; stop with {ctx.prefix}run.record first.",
         )
 
     if (
@@ -100,7 +100,7 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
         # record.  TerminalHost wires both, so the only way to hit
         # this is a misconfigured embed.
         return CmdResult.fail(
-            msg="This host does not support /run.record (post-dispatch observer not wired).",
+            msg=f"This host does not support {ctx.prefix}run.record (post-dispatch observer not wired).",
         )
 
     # Filename hygiene.  Auto-append .run if missing; refuse
@@ -193,13 +193,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 _LONG_HELP = """\
 Record successfully-dispatched REPL and device commands to a
-.run file in the per-config run/ directory.  /run.record itself
+.run file in the per-config run/ directory.  {prefix}run.record itself
 and failed dispatches are skipped, so the resulting file plays
 back cleanly.
 
 Usage:
-  /run.record <filename>    Start recording (auto-adds .run).
-  /run.record               Stop recording.
+  {prefix}run.record <filename>    Start recording (auto-adds .run).
+  {prefix}run.record               Stop recording.
 
 The file is opened with exclusive-create mode and flushed after
 every write, so:
@@ -210,8 +210,8 @@ every write, so:
   - Starting a second recording while one is active is an error.
 
 Suggested workflow: record, then add a ``#`` docstring at the
-top of the file describing what the script does -- /run.list
-and /run.help will pick it up.
+top of the file describing what the script does -- {prefix}run.list
+and {prefix}run.help will pick it up.
 
 TUI: the Record button next to the REPL prompt does the same
 toggle, prompting for a filename via a modal on start.  Hide

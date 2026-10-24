@@ -151,7 +151,7 @@ def validate_block(block: Mapping[str, Any]) -> list[str]:
     if dialect is not None and dialect not in DIALECTS:
         warnings.append(
             f"memory/dialect: unrecognized dialect {dialect!r} "
-            f"(/mem.* commands refuse until it is recognized; known: "
+            f"(the mem commands refuse until it is recognized; known: "
             f"{', '.join(DIALECTS)})"
         )
     for key in ("max_block", "address_bits", "endian", "modify"):
@@ -162,7 +162,7 @@ def validate_block(block: Mapping[str, Any]) -> list[str]:
         try:
             parse_template_block(block)
         except ValueError as e:
-            warnings.append(f"{e} (/mem.* commands refuse until it is fixed)")
+            warnings.append(f"{e} (the mem commands refuse until it is fixed)")
     return warnings
 
 

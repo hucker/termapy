@@ -72,9 +72,9 @@ Reads a file and prints its contents to the terminal.
 Regular filenames are resolved relative to the working directory.
 
 Examples:
-  /show.cfg              - view current config
-  /show my_script.run    - view a script file
-  /show ../notes.txt     - relative path""",
+  {prefix}show.cfg              - view current config
+  {prefix}show my_script.run    - view a script file
+  {prefix}show ../notes.txt     - relative path""",
     handler=_handler,
     needs=CapabilitySet.GUI_APPS,
     sub_commands={

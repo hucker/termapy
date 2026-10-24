@@ -22,7 +22,7 @@ _ENV = dict(os.environ)
 _MCP_BLOCKED_MSG = (
     "Environment access is disabled under MCP.  Set "
     "TERMAPY_MCP_ENV_ENABLED=1 in the server's shell to enable "
-    "$(env.NAME) expansion and /env."
+    "$(env.NAME) expansion and the env commands."
 )
 
 
@@ -153,10 +153,10 @@ Syntax:
   $(env.PORT|COM3)       - expand, use COM3 as fallback
 
 Commands:
-  /env.list              - list all captured variables
-  /env.list path         - the names containing path (USER* globs)
-  /env.set PORT COM7     - set a session-scoped variable
-  /env.reload            - re-snapshot from OS environment"""
+  {prefix}env.list              - list all captured variables
+  {prefix}env.list path         - the names containing path (USER* globs)
+  {prefix}env.set PORT COM7     - set a session-scoped variable
+  {prefix}env.reload            - re-snapshot from OS environment"""
 
 
 def _env_state_line(ctx: PluginContext) -> str:
@@ -174,12 +174,12 @@ COMMAND = Command(
     name="env",
     args="{pattern}",
     handler=_handler_list,
-    help="Print environment variables for $(env.NAME) expansion (alias: /env.list).",
+    help="Print environment variables for $(env.NAME) expansion (alias: {prefix}env.list).",
     long_help=_env_long_help,
     sub_commands={
         "list": Command(
             args="{pattern}",
-            help="Explicit alias for bare /env.",
+            help="Explicit alias for bare {prefix}env.",
             long_help=_env_state_line,
             handler=_handler_list,
         ),

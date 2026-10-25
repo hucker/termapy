@@ -76,9 +76,12 @@ from termapy.plugins.command import (
     Transform,
     TransformInfo,
     UsageError,
+    canonical_flags,
     format_usage,
     interpolate_help,
     resolve_long_help,
+    synopsis_markup,
+    synopsis_pieces,
     validate_synopsis,
 )
 from termapy.plugins.context import (
@@ -113,7 +116,6 @@ __all__ = [
     "REQUIREMENT_HINTS",
     "detect_gui_apps",
     "state_message",
-    "state_message",
     # Command + return types + helpers
     "BoundaryException",
     "CmdResult",
@@ -136,9 +138,12 @@ __all__ = [
     "Transform",
     "TransformInfo",
     "UsageError",
+    "canonical_flags",
     "format_usage",
     "interpolate_help",
     "resolve_long_help",
+    "synopsis_markup",
+    "synopsis_pieces",
     "validate_synopsis",
     # Context + config + output-level utilities
     "DEFAULT_OUTPUT_LEVEL",

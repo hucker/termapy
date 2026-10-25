@@ -26,10 +26,13 @@ Plus the small return shapes:
   - ``LoadResult`` -- the bundle returned by ``load_plugins_from_dir``,
     one ``ModuleLoad`` per plugin file.
 
-And a couple of small utilities:
+And a few small utilities:
 
   - ``interpolate_help`` -- ``{prefix}`` substitution in help strings.
   - ``resolve_long_help`` -- evaluate static or callable ``long_help``.
+  - ``synopsis_pieces`` / ``synopsis_markup`` -- a synopsis colored by its
+    grammar, and ``canonical_flags`` -- a ``flags`` mapping as rows; what
+    ``/help`` and ``/search`` render a declaration with.
 
 These shapes have no Textual or pyserial dependencies; they're pure data
 plus a couple of helpers.
@@ -37,7 +40,8 @@ plus a couple of helpers.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -48,7 +52,16 @@ from termapy.plugins.params import (
     synthesize_synopsis,
     validate_param_specs,
 )
-from termapy.plugins.views import Column, Item, Line, RecordView, TableView, TextLine
+from termapy.plugins.views import (
+    Column,
+    Item,
+    Line,
+    Piece,
+    RecordView,
+    TableView,
+    TextLine,
+    pieces_markup,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins.context import PluginContext
@@ -185,6 +198,61 @@ def validate_synopsis(args: str) -> str:
         if depth != 0:
             return f"unbalanced {label}"
     return ""
+
+
+# ── Rendering a declaration ──────────────────────────────────────────────────
+#
+# A synopsis and a flags mapping are shown in two places, ``/help``'s page
+# and ``/search``'s hits, so the grammar ``validate_synopsis`` checks is
+# colored here, once, beside it.
+
+# The colors a synopsis renders in, wherever one is shown.
+SYNOPSIS_OPTIONAL_STYLE = "green"  # {optional} groups
+SYNOPSIS_REQUIRED_STYLE = "yellow"  # <required> groups
+
+_OPTIONAL_RE = re.compile(r"(\{[^}]+\})")
+_REQUIRED_RE = re.compile(r"(<[^>]+>)")
+
+
+def synopsis_pieces(args: str) -> list[Piece]:
+    """A synopsis as pieces: ``{optional}`` groups green, ``<required>`` yellow, the rest plain.
+
+    A ``<required>`` inside an ``{optional}`` group (``{timeout=<dur>}``)
+    is yellow within the green, as the nested tags always drew it.
+    """
+    pieces: list[Piece] = []
+    for group in _OPTIONAL_RE.split(args):
+        outer = SYNOPSIS_OPTIONAL_STYLE if _OPTIONAL_RE.fullmatch(group) else ""
+        pieces += [
+            Piece(part, None, SYNOPSIS_REQUIRED_STYLE if _REQUIRED_RE.fullmatch(part) else outer)
+            for part in _REQUIRED_RE.split(group)
+            if part
+        ]
+    return pieces
+
+
+def synopsis_markup(args: str) -> str:
+    """A synopsis, escaped, with its ``{optional}`` and ``<required>`` groups colored."""
+    return pieces_markup(synopsis_pieces(args))
+
+
+def canonical_flags(flags: Mapping[str, str]) -> list[tuple[str, list[str], str]]:
+    """A ``Command.flags`` mapping as one ``(canonical, aliases, description)`` row per flag.
+
+    Sorted by canonical name.  An alias entry (``"-t": "--table"``)
+    collapses onto its canonical row.
+    """
+    if not flags:
+        return []
+    aliases_of: dict[str, list[str]] = {}
+    descriptions: dict[str, str] = {}
+    for flag, val in flags.items():
+        if val.startswith("-") and val in flags:
+            aliases_of.setdefault(val, []).append(flag)
+        else:
+            descriptions[flag] = val
+            aliases_of.setdefault(flag, [])
+    return [(flag, sorted(aliases_of[flag]), descriptions[flag]) for flag in sorted(descriptions)]
 
 
 @dataclass

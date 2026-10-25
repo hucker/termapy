@@ -390,8 +390,8 @@ def _handler_encoding(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
     """Report metadata for the bundled USB vendor database.
 
-    Reads the curated ``USB_VENDORS`` short-form table and the
-    generated ``_usb_vendor_full`` module's metadata constants.  Local
+    Reads ``usb.vendor_table_facts()``: the curated ``USB_VENDORS``
+    table's size and the generated module's metadata constants.  Local
     only -- never makes a network call.
 
     Output (kv pairs):
@@ -408,39 +408,19 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
     cannot say.  ``CmdResult.value`` is the full-table count so scripts
     can read it via .quiet/.silent.
     """
-    from termapy.usb import USB_VENDORS
+    from termapy.usb import vendor_table_facts
 
-    data: dict[str, int | str | None] = {
-        "curated": len(USB_VENDORS),
-        "full_table": None,
-        "generated": None,
-        "source": None,
-        "path": None,
-    }
-    rows: list[KvRow | None] = [("curated", str(len(USB_VENDORS)))]
-    try:
-        from termapy.usb import _vendors_full as _full
-
-        data["full_table"] = len(_full.USB_VENDORS_FULL)
-        data["generated"] = getattr(_full, "GENERATED_DATE", None)
-        data["source"] = getattr(_full, "SOURCE_URL", None)
-        # Path on disk -- helpful when the user wants to inspect the
-        # bundled module or sanity-check which copy is loaded.
-        from pathlib import Path
-
-        full_path = Path(_full.__file__).resolve()
-        try:
-            data["path"] = str(full_path.relative_to(Path.cwd()))
-        except ValueError:
-            # Generated file is outside cwd (typical for installed pkg
-            # users); show absolute path.
-            data["path"] = str(full_path)
+    data = vendor_table_facts()
+    rows: list[KvRow | None] = [("curated", str(data["curated"]))]
+    if data["full_table"] is None:
+        rows.append(("full_table", "(missing -- reinstall termapy)"))
+    else:
         rows.append(("full_table", str(data["full_table"])))
         rows.append(("generated", str(data["generated"] or "?")))
         rows.append(("source", str(data["source"] or "?")))
+        # Path on disk -- helpful when the user wants to inspect the
+        # bundled module or sanity-check which copy is loaded.
         rows.append(("path", str(data["path"])))
-    except ImportError:
-        rows.append(("full_table", "(missing -- reinstall termapy)"))
 
     # Update hint targets end users (PyPI installs) -- the bundled
     # data refreshes on each termapy release, so upgrading is the

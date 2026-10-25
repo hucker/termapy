@@ -1701,10 +1701,12 @@ class ReplEngine:
         self,
         cb: Callable[[str, CmdResult], None],
     ) -> Callable[[str, CmdResult], None]:
-        """Register ``cb(line, result)`` to fire after every dispatch().
+        """Register ``cb(line, result)`` to fire after every outermost dispatch().
 
         Used by ``/run.record`` (and any future feature that wants the
-        same stream -- audit log, repeat-last-successful, etc.).
+        same stream -- audit log, repeat-last-successful, etc.).  A
+        dispatch from inside a handler (``ctx.internal.dispatch``) is part
+        of the outer command and never reaches an observer.
 
         Args:
             cb: Callable invoked with the dispatched line and its
@@ -1731,8 +1733,10 @@ class ReplEngine:
         Splits the line into command name and args, expands sequence
         templates in the args, then invokes the matching plugin handler.
         Fires registered post-dispatch observers with ``(line, result)``
-        before returning -- observers see every dispatch, including
-        capability-gate failures and unknown-command errors.
+        before returning -- for the outermost dispatch only, so observers
+        see every line a user or script issues, including capability-gate
+        failures and unknown-command errors, and never a dispatch from
+        inside a handler.
 
         Args:
             line: Command string without the REPL prefix (e.g. "grep error").
@@ -1745,11 +1749,16 @@ class ReplEngine:
             CmdResult with success/error status and elapsed time.
         """
         result = self._dispatch_inner(line, report=report)
-        for post_dispatch_observer in self._post_dispatch_observers:
-            try:
-                post_dispatch_observer(line, result)
-            except Exception as e:  # observer bug must not break dispatch
-                self.write(f"Observer error: {e}", "red")
+        # A dispatch from inside a handler (a bare parent forwarding to its
+        # listing, a ``.help`` leaf running ``/help``) is part of the outer
+        # command, not a second line: ``/run.record`` writes what was
+        # typed, and a replay runs each command once.
+        if self._handler_depth == 0:
+            for post_dispatch_observer in self._post_dispatch_observers:
+                try:
+                    post_dispatch_observer(line, result)
+                except Exception as e:  # observer bug must not break dispatch
+                    self.write(f"Observer error: {e}", "red")
         return result
 
     def _dispatch_inner(self, line: str, *, report: bool = True) -> CmdResult:

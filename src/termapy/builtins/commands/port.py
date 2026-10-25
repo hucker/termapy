@@ -74,9 +74,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     """Same as /help port."""
-    from termapy.builtins.commands.help import _show_command_help
-
-    return _show_command_help(ctx, "port")
+    return ctx.internal.dispatch("help port")
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:

@@ -20,6 +20,8 @@ escaped string (registry ``widget-text-literal``).
 
 from __future__ import annotations
 
+import re
+
 # Rich is imported inside each function: ``termapy.plugins`` imports this
 # module, and the print-and-exit flags (``--ports``) reach ``plugins``
 # through ``port_control`` -- they must load no UI framework, Rich included
@@ -99,3 +101,54 @@ def markup_to_plain(markup: str) -> str:
         return Text.from_markup(markup).plain
     except MarkupError:
         return markup
+
+
+def match_parts(text: str, needles: str | list[str] | None) -> list[tuple[str, bool]]:
+    """``text`` cut into ``(part, matched)`` around every case-insensitive needle.
+
+    The split behind :func:`underline_markup` and the clickable help rows,
+    which style their matched parts themselves.  No needle, or no text,
+    gives the text as one unmatched part.
+
+    Args:
+        text: The text to cut.
+        needles: One needle or several; empty ones are ignored.
+
+    Returns:
+        The parts in order, each with whether a needle matched it.
+    """
+    if isinstance(needles, str):
+        needles = [needles]
+    needles = [needle for needle in needles or [] if needle]
+    if not needles or not text:
+        return [(text, False)] if text else []
+    pattern = re.compile("|".join(re.escape(needle) for needle in needles), re.IGNORECASE)
+    parts: list[tuple[str, bool]] = []
+    last = 0
+    for match in pattern.finditer(text):
+        if match.start() > last:
+            parts.append((text[last : match.start()], False))
+        parts.append((match.group(), True))
+        last = match.end()
+    if last < len(text):
+        parts.append((text[last:], False))
+    return parts
+
+
+def underline_markup(text: str, needles: str | list[str]) -> str:
+    """``text`` escaped, every case-insensitive occurrence of a needle in ``[u]...[/u]``.
+
+    How ``/help``'s candidate list and ``/search``'s hits say why a row
+    matched.
+
+    Args:
+        text: The text to show.
+        needles: The search terms to underline.
+
+    Returns:
+        The markup.
+    """
+    return "".join(
+        f"[u]{escape_markup(part)}[/u]" if matched else escape_markup(part)
+        for part, matched in match_parts(text, needles)
+    )

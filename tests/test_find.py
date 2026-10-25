@@ -19,9 +19,9 @@ import json
 import pytest
 
 from termapy.builtins.commands import find as _find
-from termapy.builtins.commands.grep import find_matches
 from termapy.plugins import CapabilitySet
 from termapy.repl import ReplEngine
+from termapy.scripting import find_matches
 
 
 @pytest.fixture

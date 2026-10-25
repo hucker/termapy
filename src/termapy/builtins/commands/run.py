@@ -44,10 +44,9 @@ from termapy.builtins.commands._run_record import (
     _LONG_HELP as _RECORD_LONG_HELP,
     _handler as _handler_record,
 )
-from termapy.builtins.commands.edit import edit_command
-from termapy.builtins.commands.help import _show_command_help
 from termapy.folder_ops import (
     build_folder_subcommands,
+    edit_command,
     file_table,
     list_entries,
 )
@@ -98,7 +97,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value=full)
 
     # Bare /run.help is /help run: the page, ending with /run.list's scripts.
-    return _show_command_help(ctx, "run")
+    return ctx.internal.dispatch("help run")
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:

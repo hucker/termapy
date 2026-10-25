@@ -24,6 +24,16 @@ These factories used to live in ``cfg.py``.  They moved here so that
 ``ss.py``, ``cap.py``, ``proto.py``, and the ``/run.*`` hook registrations
 can all reuse the same handler bodies instead of re-implementing the
 folder operations per plugin.
+
+The edit leaves live here too: ``edit_command(folder)`` builds
+``/edit.<folder>`` and its noun-first twin ``/<folder>.edit`` as one
+declaration, ``edit_folder_command`` adds that leaf's ``.list`` and
+``.explore``, and ``edit_cfg_command`` is ``/edit.cfg`` / ``/cfg.edit``.
+``dump_text_slice`` is the body of ``/log.dump`` and ``/mcp.log.dump``.
+A helper two plugins import is core, never another plugin's export
+(registry ``plugins-import-published-only``), so the run, proto, plugin,
+cfg, log and mcp plugins reach these from here, not from ``edit.py`` and
+``log.py`` as they did until 2026-10-24.
 """
 
 from __future__ import annotations
@@ -36,12 +46,22 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from termapy.config import validate_file_stem
-from termapy.folders import FOLDERS, FolderSpec, default_file_name, ensure_folder
+from termapy.folders import (
+    FOLDER_EXTS,
+    FOLDERS,
+    PROTO,
+    RUN,
+    FolderSpec,
+    default_file_name,
+    ensure_folder,
+)
+from termapy.help_dynamic import compose, folder_line
 from termapy.matching import is_glob, matches
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins.command import PICKERS
 from termapy.plugins.params import ParamSpec
 from termapy.plugins.views import Column
-from termapy.scripting import format_age, format_size
+from termapy.scripting import format_age, format_size, select_lines
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -232,6 +252,37 @@ def file_table(
     return CmdResult.table(title, noun, columns, records, value=names)
 
 
+def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
+    """Print a text file: all lines, last N (N>0), or first N (N<0).
+
+    The shared body of ``/log.dump`` and ``/mcp.log.dump`` -- each does its
+    own path resolution + sandbox guard, then hands the resolved path
+    here.  Returns the line count via ``value=`` for scripting.
+
+    Args:
+        ctx: Plugin context for output.
+        path: Resolved, already-authorized file path.
+        args: Raw arg string -- empty (all), or a signed integer count.
+    """
+    n: int | None = None
+    arg = args.strip()
+    if arg:
+        try:
+            n = int(arg)
+        except ValueError:
+            raise UsageError(f"Invalid count: {arg!r}  (N>0 last N, N<0 first N)") from None
+        if n == 0:
+            return CmdResult.fail(msg="Invalid line count: 0")
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        return CmdResult.fail(msg=f"Read error: {e}")
+    lines = select_lines(lines, n)
+    for line in lines:
+        ctx.io.output(line)
+    return CmdResult.ok(value=str(len(lines)))
+
+
 def _make_list_handler(folder: str, pattern: str, noun: str = "file", show: str = ""):
     """Handler: list files in the folder, newest first, with size and age.
 
@@ -247,15 +298,17 @@ def _make_list_handler(folder: str, pattern: str, noun: str = "file", show: str 
     return handler
 
 
-def _make_explore_handler(folder: str):
+def _make_explore_handler(folder: str, *, cwd_fallback: bool = False):
     """Handler: open the folder in the system file explorer.
 
     Creates the folder first so the user has somewhere to drop a file:
-    opening it is the one read that counts as a write.
+    opening it is the one read that counts as a write.  ``cwd_fallback``
+    is ``/edit.<folder>.explore``'s: it declares no config, and opens the
+    cwd when none is loaded.
     """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
-        data_dir = _folder_path(ctx, folder)
+        data_dir = _edit_folder_dir(folder, ctx) if cwd_fallback else _folder_path(ctx, folder)
         ctx.fs.open_file(ensure_folder(data_dir))
         return CmdResult.ok(value=data_dir)
 
@@ -559,3 +612,159 @@ def build_folder_subcommands(
         safety="destructive",
     )
     return subs
+
+
+# ── The edit leaves ──────────────────────────────────────────────────────────
+#
+# ``/edit.<folder>`` and its noun-first twin ``/<folder>.edit`` are one
+# declaration, built here, so the two spellings cannot drift; the run,
+# proto, plugin and cfg plugins mount the twins.  The handlers decide
+# WHICH file; ``ctx.internal.edit_file`` is how the frontend opens it: the
+# TUI's own editor for the config, a .run or a .pro file (over SSH too),
+# the system editor otherwise.
+
+# Extensions the TUI opens in its own editor (``app._edit_file``); the rest
+# go to the system editor.
+_TERMAPY_EDITS = frozenset({FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO]})
+
+# The word ``folder_line`` counts files in, where "file" would read wrong.
+_NOUNS = {"run": "script", "proto": "script"}
+
+
+def _edit_folder_dir(folder: str, ctx: PluginContext) -> Path:
+    """The per-config data folder; the cwd when no config is loaded."""
+    return Path(ctx.config_path).parent / folder if ctx.config_path else Path(".")
+
+
+def _folder_long_help(folder: str, text: str = "") -> Callable[[PluginContext], str]:
+    """Dynamic long_help: the live file count ("42 scripts in run/"), then ``text``."""
+    noun = _NOUNS.get(folder)
+
+    def long_help(ctx: PluginContext) -> str:
+        return compose(folder_line(ctx, folder, noun=noun), text)
+
+    return long_help
+
+
+def _make_edit_handler(folder: str, ext: str):
+    """Handler: open a file by name, or list the folder when no name is given.
+
+    Returns the opened file path as ``CmdResult.value``; bare, the
+    ``/<folder>.list`` result (a picker host never gets here bare -- the
+    dispatcher opens the picker first).
+    """
+
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
+        name = args.strip()
+        if not name:
+            return _make_forward_list_handler(folder)(ctx, args)
+        # The extension is optional (registry ``file-name-default-ext``).
+        path = default_file_name(_edit_folder_dir(folder, ctx) / name, ext)
+        if not path.is_file():
+            return CmdResult.fail(msg=f"File not found: {name}")
+        ctx.internal.edit_file(path)
+        return CmdResult.ok(value=path)
+
+    return handler
+
+
+def _make_forward_list_handler(folder: str):
+    """``/edit.<folder>.list`` is ``/<folder>.list``: one listing per folder.
+
+    Forwarded through the engine, so the listing (format, order, data
+    records, ``/run.list``'s SUMMARY) is the folder command's own.
+    """
+
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
+        return ctx.internal.dispatch(f"{folder}.list")
+
+    return handler
+
+
+def _handler_edit_cfg(ctx: PluginContext, args: str) -> CmdResult:
+    """``/edit.cfg`` and ``/cfg.edit``: open the loaded config."""
+    ctx.internal.edit_file(Path(ctx.config_path))
+    return CmdResult.ok(value=Path(ctx.config_path))
+
+
+def edit_command(folder: str) -> Command:
+    """``/edit.<folder>`` and its noun-first twin ``/<folder>.edit``.
+
+    One builder for both spellings, so they cannot drift: open an existing
+    file from ``folder`` by name, or list the folder when bare (the TUI
+    opens the folder's picker instead).  The TUI has its own editor for
+    .run and .pro files, so those need ``file_editor``; a plugin's .py
+    opens only in the system editor, which needs a desktop.
+
+    Args:
+        folder: A ``folders.FOLDERS`` name holding editable text files.
+    """
+    spec = _spec_for(folder)
+    if spec is None:
+        raise ValueError(f"Unknown folder: {folder!r}")
+    # A folder with a picker opens it on a bare call in the TUI (SYNOPSIS
+    # says so); the listing is what a host without pickers falls back to.
+    picker = folder if folder in PICKERS else ""
+    bare = (
+        f"Without a picker (CLI, MCP), bare lists {folder}/."
+        if picker
+        else f"Bare lists {folder}/."
+    )
+    own_editor = spec.ext in _TERMAPY_EDITS
+    where = (
+        "termapy's editor in the TUI, the system editor in the CLI"
+        if own_editor
+        else "the system editor"
+    )
+    text = (
+        f"With a name, opens that existing file from {folder}/ in {where} "
+        f"(the {spec.ext} is optional); a missing name fails.  {bare}  "
+        f"/{folder}.edit and {{prefix}}edit.{folder} are the same command."
+    )
+    return Command(
+        args="{filename}",
+        help=f"Open a {spec.ext} file for editing.",
+        long_help=_folder_long_help(folder, text),
+        handler=_make_edit_handler(folder, spec.ext),
+        needs=CapabilitySet.FILE_EDITOR if own_editor else CapabilitySet.GUI_APPS,
+        files=folder,
+        picker=picker,
+    )
+
+
+def edit_cfg_command() -> Command:
+    """``/edit.cfg`` and its noun-first twin ``/cfg.edit``: open the current config."""
+    return Command(
+        help="Edit the current config file.",
+        long_help=(
+            "Opens the loaded config in termapy's config editor in the TUI, "
+            "as F10 does, and in the system editor in the CLI.  {prefix}cfg.edit "
+            "and {prefix}edit.cfg are the same command."
+        ),
+        handler=_handler_edit_cfg,
+        needs=CapabilitySet(file_editor=True, config_loaded=True),
+    )
+
+
+def edit_folder_command(folder: str) -> Command:
+    """``/edit.<folder>``: the shared edit leaf plus ``.list`` and ``.explore``."""
+    spec = _spec_for(folder)
+    if spec is None:
+        raise ValueError(f"Unknown folder: {folder!r}")
+    long_help = _folder_long_help(folder)  # the subs: the count line alone
+    return replace(
+        edit_command(folder),
+        sub_commands={
+            "list": Command(
+                help=f"List {spec.ext} files.",
+                long_help=long_help,
+                handler=_make_forward_list_handler(folder),
+            ),
+            "explore": Command(
+                help="Open folder in file explorer.",
+                long_help=long_help,
+                handler=_make_explore_handler(folder, cwd_fallback=True),
+                needs=CapabilitySet.GUI_APPS,
+            ),
+        },
+    )

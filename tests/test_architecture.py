@@ -133,6 +133,133 @@ def test_allowlist_has_no_stale_entries():
     )
 
 
+# ── Plugins import published names only ──────────────────────────────────────
+#
+# The mirror of the guard above.  The built-ins are the working examples a
+# plugin author copies, so what they import is what every plugin may import:
+# core's published functions, never a leading-underscore name, and never
+# another plugin.  A command's own private helper file (``_cfg_icon``,
+# ``_run_record``, ``_xmodem_handlers``, ``_crc_verbs``: a ``_name`` module
+# under commands/, not a plugin) is the one place a private name is shared.
+
+
+def _plugin_python_files() -> list[Path]:
+    """Every .py file under builtins/: the plugins and their helper modules."""
+    return sorted(BUILTINS_DIR.rglob("*.py"))
+
+
+def _is_helper_module(module: str) -> bool:
+    """A ``_name`` module is a command's private helper file, not a plugin."""
+    return module.rsplit(".", 1)[-1].startswith("_")
+
+
+def _has_private_part(dotted: str) -> bool:
+    """Whether any component of a dotted name starts with an underscore."""
+    return any(part.startswith("_") for part in dotted.split("."))
+
+
+def _unpublished_imports(path: Path, root: Path) -> list[tuple[int, str]]:
+    """Each import in a plugin file that reaches an unpublished name, as ``(lineno, what)``.
+
+    Caught by ``ast``, so strings and comments never match: an import from
+    another plugin (a ``termapy.builtins`` module that is not a helper
+    file), and an import of a leading-underscore name or module from
+    anywhere else in termapy.  A relative import is resolved against the
+    file's package under ``root``.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if node.level:
+                parts = path.relative_to(root).with_suffix("").parts[: -node.level]
+                module = ".".join([*parts, module]) if module else ".".join(parts)
+            if not module.startswith("termapy"):
+                continue
+            if module.startswith("termapy.builtins"):
+                if not _is_helper_module(module):
+                    found.extend(
+                        (node.lineno, f"{module}.{alias.name} (another plugin)")
+                        for alias in node.names
+                    )
+                continue
+            if _has_private_part(module):
+                found.append((node.lineno, module))
+            found.extend(
+                (node.lineno, f"{module}.{alias.name}")
+                for alias in node.names
+                if alias.name.startswith("_")
+            )
+        elif isinstance(node, ast.Import):
+            found.extend(
+                (node.lineno, alias.name)
+                for alias in node.names
+                if alias.name.startswith("termapy") and _has_private_part(alias.name)
+            )
+    return found
+
+
+def test_plugins_import_published_only():
+    """plugins-import-published-only: A plugin imports published names only, and from builtins/ only a helper module.
+
+    Two commands talk through ``ctx.internal.dispatch``, not an import, so
+    the load-order override reaches every command; a helper two plugins
+    share is core (``edit_command`` in ``folder_ops``, ``find_matches`` in
+    ``scripting``).  Until 2026-10-24 four plugins imported
+    ``help._show_command_help``, seven imported another plugin's export,
+    and two reached a core module's privates.
+    """
+    # Arrange / Act
+    violations = [
+        f"{path.relative_to(SRC.parent)}:{lineno}  imports  {what}"
+        for path in _plugin_python_files()
+        for lineno, what in _unpublished_imports(path, SRC.parent)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a plugin imports an unpublished name:\n  "
+        + "\n  ".join(violations)
+        + "\n\nTo use another command, dispatch it (ctx.internal.dispatch('help run'))."
+        "\nA helper two plugins share is core: move it beside its subject"
+        "\n(folder_ops, scripting, help_dynamic, markup) and import it from there."
+        "\nA leading-underscore name is private; publish what the plugin needs."
+    )
+
+
+def test_plugins_import_guard_fires_on_a_probe(tmp_path):
+    """The guard sees a plugin import, a private name, a private module and a relative one; a helper and a public name pass."""
+    # Arrange -- a plugin file in a package shaped like the real tree
+    probe = tmp_path / "termapy" / "builtins" / "commands" / "probe.py"
+    probe.parent.mkdir(parents=True)
+    probe.write_text(
+        "from termapy.builtins.commands.help import show_command_help\n"
+        "from termapy.protocol.crc import _generic_crc\n"
+        "from termapy.usb import _vendors_full\n"
+        "import termapy.usb._vendors_full\n"
+        "from . import grep\n"
+        "from termapy.builtins.commands._probe_helper import _secret\n"
+        "from termapy.scripting import parse_bool\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    actual = [what for _, what in _unpublished_imports(probe, tmp_path)]
+
+    # Assert
+    expected = [
+        "termapy.builtins.commands.help.show_command_help (another plugin)",
+        "termapy.protocol.crc._generic_crc",
+        "termapy.usb._vendors_full",
+        "termapy.usb._vendors_full",
+        "termapy.builtins.commands.grep (another plugin)",
+    ]
+    assert actual == expected, (
+        "each unpublished reach is named once; the helper and public names pass"
+    )
+
+
 # ── Engine-internal IO primitives ────────────────────────────────────────────
 
 # ``ctx.io._write`` / ``._write_markup`` / ``._write_segments`` are the raw

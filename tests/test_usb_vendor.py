@@ -291,6 +291,21 @@ class TestGeneratedMetadata:
         actual = _usb_vendor_full.SOURCE_URL
         assert "usb.ids" in actual, f"SOURCE_URL should reference usb.ids; got {actual!r}"
 
+    def test_vendor_table_facts_describes_both_tables(self):
+        """vendor_table_facts() is the one producer of /term.usb_db's facts: both sizes, the date, the source, the path."""
+        import re
+
+        from termapy.usb import USB_VENDORS, vendor_table_facts
+        from termapy.usb._vendors_full import USB_VENDORS_FULL
+
+        actual = vendor_table_facts()
+
+        assert actual["curated"] == len(USB_VENDORS), "curated is the short table's size"
+        assert actual["full_table"] == len(USB_VENDORS_FULL), "full_table is the generated size"
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", str(actual["generated"])), "generated is a date"
+        assert "usb.ids" in str(actual["source"]), "source names the upstream file"
+        assert str(actual["path"]).endswith("_vendors_full.py"), "path is the generated module"
+
 
 # ── /term.usb_db handler ──────────────────────────────────────────────────────
 

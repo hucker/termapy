@@ -53,7 +53,7 @@
 
 #define ADDR_DIGITS ((uint8_t)(TERMAPY_MEM_ADDRESS_BITS / 4u))
 
-/* ── The platform, injected once ───────────────────────────────────────── */
+/* -- The platform, injected once ----------------------------------------- */
 
 static TermapyMem_Ops sOps;   /* all NULL until TermapyMem_Init: Cmd answers nothing */
 
@@ -67,7 +67,7 @@ static bool Initialized(void)
 	return sOps.put != NULL && sOps.read != NULL && sOps.write != NULL;
 }
 
-/* ── Output helpers (everything goes through sOps.put) ─────────────────── */
+/* -- Output helpers (everything goes through sOps.put) ------------------- */
 
 static void PutChar(char c)
 {
@@ -132,7 +132,7 @@ static void PutRow(uint32_t addr, const uint8_t *bytesP, uint32_t count)
 	PutStr("\r\n");
 }
 
-/* ── Input helpers ─────────────────────────────────────────────────────── */
+/* -- Input helpers ------------------------------------------------------- */
 
 static void SkipSpaces(const char **cursorPP)
 {
@@ -211,7 +211,7 @@ static bool ParseDecU32(const char **cursorPP, uint32_t *outP)
 	return true;
 }
 
-/* ── Native-width word access for MEM.M ────────────────────────────────── */
+/* -- Native-width word access for MEM.M ---------------------------------- */
 
 /** The width-byte integer the core sees at bytesP, as a value.  Through
  *  an integer of exactly that width: copying two bytes into a uint32_t
@@ -251,7 +251,7 @@ static void StoreNative(uint8_t *bytesP, uint32_t value, uint32_t width)
 	}
 }
 
-/* ── The memory map: range and permission gating ───────────────────────── */
+/* -- The memory map: range and permission gating ------------------------- */
 
 /** The one region holding all of [addr, addr+count), or NULL: none holds
  *  it, it straddles two, or it wraps past 0xFFFFFFFF.  Measured from each
@@ -281,7 +281,7 @@ static bool Writable(uint32_t addr, uint32_t count)
 	return regionP != NULL && regionP->writable;
 }
 
-/* ── The four verbs (wire only -- memory access goes through sOps) ─────── */
+/* -- The four verbs (wire only -- memory access goes through sOps) ------- */
 
 static void CmdRead(const char *argsP)
 {
@@ -418,7 +418,7 @@ static void CmdInfo(const char *argsP)
 	PutOk();
 }
 
-/* ── Dispatch ──────────────────────────────────────────────────────────── */
+/* -- Dispatch ------------------------------------------------------------ */
 
 static bool TokenIs(const char *cursorP, const char *wordP, const char **restPP)
 {
@@ -456,7 +456,7 @@ void TermapyMem_Cmd(const char *inputP)
 	else                                { PutErr("usage"); }
 }
 
-/* ── Direct helpers: the flat-MCU implementation of the two byte ops ───── */
+/* -- Direct helpers: the flat-MCU implementation of the two byte ops ----- */
 
 /*
  * Pure width-aware movers.  Range and permission gating is done by the

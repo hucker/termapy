@@ -1414,6 +1414,7 @@ demo> /help.plugin
   /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).
   /exit         Exit termapy.
   /find         Navigate scrollback matches with an interactive find bar.
+  /firmware     Device-side sources termapy ships: list, copy, show, dump.
   /grep         Search the scrollback for lines matching a pattern (case-insensitive regex).
   /help         Print the command landscape or look up a specific command.
   /log          Session log: print, fingerprint, or open it.
@@ -1447,7 +1448,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm      Show Yes/Cancel dialog; Cancel stops a running script.
   /expect       Wait for text in serial output (blocks until match or timeout).
-  43 commands.
+  44 commands.
   [179/219] /help.plugin (6.49ms)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
@@ -1807,6 +1808,38 @@ demo> /find.prev
 demo> /find.clear
 demo> /find.max_count
   /find.max_count = 100
+demo> /print === section: firmware: the shipped device-side sources ===
+  === section: firmware: the shipped device-side sources ===
+  [322/338] /print === section: firmware: the shipped device-side sou... (110us)
+demo> /firmware
+  firmware - 2 targets
+  NAME  LANGUAGE  FILES                           SIZE
+  ----  --------  ------------------------------  -------
+  mem   c         termapy_mem.c, termapy_mem.h    24.3 KB
+  json  c         termapy_json.c, termapy_json.h  41.1 KB
+  [323/338] /firmware (1.78ms)
+demo> /firmware.list
+  firmware - 2 targets
+  NAME  LANGUAGE  FILES                           SIZE
+  ----  --------  ------------------------------  -------
+  mem   c         termapy_mem.c, termapy_mem.h    24.3 KB
+  json  c         termapy_json.c, termapy_json.h  41.1 KB
+  [324/338] /firmware.list (596us)
+demo> /firmware.copy nosuch
+  Error: Unknown target: nosuch (use json, mem)
+  [325/338] /firmware.copy nosuch (11us)
+demo> /firmware.copy mem lang=rust
+  Error: Unknown language: rust (use c)
+  [326/338] /firmware.copy mem lang=rust (10us)
+demo> /firmware.copy lang=rust
+  Error: Unknown language: rust (use c)
+  [327/339] /firmware.copy lang=rust (10us)
+demo> /firmware.dump mem
+  Error: Specify a file: termapy_mem.c, termapy_mem.h
+  [327/338] /firmware.dump mem (6us)
+demo> /firmware.dump mem nosuch.h
+  Error: Unknown file: nosuch.h (use termapy_mem.c, termapy_mem.h)
+  [328/338] /firmware.dump mem nosuch.h (8us)
 demo> /print === section: coverage: files, timing, recording ===
   === section: coverage: files, timing, recording ===
 demo> /run.rename status_check status_probe

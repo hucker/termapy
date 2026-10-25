@@ -107,7 +107,7 @@ script or plugin you wrote is deleted one name at a time, after a yes.
 | `/find.next` / `/find.prev` | Step to next / previous find match                                        |
 | `/find.clear`             | Close the find bar (or run `/find` with no args)                            |
 | `/firmware`               | List the device-side sources termapy ships: target, language, files, size   |
-| `/firmware.copy <name> {lang=<l>} {folder=<path>}` | Write a target's files into a folder (default: the current one); never overwrites |
+| `/firmware.copy {name} {lang=<l>} {folder=<path>}` | Write the shipped sources into a folder (default: the current one): every module of a language, or one by name; never overwrites |
 | `/firmware.dump <name> {file} {lang=<l>}` | Print one shipped source file (over MCP, the value an agent reads) |
 | `/firmware.list`          | Same as bare `/firmware`                                                    |
 | `/firmware.show <name> {lang=<l>}` | Open a target's main source in the system viewer                     |

@@ -1831,6 +1831,9 @@ demo> /firmware.copy nosuch
 demo> /firmware.copy mem lang=rust
   Error: Unknown language: rust (use c)
   [326/338] /firmware.copy mem lang=rust (10us)
+demo> /firmware.copy lang=rust
+  Error: Unknown language: rust (use c)
+  [327/339] /firmware.copy lang=rust (10us)
 demo> /firmware.dump mem
   Error: Specify a file: termapy_mem.c, termapy_mem.h
   [327/338] /firmware.dump mem (6us)

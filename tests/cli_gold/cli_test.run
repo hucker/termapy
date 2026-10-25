@@ -420,6 +420,7 @@ MEM.R 0x1000 2 --json
 /firmware.list
 /firmware.copy nosuch
 /firmware.copy mem lang=rust
+/firmware.copy lang=rust
 /firmware.dump mem
 /firmware.dump mem nosuch.h
 /print === section: coverage: files, timing, recording ===

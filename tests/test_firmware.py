@@ -1,11 +1,13 @@
-"""The ``/firmware`` command and the table behind it: every shipped target is listed, copyable and printable.
+"""The ``/firmware`` command and the tables behind it: every shipped target is listed, copyable and printable.
 
-``termapy.firmware.TARGETS`` is the one registry of the device-side sources
-termapy ships.  These tests pin that each row's files exist in the package,
-that the resolver's three failures name their choices, that a copy is byte
-for byte and never overwrites, and that the command's verbs answer through
-dispatch the way the CLI and MCP reach them.  The C itself is compiled by
-``test_firmware_mem.py`` and ``test_firmware_json.py``.
+``termapy.firmware.LANGUAGES`` says what a module consists of per language
+and ``TARGETS`` is one row per module and language; together they are the
+registry of the device-side sources termapy ships.  These tests pin that a
+row's files follow from its language, that each file exists in the package
+and is plain ASCII, that the resolver's failures name their choices, that a
+copy is byte for byte and never overwrites, and that the command's verbs
+answer through dispatch the way the CLI and MCP reach them.  The C itself is
+compiled by ``test_firmware_mem.py`` and ``test_firmware_json.py``.
 """
 
 from __future__ import annotations
@@ -20,8 +22,9 @@ import pytest
 from termapy.firmware import (
     TARGETS,
     Target,
-    copy_target,
+    copy_targets,
     find_target,
+    select_targets,
     source_path,
     source_text,
 )
@@ -29,6 +32,12 @@ from termapy.plugins import CapabilitySet
 from termapy.repl import ReplEngine
 
 HELP_PAGE = Path(__file__).parent.parent / "src" / "termapy" / "help" / "firmware.md"
+
+# A table with two languages for one module, which the shipped one does not have yet.
+TWO_LANGUAGES = (
+    Target("mem", "c"),
+    Target("mem", "rust", files=("termapy_mem.rs",)),
+)
 
 
 @dataclass
@@ -61,10 +70,18 @@ def _non_ascii(path: Path) -> list[str]:
 
 
 class TestTable:
+    def test_a_module_s_files_follow_its_language(self):
+        """A C module is termapy_<name>.c and .h from LANGUAGES; a row with its own file list keeps it."""
+        assert Target("mem", "c").sources == ("termapy_mem.c", "termapy_mem.h")
+        assert Target("pico", "c", files=("CMakeLists.txt", "main.c")).sources == (
+            "CMakeLists.txt",
+            "main.c",
+        ), "an explicit list is a board project's, not derived"
+
     def test_every_target_ships_its_files(self):
         """Each row of TARGETS names files that exist in the package, non-empty: a row is never a promise."""
         for target in TARGETS:
-            for name in target.files:
+            for name in target.sources:
                 assert source_path(target, name).is_file(), f"{target.name}: {name} is missing"
                 assert source_text(target, name), f"{target.name}: {name} is empty"
 
@@ -79,7 +96,7 @@ class TestTable:
         offenders = {
             f"{target.name}/{name}": chars
             for target in TARGETS
-            for name in target.files
+            for name in target.sources
             if (chars := _non_ascii(source_path(target, name)))
         }
         assert offenders == {}, f"non-ASCII in shipped sources (write -- for a rule): {offenders}"
@@ -92,50 +109,52 @@ class TestTable:
         probe.write_text("/* -- rule -- */ cafe\n", encoding="utf-8")
         assert _non_ascii(probe) == [], "a hyphen rule is ASCII"
 
-    def test_find_target_defaults_the_only_language(self):
-        """A target shipped in one language needs no lang=."""
-        actual = find_target("mem")
-        assert actual.language == "c", "the only language is the default"
+    def test_select_targets_without_a_name_is_the_whole_language(self):
+        """No name and one shipped language: every module, in table order; a name narrows to one."""
+        assert select_targets(None) == list(TARGETS), "the whole C kit"
+        assert select_targets("mem") == [TARGETS[0]]
+        assert find_target("mem").language == "c", "the only language is the default"
 
-    def test_find_target_demands_a_language_when_several(self):
-        """With two languages for one name, leaving lang= off names the choices instead of guessing."""
-        table = (
-            Target("mem", "c", ("termapy_mem.c",)),
-            Target("mem", "rust", ("termapy_mem.rs",)),
-        )
+    def test_select_targets_demands_a_language_when_several(self):
+        """With two languages, leaving lang= off names the choices instead of guessing, with or without a name."""
         with pytest.raises(ValueError, match=re.escape("Specify a language: lang=c|rust")):
-            find_target("mem", targets=table)
-        assert find_target("mem", "rust", targets=table).language == "rust"
+            select_targets(None, targets=TWO_LANGUAGES)
+        with pytest.raises(ValueError, match=re.escape("Specify a language: lang=c|rust")):
+            find_target("mem", targets=TWO_LANGUAGES)
+        assert select_targets(None, "rust", TWO_LANGUAGES) == [TWO_LANGUAGES[1]]
+        assert find_target("mem", "rust", TWO_LANGUAGES).sources == ("termapy_mem.rs",)
 
-    def test_find_target_rejects_an_unknown_name_and_language(self):
+    def test_select_targets_rejects_an_unknown_name_and_language(self):
         """The two lookup failures list what exists, in the standard phrasing."""
         with pytest.raises(ValueError, match=re.escape("Unknown target: nosuch (use json, mem)")):
-            find_target("nosuch")
+            select_targets("nosuch")
         with pytest.raises(ValueError, match=re.escape("Unknown language: zz (use c)")):
-            find_target("mem", "zz")
+            select_targets("mem", "zz")
+        with pytest.raises(ValueError, match=re.escape("Unknown language: zz (use c)")):
+            select_targets(None, "zz")
 
-    def test_copy_is_byte_for_byte_and_refuses_a_second_copy(self, tmp_path):
-        """A copy reproduces the shipped bytes exactly, and an existing file stops the whole copy."""
-        target = find_target("mem")
+    def test_copy_is_byte_for_byte_and_refuses_before_writing(self, tmp_path):
+        """A copy reproduces the shipped bytes exactly; one existing file stops the whole kit, untouched."""
+        mem, json_target = TARGETS
+        folder = tmp_path / "fw"
 
-        # Act
-        written = copy_target(target, tmp_path / "fw")
+        # Act -- one module first, then the whole kit over it
+        written = copy_targets([json_target], folder)
 
         # Assert
-        assert [path.name for path in written] == list(target.files), "every file, in order"
-        for path, name in zip(written, target.files, strict=True):
-            assert path.read_bytes() == source_path(target, name).read_bytes(), name
-        with pytest.raises(
-            FileExistsError, match=re.escape(str(tmp_path / "fw" / "termapy_mem.c"))
-        ):
-            copy_target(target, tmp_path / "fw")
+        assert [path.name for path in written] == list(json_target.sources), "every file, in order"
+        for path, name in zip(written, json_target.sources, strict=True):
+            assert path.read_bytes() == source_path(json_target, name).read_bytes(), name
+        with pytest.raises(FileExistsError, match=re.escape(str(folder / "termapy_json.c"))):
+            copy_targets([mem, json_target], folder)
+        assert not (folder / "termapy_mem.c").exists(), "nothing of the kit is written on a refusal"
 
     def test_help_page_table_lists_every_target(self):
         """help/firmware.md's table is TARGETS: a row added to one appears in the other."""
         page = HELP_PAGE.read_text(encoding="utf-8")
         rows = re.findall(r"^\| `(\w+)`\s+\| \w+\s+\| (.+?)\s+\|", page, flags=re.MULTILINE)
         documented = {name: tuple(re.findall(r"`([^`]+)`", files)) for name, files in rows}
-        expected = {target.name: target.files for target in TARGETS}
+        expected = {target.name: target.sources for target in TARGETS}
         assert documented == expected, "the help table and TARGETS name the same files"
 
 
@@ -146,6 +165,9 @@ class TestCommands:
         assert result.success, result.error
         names = [(record["name"], record["language"]) for record in result.data]
         assert names == [(target.name, target.language) for target in TARGETS]
+        assert result.data[0]["files"] == ["termapy_mem.c", "termapy_mem.h"], (
+            "files from the language"
+        )
         assert all(record["bytes"] > 0 for record in result.data), "size is the files' bytes"
 
     def test_bare_firmware_lists(self, env: Env):
@@ -154,8 +176,21 @@ class TestCommands:
         listed = env.engine.dispatch("firmware.list")
         assert bare.data == listed.data, "bare and .list are one answer"
 
-    def test_firmware_copy_writes_the_target_and_refuses_twice(self, env: Env, tmp_path):
-        """/firmware.copy writes the files, reports them, and the second copy fails on the first file."""
+    def test_firmware_copy_without_a_name_writes_the_whole_kit(self, env: Env, tmp_path):
+        """/firmware.copy alone writes every module of the one shipped language; lang=c says the same."""
+        folder = tmp_path / "kit"
+
+        result = env.engine.dispatch(f"firmware.copy folder={folder}")
+
+        assert result.success, result.error
+        expected = ["termapy_mem.c", "termapy_mem.h", "termapy_json.c", "termapy_json.h"]
+        assert [Path(path).name for path in result.data["files"]] == expected
+        assert all((folder / name).is_file() for name in expected), "all four files landed"
+        named = env.engine.dispatch(f"firmware.copy lang=c folder={tmp_path / 'kit2'}")
+        assert named.success and len(named.data["files"]) == 4, "lang=c is the same kit"
+
+    def test_firmware_copy_writes_one_module_and_refuses_twice(self, env: Env, tmp_path):
+        """/firmware.copy <name> writes that module's files, reports them, and a second copy fails on the first file."""
         folder = tmp_path / "out"
 
         # Act
@@ -174,12 +209,13 @@ class TestCommands:
         assert not second.success, "an existing copy is never overwritten"
         assert second.error.startswith("File exists: "), second.error
 
-    def test_firmware_copy_unknown_target_fails(self, env: Env, tmp_path):
-        """An unknown name fails before anything is written, listing the targets."""
-        result = env.engine.dispatch(f"firmware.copy nosuch folder={tmp_path / 'out'}")
-        assert not result.success
-        assert result.error == "Unknown target: nosuch (use json, mem)"
-        assert not (tmp_path / "out").exists(), "nothing is created for an unknown target"
+    def test_firmware_copy_unknown_target_or_language_fails(self, env: Env, tmp_path):
+        """An unknown name or language fails before anything is written, listing the choices."""
+        bad_name = env.engine.dispatch(f"firmware.copy nosuch folder={tmp_path / 'out'}")
+        bad_lang = env.engine.dispatch(f"firmware.copy lang=rust folder={tmp_path / 'out'}")
+        assert bad_name.error == "Unknown target: nosuch (use json, mem)"
+        assert bad_lang.error == "Unknown language: rust (use c)"
+        assert not (tmp_path / "out").exists(), "nothing is created for a bad request"
 
     def test_firmware_dump_prints_one_file(self, env: Env):
         """/firmware.dump <name> <file> prints the file and makes its text the value, with the facts as data."""
@@ -194,13 +230,13 @@ class TestCommands:
         assert env.output[-1] == expected.splitlines()[-1], "every line reached the terminal"
 
     def test_firmware_dump_needs_a_file_name_for_a_pair(self, env: Env):
-        """A target shipping two files will not guess which one to print."""
+        """A module shipping two files will not guess which one to print."""
         result = env.engine.dispatch("firmware.dump mem")
         assert not result.success
         assert result.error == "Specify a file: termapy_mem.c, termapy_mem.h"
 
     def test_firmware_dump_rejects_a_file_the_target_lacks(self, env: Env):
-        """A file name outside the target's row is a lookup failure that lists the row."""
+        """A file name outside the module's files is a lookup failure that lists them."""
         result = env.engine.dispatch("firmware.dump mem nosuch.h")
         assert not result.success
         assert result.error == "Unknown file: nosuch.h (use termapy_mem.c, termapy_mem.h)"

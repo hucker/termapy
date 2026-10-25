@@ -1815,15 +1815,15 @@ demo> /firmware
   firmware - 2 targets
   NAME  LANGUAGE  FILES                           SIZE
   ----  --------  ------------------------------  -------
-  mem   c         termapy_mem.c, termapy_mem.h    24.9 KB
-  json  c         termapy_json.c, termapy_json.h  42.2 KB
+  mem   c         termapy_mem.c, termapy_mem.h    24.3 KB
+  json  c         termapy_json.c, termapy_json.h  41.1 KB
   [323/338] /firmware (1.78ms)
 demo> /firmware.list
   firmware - 2 targets
   NAME  LANGUAGE  FILES                           SIZE
   ----  --------  ------------------------------  -------
-  mem   c         termapy_mem.c, termapy_mem.h    24.9 KB
-  json  c         termapy_json.c, termapy_json.h  42.2 KB
+  mem   c         termapy_mem.c, termapy_mem.h    24.3 KB
+  json  c         termapy_json.c, termapy_json.h  41.1 KB
   [324/338] /firmware.list (596us)
 demo> /firmware.copy nosuch
   Error: Unknown target: nosuch (use json, mem)

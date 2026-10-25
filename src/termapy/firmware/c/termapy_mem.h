@@ -83,7 +83,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* ── Configuration (override with -D) ──────────────────────────────────── */
+/* -- Configuration (override with -D) ------------------------------------ */
 
 /** Largest MEM.R / MEM.W block in bytes.  Sizes the stack buffer and is
  *  reported as "max_block" by MEM.INFO.  The platform's line buffer must

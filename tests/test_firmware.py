@@ -53,6 +53,13 @@ def env(tmp_path) -> Env:
     return Env(engine, output)
 
 
+def _non_ascii(path: Path) -> list[str]:
+    """The code points above ASCII in ``path``, as ``U+XXXX``, sorted and unique."""
+    return sorted(
+        {f"U+{ord(char):04X}" for char in path.read_text(encoding="utf-8") if ord(char) > 0x7F}
+    )
+
+
 class TestTable:
     def test_every_target_ships_its_files(self):
         """Each row of TARGETS names files that exist in the package, non-empty: a row is never a promise."""
@@ -60,6 +67,30 @@ class TestTable:
             for name in target.files:
                 assert source_path(target, name).is_file(), f"{target.name}: {name} is missing"
                 assert source_text(target, name), f"{target.name}: {name} is empty"
+
+    def test_shipped_sources_are_ascii(self):
+        """firmware-ascii-only: Every file /firmware ships is pure ASCII; a section rule is --, never box drawing.
+
+        The sources are compiled by toolchains, read in build logs and editors
+        that mishandle UTF-8, and travel in a JSON envelope where each
+        non-ASCII character is six characters of ``\\uXXXX``.  Until
+        2026-10-25 the four modules shipped 867 box-drawing rule characters.
+        """
+        offenders = {
+            f"{target.name}/{name}": chars
+            for target in TARGETS
+            for name in target.files
+            if (chars := _non_ascii(source_path(target, name)))
+        }
+        assert offenders == {}, f"non-ASCII in shipped sources (write -- for a rule): {offenders}"
+
+    def test_ascii_guard_fires_on_a_probe(self, tmp_path):
+        """The scan names a box-drawing rule and an accented letter, and passes a hyphen rule."""
+        probe = tmp_path / "probe.c"
+        probe.write_text("/* ── rule ── */ café\n", encoding="utf-8")
+        assert _non_ascii(probe) == ["U+00E9", "U+2500"], "each code point once, sorted"
+        probe.write_text("/* -- rule -- */ cafe\n", encoding="utf-8")
+        assert _non_ascii(probe) == [], "a hyphen rule is ASCII"
 
     def test_find_target_defaults_the_only_language(self):
         """A target shipped in one language needs no lang=."""

@@ -138,7 +138,7 @@
 extern "C" {
 #endif
 
-/* ── Configuration (override with -D) ──────────────────────────────────── */
+/* -- Configuration (override with -D) ------------------------------------ */
 
 /** Compile the {"cmd":...} / {"method":...} request extractor
  *  (TermapyJson_Extract) and its helpers.  Default on for parity with
@@ -196,7 +196,7 @@ extern "C" {
  *  32-bit mask that holds one "has an item" flag per level. */
 #define TERMAPY_JSON_MAX_DEPTH 32u
 
-/* ── Types ─────────────────────────────────────────────────────────────── */
+/* -- Types --------------------------------------------------------------- */
 
 /**
  * @brief The output framing.  One boolean under the hood: every writer
@@ -245,7 +245,7 @@ typedef enum {
 } TermapyJson_InResult;
 #endif
 
-/* ── Lifecycle, mode and id ────────────────────────────────────────────── */
+/* -- Lifecycle, mode and id ---------------------------------------------- */
 
 /**
  * @brief Install the platform.  Once, at boot, before any reply.
@@ -294,7 +294,7 @@ void TermapyJson_SetId(long id);
  *         omits ``"id"`` and is untagged. */
 void TermapyJson_ClearId(void);
 
-/* ── Scalar replies: one call, one value ───────────────────────────────── */
+/* -- Scalar replies: one call, one value --------------------------------- */
 
 /**
  * @brief Reply with a STRING result -- the common case.
@@ -346,7 +346,7 @@ void TermapyJson_ReplyFloat(double value, uint8_t decimals);
  */
 void TermapyJson_ReplyError(const char *msgP, int code);
 
-/* ── Structured replies: a streaming array / object builder ────────────── */
+/* -- Structured replies: a streaming array / object builder -------------- */
 
 /**
  * @brief Open an array (``[``) or object (``{``) as the reply or as the next
@@ -389,7 +389,7 @@ void TermapyJson_FieldInt(const char *keyP, long value);
 void TermapyJson_FieldUInt(const char *keyP, unsigned long value);
 void TermapyJson_FieldFloat(const char *keyP, double value, uint8_t decimals);
 
-/* ── Passthrough: envelope for commands that still print text ──────────── */
+/* -- Passthrough: envelope for commands that still print text ------------ */
 
 /**
  * @brief putchar-compatible output for a monitor's ordinary text printer.
@@ -413,7 +413,7 @@ int TermapyJson_PassthroughPut(int c);
  */
 void TermapyJson_PassthroughEnd(void);
 
-/* ── Request extractor (optional, TERMAPY_JSON_HAS_EXTRACT) ────────────── */
+/* -- Request extractor (optional, TERMAPY_JSON_HAS_EXTRACT) -------------- */
 
 #if TERMAPY_JSON_HAS_EXTRACT
 /**

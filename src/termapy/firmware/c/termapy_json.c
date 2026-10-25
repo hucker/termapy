@@ -38,7 +38,7 @@
 #include <stddef.h>
 #include <string.h>
 
-/* ── Session state (copied by Init; put==NULL => silent) ───────────────── */
+/* -- Session state (copied by Init; put==NULL => silent) ----------------- */
 
 typedef struct {
 	TermapyJson_Ops ops;     /* ops.put NULL until Init: writers emit nothing   */
@@ -69,7 +69,7 @@ static bool Initialized(void)
 	return sState.ops.put != NULL;
 }
 
-/* ── Mode and id ───────────────────────────────────────────────────────── */
+/* -- Mode and id --------------------------------------------------------- */
 
 void TermapyJson_SetMode(TermapyJson_Mode mode)
 {
@@ -100,7 +100,7 @@ void TermapyJson_ClearId(void)
 	sState.tagged = false;
 }
 
-/* ── Output helpers (everything goes through sState.ops.put) ───────────── */
+/* -- Output helpers (everything goes through sState.ops.put) ------------- */
 
 static void PutChar(char c)
 {
@@ -243,7 +243,7 @@ static bool IsJsonNumber(const char *stringP)
 	return true;
 }
 
-/* ── The slot: where one value goes ────────────────────────────────────── */
+/* -- The slot: where one value goes -------------------------------------- */
 
 /* The builder's comma bookkeeping: one "has an item" bit per open level. */
 
@@ -322,7 +322,7 @@ static void TextEnd(void)
 	PutStr(TERMAPY_JSON_TEXT_EOL);
 }
 
-/* ── Value emitters: scalar reply, item and field are the same code ─────── */
+/* -- Value emitters: scalar reply, item and field are the same code ------- */
 
 static void EmitString(const char *keyP, const char *valueP, bool raw)
 {
@@ -440,7 +440,7 @@ static void EmitError(const char *msgP, int code)
 	PutStr(TERMAPY_JSON_LINE_EOL);
 }
 
-/* ── Containers ────────────────────────────────────────────────────────── */
+/* -- Containers ---------------------------------------------------------- */
 
 static void ContainerBegin(const char *keyP, char open)
 {
@@ -468,7 +468,7 @@ static void ContainerEnd(char close)
 	SlotEnd();
 }
 
-/* ── Public reply API ──────────────────────────────────────────────────── */
+/* -- Public reply API ---------------------------------------------------- */
 
 void TermapyJson_Reply(const char *resultP)
 {
@@ -585,7 +585,7 @@ void TermapyJson_FieldFloat(const char *keyP, double value, uint8_t decimals)
 	EmitFloat(keyP, value, decimals);
 }
 
-/* ── Passthrough ───────────────────────────────────────────────────────── */
+/* -- Passthrough --------------------------------------------------------- */
 
 int TermapyJson_PassthroughPut(int c)
 {
@@ -634,7 +634,7 @@ void TermapyJson_PassthroughEnd(void)
 
 #if TERMAPY_JSON_HAS_EXTRACT
 
-/* ── Input helpers (exact substring, not a JSON parser) ────────────────── */
+/* -- Input helpers (exact substring, not a JSON parser) ------------------ */
 
 static void SkipSpaces(const char **cursorPP)
 {

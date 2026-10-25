@@ -1003,7 +1003,7 @@ COMMAND = Command(
 
 Resolution is the same in every frontend (TUI, CLI, MCP server) and reruns on every config switch; a folder plugin can never take an app hook's name.
 
-Subcommands (`/tool.run`, `/tool.status`), typed parameters, scriptable return values, the full `PluginContext` API with its five handles and capability gating, and the `ctx.internal` escape hatch that built-ins use are all in the [Writing plugins](src/termapy/help/writing-plugins.md) guide, which also ships in the in-app help.
+Subcommands (`/tool.run`, `/tool.status`), typed parameters, scriptable return values, the full `PluginContext` API with its five handles and capability gating, and `ctx.internal`, the engine and host services every plugin may use, are all in the [Writing plugins](src/termapy/help/writing-plugins.md) guide, which also ships in the in-app help.
 
 <details>
 <summary>Example plugins</summary>

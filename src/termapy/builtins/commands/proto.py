@@ -10,8 +10,7 @@ from typing import TYPE_CHECKING, Literal
 from crcglot import DetectMatch, DetectResult, detect
 
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
-from termapy.builtins.commands.edit import edit_command
-from termapy.folder_ops import build_folder_subcommands, file_table, list_entries
+from termapy.folder_ops import build_folder_subcommands, edit_command, file_table, list_entries
 from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, PROTO, default_file_name
 from termapy.help_dynamic import compose, folder_line
 from termapy.matching import matches
@@ -1184,9 +1183,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """
     from pathlib import Path
 
-    from crcglot import LANGUAGES, AlgorithmInfo, Crc
-
-    from termapy.protocol.crc import _generic_crc
+    from crcglot import LANGUAGES, AlgorithmInfo, Crc, generic_crc
 
     # Variant resolution: crcglot 0.10 introduced one ``variant=``
     # literal ("bitwise" / "table" / "slice8") in place of separate
@@ -1361,7 +1358,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         # generated _self_test so downstream users can verify too.
         # crcglot 0.23 narrowed generic_crc to take one Crc value
         # object instead of seven positional ints.
-        check = _generic_crc(
+        check = generic_crc(
             b"123456789",
             Crc(
                 width=width,
@@ -2260,9 +2257,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     """Same as /help proto: the page, ending with the scripts ``/proto.list`` shows."""
-    from termapy.builtins.commands.help import _show_command_help
-
-    return _show_command_help(ctx, "proto")
+    return ctx.internal.dispatch("help proto")
 
 
 def _build_one_crc_lang_command(code: str, info) -> Command:

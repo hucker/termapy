@@ -16,8 +16,7 @@ this one just lists files on disk.
 
 from __future__ import annotations
 
-from termapy.builtins.commands.edit import edit_command
-from termapy.folder_ops import build_folder_subcommands
+from termapy.folder_ops import build_folder_subcommands, edit_command
 from termapy.plugins import Command
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

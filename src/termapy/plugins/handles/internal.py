@@ -1,15 +1,16 @@
-"""InternalHandle -- the privileged internal interface for built-in plugins.
+"""InternalHandle -- the engine and host services, reached as ``ctx.internal``.
 
-Reached as ``ctx.internal``.  Named for the one property every slot
-shares: it's *internal* -- not part of the external plugin API.  The
-sibling handles (``ctx.io`` / ``ctx.serial`` / ``ctx.fs`` / ``ctx.ui``)
-are clean capability domains; this one is deliberately the bucket for
-everything privileged that doesn't fit a domain, so naming it after a
-real domain (it used to be ``engine``) made it read like a peer when
+Named for the one property every slot shares: it is *internal* to a
+running termapy -- the live engine and the frontend hosting it -- not a
+capability domain.  The sibling handles (``ctx.io`` / ``ctx.serial`` /
+``ctx.fs`` / ``ctx.ui``) are clean domains; this one is deliberately the
+home for everything privileged that doesn't fit one, so naming it after
+a real domain (it used to be ``engine``) made it read like a peer when
 it isn't.
 
-External plugin authors should not reach for this; it's intentionally
-unstable.  Use the four capability handles for the supported, gated API.
+Any plugin may use it.  The built-ins are the working examples a plugin
+author copies, and they use nothing an external plugin cannot (registry
+``plugins-import-published-only``).
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from typing import Any
 
 @dataclass
 class InternalHandle:
-    """Privileged handle exposed to built-in plugins via ``ctx.internal``.
+    """The engine and host services every plugin reaches as ``ctx.internal``.
 
     It serves two distinct jobs, grouped below:
 
@@ -43,8 +44,7 @@ class InternalHandle:
 
     For plain session state (flags, counters, scratch) use ``ctx.ns()``
     instead; anything that could live in a dict was moved off this handle
-    on purpose.  External plugins should not use ``ctx.internal`` -- it is
-    unstable and may change between versions.
+    on purpose.
 
     What's left is the irreducible core, deliberately not the leftovers
     of a half-finished cleanup.  Members with a real home already moved:
@@ -53,8 +53,8 @@ class InternalHandle:
     ... -> ``ctx.serial``).  The escape-hatch slots that remain are
     per-command TUI screens (one command each, no-ops outside the TUI):
     promoting them to ``ctx.ui`` would pollute that clean, general API
-    with one-off methods, so they stay here where "unstable, built-ins
-    only" is the contract.
+    with one-off methods, so they stay here, on the one handle that is
+    not a domain.
     """
 
     # ═══ Engine forwarders ════════════════════════════════════════════

@@ -15,20 +15,16 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-# Reuse only the thin rendering helpers from the help plugin. Everything
-# search-specific (grammar, field extraction, highlighter) lives below.
-from termapy.builtins.commands.help import (
-    _args_markup,
-    _canonical_flags,
-    _underline_markup,
-)
+from termapy.markup import underline_markup
 from termapy.plugins import (
     CmdResult,
     Command,
     UsageError,
+    canonical_flags,
     escape_markup,
     interpolate_help,
     resolve_long_help,
+    synopsis_markup,
 )
 
 if TYPE_CHECKING:
@@ -111,7 +107,7 @@ def _field_text(name: str, plugin, field: str, ctx: PluginContext | None = None)
         return name
     if field == "flags":
         parts: list[str] = []
-        for canonical, aliases, desc in _canonical_flags(plugin):
+        for canonical, aliases, desc in canonical_flags(plugin.flags):
             parts.extend([canonical, *aliases, desc])
         return " ".join(parts)
     if field == "docstring":
@@ -253,16 +249,16 @@ def _render_hit(
     """
     help_text = interpolate_help(plugin.help, prefix)
     if underlines:
-        name_markup = _underline_markup(name, underlines)
-        help_markup = _underline_markup(help_text, underlines)
+        name_markup = underline_markup(name, underlines)
+        help_markup = underline_markup(help_text, underlines)
     else:
         name_markup = escape_markup(name)
         help_markup = escape_markup(help_text)
-    synopsis_markup = f" {_args_markup(plugin.args)}" if plugin.args else ""
+    args_markup = f" {synopsis_markup(plugin.args)}" if plugin.args else ""
     prefix_markup = "" if is_target else escape_markup(prefix)
     target_markup = f"  [{_SEP}](target)[/]" if is_target else ""
     ctx.io.output_markup(
-        f"[{_CMD}]{prefix_markup}{name_markup}[/]{synopsis_markup} - {help_markup}{target_markup}"
+        f"[{_CMD}]{prefix_markup}{name_markup}[/]{args_markup} - {help_markup}{target_markup}"
     )
     for label, text, span in hit_fields:
         if label in ("name", "help", "args"):

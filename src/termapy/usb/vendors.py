@@ -33,6 +33,8 @@ serial-port debugging."  Grow as users encounter unknowns.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 # Canonical vendor names per USB-IF assignment.  Keep in sync with
 # https://www.usb.org/developers/usbif-resources/sublicensed-vendor-id  -- and
 # www.linux-usb.org/usb.ids when adding entries.
@@ -71,6 +73,43 @@ USB_VENDORS: dict[int, str] = {
     0x05AC: "Apple",
     0x046D: "Logitech",
 }
+
+
+def vendor_table_facts() -> dict[str, int | str | None]:
+    """The facts about the two vendor tables, as ``/term.usb_db`` reports them.
+
+    ``curated`` is the size of :data:`USB_VENDORS`.  ``full_table``,
+    ``generated``, ``source`` and ``path`` describe the generated
+    ``_vendors_full`` module: its entry count, generation date, upstream
+    URL and location on disk (relative to the cwd when under it); all
+    four are ``None`` when the module is missing.  Local only, no
+    network.  The generated module is imported here, lazily, so importing
+    ``termapy.usb`` never loads its thousands of entries.
+
+    Returns:
+        The facts, with real JSON types, as a ``CmdResult.record``'s data.
+    """
+    facts: dict[str, int | str | None] = {
+        "curated": len(USB_VENDORS),
+        "full_table": None,
+        "generated": None,
+        "source": None,
+        "path": None,
+    }
+    try:
+        from termapy.usb import _vendors_full as full
+    except ImportError:
+        return facts
+    facts["full_table"] = len(full.USB_VENDORS_FULL)
+    facts["generated"] = getattr(full, "GENERATED_DATE", None)
+    facts["source"] = getattr(full, "SOURCE_URL", None)
+    full_path = Path(full.__file__).resolve()
+    try:
+        facts["path"] = str(full_path.relative_to(Path.cwd()))
+    except ValueError:
+        # Outside the cwd, as for an installed package: the absolute path.
+        facts["path"] = str(full_path)
+    return facts
 
 
 def vendor_for(vid: int | None) -> str | None:

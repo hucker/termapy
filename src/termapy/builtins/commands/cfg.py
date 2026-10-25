@@ -16,7 +16,6 @@ from termapy.builtins.commands._cfg_icon import (
     _handler_remove as _handler_icon_remove,
     retire_launcher,
 )
-from termapy.builtins.commands.edit import edit_cfg_command
 from termapy.config import (
     ConfigExistsError,
     cfg_data_dir,
@@ -33,7 +32,7 @@ from termapy.config import (
     rename_config,
 )
 from termapy.config_resolve import resolve_config
-from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
+from termapy.folder_ops import FILE_COLUMNS, edit_cfg_command, file_record, list_entries
 from termapy.folders import FOLDER_PATTERNS, FOLDERS, INFO_REPORT_SUFFIX, PLUGIN
 from termapy.help_dynamic import cfg_status, compose
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
@@ -423,9 +422,7 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     """Same as ``/help cfg``: the page, ending with the configs ``/cfg.list`` shows."""
-    from termapy.builtins.commands.help import _show_command_help
-
-    return _show_command_help(ctx, "cfg")
+    return ctx.internal.dispatch("help cfg")
 
 
 # ── Tree-building helpers (shared by info and folder listings) ────────────────

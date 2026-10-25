@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.help_dynamic import is_state_line
-from termapy.markup import markup_to_plain
+from termapy.markup import markup_to_plain, match_parts, underline_markup
 from termapy.plugins import (
     ENVIRONMENTS,
     REQUIREMENT_HINTS,
@@ -18,12 +18,16 @@ from termapy.plugins import (
     CmdResult,
     Command,
     UsageError,
+    canonical_flags,
     escape_markup,
     interpolate_help,
     resolve_long_help,
+    synopsis_markup,
+    synopsis_pieces,
 )
+from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_STYLE
 from termapy.plugins.params import render_parameters_block
-from termapy.plugins.views import Link, Piece, TableView, pieces_markup
+from termapy.plugins.views import Link, Piece, TableView
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -33,15 +37,13 @@ if TYPE_CHECKING:
 
 _LABEL_RE = re.compile(r"^(\s*)(\w+:)(.*)")
 
-# Colors for help output
+# Colors for help output.  The synopsis colors are the declaration's own
+# (``plugins.command``), reused here for the flag and capability rows.
 _CMD = "cyan"  # command names
-_OPT = "green"  # {optional} args
-_REQ = "yellow"  # <required> args
+_OPT = SYNOPSIS_OPTIONAL_STYLE  # {optional} args, flag names, a met capability
+_REQ = SYNOPSIS_REQUIRED_STYLE  # <required> args, a missing capability
 _SEP = "dim"  # section separators and hints
 _SRC = "dim"  # source labels
-
-_OPT_RE = re.compile(r"(\{[^}]+\})")
-_REQ_RE = re.compile(r"(<[^>]+>)")
 
 # Cap the command column in listings so a pathologically long plugin name
 # can't shove the help column off the right edge.
@@ -71,28 +73,6 @@ def _section_markup(title: str) -> str:
     return f"[bold]{escape_markup(title)}[/]"
 
 
-def _args_pieces(args: str) -> list[Piece]:
-    """A synopsis as pieces: ``{optional}`` groups green, ``<required>`` yellow, the rest plain.
-
-    A ``<required>`` inside an ``{optional}`` group (``{timeout=<dur>}``)
-    is yellow within the green, as the nested tags always drew it.
-    """
-    pieces: list[Piece] = []
-    for group in _OPT_RE.split(args):
-        outer = _OPT if _OPT_RE.fullmatch(group) else ""
-        pieces += [
-            Piece(part, None, _REQ if _REQ_RE.fullmatch(part) else outer)
-            for part in _REQ_RE.split(group)
-            if part
-        ]
-    return pieces
-
-
-def _args_markup(args: str) -> str:
-    """A synopsis, escaped, with its ``{optional}`` and ``<required>`` groups colored."""
-    return pieces_markup(_args_pieces(args))
-
-
 def _long_help_line_markup(line: str) -> str:
     """A ``long_help`` line: a ``green()`` state line passes through, prose is escaped."""
     return line if is_state_line(line) else escape_markup(line)
@@ -101,34 +81,6 @@ def _long_help_line_markup(line: str) -> str:
 def _pad_markup(markup: str, width: int) -> str:
     """Pad a markup string to a visible width."""
     return markup + " " * max(0, width - len(markup_to_plain(markup)))
-
-
-def _match_parts(text: str, needles: str | list[str] | None) -> list[tuple[str, bool]]:
-    """``text`` cut into ``(part, matched)`` around every case-insensitive needle."""
-    if isinstance(needles, str):
-        needles = [needles]
-    needles = [needle for needle in needles or [] if needle]
-    if not needles or not text:
-        return [(text, False)] if text else []
-    pattern = re.compile("|".join(re.escape(needle) for needle in needles), re.IGNORECASE)
-    parts: list[tuple[str, bool]] = []
-    last = 0
-    for match in pattern.finditer(text):
-        if match.start() > last:
-            parts.append((text[last : match.start()], False))
-        parts.append((match.group(), True))
-        last = match.end()
-    if last < len(text):
-        parts.append((text[last:], False))
-    return parts
-
-
-def _underline_markup(text: str, needles: str | list[str]) -> str:
-    """``text`` escaped, every case-insensitive occurrence of a needle in ``[u]...[/u]``."""
-    return "".join(
-        f"[u]{escape_markup(part)}[/u]" if matched else escape_markup(part)
-        for part, matched in _match_parts(text, needles)
-    )
 
 
 def _help_link(name: str) -> Link:
@@ -174,27 +126,7 @@ def _write_docstring(ctx: PluginContext, docstring: str) -> None:
             ctx.io.output(f"  {text}")
 
 
-# ── Flag + capability rendering ──────────────────────────────────────────────
-
-
-def _canonical_flags(plugin) -> list[tuple[str, list[str], str]]:
-    """Walk ``plugin.flags`` and return one row per canonical flag.
-
-    Returns a list of ``(canonical, aliases, description)`` tuples, sorted
-    by canonical name. Alias entries (``"-t": "--table"``) collapse onto
-    their canonical row.
-    """
-    if not plugin.flags:
-        return []
-    aliases_of: dict[str, list[str]] = {}
-    descriptions: dict[str, str] = {}
-    for flag, val in plugin.flags.items():
-        if val.startswith("-") and val in plugin.flags:
-            aliases_of.setdefault(val, []).append(flag)
-        else:
-            descriptions[flag] = val
-            aliases_of.setdefault(flag, [])
-    return [(flag, sorted(aliases_of[flag]), descriptions[flag]) for flag in sorted(descriptions)]
+# ── Capability rendering ─────────────────────────────────────────────────────
 
 
 def _required_capability_rows(needs) -> list[tuple[str, str]]:
@@ -277,13 +209,13 @@ def _landscape_row(
     pieces = [Piece("  "), Piece(prefix, link, _CMD)]
     pieces += [
         Piece(part, link, f"{_CMD} underline" if matched else _CMD)
-        for part, matched in _match_parts(name, needles)
+        for part, matched in match_parts(name, needles)
     ]
     pad = max(0, cmd_w + 2 - (2 + len(prefix) + len(name)))
     pieces.append(Piece(" " * pad + "  "))
     pieces += [
         Piece(part, None, "underline" if matched else "")
-        for part, matched in _match_parts(help_text, needles)
+        for part, matched in match_parts(help_text, needles)
     ]
     return pieces
 
@@ -360,7 +292,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
         ctx.io.output_markup(_section_markup("SYNOPSIS"))
         if plugin.args:
             ctx.io.output_markup_segments(
-                [Piece("  "), command, Piece(" "), *_args_pieces(plugin.args)]
+                [Piece("  "), command, Piece(" "), *synopsis_pieces(plugin.args)]
             )
         if bare:
             ctx.io.output_markup_segments([Piece("  "), command, Piece(" -- "), *bare])
@@ -398,7 +330,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
             ctx.io.output_markup(escape_markup(line))
 
     # FLAGS ───────────────────────────────────────────────────────────────────
-    rows = _canonical_flags(plugin)
+    rows = canonical_flags(plugin.flags)
     if rows:
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("FLAGS"))
@@ -582,7 +514,7 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
     if tc.args:
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("SYNOPSIS"))
-        ctx.io.output_markup(f"  [{_CMD}]{name_markup}[/] {_args_markup(tc.args)}")
+        ctx.io.output_markup(f"  [{_CMD}]{name_markup}[/] {synopsis_markup(tc.args)}")
 
     # DESCRIPTION ─────────────────────────────────────────────────────────────
     if tc.long_help:
@@ -592,9 +524,9 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
             ctx.io.output_markup(f"  {escape_markup(line)}")
 
     # FLAGS ───────────────────────────────────────────────────────────────────
-    # _canonical_flags is duck-typed on a `.flags` attribute, so it works
-    # for the profile-command view's SimpleNamespace unchanged.
-    rows = _canonical_flags(tc)
+    # The profile-command view carries a ``flags`` mapping of the same
+    # shape as a Command's, so the rows render the same way.
+    rows = canonical_flags(tc.flags)
     if rows:
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("FLAGS"))
@@ -619,7 +551,7 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
     prefix = ctx.prefix
     plugins = ctx.internal.plugins
     words = [word for word in term.split() if word]
-    ctx.io.output_markup(f"Candidates matching [{_CMD}]{_underline_markup(term, words)}[/]:")
+    ctx.io.output_markup(f"Candidates matching [{_CMD}]{underline_markup(term, words)}[/]:")
     cmd_w = _compute_cmd_w(names, prefix)
     for name in names:
         plugin = plugins[name]
@@ -870,8 +802,8 @@ def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
     for cmd_name in sorted(names):
         tc = target_cmds[cmd_name]
         cmd_markup = _pad_markup(f"  [{_CMD}]{escape_markup(tc.name)}[/]", cmd_w + 2)
-        synopsis_markup = f" {_args_markup(tc.args)}" if tc.args else ""
-        ctx.io.output_markup(f"{cmd_markup}{synopsis_markup}  {escape_markup(tc.help)}")
+        args_markup = f" {synopsis_markup(tc.args)}" if tc.args else ""
+        ctx.io.output_markup(f"{cmd_markup}{args_markup}  {escape_markup(tc.help)}")
 
 
 def _script_description(path: Path) -> str:

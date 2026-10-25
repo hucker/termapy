@@ -19,9 +19,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from termapy.builtins.commands.grep import find_matches
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.scripting import find_matches
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

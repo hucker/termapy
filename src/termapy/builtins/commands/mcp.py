@@ -24,8 +24,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.builtins.commands.log import dump_text_slice
 from termapy.config import mcp_log_path, open_with_system
+from termapy.folder_ops import dump_text_slice
 from termapy.mcp.catalog import build_catalog, catalog_json
 from termapy.plugins import CapabilitySet, CmdResult, Command
 

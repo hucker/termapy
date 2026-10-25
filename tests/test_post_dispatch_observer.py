@@ -7,9 +7,11 @@ The observer pair (``add_post_dispatch_observer`` /
 
 Contract verified here:
 
-- Observer fires after every ``dispatch()`` call.
+- Observer fires after every outermost ``dispatch()`` call.
 - Fires for failed dispatches too -- the subscriber decides what
   to keep.
+- Never fires for a dispatch from inside a handler: that is part of
+  the outer command, so ``/run.record`` writes what was typed, once.
 - Multiple observers all fire.
 - An exception inside one observer doesn't break dispatch and
   doesn't prevent later observers from firing.
@@ -62,6 +64,29 @@ class TestPostDispatchObserver:
         assert seen == [("app.ver", True)], (
             f"observer should fire with (line, success=True), got {seen}"
         )
+
+    def test_observer_skips_a_nested_dispatch(self, engine):
+        """A dispatch from inside a handler is part of the outer command: observers see the typed line only, every time."""
+        # Arrange -- bare /run.help runs /help run through ctx.internal.dispatch,
+        # which a bare engine leaves a no-op; wire it to the engine as the
+        # hosts do, counting the nested lines so the test proves they ran.
+        nested: list[str] = []
+
+        def nested_dispatch(line: str):
+            nested.append(line)
+            return engine.dispatch(line, report=False)
+
+        engine.ctx.internal.dispatch = nested_dispatch
+        seen: list[str] = []
+        engine.add_post_dispatch_observer(lambda line, result: seen.append(line))
+
+        # Act -- twice, so the second outer line is seen while its nested one still is not
+        engine.dispatch("run.help")
+        engine.dispatch("run.help")
+
+        # Assert
+        assert nested == ["help run", "help run"], "the leaf dispatched /help run each time"
+        assert seen == ["run.help", "run.help"], "the nested dispatch must not reach observers"
 
     def test_observer_fires_on_failed_dispatch(self, engine):
         """Failed dispatches reach observers too; each subscriber decides what to keep."""

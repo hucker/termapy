@@ -71,6 +71,7 @@ from termapy.usb.chips import (
 from termapy.usb.vendors import (
     USB_VENDORS,
     vendor_for,
+    vendor_table_facts,
 )
 
 __all__ = [
@@ -85,4 +86,5 @@ __all__ = [
     # vendors
     "USB_VENDORS",
     "vendor_for",
+    "vendor_table_facts",
 ]

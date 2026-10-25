@@ -4,10 +4,11 @@ Provides a uniform /edit tree for all file types: run, proto,
 plugin, config, log, and info report. Each folder type gets the
 same subcommands: edit by name, list files, open folder.
 
-``edit_command`` / ``edit_cfg_command`` also build the noun-first twins
-(``/run.edit``, ``/proto.edit``, ``/plugin.edit``, ``/cfg.edit``) that
-the run, proto, plugin and cfg plugins mount, so both spellings are one
-declaration.
+The folder leaves and the config leaf are ``folder_ops``'
+(``edit_folder_command``, ``edit_cfg_command``), which also builds the
+noun-first twins (``/run.edit``, ``/proto.edit``, ``/plugin.edit``,
+``/cfg.edit``) that the run, proto, plugin and cfg plugins mount, so
+both spellings are one declaration.
 
 These handlers decide WHICH file; ``ctx.internal.edit_file`` is how the
 frontend opens it: the TUI's own editor for the config, a .run or a .pro
@@ -19,23 +20,12 @@ lookup, so ``/edit foo.py`` worked in the CLI and failed in the TUI
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.folders import (
-    EXT_TO_FOLDER,
-    FOLDER_EXTS,
-    FOLDERS,
-    PROTO,
-    RUN,
-    default_file_name,
-    ensure_folder,
-)
-from termapy.help_dynamic import compose, folder_line
+from termapy.folder_ops import edit_cfg_command, edit_folder_command
+from termapy.folders import EXT_TO_FOLDER, FOLDER_EXTS, PROTO, RUN
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
-from termapy.plugins.command import PICKERS
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -87,11 +77,6 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
-    ctx.internal.edit_file(Path(ctx.config_path))
-    return CmdResult.ok(value=Path(ctx.config_path))
-
-
 def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     path = ctx.internal.session_log_path()
     assert path is not None, "edit.log declares session_log"
@@ -109,165 +94,6 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"No info report yet. Run {ctx.prefix}cfg.info first.")
 
 
-# ── Folder subcommand factories ──────────────────────────────────────────────
-
-
-def make_edit_handler(folder: str, get_dir, ext):
-    """Create a handler that opens a file by name, or lists the folder if no name given.
-
-    Returns the opened file path as ``CmdResult.value``; bare, the
-    ``/<folder>.list`` result (a picker host never gets here bare -- the
-    dispatcher opens the picker first).
-    """
-
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        name = args.strip()
-        if not name:
-            return make_list_handler(folder)(ctx, args)
-        # The extension is optional (registry ``file-name-default-ext``).
-        path = default_file_name(get_dir(ctx) / name, ext)
-        if not path.is_file():
-            return CmdResult.fail(msg=f"File not found: {name}")
-        ctx.internal.edit_file(path)
-        return CmdResult.ok(value=path)
-
-    return handler
-
-
-def make_list_handler(folder: str):
-    """``/edit.<folder>.list`` is ``/<folder>.list``: one listing per folder.
-
-    Forwarded through the engine, so the listing (format, order, data
-    records, ``/run.list``'s SUMMARY) is the folder command's own.
-    """
-
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        return ctx.internal.dispatch(f"{folder}.list")
-
-    return handler
-
-
-def make_explore_handler(get_dir):
-    """Create a handler that opens a folder in the system file explorer.
-
-    Returns the opened folder path as ``CmdResult.value``.
-    """
-
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        folder = get_dir(ctx)
-        ctx.fs.open_file(ensure_folder(folder))
-        return CmdResult.ok(value=folder)
-
-    return handler
-
-
-def _folder_dir(folder: str) -> Callable[[PluginContext], Path]:
-    """Getter for a per-config data folder; the cwd when no config is loaded."""
-
-    def get_dir(ctx: PluginContext) -> Path:
-        return Path(ctx.config_path).parent / folder if ctx.config_path else Path(".")
-
-    return get_dir
-
-
-# Extensions the TUI opens in its own editor (``app._edit_file``); the rest
-# go to the system editor.
-_TERMAPY_EDITS = frozenset({FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO]})
-
-# The word ``folder_line`` counts files in, where "file" would read wrong.
-_NOUNS = {"run": "script", "proto": "script"}
-
-
-def _folder_long_help(folder: str, text: str = "") -> Callable[[PluginContext], str]:
-    """Dynamic long_help: the live file count ("42 scripts in run/"), then ``text``."""
-    noun = _NOUNS.get(folder)
-
-    def long_help(ctx: PluginContext) -> str:
-        return compose(folder_line(ctx, folder, noun=noun), text)
-
-    return long_help
-
-
-def edit_command(folder: str) -> Command:
-    """``/edit.<folder>`` and its noun-first twin ``/<folder>.edit``.
-
-    One builder for both spellings, so they cannot drift: open an existing
-    file from ``folder`` by name, or list the folder when bare (the TUI
-    opens the folder's picker instead).  The TUI has its own editor for
-    .run and .pro files, so those need ``file_editor``; a plugin's .py
-    opens only in the system editor, which needs a desktop.
-
-    Args:
-        folder: A ``folders.FOLDERS`` name holding editable text files.
-    """
-    spec = next(spec for spec in FOLDERS if spec.name == folder)
-    # A folder with a picker opens it on a bare call in the TUI (SYNOPSIS
-    # says so); the listing is what a host without pickers falls back to.
-    picker = folder if folder in PICKERS else ""
-    bare = (
-        f"Without a picker (CLI, MCP), bare lists {folder}/."
-        if picker
-        else f"Bare lists {folder}/."
-    )
-    own_editor = spec.ext in _TERMAPY_EDITS
-    where = (
-        "termapy's editor in the TUI, the system editor in the CLI"
-        if own_editor
-        else "the system editor"
-    )
-    text = (
-        f"With a name, opens that existing file from {folder}/ in {where} "
-        f"(the {spec.ext} is optional); a missing name fails.  {bare}  "
-        f"/{folder}.edit and {{prefix}}edit.{folder} are the same command."
-    )
-    return Command(
-        args="{filename}",
-        help=f"Open a {spec.ext} file for editing.",
-        long_help=_folder_long_help(folder, text),
-        handler=make_edit_handler(folder, _folder_dir(folder), spec.ext),
-        needs=CapabilitySet.FILE_EDITOR if own_editor else CapabilitySet.GUI_APPS,
-        files=folder,
-        picker=picker,
-    )
-
-
-def edit_cfg_command() -> Command:
-    """``/edit.cfg`` and its noun-first twin ``/cfg.edit``: open the current config."""
-    return Command(
-        help="Edit the current config file.",
-        long_help=(
-            "Opens the loaded config in termapy's config editor in the TUI, "
-            "as F10 does, and in the system editor in the CLI.  {prefix}cfg.edit "
-            "and {prefix}edit.cfg are the same command."
-        ),
-        handler=_handler_cfg,
-        needs=CapabilitySet(file_editor=True, config_loaded=True),
-    )
-
-
-def _build_folder_sub(folder: str) -> Command:
-    """``/edit.<folder>``: the shared edit leaf plus ``.list`` and ``.explore``."""
-    spec = next(spec for spec in FOLDERS if spec.name == folder)
-    get_dir = _folder_dir(folder)
-    long_help = _folder_long_help(folder)  # the subs: the count line alone
-    return replace(
-        edit_command(folder),
-        sub_commands={
-            "list": Command(
-                help=f"List {spec.ext} files.",
-                long_help=long_help,
-                handler=make_list_handler(folder),
-            ),
-            "explore": Command(
-                help="Open folder in file explorer.",
-                long_help=long_help,
-                handler=make_explore_handler(get_dir),
-                needs=CapabilitySet.GUI_APPS,
-            ),
-        },
-    )
-
-
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 
 COMMAND = Command(
@@ -277,9 +103,9 @@ COMMAND = Command(
     handler=_handler_root,
     needs=CapabilitySet.FILE_EDITOR,
     sub_commands={
-        "run": _build_folder_sub("run"),
-        "proto": _build_folder_sub("proto"),
-        "plugin": _build_folder_sub("plugin"),
+        "run": edit_folder_command("run"),
+        "proto": edit_folder_command("proto"),
+        "plugin": edit_folder_command("plugin"),
         "cfg": edit_cfg_command(),
         "log": Command(
             help="Open the session log in the system viewer.",

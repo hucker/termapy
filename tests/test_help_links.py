@@ -19,9 +19,15 @@ import json
 from rich.console import Console
 from rich.text import Text
 
-from termapy.builtins.commands.help import _args_pieces, _landscape_row, _pad_markup
+from termapy.builtins.commands.help import _landscape_row, _pad_markup
 from termapy.markup import markup_to_plain
-from termapy.plugins import CmdResult, PluginInfo, escape_markup, interpolate_help
+from termapy.plugins import (
+    CmdResult,
+    PluginInfo,
+    escape_markup,
+    interpolate_help,
+    synopsis_pieces,
+)
 from termapy.plugins.views import Link, Piece, pieces_markup
 
 
@@ -231,7 +237,7 @@ def test_a_synopsis_draws_the_same_characters_in_the_same_styles():
     before = "[yellow]<file>[/] [green]{timeout=[yellow]<dur>[/]}[/] [green]{a|b}[/] \\[x]"
 
     # Act
-    after = pieces_markup(_args_pieces(args))
+    after = pieces_markup(synopsis_pieces(args))
 
     # Assert
     assert _styles(after) == _styles(before), "the CLI and MCP see what they always saw"

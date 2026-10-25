@@ -2,59 +2,15 @@
 
 from __future__ import annotations
 
-import re
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
-from termapy.scripting import ANSI_RE as _ANSI_RE
+from termapy.scripting import find_matches
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
-
-
-def find_matches(
-    text: str,
-    pattern: str,
-    *,
-    is_noise: Callable[[str], bool] | None = None,
-) -> tuple[list[tuple[int, str]], str | None]:
-    """Find regex matches in scrollback text.
-
-    Case-insensitive.  Returns ``(matches, error_message)`` where
-    matches is ``[(line_no_1_based, ANSI_stripped_line), ...]`` and
-    error_message is ``None`` on success or a user-facing string on
-    pattern compile failure / empty input.
-
-    Shared by ``/grep`` (prints the list) and ``/find`` (navigates
-    interactively) so both have identical match semantics.
-
-    Args:
-        text: Full scrollback text (from ``ctx.ui.get_screen_text()``).
-        pattern: Regex pattern.  Empty -> error.
-        is_noise: Optional per-line predicate to skip lines (used to
-            exclude the command's own output from recursive matches).
-    """
-    if not pattern:
-        return [], "Pattern required"
-    try:
-        rx = re.compile(pattern, re.IGNORECASE)
-    except re.error as e:
-        return [], f"Invalid pattern: {e}"
-    if not text:
-        return [], "No scrollback (CLI mode?)"
-
-    noise = is_noise or (lambda _line: False)
-    matches: list[tuple[int, str]] = []
-    for i, line in enumerate(text.splitlines()):
-        if noise(line):
-            continue
-        if rx.search(line):
-            clean = _ANSI_RE.sub("", line)
-            matches.append((i + 1, clean))
-    return matches, None
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:

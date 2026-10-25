@@ -143,7 +143,7 @@ A file exporting none of them is skipped with a warning.
 ## The PluginContext shape
 
 The `ctx` object is a thin shell over **five handles** -- four capability
-domains plus the privileged `internal` escape hatch -- with a few plain
+domains plus `internal`, the engine and host services -- with a few plain
 fields (`cfg`, `config_path`, `prefix`) and universal methods
 (`dispatch`, `ns`, `arg`, `flag`, `wait_for_match`) beside them:
 
@@ -178,7 +178,7 @@ The five handles:
 - `ctx.serial` -- connect/disconnect, read/write the serial port, observe bytes
 - `ctx.fs` -- per-config directories and file opening
 - `ctx.ui` -- TUI-only operations (dialogs, screenshots); raises in CLI
-- `ctx.internal` -- privileged escape hatch for built-ins; external plugins should avoid it
+- `ctx.internal` -- the engine and host services (the command table, config apply, scripts, capture, the editor); the built-ins use it freely, and so may yours
 
 ### Capability gating
 
@@ -626,6 +626,14 @@ with a worked example.  Treat them as importable libraries: a plugin
 that crunches binary frames doesn't need to vendor a CRC catalog
 itself.
 
+Every published core function is importable the same way.  The
+built-ins under `builtins/` are the working examples, and they import
+`scripting`, `folders`, `folder_ops`, `matching`, `help_dynamic` and
+`config` directly.  A name with a leading underscore is private, in core
+and in another plugin alike, and a plugin never imports another plugin:
+to use another command, dispatch it (`ctx.internal.dispatch("help run")`)
+rather than importing its module.
+
 ## PluginContext API reference
 
 ### Output (`ctx.io`)
@@ -734,7 +742,7 @@ the matching capability on `Command.needs`.
 | `ctx.ns(name)` | Get/create a session-scoped state dict |
 | `ctx.plugin_cfg(name)` | Get a per-plugin persistent config dict (per config: it follows a config switch) |
 | `ctx.is_oneshot()` | True when running under `--exec` (one-shot CLI mode) |
-| `ctx.internal` | Privileged escape hatch for built-ins; external plugins should avoid |
+| `ctx.internal` | The engine and host services; the built-ins use it freely, and so may yours |
 
 ## Subcommands
 

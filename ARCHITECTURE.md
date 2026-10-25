@@ -48,6 +48,7 @@ src/termapy/
 │   │   ├── exit.py         #     exit the application
 │   │   ├── expect.py       #     wait for a device line, the one /expect in every frontend
 │   │   ├── find.py         #     navigate matches in the scrollback
+│   │   ├── firmware.py     #     /firmware -- the device-side sources termapy ships, one command away
 │   │   ├── grep.py         #     search the scrollback for matching lines
 │   │   ├── help.py         #     forgiving /help with man-page detail view
 │   │   ├── log.py          #     `/log.*` -- session-log commands
@@ -93,6 +94,7 @@ src/termapy/
 │   ├── script_picker.py    #   ScriptPicker -- pick a .run script to run or edit, or create one
 │   ├── set_var_dialog.py   #   SetVarDialog -- two-field name/value prompt for /var.set
 │   └── update_available.py #   UpdateAvailableDialog -- reports a newer termapy on PyPI (Info / OK)
+├── firmware/               #              The device-side sources termapy ships, one command away: the `/firmware` registry
 ├── help/                   #              Markdown help pages, the source of the HTML help
 ├── html/                   #              Generated HTML help, what the wheel ships (rebuilt at release)
 ├── mcp/                    # (2112 lines) Termapy MCP (Model Context Protocol) server package
@@ -926,8 +928,9 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_expect.py                      | Tests for the /expect and /expect.regex commands                                                                                                   |
 | test_file_completion.py             | File-argument completion: the `Command.files` declaration and the engine's reader                                                                  |
 | test_find.py                        | Tests for /find -- interactive scrollback match navigation                                                                                         |
-| test_firmware_json.py               | The drop-in JSON wrapper, `examples/firmware/termapy_json.c`, on the host                                                                          |
-| test_firmware_mem.py                | The drop-in MEM handler, `examples/firmware/termapy_mem.c`, run on the host                                                                        |
+| test_firmware.py                    | The `/firmware` command and the table behind it: every shipped target is listed, copyable and printable                                            |
+| test_firmware_json.py               | The drop-in JSON wrapper, `termapy/firmware/c/termapy_json.c`, on the host                                                                         |
+| test_firmware_mem.py                | The drop-in MEM handler, `termapy/firmware/c/termapy_mem.c`, run on the host                                                                       |
 | test_folder_ops_delete.py           | The shared `.delete` folder handler (`/cap.delete`, `/run.delete`, ...)                                                                            |
 | test_folder_ops_dump.py             | Containment tests for the shared `.dump` folder handler                                                                                            |
 | test_folder_ops_listing.py          | Tests for the shared listing producers in `folder_ops`                                                                                             |

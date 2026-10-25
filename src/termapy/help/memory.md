@@ -235,8 +235,9 @@ handing `/mem.*` to an agent.
 ## The wire spec
 
 A device supports `/mem.*` by answering three line-oriented commands.
-This is the whole contract; a drop-in reference implementation ships in
-the repo at `examples/firmware/termapy_mem.c`. It owns only the wire
+This is the whole contract; a drop-in reference implementation ships with
+termapy: `/firmware.copy mem` writes `termapy_mem.c` and its header into
+your tree (see [Firmware](firmware.md)). It owns only the wire
 grammar: you hand it a `TermapyMem_Ops` with two byte operations --
 `read(addr, dst, count)` and `write(addr, src, count)` -- an optional
 IRQ-mask `lock`/`unlock` pair (that is all `MEM.M` needs), a

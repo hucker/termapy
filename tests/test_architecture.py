@@ -594,6 +594,8 @@ ALLOWED_RAW_MKDIR: frozenset[str] = frozenset(
         "termapy/builtins/commands/app.py",
         "termapy/config.py",
         "termapy/devices/__init__.py",
+        # /firmware.copy creates the user's own output folder, not a data folder.
+        "termapy/firmware/__init__.py",
         "termapy/folders.py",
         "termapy/mcp/server.py",
     }
@@ -1450,6 +1452,7 @@ NOT_IN_GOLD: dict[str, str] = {
     "exit": "ends the session, and with it the gold run",
     "expect": "races the device's reply; tests/test_expect.py drives it",
     "expect.regex": "races the device's reply; tests/test_expect.py drives it",
+    "firmware.show": _OPENS_APP,
     "log.show": _OPENS_APP,
     "mcp.catalog": "the whole command catalog as JSON; it changes with every command",
     "mcp.info": "prints the process id",

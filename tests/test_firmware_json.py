@@ -1,4 +1,4 @@
-"""The drop-in JSON wrapper, ``examples/firmware/termapy_json.c``, on the host.
+"""The drop-in JSON wrapper, ``termapy/firmware/c/termapy_json.c``, on the host.
 
 A fake platform (stdout as the serial line) is installed with
 ``TermapyJson_Init``; each stdin line is a directive (mode / reply / extract /
@@ -21,7 +21,10 @@ from pathlib import Path
 
 import pytest
 
-FIRMWARE = Path(__file__).parent.parent / "examples" / "firmware"
+from termapy.firmware import TARGETS, find_target, source_path
+
+# The shipped module, from the package: what ``/firmware.copy json`` writes.
+FIRMWARE = source_path(find_target("json", targets=TARGETS), "termapy_json.c").parent
 MODULE = FIRMWARE / "termapy_json.c"
 HARNESS = Path(__file__).parent / "fixtures" / "firmware" / "json_host.c"
 # The module alone must be strict C99; the harness needs POSIX/Windows I/O.

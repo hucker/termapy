@@ -1,4 +1,4 @@
-"""The drop-in MEM handler, ``examples/firmware/termapy_mem.c``, run on the host.
+"""The drop-in MEM handler, ``termapy/firmware/c/termapy_mem.c``, run on the host.
 
 A fake platform (256 bytes of RAM at address 0, mapped as a writable
 "ram" region and a read-only "rom" region, counting lock/unlock, stdout as
@@ -20,7 +20,10 @@ from pathlib import Path
 
 import pytest
 
-FIRMWARE = Path(__file__).parent.parent / "examples" / "firmware"
+from termapy.firmware import TARGETS, find_target, source_path
+
+# The shipped module, from the package: what ``/firmware.copy mem`` writes.
+FIRMWARE = source_path(find_target("mem", targets=TARGETS), "termapy_mem.c").parent
 MODULE = FIRMWARE / "termapy_mem.c"
 HARNESS = Path(__file__).parent / "fixtures" / "firmware" / "mem_host.c"
 ENDIAN = "le" if sys.byteorder == "little" else "be"

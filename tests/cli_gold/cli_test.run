@@ -415,6 +415,13 @@ MEM.R 0x1000 2 --json
 /find.prev
 /find.clear
 /find.max_count
+/print === section: firmware: the shipped device-side sources ===
+/firmware
+/firmware.list
+/firmware.copy nosuch
+/firmware.copy mem lang=rust
+/firmware.dump mem
+/firmware.dump mem nosuch.h
 /print === section: coverage: files, timing, recording ===
 /run.rename status_check status_probe
 /run.rename status_probe status_check

@@ -11,3 +11,8 @@ scripts/*.sh text eol=lf
 # ELF test fixtures (tests/fixtures/elf/) are compiler output: never
 # convert line endings in them or diff them as text.
 *.elf binary
+
+# The device-side sources ship in the wheel byte for byte: LF on every
+# checkout, so a wheel built on Windows and one built on Linux hold the
+# same files (and the listing's sizes agree).
+src/termapy/firmware/** text eol=lf

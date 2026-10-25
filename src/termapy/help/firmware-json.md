@@ -33,8 +33,9 @@ and, optionally, a float formatter.
 
 ## Step 1 — add the files to the build
 
-Copy `termapy_json.c` and `termapy_json.h` into the firmware source tree and
-add `termapy_json.c` to the build (Makefile object list, CMake `target_sources`,
+`/firmware.copy json` writes `termapy_json.c` and `termapy_json.h` into the
+current folder (`folder=` names another; see [Firmware](firmware.md)). Add
+`termapy_json.c` to the build (Makefile object list, CMake `target_sources`,
 IDE project). No other dependency. Confirm it compiles under the project's
 existing C flags; the module is clean under `-std=c99 -pedantic -Wall -Wextra
 -Werror`.
@@ -284,7 +285,8 @@ deliberate choice rather than a linker side effect.
 
 ## Reference
 
-The full API is in the header comment of [`termapy_json.h`](termapy_json.h).
+The full API is in the header comment of `termapy_json.h`
+(`/firmware.dump json termapy_json.h` prints it).
 The byte-exact behavior is pinned by `tests/test_firmware_json.py` in the
 termapy repo, which compiles this module against a host harness
 (`tests/fixtures/firmware/json_host.c`). For how the device then appears to an

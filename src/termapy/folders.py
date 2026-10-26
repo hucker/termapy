@@ -91,6 +91,10 @@ FOLDERS = [
     # keeps mapping to dev/ in EXT_TO_FOLDER.  Exists at the cfg root too,
     # like plugin/ and dev/ -- the per-config one wins a name clash.
     FolderSpec("lib", ".device.json"),
+    # Device-side code copied for this config's board: /firmware.copy and
+    # /board.firmware write here unless told otherwise.  Mixed content
+    # (.c, .h, .py), written by termapy but then the user's to edit.
+    FolderSpec("firmware", "*"),
 ]
 
 # -- Derived from FOLDERS (do not edit manually) ------------------------------
@@ -108,6 +112,7 @@ PROF = _BY_NAME["prof"].name
 SYM = _BY_NAME["sym"].name
 DEV = _BY_NAME["dev"].name
 LIB = _BY_NAME["lib"].name
+FIRMWARE = _BY_NAME["firmware"].name
 
 # All folder names as a tuple
 FOLDER_NAMES = tuple(f.name for f in FOLDERS)

@@ -51,7 +51,7 @@ class Env:
 
 @pytest.fixture
 def env(tmp_path) -> Env:
-    """A bare engine granted what ``/firmware.copy`` declares (host-wide file access)."""
+    """A bare engine with a loaded config and host-wide file access, as the TUI and CLI have."""
     cfg = {"port": "COM4", "baud_rate": 115200}
     config_path = tmp_path / "cfg" / "test.cfg"
     config_path.parent.mkdir()
@@ -60,6 +60,8 @@ def env(tmp_path) -> Env:
     engine = ReplEngine(cfg, str(config_path), lambda text, color=None: output.append(text))
     engine.ctx.ns("flags")["output_level"] = "verbose"
     engine.ctx.capabilities = CapabilitySet(filesystem_unconfined=True)
+    engine.ctx.sync_capabilities()
+    engine.ctx.config_path = str(config_path)  # a loaded config, as a frontend sets it
     return Env(engine, output)
 
 
@@ -223,6 +225,43 @@ class TestCommands:
         assert bad_name.error == "Unknown target: nosuch (use json, mem)"
         assert bad_lang.error == "Unknown language: rust (use c)"
         assert not (tmp_path / "out").exists(), "nothing is created for a bad request"
+
+    def test_firmware_copy_defaults_to_the_config_folder(self, env: Env, tmp_path):
+        """With no folder= the files go in the config's firmware/ folder, never the working directory."""
+        # Act
+        result = env.engine.dispatch("firmware.copy mem")
+
+        # Assert
+        folder = (tmp_path / "cfg" / "firmware").resolve()
+        assert result.success, result.error
+        assert (folder / "termapy_mem.c").is_file(), "the config's firmware/ holds the copy"
+        assert any(
+            line == f"Copied termapy_mem.c, termapy_mem.h to {folder}" for line in env.output
+        )
+        assert not Path("termapy_mem.c").exists(), "the working directory is never written"
+
+    def test_firmware_copy_relative_folder_is_under_the_config(self, env: Env, tmp_path):
+        """A relative folder= lands under the config's folder, not the process working directory."""
+        result = env.engine.dispatch("firmware.copy json folder=fw")
+        assert result.success, result.error
+        assert (tmp_path / "cfg" / "fw" / "termapy_json.c").is_file()
+
+    def test_firmware_copy_outside_the_sandbox_needs_host_access(self, env: Env, tmp_path):
+        """Without host-wide file access (MCP's default), an absolute or climbing folder is refused, nothing written."""
+        # Arrange -- the MCP host's sandbox: no filesystem_unconfined
+        env.engine.ctx.capabilities = CapabilitySet()
+        env.engine.ctx.sync_capabilities()
+
+        # Act
+        absolute = env.engine.dispatch(f"firmware.copy mem folder={tmp_path / 'elsewhere'}")
+        climbing = env.engine.dispatch("firmware.copy mem folder=../up")
+        inside = env.engine.dispatch("firmware.copy mem")
+
+        # Assert
+        assert not absolute.success and "outside the config sandbox" in absolute.error
+        assert not climbing.success and "outside the config sandbox" in climbing.error
+        assert not (tmp_path / "elsewhere").exists() and not (tmp_path / "up").exists()
+        assert inside.success, "the config's own firmware/ is inside the sandbox"
 
     def test_firmware_dump_prints_one_file(self, env: Env):
         """/firmware.dump <name> <file> prints the file and makes its text the value, with the facts as data."""

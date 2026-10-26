@@ -46,7 +46,19 @@ class TestFolderSpec:
 class TestFolders:
     def test_folder_set_is_pinned(self):
         """FOLDERS holds exactly these data folders; adding or dropping one is a deliberate edit."""
-        expected = {"run", "proto", "plugin", "ss", "viz", "cap", "prof", "sym", "dev", "lib"}
+        expected = {
+            "run",
+            "proto",
+            "plugin",
+            "ss",
+            "viz",
+            "cap",
+            "prof",
+            "sym",
+            "dev",
+            "lib",
+            "firmware",
+        }
         assert set(FOLDER_NAMES) == expected, "the data-folder set changed"
         assert len(FOLDERS) == len(expected), "no duplicate folder entries"
 

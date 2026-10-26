@@ -396,6 +396,7 @@
     "Werror",
     "Wextra",
     "wildcarded",
+    "wipeable",
     "wordmark",
     "xdist",
     "xfer",

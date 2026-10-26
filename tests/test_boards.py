@@ -33,6 +33,7 @@ from termapy.boards import (
     create_board_config,
     find_board,
     firmware_paths,
+    install_command,
 )
 from termapy.config import ConfigExistsError
 from termapy.defaults import DEFAULT_CFG, default_cfg
@@ -153,6 +154,22 @@ class TestCreateConfig:
         assert created.path == tmp_path / "bench" / "bench.cfg"
         assert (tmp_path / "bench" / f"bench{PROFILE_SUFFIX}").is_file()
 
+    def test_the_config_folder_holds_the_board_code(self, tmp_path):
+        """Everything for the board lives in its config's folder: the device code lands in firmware/."""
+        created = create_board_config(PICO, tmp_path, source=ports(PICO_PORT))
+        folder = tmp_path / "pico" / "firmware"
+        assert [path.name for path in created.firmware] == list(PICO.firmware)
+        for path in firmware_paths(PICO):
+            assert (folder / path.name).read_bytes() == path.read_bytes(), path.name
+
+    def test_install_command_names_the_port_and_full_paths(self, tmp_path):
+        """The install line has the port and every file in full, quoted when a path holds a space."""
+        files = [tmp_path / "main.py", tmp_path / "with space" / "termapy_json.py"]
+        actual = install_command(PICO, files, "COM5")
+        assert actual == (f'uvx mpremote connect COM5 cp {files[0]} "{files[1]}" : + reset'), (
+            "usable from any folder"
+        )
+
     def test_two_boards_take_the_first_and_count_the_rest(self, tmp_path):
         """With two Picos attached the first in port order is chosen, and the other is reported."""
         second = ChipFacts(device="COM9", serial="0123456789ABCDEF", vid_pid="2E8A:0005")
@@ -249,6 +266,8 @@ def env(tmp_path, monkeypatch) -> Env:
     engine = ReplEngine(cfg, str(config_path), lambda text, color=None: output.append(text))
     engine.ctx.ns("flags")["output_level"] = "verbose"
     engine.ctx.capabilities = CapabilitySet(filesystem_unconfined=True)
+    engine.ctx.sync_capabilities()
+    engine.ctx.config_path = str(config_path)  # a loaded config, as a frontend sets it
     return Env(engine, output)
 
 
@@ -280,16 +299,26 @@ class TestCommands:
         assert "Raspberry Pi Pico" in result.error
         assert not (tmp_path / "termapy_cfg" / "pico").exists()
 
-    def test_board_firmware_copies_the_device_code(self, env: Env, tmp_path):
-        """/board.firmware writes the device code into the folder and names the flashing step."""
-        folder = tmp_path / "fw"
+    def test_board_firmware_copies_into_the_config_folder(self, env: Env, tmp_path):
+        """/board.firmware writes into the config's firmware/ and prints the install command in full."""
+        # Act
+        result = env.engine.dispatch("board.firmware pico")
 
-        result = env.engine.dispatch(f"board.firmware pico folder={folder}")
-
+        # Assert
+        folder = (tmp_path / "cfg" / "firmware").resolve()
         assert result.success, result.error
         for path in firmware_paths(PICO):
             assert (folder / path.name).read_bytes() == path.read_bytes(), path.name
-        assert any("Flash MicroPython" in line for line in env.output), "the next step is named"
+        expected = install_command(PICO, [folder / name for name in PICO.firmware], "<port>")
+        assert result.data["install"] == expected, "no Pico attached, so the port is a placeholder"
+        assert f"Put them on the running board: {expected}" in env.output
+        assert not Path("main.py").exists(), "the working directory is never written"
+
+    def test_board_firmware_relative_folder_is_under_the_config(self, env: Env, tmp_path):
+        """A relative folder= lands under the config's folder."""
+        result = env.engine.dispatch("board.firmware pico folder=fw")
+        assert result.success, result.error
+        assert (tmp_path / "cfg" / "fw" / "main.py").is_file()
 
 
 def _load_board_json():

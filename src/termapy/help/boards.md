@@ -25,6 +25,10 @@ When several are attached it takes the first and says how many it skipped.
 With none attached it says whether the board is missing or still waiting
 in its boot loader.
 
+Everything for the board lands in its config's folder: the config, its
+profile, and the device code in `firmware/`, so a new board is one folder
+under `termapy_cfg/` and nothing in the folder you started termapy from.
+
 Board setup never replaces anything. A config by the same name stops it,
 and so does any config that already connects to the attached board:
 `/board.new` names that config instead of making a second one, and
@@ -41,9 +45,11 @@ no compiler:
    micropython.org and drag it onto the drive. The board restarts as a USB
    serial port.
 2. **Copy the device code.** `/board.firmware pico` writes `main.py` and
-   `termapy_json.py` to the current folder; `uvx mpremote cp main.py
-   termapy_json.py : + reset` puts them on the board, where MicroPython
-   runs `main.py` at every power-up.
+   `termapy_json.py` to the active config's `firmware/` folder and prints
+   the one command that puts them on the board, with the board's port and
+   the files' full paths:
+   `uvx mpremote connect COM5 cp ...\main.py ...\termapy_json.py : + reset`.
+   MicroPython then runs `main.py` at every power-up.
 3. **Create the config.** `/board.new pico`, then `/cfg.load pico`, or
    start termapy with `termapy --board pico`.
 

@@ -11,7 +11,6 @@ a board starter talks to real hardware.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.boards import (
@@ -22,8 +21,11 @@ from termapy.boards import (
     copy_firmware,
     create_board_config,
     find_board,
+    install_command,
 )
 from termapy.config import ConfigExistsError, cfg_dir
+from termapy.folder_ops import write_destination
+from termapy.folders import FIRMWARE
 from termapy.help_dynamic import compose
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command
 from termapy.plugins.params import ParamSpec
@@ -82,7 +84,9 @@ def _long_help(ctx: PluginContext) -> str:
         "Starter projects for real dev boards:",
         "\n".join(rows),
         "{prefix}board.firmware <board> copies the code that runs on the board "
-        "into the current folder (folder= names another).  Flash it, plug the "
+        "into the config's firmware/ folder (folder= names another; a relative "
+        "one is under the config's folder) and prints the command that puts it "
+        "on the board.  Flash it, plug the "
         "board in, then {prefix}board.new <board> creates its config and "
         "profile, connecting by the board's USB serial number so a changed COM "
         "number does not matter; {prefix}cfg.load <board> switches to it.  "
@@ -132,6 +136,8 @@ def _handler_new(ctx: PluginContext, args: str) -> CmdResult:
         f"Created {name}: {board.title} on {created.device}, serial number "
         f"{created.port}{others}.  {ctx.prefix}cfg.load {name} switches to it."
     )
+    if created.firmware:
+        ctx.io.output(f"Its device code is in {created.firmware[0].parent}")
     data = {"config": str(created.path), "port": created.port, "device": created.device}
     return CmdResult.ok(value=str(created.path), data=data)
 
@@ -141,8 +147,7 @@ def _handler_firmware(ctx: PluginContext, args: str) -> CmdResult:
     board = _board_or_fail(ctx)
     if isinstance(board, CmdResult):
         return board
-    given = ctx.arg("folder")
-    folder = Path(given) if given else Path(".")
+    folder = write_destination(ctx, ctx.arg("folder") or "", FIRMWARE)
     try:
         written = copy_firmware(board, folder)
     except FileExistsError as e:
@@ -150,10 +155,14 @@ def _handler_firmware(ctx: PluginContext, args: str) -> CmdResult:
     except OSError as e:
         return CmdResult.fail(msg=f"Write error: {e}")
     names = ", ".join(path.name for path in written)
-    where = str(folder) if given else "the current folder"
-    ctx.io.result(f"Copied {names} to {where}.  {board.flash}")
+    ctx.io.result(f"Copied {names} to {folder}")
+    found = attached(board)
+    port = found.running[0][0] if found.running else "<port>"
+    command = install_command(board, written, port)
+    if command:
+        ctx.io.output(f"Put them on the running board: {command}")
     paths = [str(path) for path in written]
-    return CmdResult.ok(value="\n".join(paths), data={"files": paths})
+    return CmdResult.ok(value="\n".join(paths), data={"files": paths, "install": command})
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -180,15 +189,15 @@ COMMAND = Command(
             ],
         ),
         "firmware": Command(
-            help="Copy the code that runs on a board into a folder, for flashing.",
+            help="Copy the code that runs on a board into the config's firmware/ folder, for flashing.",
             handler=_handler_firmware,
-            needs=CapabilitySet(filesystem_unconfined=True),
+            needs=CapabilitySet.CONFIG_LOADED,
             params=[
                 _BOARD,
                 ParamSpec(
                     "folder",
                     "path",
-                    help="where to write, created if missing (default: the current folder)",
+                    help="where to write instead, created if missing; a relative one is under the config's folder",
                 ),
             ],
         ),

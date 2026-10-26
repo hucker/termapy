@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING
 
 from termapy.config import config_summary, create_config, new_config
 from termapy.firmware import copy_files
-from termapy.folders import PROFILE_SUFFIX
+from termapy.folders import FIRMWARE, PROFILE_SUFFIX, ensure_folder
 from termapy.port_control import PortSource, list_port_records
 
 if TYPE_CHECKING:
@@ -57,6 +57,8 @@ class Board:
         firmware: The device code's files in ``<name>/firmware/``, the one
             to start from first.
         flash: One line on getting the firmware onto the board.
+        install: The shell command that puts copied firmware on a running
+            board, with ``{port}`` and ``{files}`` to fill in.
     """
 
     name: str
@@ -66,6 +68,7 @@ class Board:
     boot_usb: tuple[str, ...] = ()
     firmware: tuple[str, ...] = ()
     flash: str = ""
+    install: str = ""
 
 
 BOARDS: tuple[Board, ...] = (
@@ -79,6 +82,7 @@ BOARDS: tuple[Board, ...] = (
         boot_usb=("2E8A:0003",),
         firmware=("main.py", "termapy_json.py"),
         flash="Flash MicroPython (RPI_PICO), then copy main.py and termapy_json.py to the board.",
+        install="uvx mpremote connect {port} cp {files} : + reset",
     ),
 )
 
@@ -121,12 +125,15 @@ class Created:
         port: The port value written into it (the serial number).
         device: The device it resolves to now (``COM5``).
         others: How many more running boards were attached and not chosen.
+        firmware: The board's device code, copied into the config's
+            ``firmware/`` folder.
     """
 
     path: Path
     port: str
     device: str
     others: int
+    firmware: tuple[Path, ...] = ()
 
 
 def find_board(name: str, boards: Sequence[Board] = BOARDS) -> Board:
@@ -269,7 +276,9 @@ def create_board_config(
     path = create_config(cfg_root / name / f"{name}.cfg", board_config(board, name, serial))
     profile = (_package(board) / "profile.json").read_bytes()
     (path.parent / f"{name}{PROFILE_SUFFIX}").write_bytes(profile)
-    return Created(path, serial, device, len(found.running) - 1)
+    # Everything for the board lives in its config's folder, its code too.
+    firmware = copy_firmware(board, ensure_folder(path.parent / FIRMWARE))
+    return Created(path, serial, device, len(found.running) - 1, tuple(firmware))
 
 
 def firmware_paths(board: Board) -> list[Path]:
@@ -286,3 +295,15 @@ def copy_firmware(board: Board, folder: Path) -> list[Path]:
         OSError: The folder could not be created or a file not written.
     """
     return copy_files([(path, path.name) for path in firmware_paths(board)], folder)
+
+
+def install_command(board: Board, files: Sequence[Path], port: str) -> str:
+    """The shell command that puts ``files`` on the board at ``port``, or ``""`` when it has none.
+
+    Paths are written in full, quoted when they hold a space, so the line
+    can be pasted into any shell from any folder.
+    """
+    if not board.install:
+        return ""
+    quoted = " ".join(f'"{path}"' if " " in str(path) else str(path) for path in files)
+    return board.install.format(port=port, files=quoted)

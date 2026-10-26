@@ -754,7 +754,8 @@ termapy_cfg/
     ├── prof/             # /run.profile timing CSVs
     ├── sym/              # symbol tables (/sym.import)
     ├── dev/              # device files: the board's registers (*.device.json, or a ref)
-    └── lib/              # this config's part library; checked in, the folder travels
+    ├── lib/              # this config's part library; checked in, the folder travels
+    └── firmware/         # device code for this config's board (/firmware.copy, /board.firmware)
 ```
 
 That tree is the maximum, not the default. `prepare_cfg_folder()`, run when a config is loaded (`load_config`) or created, makes the config folder and its `.gitignore`, renames old folder names (`captures/` → `cap/`, `scripts/` → `run/`, `plugins/` → `plugin/`) and moves stem-named sidecars into their folder (`folders.SIDECARS`) — those are the one-time migrations. `cfg_data_dir()` is its read half: it returns the folder and writes nothing, as do `cfg_dir()` and `app_dirs`, so a listing, a viewer or an MCP query may ask about any config without changing it (registry `reads-never-write`). The data folders themselves follow a rule: **a data folder exists while something is in it.** `folders.ensure_folder` creates one at the write (or when a `.explore` command opens it for the user to drop a file in) and never at a read -- a missing folder lists as empty -- `folders.prune_empty_folders` removes empty ones from `ReplEngine.fire_lifecycle` at every config load and at app stop, and nothing else creates or removes one (`tests/test_architecture.py` fails a raw `mkdir` on a data folder). The global `termapy_cfg/plugin/` follows the same rule. `--demo` ships the five folders it populates (`run/ proto/ plugin/ sym/ dev/`). So a plain config is its `.cfg`, log, history, report and `.gitignore`, and `/cfg.info` lists only the folders that exist.

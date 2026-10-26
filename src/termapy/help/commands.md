@@ -66,7 +66,7 @@ script or plugin you wrote is deleted one name at a time, after a yes.
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/board`                  | List the dev boards termapy ships starters for, and which is plugged in     |
-| `/board.firmware <board> {folder=<path>}` | Copy the code that runs on the board into a folder, for flashing; never overwrites |
+| `/board.firmware <board> {folder=<path>}` | Copy the code that runs on the board into the config's `firmware/` folder (a relative `folder=` is under the config's folder) and print the command that puts it on the board; never overwrites |
 | `/board.list`             | Same as bare `/board`                                                       |
 | `/board.new <board> {cfg=<name>}` | Create the board's config and profile, connecting by the attached board's USB serial number; never replaces a config |
 | `/cap`                    | Open the cap/ folder (same as the Cap button and `/cap.explore`)            |
@@ -111,7 +111,7 @@ script or plugin you wrote is deleted one name at a time, after a yes.
 | `/find.next` / `/find.prev` | Step to next / previous find match                                        |
 | `/find.clear`             | Close the find bar (or run `/find` with no args)                            |
 | `/firmware`               | List the device-side sources termapy ships: target, language, files, size   |
-| `/firmware.copy {name} {lang=<l>} {folder=<path>}` | Write the shipped sources into a folder (default: the current one): every module of a language, or one by name; never overwrites |
+| `/firmware.copy {name} {lang=<l>} {folder=<path>}` | Write the shipped sources into the config's `firmware/` folder (a relative `folder=` is under the config's folder): every module of a language, or one by name; never overwrites |
 | `/firmware.dump <name> {file} {lang=<l>}` | Print one shipped source file (over MCP, the value an agent reads) |
 | `/firmware.list`          | Same as bare `/firmware`                                                    |
 | `/firmware.show <name> {lang=<l>}` | Open a target's main source in the system viewer                     |

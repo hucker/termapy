@@ -1,28 +1,45 @@
 """termapy's starter monitor for a Raspberry Pi Pico running MicroPython.
 
-One command per line over USB serial, ended by CR, LF or both, and one
-answer per line.  It runs on the board, not in termapy: copy it to the
-board as main.py and MicroPython starts it at every power-up.  Ctrl-C in a
-terminal stops it and returns to the MicroPython prompt; Ctrl-D restarts it.
+One command per line over USB serial, ended by CR, LF or both.  It runs on
+the board, not in termapy: copy it and termapy_json.py to the board, and
+MicroPython starts it at every power-up.  Ctrl-C in a terminal stops it and
+returns to the MicroPython prompt; Ctrl-D restarts it.
 
     help          list the commands
-    led on|off    the onboard LED
-    temp          on-chip temperature in degrees C
-    id            the board's unique ID, in hex (also its USB serial number)
+    led {on|off}  the onboard LED; bare, its state
+    temp          on-chip temperature in degrees C, a number
+    id            the board's unique ID in hex (also its USB serial number)
+    json {on|off} the reply framing: text for a person, JSON-RPC for termapy's MCP
 
-Errors answer ``ERR <reason>``.  termapy's Pico profile describes these
-commands, so they show in /help and reach an MCP agent as typed tools.
+termapy_json.py is the reply envelope: in text framing a reply is the value
+and a failure ``ERR <reason>``; in JSON framing each reply is one JSON-RPC
+response line, and a ``{...}`` request line switches to it by itself.
+termapy's Pico profile describes these commands, so they show in /help and
+reach an MCP agent as typed tools.
 """
 
 import sys
 
 import machine
+from termapy_json import CommandError, Monitor
 
 led = machine.Pin("LED", machine.Pin.OUT)
 sensor = machine.ADC(4)
 
-# The words led takes and the pin level each sets.
+# The words led takes, the pin level each sets, and back.
 LED_LEVELS = {"on": 1, "off": 0}
+LED_WORDS = {1: "on", 0: "off"}
+
+# Raw bytes out, so a JSON line ends in exactly "\n" and a text line in "\r\n".
+_out = getattr(sys.stdout, "buffer", None)
+
+
+def write(text):
+    """Send one reply line, its line ending included."""
+    if _out is None:
+        sys.stdout.write(text)
+    else:
+        _out.write(text.encode())
 
 
 def read_line():
@@ -38,21 +55,23 @@ def read_line():
 
 
 def cmd_help(args):
-    return "commands: " + " ".join(sorted(COMMANDS))
+    return "commands: " + " ".join(monitor.names())
 
 
 def cmd_led(args):
-    level = LED_LEVELS.get(args[0]) if args else None
-    if level is None:
-        return "ERR usage: led on|off"
+    if not args:
+        return LED_WORDS[led.value()]
+    level = LED_LEVELS.get(args[0])
+    if level is None or len(args) > 1:
+        raise CommandError("usage: led {on|off}")
     led.value(level)
-    return "OK"
+    return args[0]
 
 
 def cmd_temp(args):
     # RP2040 datasheet, section 4.9.5: 27 C reads 0.706 V, -1.721 mV per degree.
     volts = sensor.read_u16() * 3.3 / 65535
-    return f"{27 - (volts - 0.706) / 0.001721:.1f}"
+    return round(27 - (volts - 0.706) / 0.001721, 1)
 
 
 def cmd_id(args):
@@ -61,13 +80,6 @@ def cmd_id(args):
 
 COMMANDS = {"help": cmd_help, "led": cmd_led, "temp": cmd_temp, "id": cmd_id}
 
+monitor = Monitor(COMMANDS, write)
 while True:
-    parts = read_line().split()
-    handler = COMMANDS.get(parts[0])
-    if handler is None:
-        print("ERR unknown command: " + parts[0])
-        continue
-    try:
-        print(handler(parts[1:]))
-    except Exception as e:
-        print("ERR " + str(e))
+    monitor.handle(read_line())

@@ -1,7 +1,7 @@
 {
     "profile_version": 2,
-    "profile_revision": "1.0.0",
-    "profile_date": "2026-10-25",
+    "profile_revision": "1.1.0",
+    "profile_date": "2026-10-26",
     "device": {
         "name": "Raspberry Pi Pico (termapy starter, MicroPython)",
         "vendor": "Raspberry Pi",
@@ -11,7 +11,7 @@
         "on_off": {"kind": "enum", "values": ["on", "off"], "help": "LED state: on or off."}
     },
     "error_detection": {
-        "pattern": "^ERR (?P<message>.+)$",
+        "pattern": "\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
         "async": false,
         "types": {"message": "str"}
     },
@@ -19,39 +19,26 @@
         "help": {
             "help": "List the board's commands.",
             "safety": "readonly",
-            "response": {
-                "format": "regex",
-                "pattern": "^commands: (?P<commands>.+)$",
-                "timeout_ms": 500
-            }
+            "response": {"format": "json", "timeout_ms": 500}
         },
         "led": {
-            "help": "Turn the onboard LED on or off.",
+            "help": "Turn the onboard LED on or off; the reply is the new state.",
             "send_template": "led {state}",
             "typed_args": [
                 {"name": "state", "type": "on_off", "required": true, "help": "LED state."}
             ],
             "safety": "mutable",
-            "response": {"format": "literal", "pattern": "OK", "timeout_ms": 500}
+            "response": {"format": "json", "timeout_ms": 500}
         },
         "temp": {
-            "help": "Read the on-chip temperature sensor, in degrees Celsius.",
+            "help": "Read the on-chip temperature sensor, in degrees Celsius, as a number.",
             "safety": "readonly",
-            "response": {
-                "format": "regex",
-                "pattern": "^(?P<celsius>-?\\d+\\.\\d)$",
-                "types": {"celsius": "float"},
-                "timeout_ms": 500
-            }
+            "response": {"format": "json", "timeout_ms": 500}
         },
         "id": {
             "help": "The board's unique ID in hex, which is also its USB serial number.",
             "safety": "readonly",
-            "response": {
-                "format": "regex",
-                "pattern": "^(?P<id>[0-9A-F]{16})$",
-                "timeout_ms": 500
-            }
+            "response": {"format": "json", "timeout_ms": 500}
         }
     }
 }

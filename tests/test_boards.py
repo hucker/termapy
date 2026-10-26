@@ -13,6 +13,7 @@ injected (``source=`` / ``usb_source=``), so no test needs the board.
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 import os
 import subprocess
@@ -286,8 +287,171 @@ class TestCommands:
         result = env.engine.dispatch(f"board.firmware pico folder={folder}")
 
         assert result.success, result.error
-        assert (folder / "main.py").read_bytes() == firmware_paths(PICO)[0].read_bytes()
+        for path in firmware_paths(PICO):
+            assert (folder / path.name).read_bytes() == path.read_bytes(), path.name
         assert any("Flash MicroPython" in line for line in env.output), "the next step is named"
+
+
+def _load_board_json():
+    """The Pico's termapy_json.py, imported from the package as the board imports it."""
+    path = next(path for path in firmware_paths(PICO) if path.name == "termapy_json.py")
+    spec = importlib.util.spec_from_file_location("pico_termapy_json", path)
+    assert spec is not None and spec.loader is not None, "the board's module loads"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+BOARD_JSON = _load_board_json()
+
+
+class Link:
+    """A Monitor over a fake command table, with the reply bytes it wrote."""
+
+    def __init__(self):
+        def fail(args):
+            raise BOARD_JSON.CommandError("usage: fail")
+
+        def boom(args):
+            raise RuntimeError("sensor fault")
+
+        commands = {
+            "echo": lambda args: " ".join(args),
+            "words": lambda args: args,
+            "num": lambda args: 3.14,
+            "neg": lambda args: -42,
+            "flag": lambda args: True,
+            "str": lambda args: 'hello "quoted" \\ tab\tend',
+            "obj": lambda args: {"name": "stack", "used": 812},
+            "arr": lambda args: [1, "two", 3.5, True],
+            "fail": fail,
+            "boom": boom,
+        }
+        self.out: list[str] = []
+        self.monitor = BOARD_JSON.Monitor(commands, self.out.append)
+
+    def ask(self, line: str) -> list[str]:
+        """Send one line; return the reply lines it produced."""
+        start = len(self.out)
+        self.monitor.handle(line)
+        return self.out[start:]
+
+
+class TestPicoJson:
+    """The Pico's termapy_json.py speaks the termapy_json.c contract (TESTER.md sections 2 to 5)."""
+
+    def test_text_framing_is_the_value_and_err(self):
+        """Text framing: the value as lines ending CRLF, a failure as ERR <message>."""
+        link = Link()
+        assert link.ask("num") == ["3.14\r\n"]
+        assert link.ask("arr") == ["1\r\n", "two\r\n", "3.5\r\n", "true\r\n"]
+        assert link.ask("obj") == ["name stack\r\n", "used 812\r\n"]
+        assert link.ask("fail") == ["ERR usage: fail\r\n"]
+        assert link.ask("nosuch") == ["ERR unknown command: nosuch\r\n"]
+        assert link.ask("   ") == [], "a blank line is ignored"
+
+    def test_framing_round_trip(self):
+        """json on answers in JSON, json off in text, anything else is off; bare json reports."""
+        link = Link()
+        assert link.ask("json") == ["off\r\n"]
+        assert link.ask("json on") == ['{"result":"on"}\n'], "the flip happens before the reply"
+        assert link.ask("json") == ['{"result":"on"}\n']
+        assert link.ask("json off") == ["off\r\n"]
+        link.ask("json on")
+        assert link.ask("json maybe") == ["off\r\n"], "an unknown word fails closed to off"
+
+    def test_envelope_is_compact_and_typed(self):
+        """JSON results keep their type and the envelope is compact, as the C module's fixtures pin."""
+        link = Link()
+        link.ask("json on")
+        assert link.ask("num") == ['{"result":3.14}\n']
+        assert link.ask("neg") == ['{"result":-42}\n']
+        assert link.ask("flag") == ['{"result":true}\n']
+        assert link.ask("str") == ['{"result":"hello \\"quoted\\" \\\\ tab\\tend"}\n']
+        assert link.ask("arr") == ['{"result":[1,"two",3.5,true]}\n']
+        assert link.ask("obj") == ['{"result":{"name":"stack","used":812}}\n']
+
+    def test_error_codes(self):
+        """Unknown command -32601, a handler's refusal -32602, any other failure -32603."""
+        link = Link()
+        link.ask("json on")
+        assert link.ask("nosuch") == [
+            '{"error":{"code":-32601,"message":"unknown command: nosuch"}}\n'
+        ]
+        assert link.ask("fail") == ['{"error":{"code":-32602,"message":"usage: fail"}}\n']
+        assert link.ask("boom") == ['{"error":{"code":-32603,"message":"sensor fault"}}\n']
+
+    def test_a_request_line_switches_to_json_and_echoes_its_id(self):
+        """A {..} line flips framing by itself; its id is echoed last, and a plain line after has none."""
+        link = Link()
+        assert link.ask('{"cmd":"echo","args":"hi there","id":7}') == [
+            '{"result":"hi there","id":7}\n'
+        ]
+        assert link.ask("echo again") == ['{"result":"again"}\n'], "no id without a request"
+        assert link.ask('{ "cmd" : "neg" , "id" : 11 }') == ['{"result":-42,"id":11}\n']
+        assert link.ask('{"cmd":"neg","id":-3}') == ['{"result":-42,"id":-3}\n']
+
+    def test_request_forms(self):
+        """cmd/args and method/params, string or flat array; cmd wins over method, args over params."""
+        link = Link()
+        assert link.ask('{"cmd":"echo"}') == ['{"result":""}\n']
+        assert link.ask('{"method":"echo","params":"5ms 2s"}') == ['{"result":"5ms 2s"}\n']
+        assert link.ask('{"method":"words","params":["5ms","2s"]}') == ['{"result":["5ms","2s"]}\n']
+        assert link.ask('{"method":"words","params":[1,true,"x"]}') == [
+            '{"result":["1","true","x"]}\n'
+        ], "bare scalars are joined verbatim"
+        assert link.ask('{"method":"words","params":[]}') == ['{"result":[]}\n']
+        assert link.ask('{"cmd":"neg","method":"num"}') == ['{"result":-42}\n'], "cmd wins"
+        assert link.ask('{"cmd":"echo","args":"a","params":"b"}') == ['{"result":"a"}\n']
+
+    def test_jsonrpc_tag_is_mirrored(self):
+        """A request carrying jsonrpc gets it back first, and always an id, null when it had none."""
+        link = Link()
+        assert link.ask('{"jsonrpc":"2.0","method":"neg","id":1}') == [
+            '{"jsonrpc":"2.0","result":-42,"id":1}\n'
+        ]
+        assert link.ask('{"jsonrpc":"2.0","method":"neg"}') == [
+            '{"jsonrpc":"2.0","result":-42,"id":null}\n'
+        ]
+        assert link.ask('{"jsonrpc":"2.0","method":"nope"}') == [
+            '{"jsonrpc":"2.0","error":{"code":-32601,"message":"unknown command: nope"},"id":null}\n'
+        ]
+        assert link.ask("neg") == ['{"result":-42}\n'], "the tag does not outlive its request"
+
+    def test_malformed_requests_answer_in_json_and_the_link_recovers(self):
+        """Each malformed request is a -32700 envelope, id'd when the id was readable, and the next line works."""
+        link = Link()
+        malformed = '{"error":{"code":-32700,"message":"malformed json"}}\n'
+        for line in (
+            '{"nope":1}',
+            '{"cmd":"neg',
+            '{"cmd","neg"}',
+            '{"cmd":"echo","args":5}',
+            '{"cmd":"echo","args":["x"]}',
+            '{"method":"echo","params":{"a":1}}',
+            '{"method":"echo","params":[["x"]]}',
+            '{"method":"echo","params":5}',
+            '{"method":"echo","params":null}',
+            '{"cmd":"   "}',
+        ):
+            assert link.ask(line) == [malformed], line
+        assert link.ask('{"cmd":5,"id":3}') == [
+            '{"error":{"code":-32700,"message":"malformed json"},"id":3}\n'
+        ]
+        assert link.ask("neg") == ['{"result":-42}\n'], "the link answers normally afterwards"
+
+    def test_id_rules(self):
+        """Only an integer id of at most ten digits is echoed; a bool or a longer one is dropped."""
+        link = Link()
+        assert link.ask('{"cmd":"neg","id":true}') == ['{"result":-42}\n']
+        assert link.ask('{"cmd":"neg","id":"7"}') == ['{"result":-42}\n']
+        assert link.ask('{"cmd":"neg","id":12345678901}') == ['{"result":-42}\n']
+        assert link.ask('{"cmd":"neg","id":1234567890}') == ['{"result":-42,"id":1234567890}\n']
+
+    def test_names_include_the_framing_command(self):
+        """names() lists the table's commands and the monitor's own json, sorted, for help."""
+        assert Link().monitor.names()[:3] == ["arr", "boom", "echo"]
+        assert "json" in Link().monitor.names()
 
 
 @pytest.mark.slow

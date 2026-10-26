@@ -77,8 +77,8 @@ BOARDS: tuple[Board, ...] = (
         "MicroPython",
         usb=("2E8A:0005",),
         boot_usb=("2E8A:0003",),
-        firmware=("main.py",),
-        flash="Flash MicroPython (RPI_PICO), then copy main.py to the board.",
+        firmware=("main.py", "termapy_json.py"),
+        flash="Flash MicroPython (RPI_PICO), then copy main.py and termapy_json.py to the board.",
     ),
 )
 

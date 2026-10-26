@@ -6,9 +6,9 @@ device profile. The board answers at an interactive prompt, its commands
 show in `/help`, and an MCP agent gets them as typed tools. This is real
 hardware; the simulator is `/demo`.
 
-| Board  | Runs        | Device code | Board commands              |
-| ------ | ----------- | ----------- | --------------------------- |
-| `pico` | MicroPython | `main.py`   | `help`, `led`, `temp`, `id` |
+| Board  | Runs        | Device code                   | Board commands                      |
+| ------ | ----------- | ----------------------------- | ----------------------------------- |
+| `pico` | MicroPython | `main.py`, `termapy_json.py`  | `help`, `led`, `temp`, `id`, `json` |
 
 ```text
 /board                    the boards, and which is plugged in now
@@ -40,22 +40,34 @@ no compiler:
    appears as a drive named `RPI-RP2`. Download the `RPI_PICO` `.uf2` from
    micropython.org and drag it onto the drive. The board restarts as a USB
    serial port.
-2. **Copy the device code.** `/board.firmware pico` writes `main.py` to the
-   current folder; `uvx mpremote cp main.py :main.py + reset` puts it on
-   the board, where MicroPython runs it at every power-up.
+2. **Copy the device code.** `/board.firmware pico` writes `main.py` and
+   `termapy_json.py` to the current folder; `uvx mpremote cp main.py
+   termapy_json.py : + reset` puts them on the board, where MicroPython
+   runs `main.py` at every power-up.
 3. **Create the config.** `/board.new pico`, then `/cfg.load pico`, or
    start termapy with `termapy --board pico`.
 
 The board then answers one command per line:
 
-| Command        | Answer                                                     |
-| -------------- | ---------------------------------------------------------- |
-| `help`         | `commands: help id led temp`                               |
-| `led on\|off`  | `OK`, and the onboard LED follows                          |
-| `temp`         | the on-chip sensor in degrees C, such as `21.4`            |
-| `id`           | the board's unique ID, which is also its USB serial number |
+| Command          | Text reply                          | JSON reply                         |
+| ---------------- | ----------------------------------- | ---------------------------------- |
+| `help`           | `commands: help id json led temp`   | the same string as `result`        |
+| `led`            | the LED's state, `on` or `off`      | `{"result":"on"}`                  |
+| `led on\|off`    | the new state, and the LED follows  | `{"result":"off"}`                 |
+| `temp`           | degrees C, such as `21.4`           | `{"result":21.4}`, a number        |
+| `id`             | the board's unique ID, also its USB serial number | `{"result":"E66548545710822C"}` |
+| `json {on\|off}` | the framing, `on` or `off`          | `{"result":"on"}`                  |
 
-Errors answer `ERR <reason>`. Ctrl-C in the terminal stops the monitor and
-leaves the MicroPython `>>>` prompt; Ctrl-D restarts it. The on-chip
-sensor reads a few degrees off and is noisy; the RP2040 datasheet says as
-much.
+The board speaks two framings. Text, the default, is for a person: a reply
+is the value, and an error is `ERR <reason>`. JSON is for termapy's MCP
+server and any JSON-RPC client: each reply is one JSON-RPC 2.0 response
+line, the same contract as the C module on [JSON integration](firmware-json.md),
+with an error as `{"error":{"code":...,"message":...}}`. `json on` switches
+to it, and a request line such as `{"method":"temp","id":1}` switches by
+itself and gets its `id` back. The Pico's config sends `json on` when the
+MCP server connects, so an agent gets typed values while the TUI stays in
+text.
+
+Ctrl-C in the terminal stops the monitor and leaves the MicroPython `>>>`
+prompt; Ctrl-D restarts it. The on-chip sensor reads a few degrees off and
+is noisy; the RP2040 datasheet says as much.

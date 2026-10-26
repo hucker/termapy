@@ -10,8 +10,14 @@ from typing import TYPE_CHECKING, Literal
 from crcglot import DetectMatch, DetectResult, detect
 
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
-from termapy.folder_ops import build_folder_subcommands, edit_command, file_table, list_entries
-from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, PROTO, default_file_name
+from termapy.folder_ops import (
+    build_folder_subcommands,
+    edit_command,
+    file_table,
+    list_entries,
+    write_destination,
+)
+from termapy.folders import FIRMWARE, FOLDER_EXTS, FOLDER_PATTERNS, PROTO, default_file_name
 from termapy.help_dynamic import compose, folder_line
 from termapy.matching import matches
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
@@ -1059,7 +1065,7 @@ def _write_crc_codegen_files(
     result: str | tuple[str, str],
     lang: str,
     file_stem: str,
-    cwd,
+    folder: Path,
 ) -> list:
     """Write codegen output to disk; return the list of written ``Path``s.
 
@@ -1077,8 +1083,8 @@ def _write_crc_codegen_files(
             ``vhdl``).
         file_stem: User-supplied stem; the per-language extension is
             appended.
-        cwd: Base directory the file(s) are written under (typically
-            ``Path.cwd()``; tests pass ``tmp_path``).
+        folder: The folder the file(s) are written in, the config's
+            ``firmware/`` unless ``file=`` names another.
 
     Returns:
         List of ``Path`` objects, one per file written.  Length 2 for
@@ -1093,11 +1099,11 @@ def _write_crc_codegen_files(
     # returns strings.
     if isinstance(result, tuple):
         for content, ext in zip(result, extensions):
-            path = cwd / f"{file_stem}{ext}"
+            path = folder / f"{file_stem}{ext}"
             path.write_text(str(content), encoding="utf-8")
             written.append(path)
     else:
-        path = cwd / f"{file_stem}{extensions[0]}"
+        path = folder / f"{file_stem}{extensions[0]}"
         path.write_text(str(result), encoding="utf-8")
         written.append(path)
     return written
@@ -1523,19 +1529,21 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 
     # ----- File output mode (file=STEM) -----
     if file_stem is not None:
-        # Writing generated source to the cwd is a host-filesystem write
-        # outside the config sandbox; refuse under the MCP sandbox (the
-        # inline/stdout mode below still works for a confined peer).
-        if not ctx.capabilities.filesystem_unconfined:
-            return CmdResult.fail(
-                msg=(
-                    "Writing generated files to disk is disabled under the "
-                    "MCP sandbox. Omit file= to get the source inline, or set "
-                    "TERMAPY_MCP_FS_UNCONFINED=1 in the server's shell."
-                )
-            )
-        written = _write_crc_codegen_files(result, lang, file_stem, Path.cwd())
-        ctx.io.output(f"Wrote {', '.join(str(p.name) for p in written)}", "green")
+        # Generated source is device code for this config: it goes in the
+        # config's firmware/ folder, never the working directory (registry
+        # writes-in-cfg-folder).  A folder in the stem is under the
+        # config's folder; one outside it passes the sandbox guard.  Only
+        # this mode needs a config, so the handler says so, not the gate.
+        if not ctx.config_path:
+            return CmdResult.fail(msg=STATE_MESSAGES["config_loaded"])
+        stem = Path(file_stem)
+        given = "" if stem.parent == Path(".") else str(stem.parent)
+        folder = write_destination(ctx, given, FIRMWARE)
+        try:
+            written = _write_crc_codegen_files(result, lang, stem.name, folder)
+        except OSError as e:
+            return CmdResult.fail(msg=f"Write error: {e}")
+        ctx.io.output(f"Wrote {', '.join(str(p) for p in written)}", "green")
         # Return the joined paths so scripts can capture them.
         return CmdResult.ok(value=" ".join(str(p) for p in written))
 
@@ -2356,8 +2364,9 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
         f"named CRC. Use {{prefix}}proto.crc.list to see every available\n"
         f"algorithm name, or {{prefix}}proto.crc.info <name> for its parameters.\n"
         f"\n"
-        f"With ``file=STEM``, writes {ext_desc} to the current directory\n"
-        f"instead of stdout.\n"
+        f"With ``file=STEM``, writes {ext_desc} to the config's firmware/\n"
+        f"folder instead of the screen. A folder in STEM is under the\n"
+        f"config's folder.\n"
         f"\n"
         f"Pass two or more algorithm names to bundle them into a single\n"
         f"output (each algorithm keeps its own symbol; ``symbol=`` is not\n"

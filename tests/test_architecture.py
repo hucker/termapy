@@ -2631,6 +2631,7 @@ STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
     ("builtins/commands/proto.py", "_handler_send"): "--dry-run sends nothing",
     ("builtins/commands/proto.py", "_handler_crc_find"): "only cmd= mode talks to the device",
     ("builtins/commands/proto.py", "_handler_crc_reverse"): "only cmd= mode talks to the device",
+    ("builtins/commands/proto.py", "_crc_codegen"): "only file= writes, into the config's folder",
     (
         "builtins/commands/var.py",
         "_handler_capture",

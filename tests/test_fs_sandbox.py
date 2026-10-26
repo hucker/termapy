@@ -183,15 +183,26 @@ class TestMcpHostSandboxed:
             "name-based cfg.load (MCP hot-swap) is not sandbox-gated"
         )
 
-    def test_crc_file_write_refused(self, tmp_path):
-        """CRC codegen with file= is a host-fs write, so the sandbox refuses it."""
+    def test_crc_file_write_lands_in_the_config_folder(self, tmp_path):
+        """CRC codegen with file= writes into the config's firmware/ folder, inside the sandbox."""
         # Arrange
         host = _mcp_host(tmp_path)
-        # Act -- codegen to disk is a host-fs write.
-        result = host.repl.dispatch("proto.crc.python crc32 file=evil")
+        # Act
+        result = host.repl.dispatch("proto.crc.python crc32 file=my_crc")
         # Assert
-        assert not result.success, "crc file= write refused under sandbox"
+        assert result.success, f"an in-sandbox write is allowed: {result.error!r}"
+        assert (tmp_path / "cfg" / "firmware" / "my_crc.py").exists(), "written in firmware/"
+
+    def test_crc_file_write_outside_refused(self, tmp_path):
+        """CRC codegen with an absolute file= is a host-fs write, so the sandbox refuses it."""
+        # Arrange
+        host = _mcp_host(tmp_path)
+        # Act -- an absolute stem leaves the config folder.
+        result = host.repl.dispatch(rf"proto.crc.python crc32 file={tmp_path}\evil")
+        # Assert
+        assert not result.success, "crc file= outside the config refused under sandbox"
         assert "sandbox" in result.error, "refusal cites the sandbox"
+        assert not (tmp_path / "evil.py").exists(), "nothing written outside"
 
     def test_crc_inline_still_works(self, tmp_path):
         """Inline CRC codegen (no file=) writes nothing to disk and is not sandbox-gated."""

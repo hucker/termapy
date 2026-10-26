@@ -37,6 +37,7 @@ nav:
   - Memory: memory.md
   - Firmware: firmware.md
   - JSON Integration: firmware-json.md
+  - Dev Boards: boards.md
   - File Transfer: file-transfer.md
   - Writing Plugins: writing-plugins.md
   - Device Help: device-help.md

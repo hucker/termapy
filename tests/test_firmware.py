@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from termapy.boards import BOARDS, firmware_paths
 from termapy.firmware import (
     TARGETS,
     Target,
@@ -86,19 +87,25 @@ class TestTable:
                 assert source_text(target, name), f"{target.name}: {name} is empty"
 
     def test_shipped_sources_are_ascii(self):
-        """firmware-ascii-only: Every file /firmware ships is pure ASCII; a section rule is --, never box drawing.
+        """firmware-ascii-only: Every device-side file /firmware or /board ships is pure ASCII; a rule is --.
 
-        The sources are compiled by toolchains, read in build logs and editors
-        that mishandle UTF-8, and travel in a JSON envelope where each
-        non-ASCII character is six characters of ``\\uXXXX``.  Until
-        2026-10-25 the four modules shipped 867 box-drawing rule characters.
+        The sources are compiled by toolchains, run on boards, read in build
+        logs and editors that mishandle UTF-8, and travel in a JSON envelope
+        where each non-ASCII character is six characters of ``\\uXXXX``.
+        Until 2026-10-25 the four modules shipped 867 box-drawing rule
+        characters.
         """
-        offenders = {
-            f"{target.name}/{name}": chars
+        shipped = {
+            f"{target.name}/{name}": source_path(target, name)
             for target in TARGETS
             for name in target.sources
-            if (chars := _non_ascii(source_path(target, name)))
         }
+        shipped |= {
+            f"board {board.name}/{path.name}": path
+            for board in BOARDS
+            for path in firmware_paths(board)
+        }
+        offenders = {name: chars for name, path in shipped.items() if (chars := _non_ascii(path))}
         assert offenders == {}, f"non-ASCII in shipped sources (write -- for a rule): {offenders}"
 
     def test_ascii_guard_fires_on_a_probe(self, tmp_path):

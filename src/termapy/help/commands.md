@@ -65,6 +65,10 @@ script or plugin you wrote is deleted one name at a time, after a yes.
 
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
+| `/board`                  | List the dev boards termapy ships starters for, and which is plugged in     |
+| `/board.firmware <board> {folder=<path>}` | Copy the code that runs on the board into a folder, for flashing; never overwrites |
+| `/board.list`             | Same as bare `/board`                                                       |
+| `/board.new <board> {cfg=<name>}` | Create the board's config and profile, connecting by the attached board's USB serial number; never replaces a config |
 | `/cap`                    | Open the cap/ folder (same as the Cap button and `/cap.explore`)            |
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |

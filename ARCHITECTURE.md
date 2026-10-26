@@ -32,9 +32,11 @@ The whole system fits in your head once these pieces click. Each is detailed in 
 
 ```text
 src/termapy/
+├── boards/                 #              Starter projects for real dev boards, one command away: the `/board` registry
 ├── builtins/               #              The plugins termapy ships: commands, CRC algorithms, the demo config, packet visualizers
 │   ├── commands/           #   The command plugins, one module per command family (private _* helpers omitted)
 │   │   ├── app.py          #     inspect app-wide state and config
+│   │   ├── board.py        #     /board -- starter projects for real dev boards
 │   │   ├── cap.py          #     unified data capture - text, binary, struct, hex
 │   │   ├── cfg.py          #     show or change config values, project info, file listings
 │   │   ├── cls.py          #     clear the terminal screen
@@ -883,6 +885,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_architecture.py                | Structural rules checked against the source tree itself                                                                                            |
 | test_architecture_sync.py           | Guard ARCHITECTURE.md's generated module tree and test table against hand edits and drift                                                          |
 | test_bare_forms.py                  | bare-declared: a bare call's behavior is a declaration the dispatcher honors                                                                       |
+| test_boards.py                      | Dev-board starter projects: the `/board` table, finding a board, its config, its firmware                                                          |
 | test_builtins.py                    | Tests for built-in REPL commands dispatched through ReplEngine                                                                                     |
 | test_cap_poll.py                    | `/cap.poll`: the scheduled polling loop, its files, its validation, and its stop                                                                   |
 | test_capture.py                     | Tests for CaptureEngine - file capture state machine                                                                                               |

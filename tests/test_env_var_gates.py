@@ -21,6 +21,8 @@ with -- the readers take an explicit environment and error list so that
 contract is pinned without touching the process environment.
 """
 
+# cspell:ignore ture -- the misspelled "true" these tests feed in on purpose
+
 from __future__ import annotations
 
 import json

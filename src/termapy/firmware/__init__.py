@@ -185,14 +185,39 @@ def copy_targets(targets: Sequence[Target], folder: Path) -> list[Path]:
         FileExistsError: Its message is the path that already exists.
         OSError: The folder could not be created or a file not written.
     """
+    return copy_files(
+        [(source_path(target, name), name) for target in targets for name in target.sources],
+        folder,
+    )
+
+
+def copy_files(sources: Sequence[tuple[Path, str]], folder: Path) -> list[Path]:
+    """Write each ``(source, name)`` into ``folder`` as ``name``, byte for byte, creating the folder.
+
+    The one copy behind ``/firmware.copy`` and ``/board.firmware``: it
+    refuses before writing anything if any destination is already there,
+    so a file the user has edited is never overwritten and a half-written
+    set never exists.
+
+    Args:
+        sources: The shipped files and the names they get in ``folder``.
+        folder: Where to write; created if missing.  The user's own folder,
+            not a data folder, so a raw ``mkdir`` is right here.
+
+    Returns:
+        The paths written, in ``sources`` order.
+
+    Raises:
+        FileExistsError: Its message is the path that already exists.
+        OSError: The folder could not be created or a file not written.
+    """
     folder.mkdir(parents=True, exist_ok=True)
-    pairs = [(target, name) for target in targets for name in target.sources]
-    for _, name in pairs:
+    for _, name in sources:
         if (folder / name).exists():
             raise FileExistsError(str(folder / name))
     written: list[Path] = []
-    for target, name in pairs:
+    for source, name in sources:
         destination = folder / name
-        destination.write_bytes(source_path(target, name).read_bytes())
+        destination.write_bytes(source.read_bytes())
         written.append(destination)
     return written

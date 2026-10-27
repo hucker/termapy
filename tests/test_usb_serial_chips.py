@@ -1,6 +1,44 @@
 """Tests for termapy.usb.chips -- VID:PID -> ChipInfo lookup."""
 
+import pytest
+
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, chip
+
+# Rows the 2026-10-25 audit corrected, each with the part its vendor's own
+# list or driver gives the PID.  The table had the right PIDs and a
+# neighboring part's name; these pin the names to the sources cited beside
+# each vendor block in usb/chips.py.
+SOURCED_NAMES: list[tuple[int, int, str]] = [
+    (0x2E8A, 0x0005, "MicroPython"),  # raspberrypi/usb-pid
+    (0x2E8A, 0x0009, "Pico SDK"),
+    (0x2E8A, 0x000B, "CircuitPython"),
+    (0x2E8A, 0x000C, "Debug Probe"),
+    (0x2E8A, 0x000F, "RP2350 bootloader"),
+    (0x04D8, 0x00DD, "MCP2221"),  # Linux hid-ids.h
+    (0x04D8, 0x00DF, "MCP2200"),
+    (0x067B, 0x23B3, "PL2303GB"),  # Linux pl2303.h
+    (0x067B, 0x23D3, "PL2303GL"),
+    (0x067B, 0x23F3, "PL2303GS"),
+    (0x1A86, 0x55D2, "CH342"),  # WCH ch343ser_linux
+    (0x1A86, 0x55D5, "CH344"),
+    (0x1A86, 0x55D7, "CH9103"),
+    (0x1A86, 0x55D8, "CH9101"),
+    (0x1A86, 0x55DA, "CH347"),
+    (0x10C4, 0xEA7A, "CP2105"),  # Linux cp210x.c
+    (0x10C4, 0xEA7B, "CP2108"),
+    (0x0403, 0x6006, "FT232R"),  # Linux ftdi_sio_ids.h
+    (0x0403, 0x6040, "FT2233HP"),
+    (0x0403, 0x6041, "FT4233HP"),
+    (0x0403, 0x6043, "FT4232HP"),
+    (0x0403, 0x6045, "FT232HP"),
+    (0x16C0, 0x0483, "USB Serial"),  # PJRC teensy4/usb_desc.h
+    (0x16C0, 0x0486, "RawHID"),
+    (0x16C0, 0x0487, "Serial+Keyboard"),
+    (0x16C0, 0x0489, "Serial+MIDI"),
+    (0x0483, 0x374B, "V2-1"),  # usb.ids
+    (0x303A, 0x1001, "USB-Serial/JTAG"),  # esp-pylib constants
+    (0x303A, 0x4001, "TinyUSB"),  # esp-usb esp_tinyusb descriptors
+]
 
 
 class TestChipLookup:
@@ -121,3 +159,39 @@ class TestChipTableStructure:
             if not (isinstance(v.max_baud, int) and v.max_baud >= 0)
         ]
         assert bad == [], f"max_baud must be >= 0 int; violations: {bad}"
+
+
+class TestSourcedNames:
+    """The corrected rows name the part their vendor's own source gives the PID."""
+
+    @pytest.mark.parametrize(("vid", "pid", "expected"), SOURCED_NAMES)
+    def test_row_names_the_sourced_part(self, vid, pid, expected):
+        """A row names the part its vendor's list or driver gives the PID, not a neighbor's (audit 2026-10-25)."""
+        # Act
+        actual = chip(vid, pid)
+
+        # Assert
+        assert actual is not None, f"{vid:04X}:{pid:04X} is in the table"
+        assert expected in actual.model, f"{vid:04X}:{pid:04X} is {expected}, got {actual.model}"
+
+    def test_no_model_names_two_pids_of_one_vendor_as_one_part(self):
+        """Within one vendor no two PIDs carry the same model text, except where the source shares it.
+
+        The audit's errors were names shuffled among neighbors, which can
+        leave two PIDs naming one part.  WCH's CH340 is the one sourced
+        pair: usb.ids lists 0x7522 and 0x7523 as the same chip.
+        """
+        # Arrange
+        allowed = {(0x1A86, "WCH CH340")}
+        seen: dict[tuple[int, str], int] = {}
+        duplicates: list[str] = []
+
+        # Act
+        for (vid, pid), info in USB_SERIAL_CHIPS.items():
+            key = (vid, info.model)
+            if key in seen and key not in allowed:
+                duplicates.append(f"{vid:04X}:{seen[key]:04X} and {pid:04X}: {info.model}")
+            seen.setdefault(key, pid)
+
+        # Assert
+        assert duplicates == [], f"one part named by two PIDs: {duplicates}"

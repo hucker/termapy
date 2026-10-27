@@ -45,66 +45,83 @@ class ChipInfo:
     max_baud: int
 
 
-# Source: chip datasheets and FTDI/Silicon Labs/WCH product pages.
+# Each vendor block names the primary source its PIDs and part names were
+# checked against on 2026-10-25: the vendor's own allocation list or driver
+# source, or usb.ids where the vendor keeps one there.  A block marked "not
+# verified" is curated without one.  Until then the table named parts from
+# memory beside correct PIDs, and about a quarter of its names were a
+# neighboring part's (review 2026-07-03, R2607-04, reopened 2026-10-25).
+# ``speed`` and ``max_baud`` travel with the part name they were written for.
 USB_SERIAL_CHIPS: dict[tuple[int, int], ChipInfo] = {
-    # FTDI (vid 0x0403)
+    # FTDI (vid 0x0403) -- Linux drivers/usb/serial/ftdi_sio_ids.h
     (0x0403, 0x6001): ChipInfo("FTDI FT232R / FT245R", "full", 3_000_000),
-    (0x0403, 0x6006): ChipInfo("FTDI FT8U100AX (legacy)", "full", 115_200),
+    (0x0403, 0x6006): ChipInfo("FTDI FT232R / FT245R (alternate PID)", "full", 3_000_000),
     (0x0403, 0x6010): ChipInfo("FTDI FT2232C/D/H", "high", 12_000_000),
     (0x0403, 0x6011): ChipInfo("FTDI FT4232H", "high", 12_000_000),
     (0x0403, 0x6014): ChipInfo("FTDI FT232H", "high", 12_000_000),
     (0x0403, 0x6015): ChipInfo("FTDI FT230X / FT231X / FT234XD", "full", 3_000_000),
-    (0x0403, 0x6040): ChipInfo("FTDI FT4233HP", "high", 12_000_000),
-    (0x0403, 0x6041): ChipInfo("FTDI FT4232HP", "high", 12_000_000),
+    (0x0403, 0x6040): ChipInfo("FTDI FT2233HP", "high", 12_000_000),
+    (0x0403, 0x6041): ChipInfo("FTDI FT4233HP", "high", 12_000_000),
     (0x0403, 0x6042): ChipInfo("FTDI FT2232HP", "high", 12_000_000),
-    (0x0403, 0x6043): ChipInfo("FTDI FT232HP", "high", 12_000_000),
-    # Silicon Labs (vid 0x10C4)
+    (0x0403, 0x6043): ChipInfo("FTDI FT4232HP", "high", 12_000_000),
+    (0x0403, 0x6044): ChipInfo("FTDI FT233HP", "high", 12_000_000),
+    (0x0403, 0x6045): ChipInfo("FTDI FT232HP", "high", 12_000_000),
+    (0x0403, 0x6048): ChipInfo("FTDI FT4232HA", "high", 12_000_000),
+    # Silicon Labs (vid 0x10C4) -- Linux drivers/usb/serial/cp210x.c, usb.ids
     (0x10C4, 0xEA60): ChipInfo("Silicon Labs CP2102 / CP2102N", "full", 921_600),
-    (0x10C4, 0xEA63): ChipInfo("Silicon Labs CP210x (variant)", "full", 921_600),
+    (0x10C4, 0xEA63): ChipInfo(
+        "Silicon Labs CP2101-4 / CP2102N (Windows Update PID)", "full", 921_600
+    ),
     (0x10C4, 0xEA70): ChipInfo("Silicon Labs CP2105 (dual UART)", "full", 921_600),
     (0x10C4, 0xEA71): ChipInfo("Silicon Labs CP2108 (quad UART)", "full", 921_600),
-    (0x10C4, 0xEA7A): ChipInfo("Silicon Labs CP2102N-QFN28", "full", 3_000_000),
-    (0x10C4, 0xEA7B): ChipInfo("Silicon Labs CP2102N-QFN24", "full", 3_000_000),
+    (0x10C4, 0xEA7A): ChipInfo("Silicon Labs CP2105 (Windows Update PID)", "full", 921_600),
+    (0x10C4, 0xEA7B): ChipInfo("Silicon Labs CP2108 (Windows Update PID)", "full", 921_600),
     (0x10C4, 0xEA80): ChipInfo("Silicon Labs CP2110 (HID)", "full", 1_000_000),
     (0x10C4, 0xEA90): ChipInfo("Silicon Labs CP2112 (HID-I2C)", "full", 0),  # not UART
-    # WCH (vid 0x1A86) - cheap chips on most $5 dev boards
+    # WCH (vid 0x1A86) - cheap chips on most $5 dev boards -- WCH's own Linux
+    # driver (WCHSoftGroup/ch343ser_linux) for 55Dx, usb.ids for the rest
     (0x1A86, 0x5512): ChipInfo("WCH CH341 (parallel mode)", "full", 2_000_000),
     (0x1A86, 0x5523): ChipInfo("WCH CH341 (serial mode)", "full", 2_000_000),
     (0x1A86, 0x7522): ChipInfo("WCH CH340", "full", 2_000_000),
     (0x1A86, 0x7523): ChipInfo("WCH CH340", "full", 2_000_000),
-    (0x1A86, 0x55D2): ChipInfo("WCH CH9101", "full", 4_000_000),
+    (0x1A86, 0x55D2): ChipInfo("WCH CH342 (dual UART)", "full", 6_000_000),
     (0x1A86, 0x55D3): ChipInfo("WCH CH343", "full", 6_000_000),
     (0x1A86, 0x55D4): ChipInfo("WCH CH9102", "full", 4_000_000),
-    (0x1A86, 0x55D5): ChipInfo("WCH CH9103 (dual UART)", "full", 4_000_000),
-    (0x1A86, 0x55D7): ChipInfo("WCH CH344 (quad UART)", "high", 6_000_000),
-    (0x1A86, 0x55D8): ChipInfo("WCH CH347 (USB-MPSSE)", "high", 9_000_000),
-    # Prolific (vid 0x067B)
+    (0x1A86, 0x55D5): ChipInfo("WCH CH344 (quad UART)", "high", 6_000_000),
+    (0x1A86, 0x55D7): ChipInfo("WCH CH9103 (dual UART)", "full", 4_000_000),
+    (0x1A86, 0x55D8): ChipInfo("WCH CH9101", "full", 4_000_000),
+    (0x1A86, 0x55DA): ChipInfo("WCH CH347T (mode 0)", "high", 9_000_000),
+    (0x1A86, 0x55DB): ChipInfo("WCH CH347T (mode 1)", "high", 9_000_000),
+    (0x1A86, 0x55DD): ChipInfo("WCH CH347T (mode 3)", "high", 9_000_000),
+    # Prolific (vid 0x067B) -- Linux drivers/usb/serial/pl2303.h
     (0x067B, 0x2303): ChipInfo("Prolific PL2303 (HX/TA/XA/EA)", "full", 1_500_000),
     (0x067B, 0x23A3): ChipInfo("Prolific PL2303GC", "full", 12_000_000),
-    (0x067B, 0x23B3): ChipInfo("Prolific PL2303GL", "full", 12_000_000),
+    (0x067B, 0x23B3): ChipInfo("Prolific PL2303GB", "full", 12_000_000),
     (0x067B, 0x23C3): ChipInfo("Prolific PL2303GT", "full", 12_000_000),
-    (0x067B, 0x23D3): ChipInfo("Prolific PL2303GS", "full", 12_000_000),
+    (0x067B, 0x23D3): ChipInfo("Prolific PL2303GL", "full", 12_000_000),
     (0x067B, 0x23E3): ChipInfo("Prolific PL2303GE", "full", 12_000_000),
-    (0x067B, 0x23F3): ChipInfo("Prolific PL2303GR", "full", 12_000_000),
-    # Microchip (vid 0x04D8)
-    (0x04D8, 0x00DD): ChipInfo("Microchip MCP2200", "full", 1_000_000),
-    (0x04D8, 0x00DF): ChipInfo("Microchip MCP2221 (UART+I2C)", "full", 460_800),
+    (0x067B, 0x23F3): ChipInfo("Prolific PL2303GS", "full", 12_000_000),
+    # Microchip (vid 0x04D8) -- Linux drivers/hid/hid-ids.h
+    (0x04D8, 0x00DD): ChipInfo("Microchip MCP2221 (UART+I2C)", "full", 460_800),
+    (0x04D8, 0x00DF): ChipInfo("Microchip MCP2200", "full", 1_000_000),
     # 0x9036 is a composite (MI_xx) Microchip USB-CDC device -- not one
     # of the dedicated bridge ICs.  Most likely a dev board / instrument
     # using a PIC or SAMD MCU's native USB stack to expose CDC.  Keep
     # the entry generic until the specific product is identified.
     (0x04D8, 0x9036): ChipInfo("Microchip USB-CDC device", "full", 1_000_000),
-    # STMicroelectronics (vid 0x0483)
+    # STMicroelectronics (vid 0x0483) -- usb.ids; 374F "Mini" not verified
     (0x0483, 0x5740): ChipInfo("STM32 Virtual COM Port", "full", 2_000_000),
-    (0x0483, 0x374B): ChipInfo("ST-Link V2 (with VCP)", "full", 2_000_000),
+    (0x0483, 0x374B): ChipInfo("ST-Link V2-1 (with VCP)", "full", 2_000_000),
     (0x0483, 0x374E): ChipInfo("ST-Link V3", "high", 8_000_000),
     (0x0483, 0x374F): ChipInfo("ST-Link V3 Mini", "high", 8_000_000),
-    # Espressif (vid 0x303A) - ESP32 native USB
-    (0x303A, 0x0002): ChipInfo("Espressif ESP32-S2 JTAG/CDC", "full", 2_000_000),
-    (0x303A, 0x1001): ChipInfo("Espressif ESP32-S2/S3 native CDC", "full", 2_000_000),
-    (0x303A, 0x1002): ChipInfo("Espressif ESP32-S3 USB-JTAG", "full", 2_000_000),
-    (0x303A, 0x4001): ChipInfo("Espressif ESP32-C3 USB-JTAG", "full", 2_000_000),
-    # Arduino (vid 0x2341)
+    # Espressif (vid 0x303A) - ESP32 native USB -- esp-pylib constants (1001),
+    # esptool (ROM download mode enumerates with PID = the chip's image ID:
+    # S2 is 2, S3 is 9), esp-usb's esp_tinyusb descriptors (4001 = 0x4000 | CDC)
+    (0x303A, 0x0002): ChipInfo("Espressif ESP32-S2 ROM download (USB-OTG)", "full", 2_000_000),
+    (0x303A, 0x0009): ChipInfo("Espressif ESP32-S3 ROM download (USB-OTG)", "full", 2_000_000),
+    (0x303A, 0x1001): ChipInfo("Espressif USB-Serial/JTAG (ESP32-C3/S3/C6/H2)", "full", 2_000_000),
+    (0x303A, 0x4001): ChipInfo("Espressif TinyUSB CDC (ESP-IDF default)", "full", 2_000_000),
+    # Arduino (vid 0x2341) -- usb.ids; 8037, 804E, 8054, 8057 not verified
     (0x2341, 0x0001): ChipInfo("Arduino Uno (original)", "full", 115_200),
     (0x2341, 0x0043): ChipInfo("Arduino Uno R3 (ATmega16U2 native)", "full", 2_000_000),
     (0x2341, 0x0042): ChipInfo("Arduino Mega 2560 R3", "full", 2_000_000),
@@ -116,30 +133,34 @@ USB_SERIAL_CHIPS: dict[tuple[int, int], ChipInfo] = {
     (0x2341, 0x804E): ChipInfo("Arduino MKR Zero", "full", 2_000_000),
     (0x2341, 0x8054): ChipInfo("Arduino MKR WiFi 1010", "full", 2_000_000),
     (0x2341, 0x8057): ChipInfo("Arduino Nano 33 IoT", "full", 2_000_000),
-    # SparkFun (vid 0x1B4F)
+    # SparkFun (vid 0x1B4F) -- not verified
     (0x1B4F, 0x9203): ChipInfo("SparkFun Pro Micro 3.3V", "full", 2_000_000),
     (0x1B4F, 0x9206): ChipInfo("SparkFun Pro Micro 5V", "full", 2_000_000),
     (0x1B4F, 0x9207): ChipInfo("SparkFun Pro Micro (bootloader)", "full", 2_000_000),
-    # Adafruit (vid 0x239A)
+    # Adafruit (vid 0x239A) -- not verified
     (0x239A, 0x8014): ChipInfo("Adafruit Metro M0 Express", "full", 2_000_000),
     (0x239A, 0x8019): ChipInfo("Adafruit Feather M0 Express", "full", 2_000_000),
     (0x239A, 0x800B): ChipInfo("Adafruit Metro M4 / Feather M4", "full", 2_000_000),
     (0x239A, 0x80CB): ChipInfo("Adafruit Trinket M0", "full", 2_000_000),
     (0x239A, 0x80F3): ChipInfo("Adafruit QT Py RP2040", "full", 2_000_000),
-    # PJRC Teensy (vid 0x16C0)
-    (0x16C0, 0x0476): ChipInfo("Teensy RawHID", "full", 0),
+    # PJRC Teensy (vid 0x16C0) -- PJRC's core, teensy4/usb_desc.h, and usb.ids.
+    # A PID names the USB type the sketch was built with, the same on every
+    # Teensy model, so speed follows the dominant in-field part (Teensy 4.x,
+    # High-Speed), as the FT2232C/D/H row does.
     (0x16C0, 0x0478): ChipInfo("Teensy bootloader (HalfKay)", "full", 0),
-    (0x16C0, 0x0483): ChipInfo("Teensy 2.x (ATmega32U4 native USB)", "full", 2_000_000),
-    (0x16C0, 0x0486): ChipInfo("Teensy Serial+Keyboard+Mouse+Joystick", "full", 2_000_000),
-    (0x16C0, 0x0487): ChipInfo("Teensy HID only", "full", 0),
-    (0x16C0, 0x0489): ChipInfo("Teensy 3.x / 4.x (ARM native USB)", "high", 12_000_000),
-    # Raspberry Pi (vid 0x2E8A)
+    (0x16C0, 0x0483): ChipInfo("Teensy USB Serial (any model)", "high", 12_000_000),
+    (0x16C0, 0x0486): ChipInfo("Teensy RawHID", "high", 0),
+    (0x16C0, 0x0487): ChipInfo("Teensy Serial+Keyboard+Mouse+Joystick", "high", 12_000_000),
+    (0x16C0, 0x0489): ChipInfo("Teensy Serial+MIDI", "high", 12_000_000),
+    # Raspberry Pi (vid 0x2E8A) -- Raspberry Pi's PID list, github.com/raspberrypi/usb-pid
     (0x2E8A, 0x0003): ChipInfo("Raspberry Pi RP2040 bootloader (RPI-RP2)", "full", 0),
-    (0x2E8A, 0x0005): ChipInfo("Raspberry Pi Debug Probe", "full", 2_000_000),
-    (0x2E8A, 0x000A): ChipInfo("Raspberry Pi RP2040 (Pico) native USB", "full", 2_000_000),
-    (0x2E8A, 0x000B): ChipInfo("Raspberry Pi Pico MicroPython", "full", 2_000_000),
-    (0x2E8A, 0x000C): ChipInfo("Raspberry Pi Pico CircuitPython", "full", 2_000_000),
-    (0x2E8A, 0x0009): ChipInfo("Raspberry Pi Pico W (default)", "full", 2_000_000),
+    (0x2E8A, 0x0004): ChipInfo("Raspberry Pi PicoProbe (obsolete)", "full", 2_000_000),
+    (0x2E8A, 0x0005): ChipInfo("Raspberry Pi Pico MicroPython firmware", "full", 2_000_000),
+    (0x2E8A, 0x0009): ChipInfo("Raspberry Pi Pico SDK USB serial", "full", 2_000_000),
+    (0x2E8A, 0x000A): ChipInfo("Raspberry Pi Pico SDK USB serial (RP2040)", "full", 2_000_000),
+    (0x2E8A, 0x000B): ChipInfo("Raspberry Pi Pico CircuitPython firmware", "full", 2_000_000),
+    (0x2E8A, 0x000C): ChipInfo("Raspberry Pi Debug Probe", "full", 2_000_000),
+    (0x2E8A, 0x000F): ChipInfo("Raspberry Pi RP2350 bootloader", "full", 0),
 }
 
 

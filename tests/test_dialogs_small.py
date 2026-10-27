@@ -28,7 +28,8 @@ from termapy.dialogs import (
     SetVarDialog,
     UpdateAvailableDialog,
 )
-from termapy.dialogs._common import PathLink
+from termapy.dialogs._common import PathLink, PortOptionList
+from termapy.port_control import _build_demo_fleet, loopback_port_facts
 
 
 class _Host(App):
@@ -445,6 +446,59 @@ class TestPortPicker:
                 await pilot.press("escape")
                 await pilot.pause()
                 assert (results, results_escape) == ([None], [None])
+
+        _run(scenario)
+
+    def test_the_dialog_is_as_wide_as_its_table(self):
+        """On a wide terminal the picker fits its table, not a share of the screen, and every row fits on one line."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(240, 50)) as pilot:
+                await _push(app, pilot, PortPicker())
+                port_list = app.screen.query_one("#port-list", PortOptionList)
+                dialog = app.screen.query_one("#port-dialog")
+                room = port_list.content_size.width - port_list.styles.scrollbar_size_vertical
+
+                actual = dialog.outer_size.width
+                assert actual == port_list.dialog_width(), "the dialog is the table plus its chrome"
+                assert actual < 240, "not stretched across a wide terminal"
+                assert _widest_row(port_list) <= room, "no row wraps"
+
+        _run(scenario)
+
+
+def _widest_row(port_list: OptionList) -> int:
+    """The longest option text in ``port_list``, header and separator included."""
+    return max(
+        len(str(port_list.get_option_at_index(i).prompt)) for i in range(port_list.option_count)
+    )
+
+
+class _PortListHost(App):
+    """A port list alone, in a box narrower than its table."""
+
+    CSS = "PortOptionList { width: 70; height: 10; }"
+
+    def compose(self):
+        yield PortOptionList([*_build_demo_fleet(), loopback_port_facts()], id="ports")
+
+
+class TestPortOptionList:
+    def test_a_narrow_list_drops_columns_instead_of_wrapping(self):
+        """Given less room than the table needs, the rows refit to the measured width by dropping columns."""
+
+        async def scenario():
+            app = _PortListHost()
+            async with app.run_test(size=(100, 20)) as pilot:
+                await pilot.pause()
+                port_list = app.query_one("#ports", PortOptionList)
+                room = port_list.content_size.width - port_list.styles.scrollbar_size_vertical
+                assert port_list.table_width() > room, "precondition: the whole table cannot fit"
+
+                header = str(port_list.get_option_at_index(0).prompt)
+                assert _widest_row(port_list) <= room, "every row fits on one line"
+                assert "PORT" in header, "the port column is never dropped"
 
         _run(scenario)
 

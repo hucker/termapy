@@ -10,17 +10,15 @@ a handler.  The monitor adds two of its own: ``help`` lists every command
 with its help line, and ``json {on|off}`` switches the reply framing.  A new
 command is a handler and a row.
 
-termapy_json.py is the reply envelope: in text framing a reply is the value
-and a failure ``ERR <reason>``; in JSON framing each reply is one JSON-RPC
-response line, and a ``{...}`` request line switches to it by itself.
-termapy's Pico profile describes these commands, so they show in /help and
-reach an MCP agent as typed tools.
+termapy_json.py is the monitor every MicroPython starter shares: in text
+framing a reply is the value and a failure ``ERR <reason>``; in JSON framing
+each reply is one JSON-RPC response line, and a ``{...}`` request line
+switches to it by itself.  termapy's Pico profile describes these commands,
+so they show in /help and reach an MCP agent as typed tools.
 """
 
-import sys
-
 import machine
-from termapy_json import CommandError, Monitor
+from termapy_json import CommandError, serve
 
 led = machine.Pin("LED", machine.Pin.OUT)
 sensor = machine.ADC(4)
@@ -28,29 +26,6 @@ sensor = machine.ADC(4)
 # The words led takes, the pin level each sets, and back.
 LED_LEVELS = {"on": 1, "off": 0}
 LED_WORDS = {1: "on", 0: "off"}
-
-# Raw bytes out, so a JSON line ends in exactly "\n" and a text line in "\r\n".
-_out = getattr(sys.stdout, "buffer", None)
-
-
-def write(text):
-    """Send one reply line, its line ending included."""
-    if _out is None:
-        sys.stdout.write(text)
-    else:
-        _out.write(text.encode())
-
-
-def read_line():
-    """One line from the USB serial port, CR, LF or CRLF terminated; blank lines skipped."""
-    chars = []
-    while True:
-        char = sys.stdin.read(1)
-        if char in "\r\n":
-            if chars:
-                return "".join(chars)
-        else:
-            chars.append(char)
 
 
 def cmd_led(args):
@@ -80,6 +55,4 @@ COMMANDS = {
     "id": ("the board's unique ID in hex, also its USB serial number", cmd_id),
 }
 
-monitor = Monitor(COMMANDS, write)
-while True:
-    monitor.handle(read_line())
+serve(COMMANDS)

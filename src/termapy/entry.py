@@ -130,7 +130,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--board",
         default=None,
         metavar="BOARD",
-        help="Start the starter project for dev board BOARD (pico): its config "
+        help="Start the starter project for dev board BOARD (e.g. pico): its config "
         "in ./termapy_cfg/BOARD/, created on first use with the attached "
         "board's USB serial number as its port and reused after that.  "
         "/board.list names the boards.",

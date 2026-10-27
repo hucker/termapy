@@ -1,4 +1,7 @@
-"""termapy's JSON reply envelope for a MicroPython monitor: the device side, in Python.
+"""termapy's command monitor for a MicroPython board: the reply envelope and the serial loop.
+
+Every MicroPython starter shares this one file; a board's main.py is its
+handlers, its COMMANDS table and ``serve(COMMANDS)``.
 
 The same wire contract as the C module termapy_json.c (help page "JSON
 integration"), so termapy, an MCP agent or any JSON-RPC client talks to a
@@ -23,13 +26,15 @@ Error codes are the contract's: -32700 malformed request, -32601 unknown
 command, -32602 bad arguments (a handler's ``CommandError``), -32603 a
 handler that failed otherwise.  Each command is a one-line help and a
 handler that takes the argument words and returns a JSON value; the monitor
-renders the value for either framing.
+renders the value for either framing.  ``int_arg`` reads a number word the
+way termapy's profile does: decimal or ``0x`` hex, out of range refused.
 
 This file runs on the board, so it uses only what MicroPython has: no
 typing, no annotations, and ``json``'s ``separators`` for compact output.
 """
 
 import json
+import sys
 
 PARSE_ERROR = -32700
 UNKNOWN_COMMAND = -32601
@@ -50,6 +55,27 @@ class CommandError(Exception):
         super().__init__(message)
         self.message = message
         self.code = code
+
+
+def int_arg(word, what, low, high):
+    """``word`` as a whole number from ``low`` to ``high``: decimal, or hex after ``0x``.
+
+    A value out of range is refused, never clipped, as termapy refuses it
+    for an MCP agent through the profile's int_range type.  A typed line
+    reaches the board unchecked unless the config sets
+    validate_typed_args, so this refusal is the one a person sees.
+
+    Raises:
+        CommandError: ``word`` is not a number, or is out of range.
+    """
+    try:
+        value = int(word[2:], 16) if word[:2] in ("0x", "0X") else int(word)
+    except ValueError:
+        value = None
+    if value is None or not low <= value <= high:
+        message = "invalid " + what + ": " + word
+        raise CommandError(message + " (use " + str(low) + " to " + str(high) + ")")
+    return value
 
 
 def _dumps(value):
@@ -226,3 +252,34 @@ class Monitor:
             self._envelope('"error":' + body)
         else:
             self.write("ERR " + error.message + "\r\n")
+
+
+# Raw bytes out, so a JSON line ends in exactly "\n" and a text line in "\r\n".
+_out = getattr(sys.stdout, "buffer", None)
+
+
+def write(text):
+    """Send one reply line, its line ending included."""
+    if _out is None:
+        sys.stdout.write(text)
+    else:
+        _out.write(text.encode())
+
+
+def read_line():
+    """One line from the serial link, CR, LF or CRLF terminated; blank lines skipped."""
+    chars = []
+    while True:
+        char = sys.stdin.read(1)
+        if char in "\r\n":
+            if chars:
+                return "".join(chars)
+        else:
+            chars.append(char)
+
+
+def serve(commands):
+    """Answer the serial link forever with ``commands``: a line in, a reply out."""
+    monitor = Monitor(commands, write)
+    while True:
+        monitor.handle(read_line())

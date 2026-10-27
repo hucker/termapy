@@ -21,6 +21,7 @@ from termapy.boards import (
     copy_firmware,
     create_board_config,
     find_board,
+    firmware_paths,
     install_command,
 )
 from termapy.config import ConfigExistsError, cfg_dir
@@ -39,26 +40,28 @@ def _record(board: Board) -> dict:
     found = attached(board)
     if found.running:
         state = "running"
-    elif found.booting:
-        state = "boot loader"
+    elif found.without_runtime:
+        state = "attached"
     else:
         state = "not attached"
     return {
         "name": board.name,
         "title": board.title,
-        "runtime": board.runtime,
+        "runtime": board.runtime.name,
         "usb": list(board.usb),
         "state": state,
         "ports": [device for device, _ in found.running],
-        "firmware": list(board.firmware),
+        "firmware": [path.name for path in firmware_paths(board)],
     }
 
 
 def _attached_cell(record: dict) -> str:
-    """``running on COM5``, ``boot loader``, or ``not attached``."""
-    if not record["ports"]:
-        return record["state"]
-    return f"{record['state']} on {', '.join(record['ports'])}"
+    """``running on COM5``, ``attached, no MicroPython``, or ``not attached``."""
+    if record["ports"]:
+        return f"{record['state']} on {', '.join(record['ports'])}"
+    if record["state"] == "attached":
+        return f"attached, no {record['runtime']}"
+    return record["state"]
 
 
 # A click on a name fills the input with its .new line and runs nothing
@@ -79,7 +82,7 @@ _BOARD = ParamSpec(
 
 def _long_help(ctx: PluginContext) -> str:
     """The boards, live from the table, then the workflow."""
-    rows = [f"{board.name}: {board.title}, {board.runtime}. {board.flash}" for board in BOARDS]
+    rows = [f"{board.name}: {board.title}, {board.runtime.name}. {board.flash}" for board in BOARDS]
     return compose(
         "Starter projects for real dev boards:",
         "\n".join(rows),

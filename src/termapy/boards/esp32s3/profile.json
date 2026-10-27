@@ -1,0 +1,46 @@
+{
+    "profile_version": 2,
+    "profile_revision": "1.1.0",
+    "profile_date": "2026-10-27",
+    "device": {
+        "name": "ESP32-S3 DevKitC-1 (termapy starter, MicroPython)",
+        "vendor": "Espressif",
+        "model": "ESP32-S3-DevKitC-1"
+    },
+    "types": {
+        "level": {"kind": "int_range", "min": 0, "max": 255, "help": "One LED's brightness: 0 (off) to 255."}
+    },
+    "error_detection": {
+        "pattern": "\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
+        "async": false,
+        "types": {"message": "str"}
+    },
+    "commands": {
+        "help": {
+            "help": "The board's commands, each name mapped to its one-line help.",
+            "safety": "readonly",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
+        "led": {
+            "help": "Set the RGB LED's red, green and blue levels, each 0 to 255; the reply is the new levels, [red, green, blue].",
+            "send_template": "led {red} {green} {blue}",
+            "typed_args": [
+                {"name": "red", "type": "level", "required": true, "help": "Red level, 0 to 255."},
+                {"name": "green", "type": "level", "required": true, "help": "Green level, 0 to 255."},
+                {"name": "blue", "type": "level", "required": true, "help": "Blue level, 0 to 255."}
+            ],
+            "safety": "mutable",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
+        "temp": {
+            "help": "Read the chip's temperature sensor, in whole degrees Celsius, as a number.",
+            "safety": "readonly",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
+        "id": {
+            "help": "The chip's unique ID in hex, its factory MAC address.",
+            "safety": "readonly",
+            "response": {"format": "json", "timeout_ms": 500}
+        }
+    }
+}

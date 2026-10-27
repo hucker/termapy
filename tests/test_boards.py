@@ -4,7 +4,7 @@
 data beside it.  These tests pin that every row's files exist and agree
 with each other (the device code's commands are the profile's), that a
 board is found by its VID:PID on the serial-port list and, failing that,
-in its boot loader on the USB tree, that its config is a fresh
+attached without its runtime on the USB tree, that its config is a fresh
 ``new_config`` connecting by the board's serial number, and that the
 commands and ``--board`` reach all of it.  Port lists and USB trees are
 injected (``source=`` / ``usb_source=``), so no test needs the board.
@@ -40,7 +40,7 @@ from termapy.defaults import DEFAULT_CFG, default_cfg
 from termapy.folders import PROFILE_SUFFIX
 from termapy.plugins import CapabilitySet
 from termapy.port_control import ChipFacts
-from termapy.profile import load_profile, validate_profile
+from termapy.profile import TypeRegistry, load_profile, validate_profile
 from termapy.repl import ReplEngine
 from termapy.usb_tree import UsbRecord
 
@@ -51,6 +51,13 @@ BOARDS_DIR = Path(__file__).parent.parent / "src" / "termapy" / "boards"
 PICO_PORT = ChipFacts(device="COM5", serial="E66548545710822C", vid_pid="2E8A:0005")
 # An FTDI adapter, a port that is not a Pico.
 FTDI_PORT = ChipFacts(device="COM7", serial="BG03U7VTA", vid_pid="0403:6001")
+
+ESP32S3 = find_board("esp32s3")
+# The bench ESP32-S3 running MicroPython, on the chip's own USB: the serial
+# number is its factory MAC in hex and MicroPython's two unfilled bytes.
+ESP32S3_PORT = ChipFacts(device="COM9", serial="58E6C5716A840000", vid_pid="303A:4001")
+# Its USB-to-UART bridge, a CH340K, which has no serial number.
+CH340K_PORT = ChipFacts(device="COM6", vid_pid="1A86:7522")
 
 
 def ports(*facts: ChipFacts):
@@ -108,9 +115,23 @@ class TestTable:
             actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
             assert actual == expected, f"{board.name}: profile and firmware disagree"
 
+    def test_runtime_code_ships_once(self):
+        """Every MicroPython board gets the runtime's one termapy_json.py; no board folder holds a copy."""
+        shared = {
+            path
+            for board in BOARDS
+            for path in firmware_paths(board)
+            if path.name in board.runtime.files
+        }
+        assert len(shared) == 1, f"one shared file, not one per board: {shared}"
+        for board in BOARDS:
+            for name in board.runtime.files:
+                copy = BOARDS_DIR / board.name / "firmware" / name
+                assert not copy.exists(), f"{board.name} carries its own {name}"
+
     def test_find_board_rejects_an_unknown_name(self):
         """An unknown board is a lookup failure that lists the boards."""
-        with pytest.raises(ValueError, match=r"Unknown board: nosuch \(use pico\)"):
+        with pytest.raises(ValueError, match=r"Unknown board: nosuch \(use esp32s3, pico\)"):
             find_board("nosuch")
 
 
@@ -119,18 +140,53 @@ class TestAttached:
         """The Pico's port is picked out of the list by VID:PID, with its serial number."""
         found = attached(PICO, source=ports(FTDI_PORT, PICO_PORT), usb_source=usb())
         assert found.running == (("COM5", "E66548545710822C"),)
-        assert found.booting is False, "a running board is not looked for in the boot loader"
+        assert found.without_runtime is False, "a running board is not looked for without it"
 
     def test_a_board_in_its_boot_loader_is_seen_on_the_usb_tree(self):
-        """No running board, but its boot loader on the USB tree: attached, not flashed."""
+        """No running board, but its boot loader on the USB tree: attached, without its runtime."""
         found = attached(PICO, source=ports(FTDI_PORT), usb_source=usb("2E8A:0003"))
         assert found.running == ()
-        assert found.booting is True
+        assert found.without_runtime is True
 
     def test_nothing_attached(self):
         """Neither on the port list nor on the USB tree: not attached."""
         found = attached(PICO, source=ports(FTDI_PORT), usb_source=usb("0403:6001"))
-        assert (found.running, found.booting) == ((), False)
+        assert (found.running, found.without_runtime) == ((), False)
+
+
+class TestEsp32s3:
+    """The second board: found on the chip's own USB, never through its USB-to-UART bridge."""
+
+    def test_found_on_its_own_usb_by_serial_number(self):
+        """MicroPython's port is picked out by 303A:4001 with its serial number; the CH340K is not claimed."""
+        found = attached(
+            ESP32S3, source=ports(CH340K_PORT, FTDI_PORT, ESP32S3_PORT), usb_source=usb()
+        )
+        assert found.running == (("COM9", "58E6C5716A840000"),)
+
+    def test_without_micropython_it_is_told_to_flash(self, tmp_path):
+        """The chip's USB Serial/JTAG (303A:1001) means attached without MicroPython: flash it, make nothing."""
+        with pytest.raises(LookupError) as caught:
+            create_board_config(
+                ESP32S3, tmp_path, source=ports(CH340K_PORT), usb_source=usb("303A:1001")
+            )
+        message = str(caught.value)
+        assert message.startswith(
+            "ESP32-S3 DevKitC-1 is attached but not running MicroPython. Flash MicroPython"
+        ), message
+        assert "SPIRAM_OCT" in message, "the octal-PSRAM build is named"
+        assert not (tmp_path / "esp32s3").exists(), "no half-made config"
+
+    def test_config_connects_by_serial_number(self, tmp_path):
+        """The config's port is MicroPython's serial number, and its folder holds both device files."""
+        # Act
+        created = create_board_config(ESP32S3, tmp_path, source=ports(CH340K_PORT, ESP32S3_PORT))
+
+        # Assert
+        data = json.loads(created.path.read_text(encoding="utf-8"))
+        assert data["serial"]["port"] == "58E6C5716A840000", "by serial number, not COM9"
+        assert data["title"] == "ESP32-S3 DevKitC-1"
+        assert [path.name for path in created.firmware] == ["main.py", "termapy_json.py"]
 
 
 class TestCreateConfig:
@@ -160,7 +216,9 @@ class TestCreateConfig:
         """Everything for the board lives in its config's folder: the device code lands in firmware/."""
         created = create_board_config(PICO, tmp_path, source=ports(PICO_PORT))
         folder = tmp_path / "pico" / "firmware"
-        assert [path.name for path in created.firmware] == list(PICO.firmware)
+        assert [path.name for path in created.firmware] == [
+            path.name for path in firmware_paths(PICO)
+        ], "the board's own code and its runtime's"
         for path in firmware_paths(PICO):
             assert (folder / path.name).read_bytes() == path.read_bytes(), path.name
 
@@ -186,7 +244,9 @@ class TestCreateConfig:
 
     def test_a_board_in_its_boot_loader_is_told_to_flash(self, tmp_path):
         """A board waiting in its boot loader gets the flashing step, not 'plug it in'."""
-        with pytest.raises(LookupError, match="boot loader.*Flash MicroPython"):
+        with pytest.raises(
+            LookupError, match="attached but not running MicroPython. Flash MicroPython"
+        ):
             create_board_config(PICO, tmp_path, source=ports(), usb_source=usb("2E8A:0003"))
 
     def test_an_existing_config_is_not_replaced(self, tmp_path):
@@ -292,7 +352,7 @@ class TestCommands:
     def test_board_new_unknown_board_fails(self, env: Env):
         """/board.new with an unknown board lists the boards."""
         result = env.engine.dispatch("board.new nosuch")
-        assert result.error == "Unknown board: nosuch (use pico)"
+        assert result.error == "Unknown board: nosuch (use esp32s3, pico)"
 
     def test_board_new_without_a_board_attached_fails(self, env: Env, tmp_path):
         """/board.new with no Pico attached fails, naming the board, and creates no config."""
@@ -311,7 +371,9 @@ class TestCommands:
         assert result.success, result.error
         for path in firmware_paths(PICO):
             assert (folder / path.name).read_bytes() == path.read_bytes(), path.name
-        expected = install_command(PICO, [folder / name for name in PICO.firmware], "<port>")
+        expected = install_command(
+            PICO, [folder / path.name for path in firmware_paths(PICO)], "<port>"
+        )
         assert result.data["install"] == expected, "no Pico attached, so the port is a placeholder"
         assert f"Put them on the running board: {expected}" in env.output
         assert not Path("main.py").exists(), "the working directory is never written"
@@ -324,9 +386,9 @@ class TestCommands:
 
 
 def _load_board_json():
-    """The Pico's termapy_json.py, imported from the package as the board imports it."""
+    """MicroPython's shared termapy_json.py, imported from the package as a board imports it."""
     path = next(path for path in firmware_paths(PICO) if path.name == "termapy_json.py")
-    spec = importlib.util.spec_from_file_location("pico_termapy_json", path)
+    spec = importlib.util.spec_from_file_location("board_termapy_json", path)
     assert spec is not None and spec.loader is not None, "the board's module loads"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -371,8 +433,8 @@ class Link:
         return self.out[start:]
 
 
-class TestPicoJson:
-    """The Pico's termapy_json.py speaks the termapy_json.c contract (TESTER.md sections 2 to 5)."""
+class TestMicroPythonJson:
+    """MicroPython's termapy_json.py speaks the termapy_json.c contract (TESTER.md sections 2 to 5)."""
 
     def test_text_framing_is_the_value_and_err(self):
         """Text framing: the value as lines ending CRLF, a failure as ERR <message>."""
@@ -533,6 +595,43 @@ class TestPicoJson:
             BOARD_JSON.Monitor({"help": ("mine", lambda args: "")}, print)
 
 
+class TestIntArg:
+    """int_arg reads a board command's number: decimal or 0x hex, refused out of range."""
+
+    def test_decimal_and_hex(self):
+        """Decimal and 0x hex in either case read as the number; nothing else is hex."""
+        actual = [
+            BOARD_JSON.int_arg(word, "level", 0, 255) for word in ("0", "255", "0xFF", "0X1a")
+        ]
+        assert actual == [0, 255, 255, 26]
+
+    def test_out_of_range_is_refused_not_clipped(self):
+        """A bad or out-of-range word is a -32602 refusal that names it and the range."""
+        for word in ("256", "-1", "0x100", "abc", "ff", "0x", ""):
+            with pytest.raises(BOARD_JSON.CommandError) as caught:
+                BOARD_JSON.int_arg(word, "level", 0, 255)
+            assert caught.value.message == f"invalid level: {word} (use 0 to 255)", word
+            assert caught.value.code == BOARD_JSON.BAD_ARGS, "a bad argument, not a fault"
+
+    def test_board_and_profile_agree_on_a_level(self):
+        """The ESP32-S3 profile's level type, checked by termapy, takes exactly what the board takes."""
+        # Arrange
+        profile = load_profile(BOARDS_DIR / "esp32s3" / "profile.json")
+        registry = TypeRegistry.from_profile(profile)
+
+        def board_takes(word: str) -> bool:
+            try:
+                BOARD_JSON.int_arg(word, "level", 0, 255)
+            except BOARD_JSON.CommandError:
+                return False
+            return True
+
+        # Act / Assert
+        for word in ("0", "32", "255", "0xFF", "0x0", "256", "-1", "0x100", "abc"):
+            actual = registry.validate("level", word).ok
+            assert actual == board_takes(word), f"termapy and the board disagree on {word!r}"
+
+
 @pytest.mark.slow
 class TestBoardFlag:
     """``termapy --board BOARD`` through main() in a subprocess, ``--check`` standing in for a frontend."""
@@ -583,7 +682,7 @@ class TestBoardFlag:
         """An unknown board exits 2 and lists the boards."""
         result = self._run(tmp_path, "--board", "nosuch")
         assert result.returncode == 2
-        assert "Unknown board: nosuch (use pico)" in result.stderr
+        assert "Unknown board: nosuch (use esp32s3, pico)" in result.stderr
 
     def test_board_with_a_config_is_a_usage_error(self, tmp_path):
         """--board names its own config, so a second one on the line exits 2."""

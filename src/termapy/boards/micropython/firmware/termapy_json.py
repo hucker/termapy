@@ -60,8 +60,10 @@ class CommandError(Exception):
 def int_arg(word, what, low, high):
     """``word`` as a whole number from ``low`` to ``high``: decimal, or hex after ``0x``.
 
-    A value out of range is refused, never clipped, as termapy's profile
-    refuses it before the line is sent.
+    A value out of range is refused, never clipped, as termapy refuses it
+    for an MCP agent through the profile's int_range type.  A typed line
+    reaches the board unchecked unless the config sets
+    validate_typed_args, so this refusal is the one a person sees.
 
     Raises:
         CommandError: ``word`` is not a number, or is out of range.

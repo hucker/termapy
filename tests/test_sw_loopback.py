@@ -19,7 +19,7 @@ from termapy.dialogs import PortPicker
 from termapy.port_control import (
     LOOPBACK_PORT,
     loopback_port_facts,
-    opens_without_enumeration,
+    port_present,
 )
 
 # The software loopback needs no hardware: it runs anywhere, CI included.
@@ -75,17 +75,20 @@ def test_loopback_opens_and_echoes():
         "DEMO_FAIL",
     ],
 )
-def test_url_and_reserved_ports_open_without_enumeration(port):
-    """URL and DEMO ports connect directly, since comports() never lists them."""
-    # These never appear in comports(); the config-load availability check
-    # must connect to them directly instead of popping the port picker.
-    assert opens_without_enumeration(port) is True, f"{port} opens directly"
+def test_url_and_reserved_ports_are_present_without_enumeration(port):
+    """URL and DEMO ports are here with nothing attached, so loading one never asks for a port."""
+    assert port_present(port, source=_no_ports) is True, f"{port} opens directly"
 
 
 @pytest.mark.parametrize("port", ["COM4", "/dev/ttyUSB0", "A1B2C3D4", ""])
-def test_real_and_empty_ports_need_enumeration(port):
-    """Device names, serial numbers and a blank port must go through enumeration."""
-    assert opens_without_enumeration(port) is False, f"{port} is not a direct-open port"
+def test_real_and_empty_ports_need_an_attached_device(port):
+    """A device name or serial number with nothing attached is absent, and so is a blank port."""
+    assert port_present(port, source=_no_ports) is False, f"{port} needs an attached device"
+
+
+def _no_ports() -> list:
+    """A machine with no serial ports attached."""
+    return []
 
 
 class _Host(App):

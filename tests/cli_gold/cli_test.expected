@@ -354,6 +354,7 @@ demo> /port.info
 
   Description : Termapy simulated device
   Manufacturer: termapy
+  Serial      : TERMAPY-DEMO
   VID:PID     : not a USB device
   Model       : DEMO
   USB speed   : virtual (not a USB device)
@@ -1870,4 +1871,32 @@ demo> /run.delete nosuch
   Error: File not found: nosuch
 demo> /run.delete *
   Error: Invalid name: * (run/ deletes one named file at a time)
+demo> /print === section: port by USB serial number (DEMO answers to TERMAPY-DEMO) ===
+  === section: port by USB serial number (DEMO answers to TERMAPY-DEMO) ===
+demo> /port.disconnect
+Disconnected: DEMO
+demo> /port.connect TERMAPY-DEMO
+Connected: DEMO
+demo> /port.info
+  Port        : DEMO  (connected)  (resolved from TERMAPY-DEMO)
+  Baud rate   : 115200
+  Frame       : 8N1
+  Flow control: none
+  Encoding    : utf-8
+
+  Description : Termapy simulated device
+  Manufacturer: termapy
+  Serial      : TERMAPY-DEMO
+  VID:PID     : not a USB device
+  Model       : DEMO
+  USB speed   : virtual (not a USB device)
+  Permissions : ok
+  In use      : no
+
+  DTR: 1
+  RTS: 1
+  CTS: 1
+  DSR: 1
+  RI : 0
+  CD : 1
 Disconnected: DEMO

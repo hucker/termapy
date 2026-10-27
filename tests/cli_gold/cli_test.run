@@ -436,3 +436,7 @@ MEM.R 0x1000 2 --json
 /cap.delete *
 /run.delete nosuch
 /run.delete *
+/print === section: port by USB serial number (DEMO answers to TERMAPY-DEMO) ===
+/port.disconnect
+/port.connect TERMAPY-DEMO
+/port.info

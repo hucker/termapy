@@ -60,7 +60,7 @@ Location is *where the device is plugged in*, not what it is, so it is
 the one field that survives a firmware reflash, a serial-number change,
 or a COM renumber.  It reads `bus-port`, with a dot per hub tier:
 
-```
+```text
 LOCATION  IF
 1-8.2         bus 1, root-hub port 8, then port 2 of the hub plugged in there
 1-8.3         same hub, next port along
@@ -297,6 +297,14 @@ Find the serial number with `termapy --ports` (it's the rightmost
 column) or `/port.chip`.  At connect time, termapy scans every
 connected serial port and opens the one whose SN matches.  Stable
 across replugs, stable across machines, stable across reboots.
+Loading such a config connects straight to the board, the same as a
+COM name; termapy asks for a port only when nothing attached matches.
+
+**Try it with no hardware.** Each simulated port answers to a serial
+number of its own: `TERMAPY-DEMO` for `DEMO`, and likewise
+`TERMAPY-DEMO_JSON` and `TERMAPY-DEMO_VT100`. `/port.connect
+TERMAPY-DEMO` connects to the simulator by serial number, and
+`/port.info` shows `(resolved from TERMAPY-DEMO)`.
 
 ### Fallback chain
 
@@ -338,8 +346,9 @@ fresh clone Just Works on *someone's* machine.
 
 If you ask for serial number `0001` (common on cheap clones) and
 termapy sees two connected devices both claiming that SN, it refuses
-to open and tells you which devices collided. Disambiguate with a
-COM name or a fallback chain -- never silently pick a guess.
+to open and tells you which devices collided, and loading a config
+with that port asks you to pick one. Disambiguate with a COM name or a
+fallback chain -- never silently pick a guess.
 
 ### When resolution happens, termapy tells you
 

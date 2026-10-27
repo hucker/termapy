@@ -1,0 +1,44 @@
+{
+    "profile_version": 2,
+    "profile_revision": "1.2.0",
+    "profile_date": "2026-10-26",
+    "device": {
+        "name": "Raspberry Pi Pico (termapy starter, MicroPython)",
+        "vendor": "Raspberry Pi",
+        "model": "Pico"
+    },
+    "types": {
+        "on_off": {"kind": "enum", "values": ["on", "off"], "help": "LED state: on or off."}
+    },
+    "error_detection": {
+        "pattern": "\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
+        "async": false,
+        "types": {"message": "str"}
+    },
+    "commands": {
+        "help": {
+            "help": "The board's commands, each name mapped to its one-line help.",
+            "safety": "readonly",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
+        "led": {
+            "help": "Turn the onboard LED on or off; the reply is the new state.",
+            "send_template": "led {state}",
+            "typed_args": [
+                {"name": "state", "type": "on_off", "required": true, "help": "LED state."}
+            ],
+            "safety": "mutable",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
+        "temp": {
+            "help": "Read the on-chip temperature sensor, in degrees Celsius, as a number.",
+            "safety": "readonly",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
+        "id": {
+            "help": "The board's unique ID in hex, which is also its USB serial number.",
+            "safety": "readonly",
+            "response": {"format": "json", "timeout_ms": 500}
+        }
+    }
+}

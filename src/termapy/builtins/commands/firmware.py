@@ -11,7 +11,6 @@ them (registry ``infra-not-under-builtins``).
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.firmware import (
@@ -25,6 +24,8 @@ from termapy.firmware import (
     source_size,
     source_text,
 )
+from termapy.folder_ops import write_destination
+from termapy.folders import FIRMWARE
 from termapy.help_dynamic import compose
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command
 from termapy.plugins.params import ParamSpec
@@ -78,13 +79,12 @@ def _long_help(ctx: PluginContext) -> str:
         for target in TARGETS
     ]
     return compose(
-        "Shipped with this termapy:",
-        *rows,
-        "",
+        "\n".join(["Shipped with this termapy:", *rows]),
         "{prefix}firmware.copy writes every module of a language into the "
-        "current folder and never overwrites a file: lang= picks the language "
-        "when several ship, a name copies one module, folder= names another "
-        "folder.  {prefix}firmware.show opens a module's main source; "
+        "config's firmware/ folder and never overwrites a file: lang= picks "
+        "the language when several ship, a name copies one module, folder= "
+        "names another folder (a relative one is under the config's folder).  "
+        "{prefix}firmware.show opens a module's main source; "
         "{prefix}firmware.dump prints one file, which over MCP is how an "
         "agent reads it.",
     )
@@ -111,8 +111,7 @@ def _handler_copy(ctx: PluginContext, args: str) -> CmdResult:
         targets = select_targets(ctx.arg("name"), ctx.arg("lang"))
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
-    given = ctx.arg("folder")
-    folder = Path(given) if given else Path(".")
+    folder = write_destination(ctx, ctx.arg("folder") or "", FIRMWARE)
     try:
         written = copy_targets(targets, folder)
     except FileExistsError as e:
@@ -120,8 +119,7 @@ def _handler_copy(ctx: PluginContext, args: str) -> CmdResult:
     except OSError as e:
         return CmdResult.fail(msg=f"Write error: {e}")
     names = ", ".join(path.name for path in written)
-    where = str(folder) if given else "the current folder"
-    ctx.io.result(f"Copied {names} to {where}")
+    ctx.io.result(f"Copied {names} to {folder}")
     paths = [str(path) for path in written]
     return CmdResult.ok(value="\n".join(paths), data={"files": paths})
 
@@ -176,9 +174,9 @@ COMMAND = Command(
             handler=_handler_list,
         ),
         "copy": Command(
-            help="Write the shipped sources into a folder: every module of a language, or one by name; never overwrites.",
+            help="Write the shipped sources into the config's firmware/ folder: every module of a language, or one by name; never overwrites.",
             handler=_handler_copy,
-            needs=CapabilitySet(filesystem_unconfined=True),
+            needs=CapabilitySet.CONFIG_LOADED,
             params=[
                 ParamSpec(
                     "name",
@@ -191,7 +189,7 @@ COMMAND = Command(
                 ParamSpec(
                     "folder",
                     "path",
-                    help="where to write, created if missing (default: the current folder)",
+                    help="where to write instead, created if missing; a relative one is under the config's folder",
                 ),
             ],
         ),

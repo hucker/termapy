@@ -217,6 +217,38 @@ def _folder_path(ctx: PluginContext, folder: str) -> Path:
     return Path(ctx.config_path).parent / folder
 
 
+def write_destination(ctx: PluginContext, given: str, default: str) -> Path:
+    """The folder a command writes into: everything for a config goes in its folder.
+
+    With ``given`` empty, the config's ``default`` data folder, created
+    through ``ensure_folder``.  A relative ``given`` is under the config's
+    folder, never the process working directory, which is usually the
+    user's project root (decision 2026-10-26: a write never pollutes it).
+    An absolute ``given``, or one climbing out with ``..``, is honored only
+    where the host allows paths outside the config sandbox
+    (``ctx.fs.guard_external_path``), so an MCP client stays confined.  The
+    command declares ``config_loaded``.
+
+    Args:
+        ctx: The plugin context, for the config and the sandbox guard.
+        given: The folder the user named, ``""`` for none.
+        default: The ``folders.FOLDERS`` data folder used when none is named.
+
+    Returns:
+        The absolute folder; a named one may not exist yet.
+
+    Raises:
+        MissingCapability: ``given`` leaves the config sandbox and the host
+            does not allow it.
+    """
+    base = Path(ctx.config_path).parent
+    if not given:
+        return ensure_folder(base / default).resolve()
+    ctx.fs.guard_external_path(given, "Folder")
+    path = Path(given)
+    return (path if path.is_absolute() else base / path).resolve()
+
+
 def file_table(
     title: str,
     noun: str,

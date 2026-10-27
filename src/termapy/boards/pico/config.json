@@ -1,0 +1,11 @@
+{
+    "title": "Raspberry Pi Pico",
+    "tui_on_connect_cmd": "help",
+    "mcp_on_connect_cmd": "json on",
+    "custom_buttons": [
+        {"enabled": true, "name": "LED On", "command": "led on", "tooltip": "Turn the onboard LED on"},
+        {"enabled": true, "name": "LED Off", "command": "led off", "tooltip": "Turn the onboard LED off"},
+        {"enabled": true, "name": "Temp", "command": "temp", "tooltip": "Read the on-chip temperature"},
+        {"enabled": true, "name": "ID", "command": "id", "tooltip": "The board's unique ID (its USB serial number)"}
+    ]
+}

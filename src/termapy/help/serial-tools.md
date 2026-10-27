@@ -197,7 +197,8 @@ variant the language and width support; flags pin a variant:
 /proto.crc.c crc16-modbus crc32 file=my_crcs   several algorithms into one file
 ```
 
-`file=STEM` writes the source to a file instead of the screen,
+`file=STEM` writes the source into the config's `firmware/` folder
+instead of the screen (a folder in `STEM` is under the config's folder),
 `symbol=NAME` renames the generated function, and `style=NAME` /
 `naming=NAME` pick the doc-comment and identifier conventions
 (`/help proto.crc.<language>` lists the values).

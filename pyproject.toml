@@ -231,7 +231,7 @@ extra-paths = ["src/termapy/vendor", "scripts"]
 # exclude mirrors [tool.ty.src]: don't LINT the vendored code, but it
 # stays visible for import resolution.
 extraPaths = ["src/termapy/vendor", "scripts"]
-exclude = ["src/termapy/vendor", "src/termapy/html"]
+exclude = ["src/termapy/vendor", "src/termapy/html", "src/termapy/boards/*/firmware"]
 
 [tool.ty.src]
 # The gate (.githooks/pre-commit, release_prep) runs `ty check` with no
@@ -242,7 +242,9 @@ exclude = ["src/termapy/vendor", "src/termapy/html"]
 # modules (fcntl, termios, select.POLL*) in its platform shims, and ty
 # flags every reference as unresolved on Windows.  We still need the
 # extra-paths above so `import serial` resolves from our own code.
-exclude = ["src/termapy/vendor/**"]
+# A dev board's starter firmware (boards/<board>/firmware/) runs on the
+# board under MicroPython; its imports (machine) exist only there.
+exclude = ["src/termapy/vendor/**", "src/termapy/boards/*/firmware/**"]
 
 [tool.ruff]
 # 100 (not the black-default 88) buys room for inline suppression reasons

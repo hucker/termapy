@@ -1403,6 +1403,7 @@ demo> /help.plugin
 
 -- Application Plugins --
   /app          App-wide state and config.
+  /board        Starter projects for real dev boards: list, new, firmware.
   /cap          Data capture tools.
   /cfg          Show or set config values.
   /cls          Clear the terminal screen.
@@ -1448,7 +1449,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm      Show Yes/Cancel dialog; Cancel stops a running script.
   /expect       Wait for text in serial output (blocks until match or timeout).
-  44 commands.
+  45 commands.
   [179/219] /help.plugin (6.49ms)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
@@ -1840,6 +1841,15 @@ demo> /firmware.dump mem
 demo> /firmware.dump mem nosuch.h
   Error: Unknown file: nosuch.h (use termapy_mem.c, termapy_mem.h)
   [328/338] /firmware.dump mem nosuch.h (8us)
+demo> /print === section: board: starter projects for dev boards ===
+  === section: board: starter projects for dev boards ===
+  [330/342] /print === section: board: starter projects for dev board... (118us)
+demo> /board.new nosuch
+  Error: Unknown board: nosuch (use pico)
+  [331/342] /board.new nosuch (10us)
+demo> /board.firmware nosuch
+  Error: Unknown board: nosuch (use pico)
+  [332/342] /board.firmware nosuch (9us)
 demo> /print === section: coverage: files, timing, recording ===
   === section: coverage: files, timing, recording ===
 demo> /run.rename status_check status_probe

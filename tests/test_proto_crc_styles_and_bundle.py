@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from termapy.builtins.commands.proto import _crc_codegen
 from termapy.plugins import CapabilitySet, IOHandle, PluginContext
+from termapy.plugins.capabilities import STATE_MESSAGES
 
 
 def _build_stub_ctx():
@@ -237,13 +238,14 @@ class TestMultiAlgorithmBundle:
             f"bundle should propagate doxygen style; got: {emitted[:300]!r}"
         )
 
-    def test_bundle_to_file_writes_one_file_per_extension(self, tmp_path, monkeypatch):
-        """A file= bundle writes one merged .h and .c holding both algorithms."""
+    def test_bundle_to_file_writes_one_file_per_extension(self, tmp_path):
+        """writes-in-cfg-folder: a file= bundle writes one merged .h and .c in the config's firmware/."""
         # Arrange -- file= mode writes the merged output to disk; the
         # combined unit goes to a single STEM.<ext> set (e.g. for C:
         # one my_crcs.h + one my_crcs.c containing both algorithms).
-        monkeypatch.chdir(tmp_path)
         ctx, _captured, _markup = _build_stub_ctx()
+        ctx.config_path = str(tmp_path / "dev.cfg")
+        firmware = tmp_path / "firmware"
 
         # Act
         result = _crc_codegen(
@@ -254,10 +256,23 @@ class TestMultiAlgorithmBundle:
 
         # Assert
         assert result.success, f"bundle + file= should succeed, got {result.error!r}"
-        h = tmp_path / "my_crcs.h"
-        c = tmp_path / "my_crcs.c"
-        assert h.exists(), f"expected my_crcs.h to be written; got: {list(tmp_path.iterdir())}"
-        assert c.exists(), f"expected my_crcs.c to be written; got: {list(tmp_path.iterdir())}"
+        h = firmware / "my_crcs.h"
+        c = firmware / "my_crcs.c"
+        assert h.exists(), f"expected firmware/my_crcs.h; got: {list(tmp_path.rglob('*'))}"
+        assert c.exists(), f"expected firmware/my_crcs.c; got: {list(tmp_path.rglob('*'))}"
         c_text = c.read_text().lower()
         assert "crc16_modbus" in c_text, "crc16_modbus missing from merged .c"
         assert "crc32" in c_text, "crc32 missing from merged .c"
+
+    def test_file_without_a_config_fails_and_writes_nothing(self, tmp_path):
+        """file= with no config loaded fails rather than falling back to the working directory."""
+        # Arrange
+        ctx, _captured, _markup = _build_stub_ctx()
+
+        # Act
+        result = _crc_codegen(ctx, "crc32 file=my_crc", "c")
+
+        # Assert
+        assert not result.success, "file= needs a config to hold the files"
+        assert result.error == STATE_MESSAGES["config_loaded"], "the config state message"
+        assert list(tmp_path.iterdir()) == [], "nothing is written anywhere"

@@ -21,6 +21,8 @@ with -- the readers take an explicit environment and error list so that
 contract is pinned without touching the process environment.
 """
 
+# cspell:ignore ture -- the misspelled "true" these tests feed in on purpose
+
 from __future__ import annotations
 
 import json
@@ -161,7 +163,7 @@ class TestOsCmdGate:
             prefix = "/"
 
         # Act
-        result = os_cmd._handler(_Ctx(), "echo hi")  # ty: ignore[invalid-argument-type]
+        result = os_cmd._handler(_Ctx(), "echo hi")  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type] -- a fake context
 
         # Assert
         assert result.success is False, "blocked when env flag false"
@@ -187,7 +189,7 @@ class TestOsCmdGate:
             prefix = "/"
 
         # Act -- a portable echo via python so the test works on Windows
-        result = os_cmd._handler(_Ctx(), "python -c \"print('zz_marker')\"")  # ty: ignore[invalid-argument-type]
+        result = os_cmd._handler(_Ctx(), "python -c \"print('zz_marker')\"")  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type] -- a fake context
 
         # Assert
         assert result.success is True, "succeeds when env flag true"
@@ -216,7 +218,7 @@ class TestOsCmdGate:
             cfg = {"os_cmd_enabled": True}  # noise; should be ignored
 
         # Act
-        result = os_cmd._handler(_Ctx(), "echo nope")  # ty: ignore[invalid-argument-type]
+        result = os_cmd._handler(_Ctx(), "echo nope")  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type] -- a fake context
 
         # Assert
         assert result.success is False, "cfg key cannot grant /os"

@@ -127,6 +127,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "is overwritten; its other files are kept.",
     )
     parser.add_argument(
+        "--board",
+        default=None,
+        metavar="BOARD",
+        help="Start the starter project for dev board BOARD (pico): its config "
+        "in ./termapy_cfg/BOARD/, created on first use with the attached "
+        "board's USB serial number as its port and reused after that.  "
+        "/board.list names the boards.",
+    )
+    parser.add_argument(
         "--proto",
         default=None,
         metavar="NAME",
@@ -422,6 +431,15 @@ def main() -> None:
 
         confirm = confirm_on_stdin if sys.stdin.isatty() else _no_terminal_to_confirm
         args.config = str(run_new(args.new, confirm=confirm, usage_error=parser.error))
+
+    # --board starts a dev board's starter config the same way: found or
+    # created, then handed on as the positional config.
+    if args.board is not None:
+        if args.config or args.demo or args.new is not None:
+            parser.error("--board cannot be combined with a config, --demo or --new")
+        from termapy.cli_flags import run_board
+
+        args.config = str(run_board(args.board, usage_error=parser.error))
 
     # Normalize positional arg by extension - infer intent.  This
     # matters for --run and --proto; done here so both TUI and CLI

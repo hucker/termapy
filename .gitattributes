@@ -16,3 +16,4 @@ scripts/*.sh text eol=lf
 # checkout, so a wheel built on Windows and one built on Linux hold the
 # same files (and the listing's sizes agree).
 src/termapy/firmware/** text eol=lf
+src/termapy/boards/*/firmware/** text eol=lf

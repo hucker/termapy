@@ -713,3 +713,51 @@ def run_new(
         sys.exit(1)
     print(f"termapy: {verb} {path}", file=sys.stderr)
     return path
+
+
+def run_board(name: str, *, usage_error: Callable[[str], NoReturn]) -> Path:
+    """Find or create the starter config ``--board BOARD`` names; return its path.
+
+    Like ``--new``, it does not exit on success: ``main()`` loads the config
+    in whichever frontend was asked for.  The config lives where ``--new``
+    puts one (``config.new_cfg_root``), named for the board.  The first run
+    creates it through ``boards.create_board_config``, the core behind
+    ``/board.new``, connecting by the attached board's serial number; every
+    later run reuses it untouched, so the flag is also the everyday way to
+    start the board.  A config under another name that already connects to
+    the attached board is started instead of making a second one.  Status
+    lines go to stderr.
+
+    Args:
+        name: The board, as ``boards.BOARDS`` names it.
+        usage_error: Reports a bad argument and exits 2 (``parser.error``).
+
+    Returns:
+        The ``.cfg`` path.
+    """
+    from termapy.boards import AlreadyConfigured, create_board_config, find_board
+    from termapy.config import new_cfg_root
+
+    try:
+        board = find_board(name)
+    except ValueError as e:
+        usage_error(f"--board: {e}")
+    root = new_cfg_root()
+    path = root / board.name / f"{board.name}.cfg"
+    if path.is_file():
+        print(f"termapy: Using {path}", file=sys.stderr)
+        return path
+    try:
+        created = create_board_config(board, root)
+    except AlreadyConfigured as e:
+        print(f"termapy: Using {e.path}: {e}", file=sys.stderr)
+        return e.path
+    except (LookupError, ValueError, RuntimeError, OSError) as e:
+        print(f"termapy: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(
+        f"termapy: Created {created.path}: {board.title} on {created.device}, "
+        f"serial number {created.port}",
+        file=sys.stderr,
+    )
+    return created.path

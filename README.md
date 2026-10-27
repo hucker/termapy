@@ -54,6 +54,12 @@ For your own device, one line creates a config and connects:
 termapy --new my_device COM4 115200 8N1
 ```
 
+For a new dev board, a starter project gives it a command monitor that answers you and an MCP agent on day one. The Raspberry Pi Pico is the first; see the Dev boards help page:
+
+```sh
+termapy --board pico
+```
+
 For a plain-text terminal (no TUI), use CLI mode:
 
 ```sh

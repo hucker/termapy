@@ -8,6 +8,8 @@ that actually happens before a commit -- a guard you only meet after pushing is
 a guard you meet too late.
 """
 
+# cspell:ignore ture -- quoted as the misspelled "true" that once silently meant off
+
 from __future__ import annotations
 
 import ast
@@ -1421,6 +1423,7 @@ NOT_IN_GOLD: dict[str, str] = {
     "app.ver": "prints the version, which changes every release",
     "app.ver.info": "prints the version and how this machine installed termapy",
     "app.ver.latest": _HARDWARE,
+    "board.list": "lists which dev boards are plugged in, which differs per machine",
     "cap.bin": "a capture runs on the device's timing; tests/test_capture*.py drive it",
     "cap.explore": _OPENS_APP,
     "cap.hex": "a capture runs on the device's timing; tests/test_capture*.py drive it",
@@ -2628,6 +2631,7 @@ STATE_CHECKED_IN_A_BRANCH: dict[tuple[str, str], str] = {
     ("builtins/commands/proto.py", "_handler_send"): "--dry-run sends nothing",
     ("builtins/commands/proto.py", "_handler_crc_find"): "only cmd= mode talks to the device",
     ("builtins/commands/proto.py", "_handler_crc_reverse"): "only cmd= mode talks to the device",
+    ("builtins/commands/proto.py", "_crc_codegen"): "only file= writes, into the config's folder",
     (
         "builtins/commands/var.py",
         "_handler_capture",

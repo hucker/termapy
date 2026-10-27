@@ -1,0 +1,11 @@
+{
+    "title": "ESP32-S3 DevKitC-1",
+    "tui_on_connect_cmd": "help",
+    "mcp_on_connect_cmd": "json on",
+    "custom_buttons": [
+        {"enabled": true, "name": "LED On", "command": "led on", "tooltip": "Turn the RGB LED on"},
+        {"enabled": true, "name": "LED Off", "command": "led off", "tooltip": "Turn the RGB LED off"},
+        {"enabled": true, "name": "Temp", "command": "temp", "tooltip": "Read the chip's temperature"},
+        {"enabled": true, "name": "ID", "command": "id", "tooltip": "The chip's unique ID (its factory MAC address)"}
+    ]
+}

@@ -1845,10 +1845,10 @@ demo> /print === section: board: starter projects for dev boards ===
   === section: board: starter projects for dev boards ===
   [330/342] /print === section: board: starter projects for dev board... (118us)
 demo> /board.new nosuch
-  Error: Unknown board: nosuch (use pico)
+  Error: Unknown board: nosuch (use esp32s3, pico)
   [331/342] /board.new nosuch (10us)
 demo> /board.firmware nosuch
-  Error: Unknown board: nosuch (use pico)
+  Error: Unknown board: nosuch (use esp32s3, pico)
   [332/342] /board.firmware nosuch (9us)
 demo> /print === section: coverage: files, timing, recording ===
   === section: coverage: files, timing, recording ===

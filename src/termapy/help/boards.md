@@ -6,9 +6,10 @@ device profile. The board answers at an interactive prompt, its commands
 show in `/help`, and an MCP agent gets them as typed tools. This is real
 hardware; the simulator is `/demo`.
 
-| Board  | Runs        | Device code                   | Board commands                      |
-| ------ | ----------- | ----------------------------- | ----------------------------------- |
-| `pico` | MicroPython | `main.py`, `termapy_json.py`  | `help`, `led`, `temp`, `id`, `json` |
+| Board     | Runs        | Device code                   | Board commands                      |
+| --------- | ----------- | ----------------------------- | ----------------------------------- |
+| `pico`    | MicroPython | `main.py`, `termapy_json.py`  | `help`, `led`, `temp`, `id`, `json` |
+| `esp32s3` | MicroPython | `main.py`, `termapy_json.py`  | `help`, `led`, `temp`, `id`, `json` |
 
 ```text
 /board                    the boards, and which is plugged in now
@@ -22,8 +23,8 @@ The config connects by the board's USB serial number, so a COM number
 that moves between plug-ins does not matter, and the same config works on
 Windows, Linux and macOS. `/board.new` finds the board by its USB VID:PID.
 When several are attached it takes the first and says how many it skipped.
-With none attached it says whether the board is missing or still waiting
-in its boot loader.
+With none attached it says whether the board is missing or attached but
+not running MicroPython yet.
 
 Everything for the board lands in its config's folder: the config, its
 profile, and the device code in `firmware/`, so a new board is one folder
@@ -33,7 +34,7 @@ Board setup never replaces anything. A config by the same name stops it,
 and so does any config that already connects to the attached board:
 `/board.new` names that config instead of making a second one, and
 `termapy --board` starts it. termapy does not write to the board itself;
-copying the device code onto it is your step.
+flashing it and copying the device code onto it are your steps.
 
 ## Raspberry Pi Pico
 
@@ -53,7 +54,40 @@ no compiler:
 3. **Create the config.** `/board.new pico`, then `/cfg.load pico`, or
    start termapy with `termapy --board pico`.
 
-The board then answers one command per line:
+The on-chip sensor reads a few degrees off and is noisy; the RP2040
+datasheet says as much.
+
+## ESP32-S3 DevKitC-1
+
+The board has two USB ports. Use the one wired to the chip's own USB
+(usually marked USB): there the board has a unique serial number. The
+other port goes through a USB-to-UART bridge chip, which reports its own
+maker and no serial number, so nothing on it says which board it is.
+
+1. **Flash MicroPython.** Download `ESP32_GENERIC_S3` from micropython.org:
+   the SPIRAM_OCT build for a module with octal PSRAM (N8R8, N16R8; esptool
+   shows it as "Embedded PSRAM 8MB"), the plain one otherwise. Then, with
+   the port the chip's USB shows now:
+
+   ```text
+   uvx esptool --chip esp32s3 --port COM8 erase-flash
+   uvx esptool --chip esp32s3 --port COM8 write-flash 0 ESP32_GENERIC_S3-SPIRAM_OCT-<date>-v<version>.bin
+   ```
+
+   The board restarts as a new serial port, MicroPython's (`303A:4001`).
+2. **Copy the device code.** `/board.firmware esp32s3`, then the
+   `uvx mpremote` line it prints, as on the Pico.
+3. **Create the config.** `/board.new esp32s3`, then `/cfg.load esp32s3`,
+   or start termapy with `termapy --board esp32s3`.
+
+`led` drives the board's RGB LED on GPIO48, a dim white for `on`; a board
+with its LED on another pin changes one line of `main.py`. `id` is the
+chip's factory MAC address. MicroPython answers on the UART port too, but
+the config uses the chip's own USB, by its serial number.
+
+## The board's commands
+
+Each board answers one command per line:
 
 | Command          | Text reply                          | JSON reply                         |
 | ---------------- | ----------------------------------- | ---------------------------------- |
@@ -62,7 +96,7 @@ The board then answers one command per line:
 | `led`            | the LED's state, `on` or `off`      | `{"result":"on"}`                  |
 | `led on\|off`    | the new state, and the LED follows  | `{"result":"off"}`                 |
 | `temp`           | degrees C, such as `21.4`           | `{"result":21.4}`, a number        |
-| `id`             | the board's unique ID, also its USB serial number | `{"result":"E66548545710822C"}` |
+| `id`             | the board's unique ID in hex        | `{"result":"E66548545710822C"}`    |
 | `json {on\|off}` | the framing, `on` or `off`          | `{"result":"on"}`                  |
 
 The board speaks two framings. Text, the default, is for a person: a reply
@@ -71,15 +105,15 @@ server and any JSON-RPC client: each reply is one JSON-RPC 2.0 response
 line, the same contract as the C module on [JSON integration](firmware-json.md),
 with an error as `{"error":{"code":...,"message":...}}`. `json on` switches
 to it, and a request line such as `{"method":"temp","id":1}` switches by
-itself and gets its `id` back. The Pico's config sends `json on` when the
-MCP server connects, so an agent gets typed values while the TUI stays in
-text.
+itself and gets its `id` back. Each board's config sends `json on` when
+the MCP server connects, so an agent gets typed values while the TUI stays
+in text.
 
 Each command in `main.py` is a row of its `COMMANDS` table: the name, a
 one-line help and the handler, which takes the argument words and returns
 the reply value. `help` reads its answer from that table, so a new command
-is a handler and a row, and `help` lists it at once.
+is a handler and a row, and `help` lists it at once. `termapy_json.py` is
+the monitor itself, one file every MicroPython board shares.
 
 Ctrl-C in the terminal stops the monitor and leaves the MicroPython `>>>`
-prompt; Ctrl-D restarts it. The on-chip sensor reads a few degrees off and
-is noisy; the RP2040 datasheet says as much.
+prompt; Ctrl-D restarts it.

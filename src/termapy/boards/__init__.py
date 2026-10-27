@@ -9,7 +9,7 @@ one.
 Each board is a row of ``BOARDS`` and a folder of package data beside this
 file, ``<name>/``:
 
-- ``firmware/`` -- the device code, ASCII only (registry
+- ``firmware/`` -- the board's own device code, ASCII only (registry
   ``firmware-ascii-only``); ``/board.firmware`` copies it out for flashing.
 - ``config.json`` -- the settings the board's config adds to a fresh
   ``config.new_config``, so a starter config is made the one way every
@@ -17,11 +17,16 @@ file, ``<name>/``:
 - ``profile.json`` -- the device profile, installed as the config's
   ``<name>.profile.json`` so it loads with the config.
 
+Device code every board on a runtime shares belongs to the runtime, a row
+of its own (``MICROPYTHON``) with a folder of the same shape
+(``micropython/firmware/``): one copy, never one per board.
+
 A config connects to the board by its USB serial number, found when
 ``/board.new`` creates the config: the row's ``usb`` VID:PIDs pick out
-the running board among the attached ports, and ``boot_usb`` recognizes
-one still waiting in its boot loader.  A new board -- tomorrow's ESP32 --
-is a row and a folder, never a branch in a handler.
+the board running its runtime among the attached ports, and
+``without_runtime_usb`` recognizes one attached but not running it (the
+Pico's boot loader, an ESP32-S3 without MicroPython).  A new board is a
+row and a folder, never a branch in a handler.
 """
 
 from __future__ import annotations
@@ -43,19 +48,39 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class Runtime:
+    """What a starter's device code runs on, and the device code every board on it shares.
+
+    Attributes:
+        name: Its name for people (``MicroPython``).
+        folder: Its package folder beside the boards' (``micropython``);
+            the shared files are in its ``firmware/``.
+        files: The shared device code, one copy for every board on it.
+    """
+
+    name: str
+    folder: str
+    files: tuple[str, ...] = ()
+
+
+MICROPYTHON = Runtime("MicroPython", "micropython", ("termapy_json.py",))
+
+
+@dataclass(frozen=True)
 class Board:
     """One board termapy ships a starter for.
 
     Attributes:
         name: What the user asks for (``pico``); also its package folder.
         title: The board's name for people (``Raspberry Pi Pico``).
-        runtime: What the starter's device code runs on (``MicroPython``).
+        runtime: What the starter's device code runs on.
         usb: The ``VID:PID`` values the board enumerates as while it runs
-            the starter, uppercase hex; how ``/board.new`` finds it.
-        boot_usb: The ``VID:PID`` of the board's boot loader, to say the
-            board is attached but not flashed yet.
-        firmware: The device code's files in ``<name>/firmware/``, the one
-            to start from first.
+            its runtime, uppercase hex; how ``/board.new`` finds it.
+        without_runtime_usb: The ``VID:PID`` values it shows attached but
+            not running its runtime, to say it needs flashing: a boot
+            loader, or a USB port the chip has whatever it runs.
+        firmware: The board's own device code in ``<name>/firmware/``, the
+            one to start from first; the runtime's shared files follow it.
         flash: One line on getting the firmware onto the board.
         install: The shell command that puts copied firmware on a running
             board, with ``{port}`` and ``{files}`` to fill in.
@@ -63,9 +88,9 @@ class Board:
 
     name: str
     title: str
-    runtime: str
+    runtime: Runtime
     usb: tuple[str, ...]
-    boot_usb: tuple[str, ...] = ()
+    without_runtime_usb: tuple[str, ...] = ()
     firmware: tuple[str, ...] = ()
     flash: str = ""
     install: str = ""
@@ -77,11 +102,30 @@ BOARDS: tuple[Board, ...] = (
     Board(
         "pico",
         "Raspberry Pi Pico",
-        "MicroPython",
+        MICROPYTHON,
         usb=("2E8A:0005",),
-        boot_usb=("2E8A:0003",),
-        firmware=("main.py", "termapy_json.py"),
+        without_runtime_usb=("2E8A:0003",),
+        firmware=("main.py",),
         flash="Flash MicroPython (RPI_PICO), then copy main.py and termapy_json.py to the board.",
+        install="uvx mpremote connect {port} cp {files} : + reset",
+    ),
+    # On the chip's own USB port.  4001 is MicroPython's TinyUSB serial port,
+    # 0x4000 plus the CDC bit (MicroPython ports/esp32/mpconfigport.h); 1001 is
+    # the chip's built-in USB Serial/JTAG, there whatever it runs and shared by
+    # ten Espressif chips (Espressif's esp-pylib constants.py, esptool's
+    # targets).  The USB-to-UART port's bridge has no serial number to find.
+    Board(
+        "esp32s3",
+        "ESP32-S3 DevKitC-1",
+        MICROPYTHON,
+        usb=("303A:4001",),
+        without_runtime_usb=("303A:1001",),
+        firmware=("main.py",),
+        flash=(
+            "Flash MicroPython (ESP32_GENERIC_S3, the SPIRAM_OCT build on an octal-PSRAM "
+            "module such as N8R8 or N16R8) with esptool, then copy main.py and "
+            "termapy_json.py to the board."
+        ),
         install="uvx mpremote connect {port} cp {files} : + reset",
     ),
 )
@@ -92,14 +136,15 @@ class Attached:
     """What of a board is plugged in right now.
 
     Attributes:
-        running: ``(device, serial number)`` of each port running the starter.
-        booting: Whether a board waits in its boot loader.  A boot loader is
-            a USB drive, not a serial port, so this comes from the USB tree,
-            and is False where termapy cannot read one (macOS).
+        running: ``(device, serial number)`` of each port running the runtime.
+        without_runtime: Whether a board is attached but not running it.
+            The Pico's boot loader is a USB drive, not a serial port, so
+            this comes from the USB tree, and is False where termapy cannot
+            read one (macOS).
     """
 
     running: tuple[tuple[str, str], ...]
-    booting: bool
+    without_runtime: bool
 
 
 class AlreadyConfigured(Exception):
@@ -155,11 +200,11 @@ def attached(
     source: PortSource | None = None,
     usb_source: UsbSource | None = None,
 ) -> Attached:
-    """Where the board shows up now: on a serial port running the starter, or in its boot loader.
+    """Where the board shows up now: on a serial port running its runtime, or attached without it.
 
     Reads the port list the way ``/port.list`` does, opening nothing.  Only
-    when no running board is found does it walk the USB tree for a boot
-    loader, so the common case never pays for the walk.
+    when no running board is found does it walk the USB tree for one
+    without its runtime, so the common case never pays for the walk.
 
     Args:
         board: The row to look for.
@@ -171,13 +216,13 @@ def attached(
         for record in list_port_records(source=source)
         if record["vid_pid"] in board.usb
     )
-    if running or not board.boot_usb:
+    if running or not board.without_runtime_usb:
         return Attached(running, False)
-    return Attached(running, _in_boot_loader(board, usb_source))
+    return Attached(running, _without_runtime(board, usb_source))
 
 
-def _in_boot_loader(board: Board, usb_source: UsbSource | None) -> bool:
-    """Whether any USB device is the board's boot loader; False where the tree is unreadable."""
+def _without_runtime(board: Board, usb_source: UsbSource | None) -> bool:
+    """Whether any USB device is the board without its runtime; False where the tree is unreadable."""
     from termapy.usb_tree import UnsupportedPlatform, gather_usb_tree
 
     try:
@@ -186,7 +231,7 @@ def _in_boot_loader(board: Board, usb_source: UsbSource | None) -> bool:
         return False
     while pending:
         node = pending.pop()
-        if (node.vid_pid or "").upper() in board.boot_usb:
+        if (node.vid_pid or "").upper() in board.without_runtime_usb:
             return True
         pending.extend(node.children)
     return False
@@ -194,11 +239,11 @@ def _in_boot_loader(board: Board, usb_source: UsbSource | None) -> bool:
 
 def not_attached_message(board: Board, found: Attached) -> str:
     """Why there is no running board to make a config for, and what to do."""
-    if found.booting:
-        return f"{board.title} is in its boot loader, not running the starter yet. {board.flash}"
+    if found.without_runtime:
+        return f"{board.title} is attached but not running {board.runtime.name}. {board.flash}"
     usb = ", ".join(board.usb)
     return (
-        f"No {board.title} running {board.runtime} found (USB {usb}). Plug it in; if it "
+        f"No {board.title} running {board.runtime.name} found (USB {usb}). Plug it in; if it "
         f"is new, {board.flash[0].lower()}{board.flash[1:]}"
     )
 
@@ -282,9 +327,12 @@ def create_board_config(
 
 
 def firmware_paths(board: Board) -> list[Path]:
-    """Where the board's device code sits in the installed package."""
-    firmware = _package(board) / "firmware"
-    return [Path(str(firmware / name)) for name in board.firmware]
+    """Where the board's device code sits in the installed package: its own, then its runtime's."""
+    own = _package(board) / "firmware"
+    shared = files(__name__) / board.runtime.folder / "firmware"
+    return [Path(str(own / name)) for name in board.firmware] + [
+        Path(str(shared / name)) for name in board.runtime.files
+    ]
 
 
 def copy_firmware(board: Board, folder: Path) -> list[Path]:

@@ -1,4 +1,7 @@
-"""termapy's JSON reply envelope for a MicroPython monitor: the device side, in Python.
+"""termapy's command monitor for a MicroPython board: the reply envelope and the serial loop.
+
+Every MicroPython starter shares this one file; a board's main.py is its
+handlers, its COMMANDS table and ``serve(COMMANDS)``.
 
 The same wire contract as the C module termapy_json.c (help page "JSON
 integration"), so termapy, an MCP agent or any JSON-RPC client talks to a
@@ -30,6 +33,7 @@ typing, no annotations, and ``json``'s ``separators`` for compact output.
 """
 
 import json
+import sys
 
 PARSE_ERROR = -32700
 UNKNOWN_COMMAND = -32601
@@ -226,3 +230,34 @@ class Monitor:
             self._envelope('"error":' + body)
         else:
             self.write("ERR " + error.message + "\r\n")
+
+
+# Raw bytes out, so a JSON line ends in exactly "\n" and a text line in "\r\n".
+_out = getattr(sys.stdout, "buffer", None)
+
+
+def write(text):
+    """Send one reply line, its line ending included."""
+    if _out is None:
+        sys.stdout.write(text)
+    else:
+        _out.write(text.encode())
+
+
+def read_line():
+    """One line from the serial link, CR, LF or CRLF terminated; blank lines skipped."""
+    chars = []
+    while True:
+        char = sys.stdin.read(1)
+        if char in "\r\n":
+            if chars:
+                return "".join(chars)
+        else:
+            chars.append(char)
+
+
+def serve(commands):
+    """Answer the serial link forever with ``commands``: a line in, a reply out."""
+    monitor = Monitor(commands, write)
+    while True:
+        monitor.handle(read_line())

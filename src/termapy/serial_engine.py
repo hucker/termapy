@@ -301,6 +301,19 @@ class SerialEngine:
         return self._port_obj
 
     @property
+    def open_device(self) -> str:
+        """The device the port object names (``COM9``), ``""`` when there is none.
+
+        What the config's port resolved to: a USB serial number or a
+        fallback chain names a device, and this is the device.  A port
+        lost mid-session keeps its object, closed, until ``disconnect``
+        drops it, so a disconnect banner reads this first.
+        """
+        if self._port_obj is None:
+            return ""
+        return getattr(self._port_obj, "port", "") or ""
+
+    @property
     def rx_queue(self) -> queue.Queue[bytes]:
         """The raw RX byte queue (fed by read_loop, consumed by SerialPort.read_raw).
 

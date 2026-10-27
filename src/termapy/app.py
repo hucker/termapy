@@ -1971,9 +1971,7 @@ class SerialTerminal(TerminalHost, App):
         """
         from termapy.config import connection_string
 
-        actual = ""
-        if self.engine.is_connected and self.engine.port_obj is not None:
-            actual = getattr(self.engine.port_obj, "port", "") or ""
+        actual = self.engine.open_device if self.engine.is_connected else ""
         return connection_string(self.cfg, "short", actual_port=actual)
 
     def _update_title(self) -> None:
@@ -1981,33 +1979,6 @@ class SerialTerminal(TerminalHost, App):
         from termapy.title_bar import update_title
 
         update_title(self)
-
-    def _port_button_tooltip(self) -> str:
-        """Build the title-bar port button tooltip with chip info.
-
-        Uses the shared three-section layout (title / kv body / action).
-        The title is the device name from cfg["serial"]["port"].  The body shows
-        chip identification fields from port_control.gather_chip_facts():
-        description, manufacturer (descriptor / INF), vendor (silicon
-        vendor by VID), model, USB speed, VID:PID, location (bus path),
-        max baud, and the in_use status.  Linux-only fields (driver,
-        latency_timer, negotiated link speed) appear automatically when
-        available.
-
-        Falls back to a brief "no USB chip info available" body when the
-        port is not enumerable (DEMO, unplugged cable, non-USB device).
-        """
-        from termapy import port_control
-        from termapy.title_bar import format_title_tooltip, port_tooltip_pairs
-
-        port_name = self.cfg["serial"]["port"] or "(none)"
-        connected = port_name if self.is_connected else ""
-        facts = (
-            port_control.gather_chip_facts(port_name, connected)
-            if port_name and port_name != "(none)"
-            else None
-        )
-        return format_title_tooltip(port_name, port_tooltip_pairs(facts), "select serial port")
 
     def _set_conn_status(self, text: str, style: str = "") -> None:
         try:

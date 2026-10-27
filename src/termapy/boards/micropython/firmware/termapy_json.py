@@ -28,6 +28,7 @@ handler that failed otherwise.  Each command is a one-line help and a
 handler that takes the argument words and returns a JSON value; the monitor
 renders the value for either framing.  ``int_arg`` reads a number word the
 way termapy's profile does: decimal or ``0x`` hex, out of range refused.
+``on_off_arg`` reads a board switch the same way: on or 1, off or 0.
 
 This file runs on the board, so it uses only what MicroPython has: no
 typing, no annotations, and ``json``'s ``separators`` for compact output.
@@ -43,6 +44,9 @@ INTERNAL_ERROR = -32603
 
 # The words ``json`` takes; anything else means off, failing closed.
 FRAMINGS = {"on": True, "off": False}
+
+# The words a board's own switch takes (``led``), and the state each means.
+ON_OFF = {"on": True, "1": True, "off": False, "0": False}
 
 # An id with more digits than this is ignored, as termapy_json.c ignores it.
 ID_MAX_DIGITS = 10
@@ -76,6 +80,21 @@ def int_arg(word, what, low, high):
         message = "invalid " + what + ": " + word
         raise CommandError(message + " (use " + str(low) + " to " + str(high) + ")")
     return value
+
+
+def on_off_arg(word, what):
+    """``word`` as a switch: True for ``on`` or ``1``, False for ``off`` or ``0``.
+
+    Anything else is refused, as termapy refuses it for an MCP agent
+    through the profile's enum type.  ``json`` keeps its own reading
+    (anything but ``on`` is off), the wire contract termapy_json.c shares.
+
+    Raises:
+        CommandError: ``word`` is not one of the four.
+    """
+    if word not in ON_OFF:
+        raise CommandError("invalid " + what + ": " + word + " (use on, off, 1 or 0)")
+    return ON_OFF[word]
 
 
 def _dumps(value):

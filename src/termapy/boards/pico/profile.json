@@ -1,14 +1,15 @@
 {
     "profile_version": 2,
-    "profile_revision": "1.2.0",
-    "profile_date": "2026-10-26",
+    "profile_revision": "1.3.0",
+    "profile_date": "2026-10-27",
     "device": {
         "name": "Raspberry Pi Pico (termapy starter, MicroPython)",
         "vendor": "Raspberry Pi",
         "model": "Pico"
     },
     "types": {
-        "on_off": {"kind": "enum", "values": ["on", "off"], "help": "LED state: on or off."}
+        "on_off": {"kind": "enum", "values": ["on", "off", "1", "0"], "help": "On or off: on or 1, off or 0."},
+        "framing": {"kind": "enum", "values": ["on", "off"], "help": "The reply framing: on for JSON-RPC, off for text."}
     },
     "error_detection": {
         "pattern": "\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
@@ -17,15 +18,32 @@
     },
     "commands": {
         "help": {
-            "help": "The board's commands, each name mapped to its one-line help.",
+            "help": "The board's commands, each name mapped to its one-line help; help <command> answers that command's line.",
+            "args": "{command}",
+            "send_template": "help {command}",
+            "typed_args": [
+                {"name": "command", "type": "str", "required": false, "help": "One command to describe."}
+            ],
             "safety": "readonly",
             "response": {"format": "json", "timeout_ms": 500}
         },
+        "json": {
+            "help": "Set the reply framing, on for JSON-RPC or off for text; bare json reads it.",
+            "args": "{on|off}",
+            "long_help": "json off switches the board to text replies: every reply after it is text, not JSON, until json on, or any request line starting with {, switches back.  The config sends json on when the MCP server connects.",
+            "send_template": "json {framing}",
+            "typed_args": [
+                {"name": "framing", "type": "framing", "required": false, "help": "on or off."}
+            ],
+            "safety": "mutable",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
         "led": {
-            "help": "Turn the onboard LED on or off; the reply is the new state.",
+            "help": "Turn the onboard LED on or off; bare led reads it.  The reply is the state, on or off.",
+            "args": "{on|off|1|0}",
             "send_template": "led {state}",
             "typed_args": [
-                {"name": "state", "type": "on_off", "required": true, "help": "LED state."}
+                {"name": "state", "type": "on_off", "required": false, "help": "LED state."}
             ],
             "safety": "mutable",
             "response": {"format": "json", "timeout_ms": 500}

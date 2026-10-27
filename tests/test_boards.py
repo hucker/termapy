@@ -40,7 +40,7 @@ from termapy.defaults import DEFAULT_CFG, default_cfg
 from termapy.folders import PROFILE_SUFFIX
 from termapy.plugins import CapabilitySet
 from termapy.port_control import ChipFacts
-from termapy.profile import TypeRegistry, load_profile, validate_profile
+from termapy.profile import TypeRegistry, load_profile, match_profile_command, validate_profile
 from termapy.repl import ReplEngine
 from termapy.usb_tree import UsbRecord
 
@@ -72,6 +72,35 @@ def usb(*vid_pids: str):
     ]
 
 
+# Every form each board's device code takes, and the profile entry that governs it.
+BOARD_FORMS = {
+    "pico": {
+        "help": "help",
+        "help led": "help",
+        "json": "json",
+        "json on": "json",
+        "led": "led",
+        "led off": "led",
+        "led 1": "led",
+        "temp": "temp",
+        "id": "id",
+    },
+    "esp32s3": {
+        "help": "help",
+        "help led_rgb": "help",
+        "json": "json",
+        "json off": "json",
+        "led": "led",
+        "led on": "led",
+        "led 0": "led",
+        "led_rgb": "led_rgb",
+        "led_rgb 255 0 0x20": "led_rgb",
+        "temp": "temp",
+        "id": "id",
+    },
+}
+
+
 class TestTable:
     def test_every_board_ships_its_files(self):
         """Each row has its config, profile and firmware in the package: a row is never a promise."""
@@ -98,7 +127,8 @@ class TestTable:
             assert result.warnings == [], f"{board.name}: {result.warnings}"
 
     def test_profile_describes_the_firmware_commands(self):
-        """The profile's commands are the device code's COMMANDS table and the monitor's help: no drift."""
+        """board-profile-complete: the profile names every command the board answers, its table's and the monitor's."""
+        monitor_commands = set(BOARD_JSON.Monitor({}, print).builtins)
         for board in BOARDS:
             main = firmware_paths(board)[0]
             tree = ast.parse(main.read_text(encoding="utf-8"))
@@ -110,10 +140,28 @@ class TestTable:
             )
             assert isinstance(table, ast.Dict), "COMMANDS is a dict literal"
             firmware = {key.value for key in table.keys if isinstance(key, ast.Constant)}
-            # json is the framing switch termapy drives, not a command an agent calls.
-            expected = firmware | {"help"}
+            expected = firmware | monitor_commands
             actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
             assert actual == expected, f"{board.name}: profile and firmware disagree"
+
+    def test_profile_governs_every_form(self):
+        """board-profile-complete: every form a board takes reaches its profile entry, and the entry's types take it."""
+        for board in BOARDS:
+            profile = load_profile(BOARDS_DIR / board.name / "profile.json")
+            registry = TypeRegistry.from_profile(profile)
+            forms = BOARD_FORMS[board.name]
+            assert set(forms.values()) == set(profile["commands"]), (
+                f"{board.name}: every profile command has a form here"
+            )
+            for line, expected in forms.items():
+                match = match_profile_command(line, profile["commands"])
+                assert match is not None, f"{board.name}: no profile entry takes {line!r}"
+                name, spec, bound = match
+                assert name == expected, f"{board.name}: {line!r} reached the wrong entry"
+                for typed_arg in spec.get("typed_args", []):
+                    if typed_arg["name"] in bound:
+                        outcome = registry.validate(typed_arg["type"], bound[typed_arg["name"]])
+                        assert outcome.ok, f"{board.name}: {line!r} refused: {outcome.error}"
 
     def test_runtime_code_ships_once(self):
         """Every MicroPython board gets the runtime's one termapy_json.py; no board folder holds a copy."""
@@ -630,6 +678,43 @@ class TestIntArg:
         for word in ("0", "32", "255", "0xFF", "0x0", "256", "-1", "0x100", "abc"):
             actual = registry.validate("level", word).ok
             assert actual == board_takes(word), f"termapy and the board disagree on {word!r}"
+
+
+class TestOnOffArg:
+    """on_off_arg reads a board switch: on or 1, off or 0, anything else refused."""
+
+    def test_the_four_words(self):
+        """on and 1 are True, off and 0 are False."""
+        actual = [BOARD_JSON.on_off_arg(word, "state") for word in ("on", "1", "off", "0")]
+        assert actual == [True, True, False, False]
+
+    def test_any_other_word_is_refused(self):
+        """A word outside the four is a -32602 refusal naming it, never a silent off."""
+        for word in ("ON", "true", "yes", "2", "onn", ""):
+            with pytest.raises(BOARD_JSON.CommandError) as caught:
+                BOARD_JSON.on_off_arg(word, "state")
+            assert caught.value.message == f"invalid state: {word} (use on, off, 1 or 0)", word
+            assert caught.value.code == BOARD_JSON.BAD_ARGS, "a bad argument, not a fault"
+
+    def test_board_and_profile_agree_on_a_switch(self):
+        """Each board profile's on_off type, checked by termapy, takes exactly what the board takes."""
+
+        def board_takes(word: str) -> bool:
+            try:
+                BOARD_JSON.on_off_arg(word, "state")
+            except BOARD_JSON.CommandError:
+                return False
+            return True
+
+        for board in BOARDS:
+            registry = TypeRegistry.from_profile(
+                load_profile(BOARDS_DIR / board.name / "profile.json")
+            )
+            for word in ("on", "off", "1", "0", "ON", "true", "2", ""):
+                actual = registry.validate("on_off", word).ok
+                assert actual == board_takes(word), (
+                    f"{board.name}: termapy and the board disagree on {word!r}"
+                )
 
 
 @pytest.mark.slow

@@ -310,7 +310,7 @@ class TerminalHost:
         # which candidate won so "why am I on COM4 when my config says
         # A1B2C3D4" never becomes a support question.
         spec = self.cfg["serial"]["port"]
-        actual = getattr(self.engine.port_obj, "port", spec) or spec
+        actual = self.engine.open_device or spec
         resolved = _format_resolved_line(spec, actual) if spec != actual else ""
 
         conn = connection_string(self.cfg, actual_port=actual)
@@ -358,7 +358,7 @@ class TerminalHost:
         # banner mirrors "Connected: COM4 ...".  After disconnect()
         # the port_obj is gone, so reading it here is the only
         # place this works.
-        actual = getattr(self.engine.port_obj, "port", "") or self.cfg["serial"]["port"]
+        actual = self.engine.open_device or self.cfg["serial"]["port"]
         self.repl.fire_lifecycle("on_disconnect")
         self.engine.disconnect()
         self._clear_device_state()
@@ -762,7 +762,7 @@ class TerminalHost:
             # D20JSV68A needs to see "Port changed to COM4", not
             # "Port changed to D20JSV68A" -- that's the whole point
             # of surfacing the resolved device in the connect banner.
-            actual = getattr(self.engine.port_obj, "port", port) or port
+            actual = self.engine.open_device or port
             self.status(f"Port changed to {actual} (session)", "green")
 
     # -- Config switching -----------------------------------------------------

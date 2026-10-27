@@ -13,6 +13,7 @@ from termapy.port_control import ChipFacts
 from termapy.title_bar import (
     format_title_tooltip,
     format_tooltip_value,
+    port_identity_pairs,
     port_tooltip_pairs,
 )
 
@@ -118,3 +119,22 @@ class TestPortTooltipPairs:
 
         # Assert
         assert keys == ["description"], "only display fields appear"
+
+
+class TestPortIdentityPairs:
+    def test_the_device_is_the_port_and_its_number_the_serial(self):
+        """A device found by serial number shows as port = the device, serial = the number."""
+        # Arrange
+        facts = ChipFacts(device="COM9", serial="58E6C5716A840000")
+
+        # Act
+        actual = port_identity_pairs("COM9", facts)
+
+        # Assert
+        expected = [("port", "COM9"), ("serial", "58E6C5716A840000")]
+        assert actual == expected, "the device and its serial number, each under its own name"
+
+    def test_no_serial_row_without_one(self):
+        """A device with no serial number, or no facts at all, gets the port row only."""
+        assert port_identity_pairs("COM6", ChipFacts(device="COM6")) == [("port", "COM6")]
+        assert port_identity_pairs("", None) == [("port", "?")], "nothing configured"

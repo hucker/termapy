@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 import pytest
 from pilot_wait import until
-from textual.widgets import Input, OptionList, RichLog, Static
+from textual.widgets import Button, Input, OptionList, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ConfirmDialog, FilenameDialog, PortPicker
@@ -371,6 +371,43 @@ class TestConfigPicked:
                 assert "Connected: DEMO" in app._get_screen_text(), "the screen names the device"
                 log = Path(app.session_log_path()).read_text(encoding="utf-8")
                 assert f"Resolved {port} -> DEMO" in log, "the log keeps how the number resolved"
+
+        _run(scenario)
+
+    def test_tooltips_show_the_device_as_port_and_the_number_as_serial(self, app_factory):
+        """port-display: a serial-number config's tooltips say port = the device, serial = the number."""
+
+        async def scenario():
+            # Arrange: DEMO answers to its own serial number, so no hardware is needed
+            serial = DEFAULT_CFG["serial"]
+            assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
+            number = reserved_serial("DEMO")
+            app, _, _ = app_factory(serial={**serial, "port": number}, auto_connect=True)
+            async with app.run_test() as pilot:
+                connected = await until(pilot, lambda: app.is_connected)
+                assert connected, "auto_connect found DEMO by its serial number"
+
+                # Act
+                app._update_title()
+                await pilot.pause()
+
+                # Assert: each title-bar tooltip, as the user hovers it
+                tooltips = {
+                    button: str(app.query_one(f"#title-{button}", Button).tooltip)
+                    for button in ("left", "center", "right")
+                }
+                assert tooltips["left"].startswith("DEMO\n"), (
+                    "the port tooltip is titled by the device"
+                )
+                for button, text in tooltips.items():
+                    assert f"= {number}" in text, f"{button}: the serial number is shown"
+                for button in ("center", "right"):
+                    rows = dict(
+                        line.split("=", 1) for line in tooltips[button].splitlines() if "=" in line
+                    )
+                    rows = {key.strip(): value.strip() for key, value in rows.items()}
+                    assert rows["port"] == "DEMO", f"{button}: port is the device, not {number}"
+                    assert rows["serial"] == number, f"{button}: the number is the serial"
 
         _run(scenario)
 

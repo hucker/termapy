@@ -364,7 +364,8 @@ No surprise: you see the spec you wrote and the device you got.
 `/port.info` adds a `[resolved from <spec>]` annotation on the
 `Port:` line for the same reason.  The title bar stays the way it
 always has: the actual device name, never the SN -- users think in
-COM numbers.
+COM numbers.  Its tooltips follow suit: `port` is the device and
+`serial` its serial number, however the config names the port.
 
 ### What doesn't change
 

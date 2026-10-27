@@ -101,6 +101,27 @@ def port_tooltip_pairs(facts: ChipFacts | None) -> list[tuple[str, object]]:
     return pairs
 
 
+def port_identity_pairs(device: str, facts: ChipFacts | None) -> list[tuple[str, object]]:
+    """The ``port`` and ``serial`` rows: the device itself, and its USB serial number when it has one.
+
+    ``device`` is what ``port_control.port_display`` returns, so a config
+    that names its port by serial number still shows ``port = COM9`` and
+    the number under ``serial``.
+    """
+    pairs: list[tuple[str, object]] = [("port", device or "?")]
+    if facts is not None and facts.serial:
+        pairs.append(("serial", facts.serial))
+    return pairs
+
+
+def _port_display(app) -> tuple[str, ChipFacts | None]:
+    """The config's port as the device it is now, with that device's facts."""
+    from termapy import port_control
+
+    open_device = app.engine.open_device if app.is_connected else ""
+    return port_control.port_display(app.cfg["serial"]["port"], open_device)
+
+
 def format_title_tooltip(title: str, kv_pairs: list[tuple[str, object]], action: str) -> str:
     """Render a title-bar tooltip with the shared three-section layout.
 
@@ -179,9 +200,11 @@ def update_title(app) -> None:
     sb = serial["stop_bits"]
     sb_str = str(int(sb)) if sb == int(sb) else str(sb)
     frame = f"{serial['byte_size']}{serial['parity']}{sb_str}"
+    # Resolved once for all three tooltips: the device, not the config's spec.
+    device, facts = _port_display(app)
     cfg_pairs: list[tuple[str, object]] = [
         ("config_path", app.config_path or "(none)"),
-        ("port", serial["port"] or "?"),
+        *port_identity_pairs(device, facts),
         ("baud_rate", serial["baud_rate"]),
         ("frame", frame),
         ("flow_control", serial["flow_control"]),
@@ -204,27 +227,40 @@ def update_title(app) -> None:
         format_title_tooltip(cfg_title, cfg_pairs, f"edit config ({_hotkey_label('title-center')})")
     )
 
-    # Port button (left) tooltip + label
+    # Port button (left) tooltip + label: titled by the device, its chip
+    # facts below (the serial number among them).
     try:
         port_btn = app.query_one("#title-left", Button)
         port_btn.label = Text(app._port_info_str())
-        port_btn.tooltip = Text(app._port_button_tooltip())
+        port_btn.tooltip = Text(
+            format_title_tooltip(
+                device or "(none)", port_tooltip_pairs(facts), "select serial port"
+            )
+        )
     except SHUTDOWN_RACE:
         pass
 
     # Connection status button (right) tooltip
-    app._update_conn_tooltip()
+    app._update_conn_tooltip(display=(device, facts))
 
 
-def update_conn_tooltip(app, widget: Button | None = None) -> None:
+def update_conn_tooltip(
+    app, widget: Button | None = None, display: tuple[str, ChipFacts | None] | None = None
+) -> None:
     """Update the connection button tooltip with status and config.
 
     Uses the shared three-section layout (title / kv body / action).
     Title is the live connection state (Connected / Disconnected).
-    Body shows port name and the auto-connect / auto-reconnect flags
-    as ON/OFF so the user can discover them without opening config.
-    Action verb tracks state: "disconnect" when connected,
-    "connect" when not.
+    Body shows the device and its serial number, and the auto-connect /
+    auto-reconnect flags as ON/OFF so the user can discover them without
+    opening config.  Action verb tracks state: "disconnect" when
+    connected, "connect" when not.
+
+    Args:
+        app: The SerialTerminal instance.
+        widget: The connection button, when the caller has it.
+        display: ``(device, facts)`` already resolved by the caller
+            (``update_title``), so one refresh resolves the port once.
     """
     try:
         if widget is None:
@@ -232,8 +268,9 @@ def update_conn_tooltip(app, widget: Button | None = None) -> None:
         connected = app.is_connected
         title = "Connected" if connected else "Disconnected"
         action = "disconnect" if connected else "connect"
+        device, facts = display if display is not None else _port_display(app)
         pairs: list[tuple[str, object]] = [
-            ("port", app.cfg["serial"]["port"] or "?"),
+            *port_identity_pairs(device, facts),
             ("auto_connect", bool(app.cfg.get("auto_connect"))),
             ("auto_reconnect", bool(app.cfg.get("auto_reconnect"))),
         ]

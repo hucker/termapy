@@ -1561,6 +1561,42 @@ def port_present(spec: str, *, source: PortSource | None = None) -> bool:
     return False
 
 
+def port_display(
+    spec: str, open_device: str = "", *, source: PortSource | None = None
+) -> tuple[str, ChipFacts | None]:
+    """The device a config's port is, for display, and its facts; opens no port.
+
+    The device is the one open now, else the one connecting would resolve
+    ``spec`` to (a USB serial number or a fallback chain names a device),
+    else ``spec`` as written.  The facts are that device's, its serial
+    number among them, so a display shows ``COM9`` as the port and the
+    serial number as the serial number however the config names it.
+    Only the device this session holds gets an in-use line: for it that
+    is known without opening anything, and any other would be probed
+    (``_check_in_use``), which a display must never do (registry
+    ``port-display``).
+
+    Args:
+        spec: The config's port value.
+        open_device: The device this session has open, ``""`` when none
+            (``SerialEngine.open_device``).
+        source: A substitute port list, as ``resolve_port`` takes it.
+
+    Returns:
+        ``(device, facts)``; facts are None when the device is not
+        attached or the spec names nothing.
+    """
+    if open_device:
+        return open_device, gather_chip_facts(open_device, open_device, source=source)
+    if not spec:
+        return "", None
+    try:
+        device = resolve_port(spec, source=source)
+    except AmbiguousSerialNumberError:
+        return spec, None
+    return device, gather_chip_facts(device, fast=True, enrich=True, source=source)
+
+
 def _chip_rows(facts: ChipFacts) -> list[tuple[str, str] | tuple[str, str, str]]:
     """The chip fields as record-page rows, each color-coded where it carries advice.
 

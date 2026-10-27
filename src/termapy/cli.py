@@ -495,7 +495,7 @@ class CLITerminal(TerminalHost):
                 )
             except KeyboardInterrupt:
                 self._raw("\nScript interrupted")
-        actual = getattr(self.engine.port_obj, "port", "") or self.cfg["serial"]["port"]
+        actual = self.engine.open_device or self.cfg["serial"]["port"]
         self.engine.disconnect()
         msg = f"Disconnected: {actual}" if actual else "Disconnected."
         self.write(msg, "red")
@@ -631,7 +631,7 @@ class CLITerminal(TerminalHost):
         except KeyboardInterrupt:
             self._raw("\nInterrupted")
         finally:
-            actual = getattr(self.engine.port_obj, "port", "") or self.cfg["serial"]["port"]
+            actual = self.engine.open_device or self.cfg["serial"]["port"]
             self.engine.disconnect()
             msg = f"Disconnected: {actual}" if actual else "Disconnected."
             self.write(msg, "red")

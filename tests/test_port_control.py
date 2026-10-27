@@ -851,6 +851,7 @@ from termapy.port_control import (  # noqa: E402
     chip_info,
     gather_chip_facts,
     parse_location_paths,
+    port_display,
     port_present,
     reserved_serial,
     resolve_port,
@@ -1160,6 +1161,26 @@ class TestPortPresent:
             facts = synthetic_facts_for_reserved(name)
             assert facts is not None, f"{name} has facts"
             assert facts.serial == serial, "the number /port.info shows is the one that resolves"
+
+    def test_display_shows_the_device_and_its_serial_number(self):
+        """A config naming its port by serial number displays as the device, the number as its serial."""
+        # Act
+        device, facts = port_display("A1B2C3D4", source=_build_demo_fleet)
+
+        # Assert
+        assert device == "COM3", "the device the serial number resolves to"
+        assert facts is not None and facts.serial == "A1B2C3D4", "the number stays the serial"
+
+    def test_display_of_the_open_device_is_what_is_open(self):
+        """Connected, the display is the device actually open, not what the chain lists first."""
+        device, facts = port_display("A1B2C3D4|COM4", "COM3", source=_build_demo_fleet)
+        assert device == "COM3", "the open device wins over the spec"
+        assert facts is not None and facts.serial == "A1B2C3D4", "its own facts"
+
+    def test_display_of_a_port_not_here_is_the_spec(self):
+        """Nothing matches, or a shared serial number: the spec as written, with no facts."""
+        assert port_display("NOPE", source=_build_demo_fleet) == ("NOPE", None)
+        assert port_display("0001", source=_shared_serial_fleet) == ("0001", None)
 
     def test_a_real_serial_number_wins_over_a_simulated_one(self):
         """An attached device burned with a simulator's serial number is the one found."""

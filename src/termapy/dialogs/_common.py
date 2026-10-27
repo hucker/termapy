@@ -7,8 +7,10 @@ Underscore prefix marks this as package-private; consumers go through
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual import events
@@ -17,6 +19,9 @@ from textual.widgets import OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
 from termapy.folder_ops import file_columns, format_file_header
+
+if TYPE_CHECKING:
+    from termapy.port_control import ChipFacts
 
 
 class EditorTextArea(TextArea):
@@ -194,31 +199,9 @@ _DISMISS_BINDINGS: list[BindingType] = [
 ]
 
 
-def _populate_port_option_list(
-    ol: OptionList,
-    ports: list,
-    row_width: int,
-) -> None:
-    """Fill an OptionList with a header, separator, and one row per port.
-
-    Called by both PortPicker and QuickSetup so their port lists look
-    identical.  ``row_width`` is the usable column budget for the list,
-    which differs between dialogs based on their CSS width.
-
-    Formatting lives in ``termapy.port_format`` so the CLI
-    (``--ports`` / ``--watch``) can reuse it without pulling Textual
-    into its code path.  This wrapper just maps formatted lines to
-    ``OptionList`` entries, attaching each data row's port name as
-    the option id so selection returns the device string.
-    """
+def _port_facts(ports: list) -> list[ChipFacts]:
+    """The port table's facts: each listed port's, then the pyserial loopback."""
     from termapy import port_control
-    from termapy.port_format import (
-        active_columns,
-        compute_widths,
-        format_header,
-        format_row,
-        row_from_facts,
-    )
 
     # fast=True: the picker table has no in_use column, and this runs on
     # the Textual main thread -- probing here would both freeze the UI and
@@ -233,16 +216,104 @@ def _populate_port_option_list(
     # appended below real hardware.  It echoes writes back -- handy for
     # testing without a device.  Honest facts (no invented VID/PID/SN).
     facts_list.append(port_control.loopback_port_facts())
-    rows = [row_from_facts(fact) for fact in facts_list]
-    columns = active_columns(rows)
-    widths, columns = compute_widths(rows, row_width, columns)
+    return facts_list
+
+
+def _fill_port_rows(ol: OptionList, rows: list[tuple[str, dict]], row_width: int) -> None:
+    """Add a header, a separator, and one option per port row, fit to ``row_width``.
+
+    Formatting lives in ``termapy.port_format`` so the CLI
+    (``--ports`` / ``--watch``) can reuse it without pulling Textual
+    into its code path.  This maps formatted lines to ``OptionList``
+    entries, attaching each data row's port name as the option id so
+    selection returns the device string.
+    """
+    from termapy.port_format import active_columns, compute_widths, format_header, format_row
+
+    widths, columns = compute_widths(rows, row_width, active_columns(rows))
     header, separator = format_header(widths, columns)
     ol.add_option(Option(header, disabled=True))
     ol.add_option(Option(separator, disabled=True))
     for port_id, row_data in rows:
-        ol.add_option(
-            Option(format_row(row_data, widths, columns), id=port_id),
-        )
+        ol.add_option(Option(format_row(row_data, widths, columns), id=port_id))
+
+
+def _populate_port_option_list(
+    ol: OptionList,
+    ports: list,
+    row_width: int,
+) -> None:
+    """Fill QuickSetup's port list: the same rows the port picker shows.
+
+    ``row_width`` is the usable column budget for the list; QuickSetup
+    re-renders against its measured width.
+    """
+    from termapy.port_format import row_from_facts
+
+    _fill_port_rows(ol, [row_from_facts(fact) for fact in _port_facts(ports)], row_width)
+
+
+class PortOptionList(OptionList):
+    """The port picker's list: a header, a separator, and one row per port, fit to its width.
+
+    Sized the way the file pickers are (``FileOptionList``): the picker
+    makes its dialog ``dialog_width()`` wide, enough for every column
+    whole, so the dialog is as wide as its table rather than a share of
+    the terminal, and the CSS caps it at the terminal.  Every resize
+    rebuilds the rows to the width layout measured, where
+    ``port_format.compute_widths`` drops the least useful columns before a
+    row would wrap.  A rebuild keeps the highlighted port by its id.
+    """
+
+    def __init__(self, facts: list[ChipFacts], *, id: str | None = None) -> None:
+        """Build the list from the ports' facts (``_port_facts``)."""
+        super().__init__(id=id)
+        self._rows: list[tuple[str, dict]] = []
+        # 0 until layout measures the list: fill at the table's full width.
+        self._row_width = 0
+        self.set_facts(facts)
+
+    def set_facts(self, facts: list[ChipFacts]) -> None:
+        """Show these ports instead, as a plug or unplug changes them."""
+        from termapy.port_format import row_from_facts
+
+        self._rows = [row_from_facts(fact) for fact in facts]
+        self._fill()
+
+    def table_width(self) -> int:
+        """The columns the table takes with every column whole."""
+        from termapy.port_format import active_columns, compute_widths, format_header
+
+        widths, columns = compute_widths(self._rows, sys.maxsize, active_columns(self._rows))
+        return len(format_header(widths, columns)[0])
+
+    def dialog_width(self) -> int:
+        """The picker width that shows every column whole: the table plus the chrome around it."""
+        return self.table_width() + _FILE_PICKER_CHROME
+
+    def _fill(self) -> None:
+        """Rebuild the options at the list's width, keeping the highlighted port."""
+        kept = _highlighted_file(self)
+        self.clear_options()
+        _fill_port_rows(self, self._rows, self._row_width or self.table_width())
+        for i in range(self.option_count):
+            if kept is not None and self.get_option_at_index(i).id == kept:
+                self.highlighted = i
+                return
+        if self.option_count > 2:
+            # The first port, past the header and the separator.
+            self.highlighted = 2
+
+    def on_resize(self, _event: events.Resize) -> None:
+        """Rebuild the rows to the width layout gave the list."""
+        # Reserve the scrollbar's gutter whether or not it shows, as
+        # FileOptionList does, so a growing port list never tips a row
+        # into wrapping.
+        width = self.content_size.width - self.styles.scrollbar_size_vertical
+        if width <= 0 or width == self._row_width:
+            return
+        self._row_width = width
+        self._fill()
 
 
 # Why a link to the file manager does nothing: the detection found no

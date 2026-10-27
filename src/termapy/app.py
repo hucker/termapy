@@ -1834,7 +1834,11 @@ class SerialTerminal(TerminalHost, App):
         return CmdResult.ok(value="vt100")
 
     def _check_port_and_switch(self, cfg: dict, path: str) -> None:
-        """If the configured port doesn't exist, prompt with PortPicker."""
+        """If connecting would not find the configured port, prompt with PortPicker.
+
+        Present or not is ``port_control.port_present``, the connect's own
+        resolution, so a serial number or a ``|`` chain loads like a COM name.
+        """
         port = cfg["serial"]["port"]
         # comports() failures are environmental: OSError on udev / IOKit
         # / WMI hiccups, ImportError on platforms without list_ports.
@@ -1843,10 +1847,11 @@ class SerialTerminal(TerminalHost, App):
             from serial.tools.list_ports import comports
 
             available = {p.device for p in comports()}
+            present = port_control.port_present(port)
         except (OSError, ImportError):
-            available = set()
+            available, present = set(), False
 
-        if port and (port in available or port_control.opens_without_enumeration(port)):
+        if present:
             self._switch_config(cfg, path)
             self._show_config_info(path)
         elif available:

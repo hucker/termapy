@@ -168,6 +168,7 @@ def _classify_serial_error(
         # Multi-candidate spec: walk the trace and list what's plugged
         # in so the user can see which candidate SHOULD have matched.
         from termapy.port_control import (
+            MATCH_AMBIGUOUS,
             _gather_all_chip_facts,
             resolve_port_trace,
         )
@@ -177,7 +178,7 @@ def _classify_serial_error(
         for candidate, reason in trace:
             if reason is None:
                 lines.append(f"  {candidate}: not found")
-            elif reason == "ambiguous":
+            elif reason == MATCH_AMBIGUOUS:
                 lines.append(f"  {candidate}: ambiguous (multiple SN matches)")
             else:
                 lines.append(f"  {candidate}: matched via {reason}")

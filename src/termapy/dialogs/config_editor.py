@@ -264,11 +264,14 @@ class ConfigEditor(ModalScreen[tuple | None]):
             try:
                 from serial.tools.list_ports import comports
 
-                available = {port.device for port in comports()}
-                if val.upper() == "DEMO":
+                from termapy import port_control
+
+                if port_control.synthetic_facts_for_reserved(val.upper()) is not None:
                     return f"[green]{pair_markup}[/] [dim](simulated port)[/]", ""
-                if val in available:
+                # Present as connecting would resolve it: a serial number counts too.
+                if port_control.port_present(val):
                     return f"[green]{pair_markup}[/]", ""
+                available = {port.device for port in comports()}
                 if available:
                     ports_markup = escape_markup(", ".join(sorted(available)))
                     return (

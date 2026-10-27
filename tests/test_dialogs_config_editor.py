@@ -19,6 +19,7 @@ from textual.widgets import Button, Input, Static, TextArea
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.confirm_dialog import ConfirmDialog
+from termapy.port_control import reserved_serial
 
 
 class _Host(App):
@@ -257,6 +258,20 @@ class TestValueValidation:
                 screen, _ = await _open(app, pilot, cfg, path)
                 status, error = screen._validate_value("port", '"DEMO"')
                 assert "(simulated port)" in status and error == ""
+
+        _run(scenario)
+
+    def test_a_serial_number_port_that_resolves_is_green(self, tmp_path):
+        """port-present-one-decider: a USB serial number the connect would find is accepted, not 'port not found'."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _ = await _open(app, pilot, cfg, path)
+                status, error = screen._validate_value("port", f'"{reserved_serial("DEMO")}"')
+                assert status.startswith("[green]"), "the serial number resolves, so it is here"
+                assert error == "", "no 'port not found' for a port the connect finds"
 
         _run(scenario)
 

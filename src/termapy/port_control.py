@@ -479,24 +479,6 @@ def loopback_port_facts() -> ChipFacts:
     )
 
 
-def opens_without_enumeration(port: str) -> bool:
-    """True if ``port`` can be opened without appearing in ``comports()``.
-
-    pyserial URL handlers (``loop://``, ``socket://``, ``rfc2217://``, ...)
-    and the reserved virtual ports (the ``DEMO`` family) open directly and
-    never enumerate.  The "is it in comports()?" availability gate used when
-    loading a config must not reject them, or a config with e.g.
-    ``"port": "loop://"`` would wrongly pop the port picker instead of
-    connecting.  ``synthetic_facts_for_reserved`` is the single source of
-    truth for which names are reserved.
-    """
-    if not port:
-        return False
-    if "://" in port:
-        return True
-    return synthetic_facts_for_reserved(port.upper()) is not None
-
-
 def _read_sysfs(*parts: str) -> str | None:
     """Read a single line from a sysfs file.  Returns None on any error."""
     try:
@@ -1339,64 +1321,53 @@ def _gather_all_chip_facts(
     ]
 
 
+#: The reserved virtual ports and their descriptions, the one list of them.
+#: None enumerates; each opens directly (``config.open_serial`` builds its
+#: simulator) and answers to its own serial number, ``reserved_serial``.
+_RESERVED_PORTS: dict[str, str] = {
+    "DEMO": "Termapy simulated device",
+    "DEMO_FAIL": "Termapy simulated device (connect always fails)",
+    "DEMO_JSON": "Termapy simulated NDJSON device (modern path)",
+    "DEMO_VT100": "Termapy simulated VT100 device (cursor-addressed)",
+}
+
+
+def reserved_serial(name: str) -> str:
+    """The USB serial number a reserved port answers to (``TERMAPY-DEMO``).
+
+    A config naming it connects to the simulator the way a real config
+    connects to a board by its serial number, so serial-number configs can
+    be tried, and tested, with no hardware attached.
+    """
+    return f"TERMAPY-{name}"
+
+
 def synthetic_facts_for_reserved(name: str) -> ChipFacts | None:
     """Return synthesized ChipFacts for a reserved virtual port, or None.
 
-    DEMO / DEMO_FAIL are not enumerated by the OS but are reachable
-    through termapy's runtime serial paths.  Surfacing them here lets
-    ``termapy --ports DEMO --json`` produce a real record so CI
-    pipelines can exercise the CLI without hardware -- the same way
-    ``loop://`` and other pyserial URL handlers are reachable only
-    when explicitly named.
+    The DEMO family is not enumerated by the OS but is reachable through
+    termapy's runtime serial paths.  Surfacing them here lets
+    ``termapy --ports DEMO --json`` produce a real record so CI pipelines
+    can exercise the CLI without hardware -- the same way ``loop://`` and
+    other pyserial URL handlers are reachable only when explicitly named.
 
     Returns None for any name that isn't a recognized reserved port,
     so callers can fall through to "no match" handling.
     """
-    if name == "DEMO":
-        return ChipFacts(
-            device="DEMO",
-            description="Termapy simulated device",
-            manufacturer="termapy",
-            model="DEMO",
-            usb_speed="virtual (not a USB device)",
-            vid_pid="not a USB device",
-            in_use="no",
-            permissions="ok",
-        )
-    if name == "DEMO_FAIL":
-        return ChipFacts(
-            device="DEMO_FAIL",
-            description="Termapy simulated device (connect always fails)",
-            manufacturer="termapy",
-            model="DEMO_FAIL",
-            usb_speed="virtual (not a USB device)",
-            vid_pid="not a USB device",
-            in_use="no",
-            permissions="ok",
-        )
-    if name == "DEMO_JSON":
-        return ChipFacts(
-            device="DEMO_JSON",
-            description="Termapy simulated NDJSON device (modern path)",
-            manufacturer="termapy",
-            model="DEMO_JSON",
-            usb_speed="virtual (not a USB device)",
-            vid_pid="not a USB device",
-            in_use="no",
-            permissions="ok",
-        )
-    if name == "DEMO_VT100":
-        return ChipFacts(
-            device="DEMO_VT100",
-            description="Termapy simulated VT100 device (cursor-addressed)",
-            manufacturer="termapy",
-            model="DEMO_VT100",
-            usb_speed="virtual (not a USB device)",
-            vid_pid="not a USB device",
-            in_use="no",
-            permissions="ok",
-        )
-    return None
+    description = _RESERVED_PORTS.get(name)
+    if description is None:
+        return None
+    return ChipFacts(
+        device=name,
+        description=description,
+        manufacturer="termapy",
+        serial=reserved_serial(name),
+        model=name,
+        usb_speed="virtual (not a USB device)",
+        vid_pid="not a USB device",
+        in_use="no",
+        permissions="ok",
+    )
 
 
 # ─ Port spec resolution ───────────────────────────────────────────────────
@@ -1427,14 +1398,12 @@ class AmbiguousSerialNumberError(Exception):
         )
 
 
-#: Reserved port names that bypass enumeration.
-_RESERVED_PORTS = frozenset({"DEMO", "DEMO_FAIL", "DEMO_JSON"})
-
 #: Match-reason strings returned by ``resolve_port_trace``.
 MATCH_LITERAL = "literal"
 MATCH_SERIAL = "serial_number"
 MATCH_RESERVED = "reserved"
 MATCH_URL = "url"
+MATCH_AMBIGUOUS = "ambiguous"
 
 
 def _match_candidate(candidate: str, facts: list[ChipFacts]) -> tuple[str, str] | None:
@@ -1469,6 +1438,10 @@ def _match_candidate(candidate: str, facts: list[ChipFacts]) -> tuple[str, str] 
         return (sn_matches[0], MATCH_SERIAL)
     if len(sn_matches) > 1:
         raise AmbiguousSerialNumberError(candidate, sn_matches)
+    # A simulated port answers to its own serial number, after every real one.
+    for name in _RESERVED_PORTS:
+        if reserved_serial(name).lower() == needle:
+            return (name, MATCH_SERIAL)
     return None
 
 
@@ -1557,10 +1530,35 @@ def resolve_port_trace(
         try:
             result = _match_candidate(candidate, facts)
         except AmbiguousSerialNumberError:
-            trace.append((candidate, "ambiguous"))
+            trace.append((candidate, MATCH_AMBIGUOUS))
             continue
         trace.append((candidate, result[1] if result else None))
     return trace
+
+
+def port_present(spec: str, *, source: PortSource | None = None) -> bool:
+    """Whether connecting to ``spec`` would find its port now: the one "is it here?" test.
+
+    Decided the way ``resolve_port`` resolves, candidate by candidate: the
+    first ``|`` alternative that matches -- a device name, a USB serial
+    number, a reserved port or its serial number, a URL -- makes it
+    present; a serial number two devices share before any match makes it
+    absent, because connecting refuses it.  Loading a config asks this
+    before choosing to show the port picker, and the config editor to
+    color the port field (registry ``port-present-one-decider``).
+
+    Args:
+        spec: The config's port value, ``|``-separated candidates.
+        source: A substitute port list, as ``resolve_port`` takes it.
+    """
+    if not spec:
+        return False
+    for _, reason in resolve_port_trace(spec, source=source):
+        if reason == MATCH_AMBIGUOUS:
+            return False
+        if reason is not None:
+            return True
+    return False
 
 
 def _chip_rows(facts: ChipFacts) -> list[tuple[str, str] | tuple[str, str, str]]:

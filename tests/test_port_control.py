@@ -836,6 +836,8 @@ class TestSetMode:
 import pytest  # noqa: E402
 
 from termapy.port_control import (  # noqa: E402
+    _RESERVED_PORTS,
+    MATCH_AMBIGUOUS,
     MATCH_LITERAL,
     MATCH_RESERVED,
     MATCH_SERIAL,
@@ -849,9 +851,12 @@ from termapy.port_control import (  # noqa: E402
     chip_info,
     gather_chip_facts,
     parse_location_paths,
+    port_present,
+    reserved_serial,
     resolve_port,
     resolve_port_trace,
     split_location_interface,
+    synthetic_facts_for_reserved,
 )
 
 
@@ -1095,8 +1100,75 @@ class TestResolvePortTrace:
         actual = resolve_port_trace("0001|COM7", source=_ambiguous_fleet)
 
         # Assert -- ambiguous first, then literal fallback.
-        expected = [("0001", "ambiguous"), ("COM7", MATCH_LITERAL)]
+        expected = [("0001", MATCH_AMBIGUOUS), ("COM7", MATCH_LITERAL)]
         assert actual == expected, f"got {actual}"
+
+
+def _shared_serial_fleet() -> list[ChipFacts]:
+    """Two ports burned with the same serial number, as cheap clones ship."""
+    return [ChipFacts(device="COM3", serial="0001"), ChipFacts(device="COM7", serial="0001")]
+
+
+class TestPortPresent:
+    """port-present-one-decider: whether the configured port is here, decided as connecting resolves it."""
+
+    @pytest.mark.parametrize(
+        "spec",
+        [
+            "COM3",
+            "A1B2C3D4",
+            "a1b2c3d4",
+            "BOGUS|A1B2C3D4",
+            "DEMO",
+            "demo",
+            "DEMO_VT100",
+            "rfc2217://host:2217",
+            "TERMAPY-DEMO",
+        ],
+    )
+    def test_every_form_that_connects_is_present(self, spec):
+        """A device name, a serial number in any case, a chain, a simulated port, its serial number and a URL are all here."""
+        assert port_present(spec, source=_build_demo_fleet) is True, f"{spec} resolves"
+
+    @pytest.mark.parametrize("spec", ["", "BOGUS", "NOPE1|NOPE2", "COM99"])
+    def test_a_spec_that_matches_nothing_is_absent(self, spec):
+        """Nothing in the chain matches an attached port: absent, so loading asks for one."""
+        assert port_present(spec, source=_build_demo_fleet) is False, f"{spec} matches nothing"
+
+    def test_a_shared_serial_number_is_absent_as_the_connect_refuses_it(self):
+        """A serial number two ports share stops the chain, exactly where resolve_port raises."""
+        with pytest.raises(AmbiguousSerialNumberError):
+            resolve_port("0001|COM7", source=_shared_serial_fleet)
+        assert port_present("0001|COM7", source=_shared_serial_fleet) is False, (
+            "the connect would raise, so the port is not here"
+        )
+        assert port_present("COM7|0001", source=_shared_serial_fleet) is True, (
+            "a literal name ahead of the shared serial number resolves first"
+        )
+
+    def test_each_simulated_port_answers_to_its_serial_number(self):
+        """reserved_serial(name) resolves to that simulator, and its facts carry the same number."""
+        for name in _RESERVED_PORTS:
+            # Arrange
+            serial = reserved_serial(name)
+
+            # Act
+            actual = resolve_port(serial, source=_build_demo_fleet)
+
+            # Assert
+            assert actual == name, f"{serial} opens {name}"
+            facts = synthetic_facts_for_reserved(name)
+            assert facts is not None, f"{name} has facts"
+            assert facts.serial == serial, "the number /port.info shows is the one that resolves"
+
+    def test_a_real_serial_number_wins_over_a_simulated_one(self):
+        """An attached device burned with a simulator's serial number is the one found."""
+
+        def fleet():
+            return [ChipFacts(device="COM9", serial=reserved_serial("DEMO"))]
+
+        actual = resolve_port(reserved_serial("DEMO"), source=fleet)
+        assert actual == "COM9", "real hardware is matched before the simulators"
 
 
 class TestPortSourceLayers:

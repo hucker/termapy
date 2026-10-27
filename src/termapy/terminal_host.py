@@ -38,6 +38,7 @@ def _format_resolved_line(spec: str, actual: str) -> str:
     which lookup path got them here.
     """
     from termapy.port_control import (
+        MATCH_AMBIGUOUS,
         MATCH_LITERAL,
         MATCH_RESERVED,
         MATCH_SERIAL,
@@ -59,7 +60,7 @@ def _format_resolved_line(spec: str, actual: str) -> str:
     winning_candidate = None
     winning_reason = None
     for candidate, reason in trace:
-        if reason is not None and reason != "ambiguous":
+        if reason is not None and reason != MATCH_AMBIGUOUS:
             winning_candidate = candidate
             winning_reason = reason
             break

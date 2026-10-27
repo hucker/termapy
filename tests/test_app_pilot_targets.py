@@ -21,9 +21,10 @@ from pilot_wait import until
 from textual.widgets import Input, OptionList, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
-from termapy.dialogs import ConfirmDialog, FilenameDialog
+from termapy.dialogs import ConfirmDialog, FilenameDialog, PortPicker
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.quick_setup import QuickSetup
+from termapy.port_control import reserved_serial
 
 
 def _run(scenario) -> None:
@@ -340,6 +341,62 @@ class TestConfigPicked:
                 await pilot.pause()
                 assert app.config_path == other, "switched"
                 assert app.cfg["title"] == "other", "the new config's values are live"
+
+        _run(scenario)
+
+    def test_load_by_serial_number_connects_without_asking_for_a_port(self, app_factory, tmp_path):
+        """port-present-one-decider: a config naming its port by serial number loads like a COM name, no picker."""
+
+        async def scenario():
+            # Arrange: DEMO answers to its own serial number, so no hardware is needed
+            app, _, _ = app_factory()
+            serial = DEFAULT_CFG["serial"]
+            assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
+            port = reserved_serial("DEMO")
+            _, other = _write_cfg(
+                tmp_path, name="board", serial={**serial, "port": port}, auto_connect=True
+            )
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act: what the config picker hands back when the user picks it
+                app._on_config_picked(("load", other))
+                await pilot.pause()
+
+                # Assert
+                assert not isinstance(app.screen, PortPicker), "its port is here: no picker"
+                assert app.config_path == other, "switched"
+                connected = await until(pilot, lambda: app.is_connected)
+                assert connected, "auto_connect found the port by its serial number"
+                assert "Connected: DEMO" in app._get_screen_text(), "the screen names the device"
+                log = Path(app.session_log_path()).read_text(encoding="utf-8")
+                assert f"Resolved {port} -> DEMO" in log, "the log keeps how the number resolved"
+
+        _run(scenario)
+
+    def test_load_of_a_port_not_here_asks_for_one(self, app_factory, tmp_path):
+        """A config whose port matches nothing attached opens the port picker before switching."""
+        from serial.tools.list_ports import comports
+
+        if not list(comports()):
+            pytest.skip("no ports attached: the load switches with '(no ports found)' instead")
+
+        async def scenario():
+            # Arrange
+            app, _, path = app_factory()
+            serial = DEFAULT_CFG["serial"]
+            assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
+            _, other = _write_cfg(tmp_path, name="gone", serial={**serial, "port": "NO-SUCH-SN"})
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                app._on_config_picked(("load", other))
+                await pilot.pause()
+
+                # Assert
+                assert isinstance(app.screen, PortPicker), "nothing matches: the user picks a port"
+                assert app.config_path == path, "no switch until a port is picked"
 
         _run(scenario)
 

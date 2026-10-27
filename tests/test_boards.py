@@ -91,7 +91,7 @@ class TestTable:
             assert result.warnings == [], f"{board.name}: {result.warnings}"
 
     def test_profile_describes_the_firmware_commands(self):
-        """The profile's commands are exactly the device code's COMMANDS table: the two cannot drift."""
+        """The profile's commands are the device code's COMMANDS table and the monitor's help: no drift."""
         for board in BOARDS:
             main = firmware_paths(board)[0]
             tree = ast.parse(main.read_text(encoding="utf-8"))
@@ -103,8 +103,10 @@ class TestTable:
             )
             assert isinstance(table, ast.Dict), "COMMANDS is a dict literal"
             firmware = {key.value for key in table.keys if isinstance(key, ast.Constant)}
-            profile = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
-            assert profile == firmware, f"{board.name}: profile and firmware disagree"
+            # json is the framing switch termapy drives, not a command an agent calls.
+            expected = firmware | {"help"}
+            actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
+            assert actual == expected, f"{board.name}: profile and firmware disagree"
 
     def test_find_board_rejects_an_unknown_name(self):
         """An unknown board is a lookup failure that lists the boards."""
@@ -344,7 +346,7 @@ class Link:
         def boom(args):
             raise RuntimeError("sensor fault")
 
-        commands = {
+        handlers = {
             "echo": lambda args: " ".join(args),
             "words": lambda args: args,
             "num": lambda args: 3.14,
@@ -356,8 +358,11 @@ class Link:
             "fail": fail,
             "boom": boom,
         }
+        self.commands = {
+            name: ("the " + name + " command", handler) for name, handler in handlers.items()
+        }
         self.out: list[str] = []
-        self.monitor = BOARD_JSON.Monitor(commands, self.out.append)
+        self.monitor = BOARD_JSON.Monitor(self.commands, self.out.append)
 
     def ask(self, line: str) -> list[str]:
         """Send one line; return the reply lines it produced."""
@@ -477,10 +482,55 @@ class TestPicoJson:
         assert link.ask('{"cmd":"neg","id":12345678901}') == ['{"result":-42}\n']
         assert link.ask('{"cmd":"neg","id":1234567890}') == ['{"result":-42,"id":1234567890}\n']
 
-    def test_names_include_the_framing_command(self):
-        """names() lists the table's commands and the monitor's own json, sorted, for help."""
-        assert Link().monitor.names()[:3] == ["arr", "boom", "echo"]
-        assert "json" in Link().monitor.names()
+    def test_help_in_json_maps_every_command_to_its_help(self):
+        """JSON help is one object, name to help line: the table's commands and the monitor's own."""
+        # Arrange
+        link = Link()
+        link.ask("json on")
+        expected = {name: line for name, (line, _) in link.commands.items()}
+        expected["help"] = link.monitor.builtins["help"][0]
+        expected["json"] = link.monitor.builtins["json"][0]
+
+        # Act
+        reply = link.ask('{"jsonrpc":"2.0","method":"help","id":3}')
+
+        # Assert
+        assert len(reply) == 1, "one envelope"
+        envelope = json.loads(reply[0])
+        assert envelope["result"] == expected, "the help table is the result itself, no data member"
+        assert set(envelope) == {"jsonrpc", "result", "id"}, "a plain JSON-RPC response"
+
+    def test_help_in_text_is_sorted_and_aligned(self):
+        """Text help is one line per command, sorted by name, every help line starting in one column."""
+        # Act
+        lines = Link().ask("help")
+
+        # Assert
+        names = [line.split()[0] for line in lines]
+        assert names == sorted(names), "sorted by hand: MicroPython's dicts keep no order"
+        assert "json" in names and "help" in names, "the monitor's own commands are listed"
+        columns = {line.index("the ") for line in lines if line.split()[0] not in ("help", "json")}
+        assert len(columns) == 1, "the help lines are aligned"
+        assert lines[0] == "arr" + " " * 4 + "the arr command\r\n", (
+            "two spaces past words, the longest"
+        )
+
+    def test_help_for_one_command(self):
+        """help <command> answers its line; an unknown name or a second word is a -32602 refusal."""
+        link = Link()
+        assert link.ask("help num") == ["the num command\r\n"]
+        assert link.ask("help json") == [link.monitor.builtins["json"][0] + "\r\n"]
+        assert link.ask("help nosuch") == ["ERR unknown command: nosuch\r\n"]
+        assert link.ask("help num echo") == ["ERR usage: help {command}\r\n"]
+        link.ask("json on")
+        assert link.ask("help nosuch") == [
+            '{"error":{"code":-32602,"message":"unknown command: nosuch"}}\n'
+        ], "help itself exists, so its bad argument is -32602, not -32601"
+
+    def test_a_table_cannot_take_a_monitor_command_name(self):
+        """A table row named help or json is refused at construction instead of silently shadowed."""
+        with pytest.raises(ValueError, match="command name taken by the monitor: help"):
+            BOARD_JSON.Monitor({"help": ("mine", lambda args: "")}, print)
 
 
 @pytest.mark.slow

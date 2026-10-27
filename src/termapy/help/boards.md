@@ -57,7 +57,8 @@ The board then answers one command per line:
 
 | Command          | Text reply                          | JSON reply                         |
 | ---------------- | ----------------------------------- | ---------------------------------- |
-| `help`           | `commands: help id json led temp`   | the same string as `result`        |
+| `help`           | one `name  help` line per command   | `{"result":{"led":"the onboard LED...",...}}` |
+| `help <command>` | that command's help line            | `{"result":"the on-chip temperature in degrees C"}` |
 | `led`            | the LED's state, `on` or `off`      | `{"result":"on"}`                  |
 | `led on\|off`    | the new state, and the LED follows  | `{"result":"off"}`                 |
 | `temp`           | degrees C, such as `21.4`           | `{"result":21.4}`, a number        |
@@ -73,6 +74,11 @@ to it, and a request line such as `{"method":"temp","id":1}` switches by
 itself and gets its `id` back. The Pico's config sends `json on` when the
 MCP server connects, so an agent gets typed values while the TUI stays in
 text.
+
+Each command in `main.py` is a row of its `COMMANDS` table: the name, a
+one-line help and the handler, which takes the argument words and returns
+the reply value. `help` reads its answer from that table, so a new command
+is a handler and a row, and `help` lists it at once.
 
 Ctrl-C in the terminal stops the monitor and leaves the MicroPython `>>>`
 prompt; Ctrl-D restarts it. The on-chip sensor reads a few degrees off and

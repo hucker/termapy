@@ -1,6 +1,6 @@
 {
     "profile_version": 2,
-    "profile_revision": "1.1.0",
+    "profile_revision": "1.2.0",
     "profile_date": "2026-10-26",
     "device": {
         "name": "Raspberry Pi Pico (termapy starter, MicroPython)",
@@ -17,7 +17,7 @@
     },
     "commands": {
         "help": {
-            "help": "List the board's commands.",
+            "help": "The board's commands, each name mapped to its one-line help.",
             "safety": "readonly",
             "response": {"format": "json", "timeout_ms": 500}
         },

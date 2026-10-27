@@ -5,11 +5,10 @@ the board, not in termapy: copy it and termapy_json.py to the board, and
 MicroPython starts it at every power-up.  Ctrl-C in a terminal stops it and
 returns to the MicroPython prompt; Ctrl-D restarts it.
 
-    help          list the commands
-    led {on|off}  the onboard LED; bare, its state
-    temp          on-chip temperature in degrees C, a number
-    id            the board's unique ID in hex (also its USB serial number)
-    json {on|off} the reply framing: text for a person, JSON-RPC for termapy's MCP
+The commands are the COMMANDS table at the bottom, each a one-line help and
+a handler.  The monitor adds two of its own: ``help`` lists every command
+with its help line, and ``json {on|off}`` switches the reply framing.  A new
+command is a handler and a row.
 
 termapy_json.py is the reply envelope: in text framing a reply is the value
 and a failure ``ERR <reason>``; in JSON framing each reply is one JSON-RPC
@@ -54,10 +53,6 @@ def read_line():
             chars.append(char)
 
 
-def cmd_help(args):
-    return "commands: " + " ".join(monitor.names())
-
-
 def cmd_led(args):
     if not args:
         return LED_WORDS[led.value()]
@@ -78,7 +73,12 @@ def cmd_id(args):
     return "".join(f"{byte:02X}" for byte in machine.unique_id())
 
 
-COMMANDS = {"help": cmd_help, "led": cmd_led, "temp": cmd_temp, "id": cmd_id}
+# Command name to (one-line help, handler); help and json are the monitor's own.
+COMMANDS = {
+    "led": ("the onboard LED: led on|off sets it, bare led reads it", cmd_led),
+    "temp": ("the on-chip temperature in degrees C", cmd_temp),
+    "id": ("the board's unique ID in hex, also its USB serial number", cmd_id),
+}
 
 monitor = Monitor(COMMANDS, write)
 while True:

@@ -15,11 +15,15 @@ board running this exactly as to one running the C:
   a JSON request and switches to JSON framing by itself: ``{"cmd":..}`` or
   ``{"method":..}``, with ``"args"`` (a string) or ``"params"`` (a string or
   a flat array, joined by spaces).
+- ``help`` answers every command's one-line help: in JSON an object of
+  name to help, in text one aligned ``name  help`` line per command, sorted.
+  ``help <command>`` answers that command's line.
 
 Error codes are the contract's: -32700 malformed request, -32601 unknown
 command, -32602 bad arguments (a handler's ``CommandError``), -32603 a
-handler that failed otherwise.  Handlers take the argument words and return
-a JSON value; the monitor renders it for either framing.
+handler that failed otherwise.  Each command is a one-line help and a
+handler that takes the argument words and returns a JSON value; the monitor
+renders the value for either framing.
 
 This file runs on the board, so it uses only what MicroPython has: no
 typing, no annotations, and ``json``'s ``separators`` for compact output.
@@ -89,24 +93,29 @@ class Monitor:
     """One serial link's command monitor: dispatches lines, replies in the framing in force.
 
     Args:
-        commands: Command name to handler.  A handler takes the list of
-            argument words and returns a JSON value, or raises
-            ``CommandError``.
+        commands: Command name to ``(help, handler)``: a one-line help, and a
+            handler that takes the list of argument words and returns a JSON
+            value, or raises ``CommandError``.
         write: Writes one reply line, its line ending included.
+
+    Raises:
+        ValueError: A command reuses the name of one the monitor answers itself.
     """
 
     def __init__(self, commands, write):
+        # The monitor's own commands, in the table's shape.
+        self.builtins = {
+            "help": ("list the commands; help <command> for one", self._help),
+            "json": ("the reply framing: on for JSON-RPC, off for text", self._framing),
+        }
+        for name in commands:
+            if name in self.builtins:
+                raise ValueError("command name taken by the monitor: " + name)
         self.commands = commands
         self.write = write
         self.json = False
         self._id = None
         self._tagged = False
-
-    def names(self):
-        """Every command the monitor answers, its own ``json`` included, sorted."""
-        names = list(self.commands)
-        names.append("json")
-        return sorted(names)
 
     def handle(self, line):
         """Answer one received line; a blank line is ignored."""
@@ -124,17 +133,12 @@ class Monitor:
                 return
         words = text.split()
         name, args = words[0], words[1:]
-        if name == "json":
-            if args:
-                self.json = FRAMINGS.get(args[0], False)
-            self._result("on" if self.json else "off")
-            return
-        handler = self.commands.get(name)
-        if handler is None:
+        entry = self.builtins.get(name) or self.commands.get(name)
+        if entry is None:
             self._error(CommandError("unknown command: " + name, UNKNOWN_COMMAND))
             return
         try:
-            value = handler(args)
+            value = entry[1](args)
         except CommandError as e:
             self._error(e)
             return
@@ -142,6 +146,30 @@ class Monitor:
             self._error(CommandError(str(e), INTERNAL_ERROR))
             return
         self._result(value)
+
+    def _framing(self, args):
+        """``json``: the framing in force, after ``json on|off`` switches it."""
+        if args:
+            self.json = FRAMINGS.get(args[0], False)
+        return "on" if self.json else "off"
+
+    def _help(self, args):
+        """``help``: every command's one-line help; ``help <command>``: that command's."""
+        table = {}
+        for commands in (self.commands, self.builtins):
+            for name, (line, _) in commands.items():
+                table[name] = line
+        if len(args) > 1:
+            raise CommandError("usage: help {command}")
+        if args:
+            if args[0] not in table:
+                raise CommandError("unknown command: " + args[0])
+            return table[args[0]]
+        if self.json:
+            return table
+        # Text is for a person: sorted by hand (MicroPython's dicts keep no order), help aligned.
+        width = max(len(name) for name in table) + 2
+        return [name + " " * (width - len(name)) + table[name] for name in sorted(table)]
 
     def _extract(self, text):
         """A JSON request as the ``cmd args`` line it asks for; the id and tag are kept first."""

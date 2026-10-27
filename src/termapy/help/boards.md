@@ -80,9 +80,13 @@ maker and no serial number, so nothing on it says which board it is.
 3. **Create the config.** `/board.new esp32s3`, then `/cfg.load esp32s3`,
    or start termapy with `termapy --board esp32s3`.
 
-`led` drives the board's RGB LED on GPIO48, a dim white for `on`; a board
-with its LED on another pin changes one line of `main.py`. `id` is the
-chip's factory MAC address. MicroPython answers on the UART port too, but
+`led` drives the board's RGB LED on GPIO48: a red, a green and a blue LED
+in one package, each with its own level. `led 255 0 0` is full red, with
+each level 0 to 255 in decimal or `0x` hex. A level out of range is
+refused, not clipped. `on` is a dim white, `32 32 32`. Here `led` reports
+the levels rather than on or off: `[255,0,0]` in JSON, one level per line
+in text. A board with its LED on another pin changes one line of
+`main.py`. `id` is the chip's factory MAC address. MicroPython answers on the UART port too, but
 the config uses the chip's own USB, by its serial number.
 
 ## The board's commands
@@ -93,7 +97,7 @@ Each board answers one command per line:
 | ---------------- | ----------------------------------- | ---------------------------------- |
 | `help`           | one `name  help` line per command   | `{"result":{"led":"the onboard LED...",...}}` |
 | `help <command>` | that command's help line            | `{"result":"the on-chip temperature in degrees C"}` |
-| `led`            | the LED's state, `on` or `off`      | `{"result":"on"}`                  |
+| `led`            | the LED's state                     | `{"result":"on"}`                  |
 | `led on\|off`    | the new state, and the LED follows  | `{"result":"off"}`                 |
 | `temp`           | degrees C, such as `21.4`           | `{"result":21.4}`, a number        |
 | `id`             | the board's unique ID in hex        | `{"result":"E66548545710822C"}`    |

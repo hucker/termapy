@@ -1745,6 +1745,11 @@ HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
     ("symbols/converters/xc32.py", "convert"): "a linker map's own address format",
     ("symbols/converters/xc32.py", "regions"): "a linker map's memory table, the same format",
     ("symbols/table.py", "parse_addr_field"): "a symbol file's 0x address field",
+    (
+        "boards/micropython/firmware/termapy_json.py",
+        "int_arg",
+    ): "board code run by MicroPython, which cannot import termapy's readers; "
+    "test_boards pins that it takes what the profile's int_range takes",
 }
 
 # (module, function): why it may render lowercase hex.

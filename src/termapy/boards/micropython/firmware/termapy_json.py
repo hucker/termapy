@@ -26,7 +26,8 @@ Error codes are the contract's: -32700 malformed request, -32601 unknown
 command, -32602 bad arguments (a handler's ``CommandError``), -32603 a
 handler that failed otherwise.  Each command is a one-line help and a
 handler that takes the argument words and returns a JSON value; the monitor
-renders the value for either framing.
+renders the value for either framing.  ``int_arg`` reads a number word the
+way termapy's profile does: decimal or ``0x`` hex, out of range refused.
 
 This file runs on the board, so it uses only what MicroPython has: no
 typing, no annotations, and ``json``'s ``separators`` for compact output.
@@ -54,6 +55,25 @@ class CommandError(Exception):
         super().__init__(message)
         self.message = message
         self.code = code
+
+
+def int_arg(word, what, low, high):
+    """``word`` as a whole number from ``low`` to ``high``: decimal, or hex after ``0x``.
+
+    A value out of range is refused, never clipped, as termapy's profile
+    refuses it before the line is sent.
+
+    Raises:
+        CommandError: ``word`` is not a number, or is out of range.
+    """
+    try:
+        value = int(word[2:], 16) if word[:2] in ("0x", "0X") else int(word)
+    except ValueError:
+        value = None
+    if value is None or not low <= value <= high:
+        message = "invalid " + what + ": " + word
+        raise CommandError(message + " (use " + str(low) + " to " + str(high) + ")")
+    return value
 
 
 def _dumps(value):

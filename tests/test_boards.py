@@ -40,7 +40,7 @@ from termapy.defaults import DEFAULT_CFG, default_cfg
 from termapy.folders import PROFILE_SUFFIX
 from termapy.plugins import CapabilitySet
 from termapy.port_control import ChipFacts
-from termapy.profile import load_profile, validate_profile
+from termapy.profile import TypeRegistry, load_profile, validate_profile
 from termapy.repl import ReplEngine
 from termapy.usb_tree import UsbRecord
 
@@ -386,9 +386,9 @@ class TestCommands:
 
 
 def _load_board_json():
-    """The Pico's termapy_json.py, imported from the package as the board imports it."""
+    """MicroPython's shared termapy_json.py, imported from the package as a board imports it."""
     path = next(path for path in firmware_paths(PICO) if path.name == "termapy_json.py")
-    spec = importlib.util.spec_from_file_location("pico_termapy_json", path)
+    spec = importlib.util.spec_from_file_location("board_termapy_json", path)
     assert spec is not None and spec.loader is not None, "the board's module loads"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -433,8 +433,8 @@ class Link:
         return self.out[start:]
 
 
-class TestPicoJson:
-    """The Pico's termapy_json.py speaks the termapy_json.c contract (TESTER.md sections 2 to 5)."""
+class TestMicroPythonJson:
+    """MicroPython's termapy_json.py speaks the termapy_json.c contract (TESTER.md sections 2 to 5)."""
 
     def test_text_framing_is_the_value_and_err(self):
         """Text framing: the value as lines ending CRLF, a failure as ERR <message>."""
@@ -593,6 +593,43 @@ class TestPicoJson:
         """A table row named help or json is refused at construction instead of silently shadowed."""
         with pytest.raises(ValueError, match="command name taken by the monitor: help"):
             BOARD_JSON.Monitor({"help": ("mine", lambda args: "")}, print)
+
+
+class TestIntArg:
+    """int_arg reads a board command's number: decimal or 0x hex, refused out of range."""
+
+    def test_decimal_and_hex(self):
+        """Decimal and 0x hex in either case read as the number; nothing else is hex."""
+        actual = [
+            BOARD_JSON.int_arg(word, "level", 0, 255) for word in ("0", "255", "0xFF", "0X1a")
+        ]
+        assert actual == [0, 255, 255, 26]
+
+    def test_out_of_range_is_refused_not_clipped(self):
+        """A bad or out-of-range word is a -32602 refusal that names it and the range."""
+        for word in ("256", "-1", "0x100", "abc", "ff", "0x", ""):
+            with pytest.raises(BOARD_JSON.CommandError) as caught:
+                BOARD_JSON.int_arg(word, "level", 0, 255)
+            assert caught.value.message == f"invalid level: {word} (use 0 to 255)", word
+            assert caught.value.code == BOARD_JSON.BAD_ARGS, "a bad argument, not a fault"
+
+    def test_board_and_profile_agree_on_a_level(self):
+        """The ESP32-S3 profile's level type, checked by termapy, takes exactly what the board takes."""
+        # Arrange
+        profile = load_profile(BOARDS_DIR / "esp32s3" / "profile.json")
+        registry = TypeRegistry.from_profile(profile)
+
+        def board_takes(word: str) -> bool:
+            try:
+                BOARD_JSON.int_arg(word, "level", 0, 255)
+            except BOARD_JSON.CommandError:
+                return False
+            return True
+
+        # Act / Assert
+        for word in ("0", "32", "255", "0xFF", "0x0", "256", "-1", "0x100", "abc"):
+            actual = registry.validate("level", word).ok
+            assert actual == board_takes(word), f"termapy and the board disagree on {word!r}"
 
 
 @pytest.mark.slow

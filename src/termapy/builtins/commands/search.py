@@ -398,6 +398,7 @@ def _finish(ctx: PluginContext, pattern: str, matches: list[str], truncated: boo
 # which would otherwise be consumed by the dispatch-level flag parser.
 # The ``--dev`` switch is parsed by the handler itself.
 COMMAND = Command(
+    group="terminal",
     name="search",
     args="{--dev} <pattern>",
     help="Deep-search every command's metadata (name, help, args, flags, long help).",

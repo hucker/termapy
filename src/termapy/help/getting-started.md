@@ -220,7 +220,9 @@ The bottom bar contains a text input for sending commands to the serial device.
 Type `/help` to see all available REPL commands. Several ways to find
 things, man-inspired:
 
-- `/help`                  -- clean landscape of every command (name + one-liner).
+- `/help`                  -- the landscape: the terminal commands in full, every
+  other group folded to one row you can click.  Nothing is disabled by
+  folding; `/help.group <name>` expands one, `/help.group` lists them all.
 - `/help <cmd>`            -- exact match -> full man-page detail (NAME, SYNOPSIS,
   DESCRIPTION, FLAGS, REQUIRED CAPABILITIES, SUBCOMMANDS, SEE ALSO).
   REQUIRED CAPABILITIES rows are live status: a requirement the session

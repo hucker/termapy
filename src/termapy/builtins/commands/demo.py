@@ -44,6 +44,7 @@ def _handler_force(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="demo",
     help="Switch to the built-in demo device (creates its config if needed).",
     handler=_handler,

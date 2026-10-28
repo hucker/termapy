@@ -459,6 +459,7 @@ def _port_hw_line_long_help(line: str, direction: str):
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 
 COMMAND = Command(
+    group="terminal",
     name="port",
     args="{name}",
     help="Serial port tools: connect, disconnect, list, configure.",

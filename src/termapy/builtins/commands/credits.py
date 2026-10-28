@@ -158,6 +158,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="credits",
     help="Print acknowledgments / third-party attributions.",
     long_help=(

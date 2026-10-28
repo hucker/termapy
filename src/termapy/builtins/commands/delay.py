@@ -79,6 +79,7 @@ def _wait(
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="delay",
     help="Wait for a duration (e.g. 500ms, 1.5s); Escape or Ctrl+C cancels.",
     long_help=(

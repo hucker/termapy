@@ -26,6 +26,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="cls",
     help="Clear the terminal screen.",
     handler=_handler,

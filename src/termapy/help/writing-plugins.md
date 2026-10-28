@@ -115,11 +115,46 @@ COMMAND = Command(
     args="{name}",  # {braces} = optional, <angle> = required
     help="Say hello.",
     handler=_handler,
+    group="terminal",  # where /help shows it; see below
 )
 ```
 
 The `COMMAND` object must be defined after all the functions it references.
 `Termapy` looks for this specific name.
+
+## Where `/help` shows it: `group=`
+
+`/help` lays its landscape out from the commands themselves.  The
+`terminal` group is printed in full; every other group folds to one
+clickable row naming what it holds, so a first session reads a dozen rows
+instead of every command termapy has.
+
+```python
+COMMAND = Command(
+    name="spin",
+    help="Spin the motor.",
+    handler=_handler,
+    group="motor",  # your own group: it gets a folded row of its own
+)
+```
+
+The built-ins use `terminal`, `protocol`, `devices`, `advanced` and
+`plugins`, and those are the names to reach for first so related commands
+land together.  They are **not** a permitted list: declare a group of your
+own and it becomes its own row, or declare `terminal` and your command
+sits among the built-ins there.  Nothing about where a command came from
+decides where it appears, and no group name is reserved.
+
+Only the name's shape is checked at load (one lowercase word; letters,
+digits, `-` and `_`), so a typo shows up as a lonely one-command row
+rather than stopping the load.  A command that declares no group folds
+under `plugins`.
+
+Declare it on the ROOT command only -- subcommands inherit it, so
+`/tool.list` cannot leave `/tool`'s group.  Folding is display only: a
+folded command still dispatches, still completes and still answers
+`/help <name>`.  A group is reached through `/help.group <name>`, never a
+bare `/help <name>`, so a group can never shadow a command or a help page.
 
 Name the handler `_handler`, and a subcommand's handler `_handler_<sub>`
 (`_handler_list` for `/tool.list`, `_handler_crc_calc` for

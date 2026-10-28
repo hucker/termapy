@@ -174,6 +174,7 @@ def register_tui_hooks(app) -> None:
         "Switch to CLI mode.",
         lambda ctx, args: app._switch_to_cli(),
         source="app",
+        group="terminal",
         needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(
@@ -182,6 +183,7 @@ def register_tui_hooks(app) -> None:
         "Switch to VT100 passthrough on the current device (Ctrl-] returns).",
         lambda ctx, args: app._switch_to_vt100(),
         source="app",
+        group="terminal",
         # Only the TUI offers it: the round trip returns here on Ctrl-].
         needs=CapabilitySet.TUI_MODE,
     )
@@ -201,6 +203,7 @@ def register_tui_hooks(app) -> None:
         # already in TUI mode -- no state change, no scriptable output.
         lambda ctx, args: CmdResult.ok(value=""),
         source="app",
+        group="terminal",
         needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(

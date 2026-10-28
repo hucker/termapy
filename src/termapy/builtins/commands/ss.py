@@ -39,6 +39,7 @@ def _handler_placeholder(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="ss",
     help="Screenshot tools: save SVG/text, manage folder.",
     long_help=_ss_long_help,

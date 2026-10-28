@@ -145,6 +145,7 @@ def _seq_long_help(ctx: PluginContext) -> str:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="seq",
     help="Print sequence counters.",
     long_help=_seq_long_help,

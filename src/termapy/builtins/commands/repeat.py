@@ -91,6 +91,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="repeat",
     help="Repeat a command N times with optional delay (escape to cancel).",
     long_help=(

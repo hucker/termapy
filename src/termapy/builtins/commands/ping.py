@@ -68,6 +68,7 @@ def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     "Send a command and measure response time.",
+    group="protocol",
     name="ping",
     long_help=(
         "Sends a command to the device and measures round-trip time,\n"

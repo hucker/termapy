@@ -790,6 +790,7 @@ _CAP_WIRE_PROSE = (
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="cap",
     help="Data capture tools.",
     long_help=_cap_folder_line,

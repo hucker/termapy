@@ -260,6 +260,7 @@ def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="mcp",
     help="MCP catalog and status (Model Context Protocol).",
     long_help=(

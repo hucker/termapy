@@ -67,6 +67,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="protocol",
     name="xfer",
     help="File transfer: settings and XMODEM / YMODEM send and receive.",
     long_help=(

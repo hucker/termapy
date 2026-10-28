@@ -58,6 +58,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="os",
     args="<cmd>",
     help="Run a shell command and show output (10s timeout). e.g. {prefix}os dir",

@@ -21,6 +21,7 @@ from termapy.plugins import Command
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="plugin",
     help="Plugin-folder tools: list, explore, show, dump, edit.",
     sub_commands={

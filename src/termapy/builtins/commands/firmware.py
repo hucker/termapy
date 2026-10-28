@@ -163,6 +163,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 
 COMMAND = Command(
+    group="devices",
     name="firmware",
     help="Device-side sources termapy ships: list, copy, show, dump.",
     long_help=_long_help,

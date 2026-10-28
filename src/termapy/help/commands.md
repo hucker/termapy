@@ -9,10 +9,17 @@ synopsis, filtering as you type:
 
 > **NOTE:** If the device you are communicating with uses `/` commands that conflict with termapy's, you can change the prefix by setting `cmd_prefix` in your config (e.g. `cmd_prefix: "!"`). With `!` as the prefix, `!help` runs the local help command and `/foo` gets sent verbatim to the device.
 
-A selection of the most-used commands.  `/help` prints the full landscape
-(every command, including the `/app.*`, `/mcp.*`, `/port.chip.*` and
-`/proto.crc.<language>` families not listed here) and `/help <cmd>` the
-man-page detail for one.
+A selection of the most-used commands.  `/help` prints the landscape: the
+terminal commands in full, and every other group folded to one clickable
+row naming what it holds, so a first session reads a dozen rows rather
+than forty.  `/help.group <name>` expands one, `/help.group` lists them
+all, and `/help <cmd>` is the man-page detail for one command.
+
+Folding is display only: a folded command still runs, still completes and
+still answers `/help`.  Each command declares its own group, so a plugin
+you write joins whichever group fits -- including the terminal one, where
+it sits among the built-ins.  Nothing about where a command came from
+decides where it appears.
 
 ## Boolean values
 
@@ -116,7 +123,9 @@ script or plugin you wrote is deleted one name at a time, after a yes.
 | `/firmware.list`          | Same as bare `/firmware`                                                    |
 | `/firmware.show <name> {lang=<l>}` | Open a target's main source in the system viewer                     |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, prints the list)     |
-| `/help`                   | Clean landscape of every command (name + one-liner)                         |
+| `/help`                   | The landscape: terminal commands in full, other groups folded               |
+| `/help.group`             | List the groups, each with its commands                                     |
+| `/help.group <name>`      | Expand one group                                                            |
 | `/help <term>`            | Exact match -> man-page detail; otherwise a candidate list                  |
 | `/help.dev <cmd>`         | Show a command handler's Python docstring (developer view)                  |
 | `/help.plugin`            | List loaded plugins grouped by source                                       |

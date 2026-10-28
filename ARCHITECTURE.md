@@ -943,6 +943,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_fs_sandbox.py                  | MCP filesystem/network sandbox: the fs chokepoint and its command gates                                                                            |
 | test_handles.py                     | Tests for the namespaced PluginContext handles                                                                                                     |
 | test_help_dynamic.py                | Tests for `help_dynamic` helpers                                                                                                                   |
+| test_help_groups.py                 | The grouped /help landscape: what a first session sees, and how a group is reached                                                                 |
 | test_help_images.py                 | Verify help content: image references exist and tagged config examples stay current                                                                |
 | test_help_links.py                  | links-are-data for /help: names link to pages, a page tries its command, and nothing else changes                                                  |
 | test_help_tooltip.py                | Tests for the Help-button tooltip renderable                                                                                                       |

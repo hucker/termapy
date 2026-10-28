@@ -33,6 +33,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="confirm",
     args="{message}",
     help="Show Yes/Cancel dialog; Cancel stops a running script.",

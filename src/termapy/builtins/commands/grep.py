@@ -62,6 +62,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="grep",
     help="Search the scrollback for lines matching a pattern (case-insensitive regex).",
     long_help="""\

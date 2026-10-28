@@ -22,6 +22,7 @@ from rich.text import Text
 from termapy.builtins.commands.help import _landscape_row, _pad_markup
 from termapy.markup import markup_to_plain
 from termapy.plugins import (
+    GROUP_TERMINAL,
     CmdResult,
     PluginInfo,
     escape_markup,
@@ -102,6 +103,9 @@ def test_brackets_in_help_text_stay_text(tmp_path):
             args="",
             help="Shows [red]x[/] literally.",
             handler=lambda ctx, args: CmdResult.ok(value=""),
+            # The shown group, so the row is on the landscape to read; any
+            # other group folds to a count and its names.
+            group=GROUP_TERMINAL,
         )
     )
     shown: list[str] = []

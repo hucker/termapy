@@ -40,6 +40,7 @@ from termapy.folders import (
 from termapy.load_report import LoadReport, Record
 from termapy.markup import escape_markup, json_markup, markup_to_plain
 from termapy.plugins import (
+    GROUP_DEFAULT,
     LEVEL_FLAGS,
     OUTPUT_LEVELS,
     BoundaryException,
@@ -1253,6 +1254,7 @@ class ReplEngine:
         hidden: bool = False,
         files: str = "",
         picker: str = "",
+        group: str = "",
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1278,6 +1280,10 @@ class ReplEngine:
             files: Data folder the first argument's file lives in
                 (see ``Command.files``).
             picker: Picker a bare invocation opens (see ``Command.picker``).
+            group: What the command is for (see ``Command.group``).  A
+                dotted name inherits its parent's group, as a loaded
+                subcommand inherits its root's; ``""`` on a root command
+                means ``GROUP_DEFAULT``.
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -1289,6 +1295,14 @@ class ReplEngine:
         old = self._plugins.get(name)
         if old and old.children:
             old.children.clear()
+
+        # A family belongs to one group: a dotted hook takes its parent's,
+        # as a loaded subcommand takes its root's (registry
+        # ``help-group-declared``).
+        if not group and "." in name:
+            parent = self._plugins.get(name.rsplit(".", 1)[0])
+            if parent is not None:
+                group = parent.group
 
         self._plugins[name] = PluginInfo(
             name=name,
@@ -1303,6 +1317,7 @@ class ReplEngine:
             hidden=hidden,
             files=files,
             picker=picker,
+            group=group or GROUP_DEFAULT,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:

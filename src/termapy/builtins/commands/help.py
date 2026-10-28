@@ -13,6 +13,7 @@ from termapy.help_dynamic import is_state_line
 from termapy.markup import markup_to_plain, match_parts, underline_markup
 from termapy.plugins import (
     ENVIRONMENTS,
+    GROUP_TERMINAL,
     REQUIREMENT_HINTS,
     CapabilitySet,
     CmdResult,
@@ -25,6 +26,7 @@ from termapy.plugins import (
     synopsis_markup,
     synopsis_pieces,
 )
+from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_STYLE
 from termapy.plugins.params import render_parameters_block
 from termapy.plugins.views import Link, Piece, TableView
@@ -51,6 +53,9 @@ _MAX_CMD_COL = 28
 
 # The rows a help page's list shows, newest first; the rest are a click away.
 _HELP_LIST_ROWS = 10
+
+# How much of a folded group's name list fits before it is cut.
+_FOLD_NAMES_W = 46
 
 # Sentinel for the "everything-baseline" environment. ``needs.missing_from``
 # against this returns exactly the restrictive capabilities the command
@@ -218,6 +223,68 @@ def _landscape_row(
         for part, matched in match_parts(help_text, needles)
     ]
     return pieces
+
+
+def _group_note(plugins: list, ctx: PluginContext) -> str:
+    """Why a whole group cannot run right now, or ``""`` when any of it can.
+
+    Derived, never typed: the session state EVERY command in the group
+    lacks is the group's note, read through ``capabilities.STATE_MESSAGES``
+    (registry ``state-messages-one-owner``).  A group with one runnable
+    command has no note -- the fold row is about the group, and a
+    per-command gate is the command's own answer at dispatch.
+    """
+    effective = _effective_capabilities(ctx)
+    shared: set[str] | None = None
+    for plugin in plugins:
+        missing = {need for need in plugin.needs.missing_from(effective) if need in STATE_MESSAGES}
+        if not missing:
+            return ""
+        shared = missing if shared is None else (shared & missing)
+        if not shared:
+            return ""
+    if not shared:
+        return ""
+    # Deterministic when a group lacks several: the field order declares
+    # the precedence (a config before the port it opens).
+    need = next(name for name in STATE_MESSAGES if name in shared)
+    return state_message(need, ctx.prefix).rstrip(".")
+
+
+def _fold_row(group: str, plugins: list, ctx: PluginContext, cmd_w: int, note: str) -> list[Piece]:
+    """One folded group: the command that expands it, the count, the names.
+
+    The row is entirely derived from the registry -- no table of blurbs
+    to go stale, so a plugin joining a group shows up here by declaring
+    it (registry ``help-group-declared``).  The whole row links to the
+    expansion, so clicking anywhere on it opens the group.
+    """
+    link = Link(f"help.group {group}")
+    opener = f"{ctx.prefix}help.group {group}"
+    pieces = [Piece("  "), Piece(opener, link, _CMD)]
+    pieces.append(Piece(" " * max(2, cmd_w - len(opener) + 2)))
+    count = f"{len(plugins):d} command{'' if len(plugins) == 1 else 's'}"
+    pieces.append(Piece(f"{count:<12}", link, _SEP))
+    names = ", ".join(sorted(name for name, _ in plugins))
+    pieces.append(Piece(_truncate(names, _FOLD_NAMES_W), link, ""))
+    if note:
+        pieces.append(Piece(f"   {note}", link, _SEP))
+    return pieces
+
+
+def _fold_opener_w(group_names: list[str], prefix: str) -> int:
+    """The column the folded rows' counts start in: the longest opener."""
+    if not group_names:
+        return 0
+    return max(len(f"{prefix}help.group {group}") for group in group_names)
+
+
+def _truncate(text: str, width: int) -> str:
+    """``text`` cut to ``width`` on a name boundary, ending in ``...`` when cut."""
+    if len(text) <= width:
+        return text
+    cut = text[: width - 3].rsplit(", ", 1)[0]
+    return f"{cut}, ..."
 
 
 def _compute_cmd_w(names: list[str], prefix: str) -> int:
@@ -653,13 +720,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         return _show_command_help(ctx, name)
 
     # ── No args: landscape ───────────────────────────────────────────────────
-    _SOURCE_ORDER = {"app": 0, "built-in": 1, "global": 2}
-    _SOURCE_LABELS = {
-        "app": "Application",
-        "built-in": "Application Plugins",
-        "global": "User Plugins",
-    }
-
     all_plugins = ctx.internal.plugins
 
     # ``--mcp`` narrows the landscape to commands an MCP client would see.
@@ -669,9 +729,12 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     mcp_only = ctx.flag("--mcp")
     mcp_caps = ENVIRONMENTS["MCP"] if mcp_only else None
 
-    # Collect top-level commands by source, excluding script-only ones
-    # (they render in their own section so users see at a glance which
-    # commands only work inside .run files).
+    # Collect top-level commands by GROUP -- what a command is for, which
+    # the command itself declares -- excluding script-only ones (they
+    # render in their own section so users see at a glance which commands
+    # only work inside .run files).  Where a command CAME FROM does not
+    # appear in the landscape: a user plugin declaring ``terminal`` sits
+    # among the built-ins that did (registry ``help-group-declared``).
     groups: dict[str, list] = {}
     for cmd_name, plugin in all_plugins.items():
         if "." in cmd_name:
@@ -682,7 +745,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             continue
         if mcp_caps is not None and plugin.needs.missing_from(mcp_caps):
             continue
-        groups.setdefault(plugin.source, []).append((cmd_name, plugin))
+        groups.setdefault(plugin.group, []).append((cmd_name, plugin))
 
     # Unified column width across every section of the landscape so all
     # rows line up regardless of which section they're in.
@@ -715,16 +778,25 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         )
         ctx.io.output_markup("")
 
-    sorted_sources = sorted(groups, key=lambda s: _SOURCE_ORDER.get(s, 3))
-    first = True
-    for source in sorted_sources:
-        label = _SOURCE_LABELS.get(source, f"{source} Plugins")
-        if not first:
-            ctx.io.output_markup("")
-        first = False
-        ctx.io.output_markup(f"[{_SEP}]-- {escape_markup(label)} --[/]")
-        for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
+    # The terminal group in full, every other group folded to one row, so
+    # a first session reads a dozen commands instead of forty.  Nothing is
+    # disabled: a folded command dispatches, completes and answers
+    # ``/help <name>`` exactly as before.
+    terminal = groups.pop(GROUP_TERMINAL, [])
+    if terminal:
+        ctx.io.output_markup(f"[{_SEP}]-- Terminal --[/]")
+        for cmd_name, plugin in sorted(terminal, key=lambda x: x[0]):
             ctx.io.output_markup_segments(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+
+    if groups:
+        if terminal:
+            ctx.io.output_markup("")
+        ctx.io.output_markup(f"[{_SEP}]-- More --[/]")
+        fold_w = _fold_opener_w(sorted(groups), prefix)
+        for group in sorted(groups):
+            members = groups[group]
+            note = _group_note([plugin for _, plugin in members], ctx)
+            ctx.io.output_markup_segments(_fold_row(group, members, ctx, fold_w, note))
 
     if directives:
         ctx.io.output_markup("")
@@ -910,8 +982,60 @@ def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:
     return _show_command_help(ctx, name, dev_mode=True)
 
 
+def _group_members(ctx: PluginContext, group: str) -> list:
+    """The visible top-level commands declaring ``group``, sorted by name."""
+    return sorted(
+        (
+            (name, plugin)
+            for name, plugin in ctx.internal.plugins.items()
+            if "." not in name and not getattr(plugin, "hidden", False) and plugin.group == group
+        ),
+        key=lambda pair: pair[0],
+    )
+
+
+def _handler_group(ctx: PluginContext, args: str) -> CmdResult:
+    """Expand one group, or list the groups when called bare.
+
+    Groups live in their own namespace, reached only here: a bare
+    ``/help <name>`` keeps meaning a command or a help page, so a group
+    can never shadow either, whatever a plugin calls it.
+    """
+    wanted = args.strip().lower()
+    all_plugins = ctx.internal.plugins
+    present = sorted(
+        {
+            plugin.group
+            for name, plugin in all_plugins.items()
+            if "." not in name and not getattr(plugin, "hidden", False)
+        }
+    )
+    if not wanted:
+        fold_w = _fold_opener_w(present, ctx.prefix)
+        ctx.io.output_markup(f"[{_SEP}]-- Groups --[/]")
+        for group in present:
+            members = _group_members(ctx, group)
+            note = _group_note([plugin for _, plugin in members], ctx)
+            ctx.io.output_markup_segments(_fold_row(group, members, ctx, fold_w, note))
+        return CmdResult.ok(value="\n".join(present))
+    if wanted not in present:
+        return CmdResult.fail(msg=f"Unknown group: {wanted} (use {', '.join(present)})")
+    members = _group_members(ctx, wanted)
+    cmd_w = _compute_cmd_w([name for name, _ in members], ctx.prefix)
+    note = _group_note([plugin for _, plugin in members], ctx)
+    heading = f"-- {wanted} --"
+    ctx.io.output_markup(
+        f"[{_SEP}]{escape_markup(heading)}[/]"
+        + (f" [{_SEP}]{escape_markup(note)}[/]" if note else "")
+    )
+    for name, plugin in members:
+        ctx.io.output_markup_segments(_landscape_row(ctx.prefix, name, plugin, cmd_w))
+    return CmdResult.ok(value="\n".join(name for name, _ in members))
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="help",
     args="{term}",
     flags={
@@ -950,6 +1074,26 @@ reads as the name alone. Typing {prefix}help with zero matches points you at
             args="<cmd>",
             help="Print a command handler's Python docstring.",
             handler=_handler_dev,
+        ),
+        "group": Command(
+            args="{name}",
+            help="Expand one group of commands; bare lists the groups.",
+            long_help="""\
+Each command declares what it is FOR, and the landscape is laid out from
+those declarations: the terminal group in full, every other group folded
+to one row you can click.
+
+  {prefix}help.group            the groups, each with its commands
+  {prefix}help.group devices    expand one
+
+A group is reached only here, never as a bare {prefix}help <name>, so a
+group can never shadow a command or a help page. Nothing is hidden by
+folding: every command still runs, completes and answers {prefix}help.
+
+A plugin joins a group by declaring it -- including the terminal group,
+where it then sits among the built-ins. Nothing about where a command
+came from decides where it appears.""",
+            handler=_handler_group,
         ),
     },
 )

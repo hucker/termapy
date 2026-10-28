@@ -507,6 +507,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="term",
     help="Terminal display / session toggles (echo, line_no, timestamps, ...).",
     long_help=(

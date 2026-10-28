@@ -398,6 +398,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="devices",
     name="profile",
     help="Device profile commands (MCP profile schema, validator, loader).",
     long_help=(

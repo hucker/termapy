@@ -1,6 +1,6 @@
 {
     "profile_version": 2,
-    "profile_revision": "1.1.0",
+    "profile_revision": "2.0.0",
     "profile_date": "2026-10-27",
     "device": {
         "name": "ESP32-S3 DevKitC-1 (termapy starter, MicroPython)",
@@ -8,7 +8,9 @@
         "model": "ESP32-S3-DevKitC-1"
     },
     "types": {
-        "level": {"kind": "int_range", "min": 0, "max": 255, "help": "One LED's brightness: 0 (off) to 255."}
+        "level": {"kind": "int_range", "min": 0, "max": 255, "help": "One LED's brightness: 0 (off) to 255."},
+        "on_off": {"kind": "enum", "values": ["on", "off", "1", "0"], "help": "On or off: on or 1, off or 0."},
+        "framing": {"kind": "enum", "values": ["on", "off"], "help": "The reply framing: on for JSON-RPC, off for text."}
     },
     "error_detection": {
         "pattern": "\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
@@ -17,17 +19,44 @@
     },
     "commands": {
         "help": {
-            "help": "The board's commands, each name mapped to its one-line help.",
+            "help": "The board's commands, each name mapped to its one-line help; help <command> answers that command's line.",
+            "args": "{command}",
+            "send_template": "help {command}",
+            "typed_args": [
+                {"name": "command", "type": "str", "required": false, "help": "One command to describe."}
+            ],
             "safety": "readonly",
             "response": {"format": "json", "timeout_ms": 500}
         },
-        "led": {
-            "help": "Set the RGB LED's red, green and blue levels, each 0 to 255; the reply is the new levels, [red, green, blue].",
-            "send_template": "led {red} {green} {blue}",
+        "json": {
+            "help": "Set the reply framing, on for JSON-RPC or off for text; bare json reads it.",
+            "args": "{on|off}",
+            "long_help": "json off switches the board to text replies: every reply after it is text, not JSON, until json on, or any request line starting with {, switches back.  The config sends json on when the MCP server connects.",
+            "send_template": "json {framing}",
             "typed_args": [
-                {"name": "red", "type": "level", "required": true, "help": "Red level, 0 to 255."},
-                {"name": "green", "type": "level", "required": true, "help": "Green level, 0 to 255."},
-                {"name": "blue", "type": "level", "required": true, "help": "Blue level, 0 to 255."}
+                {"name": "framing", "type": "framing", "required": false, "help": "on or off."}
+            ],
+            "safety": "mutable",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
+        "led": {
+            "help": "Turn the RGB LED on, a dim white, or off; bare led reads it.  The reply is the state, on or off.",
+            "args": "{on|off|1|0}",
+            "send_template": "led {state}",
+            "typed_args": [
+                {"name": "state", "type": "on_off", "required": false, "help": "LED state."}
+            ],
+            "safety": "mutable",
+            "response": {"format": "json", "timeout_ms": 500}
+        },
+        "led_rgb": {
+            "help": "Set the RGB LED's red, green and blue levels, each 0 to 255; bare led_rgb reads them.  The reply is the levels, [red, green, blue].",
+            "args": "{<red> <green> <blue>}",
+            "send_template": "led_rgb {red} {green} {blue}",
+            "typed_args": [
+                {"name": "red", "type": "level", "required": false, "help": "Red level, 0 to 255; give all three levels or none."},
+                {"name": "green", "type": "level", "required": false, "help": "Green level, 0 to 255."},
+                {"name": "blue", "type": "level", "required": false, "help": "Blue level, 0 to 255."}
             ],
             "safety": "mutable",
             "response": {"format": "json", "timeout_ms": 500}

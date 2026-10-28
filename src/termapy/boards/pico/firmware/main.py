@@ -18,24 +18,18 @@ so they show in /help and reach an MCP agent as typed tools.
 """
 
 import machine
-from termapy_json import CommandError, serve
+from termapy_json import CommandError, on_off_arg, serve
 
 led = machine.Pin("LED", machine.Pin.OUT)
 sensor = machine.ADC(4)
 
-# The words led takes, the pin level each sets, and back.
-LED_LEVELS = {"on": 1, "off": 0}
-LED_WORDS = {1: "on", 0: "off"}
-
 
 def cmd_led(args):
-    if not args:
-        return LED_WORDS[led.value()]
-    level = LED_LEVELS.get(args[0])
-    if level is None or len(args) > 1:
-        raise CommandError("usage: led {on|off}")
-    led.value(level)
-    return args[0]
+    if len(args) > 1:
+        raise CommandError("usage: led {on|off|1|0}")
+    if args:
+        led.value(on_off_arg(args[0], "state"))
+    return "on" if led.value() else "off"
 
 
 def cmd_temp(args):
@@ -50,7 +44,7 @@ def cmd_id(args):
 
 # Command name to (one-line help, handler); help and json are the monitor's own.
 COMMANDS = {
-    "led": ("the onboard LED: led on|off sets it, bare led reads it", cmd_led),
+    "led": ("the onboard LED: led on|off|1|0 sets it, bare led reads it", cmd_led),
     "temp": ("the on-chip temperature in degrees C", cmd_temp),
     "id": ("the board's unique ID in hex, also its USB serial number", cmd_id),
 }

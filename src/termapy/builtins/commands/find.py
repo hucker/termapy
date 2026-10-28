@@ -236,6 +236,7 @@ command help instead of scrollback).
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="find",
     args="{pattern}",
     help="Navigate scrollback matches with an interactive find bar.",

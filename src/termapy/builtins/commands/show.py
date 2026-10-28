@@ -63,6 +63,7 @@ def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="show",
     args="<name>",
     help="Show a file.",

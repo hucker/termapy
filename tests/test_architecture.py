@@ -3482,3 +3482,135 @@ def test_prefix_allowlist_has_no_stale_entries():
 
     # Assert
     assert stale == [], f"no longer spell a command; remove from ALLOWED_PREFIX_SPELLINGS: {stale}"
+
+
+# ── help-group-declared ───────────────────────────────────────────────────────
+#
+# A command declares what it is FOR, and /help lays the landscape out from
+# the declarations.  The guards below pin the three halves of that: every
+# visible root declares a group, a family shares its root's, and the
+# landscape never reaches for where a command came from.
+
+
+def test_every_visible_root_declares_a_group(frontend_plugins):
+    """help-group-declared: every root a user can see declares a group, not the default."""
+    # Arrange
+    from termapy.plugins import GROUP_DEFAULT
+
+    # Act
+    undeclared = {
+        frontend: sorted(
+            name
+            for name, info in plugins.items()
+            if "." not in name and not info.hidden and info.group == GROUP_DEFAULT
+        )
+        for frontend, plugins in frontend_plugins.items()
+    }
+    missing = {frontend: names for frontend, names in undeclared.items() if names}
+
+    # Assert
+    assert missing == {}, (
+        "a visible top-level command declares no group, so /help folds it under "
+        f"{GROUP_DEFAULT!r} with unrelated commands; declare group= on its COMMAND:\n  "
+        + "\n  ".join(f"{frontend}: {names}" for frontend, names in missing.items())
+    )
+
+
+def test_subcommands_inherit_their_roots_group(frontend_plugins):
+    """help-group-declared: a family shares one group -- a subcommand cannot leave its root's."""
+    # Arrange / Act
+    strays = []
+    for frontend, plugins in frontend_plugins.items():
+        for name, info in plugins.items():
+            # A hidden legacy forwarder (/log.clear) is not in any listing,
+            # so it has no group to keep; the rule is about what /help shows.
+            if "." not in name or info.hidden:
+                continue
+            root = plugins.get(name.split(".", 1)[0])
+            if root is not None and info.group != root.group:
+                strays.append(
+                    f"{frontend}: /{name} is {info.group!r}, /{root.name} is {root.group!r}"
+                )
+
+    # Assert
+    assert strays == [], "a subcommand left its root's group:\n  " + "\n  ".join(strays)
+
+
+def test_the_landscape_never_groups_by_source(frontend_plugins):
+    """help-group-declared: /help's landscape reads group, never source -- origin is not privilege."""
+    # Arrange
+    import inspect
+    import textwrap
+
+    import termapy.builtins.commands.help as help_mod
+
+    source = inspect.getsource(help_mod._handler)
+    tree = ast.parse(textwrap.dedent(source))
+
+    # Act -- any read of ``.source`` on a plugin in the landscape handler
+    reads = [
+        node for node in ast.walk(tree) if isinstance(node, ast.Attribute) and node.attr == "source"
+    ]
+
+    # Assert
+    assert reads == [], (
+        "the landscape reads a command's source; it must lay out by group so a user "
+        "plugin declaring 'terminal' sits among the built-ins that did"
+    )
+
+
+def test_a_user_plugin_joins_the_terminal_group(tmp_path):
+    """help-group-declared: a loaded plugin declaring terminal is in it, as any built-in is."""
+    # Arrange -- a user plugin that claims the unfolded group
+    folder = tmp_path / "plugin"
+    folder.mkdir()
+    (folder / "mine.py").write_text(
+        "from termapy.plugins import CmdResult, Command\n"
+        "def _handler(ctx, args):\n"
+        "    return CmdResult.ok(value='')\n"
+        "COMMAND = Command(\n"
+        "    group='terminal',\n"
+        "    name='mine',\n"
+        "    help='A command of my own.',\n"
+        "    handler=_handler,\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    cfg = tmp_path / "bare.cfg"
+    cfg.write_text("{}", encoding="utf-8")
+
+    # Act -- resolve_plugins is the step that reads the folders
+    from termapy.plugins import GROUP_TERMINAL
+    from termapy.repl import ReplEngine
+
+    engine = ReplEngine({}, str(cfg), lambda *a, **k: None, global_root=tmp_path)
+    engine.resolve_plugins()
+    mine = engine._plugins.get("mine")
+
+    # Assert
+    assert mine is not None, "the plugin loaded"
+    assert mine.group == GROUP_TERMINAL, (
+        "a user plugin that declares the terminal group is in it; nothing about where "
+        "a command came from decides where /help shows it"
+    )
+
+
+def test_group_guard_fires_on_a_probe(frontend_plugins):
+    """help-group-declared: the declaration guard reddens for a root left at the default."""
+    # Arrange -- a root carrying the default group, as an undeclared command would
+    from dataclasses import replace
+
+    from termapy.plugins import GROUP_DEFAULT
+
+    plugins = dict(next(iter(frontend_plugins.values())))
+    probe = replace(plugins["help"], name="probe", group=GROUP_DEFAULT)
+
+    # Act
+    undeclared = [
+        name
+        for name, info in {**plugins, "probe": probe}.items()
+        if "." not in name and not info.hidden and info.group == GROUP_DEFAULT
+    ]
+
+    # Assert
+    assert undeclared == ["probe"], "the probe is the one undeclared root the guard would name"

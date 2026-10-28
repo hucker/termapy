@@ -238,6 +238,7 @@ def _flatten_command(
     node: Command,
     prefix: str,
     source: str,
+    group: str = "",
 ) -> list[PluginInfo]:
     """Recursively flatten a Command tree into PluginInfo entries.
 
@@ -251,10 +252,17 @@ def _flatten_command(
     declare the same need explicitly.  This keeps the gate local and
     auditable.
 
+    ``group`` is the exception: a family belongs to one group, so the
+    ROOT declares it and every descendant inherits it (registry
+    ``help-group-declared``).  A group on a subcommand is ignored --
+    ``/sym.search`` cannot leave ``/sym``'s group.
+
     Args:
         node: Command instance with name/help/handler/sub_commands.
         prefix: Dotted path prefix (empty for root).
         source: Plugin source label.
+        group: The root's group, passed down the recursion; ``""`` at
+            the root, where the node's own declaration is taken.
 
     Returns:
         List of PluginInfo for this node and all descendants.
@@ -264,12 +272,13 @@ def _flatten_command(
     sub_commands = node.sub_commands or {}
     children: list[str] = []
     result: list[PluginInfo] = []
+    group = group or node.group
 
     # Recurse into sub_commands first so we can build the children list
     for sub_name, sub_node in sub_commands.items():
         # Set name on sub-node so recursion works uniformly
         sub_node.name = sub_name
-        child_infos = _flatten_command(sub_node, full_name, source)
+        child_infos = _flatten_command(sub_node, full_name, source, group)
         result.extend(child_infos)
         children.append(f"{full_name}.{sub_name}".lower())
 
@@ -313,6 +322,7 @@ def _flatten_command(
         picker=node.picker,
         bare_sub=node.bare_sub,
         help_list=node.help_list,
+        group=group,
     )
     result.insert(0, info)
     return result

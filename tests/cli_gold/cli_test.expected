@@ -1452,6 +1452,29 @@ demo> /help.plugin
   /expect       Wait for text in serial output (blocks until match or timeout).
   45 commands.
   [179/219] /help.plugin (6.49ms)
+demo> /print === section: help.group ===
+  === section: help.group ===
+  [180/219] /print === section: help.group === (185us)
+demo> /help.group
+-- Groups --
+  /help.group advanced  12 commands app, confirm, credits, edit, env, expect, ...
+  /help.group devices   6 commands  board, dev, firmware, mem, profile, sym
+  /help.group plugins   3 commands  crcsend, probe, temp_plot
+  /help.group protocol  3 commands  ping, proto, xfer
+  /help.group terminal  21 commands cap, cfg, cli, cls, delay, demo, exit, ...
+  [181/219] /help.group (2.52ms)
+demo> /help.group devices
+-- devices --
+  /board       Starter projects for real dev boards: list, new, firmware.
+  /dev         Device files: a part's registers as data (see /help devices).
+  /firmware    Device-side sources termapy ships: list, copy, show, dump.
+  /mem         Device memory: dump, typed reads, writes and bit ops via /sym names.
+  /profile     Device profile commands (MCP profile schema, validator, loader).
+  /sym         Symbol table: name -> address, or address -> name+offset.
+  [182/219] /help.group devices (1.67ms)
+demo> /help.group nope
+  Error: Unknown group: nope (use advanced, devices, plugins, protocol, terminal)
+  [183/219] /help.group nope (30us)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
   [180/219] /print === section: cap.poll === (154us)

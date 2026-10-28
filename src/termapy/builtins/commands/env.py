@@ -171,6 +171,7 @@ def _env_long_help(ctx: PluginContext) -> str:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="env",
     args="{pattern}",
     handler=_handler_list,

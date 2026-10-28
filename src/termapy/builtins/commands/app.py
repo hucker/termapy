@@ -259,6 +259,7 @@ preferences; no feature reads it yet."""
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="app",
     help="App-wide state and config.",
     long_help=_APP_LONG_HELP,

@@ -419,6 +419,7 @@ def _long_help(ctx: PluginContext) -> str:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="devices",
     name="dev",
     help="Device files: a part's registers as data (see {prefix}help devices).",
     long_help=_long_help,

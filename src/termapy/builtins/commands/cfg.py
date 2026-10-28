@@ -704,6 +704,7 @@ def _cfg_long_help(ctx: PluginContext) -> str:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="cfg",
     args="{key {value}}",
     help="Show or set config values.",

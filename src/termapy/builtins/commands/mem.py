@@ -1294,6 +1294,7 @@ _LONG_HELP: Final[str] = (
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="devices",
     name="mem",
     help="Device memory: dump, typed reads, writes and bit ops via {prefix}sym names.",
     long_help=_LONG_HELP,

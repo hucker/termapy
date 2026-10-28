@@ -97,6 +97,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 
 COMMAND = Command(
+    group="advanced",
     name="edit",
     args="<filename>",
     help="Open a project file for editing (run/, proto/ or plugin/).",

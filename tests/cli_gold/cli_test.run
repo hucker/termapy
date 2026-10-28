@@ -279,6 +279,10 @@ MEM.M 0x1000 F0 05 --json
 /help.run
 /print === section: help.plugin ===
 /help.plugin
+/print === section: help.group ===
+/help.group
+/help.group devices
+/help.group nope
 
 # ── REPL: cap.poll ──────────────────────────────────────────────────────────
 /print === section: cap.poll ===

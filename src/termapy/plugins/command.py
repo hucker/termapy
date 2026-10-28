@@ -200,6 +200,52 @@ def validate_synopsis(args: str) -> str:
     return ""
 
 
+# ── Groups ───────────────────────────────────────────────────────────────────
+#
+# A command declares what it is FOR, and ``/help`` lays itself out from the
+# declarations (registry ``help-group-declared``).  The vocabulary is open:
+# these five are what the built-ins use, not a permitted list, so a plugin
+# may declare a group of its own and get its own row, or join one of these
+# and sit among the built-ins that declared it.  Nothing about a command's
+# origin decides where it appears.
+
+# The group shown in full; every other group is one folded row.
+GROUP_TERMINAL = "terminal"
+
+# What a command that declares no group belongs to.
+GROUP_DEFAULT = "plugins"
+
+# The groups the built-ins use.  Not a whitelist -- ``/help`` reads the
+# groups the loaded commands actually declare -- but the names to reach
+# for first, so related commands land together instead of near-missing.
+GROUPS = (GROUP_TERMINAL, "protocol", "devices", "advanced", GROUP_DEFAULT)
+
+
+def validate_group(group: str) -> str:
+    """Check a group name's shape; membership is not checked, the vocabulary is open.
+
+    A group is a bare lowercase word: letters, digits, ``-`` and ``_``.
+    The shape is checked so a name cannot collide with ``/help``'s own
+    syntax or render oddly; the NAME is not checked against ``GROUPS``,
+    because a plugin declaring a group of its own is the point.
+
+    Returns:
+        ``""`` when valid, else a short description of the problem
+        (callers prepend the command name).
+    """
+    if not group:
+        return "empty group name"
+    if group != group.strip():
+        return "surrounding whitespace"
+    if any(ch.isspace() for ch in group):
+        return "a group name is one word (no spaces)"
+    if not all(ch.isalnum() or ch in "-_" for ch in group):
+        return "letters, digits, '-' and '_' only"
+    if group != group.lower():
+        return "lowercase only"
+    return ""
+
+
 # ── Rendering a declaration ──────────────────────────────────────────────────
 #
 # A synopsis and a flags mapping are shown in two places, ``/help``'s page
@@ -498,6 +544,15 @@ class Command:
             (``help_list="list"``), each name clickable as in the list.
             Must name a declared subcommand that takes no arguments; the
             loader fails loud otherwise.
+        group: What the command is FOR, which is how ``/help`` lays
+            itself out: ``GROUP_TERMINAL`` is shown in full and every
+            other group folds to one clickable row (registry
+            ``help-group-declared``).  Declared on a ROOT command only;
+            subcommands inherit it.  ``GROUPS`` are the names the
+            built-ins use, but the vocabulary is OPEN -- a plugin may
+            declare one of its own, or declare ``terminal`` and appear
+            among the built-ins that did.  Only the shape is validated.
+            Defaults to ``GROUP_DEFAULT``.
     """
 
     help: str
@@ -516,6 +571,7 @@ class Command:
     files: str = ""
     picker: str = ""
     help_list: str = ""
+    group: str = GROUP_DEFAULT
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -532,6 +588,11 @@ class Command:
             raise ValueError(
                 f"/{self.name or '<command>'}: unknown safety tier {self.safety!r} "
                 f"(use {'/'.join(SAFETY_TIERS)})"
+            )
+        group_error = validate_group(self.group)
+        if group_error:
+            raise ValueError(
+                f"/{self.name or '<command>'}: invalid group {self.group!r}: {group_error}"
             )
         if not self.params:
             return
@@ -838,6 +899,10 @@ class PluginInfo:
             where the host has none), inherited from ``Command.bare_sub``.
         help_list: Subcommand whose table ends the ``/help`` page,
             inherited from ``Command.help_list``.
+        group: What the command is for, inherited from ``Command.group``
+            -- on a subcommand, from its ROOT, so a family stays
+            together however deep it nests.  ``/help`` lays the landscape
+            out from these (registry ``help-group-declared``).
     """
 
     name: str
@@ -857,6 +922,7 @@ class PluginInfo:
     picker: str = ""
     bare_sub: str = ""
     help_list: str = ""
+    group: str = GROUP_DEFAULT
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.
@@ -881,6 +947,9 @@ class PluginInfo:
             raise ValueError(
                 f"/{self.name}: unknown picker {self.picker!r} (use {', '.join(PICKERS)})"
             )
+        group_error = validate_group(self.group)
+        if group_error:
+            raise ValueError(f"/{self.name}: invalid group {self.group!r}: {group_error}")
 
 
 def interpolate_help(text: str, prefix: str) -> str:

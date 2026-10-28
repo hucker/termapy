@@ -353,6 +353,7 @@ def _var_long_help(ctx: PluginContext) -> str:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="var",
     args="{name}",
     help="List user variables, or show one by name.",

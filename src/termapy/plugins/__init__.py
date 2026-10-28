@@ -61,6 +61,9 @@ from termapy.plugins.capabilities import (
     state_message,
 )
 from termapy.plugins.command import (
+    GROUP_DEFAULT,
+    GROUP_TERMINAL,
+    GROUPS,
     LIFECYCLE_HOOK_NAMES,
     BoundaryException,
     CmdResult,
@@ -82,6 +85,7 @@ from termapy.plugins.command import (
     resolve_long_help,
     synopsis_markup,
     synopsis_pieces,
+    validate_group,
     validate_synopsis,
 )
 from termapy.plugins.context import (
@@ -144,6 +148,10 @@ __all__ = [
     "resolve_long_help",
     "synopsis_markup",
     "synopsis_pieces",
+    "GROUP_DEFAULT",
+    "GROUP_TERMINAL",
+    "GROUPS",
+    "validate_group",
     "validate_synopsis",
     # Context + config + output-level utilities
     "DEFAULT_OUTPUT_LEVEL",

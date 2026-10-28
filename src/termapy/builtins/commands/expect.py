@@ -78,6 +78,7 @@ _PARAMS = [
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="advanced",
     name="expect",
     help="Wait for text in serial output (blocks until match or timeout).",
     long_help=(

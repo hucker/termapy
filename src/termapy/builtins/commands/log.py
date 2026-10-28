@@ -351,6 +351,7 @@ _DELETE_LONG_HELP = (
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="log",
     help="Session log: print, fingerprint, or open it.",
     # Bare /log does what the Log button does: open the session log.

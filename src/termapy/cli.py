@@ -284,6 +284,7 @@ class CLITerminal(TerminalHost):
             "Switch to TUI mode.",
             self._hook_tui,
             source="app",
+            group="terminal",
             needs=CapabilitySet.INTERACTIVE,
         )
         self.repl.register_hook(
@@ -293,6 +294,7 @@ class CLITerminal(TerminalHost):
             # SPECIAL CASE: no-op when /cli runs while already in CLI mode.
             lambda ctx, args: CmdResult.ok(value=""),
             source="app",
+            group="terminal",
             needs=CapabilitySet.INTERACTIVE,
         )
         self.repl.register_hook(

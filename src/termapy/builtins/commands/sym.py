@@ -419,6 +419,7 @@ def _long_help(ctx: PluginContext) -> str:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="devices",
     name="sym",
     args="<addr|name>",
     help="Symbol table: name -> address, or address -> name+offset.",

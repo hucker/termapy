@@ -38,6 +38,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="raw",
     args="<text>",
     help="Send raw text to serial (no transforms or line ending).",

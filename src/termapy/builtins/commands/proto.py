@@ -2411,6 +2411,7 @@ _FOLDER_SUBS["list"] = Command(
     needs=CapabilitySet.CONFIG_LOADED,
 )
 COMMAND = Command(
+    group="protocol",
     name="proto",
     help="Binary protocol tools: send, run, debug, hex, crc, info.",
     long_help=_proto_long_help,

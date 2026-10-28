@@ -43,6 +43,7 @@ def _handler_rich(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
+    group="terminal",
     name="print",
     args="<text>",
     help="Print a message to the terminal.",

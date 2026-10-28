@@ -205,6 +205,7 @@ _FOLDER_SUBS["list"] = Command(
 
 
 COMMAND = Command(
+    group="terminal",
     name="run",
     args="{filename}",
     help="Run a script file, or list available scripts.",

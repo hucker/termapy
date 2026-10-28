@@ -869,7 +869,7 @@ The device supports a full AT command set. Type commands and get responses just 
 | `AT+STATUS`        | Device status (LED, uptime, connections)          |
 | `AT+RESET`         | Reset device (simulates boot sequence)            |
 | `mem <addr> [len]` | Hex memory dump (deterministic, max 256 bytes)    |
-| `help`             | List all commands                                 |
+| `help`             | The command landscape, grouped                    |
 
 #### GPS / NMEA commands
 

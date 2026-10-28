@@ -538,3 +538,30 @@ to a plain `/mem.dump`. **Where:** `builtins/commands/mem.py` (`_verbose`,
 `_normal_or_louder`, the dump column gates); registry `mem-output-levels`;
 `tests/test_mem_commands.py`; the gold exercises every tier at the default
 level.
+
+## 2026-10-27 — The device moves bytes; termapy checks the addresses
+
+A device's MEM commands read and write whatever address they are given.
+Knowing the part -- its memory map, its registers, which reads have effects
+-- is termapy's job, from the JSON that describes it (the device file, the
+memory regions), because a chip's whole map carried in the chip does not
+scale to the small devices termapy is for. What a device may add is a lock
+of its own: a guard function injected at initialization,
+`guard(addr, count, write)`, that sees every access before it runs and
+refuses it with `ERR range`. With none, every address goes through. A MEM
+line is answered in the wire spec's text whatever the board's reply
+framing, as the C module writes its text beside `termapy_json.c`, so
+`/mem.*` reads a board the same way in the TUI and over MCP. **Why:**
+Chuck, when the MicroPython MEM module was planned with a memory map per
+board copied from the vendors' manuals: "the code on the termapy side
+would be responsible for checking ... supporting all knowledge about the
+chip, in the chip does not scale to smaller devices", with "global locks"
+in the embedded code as an injected guard. **Where:**
+`boards/micropython/firmware/termapy_mem.py` (`Memory`, `direct`), the
+monitor's `native` commands in `termapy_json.py`; registry
+`board-mem-pure`, `board-mem-native-text`. **Open:** `termapy_mem.c` still
+takes a map (`TermapyMem_Region`, the Unreleased "reference MEM module takes
+the platform's memory map"), which this replaces with the same guard: a
+branch of its own. termapy does not yet refuse an address outside the
+part's JSON, so until it does a mistyped `/mem.read` on a board with no
+guard faults the chip; the ESP32-S3 resets.

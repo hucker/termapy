@@ -253,6 +253,13 @@ way). The block size, address width and row width are `-D` knobs in
 `termapy_mem.h`, which also gives the line-buffer size a full `MEM.W`
 needs (`TERMAPY_MEM_LINE_SIZE`). No allocation, no printf.
 
+A MicroPython board gets the same verbs from `termapy_mem.py`, which the
+ESP32-S3 [starter](boards.md) ships. It reads and writes whatever address
+it is given, through `machine.mem8/16/32` with the same width-aware access,
+and carries no memory map: checking the address is termapy's side. A board
+that needs its own rules passes in a guard, `guard(addr, count, write)`,
+which sees every access first and refuses it with `ERR range`.
+
 ```text
 MEM.R <addr> <len>      ->  <ADDR>: <XX XX XX ...>     one or more rows
                             OK

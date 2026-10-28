@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from mem_wire_cases import WIRE_ERRORS, masked, row
 
 from termapy.firmware import TARGETS, find_target, source_path
 
@@ -103,16 +104,6 @@ def _replies(exe: Path, commands: list[str], mode: str = "") -> list[str]:
     return chunks
 
 
-def _row(addr: int, data: bytes) -> str:
-    return f"{addr:08X}: " + " ".join(f"{byte:02X}" for byte in data) + "\r\n"
-
-
-def _masked(old: bytes, and_mask: int, or_mask: int) -> bytes:
-    """What MEM.M leaves behind, computed the way the core sees the word."""
-    value = int.from_bytes(old, sys.byteorder)
-    return ((value & and_mask) | or_mask).to_bytes(len(old), sys.byteorder)
-
-
 @pytest.mark.slow
 class TestWire:
     def test_info_and_silence_before_init(self, mem_host):
@@ -134,8 +125,8 @@ class TestWire:
         short, longer, _lock = _replies(mem_host, ["R 0 16", "R 0 20"])
 
         # Assert
-        assert short == _row(0, bytes(16)) + "OK\r\n"
-        assert longer == _row(0, bytes(16)) + _row(0x10, bytes(4)) + "OK\r\n", (
+        assert short == row(0, bytes(16)) + "OK\r\n"
+        assert longer == row(0, bytes(16)) + row(0x10, bytes(4)) + "OK\r\n", (
             "the remainder is a second row"
         )
 
@@ -146,8 +137,8 @@ class TestWire:
         _ok, back, _ok2, spaced, _lock = _replies(mem_host, commands)
 
         # Assert
-        assert back == _row(0x10, b"\xde\xad\xbe\xef") + "OK\r\n"
-        assert spaced == _row(0x20, b"\xde\xad") + "OK\r\n", "lower-case, spaced pairs accepted"
+        assert back == row(0x10, b"\xde\xad\xbe\xef") + "OK\r\n"
+        assert spaced == row(0x20, b"\xde\xad") + "OK\r\n", "lower-case, spaced pairs accepted"
 
     @pytest.mark.parametrize(
         ("addr", "old", "and_mask", "or_mask"),
@@ -172,8 +163,8 @@ class TestWire:
         _ok, pre, after, lock = _replies(mem_host, commands)
 
         # Assert
-        assert pre == _row(addr, old) + "OK\r\n", "MEM.M replies the PRE-modify word"
-        assert after == _row(addr, _masked(old, and_mask, or_mask)) + "OK\r\n"
+        assert pre == row(addr, old) + "OK\r\n", "MEM.M replies the PRE-modify word"
+        assert after == row(addr, masked(old, and_mask, or_mask)) + "OK\r\n"
         assert lock == "locks=1 depth=0\n", "locked once around the read-modify-write, unlocked"
 
     def test_a_refusal_inside_the_lock_still_unlocks(self, mem_host):
@@ -190,22 +181,8 @@ class TestWire:
         [
             ("", "usage"),
             ("X", "usage"),
-            ("R", "usage"),
-            ("R 0", "usage"),
-            ("R 0 0", "length"),
-            ("R 0 65", "length"),
             ("R F0 32", "range"),  # runs past the end of the map
-            ("R FFFFFFFF 2", "range"),  # wraps past the top of the address space
-            ("R 0 16 junk", "usage"),  # a verb takes exactly its arguments
-            ("INFO junk", "usage"),
-            ("R 100000000 1", "usage"),  # nine hex digits: wider than an address
-            ("R 0 4294967296", "usage"),  # past uint32_t, refused rather than wrapped
-            ("W 0", "usage"),
-            ("W 0 ABC", "usage"),  # odd digit count
-            ("W 0 " + "00" * 65, "length"),
-            ("M 3 FFFF 0000", "usage"),  # misaligned for a 16-bit word
-            ("M 0 FF 0000", "usage"),  # mask widths disagree
-            ("M 0 FF 00 junk", "usage"),
+            *WIRE_ERRORS,
         ],
     )
     def test_errors(self, mem_host, command, reason):
@@ -233,7 +210,7 @@ class TestWire:
         reply, _lock = _replies(mem_host, [command])
 
         # Assert
-        assert reply == _row(0, b"\x00") + "OK\r\n"
+        assert reply == row(0, b"\x00") + "OK\r\n"
 
 
 @pytest.mark.slow
@@ -246,7 +223,7 @@ class TestRegions:
         reply, _lock = _replies(mem_host, ["R 80 4"])
 
         # Assert
-        assert reply == _row(0x80, bytes(4)) + "OK\r\n"
+        assert reply == row(0x80, bytes(4)) + "OK\r\n"
 
     @pytest.mark.parametrize(
         "command",
@@ -274,7 +251,7 @@ class TestRegions:
 
         # Assert
         assert refused == "ERR range\r\n"
-        assert after == _row(0x80, b"\x00") + "OK\r\n", "the read-only byte is untouched"
+        assert after == row(0x80, b"\x00") + "OK\r\n", "the read-only byte is untouched"
 
     def test_a_modify_the_map_refuses_never_takes_the_lock(self, mem_host):
         """MEM.M on "rom" is refused before the critical section is entered."""
@@ -328,7 +305,7 @@ class TestConfiguration:
         reply, _lock = _replies(exe, ["R 0 16"])
 
         # Assert
-        assert reply == _row(0, bytes(8)) + _row(8, bytes(8)) + "OK\r\n"
+        assert reply == row(0, bytes(8)) + row(8, bytes(8)) + "OK\r\n"
 
     @pytest.mark.parametrize(
         ("define", "knob"),

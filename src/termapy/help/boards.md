@@ -6,10 +6,10 @@ device profile. The board answers at an interactive prompt, its commands
 show in `/help`, and an MCP agent gets them as typed tools. This is real
 hardware; the simulator is `/demo`.
 
-| Board     | Runs        | Device code                   | Board commands                                 |
-| --------- | ----------- | ----------------------------- | ---------------------------------------------- |
-| `pico`    | MicroPython | `main.py`, `termapy_json.py`  | `help`, `led`, `temp`, `id`, `json`            |
-| `esp32s3` | MicroPython | `main.py`, `termapy_json.py`  | `help`, `led`, `led_rgb`, `temp`, `id`, `json` |
+| Board     | Runs        | Device code                                     | Board commands                                            |
+| --------- | ----------- | ----------------------------------------------- | --------------------------------------------------------- |
+| `pico`    | MicroPython | `main.py`, `termapy_json.py`                    | `help`, `led`, `temp`, `id`, `json`                       |
+| `esp32s3` | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`  | `help`, `led`, `led_rgb`, `temp`, `id`, `json`, `MEM.*`   |
 
 ```text
 /board                    the boards, and which is plugged in now
@@ -76,7 +76,8 @@ maker and no serial number, so nothing on it says which board it is.
 
    The board restarts as a new serial port, MicroPython's (`303A:4001`).
 2. **Copy the device code.** `/board.firmware esp32s3`, then the
-   `uvx mpremote` line it prints, as on the Pico.
+   `uvx mpremote` line it prints, as on the Pico; the S3 has a third file,
+   `termapy_mem.py`.
 3. **Create the config.** `/board.new esp32s3`, then `/cfg.load esp32s3`,
    or start termapy with `termapy --board esp32s3`.
 
@@ -89,6 +90,17 @@ levels: `[255,0,0]` in JSON, one level per line in text. A board with its
 LED on another pin changes one line of `main.py`. `id` is the chip's
 factory MAC address. MicroPython answers on the UART port too, but the
 config uses the chip's own USB, by its serial number.
+
+The S3 also answers the MEM commands that `/mem.*` speaks ([Memory](memory.md)),
+from `termapy_mem.py`: `MEM.R`, `MEM.W`, `MEM.M` and `MEM.INFO`. The board
+reads and writes whatever address it is given and knows nothing about its
+memory; checking the address is termapy's job, from the JSON that
+describes the part. termapy does not check yet, so for now an address the
+chip cannot reach resets it. A board that must fence memory off passes a
+guard to `direct()` in `main.py`: `guard(addr, count, write)` sees every
+access first, and returning False refuses it with `ERR range`. The MEM
+replies are the wire spec's text even when the board answers MCP in JSON,
+so `/mem.*` works the same in the TUI and over MCP.
 
 ## The board's commands
 
@@ -105,6 +117,7 @@ Each board answers one command per line:
 | `temp`           | degrees C, such as `21.4`           | `{"result":21.4}`, a number        |
 | `id`             | the board's unique ID in hex        | `{"result":"E66548545710822C"}`    |
 | `json {on\|off}` | the framing, `on` or `off`          | `{"result":"on"}`                  |
+| `MEM.R`, `MEM.W`, `MEM.M`, `MEM.INFO` | ESP32-S3: the [memory wire spec](memory.md)'s rows, `OK` or `ERR` | the same text: MEM keeps its own |
 
 The board speaks two framings. Text, the default, is for a person: a reply
 is the value, and an error is `ERR <reason>`. JSON is for termapy's MCP

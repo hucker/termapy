@@ -21,6 +21,10 @@ board running this exactly as to one running the C:
 - ``help`` answers every command's one-line help: in JSON an object of
   name to help, in text one aligned ``name  help`` line per command, sorted.
   ``help <command>`` answers that command's line.
+- A native command has a text grammar of its own (termapy_mem.py's MEM
+  wire spec): a plain line gets its text reply whatever the framing, and a
+  JSON request gets the reply lines as the result, or an ``ERR <reason>``
+  line as the error.
 
 Error codes are the contract's: -32700 malformed request, -32601 unknown
 command, -32602 bad arguments (a handler's ``CommandError``), -32603 a
@@ -142,21 +146,30 @@ class Monitor:
             handler that takes the list of argument words and returns a JSON
             value, or raises ``CommandError``.
         write: Writes one reply line, its line ending included.
+        native: Native commands, in the same shape, whose handler returns
+            its reply's text lines (termapy_mem.py's ``commands()``).
 
     Raises:
-        ValueError: A command reuses the name of one the monitor answers itself.
+        ValueError: A command reuses the name of one the monitor answers
+            itself, or of another table's.
     """
 
-    def __init__(self, commands, write):
+    def __init__(self, commands, write, native=None):
         # The monitor's own commands, in the table's shape.
         self.builtins = {
             "help": ("list the commands; help <command> for one", self._help),
             "json": ("the reply framing: on for JSON-RPC, off for text", self._framing),
         }
+        native = native or {}
+        for table in (commands, native):
+            for name in table:
+                if name in self.builtins:
+                    raise ValueError("command name taken by the monitor: " + name)
         for name in commands:
-            if name in self.builtins:
-                raise ValueError("command name taken by the monitor: " + name)
+            if name in native:
+                raise ValueError("command name in both tables: " + name)
         self.commands = commands
+        self.native = native
         self.write = write
         self.json = False
         self._id = None
@@ -169,7 +182,8 @@ class Monitor:
             return
         self._id = None
         self._tagged = False
-        if text.startswith("{"):
+        requested_json = text.startswith("{")
+        if requested_json:
             self.json = True
             try:
                 text = self._extract(text)
@@ -178,6 +192,9 @@ class Monitor:
                 return
         words = text.split()
         name, args = words[0], words[1:]
+        if name in self.native:
+            self._native(self.native[name][1], args, requested_json)
+            return
         entry = self.builtins.get(name) or self.commands.get(name)
         if entry is None:
             self._error(CommandError("unknown command: " + name, UNKNOWN_COMMAND))
@@ -192,6 +209,24 @@ class Monitor:
             return
         self._result(value)
 
+    def _native(self, handler, args, requested_json):
+        """Answer a native command: its text lines, or for a JSON request an envelope around them."""
+        try:
+            lines = handler(args)
+        except Exception as e:
+            # A fault, as for any command: -32603 in an envelope, ERR in text.
+            if requested_json:
+                self._error(CommandError(str(e), INTERNAL_ERROR))
+                return
+            lines = ["ERR " + str(e)]
+        if not requested_json:
+            for line in lines:
+                self.write(line + "\r\n")
+        elif len(lines) == 1 and lines[0].startswith("ERR "):
+            self._error(CommandError(lines[0][4:]))
+        else:
+            self._result(lines)
+
     def _framing(self, args):
         """``json``: the framing in force, after ``json on|off`` switches it."""
         if args:
@@ -201,7 +236,7 @@ class Monitor:
     def _help(self, args):
         """``help``: every command's one-line help; ``help <command>``: that command's."""
         table = {}
-        for commands in (self.commands, self.builtins):
+        for commands in (self.commands, self.native, self.builtins):
             for name, (line, _) in commands.items():
                 table[name] = line
         if len(args) > 1:
@@ -297,8 +332,8 @@ def read_line():
             chars.append(char)
 
 
-def serve(commands):
-    """Answer the serial link forever with ``commands``: a line in, a reply out."""
-    monitor = Monitor(commands, write)
+def serve(commands, native=None):
+    """Answer the serial link forever with ``commands`` and ``native``: a line in, a reply out."""
+    monitor = Monitor(commands, write, native)
     while True:
         monitor.handle(read_line())

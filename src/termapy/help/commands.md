@@ -15,6 +15,8 @@ row naming what it holds, so a first session reads a dozen rows rather
 than forty.  `/help.group <name>` expands one, `/help.group` lists them
 all, and `/help <cmd>` is the man-page detail for one command.
 
+![One group, expanded](img/doc_02b_help_group.svg)
+
 Folding is display only: a folded command still runs, still completes and
 still answers `/help`.  Each command declares its own group, so a plugin
 you write joins whichever group fits -- including the terminal one, where

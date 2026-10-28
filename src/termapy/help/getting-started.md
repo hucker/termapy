@@ -206,7 +206,7 @@ puts in the input line.
 
 ## Command input
 
-![Help command output](img/doc_02_help.svg)
+![The command groups](img/doc_02_help.svg)
 
 The bottom bar contains a text input for sending commands to the serial device.
 

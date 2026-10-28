@@ -6,7 +6,8 @@
 # Images are saved to the ss/ folder as SVG files.
 # Modal pickers replace the input line, so a running script cannot shoot
 # them: the Run and Config pickers come from scripts/doc_dialog_shots.py
-# (headless, reproducible).  Quick Setup is still a manual Ctrl+S.
+# (headless, reproducible), and the /help group shots from
+# scripts/doc_help_shots.py.  Quick Setup is still a manual Ctrl+S.
 
 # -- 1. Hero image: show a realistic session with variety --
 /cls
@@ -22,11 +23,10 @@ AT+STATUS
 /delay.silent 2s
 /ss.svg.silent doc_01_main_tui
 
-# -- 2. Help overview: top-level commands --
-/cls
-/help
-/delay.silent 2s
-/ss.svg.silent doc_02_help
+# -- 2. The command groups, and one expanded --
+# Both come from scripts/doc_help_shots.py (headless, reproducible):
+# bare /help is taller than the frame, so a shot of it holds the bottom
+# of the page rather than the grouping it is meant to show.
 
 # -- 3. Help detail: proto subcommands --
 /cls

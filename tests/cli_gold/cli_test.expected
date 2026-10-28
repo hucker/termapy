@@ -289,7 +289,7 @@ demo> /run.list
   NAME                 SIZE    UPDATED   SUMMARY
   -------------------  ------  --------  -----------------------------------------------------------
   crc_tour.run         2.3 KB  just now  the whole /proto.crc.* API in one screen
-  doc_screenshots.run  3.3 KB  just now  Generate documentation images
+  doc_screenshots.run  1.1 KB  just now  Generate documentation images -- now scripts/doc_shots.py
   expect_test.run       354 B  just now  Expect command test
   var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
   status_check.run       72 B  just now  Quick status check
@@ -1299,7 +1299,7 @@ SCRIPTS
   NAME                 SIZE    UPDATED   SUMMARY
   -------------------  ------  --------  -----------------------------------------------------------
   crc_tour.run         2.3 KB  just now  the whole /proto.crc.* API in one screen
-  doc_screenshots.run  3.3 KB  just now  Generate documentation images
+  doc_screenshots.run  1.1 KB  just now  Generate documentation images -- now scripts/doc_shots.py
   expect_test.run       354 B  just now  Expect command test
   var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
   status_check.run       72 B  just now  Quick status check
@@ -1385,7 +1385,7 @@ demo> /help.run
 -- Scripts --
   /run at_demo                  AT Command Demo -- Walks through all demo device commands
   /run crc_tour                 the whole /proto.crc.* API in one screen
-  /run doc_screenshots          Generate documentation images
+  /run doc_screenshots          Generate documentation images -- now scripts/doc_shots.py
   /run expect_test              Expect command test
   /run gps_demo                 GPS/NMEA Demo -- Query simulated GPS receiver
   /run smoke_test               Smoke test for demo device
@@ -1687,7 +1687,7 @@ demo> /edit.run.list
   -- -- -- --
   at_demo.run  <SIZE>  just now  AT Command Demo -- Walks through all demo device commands
   crc_tour.run  <SIZE>  just now  the whole /proto.crc.* API in one screen
-  doc_screenshots.run  <SIZE>  just now  Generate documentation images
+  doc_screenshots.run  <SIZE>  just now  Generate documentation images -- now scripts/doc_shots.py
   expect_test.run  <SIZE>  just now  Expect command test
   gps_demo.run  <SIZE>  just now  GPS/NMEA Demo -- Query simulated GPS receiver
   smoke_test.run  <SIZE>  just now  Smoke test for demo device

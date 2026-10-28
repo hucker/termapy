@@ -1,124 +1,25 @@
-# Generate documentation images
+# Generate documentation images -- now scripts/doc_shots.py
 
-# Run while connected to the demo device:
-#   /run doc_screenshots
+# The doc screenshots are taken headlessly:
 #
-# Images are saved to the ss/ folder as SVG files.
-# Modal pickers replace the input line, so a running script cannot shoot
-# them: the Run and Config pickers come from scripts/doc_dialog_shots.py
-# (headless, reproducible), and the /help group shots from
-# scripts/doc_help_shots.py.  Quick Setup is still a manual Ctrl+S.
+#   uv run python scripts/doc_shots.py            # all of them
+#   uv run python scripts/doc_shots.py doc_08     # just the ones matching
+#
+# This script used to take them, and that is why ten of the images went
+# unchanged from 2026-04-03 to 2026-10-28 while the toolbar's "?" button
+# became "Help": running it needed a person to start termapy, connect to
+# the demo device and type /run doc_screenshots, so nobody did.
+#
+# scripts/doc_shots.py boots the real app with app.run_test(), so the
+# shots are one command and reproducible, and tests/test_doc_shots.py
+# reddens when a committed image shows a toolbar the app no longer
+# builds (registry doc-shots-current).  It also reaches three frames
+# this script could not: while a script runs, the script-progress bar
+# owns the toolbar, so the idle toolbar and the capture overlay never
+# showed here.
+#
+# Still taken by hand, and listed in that script's MANUAL table: the
+# command palette, both editors and the / popup.  The two pickers are
+# scripts/doc_dialog_shots.py.  Quick Setup is a manual Ctrl+S.
 
-# -- 1. Hero image: show a realistic session with variety --
-/cls
-AT+INFO
-/delay.silent 2s
-AT+TEMP
-/delay.silent 2s
-/temp_plot 20
-/delay.silent 2s
-AT+LED on
-/delay.silent 2s
-AT+STATUS
-/delay.silent 2s
-/ss.svg.silent doc_01_main_tui
-
-# -- 2. The command groups, and one expanded --
-# Both come from scripts/doc_help_shots.py (headless, reproducible):
-# bare /help is taller than the frame, so a shot of it holds the bottom
-# of the page rather than the grouping it is meant to show.
-
-# -- 3. Help detail: proto subcommands --
-/cls
-/help proto
-/delay.silent 2s
-/ss.svg.silent doc_03_help_proto
-
-# -- 4. Proto send: hex with response --
-/cls
-/proto.send "rev\r"
-/delay.silent 2s
-/ss.svg.silent doc_04_proto_send
-
-# -- 5. Proto send with CRC --
-/cls
-/proto.send crc16-modbus 01 03 00 00 00 0A
-/delay.silent 2s
-/ss.svg.silent doc_05_proto_crc
-
-# -- 6. Proto send with delay --
-/cls
-/proto.send 00 ~25ms "AT+INFO\r"
-/delay.silent 2s
-/ss.svg.silent doc_06_proto_delay
-
-# -- 7. CRC code generation --
-/cls
-/proto.crc.python crc16-modbus
-/delay.silent 2s
-/ss.svg.silent doc_07_crc_python
-
-# -- 8. Variable listing --
-/cls
-/var
-/delay.silent 2s
-/ss.svg.silent doc_08_variables
-
-# -- 9. Device target commands --
-/cls
-/help.target
-/delay.silent 2s
-/ss.svg.silent doc_09_target_help
-
-# -- 10. Config info (verbose) --
-/cls
-/term.output verbose
-/cfg.load demo
-/delay.silent 2s
-/ss.svg.silent doc_10_config_info
-/term.output normal
-
-# -- 11. Protocol test run: PASS/FAIL results --
-/cls
-/proto.run modbus_inline.pro
-/delay.silent 2s
-/ss.svg.silent doc_11_proto_run
-
-# -- 12. Structured capture decoded to CSV, echo on --
-/cls
-/cap.struct doc_cap_$(n000).csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 records=10 echo=on cmd=AT+BINDUMP 10
-/delay.silent 3s
-/ss.svg.silent doc_12_cap_struct
-
-# -- 13. (doc_13_cap_progress is NOT taken here: while a script runs,
-#        the script-progress bar owns the toolbar, so the capture
-#        overlay never shows.  Take it at idle instead:
-#          /cap.text doc_progress.txt timeout=15s
-#          /ss.svg.silent doc_13_cap_progress
-#          /cap.stop                                                --
-
-# -- 14. Port table (set TERMAPY_DEMO_FLEET=1 first for the fixed
-#        three-port synthetic fleet; otherwise your real ports show) --
-/cls
-/port.list
-/delay.silent 2s
-/ss.svg.silent doc_14_port_list
-
-# -- 15. XMODEM pull from the demo device's virtual filesystem --
-/cls
-AT+FS.LIST
-/delay.silent 1s
-AT+XMODEM=SEND device_log.txt
-/xfer.xmodem.recv doc_xfer_$(n000).bin
-/delay.silent 2s
-/ss.svg.silent doc_15_xfer
-
-# -- 16. (doc_16_toolbar is NOT taken here for the same reason as 13:
-#        the idle toolbar is replaced by the script bar during a run.
-#        Take it at idle: /cls then /ss.svg.silent doc_16_toolbar   --
-
-# -- 17. Interactive proto debug screen (kept last: it pushes a
-#        full-screen view that stays open when the script ends) --
-/proto.debug modbus_inline.pro
-/delay.silent 2s
-/ss.svg.silent doc_17_proto_debug
+/print Doc screenshots are now: uv run python scripts/doc_shots.py

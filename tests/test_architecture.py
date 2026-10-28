@@ -1750,6 +1750,11 @@ HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
         "int_arg",
     ): "board code run by MicroPython, which cannot import termapy's readers; "
     "test_boards pins that it takes what the profile's int_range takes",
+    (
+        "boards/micropython/firmware/termapy_mem.py",
+        "_hex",
+    ): "board code run by MicroPython: the MEM wire spec's own bare-hex addresses and "
+    "masks, termapy_mem.c's ParseHexU32; tests/mem_wire_cases.py holds both to one table",
 }
 
 # (module, function): why it may render lowercase hex.

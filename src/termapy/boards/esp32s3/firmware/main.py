@@ -3,14 +3,15 @@
 One command per line over USB serial, ended by CR, LF or both, on either
 USB port: the chip's own USB (the one termapy's config connects to, by its
 serial number) and the USB-to-UART port.  It runs on the board, not in
-termapy: copy it and termapy_json.py to the board, and MicroPython starts it
-at every power-up.  Ctrl-C in a terminal stops it and returns to the
+termapy: copy it, termapy_json.py and termapy_mem.py to the board, and
+MicroPython starts it at every power-up.  Ctrl-C in a terminal stops it and returns to the
 MicroPython prompt; Ctrl-D restarts it.
 
 The commands are the COMMANDS table at the bottom, each a one-line help and
 a handler.  The monitor adds two of its own: ``help`` lists every command
 with its help line, and ``json {on|off}`` switches the reply framing.  A new
-command is a handler and a row.
+command is a handler and a row.  termapy_mem.py adds the MEM commands that
+termapy's /mem.* speaks.
 
 termapy_json.py is the monitor every MicroPython starter shares: in text
 framing a reply is the value and a failure ``ERR <reason>``; in JSON framing
@@ -23,6 +24,7 @@ import esp32
 import machine
 import neopixel
 from termapy_json import CommandError, int_arg, on_off_arg, serve
+from termapy_mem import direct
 
 # The DevKitC-1's addressable RGB LED, "driven by GPIO48" (Espressif's
 # ESP32-S3-DevKitC-1 v1.0 user guide); one pixel, a red, a green and a
@@ -76,4 +78,7 @@ COMMANDS = {
     "id": ("the chip's unique ID in hex, its factory MAC address", cmd_id),
 }
 
-serve(COMMANDS)
+# The MEM commands for termapy's /mem.*: pure reads and writes of any address.
+# termapy checks addresses against the part's JSON; this board's own rules,
+# if it needs any, are a guard(addr, count, write) passed to direct().
+serve(COMMANDS, native=direct().commands())

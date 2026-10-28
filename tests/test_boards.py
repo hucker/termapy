@@ -22,10 +22,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from mem_wire_cases import WIRE_ERRORS, masked, row
 
 from termapy.boards import (
     BOARDS,
     AlreadyConfigured,
+    Board,
     attached,
     board_config,
     configs_for_serial,
@@ -97,6 +99,13 @@ BOARD_FORMS = {
         "led_rgb 255 0 0x20": "led_rgb",
         "temp": "temp",
         "id": "id",
+        "MEM.R 0x1000 16": "MEM.R",
+        "MEM.R 1000 64": "MEM.R",
+        "MEM.W 0x1000 DEADBEEF": "MEM.W",
+        "MEM.W 0x1000 de ad": "MEM.W",
+        "MEM.M 0x1000 FFFFFF00 00000001": "MEM.M",
+        "MEM.M 0x1001 F0 0F": "MEM.M",
+        "MEM.INFO": "MEM.INFO",
     },
 }
 
@@ -129,6 +138,7 @@ class TestTable:
     def test_profile_describes_the_firmware_commands(self):
         """board-profile-complete: the profile names every command the board answers, its table's and the monitor's."""
         monitor_commands = set(BOARD_JSON.Monitor({}, print).builtins)
+        mem_commands = set(BOARD_MEM.Memory(None, None).commands())
         for board in BOARDS:
             main = firmware_paths(board)[0]
             tree = ast.parse(main.read_text(encoding="utf-8"))
@@ -141,6 +151,8 @@ class TestTable:
             assert isinstance(table, ast.Dict), "COMMANDS is a dict literal"
             firmware = {key.value for key in table.keys if isinstance(key, ast.Constant)}
             expected = firmware | monitor_commands
+            if "termapy_mem.py" in board.runtime_extras:
+                expected |= mem_commands
             actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
             assert actual == expected, f"{board.name}: profile and firmware disagree"
 
@@ -173,7 +185,7 @@ class TestTable:
         }
         assert len(shared) == 1, f"one shared file, not one per board: {shared}"
         for board in BOARDS:
-            for name in board.runtime.files:
+            for name in board.runtime.files + board.runtime_extras:
                 copy = BOARDS_DIR / board.name / "firmware" / name
                 assert not copy.exists(), f"{board.name} carries its own {name}"
 
@@ -226,7 +238,7 @@ class TestEsp32s3:
         assert not (tmp_path / "esp32s3").exists(), "no half-made config"
 
     def test_config_connects_by_serial_number(self, tmp_path):
-        """The config's port is MicroPython's serial number, and its folder holds both device files."""
+        """The config's port is MicroPython's serial number, and its folder holds every device file."""
         # Act
         created = create_board_config(ESP32S3, tmp_path, source=ports(CH340K_PORT, ESP32S3_PORT))
 
@@ -234,7 +246,8 @@ class TestEsp32s3:
         data = json.loads(created.path.read_text(encoding="utf-8"))
         assert data["serial"]["port"] == "58E6C5716A840000", "by serial number, not COM9"
         assert data["title"] == "ESP32-S3 DevKitC-1"
-        assert [path.name for path in created.firmware] == ["main.py", "termapy_json.py"]
+        actual = [path.name for path in created.firmware]
+        assert actual == ["main.py", "termapy_json.py", "termapy_mem.py"], "the MEM module too"
 
 
 class TestCreateConfig:
@@ -433,23 +446,24 @@ class TestCommands:
         assert (tmp_path / "cfg" / "fw" / "main.py").is_file()
 
 
-def _load_board_json():
-    """MicroPython's shared termapy_json.py, imported from the package as a board imports it."""
-    path = next(path for path in firmware_paths(PICO) if path.name == "termapy_json.py")
-    spec = importlib.util.spec_from_file_location("board_termapy_json", path)
+def _load_board_module(board: Board, name: str):
+    """One of MicroPython's shared files, imported from the package as a board imports it."""
+    path = next(path for path in firmware_paths(board) if path.name == name)
+    spec = importlib.util.spec_from_file_location("board_" + path.stem, path)
     assert spec is not None and spec.loader is not None, "the board's module loads"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-BOARD_JSON = _load_board_json()
+BOARD_JSON = _load_board_module(PICO, "termapy_json.py")
+BOARD_MEM = _load_board_module(ESP32S3, "termapy_mem.py")
 
 
 class Link:
-    """A Monitor over a fake command table, with the reply bytes it wrote."""
+    """A Monitor over a fake command table and any native commands, with the reply bytes it wrote."""
 
-    def __init__(self):
+    def __init__(self, native=None):
         def fail(args):
             raise BOARD_JSON.CommandError("usage: fail")
 
@@ -472,7 +486,7 @@ class Link:
             name: ("the " + name + " command", handler) for name, handler in handlers.items()
         }
         self.out: list[str] = []
-        self.monitor = BOARD_JSON.Monitor(self.commands, self.out.append)
+        self.monitor = BOARD_JSON.Monitor(self.commands, self.out.append, native)
 
     def ask(self, line: str) -> list[str]:
         """Send one line; return the reply lines it produced."""
@@ -715,6 +729,255 @@ class TestOnOffArg:
                 assert actual == board_takes(word), (
                     f"{board.name}: termapy and the board disagree on {word!r}"
                 )
+
+
+class FakeBus:
+    """A board's bus for termapy_mem.Memory: 256 bytes of RAM at address 0, as mem_host.c's harness has.
+
+    The word at FAULT_ADDR stands for one the platform cannot read, so a
+    refusal inside MEM.M's lock can be told apart from the guard's before
+    it.  Every access and every lock is recorded.
+    """
+
+    FAULT_ADDR = 0x40
+
+    def __init__(self):
+        self.ram = bytearray(256)
+        self.accesses: list[tuple[str, int, int]] = []
+        self.locks = 0
+        self.depth = 0
+
+    def read(self, addr: int, count: int) -> bytes | None:
+        self.accesses.append(("read", addr, count))
+        faulted = addr < self.FAULT_ADDR + 4 and self.FAULT_ADDR < addr + count
+        if addr + count > len(self.ram) or faulted:
+            return None
+        return bytes(self.ram[addr : addr + count])
+
+    def write(self, addr: int, data: bytes) -> bool:
+        self.accesses.append(("write", addr, len(data)))
+        if addr + len(data) > len(self.ram):
+            return False
+        self.ram[addr : addr + len(data)] = data
+        return True
+
+    def lock(self) -> str:
+        self.locks += 1
+        self.depth += 1
+        return "irq state"
+
+    def unlock(self, state: str) -> None:
+        assert state == "irq state", "unlock gets back what lock returned"
+        self.depth -= 1
+
+
+def mem_link(guard=None, lock=True) -> tuple[Link, FakeBus]:
+    """A monitor serving termapy_mem's commands over a fresh FakeBus, and the bus."""
+    bus = FakeBus()
+    locks = (bus.lock, bus.unlock) if lock else (None, None)
+    memory = BOARD_MEM.Memory(bus.read, bus.write, *locks, guard=guard)
+    return Link(native=memory.commands()), bus
+
+
+def wire(link: Link, line: str) -> str:
+    """One line's whole reply as it reached the wire."""
+    return "".join(link.ask(line))
+
+
+class TestMicroPythonMem:
+    """MicroPython's termapy_mem.py answers the MEM wire spec as termapy_mem.c does, with no map of its own."""
+
+    @pytest.mark.parametrize(("line", "reason"), WIRE_ERRORS)
+    def test_the_wire_refusals(self, line, reason):
+        """mem-wire-cases-shared: each refusal in the shared table is the one ERR line the C answers."""
+        link, _bus = mem_link()
+        assert wire(link, "MEM." + line) == f"ERR {reason}\r\n"
+
+    def test_read_rows_of_sixteen(self):
+        """A read is rows of sixteen bytes; the remainder is a shorter row."""
+        link, _bus = mem_link()
+        assert wire(link, "MEM.R 0 16") == row(0, bytes(16)) + "OK\r\n"
+        assert wire(link, "MEM.R 0 20") == row(0, bytes(16)) + row(0x10, bytes(4)) + "OK\r\n", (
+            "the remainder is a second row"
+        )
+
+    def test_write_then_read_back(self):
+        """Written bytes read back; 0x, lower-case and spaced hex pairs are accepted."""
+        # Arrange
+        link, _bus = mem_link()
+
+        # Act
+        written = [wire(link, "MEM.W 0x10 DEADBEEF"), wire(link, "MEM.W 20 de ad")]
+
+        # Assert
+        assert written == ["OK\r\n", "OK\r\n"]
+        assert wire(link, "MEM.R 10 4") == row(0x10, b"\xde\xad\xbe\xef") + "OK\r\n"
+        assert wire(link, "MEM.R 0x20 2") == row(0x20, b"\xde\xad") + "OK\r\n"
+
+    @pytest.mark.parametrize(
+        ("addr", "old", "and_mask", "or_mask"),
+        [
+            (0x10, b"\xde\xad\xbe\xef", 0xFFFFFF00, 0x00000001),
+            (0x20, b"\x34\x12", 0xFF00, 0x0001),
+            (0x30, b"\x12", 0xF0, 0x0F),
+        ],
+        ids=["u32", "u16", "u8"],
+    )
+    def test_modify_masks_the_word_the_core_sees(self, addr, old, and_mask, or_mask):
+        """MEM.M masks the word as the core loads it, replies the old word, and locks once."""
+        # Arrange: the masks' digit count picks the width, as on the wire.
+        link, bus = mem_link()
+        digits = len(old) * 2
+        wire(link, f"MEM.W {addr:X} {old.hex().upper()}")
+
+        # Act
+        pre = wire(link, f"MEM.M {addr:X} {and_mask:0{digits}X} {or_mask:0{digits}X}")
+
+        # Assert
+        assert pre == row(addr, old) + "OK\r\n", "MEM.M replies the PRE-modify word"
+        expected = row(addr, masked(old, and_mask, or_mask)) + "OK\r\n"
+        assert wire(link, f"MEM.R {addr:X} {len(old)}") == expected
+        assert (bus.locks, bus.depth) == (1, 0), "locked once around the read-modify-write"
+
+    def test_a_second_modify_starts_from_the_first(self):
+        """Two MEM.M in a row: the second's before-word is what the first left."""
+        # Arrange
+        link, bus = mem_link()
+
+        # Act
+        first = wire(link, "MEM.M 10 FF 01")
+        second = wire(link, "MEM.M 10 FF 02")
+
+        # Assert
+        assert first == row(0x10, b"\x00") + "OK\r\n"
+        assert second == row(0x10, b"\x01") + "OK\r\n", "the first modify's result is the old byte"
+        assert wire(link, "MEM.R 10 1") == row(0x10, b"\x03") + "OK\r\n"
+        assert (bus.locks, bus.depth) == (2, 0), "each modify locks once and unlocks"
+
+    def test_a_refusal_inside_the_lock_still_unlocks(self):
+        """The platform refuses the word under the lock: ERR range, and the lock is released."""
+        link, bus = mem_link()
+        assert wire(link, "MEM.M 40 FFFFFFFF 00000000") == "ERR range\r\n"
+        assert (bus.locks, bus.depth) == (1, 0), "a refused read must not leave IRQs masked"
+
+    def test_info_reports_the_interface_and_no_map(self):
+        """MEM.INFO is one JSON line in the C's order, with no regions: the board has no map."""
+        # Arrange
+        endian = "le" if sys.byteorder == "little" else "be"
+        with_lock, _bus = mem_link()
+        without_lock, _bus = mem_link(lock=False)
+
+        # Act / Assert
+        expected = f'{{"max_block": 64, "address_bits": 32, "endian": "{endian}", "modify": true}}'
+        assert wire(with_lock, "MEM.INFO") == expected + "\r\nOK\r\n"
+        assert '"modify"' not in wire(without_lock, "MEM.INFO"), "no lock, no MEM.M to offer"
+        assert wire(without_lock, "MEM.M 0 FF 00") == "ERR usage\r\n", "as the C answers it"
+
+    def test_no_guard_reads_any_address(self):
+        """board-mem-pure: with no guard, the address goes to the bus as given, with nothing in front of it."""
+        link, bus = mem_link()
+        assert wire(link, "MEM.R F0 16") == row(0xF0, bytes(16)) + "OK\r\n"
+        assert wire(link, "MEM.R 100 1") == "ERR range\r\n", "only the platform itself refused"
+        assert bus.accesses == [("read", 0xF0, 16), ("read", 0x100, 1)], "nothing but the asks"
+
+    def test_the_guard_sees_every_access_before_it_runs(self):
+        """board-mem-pure: the guard is asked first, and a refusal is ERR range with the bus untouched."""
+        # Arrange: a board rule that the top half is read-only.
+        asked: list[tuple[int, int, bool]] = []
+
+        def guard(addr: int, count: int, write: bool) -> bool:
+            asked.append((addr, count, write))
+            return not (write and addr + count > 0x80)
+
+        link, bus = mem_link(guard=guard)
+
+        # Act
+        replies = [wire(link, "MEM.R 80 4"), wire(link, "MEM.W 7F 0102"), wire(link, "MEM.W 10 AB")]
+
+        # Assert
+        assert replies == [row(0x80, bytes(4)) + "OK\r\n", "ERR range\r\n", "OK\r\n"]
+        assert asked == [(0x80, 4, False), (0x7F, 2, True), (0x10, 1, True)]
+        assert bus.accesses == [("read", 0x80, 4), ("write", 0x10, 1)], (
+            "the refused write never ran"
+        )
+
+    def test_a_modify_the_guard_refuses_never_takes_the_lock(self):
+        """board-mem-pure: MEM.M asks the guard to read and to write before masking IRQs."""
+        # Arrange
+        asked: list[tuple[int, int, bool]] = []
+
+        def guard(addr: int, count: int, write: bool) -> bool:
+            asked.append((addr, count, write))
+            return not write
+
+        link, bus = mem_link(guard=guard)
+
+        # Act
+        reply = wire(link, "MEM.M 10 FF 01")
+
+        # Assert
+        assert reply == "ERR range\r\n"
+        assert asked == [(0x10, 1, False), (0x10, 1, True)], "asked as a read, then as a write"
+        assert (bus.locks, bus.accesses) == (0, []), "nothing locked, nothing touched"
+
+    def test_mem_answers_in_text_whatever_the_framing(self):
+        """board-mem-native-text: in JSON framing a MEM line still gets the spec's text, and the framing stays."""
+        # Arrange
+        link, _bus = mem_link()
+        link.ask("json on")
+
+        # Act
+        replies = [wire(link, "MEM.R 0 1"), wire(link, "MEM.R 0 0"), wire(link, "echo hi")]
+
+        # Assert
+        assert replies[0] == row(0, b"\x00") + "OK\r\n", "rows and OK, CRLF, no envelope"
+        assert replies[1] == "ERR length\r\n", "a refusal is the spec's ERR line"
+        assert replies[2] == '{"result":"hi"}\n', "the next command is still answered in JSON"
+
+    def test_a_json_request_gets_an_envelope(self):
+        """board-mem-native-text: a JSON request for a MEM verb gets the lines as its result, a refusal as its error."""
+        link, _bus = mem_link()
+        assert link.ask('{"method":"MEM.R","params":["0","1"],"id":7}') == [
+            '{"result":["00000000: 00","OK"],"id":7}\n'
+        ]
+        assert link.ask('{"method":"MEM.R","params":"0 0","id":8}') == [
+            '{"error":{"code":-32602,"message":"length"},"id":8}\n'
+        ], "ERR length is the error envelope, a bad argument"
+
+    def test_a_native_fault_is_err_text_or_internal_error(self):
+        """A native handler that raises: ERR <message> to a plain line, -32603 to a JSON request."""
+
+        # Arrange
+        def broken(args):
+            raise RuntimeError("bus fault")
+
+        link = Link(native={"MEM.X": ("broken", broken)})
+
+        # Act / Assert
+        assert wire(link, "MEM.X") == "ERR bus fault\r\n"
+        assert link.ask('{"method":"MEM.X","id":1}') == [
+            '{"error":{"code":-32603,"message":"bus fault"},"id":1}\n'
+        ]
+
+    def test_help_lists_the_mem_commands(self):
+        """help includes the native commands beside the table's and the monitor's own."""
+        link, _bus = mem_link()
+        names = {line.split()[0] for line in link.ask("help")}
+        assert {"MEM.R", "MEM.W", "MEM.M", "MEM.INFO", "echo", "help"} <= names
+
+    def test_a_native_name_cannot_take_another_table_s(self):
+        """A native command named like a table's or the monitor's own is refused at construction."""
+        entry = ("mine", lambda args: [])
+        with pytest.raises(ValueError, match="command name in both tables: MEM.R"):
+            BOARD_JSON.Monitor({"MEM.R": entry}, print, {"MEM.R": entry})
+        with pytest.raises(ValueError, match="command name taken by the monitor: help"):
+            BOARD_JSON.Monitor({}, print, {"help": entry})
+
+    def test_widths_follow_the_direct_helpers(self):
+        """Aligned words, then halves, then bytes: termapy_mem.c's DirectRead/Write access pattern."""
+        assert list(BOARD_MEM.widths(0, 7)) == [(0, 4), (4, 2), (6, 1)]
+        assert list(BOARD_MEM.widths(1, 8)) == [(0, 1), (1, 2), (3, 4), (7, 1)]
+        assert list(BOARD_MEM.widths(2, 2)) == [(0, 2)], "an aligned half is one access"
 
 
 @pytest.mark.slow

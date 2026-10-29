@@ -354,7 +354,7 @@ demo> /port.info
 
   Description : Termapy simulated device
   Manufacturer: termapy
-  Serial      : TERMAPY-DEMO
+  Serial #    : TERMAPY-DEMO
   VID:PID     : not a USB device
   Model       : DEMO
   USB speed   : virtual (not a USB device)
@@ -1924,7 +1924,7 @@ demo> /port.info
 
   Description : Termapy simulated device
   Manufacturer: termapy
-  Serial      : TERMAPY-DEMO
+  Serial #    : TERMAPY-DEMO
   VID:PID     : not a USB device
   Model       : DEMO
   USB speed   : virtual (not a USB device)

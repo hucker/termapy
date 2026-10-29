@@ -572,6 +572,48 @@ class TestChip:
         assert result.value == expected, "'-' kept as the roster has it"
         assert result.data["COM4"] == "Silicon Labs CP2102", "a port is looked up, not searched for"
 
+    def test_a_field_table_is_titled_by_the_fields_label(self, cli, capsys, monkeypatch):
+        """/port.chip.<field> * heads its table with the label the /port.chip page uses, never the raw field name."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        capsys.readouterr()
+        # Act
+        cli.repl.dispatch_full("/port.chip.serial *")
+        serial_out = capsys.readouterr().out
+        cli.repl.dispatch_full("/port.chip.vid_pid *")
+        vid_pid_out = capsys.readouterr().out
+        # Assert
+        assert "SERIAL #" in serial_out, "the serial column is headed SERIAL #"
+        assert "Chip Serial #" in serial_out, "and the table titled by the same label"
+        assert "VID:PID" in vid_pid_out, "vid_pid reads VID:PID, as on the /port.chip page"
+        assert "VID_PID" not in vid_pid_out, "the raw field name never reaches the header"
+
+    def test_the_chip_page_labels_the_serial_number_serial_hash(self, cli, capsys, monkeypatch):
+        """/port.chip COM4 labels the serial row "Serial #", the label its field table uses."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        capsys.readouterr()
+        cli.repl.dispatch_full("/port.chip COM4")
+        out = capsys.readouterr().out
+        assert "Serial #" in out, "the page row and the table header share one label"
+
+    def test_the_port_list_heads_the_serial_column_like_the_chip_views(
+        self, cli, capsys, monkeypatch
+    ):
+        """/port.list heads the serial-number column SERIAL #, the label of /port.chip and its field tables."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        capsys.readouterr()
+        cli.repl.dispatch_full("/port.list")
+        header = next(line for line in capsys.readouterr().out.splitlines() if "PORT" in line)
+        assert "SERIAL #" in header, "the port table uses the shared label"
+        assert " SN " not in f" {header} ", "the old abbreviation is gone"
+
+    def test_every_chip_field_has_a_label(self):
+        """Every /port.chip field has a label, so no page row or field table falls back to the raw name."""
+        from termapy.port_control import CHIP_FIELD_LABELS, CHIP_FIELDS
+
+        actual = set(CHIP_FIELD_LABELS)
+        expected = set(CHIP_FIELDS)
+        assert actual == expected, "one label per field, no strays"
+
     def test_an_unknown_field_value_reads_n_a(self, cli, monkeypatch):
         """A field the roster leaves empty renders n/a rather than None."""
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")

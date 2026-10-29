@@ -240,6 +240,12 @@ class TestRenderTree:
             f"the bus sits flush left, all else hangs off it; got {lines[0]!r}"
         )
 
+    def test_a_serial_number_is_labeled_like_every_port_view(self):
+        """A tree line labels a serial number "Serial #", the label of /port.chip and /port.list."""
+        node = UsbNode(path="1-8.2", description="USB Serial Converter", serial="A1B2C3D4")
+        actual = render_tree([node])[0]
+        assert "Serial # A1B2C3D4" in actual, f"the shared label, got {actual!r}"
+
     def test_a_tagged_node_names_its_port(self):
         """Exactly one line shows -> COM3, and it is the interface line, not its device."""
         # Arrange

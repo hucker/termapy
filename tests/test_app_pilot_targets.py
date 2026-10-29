@@ -375,7 +375,7 @@ class TestConfigPicked:
         _run(scenario)
 
     def test_tooltips_show_the_device_as_port_and_the_number_as_serial(self, app_factory):
-        """port-display: a serial-number config's tooltips say port = the device, serial = the number."""
+        """port-display: a serial-number config's tooltips say port = the device, serial # = the number."""
 
         async def scenario():
             # Arrange: DEMO answers to its own serial number, so no hardware is needed
@@ -407,7 +407,14 @@ class TestConfigPicked:
                     )
                     rows = {key.strip(): value.strip() for key, value in rows.items()}
                     assert rows["port"] == "DEMO", f"{button}: port is the device, not {number}"
-                    assert rows["serial"] == number, f"{button}: the number is the serial"
+                    assert rows["serial #"] == number, f"{button}: the number is the serial"
+                left_rows = dict(
+                    line.split("=", 1) for line in tooltips["left"].splitlines() if "=" in line
+                )
+                left_rows = {key.strip(): value.strip() for key, value in left_rows.items()}
+                assert left_rows["Serial #"] == number, (
+                    "the port tooltip labels its rows as /port.chip does"
+                )
 
         _run(scenario)
 

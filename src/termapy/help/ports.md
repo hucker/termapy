@@ -365,7 +365,8 @@ No surprise: you see the spec you wrote and the device you got.
 `Port:` line for the same reason.  The title bar stays the way it
 always has: the actual device name, never the SN -- users think in
 COM numbers.  Its tooltips follow suit: `port` is the device and
-`serial` its serial number, however the config names the port.
+`serial #` its serial number, however the config names the port; the
+port button's tooltip labels its rows as `/port.chip` does (`Serial #`).
 
 ### What doesn't change
 

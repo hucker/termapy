@@ -240,7 +240,10 @@ def _describe(node: UsbNode) -> str:
     if node.driver:
         bits.append(node.driver)
     if node.serial:
-        bits.append(f"SN {node.serial}")
+        from termapy.port_control import CHIP_FIELD_LABELS
+
+        # The label every port view uses for the serial number.
+        bits.append(f"{CHIP_FIELD_LABELS['serial']} {node.serial}")
     return "  ".join(bits)
 
 

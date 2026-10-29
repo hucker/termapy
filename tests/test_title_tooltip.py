@@ -79,8 +79,14 @@ class TestPortTooltipPairs:
     def test_none_facts_gives_status_fallback(self):
         """A port with no chip facts gets one status row instead of an empty tooltip."""
         actual = port_tooltip_pairs(None)
-        expected = [("status", "no USB chip info available")]
+        expected = [("Status", "no USB chip info available")]
         assert actual == expected, "unenumerable port -> single status line"
+
+    def test_the_serial_row_uses_the_shared_label(self):
+        """The port tooltip labels the serial number Serial #, as /port.chip and /port.list do."""
+        actual = port_tooltip_pairs(ChipFacts(serial="D20JSV68A"))
+        expected = [("Serial #", "D20JSV68A")]
+        assert actual == expected, "one label for the serial number in every view"
 
     def test_none_fields_are_dropped(self):
         """Unknown (None) fields are omitted rather than shown as (none) rows."""
@@ -91,8 +97,10 @@ class TestPortTooltipPairs:
         actual = port_tooltip_pairs(facts)
 
         # Assert
-        expected = [("description", "USB Serial Port"), ("vid_pid", "0403:6015")]
-        assert actual == expected, "None fields skipped; known fields kept in order"
+        expected = [("Description", "USB Serial Port"), ("VID:PID", "0403:6015")]
+        assert actual == expected, (
+            "None fields skipped; known fields kept in order, under their page labels"
+        )
 
     def test_field_order_is_stable(self):
         """Rows follow a fixed display order, independent of which fields were set first."""
@@ -104,7 +112,7 @@ class TestPortTooltipPairs:
 
         # Assert -- description before model before in_use (display order,
         # not the order they were set).
-        assert keys == ["description", "model", "in_use"], "fixed display order"
+        assert keys == ["Description", "Model", "In use"], "fixed display order"
 
     def test_non_display_fields_are_excluded(self):
         """device, product, interface and permissions are gathered but never shown."""
@@ -118,12 +126,12 @@ class TestPortTooltipPairs:
         keys = [k for k, _ in port_tooltip_pairs(facts)]
 
         # Assert
-        assert keys == ["description"], "only display fields appear"
+        assert keys == ["Description"], "only display fields appear"
 
 
 class TestPortIdentityPairs:
     def test_the_device_is_the_port_and_its_number_the_serial(self):
-        """A device found by serial number shows as port = the device, serial = the number."""
+        """A device found by serial number shows as port = the device, serial # = the number."""
         # Arrange
         facts = ChipFacts(device="COM9", serial="58E6C5716A840000")
 
@@ -131,7 +139,7 @@ class TestPortIdentityPairs:
         actual = port_identity_pairs("COM9", facts)
 
         # Assert
-        expected = [("port", "COM9"), ("serial", "58E6C5716A840000")]
+        expected = [("port", "COM9"), ("serial #", "58E6C5716A840000")]
         assert actual == expected, "the device and its serial number, each under its own name"
 
     def test_no_serial_row_without_one(self):

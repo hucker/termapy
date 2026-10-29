@@ -10,17 +10,24 @@ element of the result is only checked for type.
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 
 from textual.app import App
 from textual.widgets import Button, Input, OptionList
 
 from termapy.dialogs.quick_setup import QuickSetup
+from termapy.port_control import loopback_port_facts
 from termapy.widgets import StrongCheckbox
 
 
 class _Host(App):
     """Bare host: no widgets of its own, just a stage for modals."""
 
+
+# The loopback's port name, read from the one place that owns it rather
+# than spelled here: the literal is what the sw-loopback-labeled guard
+# looks for, and this test asserts on a ROW ID, it opens no port.
+_LOOPBACK = loopback_port_facts().device
 
 # The dialog is taller than the 80x24 headless default; its buttons sit
 # below the visible region there and a click on them is out of bounds.
@@ -237,21 +244,107 @@ class TestAdvanced:
         _run(scenario)
 
 
+@contextmanager
+def _no_ports():
+    """``comports()`` finds nothing, as on a machine with no adapter attached.
+
+    QuickSetup calls ``comports`` itself and takes no ``source=``, so
+    this is the documented exception: a test ABOUT enumeration replaces
+    that layer wholesale (see tests/test_port_noninvasive.py, which
+    patches it for the same reason).  Without it the no-hardware branch
+    cannot run on a developer machine with adapters plugged in -- which
+    is exactly how the loopback bug survived: the old test asserted the
+    wrong behavior in a branch that never executed here.
+    """
+    import serial.tools.list_ports as list_ports
+
+    real = list_ports.comports
+    # A test double for a precisely typed function.
+    list_ports.comports = lambda *a, **kw: []  # ty: ignore[invalid-assignment]
+    try:
+        yield
+    finally:
+        list_ports.comports = real
+
+
 class TestPortList:
-    def test_connect_button_tells_the_truth_about_ports(self, tmp_path):
-        """With ports the list highlights the first real row and Connect is live; without, Connect reads No Ports and is disabled."""
+    def test_the_list_offers_the_loopback_when_no_hardware_is_attached(self, tmp_path):
+        """With no adapter, the loopback is highlighted and Connect is live.
+
+        ``_populate_port_option_list`` always appends ``loop://``, a real
+        and selectable port, so the list is never empty.  Every guard
+        here used to ask ``if self._ports`` -- the raw comports() result,
+        which excludes it -- leaving that row on screen, unhighlighted,
+        beside a disabled "No Ports" button: the list said pick this and
+        the button said there was nothing to pick.
+        """
+
+        async def scenario():
+            app = _Host()
+            with _no_ports():
+                async with app.run_test(size=_SIZE) as pilot:
+                    # Arrange / Act
+                    screen, _ = await _open(app, pilot)
+                    await pilot.pause()
+                    connect = screen.query_one("#qs-connect", Button)
+                    port_list = screen.query_one("#qs-port-list", OptionList)
+                    row = port_list.get_option_at_index(2)
+
+                    # Assert
+                    assert screen._ports == [], "no hardware ports, by construction"
+                    assert row.id == _LOOPBACK and not row.disabled, (
+                        "the loopback is a real row the user can choose"
+                    )
+                    assert port_list.highlighted == 2, (
+                        "and it is highlighted, so Enter and Connect act on something"
+                    )
+                    assert (str(connect.label), connect.disabled) == ("Connect", False), (
+                        "the button agrees with the list: there IS a port to connect to"
+                    )
+
+        _run(scenario)
+
+    def test_submitting_with_no_hardware_yields_the_loopback(self, tmp_path):
+        """The config a user gets on a bare machine names loop://, not an empty port."""
+
+        async def scenario():
+            app = _Host()
+            with _no_ports():
+                async with app.run_test(size=_SIZE) as pilot:
+                    # Arrange
+                    screen, results = await _open(app, pilot)
+                    screen.query_one("#qs-name", Input).value = "bench"
+                    await pilot.pause()
+
+                    # Act
+                    await pilot.click("#qs-connect")
+                    await pilot.pause()
+
+                    # Assert
+                    assert results and results[0] is not None, "the dialog submitted"
+                    assert results[0][2] == _LOOPBACK, (
+                        f"the port is the loopback the user picked, not blank; got {results[0]!r}"
+                    )
+
+        _run(scenario)
+
+    def test_with_hardware_the_first_real_port_is_highlighted(self, tmp_path):
+        """With adapters attached the list highlights a hardware port and Connect is live."""
 
         async def scenario():
             app = _Host()
             async with app.run_test(size=_SIZE) as pilot:
+                # Arrange / Act
                 screen, _ = await _open(app, pilot)
                 await pilot.pause()
                 connect = screen.query_one("#qs-connect", Button)
                 port_list = screen.query_one("#qs-port-list", OptionList)
-                if screen._ports:
-                    assert port_list.highlighted == 2, "past the header and separator rows"
-                    assert (str(connect.label), connect.disabled) == ("Connect", False)
-                else:
-                    assert (str(connect.label), connect.disabled) == ("No Ports", True)
+
+                # Assert -- true whatever this machine has: the list always
+                # offers the loopback, so there is always a row to pick.
+                assert port_list.highlighted == 2, "past the header and separator rows"
+                assert (str(connect.label), connect.disabled) == ("Connect", False), (
+                    "Connect is live because the list always has at least the loopback"
+                )
 
         _run(scenario)

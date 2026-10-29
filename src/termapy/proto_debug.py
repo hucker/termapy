@@ -48,7 +48,7 @@ from termapy.protocol import (
     write_results,
 )
 from termapy.scripting import format_duration
-from termapy.widgets import StrongCheckbox
+from termapy.widgets import StrongSelectionList
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -58,6 +58,31 @@ _BTN_CSS = """
     min-width: 0; width: auto; height: 1; min-height: 1;
     border: none; margin: 0 0 0 1;
 """
+
+# The run options, as (key, label, what it does).  One table: the column
+# is built from it, every accessor reads a key out of it, and the help is
+# the row's own tooltip -- so an option is added in one place rather than
+# as a widget, an id, a getter and a sentence somewhere else.
+OPTIONS: tuple[tuple[str, str, str], ...] = (
+    (
+        "stop_on_error",
+        "Stop on Error",
+        "End the run at the first failing test instead of working through the rest.",
+    ),
+    (
+        "show_viz",
+        "Show viz string",
+        "Print the raw format spec above each table, to see how a visualizer read the bytes.",
+    ),
+    ("compact", "Compact", "Fewer blank lines per test, for a long run."),
+    ("json", "JSON", "Also write the results to the JSON file named below."),
+)
+
+# What Run says when nothing is checked.  Named because it is also the
+# message that clears itself: once a test is checked the complaint is
+# answered, and leaving it on screen reads as a failure that is still
+# current (Chuck 2026-10-28).
+_PICK_A_TEST = "Please select at least one test"
 
 
 class ProtoDebugScreen(ModalScreen[None]):
@@ -75,10 +100,6 @@ class ProtoDebugScreen(ModalScreen[None]):
     CSS = f"""
     ProtoDebugScreen {{ align: center middle; }}
     ProtoDebugScreen Button {{ {_BTN_CSS} }}
-    ProtoDebugScreen StrongCheckbox {{
-        min-width: 0; height: 1; margin: 0; padding: 0;
-        border: none;
-    }}
     ProtoDebugScreen Input {{
         width: 4; margin: 0;
         background: $primary-background;
@@ -107,6 +128,10 @@ class ProtoDebugScreen(ModalScreen[None]):
     #proto-debug-top {{
         height: auto;
         margin: 1 0 0 0;
+        /* Four columns of fixed width: on a narrow terminal the last of
+           them would simply be cut off, so the row scrolls sideways and
+           every control stays reachable. */
+        overflow-x: auto;
     }}
     #test-col {{
         width: 50; height: auto;
@@ -121,28 +146,32 @@ class ProtoDebugScreen(ModalScreen[None]):
         max-height: 8;
         border: tall $primary;
     }}
-    #viz-label {{
+    #viz-label, #opt-label {{
         width: auto; height: 1; margin: 0;
         color: $text-muted;
+    }}
+    #sel-opts {{
+        width: 23; height: auto; max-height: 6;
+        margin: 0; border: tall $primary;
     }}
     #sel-viz {{
         width: 28; height: auto; max-height: 5;
         margin: 0; border: tall $primary;
     }}
     #viz-col {{
-        width: 30; height: auto; margin: 0 0 0 2;
+        width: 29; height: auto; margin: 0 0 0 1;
     }}
     #chk-col {{
-        width: auto; height: auto; margin: 1 0 0 2;
+        width: 23; height: auto; margin: 0 0 0 1;
     }}
     #input-col {{
-        width: auto; height: auto; margin: 1 0 0 2;
+        width: auto; height: 1; margin: 1 0 0 1;
     }}
     .input-row {{
         height: 1; width: auto;
     }}
     #input-json-file {{
-        width: 40; margin: 0;
+        width: 34; margin: 0;
         background: $primary-background;
     }}
     #proto-debug-detail {{
@@ -172,6 +201,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         self._ctx = ctx
         self._script = script
         self._run_active = False
+        # True while _PICK_A_TEST is the status line, so checking a test
+        # can take it back down without wiping a run summary.
+        self._asked_for_a_test = False
         # Set by the Stop button; the run worker checks it between tests
         # and waits on it through the between-run delay.
         self._stop_requested = threading.Event()
@@ -197,10 +229,21 @@ class ProtoDebugScreen(ModalScreen[None]):
             with Horizontal(id="proto-debug-top"):
                 with Vertical(id="test-col"):
                     yield Static("Tests", id="test-label")
-                    sl = SelectionList[int](id="proto-debug-select")
+                    sl = StrongSelectionList[int](id="proto-debug-select")
                     for test in script.tests:
                         label = f"{test.name} [{test.viz}]" if test.viz else test.name
                         sl.add_option((label, test.index, True))
+                    # A long test name is cut off by the column, and what
+                    # a test SENDS is the thing you want to check before
+                    # running it; the row carries both.
+                    sl.set_option_tooltips(
+                        {
+                            test.index: f"{test.name}\nSends: {test.send_raw}"
+                            if test.send_raw
+                            else test.name
+                            for test in script.tests
+                        }
+                    )
                     yield sl
                 with Vertical(id="viz-col"):
                     viz_label = Static("Visualizations", id="viz-label")
@@ -217,29 +260,55 @@ class ProtoDebugScreen(ModalScreen[None]):
                         for visualizer in self._visualizers
                         if visualizer.name.lower() in always_last
                     ]
-                    viz_sl = SelectionList[int](id="sel-viz")
+                    viz_sl = StrongSelectionList[int](id="sel-viz")
                     for viz in ordered:
                         idx = self._visualizers.index(viz)
                         viz_sl.add_option((viz.name, idx, idx == 0))
+                    # VisualizerInfo.description is documented as "tooltip
+                    # text describing the visualizer" and the built-ins
+                    # have written one since they were added; nothing had
+                    # ever shown it.
+                    viz_sl.set_option_tooltips(
+                        {
+                            self._visualizers.index(viz): viz.description
+                            for viz in ordered
+                            if viz.description
+                        }
+                    )
                     yield viz_sl
                 with Vertical(id="chk-col"):
-                    yield StrongCheckbox("Stop on Error", value=False, id="chk-stop-err")
-                    yield StrongCheckbox("Show viz string", value=False, id="chk-show-viz")
-                    yield StrongCheckbox("Compact", value=False, id="chk-compact")
-                    yield StrongCheckbox("JSON", value=False, id="chk-json")
-                with Vertical(id="input-col"):
-                    with Horizontal(classes="input-row"):
-                        yield Static("Repeat:", classes="input-label")
-                        yield Input(value="1", id="input-repeat", type="integer", compact=True)
-                    with Horizontal(classes="input-row"):
-                        yield Static("Delay (ms):", classes="input-label")
-                        yield Input(value="10", id="input-delay", type="integer", compact=True)
-                    with Horizontal(classes="input-row"):
-                        yield Static("JSON file:", classes="input-label")
-                        json_default = self._script.json_file or self._ctx.cfg.get(
-                            "proto_results_template", "{name}_results.json"
-                        )
-                        yield Input(value=json_default, id="input-json-file", compact=True)
+                    yield Static("Options", id="opt-label")
+                    # The same widget as Tests and Visualizations, not four
+                    # standalone checkboxes: a bordered row reads as something
+                    # you click, and one interaction model serves all three
+                    # columns.  Unlike the other two there is no at-least-one
+                    # rule -- these are independent, and all-off is the
+                    # default the screen opens with.
+                    opt_sl = StrongSelectionList[str](id="sel-opts")
+                    for key, label, _tip in OPTIONS:
+                        opt_sl.add_option((label, key, False))
+                    opt_sl.set_option_tooltips({key: tip for key, _, tip in OPTIONS})
+                    yield opt_sl
+            # Its own row under the three lists: bordered lists are wider
+            # than the plain-text checkboxes they replaced, and four
+            # columns no longer fit an 80- or 116-wide terminal -- the
+            # settings were simply cut off.  Reading "what to run" above
+            # "how to run it" is the better grouping anyway.
+            with Horizontal(id="input-col"):
+                yield Static("Repeat:", classes="input-label")
+                yield Input(value="1", id="input-repeat", type="integer", compact=True)
+                yield Static("Delay (ms):", classes="input-label")
+                yield Input(value="10", id="input-delay", type="integer", compact=True)
+                yield Static("JSON file:", classes="input-label")
+                json_default = self._script.json_file or self._ctx.cfg.get(
+                    "proto_results_template", "{name}_results.json"
+                )
+                json_input = Input(value=json_default, id="input-json-file", compact=True)
+                json_input.tooltip = (
+                    "Where results are written when the JSON option is on. "
+                    "{name} is replaced with the script's name."
+                )
+                yield json_input
             yield Rule()
             yield RichLog(id="proto-debug-detail", wrap=False)
             yield Static("", id="proto-debug-status")
@@ -269,6 +338,9 @@ class ProtoDebugScreen(ModalScreen[None]):
                 log_btn = Button("Log", id="btn-dbg-log")
                 log_btn.styles.background = "dodgerblue"
                 yield log_btn
+                help_btn = Button("Help", id="btn-dbg-help")
+                help_btn.tooltip = "What this screen's lists, options and fields do."
+                yield help_btn
                 yield Button("Close", id="btn-dbg-close", variant="error")
 
     def _get_checked_tests(self) -> list[TestCase]:
@@ -296,6 +368,18 @@ class ProtoDebugScreen(ModalScreen[None]):
                     return test
         return None
 
+    @on(SelectionList.SelectedChanged, "#proto-debug-select")
+    def _on_tests_changed(self, event: SelectionList.SelectedChanged) -> None:
+        """Take down "select at least one test" once a test is checked.
+
+        A refusal that stays on screen after it has been answered reads
+        as a failure that is still current.  Only that message is
+        cleared, never a run summary (Chuck 2026-10-28).
+        """
+        if self._asked_for_a_test and self._get_checked_tests():
+            self._asked_for_a_test = False
+            self._set_status("")
+
     @on(SelectionList.SelectionHighlighted, "#proto-debug-select")
     def _on_test_highlighted(self, event: SelectionList.SelectionHighlighted) -> None:
         """Update detail panel when cursor moves to a test.
@@ -318,8 +402,16 @@ class ProtoDebugScreen(ModalScreen[None]):
         """
         viz_sl = self.query_one("#sel-viz", SelectionList)
         if not viz_sl.selected:
-            # Re-check the first option if nothing is selected
-            viz_sl.select(self._visualizers[0].sort_order if self._visualizers else 0)
+            # Re-check the first option if nothing is selected.  By the
+            # option's OWN value: the options are added with their index
+            # into self._visualizers, while sort_order is the display
+            # order the rows were sorted by (hex is 10, text 20), so
+            # selecting a sort_order put a value in the selection that no
+            # option has -- the list stayed empty and the guard did
+            # nothing (found 2026-10-28, from a screenshot of an empty
+            # Visualizations list).
+            if viz_sl.option_count:
+                viz_sl.select(viz_sl.get_option_at_index(0).value)
             return
         tc = self._get_highlighted_test()
         if tc is not None:
@@ -710,21 +802,25 @@ class ProtoDebugScreen(ModalScreen[None]):
         except (ValueError, TypeError):
             return 0.0
 
+    def _option(self, key: str) -> bool:
+        """Whether the run option ``key`` (a key of ``OPTIONS``) is checked."""
+        return key in set(self.query_one("#sel-opts", SelectionList).selected)
+
     def _get_stop_on_error(self) -> bool:
-        """Get the stop-on-error checkbox state."""
-        return self.query_one("#chk-stop-err", StrongCheckbox).value
+        """Get the stop-on-error option state."""
+        return self._option("stop_on_error")
 
     def _get_show_viz(self) -> bool:
-        """Get the Show Viz checkbox state."""
-        return self.query_one("#chk-show-viz", StrongCheckbox).value
+        """Get the Show Viz option state."""
+        return self._option("show_viz")
 
     def _get_compact(self) -> bool:
-        """Get the Compact checkbox state."""
-        return self.query_one("#chk-compact", StrongCheckbox).value
+        """Get the Compact option state."""
+        return self._option("compact")
 
     def _get_json_enabled(self) -> bool:
-        """Get the JSON checkbox state."""
-        return self.query_one("#chk-json", StrongCheckbox).value
+        """Get the JSON option state."""
+        return self._option("json")
 
     def _highlight_test(self, tc: TestCase) -> None:
         """Move the SelectionList cursor to a specific test case.
@@ -740,18 +836,21 @@ class ProtoDebugScreen(ModalScreen[None]):
 
     @on(Button.Pressed, "#btn-dbg-send")
     def _on_send(self) -> None:
-        """Run all checked tests, or the highlighted test if none checked."""
+        """Run the checked tests, or say what is missing.
+
+        Running with nothing checked used to fall back to the highlighted
+        row, which looked like the screen ignoring the checkboxes: one
+        test ran out of six unchecked ones with nothing said.  It asks
+        now (Chuck 2026-10-28).
+        """
         if self._run_active:
             self._set_status("Already running", "bold yellow")
             return
         tests = self._get_checked_tests()
         if not tests:
-            # Fall back to highlighted test
-            tc = self._get_highlighted_test()
-            if tc is None:
-                self._set_status("No tests selected", "bold red")
-                return
-            tests = [tc]
+            self._set_status(_PICK_A_TEST, "bold red")
+            self._asked_for_a_test = True
+            return
         self._stop_requested.clear()
         self._set_run_state(True)
         self._run_tests(tests)
@@ -787,6 +886,21 @@ class ProtoDebugScreen(ModalScreen[None]):
     def _on_log(self) -> None:
         """Open the debug log with the system default application."""
         open_with_system(str(self._log_path))
+
+    @on(Button.Pressed, "#btn-dbg-help")
+    def _on_help(self) -> None:
+        """Open the protocol-testing help page, at this screen's section.
+
+        The screen explains none of itself otherwise: what ``{name}``
+        means in the JSON file field, that a list needs one row checked,
+        what each option does (Chuck 2026-10-28: "I feel a bit lost
+        here").
+
+        Through dispatch rather than the host's method, so the one
+        handler for ``help.open`` serves this button too, in whatever
+        frontend the screen is running under.
+        """
+        self._ctx.internal.dispatch("help.open protocol-testing")
 
     @on(Button.Pressed, "#btn-dbg-close")
     def _on_close(self) -> None:

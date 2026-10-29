@@ -117,6 +117,59 @@ class TestFilenameDialog:
 
         _run(scenario)
 
+    def test_the_ok_button_submits(self):
+        """A visible OK button submits, so the way out is not Enter-only.
+
+        The dialog used to show Cancel alone: the only button on screen
+        threw the input away, and nothing said that Enter was how to
+        keep it.  Every other dialog that asks for something has a
+        confirming button (found 2026-10-28, auditing the dialogs).
+        """
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Arrange
+                results: list[str | None] = []
+                app.push_screen(FilenameDialog(), callback=results.append)
+                await pilot.pause()
+                app.screen.query_one("#filename-input", Input).value = "  capture1  "
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#filename-ok")
+                await pilot.pause()
+
+                # Assert
+                assert results == ["capture1"], "OK returns the stripped name, as Enter does"
+
+        _run(scenario)
+
+    def test_an_empty_name_is_refused_out_loud(self):
+        """Submitting nothing says what is missing instead of appearing to do nothing."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Arrange
+                results: list[str | None] = []
+                app.push_screen(FilenameDialog(), callback=results.append)
+                await pilot.pause()
+                screen = app.screen
+
+                # Act
+                await pilot.click("#filename-ok")
+                await pilot.pause()
+
+                # Assert
+                error = screen.query_one("#filename-error", Static)
+                assert "Enter a filename" in str(error.render()), (
+                    "the dialog says what it is waiting for"
+                )
+                assert results == [], "and it stays open rather than dismissing"
+
+        _run(scenario)
+
     def test_cancel_dismisses_none(self):
         """Clicking Cancel dismisses with None rather than an empty string."""
 

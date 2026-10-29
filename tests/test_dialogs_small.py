@@ -296,6 +296,82 @@ class TestSetVarDialog:
 
         _run(scenario)
 
+    def test_the_ok_button_sets_the_variable(self, tmp_path):
+        """A visible OK button submits, so the way out is not Enter-only.
+
+        The dialog used to show Cancel alone: the only button on screen
+        threw the input away, and nothing said that Enter was how to
+        keep it (found 2026-10-28, auditing the dialogs).
+        """
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange
+                results = await _push(app, pilot, SetVarDialog())
+                app.screen.query_one("#setvar-name", Input).value = " timeout "
+                app.screen.query_one("#setvar-value", Input).value = "5000"
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#setvar-ok")
+                await pilot.pause()
+
+                # Assert
+                assert results == [("timeout", "5000")], (
+                    "OK returns the pair, the name stripped, as Enter does"
+                )
+
+        _run(scenario)
+
+    def test_ok_with_no_name_says_what_is_missing(self, tmp_path):
+        """Submitting without a name shows the reason rather than only moving focus."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange
+                results = await _push(app, pilot, SetVarDialog())
+                screen = app.screen
+                screen.query_one("#setvar-value", Input).value = "5000"
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#setvar-ok")
+                await pilot.pause()
+
+                # Assert
+                error = screen.query_one("#setvar-error", Static)
+                assert "Enter a variable name" in str(error.render()), (
+                    "the dialog says what it is waiting for"
+                )
+                assert results == [], "and it stays open rather than dismissing"
+
+        _run(scenario)
+
+    def test_tabbing_past_an_empty_name_says_nothing(self, tmp_path):
+        """Enter on an empty name moves on quietly -- the form is still being filled in."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange
+                await _push(app, pilot, SetVarDialog())
+                screen = app.screen
+                name = screen.query_one("#setvar-name", Input)
+
+                # Act
+                await _submit(pilot, name, "   ")
+
+                # Assert
+                error = screen.query_one("#setvar-error", Static)
+                assert not error.has_class("visible"), (
+                    "complaining before the user has reached the end of the form is nagging; "
+                    "the refusal belongs on submit"
+                )
+
+        _run(scenario)
+
     def test_cancel_and_escape_dismiss_none(self, tmp_path):
         """Cancel and Escape both dismiss with None."""
 

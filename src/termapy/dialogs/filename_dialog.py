@@ -2,7 +2,7 @@
 
 Used by the TUI Record button to collect a filename before
 dispatching ``/run.record <name>``.  Returns the raw user input
-on submit (no path resolution, no suffix manipulation -- the
+on OK or Enter (no path resolution, no suffix manipulation -- the
 recorder handles all of that).  Returns ``None`` on cancel.
 """
 
@@ -20,8 +20,9 @@ from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
 class FilenameDialog(ModalScreen[str | None]):
     """Single-line filename prompt.
 
-    Dismisses with the entered text (stripped) on submit, or ``None``
-    on cancel.  Empty input is treated as cancel (no-op).
+    Dismisses with the entered text (stripped) on OK or Enter, or
+    ``None`` on Cancel or Escape.  An empty name is refused with a
+    message rather than silently ignored.
     """
 
     BINDINGS = _DISMISS_BINDINGS
@@ -34,6 +35,8 @@ class FilenameDialog(ModalScreen[str | None]):
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #filename-label {{ height: 1; text-style: bold; }}
+    #filename-error {{ height: 1; color: $error; display: none; }}
+    #filename-error.visible {{ display: block; }}
     #filename-buttons {{ height: 1; margin-top: 1; }}
     """
 
@@ -63,23 +66,36 @@ class FilenameDialog(ModalScreen[str | None]):
 
     def on_mount(self) -> None:
         self.query_one("#filename-input", Input).tooltip = "Filename for the new file."
+        self.query_one("#filename-ok", Button).tooltip = "Use this filename (or press Enter)."
         self.query_one("#filename-cancel", Button).tooltip = "Close without saving."
 
     def compose(self) -> ComposeResult:
         with Vertical(id="filename-dialog"):
             yield Static(self._title, id="filename-label", markup=False)
             yield Input(placeholder=self._placeholder, value=self._value, id="filename-input")
+            yield Static("", id="filename-error", markup=False)
             with Horizontal(id="filename-buttons"):
-                yield Button("Cancel", id="filename-cancel")
+                # The confirming button comes first and is green, as in
+                # every other dialog that asks for something.  Without it
+                # the only button on screen was Cancel and the way to
+                # submit -- Enter -- was written down nowhere.
+                yield Button("OK", id="filename-ok", variant="success")
+                yield Button("Cancel", id="filename-cancel", variant="error")
 
     @on(Input.Submitted, "#filename-input")
+    @on(Button.Pressed, "#filename-ok")
     def submit(self) -> None:
+        """Accept the name, or say why it cannot be accepted."""
         name = self.query_one("#filename-input", Input).value.strip()
-        if name:
-            self.dismiss(name)
-        # Empty input: stay in the dialog so the user can either
-        # type something or hit Cancel.  Silently dismissing with
-        # None would be surprising.
+        if not name:
+            # Say what is missing rather than appearing to ignore the
+            # press: the dialog used to just sit there.
+            error = self.query_one("#filename-error", Static)
+            error.update("Enter a filename")
+            error.add_class("visible")
+            self.query_one("#filename-input", Input).focus()
+            return
+        self.dismiss(name)
 
     @on(Button.Pressed, "#filename-cancel")
     def cancel(self) -> None:

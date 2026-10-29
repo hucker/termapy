@@ -69,6 +69,11 @@ class QuickSetup(ModalScreen[tuple | None]):
         3000000,
     ]
 
+    # The rows every port list starts with: a header and a separator,
+    # both disabled.  The first port a user can pick is the one after
+    # them, which is also what ``PortOptionList`` highlights.
+    _FIRST_PORT_ROW = 2
+
     def __init__(self, title: str = "New Config") -> None:
         super().__init__()
         self._title = title
@@ -76,6 +81,21 @@ class QuickSetup(ModalScreen[tuple | None]):
         # list against the dialog's measured cell width.  Cheap to
         # call once; expensive to scan every resize.
         self._ports: list = []
+
+    def _has_a_port_to_pick(self, port_list: OptionList) -> bool:
+        """Whether the list offers a row the user can actually choose.
+
+        Counts the LIST, not the hardware.  ``_populate_port_option_list``
+        always appends the ``loop://`` loopback, which is a real,
+        selectable port and the one thing to connect to on a machine with
+        no adapter attached -- so with zero hardware ports the list still
+        holds one pickable row.  Asking ``if self._ports`` instead left
+        that row on screen, unhighlighted, beside a disabled "No Ports"
+        button: the list said pick this and the button said there is
+        nothing to pick (found 2026-10-28).  ``PortOptionList._fill``
+        has always counted the list this way.
+        """
+        return port_list.option_count > self._FIRST_PORT_ROW
 
     def action_dismiss_modal(self) -> None:
         self.dismiss(None)
@@ -100,8 +120,8 @@ class QuickSetup(ModalScreen[tuple | None]):
                 self._ports,
                 row_width=120,
             )
-            if self._ports:
-                port_list.highlighted = 2  # skip header + separator rows
+            if self._has_a_port_to_pick(port_list):
+                port_list.highlighted = self._FIRST_PORT_ROW
             yield port_list
             std_btn = Button("Standard Baud Rates", id="qs-standard-baud", variant="primary")
             std_btn.tooltip = "Click to switch to custom baud rate entry"
@@ -130,7 +150,10 @@ class QuickSetup(ModalScreen[tuple | None]):
             )
             with Horizontal(id="qs-buttons"):
                 connect_btn = Button("Connect", id="qs-connect", variant="success")
-                if not self._ports:
+                # ``port_list`` is the one built just above, so it can be
+                # asked directly; after mount the same question goes
+                # through _set_connect_state.
+                if not self._has_a_port_to_pick(port_list):
                     connect_btn.label = "No Ports"
                     connect_btn.variant = "error"
                     connect_btn.disabled = True
@@ -193,8 +216,13 @@ class QuickSetup(ModalScreen[tuple | None]):
             return
         self._ports = fresh
         self._render_port_list()
+        self._set_connect_state()
+
+    def _set_connect_state(self) -> None:
+        """Make the Connect button agree with what the list is offering."""
+        port_list = self.query_one("#qs-port-list", OptionList)
         btn = self.query_one("#qs-connect", Button)
-        if self._ports:
+        if self._has_a_port_to_pick(port_list):
             btn.label = "Connect"
             btn.variant = "success"
             btn.disabled = False
@@ -244,8 +272,8 @@ class QuickSetup(ModalScreen[tuple | None]):
                 if opt is not None and opt.id == selected_id:
                     port_list.highlighted = i
                     return
-        if self._ports:
-            port_list.highlighted = 2  # skip header + separator rows
+        if self._has_a_port_to_pick(port_list):
+            port_list.highlighted = self._FIRST_PORT_ROW
 
     _standard_baud: bool = True
 

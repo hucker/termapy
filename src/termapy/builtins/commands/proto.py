@@ -521,6 +521,11 @@ def _delay_at_least(seconds: float) -> None:
             pass
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """Send raw bytes to the serial port and display the response.
 
@@ -2374,6 +2379,15 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
         f"\n" + styles_line + naming_line + "Example:\n" + "\n".join(example_lines)
     )
 
+    def _handler(ctx: PluginContext, args: str) -> CmdResult:
+        return _crc_codegen(ctx, args, code)
+
+    # The /help.dev text of each command built here (registry handler-docstring).
+    _handler.__doc__ = (
+        f"Generate CRC code for {code} with crcglot: STEM names the output "
+        f"files ({ext_desc}); the flags choose the variant."
+    )
+
     return Command(
         args=("<name> {name ...} {file=stem} {symbol=name} {style=name} {naming=name}"),
         flags=flags,
@@ -2381,7 +2395,7 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
         long_help=long_help,
         # _code=code freezes the loop variable into the closure so each
         # handler dispatches to its own language (Python late-binding gotcha).
-        handler=lambda ctx, args, _code=code: _crc_codegen(ctx, args, _code),
+        handler=_handler,
     )
 
 

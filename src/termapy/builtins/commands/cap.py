@@ -115,6 +115,11 @@ def _resolve_path(ctx: PluginContext, filename: str) -> Path:
     return ctx.fs.resolve(filename, "cap")
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 # ── /cap.text handler ────────────────────────────────────────────────────────
 
 

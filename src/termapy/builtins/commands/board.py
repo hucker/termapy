@@ -108,6 +108,11 @@ def _board_or_fail(ctx: PluginContext) -> Board | CmdResult:
         return CmdResult.fail(msg=str(e))
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """``/board``: the boards termapy ships starters for, and which is plugged in."""
     records = [_record(board) for board in BOARDS]

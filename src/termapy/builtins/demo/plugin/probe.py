@@ -97,6 +97,11 @@ def _survey(ctx: PluginContext) -> None:
     ctx.io.output("── end survey ──")
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Query a device over the serial port and display results.
 

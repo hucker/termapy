@@ -9,8 +9,13 @@ The shape every built-in command has: a typed ``_handler`` that returns a
 
 from termapy.plugins import CmdResult, Command, PluginContext
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    """Greet the name given (``world`` when bare); the value is the greeting."""
     name = args.strip() or "world"
     greeting = f"Hello, {name}!"
     ctx.io.result(greeting)

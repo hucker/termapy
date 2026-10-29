@@ -393,4 +393,6 @@ def _make_interior_handler(full_name: str, children: list[str]) -> Callable:
                 ctx.io._write(f"  {prefix}{child_name}{arg_str} - {help_text}")
         return None
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    _handler.__doc__ = f"Bare {full_name} lists its subcommands; with arguments, the first token names the subcommand to run."
     return _handler

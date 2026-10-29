@@ -401,6 +401,7 @@ MEM.R 0x1000 2 --json
 /help.target
 /profile.unload
 /help.dev print
+/help.dev ss.list
 /search fingerprint
 /print === section: coverage: memory and variables ===
 /mem.and gFlags 0xFFFFFF00

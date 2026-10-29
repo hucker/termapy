@@ -47,6 +47,8 @@ from termapy.terminal_host import TerminalHost
 if TYPE_CHECKING:
     from prompt_toolkit import PromptSession
 
+    from termapy.plugins import PluginContext
+
 
 class CLITerminal(TerminalHost):
     """Plain-text serial terminal - no Textual dependency.
@@ -262,6 +264,13 @@ class CLITerminal(TerminalHost):
 
     def _register_hooks(self) -> None:
         """Register the CLI's own commands."""
+
+        # Named and documented: /help.dev prints this docstring
+        # (registry handler-docstring); a lambda would have none.
+        def _already_cli(ctx: PluginContext, args: str) -> CmdResult:
+            """Already in CLI mode: a no-op, so a script written for the TUI runs unchanged."""
+            return CmdResult.ok(value="")
+
         # /term.color (device-color toggle) is now a portable builtin
         # backed by flags["color"], with /color as its legacy alias in
         # legacy.py -- so it works in the TUI too, not just the CLI.
@@ -291,8 +300,7 @@ class CLITerminal(TerminalHost):
             "cli",
             "",
             "Already in CLI mode.",
-            # SPECIAL CASE: no-op when /cli runs while already in CLI mode.
-            lambda ctx, args: CmdResult.ok(value=""),
+            _already_cli,
             source="app",
             group="terminal",
             needs=CapabilitySet.INTERACTIVE,

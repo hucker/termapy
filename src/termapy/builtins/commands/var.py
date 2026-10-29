@@ -121,6 +121,11 @@ def _var_line_markup(name: str, value: object, tag: str = "") -> str:
     return f"  [cyan]$({escape_markup(name)})[/] = [green]{escape_markup(value)}[/]{tag_markup}"
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List all defined variables, or show one by name.
 

@@ -189,6 +189,7 @@ All other paths relative to `src/termapy/`.
   `# ── COMMAND (must be at end of file) ──────────────────────────────────────────`
   (`COMMAND` is the last *command* export; a plugin that also exports a `TRANSFORM` or `DIRECTIVE`, as `env.py` and `var.py` do, places those after it)
 - **Handlers are named `_handler` (root) and `_handler_<sub>` (subcommand)**: `_handler_crc_calc` for `/proto.crc.calc`, typed `(ctx: PluginContext, args: str) -> CmdResult`, in the built-ins, the demo plugins and `examples/plugins/` alike, so a new command is a copy of any existing one. **Enforced by `tests/test_architecture.py` (registry `handler-naming`)**; factory-built handlers are exempt.
+- **Every registered handler has a docstring** (registry `handler-docstring`): `/help.dev` prints it and developer search indexes it, so a handler without one is a hole in the free documentation. A factory stamps one per command it builds (`handler.__doc__ = f"..."`, naming the folder, field or language), and a TUI hook is bound with `app_hooks._bind`, never a bare lambda, which has no `__doc__`. **Enforced by `tests/test_architecture.py`**; found 2026-10-29, when 146 of 304 commands answered "(no docstring)".
 - Subcommands = distinct operations (`port.list` vs `port.connect`)
 - Toggles/values = args (`echo on`, `cfg baudrate 9600`)
 - `needs=`: use the named `CapabilitySet` profiles (`.SERIAL_CONNECTED`,

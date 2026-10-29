@@ -58,10 +58,13 @@ def _page(ctx: PluginContext, report: port_control.Report) -> CmdResult:
     return CmdResult.record(report.data, report.items, value=report.value)
 
 
-# ── Handlers ────────────────────────────────────────────────────────────────
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
+    """``port <name>``: set the config's port name without connecting; bare never arrives (the picker or the list runs)."""
     name = args.strip()
     if name:
         ctx.serial.update_port(name)
@@ -78,6 +81,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
+    """List the serial ports: a table for a person, records for a structured consumer; the value is the device names."""
     # Structured consumer: records only, no table.  ``value`` is the
     # comma-joined device names (the useful scalar for an agent or a
     # capture) rather than the rendered table text the human branch
@@ -95,6 +99,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
+    """Render the USB device tree, or its records for a structured consumer; fails on an unsupported platform."""
     from termapy.usb_tree import (
         UnsupportedPlatform,
         gather_usb_tree,
@@ -117,6 +122,7 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
+    """Open the named port (or the config's), applying any baud, frame, line-ending and echo settings first; URL ports need network egress."""
     port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
     if err:
         return CmdResult.fail(msg=err)
@@ -162,6 +168,7 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_disconnect(ctx: PluginContext, args: str) -> CmdResult:
+    """Close the port; the value is the name of the port that was open."""
     # Snapshot the configured port name BEFORE disconnect so scripts
     # capturing the value know which port just went down.  ctx.cfg
     # still holds the name after disconnect, but capturing first
@@ -195,16 +202,19 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
+    """Query (bare) or set the frame as one token such as 8N1, with an optional baud rate."""
     result = port_control.set_mode(ctx.internal.port(), ctx.cfg, args)
     return _answer(ctx, result, _joined_value(result))
 
 
 def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
+    """Query (bare) or set flow control: none, rtscts, xonxoff or manual."""
     result = port_control.get_set_flow(ctx.internal.port(), ctx.cfg, args)
     return _answer(ctx, result, _joined_value(result))
 
 
 def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
+    """Send a break condition on the open port; the value is the confirmation line."""
     result = port_control.send_break(ctx.internal.port(), args)
     # Break is a pure side-effect.  Return the "Break sent" line so silent
     # scripts get something deterministic instead of None.
@@ -212,6 +222,7 @@ def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
+    """Identify the USB-serial chip of the current port, a named port, or every port."""
     current = ctx.cfg["serial"]["port"] or ""
     connected = current if ctx.serial.is_connected() else ""
     return _page(ctx, port_control.chip_info(args, current, connected))
@@ -299,6 +310,8 @@ def _make_chip_field_handler(field: str):
             return CmdResult.ok(value=msgs[0][0])
         return CmdResult.ok(value=_joined_value(result))
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    _handler.__doc__ = f"Report the {field} of the current port's USB-serial chip, of a named port, or of every port (*) as a table."
     return _handler
 
 
@@ -334,6 +347,8 @@ def _make_prop_handler(key: str):
         # Only return value on read (no args); set returns prose not useful as value
         return _answer(ctx, result, _read_value(result) if not args.strip() else "")
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    _handler.__doc__ = f"Query (bare) or set the port's {key}, on the open port and in the config."
     return _handler
 
 
@@ -342,6 +357,8 @@ def _make_hw_handler(line: str):
         result = port_control.get_set_hw_line(ctx.internal.port(), line, args)
         return _answer(ctx, result, _read_value(result) if not args.strip() else "")
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    _handler.__doc__ = f"Query (bare) or set the {line.upper()} output line of the open port."
     return _handler
 
 
@@ -351,6 +368,8 @@ def _make_signal_handler(signal: str):
         result = port_control.read_signal(ctx.internal.port(), signal, args)
         return _answer(ctx, result, _read_value(result))
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    _handler.__doc__ = f"Read the {signal.upper()} input line of the open port."
     return _handler
 
 

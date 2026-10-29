@@ -23,7 +23,13 @@ _PING_PARAMS = [
 ]
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult:
+    """Send ``cmd=`` ``count`` times, printing each round trip, then the avg/min/max summary (the value)."""
     cmd = ctx.arg("cmd")
     count = ctx.arg("count")
     timeout_ms = int(ctx.arg("timeout") * 1000)  # param is float seconds
@@ -62,6 +68,7 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
 
 
 def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:
+    """``ping`` without echoing the device's reply under each round trip."""
     return _handler(ctx, args, quiet=True)
 
 

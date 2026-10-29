@@ -1634,6 +1634,18 @@ class TestHelp:
         assert any("dev docstring" in text for text in texts), "docstring content shown"
         assert any("DESCRIPTION" in text for text in texts), "rendered inside DESCRIPTION"
 
+    def test_help_dev_shows_a_factory_built_handlers_docstring(self, repl_env):
+        """handler-docstring: a factory-built command (the ss folder's list) answers /help.dev with its stamped docstring."""
+        # Arrange
+        engine, _, _, output = repl_env
+        # Act
+        engine.dispatch("help.dev ss.list")
+        # Assert
+        texts = [text for text, _ in output]
+        assert any("ss/ folder" in text for text in texts), (
+            "the factory stamped a per-folder docstring and /help.dev printed it"
+        )
+
     def test_help_dev_summary_bold(self, repl_env):
         """/help.dev renders summary line bold when followed by blank line."""
         # Arrange

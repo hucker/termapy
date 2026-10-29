@@ -112,6 +112,11 @@ def _stop(ctx: PluginContext) -> None:
     ctx.io.status_bar("")  # clear the bar
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """Show counts, or start / stop monitoring."""
     ns = _state(ctx)

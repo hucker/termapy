@@ -35,6 +35,11 @@ def _show_file(ctx: PluginContext, path: Path) -> None:
         ctx.io.output(f"Error reading {path}: {e}", "red")
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Display file contents in the terminal.
 

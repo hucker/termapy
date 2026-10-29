@@ -14,6 +14,10 @@ if TYPE_CHECKING:
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.protocol import get_crc_registry
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Send text with an XMODEM CRC-16 appended.

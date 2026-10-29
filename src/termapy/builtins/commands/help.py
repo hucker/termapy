@@ -693,6 +693,11 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
     )
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 # ── /help handler (landscape or per-command) ─────────────────────────────────
 
 

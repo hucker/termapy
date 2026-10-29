@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1579,6 +1580,23 @@ class TestPortsFlag:
         data_lines = [data_line for data_line in out.splitlines() if data_line.startswith("COM")]
         assert all("COM4" in data_line for data_line in data_lines), (
             f"only COM4 row emitted, got: {data_lines}"
+        )
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows port-name rules")
+    def test_ports_filter_matches_the_name_as_windows_opens_it(self, capsys):
+        """port-name-one-compare: --ports=com4 lists COM4, the port Windows would open for that name."""
+        import argparse
+
+        from termapy import cli_flags
+        from termapy.port_control import _build_demo_fleet
+
+        args = argparse.Namespace(ports="com4", json=False, vid=None, pid=None, mfg=None, sn=None)
+        with pytest.raises(SystemExit) as exc:
+            cli_flags.run_ports(args, source=_build_demo_fleet)
+        rows = [line for line in capsys.readouterr().out.splitlines() if line.startswith("COM")]
+        assert exc.value.code == 0, "a match exits 0"
+        assert [row.split()[0] for row in rows] == ["COM4"], (
+            "the listed spelling, and only that port"
         )
 
     def test_ports_filter_unknown_exits_nonzero(self, capsys, monkeypatch):

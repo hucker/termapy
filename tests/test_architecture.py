@@ -845,6 +845,89 @@ def test_matcher_guard_fires_on_a_probe():
     assert len(found) == 2, "both fnmatch imports flagged; the matcher import is not"
 
 
+# ── Port names are compared one way ───────────────────────────────────────────
+#
+# A typed port name and a listed one are the same port when the OS would open
+# the same device: Windows ignores case and the ``\\.\`` prefix, Linux and
+# macOS follow symlinks.  ``port_control.same_port`` is that rule; ``==``
+# between two device names is how a config's ``com3`` connected but read as
+# unplugged everywhere else (2026-10-29).
+
+PORT_NAME_MODULES = (
+    "termapy/port_control.py",
+    "termapy/cli_flags.py",
+    "termapy/serial_engine.py",
+    "termapy/title_bar.py",
+    "termapy/port_format.py",
+    "termapy/pickers.py",
+    "termapy/info_views.py",
+    "termapy/dialogs/port_picker.py",
+    "termapy/dialogs/quick_setup.py",
+)
+_DEVICE_NAMES = frozenset({"device", "port_name", "connected_port", "current_port", "open_device"})
+
+
+def _device_name_compares(tree: ast.AST, rel: str) -> list[str]:
+    """``==`` / ``!=`` between expressions named like a device (not against a literal)."""
+
+    def name_of(expr: ast.expr) -> str | None:
+        if isinstance(expr, ast.Attribute):
+            return expr.attr
+        if isinstance(expr, ast.Name):
+            return expr.id
+        return None
+
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare):
+            continue
+        if not any(isinstance(op, (ast.Eq, ast.NotEq)) for op in node.ops):
+            continue
+        operands = [node.left, *node.comparators]
+        if any(isinstance(operand, ast.Constant) for operand in operands):
+            continue
+        if any(name_of(operand) in _DEVICE_NAMES for operand in operands):
+            found.append(f"{rel}:{node.lineno}")
+    return found
+
+
+def test_port_names_are_compared_only_by_same_port():
+    """port-name-one-compare: no port module compares two device names with == or !=."""
+    # Arrange / Act
+    violations = [
+        line
+        for rel in PORT_NAME_MODULES
+        for line in _device_name_compares(
+            ast.parse((SRC.parent / rel).read_text(encoding="utf-8")), rel
+        )
+    ]
+
+    # Assert
+    assert violations == [], (
+        "compare port names with port_control.same_port, which matches them as the OS opens "
+        "the port:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_port_name_compare_guard_fires_on_a_probe():
+    """port-name-one-compare: the guard flags == and != between device names and passes same_port and literals."""
+    # Arrange
+    probe = (
+        "if fact.device == candidate: pass\n"
+        "if port_name != device: pass\n"
+        "if same_port(fact.device, candidate): pass\n"
+        "if device == '': pass\n"
+    )
+
+    # Act
+    found = _device_name_compares(ast.parse(probe), "probe")
+
+    # Assert
+    assert found == ["probe:1", "probe:2"], (
+        "both direct compares flagged; same_port and a literal are not"
+    )
+
+
 # ── The symbols namespace has one writer ──────────────────────────────────────
 #
 # ``ctx.ns("symbols")`` holds the build table, the device list and the merged

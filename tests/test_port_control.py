@@ -833,6 +833,8 @@ class TestSetMode:
 # -- Port spec resolution ---------------------------------------------------
 
 
+import os  # noqa: E402
+
 import pytest  # noqa: E402
 
 from termapy.port_control import (  # noqa: E402
@@ -845,6 +847,7 @@ from termapy.port_control import (  # noqa: E402
     AmbiguousSerialNumberError,
     ChipFacts,
     _build_demo_fleet,
+    _check_in_use,
     _gather_all_chip_facts,
     _windows_location_chain,
     chip_field,
@@ -856,6 +859,7 @@ from termapy.port_control import (  # noqa: E402
     reserved_serial,
     resolve_port,
     resolve_port_trace,
+    same_port,
     split_location_interface,
     synthetic_facts_for_reserved,
 )
@@ -981,6 +985,90 @@ class TestResolvePort:
         assert "COM3" in str(exc.value) and "COM7" in str(exc.value), (
             "both devices mentioned in exception message"
         )
+
+
+# Each platform's rule runs where it holds: the Windows cases here and on any
+# Windows run, the POSIX cases on Linux CI and in WSL.
+_WINDOWS = os.name == "nt"
+windows_only = pytest.mark.skipif(not _WINDOWS, reason="Windows port-name rules")
+posix_only = pytest.mark.skipif(_WINDOWS, reason="Linux and macOS port-name rules")
+
+
+def _linked_device(tmp_path):
+    """A stand-in device file and a by-id style symlink to it."""
+    device = tmp_path / "ttyUSB0"
+    device.touch()
+    link = tmp_path / "usb-FTDI_FT232R_USB_UART_A1B2C3D4-if00-port0"
+    link.symlink_to(device)
+    return str(device), str(link)
+
+
+class TestSamePort:
+    """port-name-one-compare: two names are the same port when the OS would open the same device."""
+
+    @windows_only
+    @pytest.mark.parametrize("typed", ["COM3", "com3", "Com3", r"\\.\COM3", r"\\.\com3"])
+    def test_windows_ignores_case_and_the_device_prefix(self, typed):
+        """On Windows a name in any case, with or without the device prefix, is the listed COM3."""
+        assert same_port(typed, "COM3") is True, f"{typed!r} opens COM3"
+
+    @windows_only
+    def test_windows_still_tells_ports_apart(self):
+        """Ignoring case never makes COM3 match COM30 or COM4."""
+        assert same_port("com3", "COM30") is False, "a longer number is another port"
+        assert same_port("COM3", "COM4") is False, "another number is another port"
+
+    @posix_only
+    def test_posix_names_are_case_sensitive(self):
+        """On Linux and macOS a name differing only in case is a different device."""
+        assert same_port("/dev/ttyUSB0", "/dev/TTYUSB0") is False
+
+    @posix_only
+    def test_posix_follows_a_symlink(self, tmp_path):
+        """A by-id style link is the device it points to."""
+        device, link = _linked_device(tmp_path)
+        assert same_port(link, device) is True, "the link opens the device"
+
+
+class TestResolvePortNameForms:
+    """port-name-one-compare: a name that opens a listed port resolves to the listed name and is present."""
+
+    @windows_only
+    @pytest.mark.parametrize("typed", ["com3", r"\\.\COM3"])
+    def test_windows_forms_resolve_to_the_listed_name(self, typed):
+        """com3 and the prefixed form resolve to COM3, count as present, and /port.chip finds the port."""
+        # Act
+        actual = resolve_port(typed, source=_build_demo_fleet)
+        report = chip_info(typed, current_port="", source=_build_demo_fleet)
+        # Assert
+        assert actual == "COM3", "the listed spelling, so the app shows and opens COM3"
+        assert port_present(typed, source=_build_demo_fleet) is True, (
+            "a config naming the port this way is not read as unplugged"
+        )
+        assert report.problem is None, f"/port.chip {typed} finds the port"
+
+    @posix_only
+    def test_a_symlink_resolves_to_the_device_it_names(self, tmp_path):
+        """A by-id link to a listed device resolves to that device and counts as present."""
+        device, link = _linked_device(tmp_path)
+
+        def fleet():
+            return [ChipFacts(device=device, description="USB Serial Port")]
+
+        assert resolve_port(link, source=fleet) == device, "the listed device, not the link"
+        assert port_present(link, source=fleet) is True, "a by-id config is not read as unplugged"
+
+    @windows_only
+    def test_the_session_knows_its_own_port_by_any_name_on_windows(self):
+        """The port this session holds is in use by it however the name is cased, so nothing is probed."""
+        # COM250 exists nowhere: a regression would probe it, harmlessly, and fail here.
+        assert _check_in_use("COM250", "com250") == "yes (this session)"
+
+    @posix_only
+    def test_the_session_knows_its_own_port_through_a_link(self, tmp_path):
+        """The port this session holds by its by-id link is in use by it, so nothing is probed."""
+        device, link = _linked_device(tmp_path)
+        assert _check_in_use(device, link) == "yes (this session)"
 
 
 class TestChipInfoResolvesSnSpec:

@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 
 import pytest
-from textual.widgets import Button, Static
+from textual.widgets import Button, Input, Static
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ProtoPicker
@@ -392,5 +392,83 @@ class TestSelectionGuards:
                     f"the summary is still there; only the complaint clears. "
                     f"was {summary!r}, now {after!r}"
                 )
+
+        _run(scenario)
+
+
+class TestNumberFields:
+    """Repeat and Delay refuse what they cannot read, instead of quietly substituting."""
+
+    @pytest.mark.parametrize(
+        ("field", "text", "needle"),
+        [
+            ("#input-repeat", "abc", "Invalid repeat count: abc"),
+            ("#input-repeat", "-5", "Invalid repeat count: -5"),
+            ("#input-repeat", "0", "Invalid repeat count: 0"),
+            ("#input-delay", "xyz", "Invalid delay: xyz"),
+            ("#input-delay", "-1", "Invalid delay: -1"),
+        ],
+    )
+    def test_run_refuses_a_field_it_cannot_read(self, tmp_path, field, text, needle):
+        """A bad number stops the run and says which field and what was in it.
+
+        Both fields swallowed every failure: ``abc`` ran once, ``-5``
+        ran once, and a deliberate ``0`` repeat was rewritten to 1 by
+        ``max(1, val)``.  That is the silent default on garbage the
+        project rules forbid.
+        """
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                screen.query_one(field, Input).value = text
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#btn-dbg-send")
+                await pilot.pause()
+
+                # Assert
+                status = str(screen.query_one("#proto-debug-status", Static).render())
+                assert needle in status, f"the refusal names the field and the text; got {status!r}"
+                assert screen._run_active is False, "and nothing ran"
+
+        _run(scenario)
+
+    def test_a_blank_field_means_its_default(self, tmp_path):
+        """Clearing a field is not an error -- it is the value the screen opened with."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                screen.query_one("#input-repeat", Input).value = ""
+                screen.query_one("#input-delay", Input).value = ""
+                await pilot.pause()
+
+                # Act / Assert
+                assert screen._get_repeat_count() == 1, "a blank repeat runs once"
+                assert screen._get_start_delay() == 0.0, "a blank delay waits not at all"
+
+        _run(scenario)
+
+    def test_a_good_value_is_read_as_written(self, tmp_path):
+        """The numbers a run uses are the ones in the fields, not clamped versions."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                screen.query_one("#input-repeat", Input).value = "3"
+                screen.query_one("#input-delay", Input).value = "250"
+                await pilot.pause()
+
+                # Act / Assert
+                assert screen._get_repeat_count() == 3, "the repeat count is what was typed"
+                assert screen._get_start_delay() == 0.25, "and the delay is ms, read as seconds"
 
         _run(scenario)

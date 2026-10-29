@@ -107,8 +107,9 @@ terminal's own selection:
 
 Native terminals (Windows Terminal, iTerm2, most Linux terminals)
 usually accept plain **Shift+click** for the same bypass.  For the
-whole session, the config's log file holds everything; `Ctrl+S` and
-`Ctrl+T` save a screenshot of what is on screen.
+whole session, the config's log file holds everything; `Ctrl+S`
+saves an SVG image of the screen and `Ctrl+T` the output pane's
+whole text.
 
 ### Ctrl-key capture (Windows + Linux)
 

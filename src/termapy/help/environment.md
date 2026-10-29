@@ -93,19 +93,22 @@ Two distinct issues:
 
 ### Text selection
 
-The TUI captures mouse events, so the usual click-and-drag selection
-inside VS Code's terminal doesn't behave normally while termapy has
-focus.  What works:
+The TUI captures mouse events, so the terminal's own click-and-drag
+selection does not work while termapy has focus.  It does not need
+to: drag across the output window to select, and **Ctrl+C** copies the
+selection through the terminal's OSC 52 channel (see **Copying text**
+on the Toolbar page).  If the copy does nothing, the terminal does not
+relay OSC 52; then bypass the TUI's mouse capture and use the
+terminal's own selection:
 
 1. Hold **Alt+Shift** and drag to select.
 2. While still holding the left mouse button, **right-click** to copy
    the selection.
 
-This is general Textual-TUI behavior, not a termapy bug.  Native
-terminals (Windows Terminal, iTerm2, most Linux terminals) usually
-accept plain **Shift+click** to bypass the TUI's mouse capture.  For
-anything longer, `Ctrl+S` saves an SVG screenshot and `Ctrl+T` a text
-screenshot -- often more useful than a selection.
+Native terminals (Windows Terminal, iTerm2, most Linux terminals)
+usually accept plain **Shift+click** for the same bypass.  For the
+whole session, the config's log file holds everything; `Ctrl+S` and
+`Ctrl+T` save a screenshot of what is on screen.
 
 ### Ctrl-key capture (Windows + Linux)
 

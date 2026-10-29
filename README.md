@@ -132,6 +132,8 @@ Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outsi
 | Ctrl+S  | Save SVG screenshot                 |
 | Ctrl+T  | Save text screenshot                |
 | Ctrl+P  | Command palette                     |
+| Ctrl+C  | Copy the selected output text       |
+| Ctrl+A  | Select all output (click it first)  |
 | F1–F4   | Help / Cfg / Run / Proto buttons (Ctrl+Shift+1–4 in VS Code); F10 edits the config |
 | Up/Down | Cycle through command history       |
 | Escape  | Clear input / exit history browsing |

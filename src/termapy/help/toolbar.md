@@ -80,6 +80,7 @@ Scripts are picked and run from the **Run** button in the title bar
 | **Ctrl+S** / **Alt+S** | Save SVG screenshot                                 |
 | **Ctrl+T** / **Alt+T** | Save text screenshot                                |
 | **Ctrl+C** / **Cmd+C** | Copy selected text to the clipboard                 |
+| **Ctrl+A**             | Select all output text (click the output first)     |
 | **Up/Down**            | Cycle through command history                       |
 | **Right**              | Accept type-ahead suggestion                        |
 
@@ -92,9 +93,14 @@ screenshot folder is the **SS** button (or `/ss.explore`).
 
 Drag across the main output window to select text, then press
 **Ctrl+C** (**Cmd+C** on macOS) to copy it to your clipboard.  The
+selection is highlighted, and the copy is the text as shown: wrapped
+lines and table rules included, colors dropped.  Click the window
+first and press **Ctrl+A** to select everything.  The
 copy travels over the terminal's OSC 52 channel, so it lands on the
 clipboard of whatever machine your terminal is running on — including
-over SSH.  A few older terminals don't support OSC 52; if the copy
+over SSH.  Terminals cap how much one copy may carry, and cut a
+larger one short without saying so; the session log holds the whole
+session.  A few older terminals don't support OSC 52; if the copy
 does nothing, hold **Shift** (or **Alt** in some terminals) while
 dragging to use your terminal's own selection instead.
 

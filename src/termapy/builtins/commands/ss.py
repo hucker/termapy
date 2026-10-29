@@ -28,6 +28,11 @@ def _ss_long_help(ctx: PluginContext) -> str:
     return folder_line(ctx, "ss", noun="screenshot")
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_placeholder(ctx: PluginContext, args: str) -> CmdResult:
     """Never invoked: the TUI replaces this handler via register_hook.
 

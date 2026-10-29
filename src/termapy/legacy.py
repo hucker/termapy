@@ -87,6 +87,10 @@ def make_forwarder(old_name: str, new_name: str) -> Callable:
         # A failure comes back unprinted; returning it prints it once.
         return ctx.internal.dispatch(f"{new_name} {args}".strip())
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = (
+        f"Legacy alias of {new_name}: forwards the arguments unchanged, after a one-time note."
+    )
     return handler
 
 

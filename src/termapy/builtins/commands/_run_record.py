@@ -179,6 +179,11 @@ def _stop(ctx: PluginContext) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Toggle recording.  Bare /run.record stops; with arg starts."""
     if args.strip():

@@ -577,7 +577,9 @@ def _word_change(old: bytes, new: bytes, width: int, byte_order: Literal["little
     return f"0x{old_word:0{digits}X} -> 0x{new_word:0{digits}X}"
 
 
-# ── handlers ───────────────────────────────────────────────────────────────
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
@@ -1058,18 +1060,22 @@ def _handler_mask(ctx: PluginContext, args: str, *, op: str) -> CmdResult:
 
 
 def _handler_or(ctx: PluginContext, args: str) -> CmdResult:
+    """OR a mask into one word (``_handler_mask``)."""
     return _handler_mask(ctx, args, op="or")
 
 
 def _handler_and(ctx: PluginContext, args: str) -> CmdResult:
+    """AND a mask into one word (``_handler_mask``)."""
     return _handler_mask(ctx, args, op="and")
 
 
 def _handler_xor(ctx: PluginContext, args: str) -> CmdResult:
+    """XOR a mask into one word (``_handler_mask``)."""
     return _handler_mask(ctx, args, op="xor")
 
 
 def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
+    """Clear the mask's bits in one word (``_handler_mask``)."""
     return _handler_mask(ctx, args, op="clear")
 
 

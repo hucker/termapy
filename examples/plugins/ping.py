@@ -11,8 +11,13 @@ import time
 from termapy.plugins import CapabilitySet, CmdResult, Command, PluginContext
 from termapy.scripting import parse_keywords
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    """Send ``cmd=`` (``AT`` by default) and time the round trip; the value is the time in ms."""
     kw = parse_keywords(args, {"cmd"}, rest_keyword="cmd")
     cmd = kw.get("cmd", "AT")
     start = time.perf_counter()

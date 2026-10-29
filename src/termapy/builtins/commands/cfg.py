@@ -43,6 +43,11 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 # ── /cfg handler ───────────────────────────────────────────────────────────────
 
 

@@ -73,6 +73,11 @@ def _known_formats(ctx: PluginContext) -> list[str]:
     return list(FORMATS) + [name for name in extra if name not in FORMATS]
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     """Convert a vendor file into a library and reference it from this config."""
     raw = str(ctx.arg("file") or "")

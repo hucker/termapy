@@ -24,6 +24,10 @@ from termapy.builtins.commands._xmodem_handlers import (
     _resolve_path,
 )
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
 
 def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """Send file(s) to the device via YMODEM.

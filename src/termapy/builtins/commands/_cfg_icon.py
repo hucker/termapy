@@ -504,6 +504,11 @@ def _resolve_name(ctx: PluginContext) -> tuple[str, str, Path]:
     return name, stem, cfg_path
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """``/cfg.icon`` -- create a desktop launcher for the current cfg."""
     return _create(ctx, *_resolve_name(ctx), ctx.flag("--force"))

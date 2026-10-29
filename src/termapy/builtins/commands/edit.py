@@ -64,9 +64,12 @@ def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
+    """Open a project file by name in the editor, searching the config's folders (``_resolve_file``)."""
     name = args.strip()
     if not name:
         raise UsageError()
@@ -78,6 +81,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
+    """Open the session log in the editor."""
     path = ctx.internal.session_log_path()
     assert path is not None, "edit.log declares session_log"
     ctx.internal.edit_file(path)
@@ -85,6 +89,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
+    """Open the config's info report (``<cfg>.md``) in the editor; ``cfg.info`` writes it."""
     stem = Path(ctx.config_path).stem
     path = Path(ctx.config_path).parent / f"{stem}.md"
     if path.exists():

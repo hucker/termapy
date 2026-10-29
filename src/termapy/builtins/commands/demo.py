@@ -34,11 +34,18 @@ def _switch_to_demo(ctx: PluginContext, args: str, force: bool) -> CmdResult:
     return ctx.internal.load_config(str(path))
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    """Switch to the demo device, writing its config only when it is missing."""
     return _switch_to_demo(ctx, args, force=False)
 
 
 def _handler_force(ctx: PluginContext, args: str) -> CmdResult:
+    """Switch to the demo device, rewriting its config and files from the shipped copies."""
     return _switch_to_demo(ctx, args, force=True)
 
 

@@ -2977,6 +2977,60 @@ def frontend_tables(frontend_plugins) -> dict[str, dict[str, object]]:
     }
 
 
+def _docstring_of(handler) -> str:
+    """The docstring ``/help.dev`` would print for ``handler``, or ``""``."""
+    return (getattr(handler, "__doc__", None) or "").strip()
+
+
+def test_every_registered_handler_has_a_docstring(frontend_plugins):
+    """handler-docstring: every command's handler carries a docstring in every frontend, so /help.dev and developer search have text for it."""
+    # Arrange / Act
+    undocumented = sorted(
+        f"{frontend}:{name}"
+        for frontend, plugins in frontend_plugins.items()
+        for name, info in plugins.items()
+        if not _docstring_of(info.handler)
+    )
+    # Assert
+    assert undocumented == [], (
+        "a handler without a docstring answers /help.dev with '(no docstring)'; a factory "
+        f"stamps one per command, a TUI hook goes through app_hooks._bind: {undocumented}"
+    )
+
+
+def test_every_example_plugin_handler_has_a_docstring():
+    """handler-docstring: the example plugins, which no frontend registers, document every handler a plugin author copies."""
+    import ast
+
+    # Arrange / Act
+    undocumented = sorted(
+        f"{path.name}:{node.name}"
+        for path in (TESTS.parent / "examples" / "plugins").glob("*.py")
+        for node in ast.parse(path.read_text(encoding="utf-8")).body
+        if isinstance(node, ast.FunctionDef)
+        and node.name.startswith("_handler")
+        and not ast.get_docstring(node)
+    )
+    # Assert
+    assert undocumented == [], (
+        f"an example handler is copied by plugin authors; document it: {undocumented}"
+    )
+
+
+def test_handler_docstring_guard_flags_a_bare_handler():
+    """handler-docstring: the guard's predicate rejects a lambda and an undocumented def, and accepts a documented one."""
+
+    def documented(ctx, args):
+        """Does a thing."""
+
+    def bare(ctx, args):
+        return None
+
+    assert _docstring_of(lambda ctx, args: None) == "", "a lambda has no docstring"
+    assert _docstring_of(bare) == "", "an undocumented def has none"
+    assert _docstring_of(documented) == "Does a thing.", "a documented handler passes"
+
+
 def test_each_command_has_one_handler_in_every_frontend(frontend_tables):
     """one-handler-per-command: no name runs different handlers in two frontends, outside the allowlist."""
     # Arrange / Act

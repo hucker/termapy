@@ -28,6 +28,11 @@ def _interruptible_sleep(ctx: PluginContext, seconds: float) -> bool:
     return False
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Repeat a command N times with optional delay between runs.
 

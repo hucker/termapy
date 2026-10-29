@@ -198,6 +198,10 @@ def _make_handler(
         ctx.io.output(json.dumps(result, indent=2))
         return CmdResult.ok(value=json.dumps(result))
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    _handler.__doc__ = (
+        f"Run crcglot's {verb_name} verb on the declared parameters and render its result."
+    )
     return _handler
 
 

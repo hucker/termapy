@@ -327,6 +327,10 @@ def _make_list_handler(folder: str, pattern: str, noun: str = "file", show: str 
         run = (lambda record: f"{show} {record['name']}") if show else None
         return file_table(f"{folder}/", noun, list_entries(data_dir, pattern), run=run)
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = (
+        f"List the {noun}s in the config's {folder}/ folder, newest first, with size and age."
+    )
     return handler
 
 
@@ -344,6 +348,10 @@ def _make_explore_handler(folder: str, *, cwd_fallback: bool = False):
         ctx.fs.open_file(ensure_folder(data_dir))
         return CmdResult.ok(value=data_dir)
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = (
+        f"Open the config's {folder}/ folder in the system file explorer, creating it first."
+    )
     return handler
 
 
@@ -413,6 +421,8 @@ def _make_show_handler(folder: str, pattern: str, ext: str = "*"):
         ctx.fs.open_file(str(path))
         return CmdResult.ok(value=path)
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = f"Open the newest {pattern} file in the config's {folder}/ folder, or the one named, with the system viewer."
     return handler
 
 
@@ -432,6 +442,10 @@ def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
         # Return the dumped contents so scripts can capture / grep them.
         return CmdResult.ok(value=text)
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = (
+        f"Print the newest {pattern} file in the config's {folder}/ folder, or the one named."
+    )
     return handler
 
 
@@ -483,6 +497,10 @@ def _make_delete_handler(folder: str, pattern: str, ext: str, generated: bool):
         ctx.io.output(f"  Deleted {shown} from {folder}/.")
         return CmdResult.ok(value=str(len(files)))
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = f"Delete one named file from the config's {folder}/ folder" + (
+        ", or every file a pattern matches." if generated else "."
+    )
     return handler
 
 
@@ -540,6 +558,8 @@ def _make_rename_handler(folder: str, ext: str):
         ctx.io.output(f"  Renamed {shown} -> {new.name}")
         return CmdResult.ok(value=new)
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = f"Rename a file in the config's {folder}/ folder, old name then new; the {ext} extension is kept."
     return handler
 
 
@@ -697,6 +717,8 @@ def _make_edit_handler(folder: str, ext: str):
         ctx.internal.edit_file(path)
         return CmdResult.ok(value=path)
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = f"Open a {ext} file from the config's {folder}/ folder in the editor, or list the folder when no name is given."
     return handler
 
 
@@ -710,7 +732,14 @@ def _make_forward_list_handler(folder: str):
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         return ctx.internal.dispatch(f"{folder}.list")
 
+    # The /help.dev text of each command built here (registry handler-docstring).
+    handler.__doc__ = f"The same listing as {folder}.list, so there is one listing per folder."
     return handler
+
+
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
 def _handler_edit_cfg(ctx: PluginContext, args: str) -> CmdResult:

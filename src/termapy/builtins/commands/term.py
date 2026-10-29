@@ -60,7 +60,13 @@ def _bool_setting(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
     return CmdResult.ok(value=state)
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_echo(ctx: PluginContext, args: str) -> CmdResult:
+    """Query (bare), set (on/off) or flip (toggle) device echo: what is sent to the wire shows in the pane (cfg ``echo``)."""
     # Device-command echo: echo of what's sent to the wire (bare commands
     # + /term.send).  Backed by cfg["echo"]; the flag is the session
     # state seeded from it.
@@ -68,6 +74,7 @@ def _handler_echo(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_echo_repl(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle REPL echo: slash commands shown as typed, a session flag with a per-host default."""
     # REPL/slash-command echo (/cfg, /help, ...).  Distinct from device
     # echo; a session-only flag (no cfg key), default per-host (on for the
     # TUI, off for CLI/MCP -- see TerminalHost._init_flags).
@@ -75,6 +82,7 @@ def _handler_echo_repl(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle rendering of the device's ANSI color, a session flag."""
     # Render device ANSI color (SGR).  Session flag, portable across the
     # TUI (strip before render when off) and CLI (strip in on_lines) --
     # was a CLI-only hook before.  Default off under --no-color.
@@ -82,6 +90,7 @@ def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_line_no(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle line numbers in the pane (cfg ``line_no``)."""
     # Line numbers in the serial pane.  Backed by cfg["line_no"]; the flag
     # is the session state seeded from it, and what the TUI renders from
     # and /term.info reports (review 2026-10-15, D4: three stores before).
@@ -170,6 +179,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle the hex view of received bytes."""
     return _bool_setting(ctx, args, "hex")
 
 
@@ -203,6 +213,7 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
 
 
 def _handler_eol_markers(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle dim CR/LF markers on received lines (cfg ``eol_markers``)."""
     # Show dim \r \n markers in received output for line-ending debugging.
     # cfg eol_markers.  Canonical /term.eol.markers; /term.line_endings and
     # /show_line_endings are hidden aliases.
@@ -296,6 +307,7 @@ def _handler_json(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle timestamps on received lines (cfg ``timestamps``)."""
     return _cfg_toggle(ctx, args, "timestamps")
 
 
@@ -369,6 +381,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_send_bare_enter(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle whether a bare Enter sends the line ending alone (cfg ``send_bare_enter``)."""
     return _cfg_toggle(ctx, args, "send_bare_enter")
 
 

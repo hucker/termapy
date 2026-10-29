@@ -141,7 +141,9 @@ def _anchor(ctx: PluginContext, raw: str, ext: str = "") -> Path:
     return cfg_relative_path(ctx.config_path, raw, ext)
 
 
-# ── handlers ───────────────────────────────────────────────────────────────
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:

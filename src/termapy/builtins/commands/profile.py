@@ -150,7 +150,9 @@ def _default_save_path(ctx: PluginContext) -> Path | None:
     return cfg_dir / f"{cfg_stem}{PROFILE_SUFFIX}"
 
 
-# ── handlers ───────────────────────────────────────────────────────────────
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
 def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:

@@ -22,11 +22,18 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    """Wait for a received line containing ``match=``; that line is the value."""
     return _expect(ctx, use_regex=False)
 
 
 def _handler_regex(ctx: PluginContext, args: str) -> CmdResult:
+    """Wait for a received line matching the ``match=`` regex; that line is the value."""
     return _expect(ctx, use_regex=True)
 
 

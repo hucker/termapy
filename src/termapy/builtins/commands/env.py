@@ -65,6 +65,11 @@ def _cli_transform(text: str) -> str:
     )
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List environment variables available for $(env.NAME) expansion.
 

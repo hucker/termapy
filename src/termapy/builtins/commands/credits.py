@@ -147,6 +147,11 @@ and licenses:
 # ── END GENERATED ─────────────────────────────────────────────────────────
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Print the acknowledgments / attribution page to the terminal."""
     for line in _ACKNOWLEDGMENTS.splitlines():

@@ -99,6 +99,11 @@ def _resolve_path(filename: str, root_dir: Path) -> Path:
     return path.resolve()
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
 def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """Send a file to the device via XMODEM.
 

@@ -9,9 +9,10 @@ screen capture, GUI editors) still only run in TUI mode -- the
 that.
 
 Pattern: each ``_hook_X`` is a free function ``(app, ctx, args)``.
-The ``register_tui_hooks(app)`` function wraps each handler in a
-``lambda ctx, args: _hook_X(app, ctx, args)`` so the REPL's
-register_hook contract is preserved.
+``register_tui_hooks(app)`` binds each one with ``_bind(app, _hook_X)``,
+a ``(ctx, args)`` handler that keeps the hook's docstring, so
+``/help.dev`` shows it (registry ``handler-docstring``); a bare lambda
+has none.
 
 The cfg-confirm callback (``_hook_cfg_confirm``) is NOT here -- it
 isn't a REPL hook but an ``internal.confirm_save_cfg`` callback; it
@@ -21,6 +22,8 @@ in ``_build_context``.
 
 from __future__ import annotations
 
+import functools
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,7 +37,27 @@ from termapy.scripting import (
 )
 
 if TYPE_CHECKING:
-    pass
+    from termapy.plugins import PluginContext
+
+
+def _bind(app, hook: Callable) -> Callable:
+    """Bind ``hook(app, ctx, args)`` to ``app`` as a ``(ctx, args)`` handler that keeps its docstring.
+
+    A bare lambda has no ``__doc__``, so ``/help.dev`` and developer
+    search answered "(no docstring)" for every TUI command while the
+    code was documented (registry ``handler-docstring``).
+    """
+
+    @functools.wraps(hook)
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
+        return hook(app, ctx, args)
+
+    return handler
+
+
+# ── Handlers ─────────────────────────────────────────────────────────────────
+# A handler's docstring is its developer help: /help.dev <command> prints it
+# and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
 def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
@@ -131,11 +154,30 @@ def register_tui_hooks(app) -> None:
     # button: the dispatcher calls this for them.  CLI and MCP leave it
     # None, so their handlers' own bare fallbacks run.
     app.repl.ctx.internal.open_picker = app._open_picker
+
+    # Named, documented handlers: /help.dev prints these docstrings
+    # (registry handler-docstring); a lambda would have none.
+    def _switch_to_cli(ctx: PluginContext, args: str) -> CmdResult:
+        """Leave the TUI for the CLI on the same config and port."""
+        return app._switch_to_cli()
+
+    def _switch_to_vt100(ctx: PluginContext, args: str) -> CmdResult:
+        """Hand the device to the VT100 passthrough view; Ctrl-] returns."""
+        return app._switch_to_vt100()
+
+    def _switch_to_vt100_demo(ctx: PluginContext, args: str) -> CmdResult:
+        """Open the VT100 widget-tour demo device; Ctrl-] returns."""
+        return app._switch_to_vt100(demo=True)
+
+    def _already_tui(ctx: PluginContext, args: str) -> CmdResult:
+        """Already in TUI mode: a no-op, so a script written for the CLI runs unchanged."""
+        return CmdResult.ok(value="")
+
     app.repl.register_hook(
         "ss.svg",
         "{name}",
         "Save SVG screenshot. Name defaults to 'screenshot'.",
-        lambda ctx, args: _hook_ss_svg(app, ctx, args),
+        _bind(app, _hook_ss_svg),
         source="app",
         needs=CapabilitySet.SCREEN_CAPTURE,
     )
@@ -143,7 +185,7 @@ def register_tui_hooks(app) -> None:
         "ss.svg.silent",
         "{name}",
         "Save SVG screenshot silently (no status message).",
-        lambda ctx, args: _hook_ss_svg_quiet(app, ctx, args),
+        _bind(app, _hook_ss_svg_quiet),
         source="app",
         needs=CapabilitySet.SCREEN_CAPTURE,
     )
@@ -160,7 +202,7 @@ def register_tui_hooks(app) -> None:
         "ss.txt",
         "{name} {N}",
         "Save text screenshot; N>0 last N lines, N<0 first N.",
-        lambda ctx, args: _hook_ss_txt(app, ctx, args),
+        _bind(app, _hook_ss_txt),
         source="app",
         needs=CapabilitySet.SCREEN_CAPTURE,
     )
@@ -172,7 +214,7 @@ def register_tui_hooks(app) -> None:
         "cli",
         "",
         "Switch to CLI mode.",
-        lambda ctx, args: app._switch_to_cli(),
+        _switch_to_cli,
         source="app",
         group="terminal",
         needs=CapabilitySet.INTERACTIVE,
@@ -181,7 +223,7 @@ def register_tui_hooks(app) -> None:
         "vt100",
         "",
         "Switch to VT100 passthrough on the current device (Ctrl-] returns).",
-        lambda ctx, args: app._switch_to_vt100(),
+        _switch_to_vt100,
         source="app",
         group="terminal",
         # Only the TUI offers it: the round trip returns here on Ctrl-].
@@ -191,7 +233,7 @@ def register_tui_hooks(app) -> None:
         "demo.vt100",
         "",
         "Switch to the VT100 widget-tour demo device (Ctrl-] returns).",
-        lambda ctx, args: app._switch_to_vt100(demo=True),
+        _switch_to_vt100_demo,
         source="app",
         needs=CapabilitySet.TUI_MODE,
     )
@@ -201,7 +243,7 @@ def register_tui_hooks(app) -> None:
         "Already in TUI mode.",
         # SPECIAL CASE: this hook fires when the user types /tui while
         # already in TUI mode -- no state change, no scriptable output.
-        lambda ctx, args: CmdResult.ok(value=""),
+        _already_tui,
         source="app",
         group="terminal",
         needs=CapabilitySet.INTERACTIVE,

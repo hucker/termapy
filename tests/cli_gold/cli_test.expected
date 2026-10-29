@@ -1795,6 +1795,21 @@ AVAILABLE
 
 SUBCOMMANDS
   /print.r    Print Rich markup text (e.g. [bold red]Warning![/]).
+demo> /help.dev ss.list
+NAME
+  /ss.list - List files in ss/, newest first, with size and age.
+
+DESCRIPTION (developer)
+    List the screenshots in the config's ss/ folder, newest first, with size and age.
+
+REQUIRED CAPABILITIES
+  config_loaded - a loaded config
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /ss.delete, /ss.explore, /ss.rename, /ss.show, /ss.svg, /ss.txt, /ss
 demo> /search fingerprint
 /log.fingerprint {--show} - Write a full session fingerprint (OS, terminal, port params) to the session log.
   (flags) --show Also echo the fingerprint to the terminal output.

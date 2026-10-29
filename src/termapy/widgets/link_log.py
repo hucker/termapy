@@ -16,14 +16,15 @@ from typing import Any
 
 from rich.text import Text
 from textual import events
-from textual.widgets import RichLog
+
+from termapy.widgets.selectable_log import SelectableRichLog
 
 # The style-meta key holding a link's id (``app._write_link_segments``).
 LINK_META = "link"
 
 
-class LinkLog(RichLog):
-    """A RichLog whose links explain themselves on hover.
+class LinkLog(SelectableRichLog):
+    """A selectable RichLog whose links explain themselves on hover.
 
     Args:
         describe: Returns the tooltip line for a link id.  Omitted, the

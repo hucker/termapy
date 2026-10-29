@@ -97,7 +97,7 @@ from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 from termapy.terminal_host import SESSION_END, SESSION_START, TerminalHost
-from termapy.widgets import LINK_META, CommandSuggester, LinkLog, StatusBar
+from termapy.widgets import LINK_META, CommandSuggester, LinkLog, SelectableRichLog, StatusBar
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
 # or reader-thread post-back fires during app teardown.  NoMatches
@@ -761,7 +761,7 @@ class SerialTerminal(TerminalHost, App):
 
             def _make_exit_btn() -> Button:
                 b = Button(" X ", id="btn-exit", variant="error")
-                b.tooltip = "Close connection and exit (Ctrl+C)."
+                b.tooltip = "Close connection and exit (Ctrl+Q)."
                 return b
 
             if not exit_on_right:
@@ -823,7 +823,7 @@ class SerialTerminal(TerminalHost, App):
         # otherwise the post-write snap-to-bottom races with our
         # explicit scroll_to(center).  Any new live data arriving
         # via _write_batch auto-dismisses the view.
-        find_log = RichLog(
+        find_log = SelectableRichLog(
             highlight=False,
             markup=True,
             wrap=True,
@@ -3366,9 +3366,11 @@ class SerialTerminal(TerminalHost, App):
         self._btn_title_center()
 
     def action_help_quit(self) -> None:
-        """Suppress Textual's "Press Ctrl+Q to quit" toast on Ctrl+C.
+        """Stay silent on a Ctrl+C that had nothing to copy.
 
-        Ctrl+Q is shown in the footer; the redundant toast just adds noise.
+        Ctrl+C copies the output pane's selection (the screen's binding);
+        with nothing selected Textual would toast "Press Ctrl+Q to quit",
+        and Ctrl+Q is already in the footer.
         """
         return
 

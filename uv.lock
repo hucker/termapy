@@ -1894,7 +1894,7 @@ requires-dist = [
     { name = "pyelftools", specifier = ">=0.33" },
     { name = "pygments", specifier = ">=2.20.0" },
     { name = "termapy", extras = ["mcp", "web"], marker = "extra == 'all'" },
-    { name = "textual", specifier = ">=0.80" },
+    { name = "textual", specifier = ">=2.0" },
     { name = "textual-serve", marker = "extra == 'web'", specifier = ">=1.1" },
     { name = "tree-sitter", specifier = ">=0.25.0,<0.27" },
     { name = "tree-sitter-bash", specifier = ">=0.23.0,<0.26" },

@@ -565,3 +565,27 @@ the platform's memory map"), which this replaces with the same guard: a
 branch of its own. termapy does not yet refuse an address outside the
 part's JSON, so until it does a mistyped `/mem.read` on a board with no
 guard faults the chip; the ESP32-S3 resets.
+
+## 2026-10-29 — The output pane selects and copies; the fix is carried until Textual has it
+
+Textual selects text in a widget that stamps its rendered lines with
+content offsets and extracts the text under a selection. `Log` does
+both; `RichLog`, the output pane's base, does neither, so a drag in the
+pane selected the whole widget invisibly and Ctrl+C copied an empty
+string, while `help/toolbar.md` said that drag and Ctrl+C copies. The
+pane is now `widgets.SelectableRichLog`, which adds the two hooks over
+the rendered strips (the copy is the text as shown: wrapped lines, table
+rules, no colors) and drops a selection the moment its line numbers stop
+meaning what they did (a clear, or `max_lines` trimming the top). The
+find view is one too. **Why:** the terminal-level alternative (hold
+Shift, drag over the whole screen, borders and all) is the one thing
+people new to termapy reliably dislike, and the help already promised
+the better one. The same change, made in `RichLog` itself, goes to
+Textual as a pull request under its conventions (snapshot test,
+CHANGELOG, black); when termapy's floor passes the release that has it,
+the override goes and `LinkLog` subclasses `RichLog` again. With the
+focus, which a click gives it, Ctrl+A selects every line; Shift+arrow
+selection is a later step on the same hooks, since Textual has none for
+log widgets. The Textual floor moves from 0.80 to 2.0, the
+release with the selection API; whether the code already needs a newer
+one is a chore of its own.

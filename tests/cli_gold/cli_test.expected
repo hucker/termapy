@@ -60,10 +60,10 @@ demo> /print repl echo is on - this output appears with its command-echo above i
 demo> /print === section: variables ===
   === section: variables ===
   [21/219] /print === section: variables === (185us)
-> $(DEVICE) = BASSOMATIC
+demo> $(DEVICE) = BASSOMATIC
   $(DEVICE) = BASSOMATIC
   [22/219] $(DEVICE) = BASSOMATIC (295us)
-> $(PORT_NUM) = 42
+demo> $(PORT_NUM) = 42
   $(PORT_NUM) = 42
   [23/219] $(PORT_NUM) = 42 (177us)
 demo> /print device=$(DEVICE) port=$(PORT_NUM)
@@ -81,7 +81,7 @@ demo> /var.set DEVICE updated_value
 demo> /var DEVICE
   $(DEVICE) = updated_value
   [28/219] /var DEVICE (194us)
-> $(BAUD) <- /port.baud_rate
+demo> $(BAUD) <- /port.baud_rate
   $(BAUD) = 115200
   [29/219] $(BAUD) <- /port.baud_rate (383us)
 demo> /var BAUD

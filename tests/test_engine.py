@@ -892,6 +892,40 @@ class TestDispatchFull:
         # Assert
         assert any("> ATZ" in t for t in echoed), "input echoed"
 
+    def test_every_route_echoes_through_the_configured_format(self, dispatch_env):
+        """A slash command, a directive and a device line all honour echo_fmt.
+
+        The three directive branches spelled ``[cyan]> {cmd}`` by hand and
+        ignored the format entirely, so a user who set one saw two
+        different echo styles depending on what they typed -- and a user
+        on a custom cmd_prefix saw the wrong marker (found 2026-10-29,
+        reviewing the echo sites for duplication).
+        """
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+        eng._cfg_data["echo"] = True
+        eng._cfg_data["echo_fmt"] = "## {cmd} ##"
+        eng.ctx.ns("flags")["echo_repl"] = True
+
+        # Act -- a device line, a slash command, and the two directive
+        # branches a user can reach: a rewrite and a refusal.
+        do("ATZ")
+        do("/print hi")
+        do("$(FOO) = bar")
+        do("$(FOO) =")
+
+        # Assert
+        for expected in (
+            "## ATZ ##",
+            "## /print hi ##",
+            "## $(FOO) = bar ##",
+            "## $(FOO) = ##",
+        ):
+            assert any(expected in line for line in echoed), (
+                f"{expected!r} is missing: one route is not using the one builder. "
+                f"echoed={echoed!r}"
+            )
+
     def test_custom_line_ending(self, dispatch_env):
         """The configured eol, not a hardcoded CR, terminates each sent line."""
         # Arrange

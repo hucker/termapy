@@ -778,29 +778,47 @@ class ProtoDebugScreen(ModalScreen[None]):
         # Bottom border
         lines.append(Text("  " + border_line("└", "─", "┴", "┘"), style="dim"))
 
-    def _get_repeat_count(self) -> int:
-        """Get the repeat count from the input field.
+    def _field_int(self, selector: str, what: str, low: int, default: int) -> int:
+        """One number field, read the way the rest of termapy reads user text.
 
-        Returns:
-            Repeat count (minimum 1).
+        A blank field means the default it opened with.  Anything else
+        must be a whole number at or above ``low``; text that is not, or
+        a number below it, raises rather than being quietly swapped for
+        something else.  Both fields used to swallow every failure --
+        ``abc`` ran once, ``-5`` ran once, and a deliberate ``0`` repeat
+        was rewritten to 1 -- which is the silent default on garbage the
+        project rules forbid (found 2026-10-28, beside three other
+        quiet substitutions on this screen).
+
+        Raises:
+            ValueError: the text is not a number, or is below ``low``.
         """
+        text = self.query_one(selector, Input).value.strip()
+        if not text:
+            return default
         try:
-            val = int(self.query_one("#input-repeat", Input).value)
-            return max(1, val)
-        except (ValueError, TypeError):
-            return 1
+            value = int(text)
+        except ValueError:
+            raise ValueError(f"Invalid {what}: {text}") from None
+        if value < low:
+            raise ValueError(f"Invalid {what}: {text} (minimum {low})")
+        return value
+
+    def _get_repeat_count(self) -> int:
+        """How many times to run the checked tests; blank means once.
+
+        Raises:
+            ValueError: the field does not hold a whole number of 1 or more.
+        """
+        return self._field_int("#input-repeat", "repeat count", 1, 1)
 
     def _get_start_delay(self) -> float:
-        """Get the start delay in seconds from the input field.
+        """The between-test delay in seconds; blank means none.
 
-        Returns:
-            Start delay in seconds (minimum 0).
+        Raises:
+            ValueError: the field does not hold a whole number of 0 or more.
         """
-        try:
-            val = int(self.query_one("#input-delay", Input).value)
-            return max(0, val) / 1000.0
-        except (ValueError, TypeError):
-            return 0.0
+        return self._field_int("#input-delay", "delay", 0, 0) / 1000.0
 
     def _option(self, key: str) -> bool:
         """Whether the run option ``key`` (a key of ``OPTIONS``) is checked."""
@@ -850,6 +868,15 @@ class ProtoDebugScreen(ModalScreen[None]):
         if not tests:
             self._set_status(_PICK_A_TEST, "bold red")
             self._asked_for_a_test = True
+            return
+        # Read the number fields HERE, before the worker starts: on the
+        # worker a bad one would raise inside a thread, and the point of
+        # refusing is to say so on the status line.
+        try:
+            self._get_repeat_count()
+            self._get_start_delay()
+        except ValueError as e:
+            self._set_status(str(e), "bold red")
             return
         self._stop_requested.clear()
         self._set_run_state(True)

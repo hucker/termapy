@@ -35,10 +35,18 @@ class ProtoEditor(ModalScreen[str | None]):
     #ped-title {{ height: 1; text-style: bold; }}
     #ped-editor {{ height: 1fr; border: thick $primary; }}
     #ped-name-row {{ height: 1; }}
-    #ped-name {{ width: 1fr; height: 1; border: none; }}
+    /* The filename fields use Textual's own compact Input variant
+       (``compact=True``), which IS ``height: 1; border: none`` --
+       what this file used to hand-roll -- plus the focus tint and
+       the invalid-state tint the hand-rolled copy did not get.
+       proto_debug.py already asked for the variant by name; these
+       now do too, so a one-row input is the same control wherever
+       it appears and the styling is Textual's to maintain.  Only
+       the width is ours. */
+    #ped-name {{ width: 1fr; }}
     #ped-save-as-row {{ height: 1; display: none; }}
     #ped-save-as-row.visible {{ display: block; }}
-    #ped-save-as-input {{ width: 1fr; height: 1; border: none; }}
+    #ped-save-as-input {{ width: 1fr; }}
     #ped-error {{ height: 1; color: $error; display: none; }}
     #ped-error.visible {{ display: block; }}
     #ped-buttons {{ height: 1; align: right middle; }}
@@ -99,11 +107,13 @@ class ProtoEditor(ModalScreen[str | None]):
                     placeholder="script name (without .pro)",
                     value=name,
                     id="ped-name",
+                    compact=True,
                 )
             with Horizontal(id="ped-save-as-row"):
                 yield Input(
                     placeholder="new filename (without .pro)",
                     id="ped-save-as-input",
+                    compact=True,
                 )
             yield Static("", id="ped-error", markup=False)
             with Horizontal(id="ped-buttons"):

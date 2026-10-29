@@ -54,7 +54,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
     #config-error.visible {{ display: block; }}
     #save-as-row {{ height: 1; display: none; }}
     #save-as-row.visible {{ display: block; }}
-    #save-as-input {{ width: 1fr; height: 1; border: none; }}
+    /* The filename fields use Textual's own compact Input variant
+       (``compact=True``), which IS ``height: 1; border: none`` --
+       what this file used to hand-roll -- plus the focus tint and
+       the invalid-state tint the hand-rolled copy did not get.
+       proto_debug.py already asked for the variant by name; these
+       now do too, so a one-row input is the same control wherever
+       it appears and the styling is Textual's to maintain.  Only
+       the width is ours. */
+    #save-as-input {{ width: 1fr; }}
     #config-bottom {{ height: 3; }}
     #config-btn-col {{ width: auto; layout: horizontal; align: right middle; height: 3; content-align: right middle; }}
     """
@@ -114,6 +122,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 yield Input(
                     placeholder="filename.cfg",
                     id="save-as-input",
+                    compact=True,
                 )
             with Horizontal(id="config-bottom"):
                 yield Static("", id="config-help", markup=False)

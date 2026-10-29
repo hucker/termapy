@@ -41,10 +41,18 @@ class ScriptEditor(ModalScreen[str | None]):
     #sed-title {{ height: 1; text-style: bold; }}
     #sed-editor {{ height: 1fr; border: thick $primary; }}
     #sed-name-row {{ height: 1; }}
-    #sed-name {{ width: 1fr; height: 1; border: none; }}
+    /* The filename fields use Textual's own compact Input variant
+       (``compact=True``), which IS ``height: 1; border: none`` --
+       what this file used to hand-roll -- plus the focus tint and
+       the invalid-state tint the hand-rolled copy did not get.
+       proto_debug.py already asked for the variant by name; these
+       now do too, so a one-row input is the same control wherever
+       it appears and the styling is Textual's to maintain.  Only
+       the width is ours. */
+    #sed-name {{ width: 1fr; }}
     #sed-save-as-row {{ height: 1; display: none; }}
     #sed-save-as-row.visible {{ display: block; }}
-    #sed-save-as-input {{ width: 1fr; height: 1; border: none; }}
+    #sed-save-as-input {{ width: 1fr; }}
     #sed-error {{ height: 1; color: $error; display: none; }}
     #sed-error.visible {{ display: block; }}
     #sed-buttons {{ height: 1; align: right middle; }}
@@ -105,11 +113,13 @@ class ScriptEditor(ModalScreen[str | None]):
                     placeholder="script name (without .run)",
                     value=name,
                     id="sed-name",
+                    compact=True,
                 )
             with Horizontal(id="sed-save-as-row"):
                 yield Input(
                     placeholder="new filename (without .run)",
                     id="sed-save-as-input",
+                    compact=True,
                 )
             yield Static("", id="sed-error", markup=False)
             with Horizontal(id="sed-buttons"):

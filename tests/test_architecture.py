@@ -3614,3 +3614,42 @@ def test_group_guard_fires_on_a_probe(frontend_plugins):
 
     # Assert
     assert undeclared == ["probe"], "the probe is the one undeclared root the guard would name"
+
+
+# ── compact-input-variant ─────────────────────────────────────────────────────
+#
+# A one-row text field is Textual's compact Input variant, asked for by
+# name.  Five fields across three dialogs hand-rolled it in CSS instead
+# (``height: 1; border: none``), which is what the variant already is --
+# minus its focus tint and its invalid-state tint, and with the styling
+# ours to maintain rather than Textual's.
+
+
+def test_a_one_row_input_asks_for_the_compact_variant():
+    """compact-input-variant: no CSS hand-rolls what Input(compact=True) already is.
+
+    The fix for a red result is ``compact=True`` on the Input and the
+    width-only CSS rule, never a new hand-rolled rule: a one-row field
+    should be the same control on every screen.
+    """
+    # Arrange -- the UI layer's stylesheets live in these modules
+    import re
+
+    ui_files = sorted((SRC / "dialogs").glob("*.py")) + [SRC / "proto_debug.py"]
+    # ``height: 1`` and ``border: none`` on one selector is the variant,
+    # spelled out by hand.
+    hand_rolled = re.compile(r"#[\w-]+\s*\{\{[^}]*height:\s*1;[^}]*border:\s*none;[^}]*\}\}")
+
+    # Act
+    offenders = [
+        f"{path.relative_to(SRC.parent)}: {match.group(0).strip()}"
+        for path in ui_files
+        for match in hand_rolled.finditer(path.read_text(encoding="utf-8"))
+    ]
+
+    # Assert
+    assert offenders == [], (
+        "these spell out Textual's compact Input variant in CSS; pass "
+        "compact=True to the Input instead and leave the rule to the width:\n  "
+        + "\n  ".join(offenders)
+    )

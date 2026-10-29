@@ -1537,6 +1537,29 @@ class ReplEngine:
         _status = status or (lambda _t, _c: None)
         # A failure line, silent when the caller answers with the result.
         _fail_status = _status if report else (lambda _t, _c: None)
+
+        def _announce(line: str, *, eol: Callable[[str], str] | None = None) -> None:
+            """Record and show an input line this dispatch has accepted.
+
+            Every route through here -- ``/raw``, a directive, a slash
+            command, a device line -- announces the same way, through the
+            one builder, so the user's ``echo_fmt`` governs all of them.
+            Three directive branches used to spell ``[cyan]> {cmd}`` by
+            hand and ignored the format entirely.
+
+            The CALLER decides whether to announce at all: the slash
+            paths ask ``echo_repl_on`` and the device path ``self.echo``,
+            two deliberately separate flags, and collapsing that choice
+            in here would merge them.
+
+            Args:
+                line: The line as the user typed it, prefix included.
+                eol: Renders the line ending visibly, for a device line
+                    under ``eol_markers``; ``None`` for a slash command,
+                    which sends none.
+            """
+            _echo(self.format_echo_markup(line, eol))
+
         # REPL/slash-command echo (/cfg, /help, /raw, directives, warnings)
         # is governed by echo_repl -- distinct from device-command echo
         # (self.echo / cfg echo), which fires on the bare-line path.
@@ -1557,7 +1580,7 @@ class ReplEngine:
         if raw_text and raw_plugin is not None:
             _log(">", cmd)
             if echo_repl_on:
-                _echo(self.format_echo_markup(cmd))
+                _announce(cmd)
             refusal = self._capability_refusal(raw_plugin, "raw")
             result = (
                 CmdResult.fail(msg=refusal)
@@ -1573,19 +1596,19 @@ class ReplEngine:
         if result.action == "rewrite":
             _log(">", cmd)
             if echo_repl_on:
-                _echo(f"[cyan]> {escape_markup(cmd)}[/]")
+                _announce(cmd)
             return self.dispatch(result.payload, report=report)
         if result.action == "warn":
             _log(">", cmd)
             if echo_repl_on:
-                _echo(f"[cyan]> {escape_markup(cmd)}[/]")
+                _announce(cmd)
             _status(f"Warning: {result.payload}", "yellow")
             # Internal: warnings come back without a value to capture.
             return CmdResult.ok(value="")
         if result.action == "error":
             _log(">", cmd)
             if echo_repl_on:
-                _echo(f"[cyan]> {escape_markup(cmd)}[/]")
+                _announce(cmd)
             _fail_status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
 
@@ -1599,7 +1622,7 @@ class ReplEngine:
             # for ".silent", so just echo unconditionally.
             first_word = repl_cmd.split()[0] if repl_cmd.split() else ""
             if echo_repl_on and ".silent" not in first_word:
-                _echo(self.format_echo_markup(f"{prefix}{repl_cmd}"))
+                _announce(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
                     try:
@@ -1643,7 +1666,7 @@ class ReplEngine:
         # governs slash commands (which read the flag above).  The cfg key
         # seeds the flag at init; the flag is the session truth.
         if self.echo and cmd and not self.cfg.get("request_mode"):
-            _echo(self.format_echo_markup(cmd, eol_label))
+            _announce(cmd, eol=eol_label)
 
         if is_connected and not is_connected():
             _fail_status(state_message("serial_connected", self.prefix), "red")

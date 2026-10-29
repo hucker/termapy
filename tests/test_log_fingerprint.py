@@ -68,24 +68,24 @@ class TestFingerprint:
         out = capsys.readouterr().out
         assert result.success is True, result.error
         assert "=== Termapy session fingerprint ===" in out and "=== end fingerprint ===" in out
-        for key in ("Termapy version", "Python", "Platform", "OS name", "Hostname"):
+        for key in ("Termapy Version", "Python", "Platform", "OS Name", "Hostname"):
             assert key in out, f"{key} line"
         config = _section(out, "Config:")
-        assert any(line.startswith("Config name") and line.endswith("rig") for line in config), (
+        assert any(line.startswith("Config Name") and line.endswith("rig") for line in config), (
             config
         )
         assert any(
-            line.startswith("Config path") and line.endswith("rig.cfg") for line in config
+            line.startswith("Config Path") and line.endswith("rig.cfg") for line in config
         ), config
-        assert any(line.startswith("Line ending") and line.endswith("'\\r'") for line in config), (
+        assert any(line.startswith("Line Ending") and line.endswith("'\\r'") for line in config), (
             config
         )
         serial = _section(out, "Serial port:")
         assert "Connected           True" in serial, serial
-        assert any(line.startswith("Port name") and line.endswith("DEMO") for line in serial), (
+        assert any(line.startswith("Port Name") and line.endswith("DEMO") for line in serial), (
             serial
         )
-        assert any(line.startswith("Baud rate") and line.endswith("115200") for line in serial), (
+        assert any(line.startswith("Baud Rate") and line.endswith("115200") for line in serial), (
             serial
         )
         assert any(line.startswith("DTR") for line in serial), "control lines are reported"

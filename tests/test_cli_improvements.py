@@ -142,8 +142,8 @@ class TestChipRows:
         rows = {row[0]: row for row in port_control._chip_rows(_make_facts(latency_timer=latency))}
 
         # Assert
-        actual = "set to 1 for low latency" in rows["Latency timer"][1]
-        assert actual is advised, f"advice for {latency!r}: {rows['Latency timer']}"
+        actual = "set to 1 for low latency" in rows["Latency Timer"][1]
+        assert actual is advised, f"advice for {latency!r}: {rows['Latency Timer']}"
 
     def test_info_prints_the_rows_as_plain_text(self):
         """--info is for grep and awk: the chip rows reach stdout as text, with no Rich tags."""

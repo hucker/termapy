@@ -140,9 +140,9 @@ $ termapy --info
   Location    : 1-8.3:x.1
   VID:PID     : 04D8:9036
   Model       : unknown
-  USB speed   : unknown (chip not in lookup table)
+  USB Speed   : unknown (chip not in lookup table)
   Permissions : n/a
-  In use      : no
+  In Use      : no
   (chip 04D8:9036 not in termapy's lookup table -- please report at https://github.com/hucker/termapy/issues so we can add it)
 
   COM4
@@ -151,11 +151,11 @@ $ termapy --info
   Serial #     : D20JSV68A
   VID:PID      : 0403:6015
   Model        : FTDI FT230X / FT231X / FT234XD
-  USB speed    : USB Full-Speed (1 ms min latency)
-  Latency timer: n/a (Windows - check Device Manager)
-  Max baud     : 3,000,000 baud
+  USB Speed    : USB Full-Speed (1 ms min latency)
+  Latency Timer: n/a (Windows - check Device Manager)
+  Max Baud     : 3,000,000 baud
   Permissions  : n/a
-  In use       : no
+  In Use       : no
 ```
 
 The COM3 block shows what an unrecognized chip looks like: the VID:PID

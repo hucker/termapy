@@ -838,7 +838,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     connected_text = "yes" if connected else "no"
     return CmdResult.record(
         {"hex": hex_mode, "connected": connected},
-        [("Hex mode", hex_text), ("Connected", connected_text)],
+        [("Hex Mode", hex_text), ("Connected", connected_text)],
         value=f"hex={hex_text}, connected={connected_text}",
     )
 

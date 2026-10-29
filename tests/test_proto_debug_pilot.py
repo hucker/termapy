@@ -19,7 +19,8 @@ from textual.widgets import Button, Static
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ProtoPicker
-from termapy.proto_debug import ProtoDebugScreen
+from termapy.proto_debug import OPTIONS, ProtoDebugScreen
+from termapy.widgets import StrongSelectionList
 
 _ONE_AT_TEST = """\
 name = "One test"
@@ -197,5 +198,199 @@ class TestStopButton:
                     f"one test ran, then the stop landed; got {text!r}"
                 )
                 assert stop_dark is True, "Stop goes dark once the stopped run has finished"
+
+        _run(scenario)
+
+
+class TestSelectionGuards:
+    """The three lists' rules: what must stay checked, and what Run does with none."""
+
+    def test_the_visualizer_list_refills_itself_when_emptied(self, tmp_path):
+        """Unchecking every visualizer re-checks one, by the option's OWN value.
+
+        The guard selected ``self._visualizers[0].sort_order`` -- the
+        display order the rows were sorted by (hex is 10) -- while the
+        options carry their INDEX into that list (0, 1).  Selecting 10
+        put a value in the selection that no option has, so the list
+        stayed visibly empty and nothing was decoded.  Found 2026-10-28
+        from a screenshot of an empty Visualizations list.
+        """
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                viz = screen.query_one("#sel-viz", StrongSelectionList)
+
+                # Act
+                viz.deselect_all()
+                await pilot.pause()
+
+                # Assert
+                values = {viz.get_option_at_index(i).value for i in range(viz.option_count)}
+                assert viz.selected, "a visualizer is re-checked rather than left empty"
+                assert set(viz.selected) <= values, (
+                    f"the re-checked value {viz.selected!r} must be an option the list "
+                    f"actually has, one of {sorted(values)!r} -- not a sort_order"
+                )
+                assert screen._get_active_visualizers(), (
+                    "and the screen reads it back, so packets are still decoded"
+                )
+
+        _run(scenario)
+
+    def test_run_with_no_tests_checked_asks_for_one(self, tmp_path):
+        """Run with an empty Tests list says so instead of quietly running the cursor row.
+
+        It used to fall back to the highlighted test, so unchecking
+        everything and pressing Run still ran one test with nothing said
+        -- which reads as the screen ignoring the checkboxes.
+        """
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                tests = screen.query_one("#proto-debug-select", StrongSelectionList)
+
+                # Act
+                tests.deselect_all()
+                await pilot.pause()
+                await pilot.click("#btn-dbg-send")
+                await pilot.pause()
+
+                # Assert
+                text = str(screen.query_one("#proto-debug-status", Static).render())
+                assert "at least one test" in text, (
+                    f"the refusal names what is missing; got {text!r}"
+                )
+                assert screen._run_active is False, "and nothing was run"
+
+        _run(scenario)
+
+    def test_the_options_are_read_from_the_one_list(self, tmp_path):
+        """Each run option reads back off the Options list, and all four may be off."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                options = screen.query_one("#sel-opts", StrongSelectionList)
+
+                # Act / Assert -- the screen opens with every option off
+                assert not any(
+                    (
+                        screen._get_stop_on_error(),
+                        screen._get_show_viz(),
+                        screen._get_compact(),
+                        screen._get_json_enabled(),
+                    )
+                ), "all four options start off, which is a legitimate state"
+
+                # Act -- checking two reads back as exactly those two
+                options.select("json")
+                options.select("compact")
+                await pilot.pause()
+
+                # Assert
+                assert screen._get_json_enabled() is True, "JSON reads back checked"
+                assert screen._get_compact() is True, "Compact reads back checked"
+                assert screen._get_stop_on_error() is False, "the others stay off"
+                assert screen._get_show_viz() is False, "the others stay off"
+
+        _run(scenario)
+
+    def test_every_option_key_has_a_row(self, tmp_path):
+        """The Options list is built from the OPTIONS table, so the two cannot drift."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                options = screen.query_one("#sel-opts", StrongSelectionList)
+
+                # Act
+                shown = {options.get_option_at_index(i).value for i in range(options.option_count)}
+
+                # Assert
+                assert shown == {key for key, _, _tip in OPTIONS}, (
+                    "every option in the table is a row, and the list invents none"
+                )
+
+        _run(scenario)
+
+    def test_checking_a_test_clears_the_complaint(self, tmp_path):
+        """The "select at least one test" message goes once a test is checked.
+
+        A refusal left on screen after it has been answered reads as a
+        failure that is still current.  Unchecking again stays quiet:
+        the screen asks when you press Run, it does not nag.
+        """
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange -- ask for a test by running with none checked
+                screen = await _open_debug_screen(pilot, script)
+                tests = screen.query_one("#proto-debug-select", StrongSelectionList)
+                status = screen.query_one("#proto-debug-status", Static)
+                tests.deselect_all()
+                await pilot.pause()
+                await pilot.click("#btn-dbg-send")
+                await pilot.pause()
+                asked = str(status.render())
+
+                # Act -- check one
+                tests.select(tests.get_option_at_index(0).value)
+                await pilot.pause()
+                after_check = str(status.render())
+
+                # Act -- and uncheck everything again
+                tests.deselect_all()
+                await pilot.pause()
+                after_uncheck = str(status.render())
+
+                # Assert
+                assert "at least one test" in asked, "Run with none checked asks"
+                assert after_check.strip() == "", (
+                    f"checking a test answers the question, so the message goes; "
+                    f"got {after_check!r}"
+                )
+                assert after_uncheck.strip() == "", (
+                    "unchecking does not re-complain; the screen speaks when Run is pressed"
+                )
+
+        _run(scenario)
+
+    def test_clearing_the_complaint_leaves_a_run_summary_alone(self, tmp_path):
+        """Only the complaint is cleared -- a PASS summary survives a change of selection."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange -- a real run, so the status holds its summary
+                screen = await _open_debug_screen(pilot, script)
+                await pilot.click("#btn-dbg-send")
+                summary = await _status_after(pilot, screen, "PASS", 6.0)
+                await _disabled_after(pilot, screen.query_one("#btn-dbg-stop", Button), 5.0)
+
+                # Act -- toggle the selection, which fires the same handler
+                tests = screen.query_one("#proto-debug-select", StrongSelectionList)
+                tests.deselect_all()
+                await pilot.pause()
+                tests.select(tests.get_option_at_index(0).value)
+                await pilot.pause()
+
+                # Assert
+                after = str(screen.query_one("#proto-debug-status", Static).render())
+                assert "PASS" in summary, "the run reported a summary"
+                assert after == summary, (
+                    f"the summary is still there; only the complaint clears. "
+                    f"was {summary!r}, now {after!r}"
+                )
 
         _run(scenario)

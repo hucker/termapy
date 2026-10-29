@@ -110,16 +110,54 @@ on a timeout), and `source` (the script text). The same document is
 what `/proto.run --json` returns and what the debug screen's JSON
 checkbox writes.
 
+## The debug screen
+
+`/proto.debug <script>` opens the screen the Proto button opens: the
+script's tests on the left, and the controls for one run across the top.
+
+![Interactive proto debug screen](img/doc_17_proto_debug.svg)
+
+Three lists, each worked the same way -- click a row, or arrow to it and
+press Space. A row marked `X` is on, a blank row is off. Hovering a row
+says what it is: an option's effect, a visualizer's description, or a
+test's name and the bytes it sends.
+
+| List | What it holds |
+| --- | --- |
+| Tests | The `[[test]]` sections of the script. Run works on the checked ones, and refuses if none are. |
+| Visualizations | How each packet is decoded into columns. At least one stays checked; a test with its own `viz` adds that one whatever is checked here. |
+| Options | Independent switches for the run (below). All four may be off, which is how the screen opens. |
+
+The options:
+
+- **Stop on Error** -- end the run at the first failing test instead of
+  working through the rest.
+- **Show viz string** -- print the raw format spec above each decoded
+  table, so you can see how a visualizer read the bytes.
+- **Compact** -- fewer blank lines per test, for a long run.
+- **JSON** -- also write the results to the file named beside it.
+
+**Run settings**, under the lists: `Repeat` runs the whole set that many
+times, `Delay (ms)` waits between tests, and `JSON file` names the
+results file. In that name `{name}` stands for the script's own name, so
+the default `{name}_results.json` writes `modbus_inline_results.json`
+for `modbus_inline.pro`. A relative name lands in the config's folder.
+The file is only written when the JSON option is on.
+
+The buttons: **Setup** and **Teardown** run the script's own setup and
+teardown blocks on their own (disabled when the script has none), **Run**
+runs the checked tests, **Stop** ends the run after the test in flight,
+**Log** opens the debug log in your system viewer, and **Help** opens
+this page.
+
 ## Packet visualizers
 
 The proto debug screen uses pluggable visualizers to decode packet bytes into
 named columns. Built-in visualizers (Hex, Text, Modbus) ship with termapy. Add
 your own by dropping a `.py` file into `termapy_cfg/<config>/viz/`.
 
-![Interactive proto debug screen](img/doc_17_proto_debug.svg)
-
-Multiple visualizers can be active at once via the checklist. Enable "Show viz
-string" to display the raw format spec above each table.
+Several can be active at once: check them in the Visualizations list, and
+each draws its own table under every test.
 
 **Selecting visualizers in .pro files:**
 

@@ -11,7 +11,15 @@ UI-layer (imports Textual).
 
 from termapy.widgets.checkbox import StrongCheckbox
 from termapy.widgets.link_log import LINK_META, LinkLog
+from termapy.widgets.selection_list import StrongSelectionList
 from termapy.widgets.status_bar import StatusBar
 from termapy.widgets.suggester import CommandSuggester
 
-__all__ = ["LINK_META", "CommandSuggester", "LinkLog", "StatusBar", "StrongCheckbox"]
+__all__ = [
+    "LINK_META",
+    "CommandSuggester",
+    "LinkLog",
+    "StatusBar",
+    "StrongCheckbox",
+    "StrongSelectionList",
+]

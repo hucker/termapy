@@ -142,6 +142,7 @@ src/termapy/
 ├── widgets/                #              Custom Textual widgets for termapy's TUI
 │   ├── checkbox.py         #   StrongCheckbox -- a Checkbox with a clearer on/off glyph
 │   ├── link_log.py         #   LinkLog -- the output pane, whose links say on hover what a click does
+│   ├── selection_list.py   #   StrongSelectionList -- a SelectionList with a clearer on/off glyph
 │   ├── status_bar.py       #   The transient status line beside the REPL input
 │   └── suggester.py        #   CommandSuggester -- input type-ahead from REPL commands + history
 ├── app.py                  # (3925 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines
@@ -1017,6 +1018,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_run_record.py                  | Tests for /run.record -- session capture to a .run file                                                                                            |
 | test_scripting.py                   | Tests for termapy.scripting - pure functions, no serial or Textual needed                                                                          |
 | test_search_markup.py               | Regression tests for /search and cli output rendering markup-safety                                                                                |
+| test_selection_list.py              | Behavioral tests for StrongSelectionList -- the glyph flips per row                                                                                |
 | test_serial_engine.py               | Tests for SerialEngine - connection lifecycle and reader loop                                                                                      |
 | test_serial_io_safety.py            | Exception-safety tests for the `ctx.serial.io()` context manager                                                                                   |
 | test_serial_port.py                 | Tests for SerialPort and SerialReader                                                                                                              |

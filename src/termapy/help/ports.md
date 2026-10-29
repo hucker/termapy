@@ -371,6 +371,11 @@ port button's tooltip labels its rows as `/port.chip` does (`Serial #`).
 ### What doesn't change
 
 - `"port": "COM3"` still works.  Literal port names are unchanged.
+- A port name matches the port the system would open: on Windows
+  without regard to case and with or without the `\\.\` prefix
+  (`com3` and `\\.\COM3` are `COM3`), on Linux and macOS through
+  symlinks (a `/dev/serial/by-id/...` link is the device it points to).
+  termapy then shows and opens the name the system reports.
 - `/port COM7` from the REPL still works and now accepts SNs too.
 - `/port <X>` only mutates the session; it never writes to disk.
   Persisting a new SN means editing the config file (through the

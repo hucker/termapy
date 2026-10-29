@@ -196,7 +196,11 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
     )
 
     if args.ports and args.ports != "*":
-        all_facts = [fact for fact in all_facts if fact.device == args.ports]
+        all_facts = [
+            fact
+            for fact in all_facts
+            if fact.device is not None and port_control.same_port(fact.device, args.ports)
+        ]
         # Reserved virtual ports (DEMO, DEMO_FAIL) aren't OS-enumerated
         # but are reachable at runtime; surface a synthetic record when
         # the user names one explicitly so CI can exercise --ports

@@ -879,7 +879,7 @@ def _windows_match_inst(
                 port_name, _ = winreg_mod.QueryValueEx(params, "PortName")
             except OSError:
                 return False
-        if port_name != device:
+        if not same_port(port_name, device):
             return False
         try:
             service, _ = winreg_mod.QueryValueEx(inst_key, "Service")
@@ -1013,7 +1013,7 @@ def _check_in_use(device: str, connected_port: str = "") -> str:
       port with DTR and RTS held de-asserted -- the least-invasive probe
       available (avoids pulsing the auto-reset line).
     """
-    if connected_port and device == connected_port:
+    if connected_port and same_port(device, connected_port):
         return "yes (this session)"
     if sys.platform != "win32":
         # Non-invasive: lsof never opens the port.  Names the holder.
@@ -1161,7 +1161,8 @@ def gather_chip_facts(
     without falling back to the reserved-port synthesis below.
 
     Args:
-        port_name: Exact device name (e.g. ``COM3`` or ``/dev/ttyUSB0``).
+        port_name: Device name (``COM3``, ``/dev/ttyUSB0``), matched as the OS
+            opens it (``same_port``).
         connected_port: The port termapy currently has open, if any.
         fast: Skip the in_use/permissions probe.
         enrich: Look up driver / location / latency anyway.
@@ -1175,13 +1176,13 @@ def gather_chip_facts(
     fleet = resolve_port_source(source, trust_env)
     if fleet is not None:
         for facts in fleet:
-            if facts.device == port_name:
+            if facts.device is not None and same_port(facts.device, port_name):
                 return facts
         return None
     from serial.tools.list_ports import comports
 
     for port in comports():
-        if port.device == port_name:
+        if same_port(port.device, port_name):
             return _facts_from_port_info(port, connected_port, fast=fast, enrich=enrich)
     # OS didn't enumerate it; fall back to synthesizing a record for
     # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
@@ -1408,6 +1409,38 @@ MATCH_URL = "url"
 MATCH_AMBIGUOUS = "ambiguous"
 
 
+_WIN32_DEVICE_PREFIX = "\\\\.\\"
+
+
+def _port_key(name: str) -> str:
+    """The identity of a port name as the OS opens it.
+
+    Windows device names ignore case (``com3`` opens ``COM3``) and may carry
+    the Win32 device prefix pyserial itself uses above COM9
+    (``\\\\.\\COM3``); ``os.path.normcase`` applies the case rule.  On Linux
+    and macOS names are case-sensitive, and a symlink such as
+    ``/dev/serial/by-id/usb-FTDI_...`` names the device it points to, so an
+    absolute name is resolved with ``os.path.realpath``.
+    """
+    if os.name == "nt":
+        if name.startswith(_WIN32_DEVICE_PREFIX):
+            name = name[len(_WIN32_DEVICE_PREFIX) :]
+        return os.path.normcase(name)
+    return os.path.realpath(name) if os.path.isabs(name) else name
+
+
+def same_port(a: str, b: str) -> bool:
+    """Whether two port names open the same port: the one comparison for port names.
+
+    A name the user typed and the one the system enumerates compare here,
+    never with ``==`` (registry ``port-name-one-compare``): ``com3`` and
+    ``\\\\.\\COM3`` are ``COM3`` on Windows, a ``/dev/serial/by-id`` link is
+    its ``/dev/ttyUSB0`` elsewhere.  Found 2026-10-29, when a config's
+    ``com3`` connected but every lookup read the port as unplugged.
+    """
+    return _port_key(a) == _port_key(b)
+
+
 def _match_candidate(candidate: str, facts: list[ChipFacts]) -> tuple[str, str] | None:
     """Try to resolve a single candidate against a port list.
 
@@ -1421,10 +1454,12 @@ def _match_candidate(candidate: str, facts: list[ChipFacts]) -> tuple[str, str] 
         return (candidate, MATCH_RESERVED)
     if "://" in candidate:
         return (candidate, MATCH_URL)
-    # Exact device-name match wins before SN lookup so a user who types
-    # a literal COM name always gets exactly that port.
+    # A device-name match wins before SN lookup so a user who types a
+    # literal COM name always gets exactly that port.  The name matches as
+    # the OS would open it (``same_port``), and the enumerated spelling is
+    # returned, so a config's ``com3`` connects and shows as ``COM3``.
     for fact in facts:
-        if fact.device == candidate and fact.device is not None:
+        if fact.device is not None and same_port(fact.device, candidate):
             return (fact.device, MATCH_LITERAL)
     # Case-insensitive SN match.  Burn-ins are sometimes uppercase on
     # Windows and mixed case on other platforms, so normalize both sides.

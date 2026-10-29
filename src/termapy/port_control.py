@@ -396,15 +396,16 @@ CHIP_FIELDS: tuple[str, ...] = (
     "in_use",
 )
 
-# Field labels for the multi-line dump.  Width-padded to 14 characters
-# so values line up.
+# Field labels: the rows of the /port.chip and /port.info pages, and the
+# title and column header of a /port.chip.<field> table, so one field reads
+# the same everywhere.  Width-padded to 14 characters so values line up.
 CHIP_FIELD_LABELS: dict[str, str] = {
     "device": "Device",
     "description": "Description",
     "manufacturer": "Manufacturer",
     "vendor": "Vendor",
     "product": "Product",
-    "serial": "Serial",
+    "serial": "Serial #",
     "location": "Location",
     "interface_number": "Interface #",
     "interface": "Interface",

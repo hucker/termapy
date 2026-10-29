@@ -25,7 +25,7 @@ A single-line-per-port table, same schema as the in-app port picker.
 
 ```text
 $ termapy --ports
-PORT  MFG   VENDOR     DESCRIPTION        CHIP                            SPEED       VID:PID    SN                  DRIVER   LOCATION  IF
+PORT  MFG   VENDOR     DESCRIPTION        CHIP                            SPEED       VID:PID    SERIAL #            DRIVER   LOCATION  IF
 ----  ----  ---------  -----------------  ------------------------------  ----------  ---------  ------------------  -------  --------  --
 COM3  MSFT  Microchip  USB Serial Device  Microchip USB-CDC device        Full-Speed  04D8:9036  020026702RYN040952  usbser   1-8.4     1
 COM4  FTDI  FTDI       USB Serial Port    FTDI FT230X / FT231X / FT234XD  Full-Speed  0403:6015  D20JSV68A           FTSER2K  1-8.2
@@ -33,9 +33,9 @@ COM7  FTDI  FTDI       USB Serial Port    FTDI FT232R / FT245R            Full-S
 ```
 
 Columns you don't need are dropped automatically: on a machine where no
-port has a serial number, the `SN` column disappears.  On narrow
+port has a serial number, the `SERIAL #` column disappears.  On narrow
 terminals, columns drop in this order until the row fits: speed, chip,
-VID:PID, driver, vendor, SN, IF, location.  PORT, MFG and DESCRIPTION
+VID:PID, driver, vendor, SERIAL #, IF, location.  PORT, MFG and DESCRIPTION
 always stay.
 
 Filter to a single port by name:
@@ -133,29 +133,29 @@ Example, one known and one unknown chip:
 
 ```text
 $ termapy --info
-COM3
-  Description   USB Serial Device (COM3)
-  Manufacturer  Microsoft
-  Serial        020026702RYN040952
-  Location      1-8.3:x.1
-  VID:PID       04D8:9036
-  Model         unknown
-  USB speed     unknown (chip not in lookup table)
-  Permissions   n/a
-  In use        no
+  COM3
+  Description : USB Serial Device (COM3)
+  Manufacturer: Microsoft
+  Serial #    : 020026702RYN040952
+  Location    : 1-8.3:x.1
+  VID:PID     : 04D8:9036
+  Model       : unknown
+  USB speed   : unknown (chip not in lookup table)
+  Permissions : n/a
+  In use      : no
   (chip 04D8:9036 not in termapy's lookup table -- please report at https://github.com/hucker/termapy/issues so we can add it)
 
-COM4
-  Description   USB Serial Port (COM4)
-  Manufacturer  FTDI
-  Serial        D20JSV68A
-  VID:PID       0403:6015
-  Model         FTDI FT230X / FT231X / FT234XD
-  USB speed     USB Full-Speed (1 ms min latency)
-  Latency timer n/a (Windows - check Device Manager)  (set to 1 for low latency)
-  Max baud      3,000,000 baud
-  Permissions   n/a
-  In use        no
+  COM4
+  Description  : USB Serial Port (COM4)
+  Manufacturer : FTDI
+  Serial #     : D20JSV68A
+  VID:PID      : 0403:6015
+  Model        : FTDI FT230X / FT231X / FT234XD
+  USB speed    : USB Full-Speed (1 ms min latency)
+  Latency timer: n/a (Windows - check Device Manager)
+  Max baud     : 3,000,000 baud
+  Permissions  : n/a
+  In use       : no
 ```
 
 The COM3 block shows what an unrecognized chip looks like: the VID:PID

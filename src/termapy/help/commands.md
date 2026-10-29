@@ -165,7 +165,7 @@ script or plugin you wrote is deleted one name at a time, after a yes.
 | `/port.flow_control {m}`  | Show or set flow control: none, rtscts, xonxoff, manual                     |
 | `/port.help`              | Show `/port` help (alias for `/help port`)                                  |
 | `/port.info`              | Show port status, serial parameters, hardware lines, and xfer root          |
-| `/port.list`              | Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SN, ...)                  |
+| `/port.list`              | Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SERIAL #, ...)            |
 | `/port.mode {baud} {mode}` | Show or set serial mode (e.g. /port.mode 9600 N81)                        |
 | `/port.parity {value}`    | Show or set parity (hardware only)                                          |
 | `/port.ri`                | Show RI state (read-only)                                                   |

@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.matching import matches
+from termapy.port_control import CHIP_FIELD_LABELS
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, mfg as _mfg_alias
 
 if TYPE_CHECKING:
@@ -75,7 +76,9 @@ COLUMN_HEADERS: dict[str, str] = {
     "chip": "CHIP",
     "speed": "SPEED",
     "vid_pid": "VID:PID",
-    "sn": "SN",
+    # The serial number reads the same in every view: the label the
+    # /port.chip page and the /port.chip.<field> tables use.
+    "sn": CHIP_FIELD_LABELS["serial"].upper(),
     "driver": "DRIVER",
     "location": "LOCATION",
     # Two chars wide: bInterfaceNumber, present only for a device that

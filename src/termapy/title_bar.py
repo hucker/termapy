@@ -74,10 +74,14 @@ def port_tooltip_pairs(facts: ChipFacts | None) -> list[tuple[str, object]]:
     picks the display fields in a fixed order, drops the ones the
     platform couldn't determine (``None``), and falls back to a single
     status line when the port wasn't enumerable at all (DEMO, unplugged
-    cable, non-USB device).
+    cable, non-USB device).  Each row is keyed by the label the
+    ``/port.chip`` page uses (``CHIP_FIELD_LABELS``), so the tooltip
+    reads like that page: ``Serial #``, ``VID:PID``, ``USB speed``.
     """
+    from termapy.port_control import CHIP_FIELD_LABELS
+
     if facts is None:
-        return [("status", "no USB chip info available")]
+        return [("Status", "no USB chip info available")]
     pairs: list[tuple[str, object]] = []
     for field_name in (
         "description",
@@ -97,20 +101,24 @@ def port_tooltip_pairs(facts: ChipFacts | None) -> list[tuple[str, object]]:
         value = getattr(facts, field_name)
         if value is None:
             continue
-        pairs.append((field_name, value))
+        pairs.append((CHIP_FIELD_LABELS[field_name], value))
     return pairs
 
 
 def port_identity_pairs(device: str, facts: ChipFacts | None) -> list[tuple[str, object]]:
-    """The ``port`` and ``serial`` rows: the device itself, and its USB serial number when it has one.
+    """The ``port`` and ``serial #`` rows: the device itself, and its USB serial number when it has one.
 
     ``device`` is what ``port_control.port_display`` returns, so a config
     that names its port by serial number still shows ``port = COM9`` and
-    the number under ``serial``.
+    the number under ``serial #``.  These rows sit among config keys
+    (``baud_rate``), so the serial label is the shared one in their
+    lower case.
     """
+    from termapy.port_control import CHIP_FIELD_LABELS
+
     pairs: list[tuple[str, object]] = [("port", device or "?")]
     if facts is not None and facts.serial:
-        pairs.append(("serial", facts.serial))
+        pairs.append((CHIP_FIELD_LABELS["serial"].lower(), facts.serial))
     return pairs
 
 

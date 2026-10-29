@@ -278,10 +278,11 @@ def _make_chip_field_handler(field: str):
     a table (registry ``list-one-format``).  With no argument it queries
     the current port from cfg["serial"]["port"].
     """
+    label = port_control.CHIP_FIELD_LABELS[field]
     columns = (
         Column("DEVICE", lambda record: record["device"] or "?"),
         Column(
-            field.upper(), lambda record: "n/a" if record[field] is None else str(record[field])
+            label.upper(), lambda record: "n/a" if record[field] is None else str(record[field])
         ),
     )
 
@@ -299,7 +300,7 @@ def _make_chip_field_handler(field: str):
             # The data maps each device to its value, so a consumer looks a port up.
             by_device = {str(record["device"]): record[field] for record in records}
             return CmdResult.table(
-                f"Chip {field}", "port", columns, records, value=lines, data=by_device
+                f"Chip {label}", "port", columns, records, value=lines, data=by_device
             )
         result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)

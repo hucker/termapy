@@ -4,8 +4,8 @@ Used by the palette's "Set Variable..." entry to collect a variable
 name and value without forcing the user to recall the /var.set syntax.
 
 Returns ``(name, value)`` on submit (name stripped, value as-typed),
-or ``None`` on cancel.  Empty name is rejected at submit -- the dialog
-re-focuses the name field rather than dismissing silently.
+or ``None`` on cancel.  An empty name is refused with a message rather
+than the dialog appearing to ignore the press.
 """
 
 from __future__ import annotations
@@ -35,6 +35,8 @@ class SetVarDialog(ModalScreen[tuple[str, str] | None]):
     #setvar-name-label, #setvar-value-label {{
         height: 1; margin-top: 1;
     }}
+    #setvar-error {{ height: 1; color: $error; display: none; }}
+    #setvar-error.visible {{ display: block; }}
     #setvar-buttons {{ height: 1; margin-top: 1; }}
     """
 
@@ -47,6 +49,7 @@ class SetVarDialog(ModalScreen[tuple[str, str] | None]):
         self.query_one(
             "#setvar-value", Input
         ).tooltip = "Variable value.  Use $(OTHER) to reference another variable."
+        self.query_one("#setvar-ok", Button).tooltip = "Set the variable (or press Enter)."
         self.query_one("#setvar-cancel", Button).tooltip = "Close without setting a variable."
 
     def compose(self) -> ComposeResult:
@@ -56,25 +59,46 @@ class SetVarDialog(ModalScreen[tuple[str, str] | None]):
             yield Input(placeholder="e.g. timeout", id="setvar-name")
             yield Static("Value:", id="setvar-value-label")
             yield Input(placeholder="e.g. 5000", id="setvar-value")
+            yield Static("", id="setvar-error", markup=False)
             with Horizontal(id="setvar-buttons"):
-                yield Button("Cancel", id="setvar-cancel")
+                # The confirming button comes first and is green, as in
+                # every other dialog that asks for something.  Without it
+                # the only button on screen was Cancel and the way to
+                # submit -- Enter -- was written down nowhere.
+                yield Button("OK", id="setvar-ok", variant="success")
+                yield Button("Cancel", id="setvar-cancel", variant="error")
+
+    def _needs_a_name(self) -> bool:
+        """True when the name is missing; says so on screen before returning."""
+        if self.query_one("#setvar-name", Input).value.strip():
+            return False
+        # Say what is missing rather than appearing to ignore the press:
+        # the dialog used to only move the focus.
+        error = self.query_one("#setvar-error", Static)
+        error.update("Enter a variable name")
+        error.add_class("visible")
+        self.query_one("#setvar-name", Input).focus()
+        return True
 
     @on(Input.Submitted, "#setvar-name")
     def name_submitted(self) -> None:
-        # Enter on the name field jumps to the value field (web-form
-        # convention).  If name is empty, stay put -- the user needs
-        # to type something or hit Cancel.
+        """Enter on the name field moves to the value field (web-form convention).
+
+        Nothing is said about an empty name here: the user is still
+        filling the form in, and complaining before they have reached
+        the end of it would be nagging.  The refusal belongs on submit.
+        """
         if self.query_one("#setvar-name", Input).value.strip():
             self.query_one("#setvar-value", Input).focus()
 
     @on(Input.Submitted, "#setvar-value")
+    @on(Button.Pressed, "#setvar-ok")
     def value_submitted(self) -> None:
+        """Set the variable, or say what is missing."""
+        if self._needs_a_name():
+            return
         name = self.query_one("#setvar-name", Input).value.strip()
         value = self.query_one("#setvar-value", Input).value
-        if not name:
-            # Empty name: focus it so the user sees what's missing.
-            self.query_one("#setvar-name", Input).focus()
-            return
         self.dismiss((name, value))
 
     @on(Button.Pressed, "#setvar-cancel")

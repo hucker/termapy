@@ -112,7 +112,7 @@ class TestPortTooltipPairs:
 
         # Assert -- description before model before in_use (display order,
         # not the order they were set).
-        assert keys == ["Description", "Model", "In use"], "fixed display order"
+        assert keys == ["Description", "Model", "In Use"], "fixed display order"
 
     def test_non_display_fields_are_excluded(self):
         """device, product, interface and permissions are gathered but never shown."""

@@ -347,9 +347,9 @@ demo> /port.cd
   [65/219] /port.cd (112us)
 demo> /port.info
   Port        : DEMO  (connected)
-  Baud rate   : 115200
+  Baud Rate   : 115200
   Frame       : 8N1
-  Flow control: none
+  Flow Control: none
   Encoding    : utf-8
 
   Description : Termapy simulated device
@@ -357,9 +357,9 @@ demo> /port.info
   Serial #    : TERMAPY-DEMO
   VID:PID     : not a USB device
   Model       : DEMO
-  USB speed   : virtual (not a USB device)
+  USB Speed   : virtual (not a USB device)
   Permissions : ok
-  In use      : no
+  In Use      : no
 
   DTR: 1
   RTS: 1
@@ -1710,7 +1710,7 @@ demo> /proto
   at_test.pro           829 B  just now  Demo AT Command Test
   [257/296] /proto (3.09ms)
 demo> /proto.info
-  Hex mode : off
+  Hex Mode : off
   Connected: yes
 demo> /cfg.file demo_legacy.profile.json
   {
@@ -1917,9 +1917,9 @@ demo> /port.connect TERMAPY-DEMO
 Connected: DEMO
 demo> /port.info
   Port        : DEMO  (connected)  (resolved from TERMAPY-DEMO)
-  Baud rate   : 115200
+  Baud Rate   : 115200
   Frame       : 8N1
-  Flow control: none
+  Flow Control: none
   Encoding    : utf-8
 
   Description : Termapy simulated device
@@ -1927,9 +1927,9 @@ demo> /port.info
   Serial #    : TERMAPY-DEMO
   VID:PID     : not a USB device
   Model       : DEMO
-  USB speed   : virtual (not a USB device)
+  USB Speed   : virtual (not a USB device)
   Permissions : ok
-  In use      : no
+  In Use      : no
 
   DTR: 1
   RTS: 1

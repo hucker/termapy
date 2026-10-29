@@ -159,14 +159,14 @@ def _serial_snapshot(ctx: PluginContext) -> list[str]:
         return lines
 
     attrs = [
-        ("Port name", "port"),
-        ("Baud rate", "baudrate"),
-        ("Byte size", "bytesize"),
+        ("Port Name", "port"),
+        ("Baud Rate", "baudrate"),
+        ("Byte Size", "bytesize"),
         ("Parity", "parity"),
-        ("Stop bits", "stopbits"),
+        ("Stop Bits", "stopbits"),
         ("Timeout", "timeout"),
-        ("Write timeout", "write_timeout"),
-        ("Inter-byte timeout", "inter_byte_timeout"),
+        ("Write Timeout", "write_timeout"),
+        ("Inter-Byte Timeout", "inter_byte_timeout"),
         ("XON/XOFF", "xonxoff"),
         ("RTS/CTS", "rtscts"),
         ("DSR/DTR", "dsrdtr"),
@@ -198,15 +198,15 @@ def _config_snapshot(ctx: PluginContext) -> list[str]:
     lines: list[str] = []
     cfg_path = ctx.config_path or ""
     cfg_name = Path(cfg_path).stem if cfg_path else "(none)"
-    lines.append(_kv("  Config name", cfg_name))
-    lines.append(_kv("  Config path", cfg_path or "(none)"))
+    lines.append(_kv("  Config Name", cfg_name))
+    lines.append(_kv("  Config Path", cfg_path or "(none)"))
 
     log_file = ctx.internal.session_log_path()
-    lines.append(_kv("  Log file", log_file or "(none)"))
+    lines.append(_kv("  Log File", log_file or "(none)"))
 
     lines.append(_kv("  Encoding", ctx.cfg.get("encoding", "utf-8")))
-    lines.append(_kv("  Line ending", repr(ctx.cfg.get("eol", "\r"))))
-    lines.append(_kv("  Flow control", ctx.cfg["serial"]["flow_control"]))
+    lines.append(_kv("  Line Ending", repr(ctx.cfg.get("eol", "\r"))))
+    lines.append(_kv("  Flow Control", ctx.cfg["serial"]["flow_control"]))
     return lines
 
 
@@ -231,11 +231,11 @@ def _handler_fingerprint(ctx: PluginContext, args: str) -> CmdResult:
 
     lines: list[str] = [
         "=== Termapy session fingerprint ===",
-        _kv("Termapy version", _termapy_version()),
+        _kv("Termapy Version", _termapy_version()),
         _kv("Python", _python_info()),
         _kv("Platform", _platform.platform()),
-        _kv("OS name", _platform.system()),
-        _kv("OS release", _platform.release()),
+        _kv("OS Name", _platform.system()),
+        _kv("OS Release", _platform.release()),
         _kv("Machine", _platform.machine()),
         _kv("Processor", _platform.processor() or "(unknown)"),
         _kv("Hostname", socket.gethostname()),

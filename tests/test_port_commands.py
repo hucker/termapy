@@ -606,6 +606,21 @@ class TestChip:
         assert "SERIAL #" in header, "the port table uses the shared label"
         assert " SN " not in f" {header} ", "the old abbreviation is gone"
 
+    def test_display_labels_are_title_case(self, cli, capsys):
+        """Every word of a /port.info label starts upper case (Baud Rate, USB Speed, In Use); symbols and acronyms stay."""
+        capsys.readouterr()
+        cli.repl.dispatch_full("/port.info")
+        labels = [
+            line.split(":", 1)[0].strip()
+            for line in capsys.readouterr().out.splitlines()
+            if ":" in line and line.startswith("  ")
+        ]
+        assert "Baud Rate" in labels and "In Use" in labels, (
+            f"the page's own and chip rows: {labels}"
+        )
+        lower = [label for label in labels for word in label.split() if word[:1].islower()]
+        assert lower == [], f"a display label word starts lower case: {lower}"
+
     def test_every_chip_field_has_a_label(self):
         """Every /port.chip field has a label, so no page row or field table falls back to the raw name."""
         from termapy.port_control import CHIP_FIELD_LABELS, CHIP_FIELDS

@@ -396,7 +396,8 @@ CHIP_FIELDS: tuple[str, ...] = (
     "in_use",
 )
 
-# Field labels: the rows of the /port.chip and /port.info pages, and the
+# Field labels, in Title Case like every display label on a label/value page:
+# the rows of the /port.chip and /port.info pages, and the
 # title and column header of a /port.chip.<field> table, so one field reads
 # the same everywhere.  Width-padded to 14 characters so values line up.
 CHIP_FIELD_LABELS: dict[str, str] = {
@@ -411,13 +412,13 @@ CHIP_FIELD_LABELS: dict[str, str] = {
     "interface": "Interface",
     "vid_pid": "VID:PID",
     "model": "Model",
-    "usb_speed": "USB speed",
+    "usb_speed": "USB Speed",
     "negotiated": "Negotiated",
     "driver": "Driver",
-    "latency_timer": "Latency timer",
-    "max_baud": "Max baud",
+    "latency_timer": "Latency Timer",
+    "max_baud": "Max Baud",
     "permissions": "Permissions",
-    "in_use": "In use",
+    "in_use": "In Use",
 }
 
 
@@ -1859,9 +1860,9 @@ def port_info(
 
     top_rows: list[tuple[str, str]] = [
         ("Port", port_value),
-        ("Baud rate", str(serial["baud_rate"])),
+        ("Baud Rate", str(serial["baud_rate"])),
         ("Frame", f"{serial['byte_size']}{serial['parity']}{sb_str}"),
-        ("Flow control", str(serial["flow_control"])),
+        ("Flow Control", str(serial["flow_control"])),
         ("Encoding", str(cfg.get("encoding", "utf-8"))),
     ]
     xfer_root = cfg.get("file_xfer_root", "")

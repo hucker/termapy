@@ -183,7 +183,7 @@ class TestInfo:
         assert result.data == {"hex": False, "connected": True}, (
             "the record a script or agent reads"
         )
-        assert "Hex mode : off" in out and "Connected: yes" in out, (
+        assert "Hex Mode : off" in out and "Connected: yes" in out, (
             "the aligned rows a person reads"
         )
 

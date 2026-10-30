@@ -8,7 +8,7 @@ a library part -- against a real demo config, so a site that loses its
 suggestion fails here.  The algorithm itself is ``tests/test_matching.py``.
 """
 
-# cspell:ignore hlep baudrat welcom zzzzzzzz dmeo legcy notse firmwar cgf -- the typos these tests make on purpose
+# cspell:ignore hlep baudrat welcom zzzzzzzz dmeo legcy notse firmwar cgf categroy -- the typos these tests make on purpose
 
 from __future__ import annotations
 
@@ -312,3 +312,59 @@ def test_a_transfer_names_the_file_meant(demo):
         demo._disconnect()
     # Assert
     assert result.error.endswith("-- did you mean firmware.bin?"), result.error
+
+
+# -- the rules a real engine applies -------------------------------------------
+
+
+def _clicking(demo) -> list[list]:
+    """Make ``demo`` a frontend that can click, as the TUI is; returns the lines of pieces it gets."""
+    lines: list[list] = []
+    demo.repl.ctx.io._write_segments = lambda pieces, _color: lines.append(list(pieces))
+    return lines
+
+
+def test_a_bare_reference_to_a_list_runs(demo):
+    """links-are-data: "try /dev.lib" runs on a click, because {<pattern>} is optional, not required."""
+    lines = _clicking(demo)
+    demo.repl.dispatch_full("/dev.use zzzzzzzz")
+    links = [piece.link for piece in lines[-1] if piece.link is not None]
+    assert links == [Link("dev.lib", run=True)], "an optional argument does not make the list wait"
+
+
+def test_a_bare_reference_to_a_search_waits(demo):
+    """links-are-data: "try /search x" fills the input, because /search alone is a usage error."""
+    lines = _clicking(demo)
+    demo.repl.dispatch_full("/help zzzzzzzz")
+    links = [piece.link for piece in lines[-1] if piece.link is not None]
+    assert Link("search", run=False) in links, (
+        "a required <pattern> waits for the user to finish it"
+    )
+
+
+def test_a_misspelled_keyword_names_the_keyword_meant(demo):
+    """did-you-mean-one: categroy=mcu is a typo of category=, not part of the file path."""
+    # Arrange
+    lines = _clicking(demo)
+    # Act
+    result = demo.repl.dispatch_full("/dev.import x.svd categroy=mcu")
+    # Assert
+    assert "unknown keyword 'categroy=mcu' -- did you mean category=mcu?" in result.error, (
+        result.error
+    )
+    assert "Usage:" in result.error, "still the parameter error, usage line and all"
+    links = [piece.link for line in lines[-1:] for piece in line if piece.link is not None]
+    assert Link("dev.import x.svd category=mcu", run=False) in links, (
+        "the click fixes the keyword in the line; the usage line after it does not hide the link"
+    )
+
+
+def test_no_hidden_command_is_suggested(demo):
+    """did-you-mean-one: a hidden alias stays off the suggestions, as it stays off every discovery surface."""
+    hidden = sorted(name for name, info in demo.repl._plugins.items() if info.hidden)
+    assert hidden, "the built-ins keep a few legacy aliases hidden"
+    for name in hidden:
+        result = demo.repl.dispatch_full(f"/{name[:-1]}")
+        assert f"/{name}?" not in result.error and f"/{name}," not in result.error, (
+            f"{name} is hidden, so a typo of it never suggests it: {result.error}"
+        )

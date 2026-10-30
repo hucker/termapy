@@ -187,6 +187,7 @@ COMMAND = Command(
             help="List the boards termapy ships starters for, and which is plugged in.",
             long_help=_long_help,
             handler=_handler_list,
+            shows=True,
         ),
         "new": Command(
             help="Create a board's config and profile, connecting by its USB serial number.",

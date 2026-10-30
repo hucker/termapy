@@ -176,5 +176,6 @@ COMMAND = Command(
         "``tests/test_credits_sync.py``."
     ),
     handler=_handler,
+    shows=True,
     needs=CapabilitySet.INTERACTIVE,  # display-only; for human reading
 )

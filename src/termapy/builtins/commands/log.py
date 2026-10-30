@@ -381,6 +381,7 @@ COMMAND = Command(
             help=_DUMP_HELP,
             long_help=_DUMP_LONG_HELP,
             handler=_handler_dump,
+            shows=True,
             needs=CapabilitySet.SESSION_LOG,
         ),
         "fingerprint": Command(
@@ -397,6 +398,7 @@ COMMAND = Command(
             help=_LIST_HELP,
             long_help=_LIST_LONG_HELP,
             handler=_handler_list,
+            shows=True,
             needs=CapabilitySet.SESSION_LOG,
         ),
         "show": Command(
@@ -404,6 +406,7 @@ COMMAND = Command(
             help=_SHOW_HELP,
             long_help=_SHOW_LONG_HELP,
             handler=_handler_show,
+            shows=True,
             needs=CapabilitySet(session_log=True, config_loaded=True, gui_apps=True),
         ),
     },

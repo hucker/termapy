@@ -364,6 +364,7 @@ COMMAND = Command(
     help="List user variables, or show one by name.",
     long_help=_var_long_help,
     handler=_handler_list,
+    shows=True,
     raw_args=True,
     sub_commands={
         "list": Command(
@@ -371,6 +372,7 @@ COMMAND = Command(
             help="Explicit alias for bare {prefix}var.",
             long_help=_var_state_line,
             handler=_handler_list,
+            shows=True,
             raw_args=True,
         ),
         "set": Command(

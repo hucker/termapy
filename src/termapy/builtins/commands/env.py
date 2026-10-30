@@ -180,6 +180,7 @@ COMMAND = Command(
     name="env",
     args="{pattern}",
     handler=_handler_list,
+    shows=True,
     help="Print environment variables for $(env.NAME) expansion (alias: {prefix}env.list).",
     long_help=_env_long_help,
     sub_commands={
@@ -188,6 +189,7 @@ COMMAND = Command(
             help="Explicit alias for bare {prefix}env.",
             long_help=_env_state_line,
             handler=_handler_list,
+            shows=True,
         ),
         "set": Command(
             args="<name> <value>",

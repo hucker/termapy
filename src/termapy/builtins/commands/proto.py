@@ -2428,6 +2428,7 @@ _FOLDER_SUBS["list"] = Command(
     args="",
     help="List .pro scripts, newest first, with size, age, and the name each declares.",
     handler=_handler_list,
+    shows=True,
     needs=CapabilitySet.CONFIG_LOADED,
 )
 COMMAND = Command(
@@ -2443,6 +2444,7 @@ COMMAND = Command(
         "help": Command(
             help="Show {prefix}proto help.",
             handler=_handler_help,
+            shows=True,
         ),
         "send": Command(
             args=('{algo{_le|_be}{_ascii}} <hex|"text"|~delay>... {--dry-run} {--ascii}'),
@@ -2499,6 +2501,7 @@ COMMAND = Command(
                     args="{pattern}",
                     help="List algorithms; a pattern filters (modbus, crc16*).",
                     handler=_handler_crc_list,
+                    shows=True,
                 ),
                 "info": Command(
                     args="<name>",
@@ -2509,6 +2512,7 @@ COMMAND = Command(
                         "every available name."
                     ),
                     handler=_handler_crc_info,
+                    shows=True,
                 ),
                 "find": Command(
                     args=(
@@ -2639,6 +2643,7 @@ COMMAND = Command(
         "info": Command(
             help="Print current protocol state.",
             handler=_handler_info,
+            shows=True,
         ),
         "edit": edit_command("proto"),
         **_FOLDER_SUBS,

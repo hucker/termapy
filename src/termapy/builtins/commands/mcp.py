@@ -293,10 +293,12 @@ COMMAND = Command(
         "catalog": Command(
             help="Print the MCP command catalog as JSON.",
             handler=_handler_catalog,
+            shows=True,
         ),
         "info": Command(
             help="Print MCP-mode status (pid/catalog/profile/port/captures).",
             handler=_handler_info,
+            shows=True,
         ),
         "log": Command(
             help="Open the MCP session log in the system viewer.",
@@ -307,6 +309,7 @@ COMMAND = Command(
                     args="{N}",
                     help="Print the MCP session log; N>0 last N lines, N<0 first N.",
                     handler=_handler_log_dump,
+                    shows=True,
                     needs=CapabilitySet.CONFIG_LOADED,
                 ),
                 "path": Command(

@@ -326,7 +326,7 @@ def error_pieces(
         links, so a frontend prints the plain line.
     """
     runs = click_runs or (lambda _line: False)
-    head, names = split_did_you_mean(text)
+    head, names, after = split_did_you_mean(text)
     pieces = _command_reference_pieces(head, prefix, commands, runs)
     if names:
         pieces.append(Piece(DID_YOU_MEAN))
@@ -336,6 +336,7 @@ def error_pieces(
             fixed = _fixed_line(line, name, prefix)
             pieces.append(Piece(name, None if fixed is None else Link(fixed, run=runs(fixed))))
         pieces.append(Piece("?"))
+        pieces.extend(_command_reference_pieces(after, prefix, commands, runs))
     return pieces if any(piece.link is not None for piece in pieces) else None
 
 

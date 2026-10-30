@@ -116,14 +116,18 @@ def did_you_mean(suggestions: Iterable[str], *, prefix: str = "") -> str:
     return f"{DID_YOU_MEAN}{', '.join(names)}?" if names else ""
 
 
-def split_did_you_mean(text: str) -> tuple[str, list[str]]:
-    """``text`` without its did-you-mean tail, and the names the tail offers.
+def split_did_you_mean(text: str) -> tuple[str, list[str], str]:
+    """``text`` around its did-you-mean: what comes before it, the names it offers, what follows.
 
     The inverse of :func:`did_you_mean`, so a frontend that can click
-    makes each offered name a link while the error stays one string.
-    ``(text, [])`` when it ends with no suggestion.
+    makes each offered name a link while the error stays one string.  A
+    suggestion ends its line, and a line may follow it (the ``Usage:``
+    line of a parameter error), which comes back as the third part.
+    ``(text, [], "")`` when no line ends with a suggestion.
     """
     at = text.rfind(DID_YOU_MEAN)
-    if at < 0 or not text.endswith("?"):
-        return text, []
-    return text[:at], text[at + len(DID_YOU_MEAN) : -1].split(", ")
+    end = text.find("?", at) if at >= 0 else -1
+    after = text[end + 1 :] if end >= 0 else ""
+    if end < 0 or (after and not after.startswith("\n")):
+        return text, [], ""
+    return text[:at], text[at + len(DID_YOU_MEAN) : end].split(", "), after

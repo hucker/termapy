@@ -280,10 +280,11 @@ class CLITerminal(TerminalHost):
         self.repl.register_hook(
             "help.open",
             "{topic}",
-            "Open help in browser.",
+            "Open help in the browser.",
             self._hook_help_open,
             source="app",
             needs=CapabilitySet.GUI_APPS,
+            shows=True,
         )
         # The /log.* family, /log.delete and its legacy /log.clear included,
         # is the log builtin's (builtins/commands/log.py, legacy.py).

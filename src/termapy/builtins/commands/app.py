@@ -273,10 +273,12 @@ COMMAND = Command(
         "list": Command(
             help="List the files in the app folder, newest first.",
             handler=_handler_list,
+            shows=True,
         ),
         "explore": Command(
             help="Open the app folder in the file manager.",
             handler=_handler_explore,
+            shows=True,
             needs=CapabilitySet.GUI_APPS,
         ),
         "state": Command(
@@ -291,6 +293,7 @@ COMMAND = Command(
                 "dump": Command(
                     help="Print state.json contents to the terminal.",
                     handler=_handler_state_dump,
+                    shows=True,
                 ),
                 "edit": Command(
                     help="Open state.json in the system editor.",
@@ -311,6 +314,7 @@ COMMAND = Command(
                 "dump": Command(
                     help="Print config.json contents to the terminal.",
                     handler=_handler_config_dump,
+                    shows=True,
                 ),
                 "edit": Command(
                     help="Open config.json in the system editor.",

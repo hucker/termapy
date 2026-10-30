@@ -179,6 +179,7 @@ COMMAND = Command(
             help="List the shipped targets: name, language, files, size.",
             long_help=_long_help,
             handler=_handler_list,
+            shows=True,
         ),
         "copy": Command(
             help="Write the shipped sources into the config's firmware/ folder: every module of a language, or one by name; never overwrites.",
@@ -203,12 +204,14 @@ COMMAND = Command(
         "show": Command(
             help="Open a module's main source in the system viewer.",
             handler=_handler_show,
+            shows=True,
             needs=CapabilitySet.GUI_APPS,
             params=[_NAME, _LANG],
         ),
         "dump": Command(
             help="Print one shipped source file to the terminal.",
             handler=_handler_dump,
+            shows=True,
             params=[
                 _NAME,
                 ParamSpec(

@@ -872,3 +872,31 @@ def test_parameter_help_fills_in_the_live_prefix(tmp_path, capsys):
     assert "library part name (see !dev.lib)" in pages, "dev.use's parameter help, filled in"
     assert "{prefix}" not in pages, "no help page shows the placeholder"
     assert "{prefix}" not in catalog, "nor does any catalog entry"
+
+
+class TestMisspelledKeywords:
+    """did-you-mean-one: a word=value token near a declared keyword is a typo, never a value."""
+
+    _PARAMS = [
+        ParamSpec("file", "str", positional=True, required=True, rest=True),
+        ParamSpec("timeout", "duration", default=1.0),
+        ParamSpec("cmd", "command", rest=True),
+    ]
+
+    def test_a_near_miss_is_an_error_naming_the_keyword(self):
+        """tiemout=2s names timeout=2s instead of joining the file name."""
+        bound, error = parse_params(self._PARAMS, "data.txt tiemout=2s")
+        assert bound == {}, "nothing binds"
+        assert error == "unknown keyword 'tiemout=2s' -- did you mean timeout=2s?"
+
+    def test_a_value_with_an_equals_sign_is_still_a_value(self):
+        """AT+BAUD=9600 and a short word are near no keyword, so they stay in the file text."""
+        bound, error = parse_params(self._PARAMS, "AT+BAUD=9600 ab=1")
+        assert error is None, error
+        assert bound["file"] == "AT+BAUD=9600 ab=1", "the whole remainder, as before"
+
+    def test_a_rest_keywords_text_is_not_inspected(self):
+        """Inside cmd=, a typo-shaped word belongs to the command, not to this one."""
+        bound, error = parse_params(self._PARAMS, "data.txt cmd=/cap.text f tiemout=2s")
+        assert error is None, error
+        assert bound["cmd"] == "/cap.text f tiemout=2s", "cmd= runs to the end of the line"

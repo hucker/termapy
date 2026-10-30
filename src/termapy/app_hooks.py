@@ -251,8 +251,9 @@ def register_tui_hooks(app) -> None:
     app.repl.register_hook(
         "help.open",
         "{topic}",
-        "Open help file in system viewer.",
+        "Open help in the browser.",
         app._hook_help_open,  # TerminalHost's: the CLI's handler too
         source="app",
         needs=CapabilitySet.GUI_APPS,
+        shows=True,
     )

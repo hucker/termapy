@@ -57,6 +57,7 @@ from termapy.folders import (
     RUN,
     default_file_name,
     ensure_folder,
+    file_suggestion,
 )
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError
 from termapy.run_docstring import extract_docstring
@@ -94,7 +95,8 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     if name:
         path = _resolve_script(ctx, name)
         if path is None:
-            return CmdResult.fail(msg=f"Script not found: {name}")
+            hint = file_suggestion(ctx.fs.scripts_dir, name, FOLDER_EXTS[RUN])
+            return CmdResult.fail(msg=f"Script not found: {name}{hint}")
         _summary, full = extract_docstring(path)
         if not full:
             return CmdResult.fail(msg=f"{path.name}: no docstring (add # comments at the top).")
@@ -239,6 +241,7 @@ COMMAND = Command(
                 "knows whether to look inside the file."
             ),
             handler=_handler_help,
+            shows=True,
             files="run",
         ),
         "legacy": Command(

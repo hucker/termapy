@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.matching import closest, did_you_mean
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -219,6 +221,51 @@ def prune_empty_folders(root: Path, names: Iterable[str]) -> list[str]:
 
 
 # -- Lookup: the file a typed name means --------------------------------------
+
+
+def file_suggestion(folder: Path, typed: str, suffix: str = "") -> str:
+    """`` -- did you mean x?`` for a file ``folder`` does not hold, or ``""`` (registry ``did-you-mean-one``).
+
+    The one suggestion for a mistyped file name or path.  Only the last
+    part of ``typed`` is matched, and the suggestion keeps the rest as
+    typed, so ``C:\\packs\\PIC32CM5164LE0010.svd`` offers
+    ``C:\\packs\\PIC32CM5164LE00100.svd`` and a click fills in the whole
+    path.  A file is matched by its full name, its stem and its name
+    without ``suffix``, so ``welcom`` offers ``welcome`` and ``welcom.run``
+    offers ``welcome.run``; each file is offered once, in the form nearest
+    what was typed, and dotfiles never.
+
+    Call it only for a folder the command could read anyway: under MCP
+    the names it offers must stay inside the sandbox the path guard keeps.
+
+    Args:
+        folder: The folder the file was looked for in.
+        typed: The name or path as typed.
+        suffix: The extension this kind of file has (``FOLDER_EXTS[RUN]``,
+            ``SYMBOLS_SUFFIX``); only such files are offered.  ``""`` or
+            ``"*"`` offers any file, as ``default_file_name`` reads it.
+    """
+    name = Path(typed).name
+    if not name or not typed.endswith(name):
+        return ""
+    lead = typed[: len(typed) - len(name)]
+    suffix = "" if suffix == "*" else suffix
+    forms: dict[str, str] = {}
+    try:
+        files = [file for file in folder.iterdir() if file.is_file()]
+    except OSError:
+        return ""
+    for file in files:
+        if file.name.startswith(".") or not file.name.casefold().endswith(suffix.casefold()):
+            continue
+        bare = file.name[: len(file.name) - len(suffix)] if suffix else file.stem
+        for form in (file.name, file.stem, bare):
+            forms.setdefault(form, file.name)
+    offered: list[str] = []
+    for form in closest(name, forms, limit=len(forms)):
+        if all(forms[form] != forms[taken] for taken in offered):
+            offered.append(form)
+    return did_you_mean(f"{lead}{form}" for form in offered[:3])
 
 
 def default_file_name(name: str | Path, ext: str) -> Path:

@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.folders import PROFILE_SUFFIX
+from termapy.folders import PROFILE_SUFFIX, file_suggestion
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.params import ParamSpec
@@ -248,7 +248,12 @@ def _load_from_file(ctx: PluginContext, path_str: str) -> CmdResult:
 
     path = cfg_relative_path(ctx.config_path, path_str, PROFILE_SUFFIX)
     if not path.exists():
-        return CmdResult.fail(msg=f"Profile not found: {path}")
+        # A relative name is measured from the config folder, which is
+        # where to look; the guard above kept path_str in the sandbox.
+        typed = Path(path_str)
+        anchor = typed if typed.is_absolute() else Path(ctx.config_path).parent / typed
+        hint = file_suggestion(anchor.parent, path_str, PROFILE_SUFFIX)
+        return CmdResult.fail(msg=f"Profile not found: {path}{hint}")
     try:
         profile = load_profile(path)
     except (OSError, ValueError) as e:

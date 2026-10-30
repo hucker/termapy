@@ -103,7 +103,7 @@ class TestGeneratedFile:
 
         # Assert
         assert first.success, first.error
-        assert second.error == "File not found: a.txt"
+        assert second.error.startswith("File not found: a.txt"), second.error
 
     def test_a_name_outside_the_folder_is_refused(self, tmp_path):
         """../outside.txt escapes cap/, so it is refused and the file stays."""

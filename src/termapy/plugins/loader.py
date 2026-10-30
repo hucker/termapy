@@ -333,6 +333,7 @@ def _flatten_command(
         help_list=node.help_list,
         group=group,
         maturity=maturity,
+        shows=node.shows,
     )
     result.insert(0, info)
     return result

@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Final
 
 from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import SYMBOLS, read_source
-from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name
+from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name, file_suggestion
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import (
     BoundaryException,
@@ -299,7 +299,10 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
         assert default is not None, "sym.load declares config_loaded"
         path = default
     if not path.is_file():
-        return CmdResult.fail(msg=f"Symbols not found: {raw or path}")
+        # A bare name means the one in sym/ (above); a path, its own folder.
+        searched = Path(ctx.config_path).parent / SYM if Path(raw).name == raw else path.parent
+        hint = file_suggestion(searched, raw, SYMBOLS_SUFFIX) if raw else ""
+        return CmdResult.fail(msg=f"Symbols not found: {raw or path}{hint}")
     try:
         table = SymbolTable.load(path)
     except OSError as e:
@@ -428,6 +431,7 @@ COMMAND = Command(
     help="Symbol table: name -> address, or address -> name+offset.",
     long_help=_long_help,
     handler=_handler_root,
+    shows=True,
     sub_commands={
         "import": Command(
             params=[
@@ -477,11 +481,13 @@ COMMAND = Command(
             args="<pattern>",
             help="Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).",
             handler=_handler_search,
+            shows=True,
             needs=CapabilitySet(symbols_loaded=True),
         ),
         "info": Command(
             help="Show the loaded symbol table: file, source, counts by section, address range.",
             handler=_handler_info,
+            shows=True,
         ),
     },
 )

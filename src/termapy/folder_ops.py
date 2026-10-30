@@ -54,6 +54,7 @@ from termapy.folders import (
     FolderSpec,
     default_file_name,
     ensure_folder,
+    file_suggestion,
 )
 from termapy.help_dynamic import compose, folder_line
 from termapy.matching import is_glob, matches
@@ -381,7 +382,8 @@ def _named_file(ctx: PluginContext, folder: str, ext: str, name: str) -> Path | 
     # the same folder.
     path = default_file_name(path, ext)
     if not path.is_file():
-        return CmdResult.fail(msg=f"File not found: {name}")
+        hint = file_suggestion(data_dir, name, ext)
+        return CmdResult.fail(msg=f"File not found: {name}{hint}")
     return path
 
 
@@ -527,7 +529,7 @@ def rename_file(data_dir: Path, old_name: str, new_name: str, ext: str) -> Path:
             raise ValueError(f"Name may not contain path separators: {name}")
     old = default_file_name(data_dir / old_name, ext)
     if not old.is_file():
-        raise ValueError(f"File not found: {old_name}")
+        raise ValueError(f"File not found: {old_name}{file_suggestion(data_dir, old_name, ext)}")
     keep_ext = old.suffix if ext == "*" else ext
     if keep_ext and new_name.endswith(keep_ext):
         new_name = new_name[: -len(keep_ext)]
@@ -602,11 +604,13 @@ def build_folder_subcommands(
         "list": Command(
             help=f"List files in {folder}/, newest first, with size and age.",
             handler=_make_list_handler(folder, pattern, noun, show),
+            shows=True,
             needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(
             help=f"Open {folder}/ in the system file explorer.",
             handler=_make_explore_handler(folder),
+            shows=True,
             needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
         "rename": Command(
@@ -637,6 +641,7 @@ def build_folder_subcommands(
             args="{filename}",
             help=f"Open the newest (or named) file in {folder}/ with the system viewer.",
             handler=_make_show_handler(folder, pattern, spec.ext),
+            shows=True,
             needs=CapabilitySet.CONFIG_GUI_APPS,
             files=folder,
         )
@@ -645,6 +650,7 @@ def build_folder_subcommands(
             args="{filename}",
             help=f"Print the newest (or named) file from {folder}/ to the terminal.",
             handler=_make_dump_handler(folder, pattern, spec.ext),
+            shows=True,
             needs=CapabilitySet.CONFIG_LOADED,
             files=folder,
         )
@@ -711,9 +717,11 @@ def _make_edit_handler(folder: str, ext: str):
         if not name:
             return _make_forward_list_handler(folder)(ctx, args)
         # The extension is optional (registry ``file-name-default-ext``).
-        path = default_file_name(_edit_folder_dir(folder, ctx) / name, ext)
+        folder_dir = _edit_folder_dir(folder, ctx)
+        path = default_file_name(folder_dir / name, ext)
         if not path.is_file():
-            return CmdResult.fail(msg=f"File not found: {name}")
+            hint = file_suggestion(folder_dir, name, ext)
+            return CmdResult.fail(msg=f"File not found: {name}{hint}")
         ctx.internal.edit_file(path)
         return CmdResult.ok(value=path)
 
@@ -787,6 +795,7 @@ def edit_command(folder: str) -> Command:
         help=f"Open a {spec.ext} file for editing.",
         long_help=_folder_long_help(folder, text),
         handler=_make_edit_handler(folder, spec.ext),
+        shows=True,
         needs=CapabilitySet.FILE_EDITOR if own_editor else CapabilitySet.GUI_APPS,
         files=folder,
         picker=picker,
@@ -803,6 +812,7 @@ def edit_cfg_command() -> Command:
             "and {prefix}edit.cfg are the same command."
         ),
         handler=_handler_edit_cfg,
+        shows=True,
         needs=CapabilitySet(file_editor=True, config_loaded=True),
     )
 
@@ -820,11 +830,13 @@ def edit_folder_command(folder: str) -> Command:
                 help=f"List {spec.ext} files.",
                 long_help=long_help,
                 handler=_make_forward_list_handler(folder),
+                shows=True,
             ),
             "explore": Command(
                 help="Open folder in file explorer.",
                 long_help=long_help,
                 handler=_make_explore_handler(folder, cwd_fallback=True),
+                shows=True,
                 needs=CapabilitySet.GUI_APPS,
             ),
         },

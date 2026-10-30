@@ -174,7 +174,7 @@ src/termapy/
 ├── legacy.py               #              Legacy-command forwarding helper
 ├── load_report.py          #              The load report: what the last config load put in the session, one row per file
 ├── markup.py               #              Rich markup: the one home for turning text into markup and back
-├── matching.py             #              The one reader for a typed name pattern: every name filter shares its rules
+├── matching.py             #              The one reader for a typed name: every name filter and every did-you-mean shares its rules
 ├── memory.py               # (880 lines)  Device memory access -- bytes in, bytes out, over an injected exchange
 ├── memory_views.py         # (317 lines)  Typed views over device bytes -- layer 3 of the memory design
 ├── migration.py            # (749 lines)  Config schema versioning and migration chain
@@ -927,6 +927,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_dialogs_config_editor.py       | The ConfigEditor dialog: what it shows, how it validates, what it dismisses with                                                                   |
 | test_dialogs_quick_setup.py         | The QuickSetup dialog: name, baud entry, and the tuple it dismisses with                                                                           |
 | test_dialogs_small.py               | The seven small dialogs: what each shows and what it dismisses with                                                                                |
+| test_did_you_mean.py                | did-you-mean-one: every name typed from memory answers a typo with the names it most likely meant                                                  |
 | test_doc_shots.py                   | The documentation screenshots show the app that ships, not an older one                                                                            |
 | test_engine.py                      | Tests for ReplEngine internals: start_script, run_script, properties                                                                               |
 | test_env_var.py                     | Tests for the env_var built-in transform and commands                                                                                              |

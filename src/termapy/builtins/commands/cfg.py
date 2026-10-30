@@ -22,6 +22,7 @@ from termapy.config import (
     cfg_dir,
     cfg_history_path,
     cfg_path_for_name,
+    config_names,
     config_summary,
     create_config,
     delete_config,
@@ -33,8 +34,9 @@ from termapy.config import (
 )
 from termapy.config_resolve import resolve_config
 from termapy.folder_ops import FILE_COLUMNS, edit_cfg_command, file_record, list_entries
-from termapy.folders import FOLDER_PATTERNS, FOLDERS, INFO_REPORT_SUFFIX, PLUGIN
+from termapy.folders import FOLDER_PATTERNS, FOLDERS, INFO_REPORT_SUFFIX, PLUGIN, file_suggestion
 from termapy.help_dynamic import cfg_status, compose
+from termapy.matching import closest, did_you_mean
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import coerce_to_type
@@ -78,7 +80,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     key = parts[0]
     container = _find_cfg_container(ctx.cfg, key)
     if container is None:
-        return CmdResult.fail(msg=f"Unknown config key: {key}")
+        return _unknown_key(ctx.cfg, key)
     # /cfg key - show value
     if len(parts) == 1:
         val = container[key]
@@ -102,6 +104,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     else:
         ctx.internal.apply_cfg(key, new_val)
     return CmdResult.ok(value=str(new_val))
+
+
+def _unknown_key(cfg, key: str) -> CmdResult:
+    """The failure for a key the config does not have, naming the nearest keys it does."""
+    serial = cfg.get("serial", {})
+    keys = [*cfg, *(serial if isinstance(serial, dict) else ())]
+    return CmdResult.fail(msg=f"Unknown config key: {key}{did_you_mean(closest(key, keys))}")
 
 
 def _find_cfg_container(cfg, key: str):
@@ -142,7 +151,7 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     value_str = ctx.arg("value")
     container = _find_cfg_container(ctx.cfg, key)
     if container is None:
-        return CmdResult.fail(msg=f"Unknown config key: {key}")
+        return _unknown_key(ctx.cfg, key)
     if key in _PATH_VALUED_CFG_KEYS and value_str:
         ctx.fs.guard_external_path(value_str, f"cfg {key}")
     try:
@@ -301,7 +310,8 @@ def _other_config(ctx: PluginContext, arg: str, verb: str) -> Path | CmdResult:
     ctx.fs.guard_external_path(arg, "Config")
     found = resolve_config(arg)
     if found is None or Path(found).suffix != ".cfg":
-        return CmdResult.fail(msg=f"Config not found: {arg}")
+        hint = did_you_mean(closest(arg, config_names()))
+        return CmdResult.fail(msg=f"Config not found: {arg}{hint}")
     path = Path(found)
     if ctx.config_path and Path(ctx.config_path).resolve() == path.resolve():
         return CmdResult.fail(msg=f"Cannot {verb} the active config: {path.stem}")
@@ -393,7 +403,8 @@ def _handler_file(ctx: PluginContext, args: str) -> CmdResult:
     if rel.is_absolute() or ".." in rel.parts or not path.is_relative_to(root):
         return CmdResult.fail(msg=f"Path must be relative to the config folder: {name}")
     if not path.is_file():
-        return CmdResult.fail(msg=f"File not found: {name}")
+        # The folder is the cfg root or one under it: the containment check passed.
+        return CmdResult.fail(msg=f"File not found: {name}{file_suggestion(path.parent, name)}")
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as e:
@@ -737,6 +748,7 @@ COMMAND = Command(
         "list": Command(
             help="List all config files.",
             handler=_handler_list,
+            shows=True,
         ),
         "load": Command(
             args="<name>",
@@ -810,21 +822,25 @@ COMMAND = Command(
             flags={"--display": "Open full report in the system viewer."},
             help="Print project summary (tree + config + buttons).",
             handler=_handler_info,
+            shows=True,
             needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(
             help="Open config directory in file explorer.",
             handler=_handler_explore,
+            shows=True,
             needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
         "edit": edit_cfg_command(),
         "dump": Command(
             help="Print the config in memory as JSON to the terminal.",
             handler=_handler_dump,
+            shows=True,
         ),
         "file": Command(
             help="Print a file from the config folder to the terminal.",
             handler=_handler_file,
+            shows=True,
             needs=CapabilitySet.CONFIG_LOADED,
             params=[
                 ParamSpec(

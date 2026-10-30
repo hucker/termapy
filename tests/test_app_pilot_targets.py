@@ -946,6 +946,50 @@ class TestClickableOutput:
 
         asyncio.run(scenario())
 
+    def test_a_typo_errors_fix_runs_when_it_only_shows(self, app_factory):
+        """A did-you-mean for a command that only shows (/help) runs on a click, as typed."""
+
+        async def scenario():
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/held")
+                await until(
+                    pilot, lambda: any("did you mean /help?" in line for line in _screen(app))
+                )
+
+                # Act
+                await _click_text(pilot, app, "/help?")
+                await until(pilot, lambda: any("-- Terminal --" in line for line in _screen(app)))
+
+                # Assert
+                assert app.history[-1] == "/help", "the click ran the fixed command, into history"
+
+        asyncio.run(scenario())
+
+    def test_a_typo_errors_fix_waits_when_it_acts(self, app_factory):
+        """A did-you-mean for a command that acts (/run) fills the input with the fixed line and runs nothing."""
+
+        async def scenario():
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/rnu welcome")
+                await until(
+                    pilot, lambda: any("did you mean /run?" in line for line in _screen(app))
+                )
+
+                # Act
+                await _click_text(pilot, app, "/run?")
+                await pilot.pause()
+
+                # Assert
+                actual = app.query_one("#cmd", Input).value
+                assert actual == "/run welcome ", "the fixed command waits in the input line"
+                assert "/run welcome" not in app.history, "nothing ran"
+
+        asyncio.run(scenario())
+
     def test_an_expired_link_says_so(self, app_factory):
         """A click on a link no longer in the table runs nothing and tells the user why."""
 

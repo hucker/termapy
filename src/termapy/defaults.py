@@ -38,7 +38,7 @@ JSON_STYLES = ("compact", "indent", "color")
 # Single source of truth for the REPL command prefix default.  Used
 # in DEFAULT_CFG, the ``cmd_prefix(cfg)`` helper, and as the default
 # for ``prefix`` parameters on ReplEngine / CommandSuggester /
-# InternalHandle / _suggest_command so a change here propagates
+# InternalHandle so a change here propagates
 # everywhere without a textual search for literal "/".
 DEFAULT_CMD_PREFIX = "/"
 

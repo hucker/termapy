@@ -167,6 +167,12 @@ All other paths relative to `src/termapy/`.
     identity lookups (ports, symbols) are not name patterns (decision
     2026-10-19). **Enforced by `tests/test_architecture.py` (registry
     `name-one-matcher`)**: only `matching.py` imports `fnmatch`.
+    A name that names nothing is answered with the names it most
+    likely meant: `matching.closest` picks them, `matching.did_you_mean`
+    phrases them (` -- did you mean a, b?`), at every name typed from
+    memory (decision 2026-10-30). **Enforced by
+    `tests/test_architecture.py` (registry `did-you-mean-one`)**: no other
+    module imports `difflib`, defines an edit distance or spells the phrase.
   - No ast guard for numbers, durations or strings: unlike bool tokens
     and hex, an `int()` on user text is indistinguishable from internal
     arithmetic, so enforcement there is this rule plus review.

@@ -20,7 +20,7 @@ from threading import Event
 from types import MappingProxyType
 
 from termapy import load_report
-from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix, quiet_start
+from termapy.defaults import cmd_prefix, quiet_start
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
 from termapy.folder_ops import list_entries
 from termapy.folders import (
@@ -35,10 +35,12 @@ from termapy.folders import (
     SS,
     default_file_name,
     ensure_folder,
+    file_suggestion,
     prune_empty_folders,
 )
 from termapy.load_report import LoadReport, Record
 from termapy.markup import escape_markup, json_markup, markup_to_plain
+from termapy.matching import closest, did_you_mean
 from termapy.plugins import (
     GROUP_DEFAULT,
     LEVEL_FLAGS,
@@ -64,6 +66,7 @@ from termapy.plugins import (
 )
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.params import parse_params
+from termapy.plugins.views import error_pieces
 from termapy.scripting import (
     expand_template,
     filename_timestamp,
@@ -160,8 +163,7 @@ def _parse_flags(
             if canonical is None:
                 # Typo path: suggest a near match from the declared set.
                 candidates = sorted(declared.keys())
-                suggestion = _closest_flag(token, candidates)
-                hint = f" -- did you mean {suggestion}?" if suggestion else ""
+                hint = did_you_mean(closest(token, candidates, limit=1))
                 return "", set(), f"Unknown flag: {token}{hint}"
             active.add(canonical)
             continue
@@ -210,51 +212,6 @@ def _strip_json_flag(args: str) -> tuple[str, bool]:
     if len(remaining) == len(tokens):
         return args, False
     return " ".join(remaining), True
-
-
-def _closest_flag(needle: str, candidates: list[str]) -> str | None:
-    """Return the nearest declared flag by edit distance, or None."""
-    best: tuple[int, str] | None = None
-    for candidate in candidates:
-        d = _edit_distance(needle, candidate)
-        if d <= 2 and (best is None or d < best[0]):
-            best = (d, candidate)
-    return best[1] if best else None
-
-
-def _suggest_command(name: str, plugins: dict, prefix: str = DEFAULT_CMD_PREFIX) -> str | None:
-    """Find close command names using edit distance (max 2, top 3)."""
-    candidates = []
-    for command in plugins:
-        d = _edit_distance(name, command)
-        if d <= 2:
-            candidates.append((d, command))
-    if not candidates:
-        return None
-    candidates.sort()
-    top = [command for _, command in candidates[:3]]
-    return ", ".join(f"{prefix}{c}" for c in top)
-
-
-def _edit_distance(a: str, b: str) -> int:
-    """Damerau-Levenshtein distance (transpositions count as 1 edit)."""
-    la, lb = len(a), len(b)
-    d = [[0] * (lb + 1) for _ in range(la + 1)]
-    for i in range(la + 1):
-        d[i][0] = i
-    for j in range(lb + 1):
-        d[0][j] = j
-    for i in range(1, la + 1):
-        for j in range(1, lb + 1):
-            cost = 0 if a[i - 1] == b[j - 1] else 1
-            d[i][j] = min(
-                d[i - 1][j] + 1,
-                d[i][j - 1] + 1,
-                d[i - 1][j - 1] + cost,
-            )
-            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
-                d[i][j] = min(d[i][j], d[i - 2][j - 2] + 1)
-    return d[la][lb]
 
 
 @dataclass
@@ -1384,6 +1341,38 @@ class ReplEngine:
             return _run
         return None
 
+    def _report_failure(self, text: str, line: str) -> None:
+        """Print a failure's red line; where the frontend can click, its fixes are links.
+
+        ``views.error_pieces`` finds them in the text (a did-you-mean, a
+        command it names) against the line as typed.  A frontend that
+        cannot click, and an error that offers nothing, get the plain line.
+        """
+        write_segments = self.ctx.io._write_segments
+        if write_segments is not None:
+            pieces = error_pieces(
+                text,
+                line,
+                prefix=self.prefix,
+                commands=self._plugins,
+                click_runs=self._click_runs,
+            )
+            if pieces is not None:
+                write_segments(pieces, "red")
+                return
+        self.write(text, "red")
+
+    def _click_runs(self, command_line: str) -> bool:
+        """Whether a click on a link to ``command_line`` may run it at once.
+
+        Its command declares ``shows`` (it only shows or opens something),
+        and a bare line needs no argument: ``/search`` alone is a usage
+        error, so a reference to it fills the input line instead.
+        """
+        name, _, rest = command_line.partition(" ")
+        plugin = self._plugins.get(name.lower())
+        return plugin is not None and plugin.shows and (bool(rest) or "<" not in plugin.args)
+
     def complete_file_arg(self, line: str) -> tuple[int, list[str]] | None:
         """File names that complete a line's first argument, newest first.
 
@@ -1912,7 +1901,7 @@ class ReplEngine:
                 )
                 return replace(result, view=None) if result.view is not None else result
             if report and not result.success and result.error:
-                self.write(result.err_msg, "red")
+                self._report_failure(result.err_msg, f"{name} {args}".rstrip())
             return self._render_view(result, call_level)
 
         if plugin:
@@ -2067,13 +2056,8 @@ class ReplEngine:
                 self.ctx._call_level = saved_call_level
                 self.ctx.wants_data = saved_wants_data
         else:
-            suggestion = _suggest_command(name, self._plugins, self.prefix)
-            if suggestion:
-                result = CmdResult.fail(
-                    msg=f"Unknown command: {name} -- did you mean {suggestion}?"
-                )
-            else:
-                result = CmdResult.fail(msg=f"Unknown command: {name}")
+            hint = did_you_mean(closest(name, self._plugins), prefix=self.prefix)
+            result = CmdResult.fail(msg=f"Unknown command: {name}{hint}")
         return _finish(result)
 
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
@@ -2186,7 +2170,8 @@ class ReplEngine:
             except MissingCapability as e:
                 return None, CmdResult.fail(msg=str(e))
             if not path.is_file():
-                return None, CmdResult.fail(msg=f"File not found: {filename}")
+                hint = file_suggestion(self.scripts_dir, filename, FOLDER_EXTS[RUN])
+                return None, CmdResult.fail(msg=f"File not found: {filename}{hint}")
         else:
             # The name as typed (cwd), then in run/; either may leave off
             # .run (registry ``file-name-default-ext``).
@@ -2194,7 +2179,8 @@ class ReplEngine:
             if not path.is_file():
                 path = default_file_name(self.scripts_dir / Path(filename).name, FOLDER_EXTS[RUN])
             if not path.is_file():
-                return None, CmdResult.fail(msg=f"File not found: {filename}")
+                hint = file_suggestion(self.scripts_dir, filename, FOLDER_EXTS[RUN])
+                return None, CmdResult.fail(msg=f"File not found: {filename}{hint}")
         if self._script_depth >= self._max_script_depth:
             return None, CmdResult.fail(
                 msg=f"Script nesting too deep ({self._max_script_depth} levels). Use {self.prefix}stop first."

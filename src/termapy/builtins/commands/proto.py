@@ -17,9 +17,16 @@ from termapy.folder_ops import (
     list_entries,
     write_destination,
 )
-from termapy.folders import FIRMWARE, FOLDER_EXTS, FOLDER_PATTERNS, PROTO, default_file_name
+from termapy.folders import (
+    FIRMWARE,
+    FOLDER_EXTS,
+    FOLDER_PATTERNS,
+    PROTO,
+    default_file_name,
+    file_suggestion,
+)
 from termapy.help_dynamic import compose, folder_line
-from termapy.matching import matches
+from termapy.matching import did_you_mean, matches
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.protocol import (
@@ -163,6 +170,7 @@ def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path:
     message = f"File not found: {filename}"
     if ctx.fs.proto_dir != Path("."):
         message += f" (also checked {ctx.fs.proto_dir})"
+    message += file_suggestion(ctx.fs.proto_dir, filename, FOLDER_EXTS[PROTO])
     raise FileNotFoundError(message)
 
 
@@ -1143,7 +1151,7 @@ def _parse_int_value(value: str, key: str) -> int:
 
 
 def _did_you_mean(name: str) -> str:
-    """Build a "; did you mean: X, Y, Z" suffix for an unknown algorithm.
+    """Build the `` -- did you mean X, Y?`` suffix for an unknown algorithm.
 
     Calls ``crcglot.suggest_algorithms`` (0.25+), which runs a
     three-tier match -- exact prefix, ``crc<width>`` family, then
@@ -1153,10 +1161,8 @@ def _did_you_mean(name: str) -> str:
     """
     from crcglot import suggest_algorithms
 
-    suggestions = suggest_algorithms(name, limit=4)
-    if not suggestions:
-        return ""
-    return f"; did you mean: {', '.join(suggestions)}"
+    # crcglot owns its names and how to rank them; termapy owns the phrasing.
+    return did_you_mean(suggest_algorithms(name, limit=4))
 
 
 def _symbol_from_stem(file_stem: str) -> str:

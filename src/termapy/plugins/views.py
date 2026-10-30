@@ -39,11 +39,13 @@ prints its rows into a JSON answer.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+import re
+from collections.abc import Callable, Container, Iterable
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 from termapy.markup import escape_markup
+from termapy.matching import DID_YOU_MEAN, edit_distance, split_did_you_mean
 from termapy.plugins.output_levels import format_kv_lines
 
 Record = dict[str, Any]
@@ -284,3 +286,102 @@ class RecordView:
                 )
         flush()
         return lines
+
+
+def error_pieces(
+    text: str,
+    line: str,
+    *,
+    prefix: str,
+    commands: Container[str],
+    click_runs: Callable[[str], bool] | None = None,
+) -> list[Piece] | None:
+    """An error line as pieces with its fixes clickable, or None when it offers none.
+
+    The error stays one string (``CmdResult.error``); its fixes are read
+    back out of it, so every failure gets them and no command has to
+    build anything.  A click runs the fixed command when ``click_runs``
+    says its command only shows or opens something (``Command.shows``: a
+    page, a list, an editor); any other link fills the input line for
+    Enter, so nothing that acts runs on a click.
+
+    - Each name the did-you-mean tail offers links to the typed line with
+      that name in place of the word it corrects: ``/run welcom`` offers
+      ``welcome``, which fills in ``/run welcome``.  An offered command
+      (``/help``) replaces the command typed and keeps its arguments; an
+      offered command line (``/dev.use X``) stands as it is.
+    - Each command the rest of the text names (``try /dev.lib``) links to
+      that command.
+
+    Args:
+        text: The error line as printed (``Error: ...``).
+        line: The command as typed, without the prefix (``run welcom``).
+        prefix: The REPL prefix.
+        commands: The registered command names.
+        click_runs: Whether a click may run a command line at once; None
+            means never.
+
+    Returns:
+        Pieces whose text joins to exactly ``text``, or None when no piece
+        links, so a frontend prints the plain line.
+    """
+    runs = click_runs or (lambda _line: False)
+    head, names = split_did_you_mean(text)
+    pieces = _command_reference_pieces(head, prefix, commands, runs)
+    if names:
+        pieces.append(Piece(DID_YOU_MEAN))
+        for index, name in enumerate(names):
+            if index:
+                pieces.append(Piece(", "))
+            fixed = _fixed_line(line, name, prefix)
+            pieces.append(Piece(name, None if fixed is None else Link(fixed, run=runs(fixed))))
+        pieces.append(Piece("?"))
+    return pieces if any(piece.link is not None for piece in pieces) else None
+
+
+def _command_reference_pieces(
+    text: str, prefix: str, commands: Container[str], runs: Callable[[str], bool]
+) -> list[Piece]:
+    """``text`` as pieces, each ``{prefix}<command>`` it names linked to fill in that command.
+
+    A reference starts a word (``try /dev.lib``, never ``cfg/demo``) and
+    names a registered command, so a path or a stray slash stays text.
+    """
+    reference = re.compile(rf"(?<!\S){re.escape(prefix)}([A-Za-z][\w.-]*\w|[A-Za-z])")
+    pieces: list[Piece] = []
+    last = 0
+    for match in reference.finditer(text):
+        command = match.group(1)
+        if command.lower() not in commands:
+            continue
+        pieces.append(Piece(text[last : match.start()]))
+        pieces.append(Piece(match.group(0), Link(command, run=runs(command))))
+        last = match.end()
+    pieces.append(Piece(text[last:]))
+    return [piece for piece in pieces if piece.text]
+
+
+def _fixed_line(line: str, name: str, prefix: str) -> str | None:
+    """The typed ``line`` with ``name`` taken, the line a suggestion's click fills in; None if no word to replace.
+
+    An offered command line (``/dev.use X``) stands as it is; an offered
+    command (``/help``) replaces the command and keeps the arguments; any
+    other name replaces the argument nearest it, which is the one it
+    corrects (the suggestion was computed from it).
+    """
+    if name.startswith(prefix):
+        offered = name[len(prefix) :]
+        if " " in offered:
+            return offered
+        _, _, rest = line.partition(" ")
+        return f"{offered} {rest}".rstrip()
+    words = line.split()
+    if len(words) < 2:
+        return None
+    command, *args = words
+    nearest = min(
+        range(len(args)),
+        key=lambda index: edit_distance(args[index].casefold(), name.casefold()),
+    )
+    args[nearest] = name
+    return " ".join([command, *args])

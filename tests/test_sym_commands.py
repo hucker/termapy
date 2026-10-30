@@ -2259,7 +2259,9 @@ class TestDevUse:
 
         # Assert
         assert not result.success
-        assert "No library part named nosuch" in result.error
+        assert "Unknown library part: nosuch" in result.error, (
+            "the standard Unknown <thing> phrasing"
+        )
         assert "dev.lib" in result.error, "and says how to find the real names"
 
     @pytest.mark.parametrize("token", ["FPGA0", "@0x60000000", "FPGA0@zz"])

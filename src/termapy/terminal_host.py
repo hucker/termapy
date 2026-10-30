@@ -780,6 +780,12 @@ class TerminalHost:
         """
         path = resolve_config(name)
         if path is None:
+            from termapy.config import config_names
+            from termapy.matching import closest, did_you_mean
+
+            hint = did_you_mean(closest(name, config_names()))
+            if hint:
+                return CmdResult.fail(msg=f"No config matching {name!r}{hint}")
             return CmdResult.fail(
                 msg=f"No config matching {name!r}. "
                 f"Try {self.repl.prefix}cfg.list to list available."

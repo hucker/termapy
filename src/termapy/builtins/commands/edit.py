@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.folder_ops import edit_cfg_command, edit_folder_command
-from termapy.folders import EXT_TO_FOLDER, FOLDER_EXTS, PROTO, RUN
+from termapy.folders import EXT_TO_FOLDER, file_suggestion
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
@@ -34,33 +34,32 @@ if TYPE_CHECKING:
 # ── File resolution ──────────────────────────────────────────────────────────
 
 
-def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
-    """Resolve a filename to a project file path.
+def _search_place(ctx: PluginContext, name: str) -> tuple[Path, str] | None:
+    """Where ``/edit`` looks for ``name``: the folder, and the name to look for in it.
 
-    Checks run/, proto/, plugin/ dirs by prefix or extension.
+    ``run/x.run`` names its folder; otherwise the extension picks run/,
+    proto/ or plugin/.  None for a kind of file no folder holds.
     """
-    dir_map = {
-        "run": (ctx.fs.scripts_dir, FOLDER_EXTS[RUN]),
-        "proto": (ctx.fs.proto_dir, FOLDER_EXTS[PROTO]),
-    }
+    named = {"run": ctx.fs.scripts_dir, "proto": ctx.fs.proto_dir}
     parts = Path(name).parts
-    if len(parts) == 2:
-        entry = dir_map.get(parts[0].lower())
-        if entry:
-            path = entry[0] / parts[1]
-            return path if path.exists() else None
-
-    ext = Path(name).suffix.lower()
-    _folder_dirs = {
+    if len(parts) == 2 and parts[0].lower() in named:
+        return named[parts[0].lower()], parts[1]
+    by_ext = {
         "run": ctx.fs.scripts_dir,
         "proto": ctx.fs.proto_dir,
         "plugin": ctx.fs.scripts_dir.parent / "plugin",
     }
-    base = _folder_dirs.get(EXT_TO_FOLDER.get(ext, ""))
-    if base:
-        path = base / name
-        return path if path.exists() else None
-    return None
+    base = by_ext.get(EXT_TO_FOLDER.get(Path(name).suffix.lower(), ""))
+    return (base, name) if base else None
+
+
+def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
+    """Resolve a filename to a project file path, or None (``_search_place`` says where)."""
+    place = _search_place(ctx, name)
+    if place is None:
+        return None
+    path = place[0] / place[1]
+    return path if path.exists() else None
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -75,7 +74,9 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         raise UsageError()
     path = _resolve_file(ctx, name)
     if path is None:
-        return CmdResult.fail(msg=f"File not found: {name}")
+        place = _search_place(ctx, name)
+        hint = file_suggestion(place[0], name) if place else ""
+        return CmdResult.fail(msg=f"File not found: {name}{hint}")
     ctx.internal.edit_file(path)
     return CmdResult.ok(value=path)
 
@@ -107,6 +108,7 @@ COMMAND = Command(
     args="<filename>",
     help="Open a project file for editing (run/, proto/ or plugin/).",
     handler=_handler_root,
+    shows=True,
     needs=CapabilitySet.FILE_EDITOR,
     sub_commands={
         "run": edit_folder_command("run"),
@@ -116,11 +118,13 @@ COMMAND = Command(
         "log": Command(
             help="Open the session log in the system viewer.",
             handler=_handler_log,
+            shows=True,
             needs=CapabilitySet(session_log=True, config_loaded=True, gui_apps=True),
         ),
         "info": Command(
             help="Open the info report in the system viewer.",
             handler=_handler_info,
+            shows=True,
             needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
     },

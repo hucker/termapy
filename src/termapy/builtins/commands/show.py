@@ -5,22 +5,26 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folders import file_suggestion
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _show_file(ctx: PluginContext, path: Path) -> None:
-    """Read a file and print its contents line by line.
+def _show_file(ctx: PluginContext, path: Path, typed: str) -> CmdResult:
+    """Print a file's contents line by line, or fail saying why not (registry ``failure-is-failure``).
 
     Args:
         ctx: Plugin context for output.
         path: Absolute or relative path to the file.
+        typed: The name as typed, for the did-you-mean.
+
+    Returns:
+        ``ok`` with the path as its value, or the failure.
     """
     if not path.exists():
-        ctx.io.output(f"File not found: {path}", "red")
-        return
+        return CmdResult.fail(msg=f"File not found: {path}{file_suggestion(path.parent, typed)}")
     # OSError covers file-locked / permission-denied / disappeared
     # between the exists() check and here; UnicodeDecodeError means
     # the user pointed /show at a binary file.  Both are user-facing
@@ -32,7 +36,8 @@ def _show_file(ctx: PluginContext, path: Path) -> None:
             ctx.io.output(line)
         ctx.io.output("--- end ---")
     except (OSError, UnicodeDecodeError) as e:
-        ctx.io.output(f"Error reading {path}: {e}", "red")
+        return CmdResult.fail(msg=f"Read error: {path}: {e}")
+    return CmdResult.ok(value=path)
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -50,9 +55,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if not name:
         raise UsageError(f"For the active config use {ctx.prefix}show.cfg")
-    _show_file(ctx, Path(name))
-    # Return the resolved path so scripts can confirm what was shown.
-    return CmdResult.ok(value=Path(name))
+    # The value is the path, so scripts can confirm what was shown.
+    return _show_file(ctx, Path(name), name)
 
 
 def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
@@ -62,8 +66,7 @@ def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for config path and output.
         args: Unused.
     """
-    _show_file(ctx, Path(ctx.config_path))
-    return CmdResult.ok(value=Path(ctx.config_path))
+    return _show_file(ctx, Path(ctx.config_path), ctx.config_path)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -82,11 +85,13 @@ Examples:
   {prefix}show my_script.run    - view a script file
   {prefix}show ../notes.txt     - relative path""",
     handler=_handler,
+    shows=True,
     needs=CapabilitySet.GUI_APPS,
     sub_commands={
         "cfg": Command(
             help="Show the current config file.",
             handler=_handler_cfg,
+            shows=True,
             needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
     },

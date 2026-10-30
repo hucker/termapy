@@ -1,5 +1,7 @@
 # Firmware
 
+> **Status: prototype.** This is new and incomplete: its commands, files and behavior may change or be removed in any release.
+
 termapy ships the device-side sources a monitor compiles in to speak its
 protocols, so getting them is one command, not a trip to the repository.
 `/firmware` lists what ships; `.copy` writes it into your tree.

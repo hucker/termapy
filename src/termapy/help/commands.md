@@ -12,8 +12,8 @@ synopsis, filtering as you type:
 A selection of the most-used commands.  `/help` prints the landscape: the
 terminal commands in full, and every other group folded to one clickable
 row naming what it holds, so a first session reads a dozen rows rather
-than forty.  `/help.group <name>` expands one, `/help.group` lists them
-all, and `/help <cmd>` is the man-page detail for one command.
+than forty.  `/help.group <name>` expands one, `/help.group *` expands them
+all, `/help.group` lists them, and `/help <cmd>` is the man-page detail for one command.
 
 ![One group, expanded](img/doc_02b_help_group.svg)
 
@@ -128,6 +128,7 @@ script or plugin you wrote is deleted one name at a time, after a yes.
 | `/help`                   | The landscape: terminal commands in full, other groups folded               |
 | `/help.group`             | List the groups, each with its commands                                     |
 | `/help.group <name>`      | Expand one group                                                            |
+| `/help.group *`           | Expand every group, or every group a pattern matches (`dev*`)               |
 | `/help <term>`            | Exact match -> man-page detail; otherwise a candidate list                  |
 | `/help.dev <cmd>`         | Show a command handler's Python docstring (developer view)                  |
 | `/help.plugin`            | List loaded plugins grouped by source                                       |

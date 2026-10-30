@@ -267,6 +267,7 @@ def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     group="advanced",
     name="mcp",
+    maturity="preview",
     help="MCP catalog and status (Model Context Protocol).",
     long_help=(
         "MCP-mode tools.  {prefix}mcp.catalog dumps the JSON command catalog\n"

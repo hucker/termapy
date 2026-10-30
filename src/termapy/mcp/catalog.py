@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from termapy.folder_ops import file_record, list_entries
-from termapy.plugins import CapabilitySet, interpolate_help, resolve_long_help
+from termapy.plugins import MATURITY_MEANINGS, CapabilitySet, interpolate_help, resolve_long_help
 from termapy.plugins.capabilities import attainable
 from termapy.profile import TypeRegistry, typedef_to_catalog
 
@@ -26,6 +26,11 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext, PluginInfo
 
 CATALOG_SCHEMA_VERSION: int = 1
+
+# The MCP server's own maturity (a MATURITY_LEVELS word): a preview until
+# the host-access limits help/mcp-server.md describes are all enforced
+# (decision 2026-10-29).
+MCP_MATURITY = "preview"
 
 # Sentinel for build_device_state(captures_dir=...): distinguishes "the
 # caller did not specify a dir, fall back to ctx.fs.cap_dir" (legacy
@@ -142,6 +147,9 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         "types": types_block,
         "commands": cmd_list,
         "device_commands": device_commands,
+        # The server itself is a preview; each command's own level is on its
+        # entry, omitted when stable.
+        "maturity": {"server": MCP_MATURITY, "levels": dict(MATURITY_MEANINGS)},
     }
 
 
@@ -310,6 +318,10 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     # entry shape is unchanged for the many commands that never declare one.
     if plugin.safety != "safe":
         entry["safety"] = plugin.safety
+    # Maturity, the same way: omitted when stable, the level otherwise, so an
+    # agent knows which commands may change (registry maturity-declared-once).
+    if plugin.maturity != "stable":
+        entry["maturity"] = plugin.maturity
     # Structured, typed argument schema for commands that declare params --
     # parity with device commands' ``typed_args``.  Omitted (not empty) for
     # commands that haven't been migrated, so their entry shape is unchanged.

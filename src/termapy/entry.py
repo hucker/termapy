@@ -310,7 +310,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mcp",
         action="store_true",
-        help="Run as a stdio MCP (Model Context Protocol) server.  Stdout "
+        help="Run as a stdio MCP (Model Context Protocol) server, a preview "
+        "that may change in any release.  Stdout "
         "is reserved for protocol frames; session log goes to "
         "<cfg_dir>/mcp/session.log.  Requires the 'mcp' extra: "
         "pip install termapy[mcp].",

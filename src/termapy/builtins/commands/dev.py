@@ -426,6 +426,7 @@ def _long_help(ctx: PluginContext) -> str:
 COMMAND = Command(
     group="devices",
     name="dev",
+    maturity="preview",
     help="Device files: a part's registers as data (see {prefix}help devices).",
     long_help=_long_help,
     sub_commands={

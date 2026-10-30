@@ -132,10 +132,72 @@ def test_bare_help_group_lists_every_group(tmp_path):
     shown = _shown(eng, "help.group")
 
     # Assert
+    groups = {line.split()[0] for line in shown if line.strip()}
     for group in ("terminal", "devices", "protocol", "advanced"):
-        assert any(f"/help.group {group}" in line for line in shown), (
-            f"{group} is a group of the loaded commands, so bare /help.group names it"
+        assert group in groups, (
+            f"{group} is a group of the loaded commands, so bare /help.group has its row"
         )
+
+
+def test_a_star_expands_every_group(tmp_path):
+    """/help.group * lists every visible root, each with its group, under a GROUP column."""
+    # Arrange
+    eng = _engine(tmp_path)
+    roots = {
+        name
+        for name, plugin in eng.ctx.internal.plugins.items()
+        if "." not in name and not plugin.hidden
+    }
+    # Act
+    result = eng.dispatch_full("/help.group *")
+    # Assert
+    assert result.success, result.error
+    assert {record["command"] for record in result.data} == roots, "every visible root, once"
+    assert {record["group"] for record in result.data} >= {"terminal", "devices"}, (
+        "rows from more than one group"
+    )
+
+
+def test_a_glob_expands_the_groups_it_matches(tmp_path):
+    """A pattern with a wildcard picks groups by the shared matcher; one match lists that group alone."""
+    eng = _engine(tmp_path)
+    result = eng.dispatch_full("/help.group dev*")
+    assert result.success, result.error
+    assert {record["group"] for record in result.data} == {"devices"}, "dev* is devices"
+
+
+def test_a_glob_matching_nothing_fails_and_names_the_groups(tmp_path):
+    """A pattern that picks no group fails like an unknown name, listing what exists."""
+    result = _engine(tmp_path).dispatch_full("/help.group nope*")
+    assert result.success is False, "nothing to expand is a failure"
+    assert result.error.startswith("Unknown group: nope*"), result.error
+
+
+def test_the_records_carry_group_command_level_and_help(tmp_path):
+    """list-one-format: an expanded group's data is records of group, command, maturity and help."""
+    # Arrange / Act
+    result = _engine(tmp_path).dispatch_full("/help.group devices")
+    # Assert
+    board = next(record for record in result.data if record["command"] == "board")
+    expected = {"group", "command", "maturity", "help"}
+    assert set(board) == expected, "the record's fields"
+    assert board["maturity"] == "prototype", "the level is data, not only display"
+
+
+def test_a_styled_column_draws_its_cell_in_that_style():
+    """A Column with style= gives its cell piece that style; the text stays the same."""
+    from termapy.plugins.views import Column, TableView
+
+    view = TableView(
+        "t",
+        "row",
+        (Column("LEVEL", lambda record: record["level"], style=lambda record: "yellow"),),
+        ({"level": "preview"},),
+    )
+    row_pieces = view.segment_lines()[-1][0]
+    styled = [piece for piece in row_pieces if piece.text == "preview"]
+    assert styled and styled[0].style == "yellow", "the cell carries its style"
+    assert view.lines()[-1][0] == "preview", "plain consumers see the text alone"
 
 
 def test_an_unknown_group_fails_and_names_the_groups(tmp_path):

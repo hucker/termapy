@@ -67,11 +67,11 @@ def _links_of(eng, command: str) -> list[Link]:
 
 
 def test_a_row_draws_the_same_characters_in_the_same_styles():
-    """A command row's markup renders exactly as before: cyan name, padding, plain help."""
+    """A command row's markup renders exactly so: cyan name, padding, the green level, plain help."""
     # Arrange
     plugin = PluginInfo(name="cfg.load", args="", help="Load a config.", handler=lambda c, a: None)
-    # The row as the old builder wrote it: its own padding formula.
-    before = _pad_markup("  [cyan]/cfg.load[/]", 14 + 2) + "  Load a config."
+    # The row as markup: its own padding formula, then the level column.
+    before = _pad_markup("  [cyan]/cfg.load[/]", 14 + 2) + "  [green]stable[/]     Load a config."
 
     # Act
     after = pieces_markup(_landscape_row("/", "cfg.load", plugin, 14))
@@ -84,7 +84,10 @@ def test_a_search_row_keeps_its_match_underlines():
     """In /help <term> candidates, only the matched part is underlined, name and help alike."""
     # Arrange
     plugin = PluginInfo(name="cfg.load", args="", help="Load a config.", handler=lambda c, a: None)
-    before = _pad_markup("  [cyan]/cfg.[u]load[/u][/]", 14 + 2) + "  [u]Load[/u] a config."
+    before = (
+        _pad_markup("  [cyan]/cfg.[u]load[/u][/]", 14 + 2)
+        + "  [green]stable[/]     [u]Load[/u] a config."
+    )
 
     # Act
     after = pieces_markup(_landscape_row("/", "cfg.load", plugin, 14, needles=["load"]))

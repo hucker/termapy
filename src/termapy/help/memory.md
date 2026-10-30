@@ -1,5 +1,7 @@
 # Memory
 
+> **Status: preview.** This works and is used daily, but it is still being developed and sits outside termapy's compatibility promise: its commands, files and behavior may change in any release.
+
 `/mem.dump` and `/mem.write` peek and poke a device's memory by address
 or by name, on any architecture, through two monitor commands the device
 implements. The device only ever moves bytes; names come from the

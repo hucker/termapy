@@ -1,5 +1,7 @@
 # Symbols
 
+> **Status: preview.** This works and is used daily, but it is still being developed and sits outside termapy's compatibility promise: its commands, files and behavior may change in any release.
+
 A symbol table gives names to the addresses in your firmware: `/sym main`
 tells you where `main` lives, `/sym 0x2010` tells you that address is
 `main+0x10`. It is what named memory access (`/mem.*`) reads, and on

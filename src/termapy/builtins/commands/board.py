@@ -178,6 +178,7 @@ def _handler_firmware(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     group="devices",
     name="board",
+    maturity="prototype",
     help="Starter projects for real dev boards: list, new, firmware.",
     long_help=_long_help,
     bare_sub="list",

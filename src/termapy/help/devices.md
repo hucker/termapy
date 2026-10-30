@@ -48,7 +48,7 @@ Two questions, two commands:
 
 ```text
 /dev.list              # what THIS config loaded: layer and placement
-/dev.lib {pattern}     # what the libraries hold, loaded or not (* = loaded here)
+/dev.lib {pattern}     # what the libraries hold; LOADED marks what this config has
 ```
 
 The **library** is a tree of parts, nested however suits you

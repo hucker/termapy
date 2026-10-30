@@ -1746,9 +1746,11 @@ class TestDevList:
     """What THIS config loaded -- the 'installed' half of the two listings."""
 
     def test_no_devices_says_so(self, sym_env):
+        """list-one-format: no devices is the shared empty table, not a hand-written line."""
         # Arrange
-        engine, _, _ = sym_env
+        engine, _, output = sym_env
         engine.fire_lifecycle("on_app_start")
+        output.clear()
 
         # Act
         result = engine.dispatch("dev.list")
@@ -1756,6 +1758,7 @@ class TestDevList:
         # Assert
         assert result.success, result.error
         assert result.value == "", "nothing loaded, nothing named"
+        assert _texts(output) == ["devices - empty"], "the table's own empty answer"
 
     def test_lists_a_loaded_device_with_its_layer(self, sym_env):
         # Arrange
@@ -1796,6 +1799,7 @@ class TestDevList:
         assert "FPGA1@0x60010000" in out, "both copies, so a collision is visible"
 
     def test_a_fixed_address_part_has_no_placement(self, sym_env):
+        """A part at fixed addresses has an empty PLACEMENT cell, so its row ends at the layer."""
         # Arrange
         engine, config_path, output = sym_env
         _install_device(config_path.parent / "dev", "part", _PART)
@@ -1806,8 +1810,10 @@ class TestDevList:
         engine.dispatch("dev.list")
 
         # Assert
-        row = next(line for line in _texts(output) if line.startswith("  part"))
-        assert row.rstrip().endswith("rig"), "nothing trails the layer when unplaced"
+        lines = _texts(output)
+        assert lines[0] == "devices - 1 device", "the shared table's title line"
+        row = next(line for line in lines if line.startswith("part "))
+        assert row.endswith("rig"), "nothing trails the layer when unplaced"
 
     def test_data_carries_the_records_not_prose(self, sym_env):
         # Arrange
@@ -1938,8 +1944,9 @@ class TestDevLib:
     def test_a_filter_matching_nothing_is_an_empty_answer(self, sym_env, tmp_path):
         """name-one-matcher: a pattern no part matches succeeds with no names."""
         # Arrange
-        engine, _, _ = sym_env
+        engine, _, output = sym_env
         _install_library(tmp_path, "m", "alpha")
+        output.clear()
 
         # Act
         result = engine.dispatch("dev.lib zzz*")
@@ -1947,6 +1954,7 @@ class TestDevLib:
         # Assert
         assert result.success, result.error
         assert result.value == "", "no part matched"
+        assert _texts(output) == ["library 'zzz*' - empty"], "the title names the filter"
 
     def test_a_loaded_part_is_marked(self, sym_env, config_dev_part, tmp_path):
         """The listing answers 'do I already have this?' in the same glance."""
@@ -1957,11 +1965,13 @@ class TestDevLib:
         output.clear()
 
         # Act
+        result = engine.dispatch("dev.lib --json")
         engine.dispatch("dev.lib")
 
         # Assert
-        row = next(line for line in _texts(output) if "part" in line)
-        assert "*" in row, "the part this config loaded is marked"
+        assert result.data[0]["loaded"] is True, "the record says this config has the part"
+        row = next(line for line in _texts(output) if line.startswith("part "))
+        assert "yes" in row.split(), "and its LOADED cell shows it"
 
     def test_data_is_records_not_prose(self, sym_env, tmp_path):
         # Arrange

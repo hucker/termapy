@@ -1804,12 +1804,14 @@ demo> /cfg.file demo_legacy.profile.json
     }
   }
 demo> /dev.list
-    DEVICE     REGISTERS  LAYER  PLACEMENT
-    demo_uart  2          demo
+  devices - 1 device
+  DEVICE     REGISTERS  LAYER  PLACEMENT
+  ---------  ---------  -----  ---------
+  demo_uart          2  demo
 demo> /dev.lib
-    (no library parts)
+  library - empty
 demo> /dev.lib zzz*
-    (no library parts matching 'zzz*')
+  library 'zzz*' - empty
 demo> /dev.use nosuch
   Error: No library part named nosuch (try /dev.lib to see what there is)
 demo> /cap.stop

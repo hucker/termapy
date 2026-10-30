@@ -47,9 +47,10 @@ from termapy.plugins import BoundaryException, CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
 from termapy.symbols import get_devices, install_devices, parse_number
 from termapy.symbols.format import (
-    device_list_rows,
+    device_columns,
     device_records,
     hex_addr,
+    library_columns,
     library_records,
 )
 
@@ -208,29 +209,13 @@ def _write_reference(
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """What THIS config loaded: one row per device, with its layer."""
     devices = get_devices(ctx)
-    if not devices:
-        ctx.io.output("  (no devices loaded)")
-        return CmdResult.ok(value="", data=[] if ctx.wants_data else None)
-    if ctx.wants_data:
-        return CmdResult.ok(
-            value="\n".join(device.name for device in devices),
-            data=device_records(devices),
-        )
-    rows = device_list_rows(devices)
-    headers = ("DEVICE", "REGISTERS", "LAYER", "PLACEMENT")
-    # Placement is last and often empty, so it needs no padding.
-    widths = [
-        max(len(header), *(len(row[i]) for row in rows)) for i, header in enumerate(headers[:-1])
-    ]
-    ctx.io.output(
-        "  "
-        + "  ".join(f"{header:<{width}}" for header, width in zip(headers, widths))
-        + f"  {headers[-1]}"
+    return CmdResult.table(
+        "devices",
+        "device",
+        device_columns(),
+        device_records(devices),
+        value="\n".join(device.name for device in devices),
     )
-    for row in rows:
-        line = "  ".join(f"{cell:<{width}}" for cell, width in zip(row, widths))
-        ctx.io.output(f"  {line}  {row[-1]}".rstrip())
-    return CmdResult.ok(value="\n".join(device.name for device in devices))
 
 
 def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
@@ -320,29 +305,14 @@ def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
     matched = [
         part for part in parts if matches(part.device, pattern) or matches(part.category, pattern)
     ]
-    if not matched:
-        where = f" matching '{pattern}'" if pattern else ""
-        ctx.io.output(f"  (no library parts{where})")
-        return CmdResult.ok(value="", data=[] if ctx.wants_data else None)
-    if ctx.wants_data:
-        return CmdResult.ok(
-            value="\n".join(part.device for part in matched),
-            data=library_records(matched),
-        )
-    loaded = {device.name for device in get_devices(ctx)}
-    width = max(len(part.device) for part in matched)
-    layer_width = max(len(part.layer) for part in matched)
-    for part in matched:
-        count = f"{part.registers}" if part.registers >= 0 else "?"
-        # The marker answers "do I already have this?" in the same glance;
-        # the layer says whether the part is this board's or shared.
-        mark = " *" if part.device in loaded else "  "
-        detail = part.category or "-"
-        ctx.io.output(
-            f"  {part.device:<{width}}{mark}  {count:>6}  {part.layer:<{layer_width}}  {detail}"
-        )
-    ctx.io.output(f"  ({len(matched)} of {len(parts)} parts; * = loaded here)")
-    return CmdResult.ok(value="\n".join(part.device for part in matched))
+    loaded = frozenset(device.name for device in get_devices(ctx))
+    return CmdResult.table(
+        f"library '{pattern}'" if pattern else "library",
+        "part",
+        library_columns(),
+        library_records(matched, loaded),
+        value="\n".join(part.device for part in matched),
+    )
 
 
 def _library_layers(ctx: PluginContext) -> list[tuple[Path, str]]:

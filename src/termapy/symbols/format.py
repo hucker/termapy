@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from termapy.plugins.views import Column
 from termapy.symbols.address import Address
 from termapy.symbols.provenance import IN_SYNC, UNKNOWN, check_staleness
 from termapy.symbols.table import Region, Symbol, SymbolTable, hex_digits, section_label
@@ -141,41 +142,63 @@ def lookup_record(
     }
 
 
-def device_list_rows(
-    devices: list[Device],
-    *,
-    address_bits: int = 32,
-) -> list[tuple[str, str, str, str]]:
-    """``(device, registers, layer, placement)`` per loaded device, for a table.
+def device_columns(*, address_bits: int = 32) -> tuple[Column, ...]:
+    """The ``/dev.list`` table over :func:`device_records`: one row per loaded device.
 
-    The prose twin of :func:`device_records`, and the answer to "what is on
-    this board": one row per part, with the LAYER it came from, because a
-    part loaded globally and a part loaded by this config are different
-    facts that a single flat list would hide.
-
-    Placement is the instance names and bases for a relocatable part, empty
-    for a fixed-address one -- the distinction a viewer and a reader both
-    need, since only a placed part can collide with another copy.
+    The answer to "what is on this board": the part, its register count,
+    the LAYER it came from (a part loaded globally and one this config
+    loaded are different facts a flat list would hide), and its placement
+    -- the instance names and bases of a relocatable part, empty for a
+    fixed-address one, since only a placed part can collide with another
+    copy.
 
     Args:
-        devices: Loaded devices, in load order.
         address_bits: Address width for rendering instance bases.
-
-    Returns:
-        One tuple per device; the caller lays out the columns.
     """
-    rows: list[tuple[str, str, str, str]] = []
-    for device in devices:
-        placed = " ".join(
-            f"{instance.name}@{hex_addr(instance.base, address_bits)}"
-            for instance in device.instances
-            if instance.name
+
+    def placement(record: dict[str, Any]) -> str:
+        return " ".join(
+            f"{instance['name']}@{hex_addr(instance['base'], address_bits)}"
+            for instance in record["instances"]
+            if instance["name"]
         )
-        rows.append((device.name, str(len(device)), device.layer or "-", placed))
-    return rows
+
+    return (
+        Column("DEVICE", lambda record: record["device"]),
+        Column("REGISTERS", lambda record: str(record["registers"]), right=True),
+        Column("LAYER", lambda record: record["layer"] or "-"),
+        Column("PLACEMENT", placement),
+    )
 
 
-def library_records(parts: list[LibraryPart]) -> list[dict[str, Any]]:
+def library_columns() -> tuple[Column, ...]:
+    """The ``/dev.lib`` table over :func:`library_records`: one row per available part.
+
+    LOADED says whether this config already has the part, in the same
+    glance as the part; clicking a part puts ``/dev.use <part>`` in the
+    input line rather than running it, since using a part changes the
+    config.
+    """
+    return (
+        Column(
+            "PART",
+            lambda record: record["device"],
+            prefill=lambda record: f"dev.use {record['device']}",
+        ),
+        Column("LOADED", lambda record: "yes" if record["loaded"] else ""),
+        Column(
+            "REGISTERS",
+            lambda record: str(record["registers"]) if record["registers"] >= 0 else "?",
+            right=True,
+        ),
+        Column("LAYER", lambda record: record["layer"]),
+        Column("CATEGORY", lambda record: record["category"] or "-"),
+    )
+
+
+def library_records(
+    parts: list[LibraryPart], loaded: frozenset[str] = frozenset()
+) -> list[dict[str, Any]]:
     """The ``data=`` twin for a library listing: one record per available part.
 
     Distinct from :func:`device_records` because these are parts a config
@@ -183,11 +206,17 @@ def library_records(parts: list[LibraryPart]) -> list[dict[str, Any]]:
     ``registers`` is what the file claims rather than what a parse
     produced.  ``layer`` says which library holds the part (the per-config
     one shadows the global), so an agent can tell a shared part from a
-    board-local one.
+    board-local one.  ``loaded`` says whether this config already has
+    the part.
+
+    Args:
+        parts: The library parts to describe.
+        loaded: Names of the devices this config has loaded.
     """
     return [
         {
             "device": part.device,
+            "loaded": part.device in loaded,
             "description": part.description,
             "vendor": part.vendor,
             "category": part.category,

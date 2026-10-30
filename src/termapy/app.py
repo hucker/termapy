@@ -98,7 +98,14 @@ from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 from termapy.terminal_host import SESSION_END, SESSION_START, TerminalHost
-from termapy.widgets import LINK_META, CommandSuggester, LinkLog, SelectableRichLog, StatusBar
+from termapy.widgets import (
+    LINK_META,
+    CommandSuggester,
+    LinkLog,
+    PromptInput,
+    SelectableRichLog,
+    StatusBar,
+)
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
 # or reader-thread post-back fires during app teardown.  NoMatches
@@ -877,7 +884,7 @@ class SerialTerminal(TerminalHost, App):
                 cmd_btn = Button(Text(prefix), id="btn-cmds")
                 cmd_btn.tooltip = Text(f"Show REPL {prefix} commands.")
                 yield cmd_btn
-                yield Input(
+                yield PromptInput(
                     placeholder=f"{prefix} for REPL, {PALETTE_HOTKEY} for palette",
                     id="cmd",
                     suggester=self._suggester,
@@ -3032,6 +3039,27 @@ class SerialTerminal(TerminalHost, App):
         self._set_input_busy(True)
         self._dispatch_on_thread_interactive(cmd)
 
+    def on_prompt_input_multiline_paste(self, event: PromptInput.MultilinePaste) -> None:
+        """A paste of several lines into the prompt: send them all, as TeraTerm does.
+
+        With ``multiline_paste`` off, the first line lands in the prompt as
+        Textual's own paste puts it, and a status line says the rest were
+        left out, so none go missing silently.
+        """
+        lines = event.lines
+        inp = self.query_one("#cmd", Input)
+        if not self.cfg.get("multiline_paste", True):
+            inp.insert_text_at_cursor(lines[0])
+            self._status(f"Pasted 1 of {len(lines)} lines: multiline_paste is off.", "yellow")
+            return
+        if self.query_one("#bottom-bar").disabled or self.repl.in_script:
+            self._status(self._BUSY_MSG, "yellow")
+            return
+        self._saved_placeholder = inp.placeholder
+        inp.placeholder = f"Pasting {len(lines)} lines... escape to stop"
+        self._set_input_busy(True)
+        self._paste_on_thread(lines)
+
     # -- Clickable output ------------------------------------------------------
 
     _LINK_LIMIT = 5000
@@ -3173,6 +3201,47 @@ class SerialTerminal(TerminalHost, App):
             except RuntimeError:
                 break
             time.sleep(0.05)
+
+    @work(thread=True)
+    def _paste_on_thread(self, lines: list[str]) -> None:
+        """Send a paste line by line, as Enter sends a line, ``multiline_paste_delay_ms`` apart.
+
+        TeraTerm's paste: a device line goes as pasted, its indentation
+        kept (Enter strips a typed line; pasted code needs its indent), a
+        blank line sends a bare line ending, and a line starting with the
+        prefix runs as a command.  Pasted lines stay out of the history.
+        A line that fails stops the rest, as it stops a script, so a paste
+        into a closed port answers once rather than once per line.  Escape
+        stops it through the shared stop event, which the paste may clear
+        because it is then the outermost cancellable operation (registry
+        ``plugin-never-clears-stop``).
+        """
+        stop = self.repl._script_stop
+        if not self.repl.in_script:
+            stop.clear()
+        delay_s = self.cfg.get("multiline_paste_delay_ms", 10) / 1000.0
+        prefix = cmd_prefix(self.cfg)
+        sent = 0
+        for line in lines:
+            if stop.is_set():
+                break
+            command = line.strip() if line.lstrip().startswith(prefix) else line
+            try:
+                result = self._dispatch_single(command)
+            except RuntimeError:
+                break
+            if not result.success:
+                break
+            sent += 1
+            if sent < len(lines) and delay_s > 0:
+                stop.wait(delay_s)
+        if sent < len(lines):
+            self._status(f"Paste stopped after {sent} of {len(lines)} lines.", "yellow")
+        try:
+            self.call_from_thread(self._restore_input_placeholder)
+            self.call_from_thread(self._set_input_busy, False)
+        except RuntimeError:
+            pass
 
     _BUSY_MSG = "Busy - a command is still running."
     # How long an off-main dispatch waits for the guard before giving up.

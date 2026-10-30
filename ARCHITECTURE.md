@@ -142,6 +142,7 @@ src/termapy/
 ├── widgets/                #              Custom Textual widgets for termapy's TUI
 │   ├── checkbox.py         #   StrongCheckbox -- a Checkbox with a clearer on/off glyph
 │   ├── link_log.py         #   LinkLog -- the output pane, whose links say on hover what a click does
+│   ├── prompt_input.py     #   The REPL prompt: an Input that hands a paste of several lines to the app
 │   ├── selectable_log.py   #   SelectableRichLog -- a RichLog whose rendered lines select and copy
 │   ├── selection_list.py   #   StrongSelectionList -- a SelectionList with a clearer on/off glyph
 │   ├── status_bar.py       #   The transient status line beside the REPL input

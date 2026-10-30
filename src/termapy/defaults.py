@@ -98,6 +98,11 @@ DEFAULT_CFG = {
     "eol_markers": False,
     "send_bare_enter": False,
     "cmd_delay_ms": 0,
+    # A paste of several lines into the prompt sends them all, one after
+    # another as if typed, this many ms apart (TeraTerm's paste, and its
+    # PasteDelayPerLine default); off, only the first line lands.
+    "multiline_paste": True,
+    "multiline_paste_delay_ms": 10,
     # Input echo of device commands sent to the wire (bare lines +
     # /term.send).  A separate session-only flag, echo_repl, governs echo
     # of REPL/slash commands (/cfg, /help, ...) -- it has no cfg key
@@ -375,6 +380,14 @@ CFG_HELP: dict[str, tuple] = {
     "cmd_delay_ms": (
         "Delay in ms between commands in multi-command input.",
         "0 = no delay. Positive integer.",
+    ),
+    "multiline_paste": (
+        "A paste of several lines into the prompt sends every line, as if typed.",
+        "true/false. Off: only the first line lands in the prompt. Escape stops a paste.",
+    ),
+    "multiline_paste_delay_ms": (
+        "Delay in ms between the lines of a multi-line paste.",
+        "0 = no delay. Non-negative integer. Default: 10 (TeraTerm's).",
     ),
     "protocol": (
         "Wire format the device speaks.",

@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 32
+CURRENT_CONFIG_VERSION = 33
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -734,6 +734,20 @@ def _migrate_v31_to_v32(cfg: dict) -> dict:
 
 
 MIGRATIONS[31] = _migrate_v31_to_v32
+
+
+def _migrate_v32_to_v33(cfg: dict) -> dict:
+    """Add ``multiline_paste`` (on) and ``multiline_paste_delay_ms`` (10).
+
+    A paste of several lines into the prompt now sends every line, as
+    TeraTerm does; until v33 only the first one landed.
+    """
+    cfg.setdefault("multiline_paste", True)
+    cfg.setdefault("multiline_paste_delay_ms", 10)
+    return cfg
+
+
+MIGRATIONS[32] = _migrate_v32_to_v33
 
 
 def migrate_config(cfg: dict) -> dict:

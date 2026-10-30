@@ -1225,6 +1225,196 @@ class TestSerialRxHandoff:
         _run(scenario)
 
 
+class _RecordingPort:
+    """A SerialPort that keeps every write, for the one member ``_serial_write`` touches."""
+
+    def __init__(self) -> None:
+        self.written: list[bytes] = []
+
+    def write(self, data: bytes) -> None:
+        self.written.append(bytes(data))
+
+
+def _paste(app, text: str) -> None:
+    """Deliver ``text`` to the prompt as the terminal driver delivers a paste."""
+    from textual import events
+
+    app.query_one("#cmd").post_message(events.Paste(text))
+
+
+class TestMultilinePaste:
+    """A paste of several lines sends every line, as TeraTerm does (multiline_paste)."""
+
+    def test_every_line_is_sent_as_written(self, app_factory):
+        """Each pasted line reaches the port as pasted: indentation kept, a blank line a bare ending."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app._connect() is True, "DEMO port should connect"
+                port = _RecordingPort()
+                app._engine._serial_port = port
+
+                # Act
+                _paste(app, "def f():\n    return  1\n\nf()\n")
+                await until(pilot, lambda: len(port.written) == 4)
+
+                # Assert
+                expected = [b"def f():\r", b"    return  1\r", b"\r", b"f()\r"]
+                assert port.written == expected, "every line, as pasted, in order"
+                app._disconnect()
+
+        _run(scenario)
+
+    def test_a_slash_line_runs_as_a_command(self, app_factory):
+        """A pasted line starting with the prefix runs as a command and never reaches the port."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app._connect() is True, "DEMO port should connect"
+                port = _RecordingPort()
+                app._engine._serial_port = port
+
+                # Act
+                _paste(app, "/print pasted-marker\nAT\n")
+                await until(pilot, lambda: len(port.written) == 1)
+                await until(pilot, lambda: "pasted-marker" in app._get_screen_text())
+
+                # Assert
+                assert port.written == [b"AT\r"], "only the device line was written"
+                assert "pasted-marker" in app._get_screen_text(), "the command ran"
+                app._disconnect()
+
+        _run(scenario)
+
+    def test_escape_stops_the_rest_and_the_next_paste_sends_all(self, app_factory):
+        """Escape ends a paste part way; a paste after it is not stopped by the old Escape."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(multiline_paste_delay_ms=200)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app._connect() is True, "DEMO port should connect"
+                port = _RecordingPort()
+                app._engine._serial_port = port
+                bar = app.query_one("#bottom-bar")
+
+                # Act -- a long paste, stopped after its first line
+                _paste(app, "\n".join(f"L{i}" for i in range(20)))
+                await until(pilot, lambda: len(port.written) >= 1)
+                app.action_stop_script()
+                await until(pilot, lambda: not bar.disabled)
+                stopped_at = len(port.written)
+                # Act -- the next paste
+                _paste(app, "A\nB")
+                await until(pilot, lambda: len(port.written) == stopped_at + 2)
+
+                # Assert
+                assert stopped_at < 20, "Escape kept the rest of the first paste back"
+                assert "Paste stopped after" in app._get_screen_text(), "the stop is reported"
+                actual = port.written[stopped_at:]
+                assert actual == [b"A\r", b"B\r"], "the second paste sends every line"
+                app._disconnect()
+
+        _run(scenario)
+
+    def test_two_pastes_in_a_row_both_send_every_line(self, app_factory):
+        """The second paste of two in a row sends all its lines after the first's."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app._connect() is True, "DEMO port should connect"
+                port = _RecordingPort()
+                app._engine._serial_port = port
+                bar = app.query_one("#bottom-bar")
+
+                # Act
+                _paste(app, "A\nB")
+                await until(pilot, lambda: len(port.written) == 2 and not bar.disabled)
+                _paste(app, "C\nD")
+                await until(pilot, lambda: len(port.written) == 4)
+
+                # Assert
+                expected = [b"A\r", b"B\r", b"C\r", b"D\r"]
+                assert port.written == expected, "both pastes, whole and in order"
+                app._disconnect()
+
+        _run(scenario)
+
+    def test_a_closed_port_answers_once_not_per_line(self, app_factory):
+        """A failed line stops the paste, so a paste into a closed port reports once."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                _paste(app, "A\nB\nC")
+                await until(pilot, lambda: "Paste stopped after" in app._get_screen_text())
+
+                # Assert
+                text = app._get_screen_text()
+                actual = text.count(STATE_MESSAGES["serial_connected"])
+                assert actual == 1, f"one refusal, not one per line: {text!r}"
+                assert "Paste stopped after 0 of 3 lines." in text, "the stop says how far it got"
+
+        _run(scenario)
+
+    def test_off_pastes_only_the_first_line_and_says_so(self, app_factory):
+        """With multiline_paste off, the first line lands in the prompt and a status names the rest."""
+
+        async def scenario():
+            from textual.widgets import Input
+
+            # Arrange
+            app, _, _ = app_factory(multiline_paste=False)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                inp = app.query_one("#cmd", Input)
+
+                # Act
+                _paste(app, "AT+ONE\nAT+TWO\nAT+THREE")
+                await until(pilot, lambda: inp.value == "AT+ONE")
+
+                # Assert
+                assert inp.value == "AT+ONE", "the first line, for editing"
+                assert "Pasted 1 of 3 lines" in app._get_screen_text(), "the rest are not silent"
+
+        _run(scenario)
+
+    def test_a_one_line_paste_lands_in_the_prompt(self, app_factory):
+        """A one-line paste is Textual's: the text sits in the prompt, unsent."""
+
+        async def scenario():
+            from textual.widgets import Input
+
+            # Arrange
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                inp = app.query_one("#cmd", Input)
+
+                # Act
+                _paste(app, "AT+INFO")
+                await until(pilot, lambda: inp.value == "AT+INFO")
+
+                # Assert
+                assert inp.value == "AT+INFO", "in the prompt, for editing"
+
+        _run(scenario)
+
+
 class _RaisingPort:
     """A SerialPort whose write() fails, e.g. the adapter is unplugged mid-send.
 

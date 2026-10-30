@@ -753,6 +753,28 @@ class TestDispatchFull:
         assert writes == [b"ATZ\r"], "command encoded with line ending"
         assert len(logged) == 0, "serial commands not logged through dispatch"
 
+    def test_a_device_line_goes_as_written(self, dispatch_env):
+        """A bare line keeps its indentation and inner spacing: pasted code needs its indent."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        # Act
+        do("    print('a  b')")
+
+        # Assert
+        assert writes == [b"    print('a  b')\r"], "the line reaches the wire unchanged"
+
+    def test_term_send_sends_its_text_literally(self, dispatch_env):
+        """/term.send keeps the spacing of its text, as its literal-send contract says."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        # Act
+        do("/term.send   a  b")
+
+        # Assert
+        assert writes == [b"  a  b\r"], "only the one blank after the name is the separator"
+
     def test_empty_line_sends_line_ending(self, dispatch_env):
         """An empty line sends just the eol rather than tripping the empty-send guard."""
         # Arrange -- send_bare_enter forwards an empty line; it should send
@@ -765,6 +787,17 @@ class TestDispatchFull:
 
         # Assert
         assert writes == [b"\r"], "empty bare line sends the configured line ending"
+
+    def test_an_empty_line_is_echoed_like_any_device_line(self, dispatch_env):
+        """With echo on, the bare line ending an empty line sends shows as an empty echo line."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        # Act
+        do("")
+
+        # Assert
+        assert len(echoed) == 1, f"one echo line for the bare line ending: {echoed}"
 
     def test_repl_command_dispatched(self, dispatch_env):
         """A slash command is logged and echoed but never sent to the device."""

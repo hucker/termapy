@@ -239,6 +239,7 @@ def _flatten_command(
     prefix: str,
     source: str,
     group: str = "",
+    maturity: str = "",
 ) -> list[PluginInfo]:
     """Recursively flatten a Command tree into PluginInfo entries.
 
@@ -257,12 +258,19 @@ def _flatten_command(
     ``help-group-declared``).  A group on a subcommand is ignored --
     ``/sym.search`` cannot leave ``/sym``'s group.
 
+    ``maturity`` inherits too, but a subcommand MAY declare its own: the
+    nearest declaration wins, either way (``/sym`` preview, one
+    ``/sym.x`` prototype), and an undeclared root is stable (registry
+    ``maturity-declared-once``).
+
     Args:
         node: Command instance with name/help/handler/sub_commands.
         prefix: Dotted path prefix (empty for root).
         source: Plugin source label.
         group: The root's group, passed down the recursion; ``""`` at
             the root, where the node's own declaration is taken.
+        maturity: The parent's resolved maturity, passed down the
+            recursion; ``""`` at the root.
 
     Returns:
         List of PluginInfo for this node and all descendants.
@@ -273,12 +281,13 @@ def _flatten_command(
     children: list[str] = []
     result: list[PluginInfo] = []
     group = group or node.group
+    maturity = node.maturity or maturity or "stable"
 
     # Recurse into sub_commands first so we can build the children list
     for sub_name, sub_node in sub_commands.items():
         # Set name on sub-node so recursion works uniformly
         sub_node.name = sub_name
-        child_infos = _flatten_command(sub_node, full_name, source, group)
+        child_infos = _flatten_command(sub_node, full_name, source, group, maturity)
         result.extend(child_infos)
         children.append(f"{full_name}.{sub_name}".lower())
 
@@ -323,6 +332,7 @@ def _flatten_command(
         bare_sub=node.bare_sub,
         help_list=node.help_list,
         group=group,
+        maturity=maturity,
     )
     result.insert(0, info)
     return result

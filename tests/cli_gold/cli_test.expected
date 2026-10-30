@@ -257,6 +257,9 @@ demo> /help /cfg.loaded
 NAME
   /cfg.loaded - Show what the config load loaded: plugins, symbols, devices.
 
+STATUS
+  stable - covered by termapy's compatibility promise
+
 DESCRIPTION
   The table every config load reports, at startup and on a switch: one row per plugin file, symbol table and device file the load read, from the global layer and the config's own, with what each registered.  A file that failed is a row with its error.  It goes to the session log, and to the screen too when quiet_start is off.  Under MCP the profile auto-loaded on connect is a row too.  Later imports and loads (/sym.import, /dev.import, /profile.load) answer for themselves and are not added.
 
@@ -420,6 +423,9 @@ demo> /port.help
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
 
+STATUS
+  stable - covered by termapy's compatibility promise
+
 SYNOPSIS
   /port {name}
   /port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list
@@ -436,26 +442,26 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /port.baud_rate       Show or set baud rate.
-  /port.break           Send a break signal (default 250ms).
-  /port.byte_size       Show or set data bits.
-  /port.cd              Show Carrier Detect state (read-only).
-  /port.chip            Identify USB-serial chip(s) and report USB speed class.
-  /port.connect         Connect to the serial port (e.g. /port.connect COM3 9600 N81).
-  /port.cts             Show CTS state (read-only).
-  /port.disconnect      Disconnect from the serial port.
-  /port.dsr             Show DSR state (read-only).
-  /port.dtr             Show or set DTR line (hardware only).
-  /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
-  /port.help            Show /port help.
-  /port.info            Print status, params, chip, and live signals for the connected port.
-  /port.list            List available serial ports.
-  /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
-  /port.parity          Show or set parity.
-  /port.ri              Show Ring Indicator state (read-only).
-  /port.rts             Show or set RTS line (hardware only).
-  /port.stop_bits       Show or set stop bits.
-  /port.usb             Show the whole USB tree, with serial ports marked.
+  /port.baud_rate       stable     Show or set baud rate.
+  /port.break           stable     Send a break signal (default 250ms).
+  /port.byte_size       stable     Show or set data bits.
+  /port.cd              stable     Show Carrier Detect state (read-only).
+  /port.chip            stable     Identify USB-serial chip(s) and report USB speed class.
+  /port.connect         stable     Connect to the serial port (e.g. /port.connect COM3 9600 N81).
+  /port.cts             stable     Show CTS state (read-only).
+  /port.disconnect      stable     Disconnect from the serial port.
+  /port.dsr             stable     Show DSR state (read-only).
+  /port.dtr             stable     Show or set DTR line (hardware only).
+  /port.flow_control    stable     Show or set flow control (none/rtscts/xonxoff/manual).
+  /port.help            stable     Show /port help.
+  /port.info            stable     Print status, params, chip, and live signals for the connected port.
+  /port.list            stable     List available serial ports.
+  /port.mode            stable     Show or set serial mode (e.g. /port.mode 9600 N81).
+  /port.parity          stable     Show or set parity.
+  /port.ri              stable     Show Ring Indicator state (read-only).
+  /port.rts             stable     Show or set RTS line (hardware only).
+  /port.stop_bits       stable     Show or set stop bits.
+  /port.usb             stable     Show the whole USB tree, with serial ports marked.
   [83/219] /port (5.68ms)
 demo> /print === section: line endings ===
   === section: line endings ===
@@ -843,6 +849,9 @@ demo> /help echo
 NAME
   /echo - Toggle echo of device commands sent to the wire. Use /echo.silent to set without echoing.
 
+STATUS
+  stable - covered by termapy's compatibility promise
+
 SYNOPSIS
   /echo {on|off}
 
@@ -856,6 +865,9 @@ AVAILABLE
 demo> /help port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /port {name}
@@ -873,30 +885,33 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /port.baud_rate       Show or set baud rate.
-  /port.break           Send a break signal (default 250ms).
-  /port.byte_size       Show or set data bits.
-  /port.cd              Show Carrier Detect state (read-only).
-  /port.chip            Identify USB-serial chip(s) and report USB speed class.
-  /port.connect         Connect to the serial port (e.g. /port.connect COM3 9600 N81).
-  /port.cts             Show CTS state (read-only).
-  /port.disconnect      Disconnect from the serial port.
-  /port.dsr             Show DSR state (read-only).
-  /port.dtr             Show or set DTR line (hardware only).
-  /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
-  /port.help            Show /port help.
-  /port.info            Print status, params, chip, and live signals for the connected port.
-  /port.list            List available serial ports.
-  /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
-  /port.parity          Show or set parity.
-  /port.ri              Show Ring Indicator state (read-only).
-  /port.rts             Show or set RTS line (hardware only).
-  /port.stop_bits       Show or set stop bits.
-  /port.usb             Show the whole USB tree, with serial ports marked.
+  /port.baud_rate       stable     Show or set baud rate.
+  /port.break           stable     Send a break signal (default 250ms).
+  /port.byte_size       stable     Show or set data bits.
+  /port.cd              stable     Show Carrier Detect state (read-only).
+  /port.chip            stable     Identify USB-serial chip(s) and report USB speed class.
+  /port.connect         stable     Connect to the serial port (e.g. /port.connect COM3 9600 N81).
+  /port.cts             stable     Show CTS state (read-only).
+  /port.disconnect      stable     Disconnect from the serial port.
+  /port.dsr             stable     Show DSR state (read-only).
+  /port.dtr             stable     Show or set DTR line (hardware only).
+  /port.flow_control    stable     Show or set flow control (none/rtscts/xonxoff/manual).
+  /port.help            stable     Show /port help.
+  /port.info            stable     Print status, params, chip, and live signals for the connected port.
+  /port.list            stable     List available serial ports.
+  /port.mode            stable     Show or set serial mode (e.g. /port.mode 9600 N81).
+  /port.parity          stable     Show or set parity.
+  /port.ri              stable     Show Ring Indicator state (read-only).
+  /port.rts             stable     Show or set RTS line (hardware only).
+  /port.stop_bits       stable     Show or set stop bits.
+  /port.usb             stable     Show the whole USB tree, with serial ports marked.
   [166/219] /help port (5.64ms)
 demo> /help cfg
 NAME
   /cfg - Show or set config values.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /cfg {key {value}}
@@ -921,21 +936,21 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /cfg.auto       Set immediately (no confirmation).
-  /cfg.delete     Delete a config and its whole folder (asks first).
-  /cfg.dump       Print the config in memory as JSON to the terminal.
-  /cfg.edit       Edit the current config file.
-  /cfg.explore    Open config directory in file explorer.
-  /cfg.file       Print a file from the config folder to the terminal.
-  /cfg.help       Show /cfg help.
-  /cfg.icon       Create a desktop / menu launcher for the current cfg.
-  /cfg.info       Print project summary (tree + config + buttons).
-  /cfg.list       List all config files.
-  /cfg.load       Load a different config in this session (hot-swap).
-  /cfg.loaded     Show what the config load loaded: plugins, symbols, devices.
-  /cfg.new        Create a config for a port; /cfg.load <name> switches to it.
-  /cfg.rename     Rename a config, folder and file together.
-  /cfg.show       Open the current config file in the system viewer.
+  /cfg.auto       stable     Set immediately (no confirmation).
+  /cfg.delete     stable     Delete a config and its whole folder (asks first).
+  /cfg.dump       stable     Print the config in memory as JSON to the terminal.
+  /cfg.edit       stable     Edit the current config file.
+  /cfg.explore    stable     Open config directory in file explorer.
+  /cfg.file       stable     Print a file from the config folder to the terminal.
+  /cfg.help       stable     Show /cfg help.
+  /cfg.icon       stable     Create a desktop / menu launcher for the current cfg.
+  /cfg.info       stable     Print project summary (tree + config + buttons).
+  /cfg.list       stable     List all config files.
+  /cfg.load       stable     Load a different config in this session (hot-swap).
+  /cfg.loaded     stable     Show what the config load loaded: plugins, symbols, devices.
+  /cfg.new        stable     Create a config for a port; /cfg.load <name> switches to it.
+  /cfg.rename     stable     Rename a config, folder and file together.
+  /cfg.show       stable     Open the current config file in the system viewer.
 
 CONFIGS
   termapy_cfg/ - 2 configs
@@ -947,6 +962,9 @@ CONFIGS
 demo> /help var
 NAME
   /var - List user variables, or show one by name.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /var {name}
@@ -1023,14 +1041,17 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /var.capture    Capture command output into a user variable.
-  /var.clear      Clear all user variables.
-  /var.list       Explicit alias for bare /var.
-  /var.set        Set a user variable to a literal value.
+  /var.capture    stable     Capture command output into a user variable.
+  /var.clear      stable     Clear all user variables.
+  /var.list       stable     Explicit alias for bare /var.
+  /var.set        stable     Set a user variable to a literal value.
   [168/219] /help var (10.7ms)
 demo> /help cap
 NAME
   /cap - Data capture tools.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /cap -- bare: runs /cap.explore
@@ -1042,23 +1063,26 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /cap.bin        Capture raw binary bytes.
-  /cap.delete     Delete a file from cap/; a pattern (* for all) deletes its matches, after a yes.
-  /cap.dump       Print the newest (or named) file from cap/ to the terminal.
-  /cap.explore    Open cap/ in the system file explorer.
-  /cap.hex        Capture hex text lines, decode with format spec to CSV.
-  /cap.list       List files in cap/, newest first, with size and age.
-  /cap.poll       Poll commands on a schedule, display (and optionally save) results.
-  /cap.rename     Rename a file in cap/ (extension kept; never overwrites).
-  /cap.show       Open the newest (or named) file in cap/ with the system viewer.
-  /cap.stop       Stop an active capture.
-  /cap.struct     Capture raw bytes, decode with format spec to CSV.
-  /cap.text       Capture serial text to a file for a timed duration.
-  /cap.wire       Run a command and show TX/RX bytes as inline hex + repr.
+  /cap.bin        stable     Capture raw binary bytes.
+  /cap.delete     stable     Delete a file from cap/; a pattern (* for all) deletes its matches, after a yes.
+  /cap.dump       stable     Print the newest (or named) file from cap/ to the terminal.
+  /cap.explore    stable     Open cap/ in the system file explorer.
+  /cap.hex        stable     Capture hex text lines, decode with format spec to CSV.
+  /cap.list       stable     List files in cap/, newest first, with size and age.
+  /cap.poll       stable     Poll commands on a schedule, display (and optionally save) results.
+  /cap.rename     stable     Rename a file in cap/ (extension kept; never overwrites).
+  /cap.show       stable     Open the newest (or named) file in cap/ with the system viewer.
+  /cap.stop       stable     Stop an active capture.
+  /cap.struct     stable     Capture raw bytes, decode with format spec to CSV.
+  /cap.text       stable     Capture serial text to a file for a timed duration.
+  /cap.wire       stable     Run a command and show TX/RX bytes as inline hex + repr.
   [169/219] /help cap (4.85ms)
 demo> /help ss
 NAME
   /ss - Screenshot tools: save SVG/text, manage folder.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /ss -- bare: runs /ss.explore
@@ -1070,17 +1094,20 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /ss.delete     Delete a file from ss/; a pattern (* for all) deletes its matches, after a yes.
-  /ss.explore    Open ss/ in the system file explorer.
-  /ss.list       List files in ss/, newest first, with size and age.
-  /ss.rename     Rename a file in ss/ (extension kept; never overwrites).
-  /ss.show       Open the newest (or named) file in ss/ with the system viewer.
-  /ss.svg        Save an SVG screenshot of the terminal.
-  /ss.txt        Save a text screenshot (optionally last/first N lines).
+  /ss.delete     stable     Delete a file from ss/; a pattern (* for all) deletes its matches, after a yes.
+  /ss.explore    stable     Open ss/ in the system file explorer.
+  /ss.list       stable     List files in ss/, newest first, with size and age.
+  /ss.rename     stable     Rename a file in ss/ (extension kept; never overwrites).
+  /ss.show       stable     Open the newest (or named) file in ss/ with the system viewer.
+  /ss.svg        stable     Save an SVG screenshot of the terminal.
+  /ss.txt        stable     Save a text screenshot (optionally last/first N lines).
   [170/219] /help ss (2.87ms)
 demo> /help proto
 NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /proto -- bare: opens the Proto picker in the TUI; elsewhere runs /proto.list
@@ -1118,20 +1145,20 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /proto.crc        Browse and compute CRC algorithms.
-  /proto.debug      Interactive protocol debug screen.
-  /proto.delete     Delete a file from proto/, after a yes.
-  /proto.dump       Print the newest (or named) file from proto/ to the terminal.
-  /proto.edit       Open a .pro file for editing.
-  /proto.explore    Open proto/ in the system file explorer.
-  /proto.help       Show /proto help.
-  /proto.hex        Toggle hex display of incoming bytes (same flag as /term.hex).
-  /proto.info       Print current protocol state.
-  /proto.list       List .pro scripts, newest first, with size, age, and the name each declares.
-  /proto.rename     Rename a file in proto/ (extension kept; never overwrites).
-  /proto.run        Run a protocol test script.
-  /proto.send       Send raw bytes (with optional CRC), show response.
-  /proto.show       Open the newest (or named) file in proto/ with the system viewer.
+  /proto.crc        stable     Browse and compute CRC algorithms.
+  /proto.debug      stable     Interactive protocol debug screen.
+  /proto.delete     stable     Delete a file from proto/, after a yes.
+  /proto.dump       stable     Print the newest (or named) file from proto/ to the terminal.
+  /proto.edit       stable     Open a .pro file for editing.
+  /proto.explore    stable     Open proto/ in the system file explorer.
+  /proto.help       stable     Show /proto help.
+  /proto.hex        stable     Toggle hex display of incoming bytes (same flag as /term.hex).
+  /proto.info       stable     Print current protocol state.
+  /proto.list       stable     List .pro scripts, newest first, with size, age, and the name each declares.
+  /proto.rename     stable     Rename a file in proto/ (extension kept; never overwrites).
+  /proto.run        stable     Run a protocol test script.
+  /proto.send       stable     Send raw bytes (with optional CRC), show response.
+  /proto.show       stable     Open the newest (or named) file in proto/ with the system viewer.
 
 SCRIPTS
   proto/ - 3 scripts
@@ -1145,21 +1172,27 @@ demo> /help plugin
 NAME
   /plugin - Plugin-folder tools: list, explore, show, dump, edit.
 
+STATUS
+  stable - covered by termapy's compatibility promise
+
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /plugin.delete     Delete a file from plugin/, after a yes.
-  /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
-  /plugin.edit       Open a .py file for editing.
-  /plugin.explore    Open plugin/ in the system file explorer.
-  /plugin.list       List files in plugin/, newest first, with size and age.
-  /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
-  /plugin.show       Open the newest (or named) file in plugin/ with the system viewer.
+  /plugin.delete     stable     Delete a file from plugin/, after a yes.
+  /plugin.dump       stable     Print the newest (or named) file from plugin/ to the terminal.
+  /plugin.edit       stable     Open a .py file for editing.
+  /plugin.explore    stable     Open plugin/ in the system file explorer.
+  /plugin.list       stable     List files in plugin/, newest first, with size and age.
+  /plugin.rename     stable     Rename a file in plugin/ (extension kept; never overwrites).
+  /plugin.show       stable     Open the newest (or named) file in plugin/ with the system viewer.
   [172/219] /help plugin (1.56ms)
 demo> /help sym
 NAME
   /sym - Symbol table: name -> address, or address -> name+offset.
+
+STATUS
+  preview - works, but may change in any release, outside the compatibility promise
 
 SYNOPSIS
   /sym <addr|name>
@@ -1199,15 +1232,18 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /sym.import    Convert an ELF or a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same file).
-  /sym.info      Show the loaded symbol table: file, source, counts by section, address range.
-  /sym.load      Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
-  /sym.search    Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
-  /sym.unload    Clear the loaded symbol table.
+  /sym.import    preview    Convert an ELF or a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same file).
+  /sym.info      preview    Show the loaded symbol table: file, source, counts by section, address range.
+  /sym.load      preview    Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
+  /sym.search    preview    Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
+  /sym.unload    preview    Clear the loaded symbol table.
   [173/219] /help sym (6.65ms)
 demo> /help mem
 NAME
   /mem - Device memory: dump, typed reads, writes and bit ops via /sym names.
+
+STATUS
+  preview - works, but may change in any release, outside the compatibility promise
 
 SYNOPSIS
   /mem -- bare: runs /mem.info
@@ -1256,20 +1292,23 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /mem.and      AND a mask into one word (atomic via MEM.M when available).
-  /mem.clear    Clear mask bits in one word: word &= ~mask (atomic via MEM.M when available).
-  /mem.dump     Hexdump or word columns at an address or symbol (default: the symbol's size, else 64).
-  /mem.info     Show how memory access is configured: dialect, block limit, address width, endian, atomic modify.
-  /mem.not      Invert one word (always read + write-back).
-  /mem.or       OR a mask into one word (atomic via MEM.M when available).
-  /mem.read     Read one typed value: scalar, char, register field, bit or slice.
-  /mem.str      Read a NUL-terminated string at an address or symbol.
-  /mem.write    Write a value to a named symbol, register or field, or hex bytes at an address (audited).
-  /mem.xor      XOR a mask into one word (always read + write-back).
+  /mem.and      preview    AND a mask into one word (atomic via MEM.M when available).
+  /mem.clear    preview    Clear mask bits in one word: word &= ~mask (atomic via MEM.M when available).
+  /mem.dump     preview    Hexdump or word columns at an address or symbol (default: the symbol's size, else 64).
+  /mem.info     preview    Show how memory access is configured: dialect, block limit, address width, endian, atomic modify.
+  /mem.not      preview    Invert one word (always read + write-back).
+  /mem.or       preview    OR a mask into one word (atomic via MEM.M when available).
+  /mem.read     preview    Read one typed value: scalar, char, register field, bit or slice.
+  /mem.str      preview    Read a NUL-terminated string at an address or symbol.
+  /mem.write    preview    Write a value to a named symbol, register or field, or hex bytes at an address (audited).
+  /mem.xor      preview    XOR a mask into one word (always read + write-back).
   [174/219] /help mem (5.69ms)
 demo> /help run
 NAME
   /run - Run a script file, or list available scripts.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /run {filename}
@@ -1282,17 +1321,17 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /run.delete     Delete a file from run/, after a yes.
-  /run.dump       Print the newest (or named) file from run/ to the terminal.
-  /run.edit       Open a .run file for editing.
-  /run.explore    Open run/ in the system file explorer.
-  /run.help       Show /run help, or print a script's docstring.
-  /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
-  /run.list       List .run scripts, newest first, with size, age, and docstring summary.
-  /run.profile    Run a script with per-line timing (CSV to prof/).
-  /run.record     Record commands to a .run script (bare /run.record stops).
-  /run.rename     Rename a file in run/ (extension kept; never overwrites).
-  /run.show       Open the newest (or named) file in run/ with the system viewer.
+  /run.delete     stable     Delete a file from run/, after a yes.
+  /run.dump       stable     Print the newest (or named) file from run/ to the terminal.
+  /run.edit       stable     Open a .run file for editing.
+  /run.explore    stable     Open run/ in the system file explorer.
+  /run.help       stable     Show /run help, or print a script's docstring.
+  /run.legacy     stable     Scan a .run script for legacy command names (report, or --fix to rewrite).
+  /run.list       stable     List .run scripts, newest first, with size, age, and docstring summary.
+  /run.profile    stable     Run a script with per-line timing (CSV to prof/).
+  /run.record     stable     Record commands to a .run script (bare /run.record stops).
+  /run.rename     stable     Rename a file in run/ (extension kept; never overwrites).
+  /run.show       stable     Open the newest (or named) file in run/ with the system viewer.
 
 SCRIPTS
   run/ - 9 scripts
@@ -1313,6 +1352,9 @@ demo> /print === section: help required capabilities ===
 demo> /help profile.save
 NAME
   /profile.save - Write the active profile to a file (default: <cfg_dir>/<cfg_stem>.profile.json).
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /profile.save {path}
@@ -1336,6 +1378,9 @@ demo> /help sym.search
 NAME
   /sym.search - Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
 
+STATUS
+  preview - works, but may change in any release, outside the compatibility promise
+
 SYNOPSIS
   /sym.search <pattern>
 
@@ -1350,6 +1395,9 @@ SEE ALSO
 demo> /help cap.text
 NAME
   /cap.text - Capture serial text to a file for a timed duration.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 SYNOPSIS
   /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=<command>}
@@ -1399,79 +1447,91 @@ demo> /print === section: help.plugin ===
   [178/219] /print === section: help.plugin === (185us)
 demo> /help.plugin
 -- Application --
-  /cli          Already in CLI mode.
-  /tui          Switch to TUI mode.
+  /cli          stable     Already in CLI mode.
+  /tui          stable     Switch to TUI mode.
 
 -- Application Plugins --
-  /app          App-wide state and config.
-  /board        Starter projects for real dev boards: list, new, firmware.
-  /cap          Data capture tools.
-  /cfg          Show or set config values.
-  /cls          Clear the terminal screen.
-  /credits      Print acknowledgments / third-party attributions.
-  /delay        Wait for a duration (e.g. 500ms, 1.5s); Escape or Ctrl+C cancels.
-  /demo         Switch to the built-in demo device (creates its config if needed).
-  /dev          Device files: a part's registers as data (see /help devices).
-  /edit         Open a project file for editing (run/, proto/ or plugin/).
-  /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).
-  /exit         Exit termapy.
-  /find         Navigate scrollback matches with an interactive find bar.
-  /firmware     Device-side sources termapy ships: list, copy, show, dump.
-  /grep         Search the scrollback for lines matching a pattern (case-insensitive regex).
-  /help         Print the command landscape or look up a specific command.
-  /log          Session log: print, fingerprint, or open it.
-  /mcp          MCP catalog and status (Model Context Protocol).
-  /mem          Device memory: dump, typed reads, writes and bit ops via /sym names.
-  /os           Run a shell command and show output (10s timeout). e.g. /os dir
-  /ping         Send a command and measure response time.
-  /plugin       Plugin-folder tools: list, explore, show, dump, edit.
-  /port         Serial port tools: connect, disconnect, list, configure.
-  /print        Print a message to the terminal.
-  /profile      Device profile commands (MCP profile schema, validator, loader).
-  /proto        Binary protocol tools: send, run, debug, hex, crc, info.
-  /raw          Send raw text to serial (no transforms or line ending).
-  /repeat       Repeat a command N times with optional delay (escape to cancel).
-  /run          Run a script file, or list available scripts.
-  /search       Deep-search every command's metadata (name, help, args, flags, long help).
-  /seq          Print sequence counters.
-  /show         Show a file.
-  /ss           Screenshot tools: save SVG/text, manage folder.
-  /stop         Abort a running script.
-  /sym          Symbol table: name -> address, or address -> name+offset.
-  /term         Terminal display / session toggles (echo, line_no, timestamps, ...).
-  /var          List user variables, or show one by name.
-  /xfer         File transfer: settings and XMODEM / YMODEM send and receive.
+  /app          stable     App-wide state and config.
+  /board        prototype  Starter projects for real dev boards: list, new, firmware.
+  /cap          stable     Data capture tools.
+  /cfg          stable     Show or set config values.
+  /cls          stable     Clear the terminal screen.
+  /credits      stable     Print acknowledgments / third-party attributions.
+  /delay        stable     Wait for a duration (e.g. 500ms, 1.5s); Escape or Ctrl+C cancels.
+  /demo         stable     Switch to the built-in demo device (creates its config if needed).
+  /dev          preview    Device files: a part's registers as data (see /help devices).
+  /edit         stable     Open a project file for editing (run/, proto/ or plugin/).
+  /env          stable     Print environment variables for $(env.NAME) expansion (alias: /env.list).
+  /exit         stable     Exit termapy.
+  /find         stable     Navigate scrollback matches with an interactive find bar.
+  /firmware     prototype  Device-side sources termapy ships: list, copy, show, dump.
+  /grep         stable     Search the scrollback for lines matching a pattern (case-insensitive regex).
+  /help         stable     Print the command landscape or look up a specific command.
+  /log          stable     Session log: print, fingerprint, or open it.
+  /mcp          preview    MCP catalog and status (Model Context Protocol).
+  /mem          preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
+  /os           stable     Run a shell command and show output (10s timeout). e.g. /os dir
+  /ping         stable     Send a command and measure response time.
+  /plugin       stable     Plugin-folder tools: list, explore, show, dump, edit.
+  /port         stable     Serial port tools: connect, disconnect, list, configure.
+  /print        stable     Print a message to the terminal.
+  /profile      stable     Device profile commands (MCP profile schema, validator, loader).
+  /proto        stable     Binary protocol tools: send, run, debug, hex, crc, info.
+  /raw          stable     Send raw text to serial (no transforms or line ending).
+  /repeat       stable     Repeat a command N times with optional delay (escape to cancel).
+  /run          stable     Run a script file, or list available scripts.
+  /search       stable     Deep-search every command's metadata (name, help, args, flags, long help).
+  /seq          stable     Print sequence counters.
+  /show         stable     Show a file.
+  /ss           stable     Screenshot tools: save SVG/text, manage folder.
+  /stop         stable     Abort a running script.
+  /sym          preview    Symbol table: name -> address, or address -> name+offset.
+  /term         stable     Terminal display / session toggles (echo, line_no, timestamps, ...).
+  /var          stable     List user variables, or show one by name.
+  /xfer         stable     File transfer: settings and XMODEM / YMODEM send and receive.
 
 -- demo Plugins --
-  /crcsend      Send text with XMODEM CRC-16 appended.
-  /probe        Query the device and display the response.
-  /temp_plot    Sample temperature and show ASCII sparkline.
+  /crcsend      stable     Send text with XMODEM CRC-16 appended.
+  /probe        stable     Query the device and display the response.
+  /temp_plot    stable     Sample temperature and show ASCII sparkline.
 
 -- Script Commands (.run files only) --
-  /confirm      Show Yes/Cancel dialog; Cancel stops a running script.
-  /expect       Wait for text in serial output (blocks until match or timeout).
+  /confirm      stable     Show Yes/Cancel dialog; Cancel stops a running script.
+  /expect       stable     Wait for text in serial output (blocks until match or timeout).
   45 commands.
   [179/219] /help.plugin (6.49ms)
 demo> /print === section: help.group ===
   === section: help.group ===
   [180/219] /print === section: help.group === (185us)
 demo> /help.group
--- Groups --
-  /help.group advanced  12 commands app, confirm, credits, edit, env, expect, ...
-  /help.group devices   6 commands  board, dev, firmware, mem, profile, sym
-  /help.group plugins   3 commands  crcsend, probe, temp_plot
-  /help.group protocol  3 commands  ping, proto, xfer
-  /help.group terminal  21 commands cap, cfg, cli, cls, delay, demo, exit, ...
-  [181/219] /help.group (2.52ms)
+  groups - 5 groups
+  GROUP     COMMANDS  NAMES                                          NOTE
+  --------  --------  ---------------------------------------------  ----
+  advanced        12  app, confirm, credits, edit, env, expect, ...
+  devices          6  board, dev, firmware, mem, profile, sym
+  plugins          3  crcsend, probe, temp_plot
+  protocol         3  ping, proto, xfer
+  terminal        21  cap, cfg, cli, cls, delay, demo, exit, ...
 demo> /help.group devices
--- devices --
-  /board       Starter projects for real dev boards: list, new, firmware.
-  /dev         Device files: a part's registers as data (see /help devices).
-  /firmware    Device-side sources termapy ships: list, copy, show, dump.
-  /mem         Device memory: dump, typed reads, writes and bit ops via /sym names.
-  /profile     Device profile commands (MCP profile schema, validator, loader).
-  /sym         Symbol table: name -> address, or address -> name+offset.
-  [182/219] /help.group devices (1.67ms)
+  devices - 6 commands
+  COMMAND    LEVEL      DESCRIPTION
+  ---------  ---------  --------------------------------------------------------------------
+  /board     prototype  Starter projects for real dev boards: list, new, firmware.
+  /dev       preview    Device files: a part's registers as data (see /help devices).
+  /firmware  prototype  Device-side sources termapy ships: list, copy, show, dump.
+  /mem       preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
+  /profile   stable     Device profile commands (MCP profile schema, validator, loader).
+  /sym       preview    Symbol table: name -> address, or address -> name+offset.
+demo> /help.group dev*
+  devices - 6 commands
+  COMMAND    LEVEL      DESCRIPTION
+  ---------  ---------  --------------------------------------------------------------------
+  /board     prototype  Starter projects for real dev boards: list, new, firmware.
+  /dev       preview    Device files: a part's registers as data (see /help devices).
+  /firmware  prototype  Device-side sources termapy ships: list, copy, show, dump.
+  /mem       preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
+  /profile   stable     Device profile commands (MCP profile schema, validator, loader).
+  /sym       preview    Symbol table: name -> address, or address -> name+offset.
 demo> /help.group nope
   Error: Unknown group: nope (use advanced, devices, plugins, protocol, terminal)
   [183/219] /help.group nope (30us)
@@ -1777,6 +1837,9 @@ demo> /help.dev print
 NAME
   /print - Print a message to the terminal.
 
+STATUS
+  stable - covered by termapy's compatibility promise
+
 SYNOPSIS
   /print <text>
 
@@ -1794,10 +1857,13 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
-  /print.r    Print Rich markup text (e.g. [bold red]Warning![/]).
+  /print.r    stable     Print Rich markup text (e.g. [bold red]Warning![/]).
 demo> /help.dev ss.list
 NAME
   /ss.list - List files in ss/, newest first, with size and age.
+
+STATUS
+  stable - covered by termapy's compatibility promise
 
 DESCRIPTION (developer)
     List the screenshots in the config's ss/ folder, newest first, with size and age.
@@ -1852,6 +1918,7 @@ demo> /print === section: firmware: the shipped device-side sources ===
   === section: firmware: the shipped device-side sources ===
   [322/338] /print === section: firmware: the shipped device-side sou... (110us)
 demo> /firmware
+  Note: /firmware is a prototype; it may change or be removed.
   firmware - 2 targets
   NAME  LANGUAGE  FILES                           SIZE
   ----  --------  ------------------------------  -------
@@ -1884,6 +1951,7 @@ demo> /print === section: board: starter projects for dev boards ===
   === section: board: starter projects for dev boards ===
   [330/342] /print === section: board: starter projects for dev board... (118us)
 demo> /board.new nosuch
+  Note: /board is a prototype; it may change or be removed.
   Error: Unknown board: nosuch (use esp32s3, pico)
   [331/342] /board.new nosuch (10us)
 demo> /board.firmware nosuch

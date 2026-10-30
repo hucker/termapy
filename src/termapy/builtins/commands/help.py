@@ -11,9 +11,12 @@ from typing import TYPE_CHECKING
 from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.help_dynamic import is_state_line
 from termapy.markup import markup_to_plain, match_parts, underline_markup
+from termapy.matching import is_glob, matches
 from termapy.plugins import (
     ENVIRONMENTS,
     GROUP_TERMINAL,
+    MATURITY_COLORS,
+    MATURITY_MEANINGS,
     REQUIREMENT_HINTS,
     CapabilitySet,
     CmdResult,
@@ -29,7 +32,7 @@ from termapy.plugins import (
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_STYLE
 from termapy.plugins.params import render_parameters_block
-from termapy.plugins.views import Link, Piece, TableView
+from termapy.plugins.views import Column, Link, Piece, TableView
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -198,16 +201,23 @@ def _siblings_for_see_also(name: str, plugins: dict) -> list[str]:
 # ── Row rendering (shared by landscape + candidates + /help.plugin) ──────────
 
 
+# Wide enough for the longest maturity level, so the level column aligns.
+_MATURITY_W = max(len(level) for level in MATURITY_COLORS)
+
+
 def _landscape_row(
     prefix: str, name: str, plugin, cmd_w: int, needles: list[str] | None = None
 ) -> list[Piece]:
-    """One row of the clean name + one-liner layout, as pieces.
+    """One row of the clean name + level + one-liner layout, as pieces.
 
     The command's name links to its help page (registry
     ``links-are-data``); where nothing can click, the pieces are the
-    markup this row always was.  Pass ``needles`` only in search-result
-    contexts; underlining is the "here's why this matched" affordance and
-    does not belong on the no-args landscape or exact-match man page.
+    markup this row always was.  Every row shows the command's maturity in
+    its color, in a column after the name, so no row reads as unknown
+    (registry ``maturity-declared-once``).  Pass ``needles`` only in
+    search-result contexts; underlining is the "here's why this matched"
+    affordance and does not belong on the no-args landscape or
+    exact-match man page.
     """
     help_text = interpolate_help(plugin.help, prefix)
     link = _help_link(name)
@@ -218,6 +228,9 @@ def _landscape_row(
     ]
     pad = max(0, cmd_w + 2 - (2 + len(prefix) + len(name)))
     pieces.append(Piece(" " * pad + "  "))
+    maturity = getattr(plugin, "maturity", "stable")
+    pieces.append(Piece(maturity, None, MATURITY_COLORS[maturity]))
+    pieces.append(Piece(" " * (_MATURITY_W - len(maturity) + 2)))
     pieces += [
         Piece(part, None, "underline" if matched else "")
         for part, matched in match_parts(help_text, needles)
@@ -349,6 +362,16 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     ctx.io.output_markup(_section_markup("NAME"))
     help_line = interpolate_help(plugin.help, prefix)
     ctx.io.output_markup_segments([Piece("  "), command, Piece(f" - {help_line}")])
+
+    # STATUS ──────────────────────────────────────────────────────────────────
+    # How settled the command is, in its color (registry maturity-declared-once).
+    maturity = getattr(plugin, "maturity", "stable")
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_section_markup("STATUS"))
+    meaning = MATURITY_MEANINGS[maturity]
+    ctx.io.output_markup(
+        f"  [{MATURITY_COLORS[maturity]}]{escape_markup(maturity)}[/] - {escape_markup(meaning)}"
+    )
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     # A declared bare form gets its own line, built from the declaration,
@@ -1000,42 +1023,92 @@ def _group_members(ctx: PluginContext, group: str) -> list:
 
 
 def _handler_group(ctx: PluginContext, args: str) -> CmdResult:
-    """Expand one group, or list the groups when called bare.
+    """List the groups when bare, or expand the groups ``args`` picks, as a table.
 
     Groups live in their own namespace, reached only here: a bare
     ``/help <name>`` keeps meaning a command or a help page, so a group
-    can never shadow either, whatever a plugin calls it.
+    can never shadow either, whatever a plugin calls it.  A name is one
+    exact group; a pattern with a wildcard (``*``, ``dev*``) expands every
+    group it matches (``matching``, registry ``name-one-matcher``).  Both
+    answers are tables (registry ``list-one-format``), so ``--json`` and
+    MCP get the records.
     """
     wanted = args.strip().lower()
-    all_plugins = ctx.internal.plugins
     present = sorted(
         {
             plugin.group
-            for name, plugin in all_plugins.items()
+            for name, plugin in ctx.internal.plugins.items()
             if "." not in name and not getattr(plugin, "hidden", False)
         }
     )
     if not wanted:
-        fold_w = _fold_opener_w(present, ctx.prefix)
-        ctx.io.output_markup(f"[{_SEP}]-- Groups --[/]")
-        for group in present:
-            members = _group_members(ctx, group)
-            note = _group_note([plugin for _, plugin in members], ctx)
-            ctx.io.output_markup_segments(_fold_row(group, members, ctx, fold_w, note))
-        return CmdResult.ok(value="\n".join(present))
-    if wanted not in present:
+        return _groups_table(ctx, present)
+    picked = [group for group in present if matches(group, wanted)] if is_glob(wanted) else [wanted]
+    if not picked or (not is_glob(wanted) and wanted not in present):
         return CmdResult.fail(msg=f"Unknown group: {wanted} (use {', '.join(present)})")
-    members = _group_members(ctx, wanted)
-    cmd_w = _compute_cmd_w([name for name, _ in members], ctx.prefix)
-    note = _group_note([plugin for _, plugin in members], ctx)
-    heading = f"-- {wanted} --"
-    ctx.io.output_markup(
-        f"[{_SEP}]{escape_markup(heading)}[/]"
-        + (f" [{_SEP}]{escape_markup(note)}[/]" if note else "")
+    return _members_table(ctx, picked, wanted)
+
+
+def _groups_table(ctx: PluginContext, present: list[str]) -> CmdResult:
+    """Bare ``/help.group``: one row per group, its commands, and why it cannot run now if so."""
+    records = []
+    for group in present:
+        members = _group_members(ctx, group)
+        records.append(
+            {
+                "group": group,
+                "commands": [name for name, _ in members],
+                "note": _group_note([plugin for _, plugin in members], ctx),
+            }
+        )
+    columns = (
+        Column(
+            "GROUP",
+            lambda record: record["group"],
+            run=lambda record: f"help.group {record['group']}",
+        ),
+        Column("COMMANDS", lambda record: str(len(record["commands"])), right=True),
+        Column("NAMES", lambda record: _truncate(", ".join(record["commands"]), _FOLD_NAMES_W)),
+        Column("NOTE", lambda record: record["note"]),
     )
-    for name, plugin in members:
-        ctx.io.output_markup_segments(_landscape_row(ctx.prefix, name, plugin, cmd_w))
-    return CmdResult.ok(value="\n".join(name for name, _ in members))
+    return CmdResult.table("groups", "group", columns, records, value="\n".join(present))
+
+
+def _members_table(ctx: PluginContext, groups: list[str], wanted: str) -> CmdResult:
+    """The commands of ``groups``, each with its level: one group, or every group a pattern picked."""
+    prefix = ctx.prefix
+    records = [
+        {
+            "group": group,
+            "command": name,
+            "maturity": getattr(plugin, "maturity", "stable"),
+            "help": interpolate_help(plugin.help, prefix),
+        }
+        for group in groups
+        for name, plugin in _group_members(ctx, group)
+    ]
+    columns = [
+        Column(
+            "COMMAND",
+            lambda record: prefix + record["command"],
+            run=lambda record: f"help {record['command']}",
+        ),
+        Column(
+            "LEVEL",
+            lambda record: record["maturity"],
+            style=lambda record: MATURITY_COLORS[record["maturity"]],
+        ),
+        Column("DESCRIPTION", lambda record: record["help"]),
+    ]
+    if len(groups) > 1:
+        columns.insert(0, Column("GROUP", lambda record: record["group"]))
+        title = f"groups {wanted}"
+    else:
+        members = _group_members(ctx, groups[0])
+        note = _group_note([plugin for _, plugin in members], ctx)
+        title = f"{groups[0]} ({note})" if note else groups[0]
+    value = "\n".join(record["command"] for record in records)
+    return CmdResult.table(title, "command", columns, records, value=value)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -1081,8 +1154,8 @@ reads as the name alone. Typing {prefix}help with zero matches points you at
             handler=_handler_dev,
         ),
         "group": Command(
-            args="{name}",
-            help="Expand one group of commands; bare lists the groups.",
+            args="{name|*}",
+            help="Expand one group of commands, or every group a pattern matches; bare lists the groups.",
             long_help="""\
 Each command declares what it is FOR, and the landscape is laid out from
 those declarations: the terminal group in full, every other group folded
@@ -1090,6 +1163,11 @@ to one row you can click.
 
   {prefix}help.group            the groups, each with its commands
   {prefix}help.group devices    expand one
+  {prefix}help.group *          expand every group
+  {prefix}help.group dev*       expand every group the pattern matches
+
+Each answer is a table, so --json and MCP get the records: the commands
+with their group, level (stable, preview, prototype) and one-liner.
 
 A group is reached only here, never as a bare {prefix}help <name>, so a
 group can never shadow a command or a help page. Nothing is hidden by

@@ -114,6 +114,9 @@ class Column:
             (``cfg.load <name>``), without the prefix.  None: not clickable.
         prefill: The command clicking a cell puts in the input line
             instead of running it.  At most one of ``run`` and ``prefill``.
+        style: The Rich style a cell is drawn in, for its record
+            (``/help.group``'s level column: green, yellow, red).  None:
+            the row's color.  Plain consumers see the text alone.
     """
 
     title: str
@@ -121,6 +124,7 @@ class Column:
     right: bool = False
     run: Callable[[Record], str] | None = None
     prefill: Callable[[Record], str] | None = None
+    style: Callable[[Record], str] | None = None
 
     def __post_init__(self) -> None:
         """Refuse a column that would both run and prefill: a click does one thing."""
@@ -205,7 +209,8 @@ class TableView:
                 if index:
                     pieces.append(Piece("  "))
                 pad = Piece(" " * (width - len(cell)))
-                piece = Piece(cell, column.link(record) if cell else None)
+                style = column.style(record) if column.style is not None and cell else ""
+                piece = Piece(cell, column.link(record) if cell else None, style)
                 pieces.extend((pad, piece) if column.right else (piece, pad))
             lines.append((_rstripped(pieces), ""))
         return lines

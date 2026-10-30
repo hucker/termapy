@@ -220,6 +220,26 @@ GROUP_DEFAULT = "plugins"
 # for first, so related commands land together instead of near-missing.
 GROUPS = (GROUP_TERMINAL, "protocol", "devices", "advanced", GROUP_DEFAULT)
 
+# How settled a command is (registry ``maturity-declared-once``).  A
+# command declares one, its subcommands inherit it from the nearest
+# ancestor that declares one, and any of them may override; an
+# undeclared root is stable.  The words follow Node.js's stability index
+# and Python's PEP 411 provisional packages: anything not stable is
+# outside termapy's compatibility promise.  ``/help`` shows the level in
+# its color, the MCP catalog carries it, and a prototype family notes
+# itself once a session when it first runs.
+MATURITY_LEVELS = ("stable", "preview", "prototype")
+
+# The color each level is shown in.
+MATURITY_COLORS = {"stable": "green", "preview": "yellow", "prototype": "red"}
+
+# What each level promises, in the words /help and the MCP catalog use.
+MATURITY_MEANINGS = {
+    "stable": "covered by termapy's compatibility promise",
+    "preview": "works, but may change in any release, outside the compatibility promise",
+    "prototype": "new and incomplete: may change or be removed in any release",
+}
+
 
 def validate_group(group: str) -> str:
     """Check a group name's shape; membership is not checked, the vocabulary is open.
@@ -553,6 +573,11 @@ class Command:
             declare one of its own, or declare ``terminal`` and appear
             among the built-ins that did.  Only the shape is validated.
             Defaults to ``GROUP_DEFAULT``.
+        maturity: How settled the command is, one of ``MATURITY_LEVELS``:
+            ``"stable"``, ``"preview"`` or ``"prototype"``.  ``""`` (default)
+            inherits from the nearest ancestor that declares one, and a root
+            that declares none is stable; any subcommand may override.
+            Validated at construction (registry ``maturity-declared-once``).
     """
 
     help: str
@@ -572,6 +597,7 @@ class Command:
     picker: str = ""
     help_list: str = ""
     group: str = GROUP_DEFAULT
+    maturity: str = ""
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -593,6 +619,11 @@ class Command:
         if group_error:
             raise ValueError(
                 f"/{self.name or '<command>'}: invalid group {self.group!r}: {group_error}"
+            )
+        if self.maturity and self.maturity not in MATURITY_LEVELS:
+            raise ValueError(
+                f"/{self.name or '<command>'}: unknown maturity {self.maturity!r} "
+                f"(use {'/'.join(MATURITY_LEVELS)})"
             )
         if not self.params:
             return
@@ -903,6 +934,9 @@ class PluginInfo:
             -- on a subcommand, from its ROOT, so a family stays
             together however deep it nests.  ``/help`` lays the landscape
             out from these (registry ``help-group-declared``).
+        maturity: How settled the command is, resolved at load: its own
+            ``Command.maturity``, else the nearest ancestor's, else
+            ``"stable"`` (registry ``maturity-declared-once``).
     """
 
     name: str
@@ -923,6 +957,7 @@ class PluginInfo:
     bare_sub: str = ""
     help_list: str = ""
     group: str = GROUP_DEFAULT
+    maturity: str = "stable"
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.
@@ -946,6 +981,11 @@ class PluginInfo:
         if self.picker and self.picker not in PICKERS:
             raise ValueError(
                 f"/{self.name}: unknown picker {self.picker!r} (use {', '.join(PICKERS)})"
+            )
+        if self.maturity not in MATURITY_LEVELS:
+            raise ValueError(
+                f"/{self.name}: unknown maturity {self.maturity!r} "
+                f"(use {'/'.join(MATURITY_LEVELS)})"
             )
         group_error = validate_group(self.group)
         if group_error:

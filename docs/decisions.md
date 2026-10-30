@@ -595,3 +595,32 @@ and left/right both, or neither. This part stays termapy's; the mouse
 half is what Textual could take. The Textual floor moves from 0.80 to 2.0, the
 release with the selection API; whether the code already needs a newer
 one is a chore of its own.
+
+## 2026-10-29 — A command says how settled it is: stable, preview or prototype
+
+Every command has a maturity, one of `MATURITY_LEVELS` in
+`plugins/command.py`: **stable** is covered by termapy's compatibility
+promise; **preview** works but may change in any release, outside it;
+**prototype** is new and incomplete, and may change or be removed. A
+family declares it on its root `Command(maturity=...)`, every subcommand
+inherits from the nearest ancestor that declares one, and any of them may
+override; an undeclared root is stable. `/help` shows it as a STATUS line
+in green, yellow or red, and every listed row shows its level in a column
+after the command's name, stable included, so no row reads as unknown
+(Chuck, on seeing an untagged `/profile` among tagged rows: "everything
+should be at some level"); the MCP catalog carries it on each entry and gives
+the server's own level; a prototype family prints one note a session the
+first time it runs. It is a label, not a gate: everything still runs.
+Preview now: the MCP server and `/mcp`, `/dev`, `/sym`, `/mem`. Prototype:
+`/board`, `/firmware`. **Why:** Chuck, "MCP, device files and sym files are
+still in development and may change while the rest of the code is ready
+for public testing", "so we know the edges of sanity". The models are
+Node.js's stability index (colored banners, a warning for experimental
+features), PEP 411's provisional packages (outside the compatibility
+promise; graduate, stay or go), Kubernetes feature stages (written
+promotion criteria) and Rust's stability attributes (an unmarked item
+inherits its parent's). **Graduation:** a family becomes stable by a dated
+entry here. The MCP server graduates when every host-access limit
+`help/mcp-server.md` states is enforced, the 2026-10-29 security review's
+Tier 1 and 2a; the others when their commands and file formats stop
+changing.

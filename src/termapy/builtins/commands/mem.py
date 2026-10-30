@@ -1302,6 +1302,7 @@ _LONG_HELP: Final[str] = (
 COMMAND = Command(
     group="devices",
     name="mem",
+    maturity="preview",
     help="Device memory: dump, typed reads, writes and bit ops via {prefix}sym names.",
     long_help=_LONG_HELP,
     # Bare /mem = /mem.info: the availability check/status page, so the

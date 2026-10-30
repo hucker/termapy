@@ -334,6 +334,8 @@ class ReplEngine:
         self.cfg = MappingProxyType(self._cfg_data)
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
+        # Prototype families that have said so this session (_note_prototype).
+        self._prototypes_noted: set[str] = set()
         self.trusted_only = trusted_only
         self.global_root = global_root
         self._trusted_notice_shown = False
@@ -1917,6 +1919,8 @@ class ReplEngine:
             refusal = self._capability_refusal(plugin, name)
             if refusal is not None:
                 return _finish(CmdResult.fail(msg=refusal))
+            if plugin.maturity == "prototype":
+                self._note_prototype(name)
             # Universal level-flag pre-pass: strip --silent/--quiet/--normal/
             # --verbose before per-command flag parsing so every command
             # accepts them without declaring them.  Suffix and flag must
@@ -2514,6 +2518,22 @@ class ReplEngine:
     @property
     def in_script(self) -> bool:
         return self._script_depth > 0
+
+    def _note_prototype(self, name: str) -> None:
+        """Say once a session that a prototype family may change, the first time it runs.
+
+        Node.js's ExperimentalWarning is the model: a note, not a refusal,
+        once per family, so a script using it is warned and not flooded
+        (registry ``maturity-declared-once``).
+        """
+        family = name.split(".", 1)[0]
+        if family in self._prototypes_noted:
+            return
+        self._prototypes_noted.add(family)
+        self.write(
+            f"Note: {self.prefix}{family} is a prototype; it may change or be removed.",
+            "yellow",
+        )
 
     def _capability_refusal(self, plugin: PluginInfo, name: str) -> str | None:
         """Why ``plugin`` cannot run right now, or None when it can.

@@ -109,11 +109,26 @@ See the [detailed feature comparison](docs/comparison.md) against RealTerm, Cool
 
 </details>
 
+## Feature status
+
+Termapy is in beta: everything not listed here is stable and ready for public testing. These parts work and are used daily, but they are still being developed, sit outside the compatibility promise, and may change in any release.
+
+| Feature | Commands | Status |
+| --- | --- | --- |
+| MCP server | `/mcp` | preview |
+| Device files | `/dev` | preview |
+| Symbols | `/sym` | preview |
+| Memory access | `/mem` | preview |
+| Dev board starters | `/board` | prototype |
+| Device-side firmware | `/firmware` | prototype |
+
+**Preview** works but may change in any release; **prototype** is new and incomplete, and may change or be removed. `/help` shows each command's level in every listing and on its page, the MCP catalog carries it, and a prototype says so once a session when it first runs.
+
 ## Security
 
-Termapy runs with your privileges and does whatever you — or a connected MCP client — tell it, so point it at devices, profiles, and MCP clients you trust. The MCP server is **sandboxed by default**: an automated agent is confined to the serial device and config directory (at worst, a hostile device or profile hangs the session), and each class of host access below stays off until you opt in.
+Termapy runs with your privileges and does whatever you — or a connected MCP client — tell it, so point it at devices, profiles, and MCP clients you trust. The MCP server is a preview, and its limits on host access are not complete yet: by default it refuses the access below on the main routes, but known gaps remain (listed in the [MCP server](src/termapy/help/mcp-server.md) help), so the MCP client's own permissions are the real boundary.
 
-| Host access (off by default) | Opt in with |
+| Host access (refused by default on the main routes) | Opt in with |
 | --- | --- |
 | Files outside the config directory | `TERMAPY_MCP_FS_UNCONFINED=1` |
 | Network sockets (`socket://`, `rfc2217://`) | `TERMAPY_MCP_NET_EGRESS=1` |

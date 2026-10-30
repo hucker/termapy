@@ -1,5 +1,7 @@
 # Dev boards
 
+> **Status: prototype.** This is new and incomplete: its commands, files and behavior may change or be removed in any release.
+
 A dev board starter turns a new board into a device termapy drives on day
 one. It holds the code that runs on the board, plus a host config and a
 device profile. The board answers at an interactive prompt, its commands

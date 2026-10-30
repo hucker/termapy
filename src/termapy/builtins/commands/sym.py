@@ -423,6 +423,7 @@ def _long_help(ctx: PluginContext) -> str:
 COMMAND = Command(
     group="devices",
     name="sym",
+    maturity="preview",
     args="<addr|name>",
     help="Symbol table: name -> address, or address -> name+offset.",
     long_help=_long_help,

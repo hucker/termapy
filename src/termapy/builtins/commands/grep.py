@@ -86,6 +86,7 @@ See also: {prefix}find (interactive navigation through matches with
 highlighted lines and arrow-button paging), {prefix}search (search the
 command-help corpus rather than the scrollback).""",
     handler=_handler,
+    shows=True,
     needs=CapabilitySet.INTERACTIVE,  # scrollback only exists interactively
     params=[
         ParamSpec(

@@ -712,7 +712,8 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
     # 4. No hits anywhere -- hint at the deeper tool.
     p = ctx.prefix
     # Bare names: what /help takes, so a click fills in /help <name>.
-    hint = did_you_mean(closest(name, plugins))
+    shown = (command for command, plugin in plugins.items() if not plugin.hidden)
+    hint = did_you_mean(closest(name, shown))
     if hint:
         return CmdResult.fail(msg=f"No command matches '{name}'{hint}")
     return CmdResult.fail(

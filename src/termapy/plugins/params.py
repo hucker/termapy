@@ -18,6 +18,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from termapy.matching import closest, did_you_mean
 from termapy.scripting import BOOL_TOKENS_HELP, parse_bool, parse_duration, parse_keywords
 
 # Resolves the inner text of one $(*NAME) reference ("NAME" or "NAME:fmt") to
@@ -277,6 +278,31 @@ def validate_param_specs(params: list[ParamSpec], command_name: str) -> None:
 # -- Parse (runs per dispatch, only when params is non-empty) --------------------
 
 
+# ``word=value``: a token shaped like a keyword.
+_KEYWORD_TOKEN = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)=(\S*)")
+
+
+def _misspelled_keyword(text: str, keywords: set[str]) -> str | None:
+    """The error for a ``word=value`` token whose word is a typo of a declared keyword, or None.
+
+    Without this, ``categroy=mcu`` is not a keyword, so it silently joins
+    the positional text -- the file path, say -- and the error names
+    something else.  Only a word near a declared keyword counts (registry
+    ``did-you-mean-one``), and only one of three letters or more, so a
+    value that holds an ``=`` (``AT+BAUD=9600``, a path) still reads as the
+    value it is.  The suggestion is the whole token, so a click fixes it.
+    """
+    for token in text.split():
+        match = _KEYWORD_TOKEN.fullmatch(token)
+        if match is None or len(match.group(1)) < 3:
+            continue
+        word, value = match.groups()
+        near = closest(word.lower(), keywords, limit=1)
+        if near:
+            return f"unknown keyword {token!r}{did_you_mean([f'{near[0]}={value}'])}"
+    return None
+
+
 def parse_params(
     params: list[ParamSpec], args: str, deref: Deref | None = None
 ) -> tuple[dict[str, Any], str | None]:
@@ -307,6 +333,9 @@ def parse_params(
     keywords = {p.name for p in keyword_specs}
     rest_keyword = kw_rest.name if kw_rest else ""
     sections = parse_keywords(args, keywords, rest_keyword=rest_keyword)
+    misspelled = _misspelled_keyword(sections.get("_positional", ""), keywords)
+    if misspelled:
+        return {}, misspelled
 
     bound: dict[str, Any] = {}
 

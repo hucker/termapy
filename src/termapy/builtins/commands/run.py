@@ -207,6 +207,7 @@ _FOLDER_SUBS["list"] = Command(
     args="",
     help="List .run scripts, newest first, with size, age, and docstring summary.",
     handler=_handler_list,
+    shows=True,
     needs=CapabilitySet.CONFIG_LOADED,
 )
 

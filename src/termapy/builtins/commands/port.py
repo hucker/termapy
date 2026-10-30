@@ -491,6 +491,7 @@ COMMAND = Command(
         "list": Command(
             help="List available serial ports.",
             handler=_handler_list,
+            shows=True,
         ),
         "usb": Command(
             help="Show the whole USB tree, with serial ports marked.",
@@ -516,6 +517,7 @@ COMMAND = Command(
         "help": Command(
             help="Show {prefix}port help.",
             handler=_handler_help,
+            shows=True,
         ),
         "connect": Command(
             args="{name} {baud} {mode}",
@@ -569,6 +571,7 @@ COMMAND = Command(
             help="Print status, params, chip, and live signals for the connected port.",
             long_help=_port_info_long_help,
             handler=_handler_info,
+            shows=True,
         ),
         "baud_rate": Command(
             args="{value}",
@@ -648,6 +651,7 @@ COMMAND = Command(
             args="{name|*}",
             help="Identify USB-serial chip(s) and report USB speed class.",
             handler=_handler_chip,
+            shows=True,
             sub_commands={
                 "list": Command(
                     args="{pattern}",
@@ -665,6 +669,7 @@ COMMAND = Command(
                         "  {prefix}port.chip.list high      -- high-speed chips"
                     ),
                     handler=_handler_chip_list,
+                    shows=True,
                 ),
                 "device": Command(
                     args="{name|*}",

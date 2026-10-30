@@ -769,6 +769,7 @@ COMMAND = Command(
                 "{prefix}profile.load) answer for themselves and are not added."
             ),
             handler=_handler_loaded,
+            shows=True,
         ),
         "new": Command(
             args="<name> <port> {baud} {mode}",
@@ -856,11 +857,13 @@ COMMAND = Command(
         "show": Command(
             help="Open the current config file in the system viewer.",
             handler=_handler_show,
+            shows=True,
             needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
         "help": Command(
             help="Show {prefix}cfg help.",
             handler=_handler_help,
+            shows=True,
         ),
         # Desktop/menu launchers only make sense on a graphical host, and
         # creating one spawns a subprocess (PowerShell on Windows).  Gate
@@ -884,6 +887,7 @@ COMMAND = Command(
                 "list": Command(
                     help=("List every termapy launcher this platform can see."),
                     handler=_handler_icon_list,
+                    shows=True,
                     needs=CapabilitySet.GUI_APPS,
                 ),
             },

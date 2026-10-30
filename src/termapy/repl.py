@@ -86,6 +86,8 @@ _CORE_LIFECYCLE: frozenset[str] = frozenset({"on_app_start", "on_config_load"})
 # token, whitespace, then the partial argument (possibly empty) running to
 # the end.  ``complete_file_arg`` matches it from just past the prefix.
 _FILE_ARG_RE = re.compile(r"(\S+)\s+(\S*)\Z")
+# An optional group of a synopsis, ``{...}``: what a bare call may leave out.
+_OPTIONAL_GROUP = re.compile(r"\{[^{}]*\}")
 # How often a wait for a device line checks for a script stop (Escape).
 _EXPECT_STOP_POLL_S = 0.1
 
@@ -1214,6 +1216,7 @@ class ReplEngine:
         files: str = "",
         picker: str = "",
         group: str = "",
+        shows: bool = False,
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1239,6 +1242,7 @@ class ReplEngine:
             files: Data folder the first argument's file lives in
                 (see ``Command.files``).
             picker: Picker a bare invocation opens (see ``Command.picker``).
+            shows: It only shows or opens (see ``Command.shows``).
             group: What the command is for (see ``Command.group``).  A
                 dotted name inherits its parent's group, as a loaded
                 subcommand inherits its root's; ``""`` on a root command
@@ -1277,6 +1281,7 @@ class ReplEngine:
             files=files,
             picker=picker,
             group=group or GROUP_DEFAULT,
+            shows=shows,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -1371,7 +1376,12 @@ class ReplEngine:
         """
         name, _, rest = command_line.partition(" ")
         plugin = self._plugins.get(name.lower())
-        return plugin is not None and plugin.shows and (bool(rest) or "<" not in plugin.args)
+        if plugin is None or not plugin.shows:
+            return False
+        # A required argument is a <name> outside every {optional} group:
+        # /dev.lib's {<pattern>} is optional, /sym.search's <pattern> is not.
+        needs_args = "<" in _OPTIONAL_GROUP.sub("", plugin.args)
+        return bool(rest) or not needs_args
 
     def complete_file_arg(self, line: str) -> tuple[int, list[str]] | None:
         """File names that complete a line's first argument, newest first.
@@ -2056,7 +2066,9 @@ class ReplEngine:
                 self.ctx._call_level = saved_call_level
                 self.ctx.wants_data = saved_wants_data
         else:
-            hint = did_you_mean(closest(name, self._plugins), prefix=self.prefix)
+            # Hidden aliases stay off every discovery surface, this one too.
+            shown = (command for command, info in self._plugins.items() if not info.hidden)
+            hint = did_you_mean(closest(name, shown), prefix=self.prefix)
             result = CmdResult.fail(msg=f"Unknown command: {name}{hint}")
         return _finish(result)
 

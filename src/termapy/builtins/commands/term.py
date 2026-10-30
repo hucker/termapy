@@ -798,6 +798,7 @@ COMMAND = Command(
         "info": Command(
             help="Snapshot the state of every {prefix}term.* toggle.",
             handler=_handler_info,
+            shows=True,
         ),
         "usb_db": Command(
             help="Report freshness of the bundled USB vendor database.",

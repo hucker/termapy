@@ -943,6 +943,90 @@ def test_the_suggestion_allowlist_is_not_stale():
     assert stale == [], f"drop these from SUGGESTION_PHRASE_ALLOWED: {stale}"
 
 
+# ── Commands that only show say so ────────────────────────────────────────────
+#
+# A click on a link runs a command at once only when the command declares
+# ``shows=True``: it only shows or opens, so the click cannot act.  Forgetting
+# the flag is safe but leaves the click filling the input line instead, and
+# the generated folder lists had it while the hand-written ones did not
+# (2026-10-30).  Every command named like a listing or a viewer declares it,
+# or this table says why it cannot, and every frontend registering a name
+# agrees on it.
+SHOW_SUFFIXES = frozenset(
+    {"list", "info", "dump", "show", "explore", "catalog", "help", "lib", "regs", "loaded"}
+)
+SHOWS_EXEMPT: dict[str, str] = {
+    "app.ver.info": "fetches the newest release from PyPI",
+}
+
+
+def _shows_problems(tables: dict[str, dict[str, Any]]) -> tuple[list[str], list[str]]:
+    """``(undeclared, disagreeing)``: listing-named commands without shows, and names the frontends split on."""
+    names = set().union(*tables.values())
+    undeclared = sorted(
+        {
+            f"{frontend}: {name}"
+            for frontend, table in tables.items()
+            for name, info in table.items()
+            if not info.hidden
+            and info.safety == "safe"  # readonly and up can never declare it
+            and name.rsplit(".", 1)[-1] in SHOW_SUFFIXES
+            and not info.shows
+            and name not in SHOWS_EXEMPT
+        }
+    )
+    disagreeing = sorted(
+        name
+        for name in names
+        if len({table[name].shows for table in tables.values() if name in table}) > 1
+    )
+    return undeclared, disagreeing
+
+
+def test_commands_that_only_show_declare_it(tmp_path):
+    """shows-declared: every listing or viewer command declares shows=True, or SHOWS_EXEMPT says why."""
+    # Arrange / Act
+    undeclared, disagreeing = _shows_problems(_frontend_plugins(tmp_path))
+
+    # Assert
+    assert undeclared == [], (
+        "these only show or open, so a click on a link to them may run them; declare "
+        "shows=True, or add the name to SHOWS_EXEMPT with the reason it acts:\n  "
+        + "\n  ".join(undeclared)
+    )
+    assert disagreeing == [], f"frontends disagree on shows= for: {disagreeing}"
+
+
+def test_shows_guard_fires_on_a_probe():
+    """shows-declared: the guard flags an undeclared listing and a frontend split, and passes an exempt name."""
+    from types import SimpleNamespace
+
+    def info(shows: bool) -> SimpleNamespace:
+        return SimpleNamespace(hidden=False, shows=shows, safety="safe")
+
+    tables = {
+        "CLI": {"thing.list": info(False), "x.info": info(True), "app.ver.info": info(False)},
+        "TUI": {"x.info": info(False)},
+    }
+    undeclared, disagreeing = _shows_problems(tables)
+    assert undeclared == ["CLI: thing.list", "TUI: x.info"], "both missing declarations"
+    assert disagreeing == ["x.info"], "the frontends split on x.info"
+
+
+def test_shows_exemptions_are_not_stale(tmp_path):
+    """shows-declared: each exempt name is one the guard would flag (registered, safe, undeclared), so the list only shrinks."""
+    tables = _frontend_plugins(tmp_path)
+    stale = sorted(
+        name
+        for name in SHOWS_EXEMPT
+        if not any(
+            name in table and not table[name].shows and table[name].safety == "safe"
+            for table in tables.values()
+        )
+    )
+    assert stale == [], f"drop these from SHOWS_EXEMPT: {stale}"
+
+
 # ── Port names are compared one way ───────────────────────────────────────────
 #
 # A typed port name and a listed one are the same port when the OS would open

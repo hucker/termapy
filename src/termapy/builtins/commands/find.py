@@ -244,6 +244,7 @@ COMMAND = Command(
     help="Navigate scrollback matches with an interactive find bar.",
     long_help=_LONG_HELP,
     handler=_handler,
+    shows=True,
     needs=CapabilitySet.INTERACTIVE,
     sub_commands={
         "next": Command(

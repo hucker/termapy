@@ -427,5 +427,6 @@ suitable for $(VAR) <- capture in scripts.
 See also: {prefix}grep (search scrollback text and print matching lines),
 {prefix}find (search scrollback and navigate matches interactively).""",
     handler=_handler,
+    shows=True,
     raw_args=True,
 )

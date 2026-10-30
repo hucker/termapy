@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 30,
+    "config_version": 31,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -97,6 +97,7 @@ Here is an example config for a device called `iot_device`:
     "run_enabled": true,
     "proto_enabled": true,
     "record_enabled": true,
+    "custom_buttons_side": "bottom",
     "custom_buttons": [
         {
             "enabled": true,
@@ -182,6 +183,7 @@ reported as a type warning.
 | `record_enabled`              | `true`                        | Show the Record button next to the REPL prompt (toggles `/run.record`) |
 | `show_traceback`              | `false`                       | Show full stack trace on serial errors |
 | `custom_buttons`              | `[4 entries]`                 | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
+| `custom_buttons_side`         | `bottom`                      | Where custom buttons sit: `bottom` in the bottom bar, or `left` / `right` for a column on that edge of the output, which holds many more (see [Custom Buttons](custom-buttons.md)) |
 | `json_style`                  | `compact`                     | How JSON answers print (`request_mode`, `--json`): `compact` one line per answer, `indent`, or `color` (indented and highlighted). Set: `/term.json` |
 <!-- config-reference:end -->
 

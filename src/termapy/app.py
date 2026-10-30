@@ -27,7 +27,7 @@ from textual import on, work
 from textual.actions import SkipAction
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.css.query import NoMatches
 from textual.message import Message
 from textual.screen import ModalScreen
@@ -349,6 +349,33 @@ class SerialTerminal(TerminalHost, App):
     }
     .custom-btn {
         background: mediumpurple;
+    }
+    #custom-bar {
+        width: auto;
+        height: 1;
+        margin: 0 1 0 2;
+        display: none;
+    }
+    #custom-side {
+        dock: right;
+        width: auto;
+        max-width: 24;
+        height: 1fr;
+        padding-top: 1;
+        display: none;
+        scrollbar-size-vertical: 1;
+    }
+    #custom-side.left {
+        dock: left;
+    }
+    #custom-side Button {
+        width: auto;
+        min-width: 100%;
+        height: 1;
+        min-height: 1;
+        border: none;
+        margin: 0 0 1 0;
+        padding: 0 1;
     }
     #btn-log {
         background: mediumorchid;
@@ -809,34 +836,40 @@ class SerialTerminal(TerminalHost, App):
             if exit_on_right:
                 yield _make_exit_btn()
         max_lines = self.cfg.get("max_lines", 10000)
-        yield LinkLog(
-            highlight=False,
-            markup=True,
-            wrap=True,
-            id="output",
-            max_lines=max_lines,
-            describe=self._describe_link,
-        )
-        # Frozen-view companion for /find.  Hidden by default; when
-        # find activates, _update_find_bar populates it with a
-        # markup-styled copy of the current scrollback (matched
-        # lines in [reverse]), hides #output, and shows this one.
-        # Navigation just scrolls -- no rewrite -- so the current
-        # match is identified by viewport position (centered), not
-        # by per-line styling.  auto_scroll=False is critical:
-        # otherwise the post-write snap-to-bottom races with our
-        # explicit scroll_to(center).  Any new live data arriving
-        # via _write_batch auto-dismisses the view.
-        find_log = SelectableRichLog(
-            highlight=False,
-            markup=True,
-            wrap=True,
-            id="output-find",
-            max_lines=max_lines,
-            auto_scroll=False,
-        )
-        find_log.display = False
-        yield find_log
+        # Docks inside this container stay between the title bar and the
+        # bottom bar; a dock on the screen would run over both.
+        with Container(id="main-area"):
+            yield LinkLog(
+                highlight=False,
+                markup=True,
+                wrap=True,
+                id="output",
+                max_lines=max_lines,
+                describe=self._describe_link,
+            )
+            # Frozen-view companion for /find.  Hidden by default; when
+            # find activates, _update_find_bar populates it with a
+            # markup-styled copy of the current scrollback (matched
+            # lines in [reverse]), hides #output, and shows this one.
+            # Navigation just scrolls -- no rewrite -- so the current
+            # match is identified by viewport position (centered), not
+            # by per-line styling.  auto_scroll=False is critical:
+            # otherwise the post-write snap-to-bottom races with our
+            # explicit scroll_to(center).  Any new live data arriving
+            # via _write_batch auto-dismisses the view.
+            find_log = SelectableRichLog(
+                highlight=False,
+                markup=True,
+                wrap=True,
+                id="output-find",
+                max_lines=max_lines,
+                auto_scroll=False,
+            )
+            find_log.display = False
+            yield find_log
+            # The custom-button column (custom_buttons_side left/right),
+            # filled by _sync_custom_buttons.
+            yield VerticalScroll(id="custom-side")
         yield OptionList(id="history-popup")
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
@@ -936,26 +969,10 @@ class SerialTerminal(TerminalHost, App):
                     display=show_hw,
                 )
                 yield self._btn_break
-                custom_buttons = self.cfg.get("custom_buttons", [])
-                has_custom = False
-                for i, cb in enumerate(custom_buttons):
-                    if not cb.get("enabled", False):
-                        continue
-                    b = self._custom_button(i, cb)
-                    # First enabled custom button gets a wider left
-                    # margin so the boundary into the custom-button
-                    # region is unambiguously visible (intentionally
-                    # a little wider than the matching boundary gap
-                    # Log uses on the region's right edge -- erring
-                    # on too-wide rather than ambiguously-close).
-                    if not has_custom:
-                        b.styles.margin = (0, 0, 0, 3)
-                    has_custom = True
-                    yield b
-                log_btn = _btn("Log", "btn-log", "View current log file.")
-                if has_custom:
-                    log_btn.styles.margin = (0, 0, 0, 2)
-                yield log_btn
+                # Filled by _sync_custom_buttons when custom_buttons_side is
+                # bottom; its margins are the gaps in from Break and out to Log.
+                yield Horizontal(id="custom-bar")
+                yield _btn("Log", "btn-log", "View current log file.")
                 yield _btn("SS", "btn-ss-dir", "Open screenshot folder.")
                 yield _btn("Cap", "btn-cap-dir", "Open captures folder.")
 
@@ -3485,7 +3502,7 @@ class SerialTerminal(TerminalHost, App):
     def _sync_all_buttons(self) -> None:
         """Refresh all file-count button tooltips and custom buttons."""
         self._sync_file_buttons()
-        self.run_worker(self._sync_custom_buttons())
+        self._sync_custom_buttons()
 
     def _sync_file_buttons(self) -> None:
         """Refresh the tooltips that count a folder's files (SS, Scripts, Proto, Cap)."""
@@ -3562,22 +3579,33 @@ class SerialTerminal(TerminalHost, App):
         button.add_class("custom-btn")
         return button
 
+    @work(exclusive=True, group="custom-buttons")
     async def _sync_custom_buttons(self) -> None:
-        """Remove old custom buttons and create new ones from config."""
-        old_buttons = list(self.query(".custom-btn"))
-        for old_button in old_buttons:
+        """Mount the enabled custom buttons where ``custom_buttons_side`` puts them.
+
+        The one builder of custom buttons: at startup, on a config switch and
+        when either key changes.  ``left`` / ``right`` fill the
+        ``#custom-side`` column docked to that edge of the output pane;
+        ``bottom``, and a value ``validate_config`` warned about, fill the
+        bottom bar's ``#custom-bar``.  Only a region holding buttons shows.
+        Exclusive, so a second change cancels a sync still mounting.
+        """
+        for old_button in list(self.query(".custom-btn")):
             await old_button.remove()
-        log_btn = self.query_one("#btn-log", Button)
-        log_btn.styles.margin = (0, 0, 0, 0)
-        custom_buttons = self.cfg.get("custom_buttons", [])
-        has_custom = False
-        for i, cb in enumerate(custom_buttons):
-            if not cb.get("enabled", False):
-                continue
-            has_custom = True
-            self.query_one("#bottom-bar").mount(self._custom_button(i, cb), before=log_btn)
-        if has_custom:
-            log_btn.styles.margin = (0, 0, 0, 2)
+        side = self.cfg.get("custom_buttons_side", "bottom")
+        bar = self.query_one("#custom-bar", Horizontal)
+        column = self.query_one("#custom-side", VerticalScroll)
+        target = column if side in ("left", "right") else bar
+        column.set_class(side == "left", "left")
+        buttons = [
+            self._custom_button(i, entry)
+            for i, entry in enumerate(self.cfg.get("custom_buttons", []))
+            if entry.get("enabled", False)
+        ]
+        if buttons:
+            await target.mount_all(buttons)
+        bar.display = target is bar and bool(buttons)
+        column.display = target is column and bool(buttons)
 
     # -- REPL hook implementations (app-coupled commands) ----------------------
 
@@ -3627,8 +3655,8 @@ class SerialTerminal(TerminalHost, App):
         self._sync_hw_visibility()
         if key == "cmd_prefix":
             self._sync_cmd_prefix()
-        if key == "custom_buttons":
-            self.run_worker(self._sync_custom_buttons())
+        if key in ("custom_buttons", "custom_buttons_side"):
+            self._sync_custom_buttons()
         if key in port_control.SERIAL_KEYS and was_connected:
             self._connect()
 

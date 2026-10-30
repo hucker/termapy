@@ -27,7 +27,7 @@ from termapy.config import (
     create_config,
     prepare_cfg_folder,
 )
-from termapy.defaults import DEFAULT_CFG, cmd_prefix
+from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, cmd_prefix
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
@@ -170,14 +170,9 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
     _JSON_KEY_RE = re.compile(r'^\s*"([^"]+)"\s*:\s*(.*?)\s*,?\s*$')
 
-    # Quick validation for known value sets
-    _VALID_VALUES: dict[str, set] = {
-        "byte_size": {5, 6, 7, 8},
-        "parity": {"N", "E", "O", "M", "S"},
-        "stop_bits": {1, 1.5, 2},
-        "flow_control": {"none", "rtscts", "xonxoff", "manual"},
-        "default_ui": {"tui", "cli", "vt100"},
-    }
+    # The fixed-value keys and their values, the table validate_config
+    # checks at Save, so the live check and the Save cannot disagree.
+    _VALID_VALUES: dict[str, set] = {key: set(choices) for key, choices in CFG_CHOICES.items()}
     # Derived from DEFAULT_CFG so adding a new bool/int key to defaults
     # automatically picks up validation here -- no parallel list to drift.
     # The bool keys come from BOOL_CFG_PATHS, which covers the nested
@@ -385,8 +380,6 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
         if callable(valid):
             valid = valid()
-        if valid:
-            valid = interpolate_help(valid, prefix)
         if valid:
             valid = interpolate_help(valid, prefix)
 

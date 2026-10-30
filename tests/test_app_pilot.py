@@ -136,8 +136,19 @@ class TestAppBoots:
         _run(scenario)
 
 
+def _button_regions(app) -> list[str | None]:
+    """The id of the region holding each mounted custom button, in order."""
+    return [button.parent.id if button.parent else None for button in app.query(".custom-btn")]
+
+
+_TWO_BUTTONS = [
+    {"enabled": True, "name": "A", "command": "/print a"},
+    {"enabled": True, "name": "B", "command": "/print b"},
+]
+
+
 class TestCustomButtons:
-    """Which configured custom buttons the bottom bar actually mounts."""
+    """Which configured custom buttons mount, and where custom_buttons_side puts them."""
 
     def test_only_enabled_buttons_mount(self, app_factory):
         """Disabled buttons and ones with no enabled key stay off the bar, order kept."""
@@ -185,6 +196,105 @@ class TestCustomButtons:
                 assert (label, tooltip) == ("[Rec]", "[ok] go"), (
                     "cfg text reaches the button as written"
                 )
+
+        _run(scenario)
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [{}, {"custom_buttons_side": "top"}],
+        ids=["default", "unknown-side"],
+    )
+    def test_bottom_bar_holds_them_by_default(self, app_factory, overrides):
+        """custom_buttons_side defaults to bottom, and a value it does not know falls back there."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(custom_buttons=_TWO_BUTTONS, **overrides)
+            async with app.run_test() as pilot:
+                # Act
+                await until(pilot, lambda: len(_button_regions(app)) == 2)
+
+                # Assert
+                actual = (_button_regions(app), app.query_one("#custom-side").display)
+                assert actual == (["custom-bar", "custom-bar"], False), (
+                    "the bottom bar holds the buttons and the side column stays hidden"
+                )
+
+        _run(scenario)
+
+    @pytest.mark.parametrize("side", ["left", "right"])
+    def test_a_side_stacks_them_beside_the_output(self, app_factory, side):
+        """left/right stack the buttons in a column on that edge of the output, between the two bars."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(custom_buttons=_TWO_BUTTONS, custom_buttons_side=side)
+            async with app.run_test() as pilot:
+                column = app.query_one("#custom-side")
+
+                # Act
+                await until(
+                    pilot,
+                    lambda: (
+                        _button_regions(app) == ["custom-side", "custom-side"]
+                        and column.region.width > 0
+                    ),
+                )
+                box = column.region
+                output = app.query_one("#output").region
+                title = app.query_one("#title-bar").region
+                bottom = app.query_one("#bottom-section").region
+
+                # Assert
+                assert _button_regions(app) == ["custom-side", "custom-side"], (
+                    "the column holds both buttons"
+                )
+                assert app.query_one("#custom-bar").display is False, (
+                    "the bottom bar keeps none of them"
+                )
+                beside = box.x >= output.right if side == "right" else box.right <= output.x
+                assert beside, (
+                    f"the column sits {side} of the output: column {box}, output {output}"
+                )
+                assert box.y >= title.bottom and box.bottom <= bottom.y, (
+                    f"the column runs between the title bar and the bottom bar, not over them: {box}"
+                )
+
+        _run(scenario)
+
+    def test_each_change_of_side_moves_the_same_buttons(self, app_factory):
+        """Changed live three times, the buttons move each time: none doubled, none left behind."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(custom_buttons=_TWO_BUTTONS, custom_buttons_side="right")
+            async with app.run_test() as pilot:
+                column = app.query_one("#custom-side")
+                await until(pilot, lambda: _button_regions(app) == ["custom-side", "custom-side"])
+
+                async def move_to(side: str) -> tuple[list[str | None], bool]:
+                    """Set the side as /cfg.auto does, then report where the buttons landed."""
+                    app._dispatch_single(f"/cfg.auto custom_buttons_side {side}")
+                    region = "custom-bar" if side == "bottom" else "custom-side"
+                    await until(
+                        pilot,
+                        lambda: (
+                            _button_regions(app) == [region, region]
+                            and column.has_class("left") == (side == "left")
+                        ),
+                    )
+                    return _button_regions(app), column.has_class("left")
+
+                # Act
+                actual = [await move_to(side) for side in ("left", "bottom", "right")]
+
+                # Assert
+                expected = [
+                    (["custom-side", "custom-side"], True),
+                    (["custom-bar", "custom-bar"], False),
+                    (["custom-side", "custom-side"], False),
+                ]
+                assert actual == expected, "each change moves both buttons to its region, once"
 
         _run(scenario)
 

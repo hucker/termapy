@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from termapy.config import (
+    cfg_choice,
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
@@ -25,7 +26,7 @@ from termapy.config import (
     reveal_command,
     validate_config,
 )
-from termapy.defaults import DEFAULT_CFG, SCRIPT_TEMPLATE
+from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, SCRIPT_TEMPLATE
 
 pytestmark = pytest.mark.slow  # subprocess-based config-load tests
 
@@ -412,6 +413,27 @@ class TestLoadConfig:
         assert len(actual["custom_buttons"]) == 1, "custom buttons not replaced"
         assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
+    def test_migration_writes_custom_buttons_side_just_ahead_of_the_buttons(self, tmp_path):
+        """v30 -> v31 saves the new key next to custom_buttons in the file, not at its end."""
+        # Arrange
+        config_path = tmp_path / "dev" / "dev.cfg"
+        config_path.parent.mkdir()
+        old = {
+            "config_version": 30,
+            "title": "Dev",
+            "custom_buttons": [],
+            "log_file": "",
+        }
+        config_path.write_text(json.dumps(old, indent=4))
+
+        # Act
+        load_config(str(config_path))
+
+        # Assert
+        keys = list(json.loads(config_path.read_text(encoding="utf-8")))
+        actual = keys[keys.index("custom_buttons_side") + 1]
+        assert actual == "custom_buttons", f"the key sits just ahead of custom_buttons: {keys}"
+
     def test_backfilled_mutable_default_is_deep_copied(self, tmp_path):
         """A backfilled list is a copy, so editing a loaded config cannot corrupt DEFAULT_CFG."""
         # Arrange -- a config missing custom_buttons; the backfill must
@@ -702,7 +724,46 @@ class TestLoadConfigEnvExpansion:
 # -- validate_config: serial port setting validation --------------------------
 
 
+class TestCfgChoice:
+    """config.cfg_choice: a typed value for a fixed-value key, matched in any case."""
+
+    @pytest.mark.parametrize(
+        ("key", "typed", "expected"),
+        [
+            ("custom_buttons_side", "Right", "right"),
+            ("parity", "e", "E"),
+            ("json_style", "INDENT", "indent"),
+            ("byte_size", 7, 7),
+        ],
+    )
+    def test_a_choice_comes_back_as_the_table_spells_it(self, key, typed, expected):
+        """Text matches in any case and comes back in the table's spelling; a number matches as itself."""
+        assert cfg_choice(key, typed) == expected, "the spelling the file holds"
+
+    def test_a_key_without_choices_passes_through(self):
+        """A free-form key's value comes back untouched, case and all."""
+        assert cfg_choice("title", "My Rig") == "My Rig", "no table entry, no change"
+
+    def test_a_value_outside_the_choices_names_them(self):
+        """Anything else is refused with the key, the value and the choices."""
+        expected = r"^Invalid custom_buttons_side: up \(use bottom/left/right\)$"
+        with pytest.raises(ValueError, match=expected):
+            cfg_choice("custom_buttons_side", "up")
+
+
 class TestValidateConfig:
+    @pytest.mark.parametrize("key", sorted(CFG_CHOICES))
+    def test_every_fixed_value_key_is_checked(self, key):
+        """Each CFG_CHOICES key warns at load on a value outside its set, so the table and the check agree."""
+        # Arrange
+        cfg = _cfg_with(**{key: "nonsense"})
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert any(key in warning for warning in actual), f"{key} is checked at load: {actual}"
+
     def test_default_cfg_passes(self):
         """The defaults plus a named port produce no warnings at all."""
         # Act
@@ -759,6 +820,18 @@ class TestValidateConfig:
         # Assert
         assert len(actual) == 1, "exactly one warning"
         assert "flow_control" in actual[0], "identifies the field"
+
+    def test_invalid_custom_buttons_side(self):
+        """A custom_buttons_side other than bottom/left/right yields exactly one warning."""
+        # Arrange
+        cfg = _cfg_with(custom_buttons_side="top")
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1, "exactly one warning"
+        assert "custom_buttons_side" in actual[0], "identifies the field"
 
     def test_nonstandard_baud_rate_warns(self):
         """A nonstandard baud warns, not rejects, and points the user at custom_baud."""

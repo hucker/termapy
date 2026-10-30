@@ -3,7 +3,7 @@
 Pure data - no logic, no I/O, no dependencies beyond migration version.
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 
 from termapy.migration import CURRENT_CONFIG_VERSION
 
@@ -34,6 +34,24 @@ VALID_FLOW_CONTROLS = {"none", "rtscts", "xonxoff", "manual"}
 # How termapy prints JSON (request mode, --json): one line, indented, or
 # indented and highlighted.  The order is /term.json's cycle order.
 JSON_STYLES = ("compact", "indent", "color")
+# Where the custom buttons sit: in the bottom bar, or a column down the
+# left or right edge of the output pane (room for many more).
+CUSTOM_BUTTON_SIDES = ("bottom", "left", "right")
+# The frontends ``default_ui`` can start in.
+UI_MODES = ("tui", "cli", "vt100")
+# Every cfg key whose value is one of a fixed set, spelled as the file
+# holds it: validate_config warns on anything else, the config editor
+# marks it red, and /cfg matches a typed value in any case
+# (config.cfg_choice).
+CFG_CHOICES: dict[str, Collection[object]] = {
+    "byte_size": VALID_BYTE_SIZES,
+    "parity": VALID_PARITIES,
+    "stop_bits": VALID_STOP_BITS,
+    "flow_control": VALID_FLOW_CONTROLS,
+    "default_ui": UI_MODES,
+    "json_style": JSON_STYLES,
+    "custom_buttons_side": CUSTOM_BUTTON_SIDES,
+}
 
 # Single source of truth for the REPL command prefix default.  Used
 # in DEFAULT_CFG, the ``cmd_prefix(cfg)`` helper, and as the default
@@ -131,6 +149,7 @@ DEFAULT_CFG = {
     # Record button (next to the REPL prompt; toggles /run.record).
     "record_enabled": True,
     # Custom buttons
+    "custom_buttons_side": "bottom",
     "custom_buttons": [
         {
             "enabled": True,
@@ -326,17 +345,17 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "custom_baud": (
         "Allow non-standard baud rates (modern drivers accept arbitrary rates).",
-        "Valid: true, false",
+        "true, false",
     ),
-    "byte_size": ("Data bits per byte.", "Valid: 5, 6, 7, 8"),
+    "byte_size": ("Data bits per byte.", "5, 6, 7, 8"),
     "parity": (
         "Parity bit.",
-        "Valid: N (None), E (Even), O (Odd), M (Mark), S (Space)",
+        "N (None), E (Even), O (Odd), M (Mark), S (Space)",
     ),
-    "stop_bits": ("Stop bits.", "Valid: 1, 1.5, 2"),
+    "stop_bits": ("Stop bits.", "1, 1.5, 2"),
     "flow_control": (
         "Flow control mode.",
-        "Valid: none, rtscts, xonxoff, manual (shows DTR/RTS/Break buttons)",
+        "none, rtscts, xonxoff, manual (shows DTR/RTS/Break buttons)",
     ),
     "encoding": (
         "Character encoding for serial data (set: {prefix}term.encoding).",
@@ -356,7 +375,7 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "protocol": (
         "Wire format the device speaks.",
-        'Valid: "text" (default, line-oriented), "ndjson" (one JSON object per line).',
+        '"text" (default, line-oriented), "ndjson" (one JSON object per line).',
     ),
     "ndjson_field_routing": (
         "NDJSON: which inbound JSON fields the MCP bridge routes on.",
@@ -381,11 +400,11 @@ CFG_HELP: dict[str, tuple] = {
     # Connection
     "auto_connect": (
         "Connect to the port automatically on startup.",
-        "Valid: true, false    ",
+        "true, false    ",
     ),
     "auto_reconnect": (
         "Retry connection every 2.5s if the port drops or fails to open.",
-        "Valid: true, false",
+        "true, false",
     ),
     "on_connect_cmd": (
         "Command to run after connecting (all frontends).",
@@ -406,11 +425,11 @@ CFG_HELP: dict[str, tuple] = {
     # Input
     "send_bare_enter": (
         "Send the line ending on an empty Enter (toggle: {prefix}term.send_bare_enter).",
-        "Valid: true, false",
+        "true, false",
     ),
     "echo": (
         "Echo device commands sent to the wire (toggle: {prefix}term.echo).",
-        "Valid: true, false",
+        "true, false",
     ),
     "echo_fmt": (
         "Rich markup format for echoed commands.",
@@ -423,11 +442,11 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "vt100_hint": (
         "Show a VS Code key-capture tip in --vt100 mode.",
-        "Valid: true, false. VS Code terminals capture some keys before the device.",
+        "true, false. VS Code terminals capture some keys before the device.",
     ),
     "quiet_start": (
         "Start quietly: show the connection and any problem, keep the detail in the log.",
-        "Valid: true, false. False also shows the load table and the full connect line.",
+        "true, false. False also shows the load table and the full connect line.",
     ),
     "cmd_prefix": (
         "Prefix for local REPL commands.",
@@ -454,19 +473,19 @@ CFG_HELP: dict[str, tuple] = {
     "max_lines": ("Scrollback buffer size.", "Positive integer. Default: 10000"),
     "timestamps": (
         "Prefix each line with [HH:MM:SS.mmm] (toggle: {prefix}term.timestamps).",
-        "Valid: true, false",
+        "true, false",
     ),
     "eol_markers": (
         "Show dim \\r \\n markers in serial output (toggle: {prefix}term.eol.markers).",
-        "Valid: true, false. Debug mode for line-ending issues.",
+        "true, false. Debug mode for line-ending issues.",
     ),
     "line_no": (
         "Show line numbers in serial output (toggle: {prefix}term.line_no).",
-        "Valid: true, false",
+        "true, false",
     ),
     "hex": (
         "Display received bytes as hex instead of text (toggle: {prefix}term.hex).",
-        "Valid: true, false",
+        "true, false",
     ),
     "request_mode": (
         "Session JSON mode: device exchanges AND termapy commands.",
@@ -497,7 +516,7 @@ CFG_HELP: dict[str, tuple] = {
         "The TUI's session log file path.",
         "Empty = <name>.log in config subfolder. MCP logs to mcp/session.log; the CLI keeps none.",
     ),
-    "show_traceback": ("Show full stack trace on serial errors.", "Valid: true, false"),
+    "show_traceback": ("Show full stack trace on serial errors.", "true, false"),
     # Proto
     "proto_frame_gap_ms": (
         "Silence gap (ms) to detect end of a binary frame.",
@@ -510,11 +529,11 @@ CFG_HELP: dict[str, tuple] = {
     # Access
     "config_read_only": (
         "Disable Edit button in pickers.",
-        "Valid: true, false. {prefix}cfg still changes in-memory values.",
+        "true, false. {prefix}cfg still changes in-memory values.",
     ),
     "profile_path": (
         "Explicit path to a v2 device profile.  MCP-only: --mcp loads it on connect.",
-        'Valid: file path (e.g. "termapy_cfg/myrig/myrig.profile.json"), or empty.',
+        'file path (e.g. "termapy_cfg/myrig/myrig.profile.json"), or empty.',
     ),
     "validate_typed_args": (
         "Validate bare-command typed args against the active profile before sending.",
@@ -523,22 +542,22 @@ CFG_HELP: dict[str, tuple] = {
     # Title-bar buttons
     "cfg_enabled": (
         "Show the Cfg button in the title bar.",
-        "Valid: true, false.",
+        "true, false.",
     ),
     "run_enabled": (
         "Show the Run button in the title bar.",
-        "Valid: true, false.",
+        "true, false.",
     ),
     "proto_enabled": (
         "Show the Proto button in the title bar.",
-        "Valid: true, false.",
+        "true, false.",
     ),
     "record_enabled": (
         "Show the Record button next to the REPL prompt (toggles {prefix}run.record).",
-        "Valid: true, false.",
+        "true, false.",
     ),
     # Custom buttons (nested keys)
-    "enabled": ("Whether this button is visible in the toolbar.", "Valid: true, false"),
+    "enabled": ("Whether this button is visible in the toolbar.", "true, false"),
     "name": ("Button display text.", "Short text shown on the button."),
     "command": (
         "Command to execute when clicked.",
@@ -552,6 +571,10 @@ CFG_HELP: dict[str, tuple] = {
     "config_version": (
         "[bold red]DO NOT EDIT[/] - schema version, managed automatically.",
         "Current version: " + str(CURRENT_CONFIG_VERSION),
+    ),
+    "custom_buttons_side": (
+        "Where custom buttons sit: the bottom bar, or a column on the left or right edge.",
+        f"{', '.join(CUSTOM_BUTTON_SIDES)}. A column scrolls when it holds more than fit.",
     ),
     "custom_buttons": (
         "Array of custom toolbar button objects.",

@@ -17,6 +17,8 @@ def repl_env(tmp_path):
         "echo": False,
         "eol": "\r",
         "stop_bits": 1.5,
+        "parity": "N",
+        "custom_buttons_side": "bottom",
     }
     config_path = tmp_path / "test_cfg.cfg"
     config_path.write_text(json.dumps(cfg, indent=4))
@@ -139,6 +141,12 @@ class TestCfgChange:
         assert cfg["baud_rate"] == 9600, "in-memory config updated"
         assert any("session" in t for t, _ in output), "session-only confirmation"
 
+    def test_a_choice_in_another_case_is_stored_as_the_config_spells_it(self, repl_env):
+        """/cfg reads a fixed-value key's value in any case and stores the file's spelling."""
+        engine, cfg, _, _ = repl_env
+        engine.dispatch("cfg custom_buttons_side LEFT")
+        assert cfg["custom_buttons_side"] == "left", "stored as the file spells it"
+
 
 class TestCfgAuto:
     def test_auto_int(self, repl_env):
@@ -170,6 +178,32 @@ class TestCfgAuto:
         engine, cfg, _, output = repl_env
         engine.dispatch("cfg.auto stop_bits 2.0")
         assert cfg["stop_bits"] == 2.0, "float coerced and applied"
+
+    def test_auto_matches_a_choice_in_any_case(self, repl_env):
+        """A fixed-value key takes its value in any case and stores the file's spelling."""
+        # Arrange
+        engine, cfg, _, _ = repl_env
+
+        # Act
+        engine.dispatch("cfg.auto custom_buttons_side Right")
+        engine.dispatch("cfg.auto parity e")
+
+        # Assert
+        actual = (cfg["custom_buttons_side"], cfg["parity"])
+        assert actual == ("right", "E"), "each stored as the file spells it"
+
+    def test_auto_refuses_a_value_outside_the_choices(self, repl_env):
+        """A fixed-value key refuses any other value, naming the choices, and keeps its own."""
+        # Arrange
+        engine, cfg, _, output = repl_env
+
+        # Act
+        engine.dispatch("cfg.auto custom_buttons_side up")
+
+        # Assert
+        expected = "Invalid custom_buttons_side: up (use bottom/left/right)"
+        assert any(expected in t for t, _ in output), f"the refusal names the choices: {output}"
+        assert cfg["custom_buttons_side"] == "bottom", "the value is unchanged"
 
     def test_auto_unknown_key(self, repl_env):
         """/cfg.auto refuses a key not in the config instead of adding it."""

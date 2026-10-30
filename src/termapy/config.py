@@ -414,6 +414,42 @@ class ConfigExistsError(ValueError):
         )
 
 
+def ordered_cfg(cfg: Mapping) -> dict:
+    """``cfg`` with its keys in ``DEFAULT_CFG``'s order, the layout of every config file.
+
+    Known keys come in the defaults' order, and so do the keys inside a
+    nested default (``serial``, ``ndjson_field_routing``); a key the
+    defaults do not have (a typo, a retired key) follows in the order it
+    had.  Values are untouched.
+    """
+    known = [key for key in DEFAULT_CFG if key in cfg]
+    unknown = [key for key in cfg if key not in DEFAULT_CFG]
+    ordered = {}
+    for key in known + unknown:
+        value = cfg[key]
+        default = DEFAULT_CFG.get(key)
+        if isinstance(default, dict) and isinstance(value, dict):
+            # The default's keys first, in its order; the merge keeps those
+            # places and appends any sub-key the default does not have.
+            value = {**{sub: value[sub] for sub in default if sub in value}, **value}
+        ordered[key] = value
+    return ordered
+
+
+def write_config_file(path: str | Path, cfg: Mapping) -> None:
+    """Write ``cfg`` to ``path`` in the standard order (``ordered_cfg``).
+
+    The one writer of a ``.cfg`` (registry ``cfg-written-in-order``):
+    load's migration write-back, ``create_config`` and the config editor's
+    Save, so a file reads group by group whichever of them wrote it.
+    ``_`` keys are session state (migration steps, warnings) and are never
+    saved.
+    """
+    saved = {key: value for key, value in cfg.items() if not key.startswith("_")}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(ordered_cfg(saved), f, indent=4)
+
+
 def create_config(config_path: str | Path, cfg: dict, *, overwrite: bool = False) -> Path:
     """Write a new config -- the one way a ``.cfg`` comes into being.
 
@@ -447,8 +483,7 @@ def create_config(config_path: str | Path, cfg: dict, *, overwrite: bool = False
     if (path.exists() or own_folder) and not overwrite:
         raise ConfigExistsError(path)
     prepare_cfg_folder(str(path))
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=4)
+    write_config_file(path, cfg)
     return path
 
 
@@ -1252,10 +1287,7 @@ def load_config(path: str) -> dict:
     # existing display path.
     mig_warnings = cfg.pop("_migration_warnings", []) + _write_migration_run_files(cfg, path)
     if changed:
-        # ``_``-keys are session state (migration steps, warnings), never saved.
-        saved = {key: value for key, value in cfg.items() if not key.startswith("_")}
-        with open(path, "w") as f:
-            json.dump(saved, f, indent=4)
+        write_config_file(path, cfg)
     if migrated:
         cfg["_migrated_from"] = old_version
     expand_warnings: list[str] = []

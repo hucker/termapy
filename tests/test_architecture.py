@@ -658,6 +658,59 @@ def test_data_folders_are_created_only_by_ensure_folder():
     )
 
 
+# Files that call json.dump for a file that is not a config, with why.  Only
+# shrinks: a config is written by config.write_config_file.
+ALLOWED_JSON_DUMP: dict[str, str] = {
+    "termapy/app_dirs.py": "the app's own state file, not a config",
+    "termapy/protocol/runner.py": "a proto test's results file, not a config",
+}
+
+
+def _json_dump_calls(tree: ast.AST, rel: str) -> list[str]:
+    """Every ``json.dump(...)`` call in ``rel``, except inside ``config.write_config_file``."""
+    exempt = {
+        id(node)
+        for function in ast.walk(tree)
+        if rel == "termapy/config.py"
+        and isinstance(function, ast.FunctionDef)
+        and function.name == "write_config_file"
+        for node in ast.walk(function)
+    }
+    return [
+        f"{rel}:{node.lineno}  {ast.unparse(node)}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "dump"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id.endswith("json")
+        and id(node) not in exempt
+    ]
+
+
+def test_config_files_are_written_by_one_writer():
+    """cfg-written-in-order: Only ``config.write_config_file`` calls ``json.dump``, outside the allowlist.
+
+    It lays a config out in ``DEFAULT_CFG``'s order (``ordered_cfg``), so a
+    file reads group by group whichever path wrote it: load's migration
+    write-back, ``create_config`` and the config editor's Save.  A second
+    writer would put the keys wherever its dict had them.
+    """
+    # Arrange / Act
+    violations = []
+    for path in _package_python_files():
+        rel = path.relative_to(SRC.parent).as_posix()
+        if rel not in ALLOWED_JSON_DUMP:
+            violations += _json_dump_calls(ast.parse(path.read_text(encoding="utf-8")), rel)
+
+    # Assert
+    assert violations == [], (
+        "a config file is written by config.write_config_file, never json.dump:\n  "
+        + "\n  ".join(violations)
+        + "\n\nIf the file is genuinely not a config, add it to ALLOWED_JSON_DUMP above."
+    )
+
+
 # Files that type a folder glob for a folder FOLDERS does not hold, with why.
 # Only shrinks: a data folder's glob is read from FOLDER_PATTERNS.
 ALLOWED_TYPED_GLOBS: dict[str, str] = {

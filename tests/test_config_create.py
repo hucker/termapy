@@ -23,7 +23,7 @@ from termapy.config import (
     new_config,
     validate_config,
 )
-from termapy.defaults import default_cfg
+from termapy.defaults import DEFAULT_CFG, default_cfg
 
 
 def _existing(root: Path, name: str) -> tuple[Path, Path]:
@@ -121,6 +121,20 @@ class TestCreateConfig:
         loaded = load_config(str(cfg_path))
         assert loaded["title"] == "mydev"
         assert validate_config(loaded) == [], "a new config is valid as written"
+
+    def test_writes_the_keys_in_the_standard_order(self, tmp_path):
+        """cfg-written-in-order: whatever order the dict has, the file is laid out in DEFAULT_CFG's order."""
+        # Arrange
+        cfg = new_config("mydev", port="COM4", baud=115200)
+        scrambled = dict(reversed(list(cfg.items())))
+        cfg_path = tmp_path / "mydev" / "mydev.cfg"
+
+        # Act
+        create_config(cfg_path, scrambled)
+
+        # Assert
+        actual = list(json.loads(cfg_path.read_text(encoding="utf-8")))
+        assert actual == list(DEFAULT_CFG), "the file reads in the defaults' order"
 
     def test_twice_in_a_row_the_second_is_refused(self, tmp_path):
         """config-created-once: creating the same config again raises, and the first is untouched."""

@@ -426,6 +426,29 @@ class TestSave:
 
         _run(scenario)
 
+    def test_save_writes_the_standard_order(self, tmp_path):
+        """cfg-written-in-order: keys typed in any order are saved in DEFAULT_CFG's order."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _ = await _open(app, pilot, cfg, path)
+                screen.query_one("#config-editor", TextArea).text = json.dumps(
+                    dict(reversed(list(cfg.items())))
+                )
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#cfg-save")
+                await pilot.pause()
+
+                # Assert
+                actual = list(json.loads(path.read_text(encoding="utf-8")))
+                assert actual == list(DEFAULT_CFG), "the file reads in the defaults' order"
+
+        _run(scenario)
+
     def test_cancel_and_escape_dismiss_none(self, tmp_path):
         """Cancel and Escape both dismiss with None and leave the file alone."""
 

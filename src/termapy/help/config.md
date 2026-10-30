@@ -32,24 +32,20 @@ Each configuration is stored as a JSON file at `<config_dir>/<name>/<name>.cfg`.
 On first run, `termapy` creates a default config for you. You can edit it
 from within the app by clicking the center title bar button or using `/cfg`.
 
+The keys are kept in one order, grouped by what they set: identity, port,
+connecting, line text, display, device replies, device profile, files,
+protocol tests, startup and frontends, buttons. termapy writes every
+config that way, the editor's Save included, so a key you add anywhere
+moves to its group.
+
 Here is an example config for a device called `iot_device`:
 
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 31,
+    "config_version": 32,
     "title": "IoT Device",
     "border_color": "blue",
-    "max_lines": 10000,
-    "default_ui": "tui",
-    "vt100_hint": true,
-    "quiet_start": true,
-    "cmd_prefix": "/",
-    "cli_prompt": "$(CFG)> ",
-    "cli_completion": true,
-    "config_read_only": false,
-    "profile_path": "",
-    "validate_typed_args": false,
     "serial": {
         "port": "COM4",
         "baud_rate": 115200,
@@ -59,44 +55,54 @@ Here is an example config for a device called `iot_device`:
         "stop_bits": 1,
         "flow_control": "none"
     },
-    "encoding": "utf-8",
-    "cmd_delay_ms": 0,
-    "protocol": "text",
-    "ndjson_field_routing": {
-        "response_id": "id",
-        "error_field": "error",
-        "event_field": "event"
-    },
-    "default_response_timeout_ms": 1000,
     "auto_connect": true,
     "auto_reconnect": true,
     "on_connect_cmd": "/run startup",
     "tui_on_connect_cmd": "",
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
+    "encoding": "utf-8",
     "eol": "\r",
     "eol_rx": "auto",
+    "eol_markers": false,
     "send_bare_enter": false,
+    "cmd_delay_ms": 0,
     "echo": false,
     "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
-    "log_file": "",
-    "show_traceback": false,
-    "proto_frame_gap_ms": 50,
-    "proto_results_template": "{name}_results.json",
     "timestamps": false,
-    "eol_markers": false,
     "line_no": false,
     "hex": false,
+    "max_lines": 10000,
+    "max_grep_lines": 100,
+    "protocol": "text",
+    "ndjson_field_routing": {
+        "response_id": "id",
+        "error_field": "error",
+        "event_field": "event"
+    },
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
-    "json_style": "compact",
     "strip_device_echo": false,
-    "max_grep_lines": 100,
+    "json_style": "compact",
+    "profile_path": "",
+    "validate_typed_args": false,
+    "default_response_timeout_ms": 1000,
+    "log_file": "",
     "file_xfer_root": "",
+    "proto_frame_gap_ms": 50,
+    "proto_results_template": "{name}_results.json",
+    "default_ui": "tui",
+    "quiet_start": true,
+    "vt100_hint": true,
+    "cmd_prefix": "/",
+    "cli_prompt": "$(CFG)> ",
+    "cli_completion": true,
+    "show_traceback": false,
     "cfg_enabled": true,
     "run_enabled": true,
     "proto_enabled": true,
     "record_enabled": true,
+    "config_read_only": false,
     "custom_buttons_side": "bottom",
     "custom_buttons": [
         {
@@ -130,6 +136,8 @@ reported as a type warning.
 <!-- config-reference:start (Field + Default columns and alignment are synced from DEFAULT_CFG by scripts/update_doc_configs.py; edit only the Description column) -->
 | Field                         | Default                       | Description |
 | ----------------------------- | ----------------------------- | --- |
+| `title`                       | `""`                          | Title bar text (defaults to config filename) |
+| `border_color`                | `""`                          | Title bar color (CSS name or hex like `#ff6600`) |
 | `serial.port`                 | `""`                          | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
 | `serial.baud_rate`            | `115200`                      | Serial baud rate -- non-standard rates require `custom_baud` |
 | `serial.custom_baud`          | `false`                       | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates |
@@ -137,54 +145,52 @@ reported as a type warning.
 | `serial.parity`               | `N`                           | Parity: None, Even, Odd, Mark, or Space |
 | `serial.stop_bits`            | `1`                           | Stop bits (1, 1.5, or 2) |
 | `serial.flow_control`         | `none`                        | `none`, `rtscts`, `xonxoff`, or `manual` (shows DTR/RTS/Break buttons) |
-| `encoding`                    | `utf-8`                       | Character encoding (utf-8, latin-1, ascii, cp437) |
-| `cmd_delay_ms`                | `0`                           | Milliseconds between commands in autoconnect and multi-command input |
-| `protocol`                    | `text`                        | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line) |
-| `ndjson_field_routing`        | `{...}`                       | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field) |
-| `default_response_timeout_ms` | `1000`                        | Fallback wait (ms) for a profile command lacking its own `response.timeout_ms` |
-| `eol`                         | `"\r"`                        | Appended to each sent command: `\r`, `\r\n`, or `\n` |
-| `eol_rx`                      | `auto`                        | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx) |
-| `send_bare_enter`             | `false`                       | Send line ending on empty Enter (for "press enter to continue" prompts) |
 | `auto_connect`                | `false`                       | Connect automatically when the app starts |
 | `auto_reconnect`              | `false`                       | Retry connection every 2.5s if the port drops or fails to open |
 | `on_connect_cmd`              | `""`                          | One command to run after connecting (all frontends); for several, `/run <name>` and a `.run` file |
 | `tui_on_connect_cmd`          | `""`                          | Extra command to run after connecting in TUI mode (after `on_connect_cmd`) |
 | `cli_on_connect_cmd`          | `""`                          | Extra command to run after connecting in CLI mode (after `on_connect_cmd`) |
 | `mcp_on_connect_cmd`          | `""`                          | Extra command to run after connecting in MCP mode. Common: `echo off` / `color off` to silence device at the source (MCP already strips ANSI; `/term.color on` re-enables) |
-| `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
+| `encoding`                    | `utf-8`                       | Character encoding (utf-8, latin-1, ascii, cp437) |
+| `eol`                         | `"\r"`                        | Appended to each sent command: `\r`, `\r\n`, or `\n` |
+| `eol_rx`                      | `auto`                        | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx) |
+| `eol_markers`                 | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
+| `send_bare_enter`             | `false`                       | Send line ending on empty Enter (for "press enter to continue" prompts) |
+| `cmd_delay_ms`                | `0`                           | Milliseconds between commands in autoconnect and multi-command input |
 | `echo`                        | `false`                       | Echo device commands sent to the wire (bare + `/term.send`). Runtime: `/term.echo {on\|off\|toggle}` |
 | `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |
-| `log_file`                    | `""`                          | The TUI's session log path (defaults to `<name>.log` in config subfolder); MCP logs to `mcp/session.log`, the CLI keeps none |
 | `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |
-| `eol_markers`                 | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
 | `line_no`                     | `false`                       | Show line numbers in serial output |
 | `hex`                         | `false`                       | Display received bytes as hex instead of text |
+| `max_lines`                   | `10000`                       | Scrollback buffer size |
+| `max_grep_lines`              | `100`                         | Maximum lines shown by `/grep` |
+| `protocol`                    | `text`                        | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line) |
+| `ndjson_field_routing`        | `{...}`                       | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field) |
 | `request_mode`                | `false`                       | Turn bare device commands into synchronous request/response (see `/term.request`) |
 | `request_err_pattern`         | `(?i)^(ERROR\|ERR\|FAULT)\\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
 | `strip_device_echo`           | `false`                       | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |
+| `json_style`                  | `compact`                     | How JSON answers print (`request_mode`, `--json`): `compact` one line per answer, `indent`, or `color` (indented and highlighted). Set: `/term.json` |
+| `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
 | `validate_typed_args`         | `false`                       | Opt-in: validate bare-command `typed_args` against the active profile's type registry. Off = raw access; on = mirrors MCP (bad values fail before the wire). |
-| `max_grep_lines`              | `100`                         | Maximum lines shown by `/grep` |
+| `default_response_timeout_ms` | `1000`                        | Fallback wait (ms) for a profile command lacking its own `response.timeout_ms` |
+| `log_file`                    | `""`                          | The TUI's session log path (defaults to `<name>.log` in config subfolder); MCP logs to `mcp/session.log`, the CLI keeps none |
 | `file_xfer_root`              | `""`                          | Root directory for file transfer (empty = `cap/`). See [File Transfer](file-transfer.md). |
 | `proto_frame_gap_ms`          | `50`                          | Silence gap (ms) to detect end of a binary frame |
 | `proto_results_template`      | `{name}_results.json`         | Filename template for protocol test JSON results |
-| `title`                       | `""`                          | Title bar text (defaults to config filename) |
-| `border_color`                | `""`                          | Title bar color (CSS name or hex like `#ff6600`) |
-| `max_lines`                   | `10000`                       | Scrollback buffer size |
 | `default_ui`                  | `tui`                         | Default UI mode: `tui`, `cli`, or `vt100` |
-| `vt100_hint`                  | `true`                        | Show a VS Code key-capture tip in `--vt100` mode (set `false` to hide) |
 | `quiet_start`                 | `true`                        | Start quietly: the symbol table and device files by full path, `Connected: <port>` and any problem on screen; the load table, the full connect line and the resolved port go to the log (`/cfg.loaded` shows the table again). `false` shows them too |
+| `vt100_hint`                  | `true`                        | Show a VS Code key-capture tip in `--vt100` mode (set `false` to hide) |
 | `cmd_prefix`                  | `/`                           | Prefix for local REPL commands |
 | `cli_prompt`                  | `"$(CFG)> "`                  | Prompt string in CLI mode (supports variables) |
 | `cli_completion`              | `true`                        | Enable CLI tab completion, auto-suggest, and help toolbar |
-| `config_read_only`            | `false`                       | Disable Edit button in pickers (`/cfg` still changes in-memory values) |
+| `show_traceback`              | `false`                       | Show full stack trace on serial errors |
 | `cfg_enabled`                 | `true`                        | Show the Cfg button in the title bar |
 | `run_enabled`                 | `true`                        | Show the Run button in the title bar |
 | `proto_enabled`               | `true`                        | Show the Proto button in the title bar |
 | `record_enabled`              | `true`                        | Show the Record button next to the REPL prompt (toggles `/run.record`) |
-| `show_traceback`              | `false`                       | Show full stack trace on serial errors |
-| `custom_buttons`              | `[4 entries]`                 | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
+| `config_read_only`            | `false`                       | Disable Edit button in pickers (`/cfg` still changes in-memory values) |
 | `custom_buttons_side`         | `bottom`                      | Where custom buttons sit: `bottom` in the bottom bar, or `left` / `right` for a column on that edge of the output, which holds many more (see [Custom Buttons](custom-buttons.md)) |
-| `json_style`                  | `compact`                     | How JSON answers print (`request_mode`, `--json`): `compact` one line per answer, `indent`, or `color` (indented and highlighted). Set: `/term.json` |
+| `custom_buttons`              | `[4 entries]`                 | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
 <!-- config-reference:end -->
 
 ## Connection behavior

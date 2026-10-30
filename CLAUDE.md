@@ -46,6 +46,7 @@ All other paths relative to `src/termapy/`.
 - `termapy_cfg/` is gitignored
 - New `DEFAULT_CFG` options must also be added to `builtins/demo/demo.cfg`
 - New config keys must be documented in: `DEFAULT_CFG` (defaults.py), README.md config reference table, `help/config.md` field reference, and the demo.cfg template
+- **`DEFAULT_CFG`'s order is the layout of every config file** (registry `cfg-written-in-order`, decision 2026-10-30): a new key goes in its group there, never at the end. Every `.cfg` is written by `config.write_config_file`, in that order; related keys are grouped by order, not nested.
 
 ## Rules
 

@@ -663,3 +663,27 @@ as typed, so a mistyped vendor SVD path offers the whole corrected
 path. It lists a folder only where the command could already read:
 every site guards its path first or is unreachable over MCP, and
 `/profile.validate`, which reads its path unguarded, is left without one.
+
+## 2026-10-30 — A config file is laid out in one order, grouped by order and not by nesting
+
+The config file is termapy's settings UI: a developer edits the JSON with
+the editor's per-line help and validation. So its layout is part of the
+interface, and it had drifted: every key a migration or backfill added
+was appended, and Chuck's oldest config had 46 of its 50 keys out of
+place (`serial`, port and baud, was 37th). `DEFAULT_CFG`'s order is now
+the layout, in groups by what you configure, the settings edited most
+first and the long button list last: identity, port, connecting, line
+text, display, device replies, device profile, files, protocol tests,
+startup and frontends, buttons. Every write goes through
+`config.write_config_file` (registry `cfg-written-in-order`): load's
+migration write-back, `create_config` and the config editor's Save, which
+reorders what was typed rather than keeping it. A key the defaults lack
+comes last. The v32 step makes every existing file be rewritten once.
+**Related settings are grouped by order, not nesting.** `eol`, `eol_rx`
+and `eol_markers` sit together as flat keys rather than an `eol` dict:
+v28 named them for their `/term.eol` commands, `/cfg` looks keys up only
+at the top level and in `serial`, and the editor validates by key name,
+so a dict would have cost a migration and changes in all three for what
+adjacency gives free. This settles the "future grouping decision" the
+comment above `serial` used to leave open; only the pyserial arguments
+are nested.

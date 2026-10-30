@@ -60,24 +60,17 @@ CFG_CHOICES: dict[str, Collection[object]] = {
 # everywhere without a textual search for literal "/".
 DEFAULT_CMD_PREFIX = "/"
 
+# The defaults, and the layout of every config file: termapy writes a config
+# in this order (``config.ordered_cfg``), so a file reads group by group,
+# the settings edited most first and the long button list last.  Related
+# settings are grouped by order, not nested (decision 2026-10-30); only the
+# pyserial arguments sit in a dict of their own.
 DEFAULT_CFG = {
     "config_version": CURRENT_CONFIG_VERSION,
-    # App
+    # Identity
     "title": "",
     "border_color": "",
-    "max_lines": 10000,
-    "default_ui": "tui",
-    "vt100_hint": True,
-    "quiet_start": True,
-    "cmd_prefix": DEFAULT_CMD_PREFIX,
-    "cli_prompt": "$(CFG)> ",
-    "cli_completion": True,
-    "config_read_only": False,
-    "profile_path": "",
-    "validate_typed_args": False,
-    # Serial -- pyserial constructor args grouped under "serial".
-    # Other serial-domain keys (encoding, cmd_delay_ms, protocol,
-    # eol) stay flat for now; future grouping decision.
+    # Port -- pyserial constructor arguments
     "serial": {
         "port": "",
         "baud_rate": 115200,
@@ -87,30 +80,24 @@ DEFAULT_CFG = {
         "stop_bits": 1,
         "flow_control": "none",
     },
-    "encoding": "utf-8",
-    "cmd_delay_ms": 0,
-    "protocol": "text",
-    "ndjson_field_routing": {
-        "response_id": "id",
-        "error_field": "error",
-        "event_field": "event",
-    },
-    "default_response_timeout_ms": 1000,
-    # Connection
+    # Connecting
     "auto_connect": False,
     "auto_reconnect": False,
     "on_connect_cmd": "",
     "tui_on_connect_cmd": "",
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
+    # Line text: what goes out, how it comes back
+    "encoding": "utf-8",
     "eol": "\r",
     # Receive newline: how incoming device output is split into lines.
     # "auto" treats CR, LF, and CRLF all as line terminators (TeraTerm's
     # Receive=AUTO -- works for any device); cr/lf/crlf force a single
     # terminator for the rare device that sends a stray CR/LF as data.
     "eol_rx": "auto",
-    # Input
+    "eol_markers": False,
     "send_bare_enter": False,
+    "cmd_delay_ms": 0,
     # Input echo of device commands sent to the wire (bare lines +
     # /term.send).  A separate session-only flag, echo_repl, governs echo
     # of REPL/slash commands (/cfg, /help, ...) -- it has no cfg key
@@ -119,36 +106,52 @@ DEFAULT_CFG = {
     # concern and not modeled here.)
     "echo": False,
     "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
-    # Logging
-    "log_file": "",
-    # Diagnostics
-    "show_traceback": False,
-    # Proto
-    "proto_frame_gap_ms": 50,
-    "proto_results_template": "{name}_results.json",
     # Display
     "timestamps": False,
-    "eol_markers": False,
     "line_no": False,
     "hex": False,
+    "max_lines": 10000,
+    "max_grep_lines": 100,
+    # Device replies
+    "protocol": "text",
+    "ndjson_field_routing": {
+        "response_id": "id",
+        "error_field": "error",
+        "event_field": "event",
+    },
     "request_mode": False,
     "request_err_pattern": r"(?i)^(ERROR|ERR|FAULT)\b",
-    "json_style": "compact",
     # Half-duplex devices echo the command back before answering.  When on,
     # a request_mode response drops a leading line that matches the sent
     # command.  Off by default -- opt in per device, since a device that
     # doesn't echo could in theory emit a first line matching the command.
     "strip_device_echo": False,
-    "max_grep_lines": 100,
-    # File transfer
+    "json_style": "compact",
+    # Device profile
+    "profile_path": "",
+    "validate_typed_args": False,
+    "default_response_timeout_ms": 1000,
+    # Files
+    "log_file": "",
     "file_xfer_root": "",
-    # Title-bar buttons
+    # Protocol tests
+    "proto_frame_gap_ms": 50,
+    "proto_results_template": "{name}_results.json",
+    # Startup and frontends
+    "default_ui": "tui",
+    "quiet_start": True,
+    "vt100_hint": True,
+    "cmd_prefix": DEFAULT_CMD_PREFIX,
+    "cli_prompt": "$(CFG)> ",
+    "cli_completion": True,
+    "show_traceback": False,
+    # Buttons: the title bar's, Record next to the REPL prompt (toggles
+    # /run.record), the pickers' Edit, then the custom buttons.
     "cfg_enabled": True,
     "run_enabled": True,
     "proto_enabled": True,
-    # Record button (next to the REPL prompt; toggles /run.record).
     "record_enabled": True,
-    # Custom buttons
+    "config_read_only": False,
     "custom_buttons_side": "bottom",
     "custom_buttons": [
         {

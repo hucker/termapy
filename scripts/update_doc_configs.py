@@ -2,8 +2,10 @@
 
 Finds <!-- validate-config-keys --> tags in markdown files, parses the
 next JSON code block, and rewrites it with all current config keys in
-DEFAULT_CFG order. Preserves non-default values from the original example
-(e.g. realistic port names, custom buttons).
+DEFAULT_CFG order (config.ordered_cfg, the order termapy writes a config
+in) when a key is missing or unknown, the version is stale, or the order
+is off. Preserves non-default values from the original example (e.g.
+realistic port names, custom buttons).
 
 Usage:
     python scripts/update_doc_configs.py
@@ -59,6 +61,7 @@ def _extract_json(lines: list[str], tag_line: int) -> tuple[dict, int, int] | No
 
 def update_doc_configs() -> list[str]:
     """Update all tagged config examples. Returns list of updated file descriptions."""
+    from termapy.config import ordered_cfg
     from termapy.defaults import DEFAULT_CFG
     from termapy.migration import CURRENT_CONFIG_VERSION
 
@@ -79,8 +82,10 @@ def update_doc_configs() -> list[str]:
         missing = expected_keys - actual_keys
         unknown = actual_keys - expected_keys
         version_stale = example_cfg.get("config_version") != CURRENT_CONFIG_VERSION
+        # json.dumps keeps key order, so this compares nested keys' order too.
+        out_of_order = json.dumps(example_cfg) != json.dumps(ordered_cfg(example_cfg))
 
-        if not missing and not unknown and not version_stale:
+        if not missing and not unknown and not version_stale and not out_of_order:
             print(f"  OK   {file_path.name}:{tag_line + 1}")
             continue
 
@@ -95,8 +100,8 @@ def update_doc_configs() -> list[str]:
                 new_cfg[key] = DEFAULT_CFG[key]
         new_cfg["config_version"] = CURRENT_CONFIG_VERSION
 
-        # Remove unknown keys
-        json_text = json.dumps(new_cfg, indent=4)
+        # Unknown keys were left out above; nested keys take their order here.
+        json_text = json.dumps(ordered_cfg(new_cfg), indent=4)
         new_lines = json_text.split("\n")
 
         # Rewrite the block in the file
@@ -124,6 +129,8 @@ def update_doc_configs() -> list[str]:
             changes.append(
                 f"version {example_cfg.get('config_version')} -> {CURRENT_CONFIG_VERSION}"
             )
+        if out_of_order:
+            changes.append("reordered")
         desc = f"{file_path.name}:{tag_line + 1} - {', '.join(changes)}"
         print(f"  FIXED {desc}")
         updated.append(desc)
@@ -200,8 +207,7 @@ def _sync_reference_table(path, write: bool = True) -> str | None:
     block = text[mstart.end() : end_idx]
 
     defaults = _flat_default_map()
-    rows: list[tuple[str, str]] = []  # (field, description) in existing order
-    seen: set[str] = set()
+    descriptions: dict[str, str] = {}  # field -> its hand-written description
     for line in block.splitlines():
         line = line.strip()
         if not line.startswith("|"):
@@ -212,14 +218,11 @@ def _sync_reference_table(path, write: bool = True) -> str | None:
         field_cell = cells[1]
         if field_cell == "Field" or set(field_cell) <= set("-: "):
             continue  # header / separator row
-        field = field_cell.strip("`")
-        if field in defaults:  # drop stale keys (renamed away / removed)
-            rows.append((field, cells[3]))
-            seen.add(field)
-    # New keys get a flagged row so the author writes a description.
-    for k in defaults:
-        if k not in seen:
-            rows.append((k, "TODO: describe this key"))
+        descriptions[field_cell.strip("`")] = cells[3]
+    # One row per key in DEFAULT_CFG's order, the order of the file itself; a
+    # key renamed away drops out, and a new key gets a flagged row so the
+    # author writes its description.
+    rows = [(key, descriptions.get(key, "TODO: describe this key")) for key in defaults]
 
     field_cells = [f"`{f}`" for f, _ in rows]
     default_cells = [f"`{_esc_cell(_fmt_default(defaults[f]))}`" for f, _ in rows]

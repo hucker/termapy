@@ -895,9 +895,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labeled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 14, (
-        f"v17 -> v31 covers fourteen migrators "
-        f"(17->18 ... 29->30, 30->31); "
+    assert len(steps) == 15, (
+        f"v17 -> v32 covers fifteen migrators "
+        f"(17->18 ... 30->31, 31->32); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -915,6 +915,7 @@ def test_migration_steps_recorded_per_version():
         "v28 -> v29",
         "v29 -> v30",
         "v30 -> v31",
+        "v31 -> v32",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), f"step {step!r} should start with {prefix!r}"
@@ -932,7 +933,7 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 11, f"eleven steps (v20->v21 ... v29->v30, v30->v31); got {steps!r}"
+    assert len(steps) == 12, f"twelve steps (v20->v21 ... v30->v31, v31->v32); got {steps!r}"
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
     )
@@ -967,8 +968,8 @@ def test_a_saved_step_list_is_not_shown_again():
 
     # Assert
     actual = [step.split(":")[0] for step in first_steps]
-    assert actual == ["v28 -> v29", "v29 -> v30", "v30 -> v31"], (
-        "this run's three steps, none of the saved ones"
+    assert actual == ["v28 -> v29", "v29 -> v30", "v30 -> v31", "v31 -> v32"], (
+        "this run's four steps, none of the saved ones"
     )
     assert "_migration_steps" not in second, "a current config shows no steps, saved list or not"
 

@@ -26,6 +26,7 @@ from termapy.config import (
     cfg_path_for_name,
     create_config,
     prepare_cfg_folder,
+    write_config_file,
 )
 from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, cmd_prefix
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
@@ -471,8 +472,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             self._create(new_cfg, self.config_path)
             return
         prepare_cfg_folder(self.config_path)
-        with open(self.config_path, "w") as f:
-            json.dump(new_cfg, f, indent=4)
+        write_config_file(self.config_path, new_cfg)
         self.dismiss((new_cfg, self.config_path))
 
     def _create(self, new_cfg: dict, path: str, *, overwrite: bool = False) -> None:

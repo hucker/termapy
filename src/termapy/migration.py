@@ -9,15 +9,15 @@ To add a migration:
     2. Write a function: def _migrate_vN_to_vN1(cfg): ... return cfg
     3. Add it to MIGRATIONS: {N: _migrate_vN_to_vN1}
 
-A new key goes in with ``_insert_before``, beside the key it belongs
-with: the migrated config is saved in dict order, so ``setdefault``
-would leave it at the end of the user's file.
+A key a step adds needs no placing: ``load_config`` writes a migrated
+config in ``DEFAULT_CFG``'s order (``config.write_config_file``), so it
+lands in its group, not at the end of the user's file.
 """
 
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 31
+CURRENT_CONFIG_VERSION = 32
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -708,34 +708,32 @@ def _migrate_v29_to_v30(cfg: dict) -> dict:
 MIGRATIONS[29] = _migrate_v29_to_v30
 
 
-def _insert_before(cfg: dict, key: str, value, before: str) -> None:
-    """Add ``key`` just ahead of ``before``, or last when ``before`` is absent; a set value stays.
-
-    Rebuilds ``cfg`` in place, so the caller's dict is the one changed.
-    """
-    if key in cfg:
-        return
-    items = list(cfg.items())
-    cfg.clear()
-    for name, item in items:
-        if name == before:
-            cfg[key] = value
-        cfg[name] = item
-    cfg.setdefault(key, value)
-
-
 def _migrate_v30_to_v31(cfg: dict) -> dict:
     """Add ``custom_buttons_side`` (where custom buttons sit), defaulting to ``bottom``.
 
     ``bottom`` is the bottom bar every older config used; ``left`` or
     ``right`` stacks the buttons in a column beside the output pane.
-    It goes just ahead of ``custom_buttons``, the list it places.
     """
-    _insert_before(cfg, "custom_buttons_side", "bottom", before="custom_buttons")
+    cfg.setdefault("custom_buttons_side", "bottom")
     return cfg
 
 
 MIGRATIONS[30] = _migrate_v30_to_v31
+
+
+def _migrate_v31_to_v32(cfg: dict) -> dict:
+    """Write the config in the standard key order.
+
+    The step changes nothing itself: ``load_config`` writes a migrated
+    config in ``DEFAULT_CFG``'s order (``config.write_config_file``), and a
+    version step is what makes it write a file it would otherwise leave
+    alone.  Keys that earlier steps and backfills appended at the end move
+    to their groups.
+    """
+    return cfg
+
+
+MIGRATIONS[31] = _migrate_v31_to_v32
 
 
 def migrate_config(cfg: dict) -> dict:

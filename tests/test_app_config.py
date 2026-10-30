@@ -22,6 +22,7 @@ from termapy.config import (
     load_config,
     on_connect_commands,
     open_serial,
+    ordered_cfg,
     prepare_cfg_folder,
     reveal_command,
     validate_config,
@@ -413,16 +414,18 @@ class TestLoadConfig:
         assert len(actual["custom_buttons"]) == 1, "custom buttons not replaced"
         assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
-    def test_migration_writes_custom_buttons_side_just_ahead_of_the_buttons(self, tmp_path):
-        """v30 -> v31 saves the new key next to custom_buttons in the file, not at its end."""
+    def test_a_migrated_config_is_written_in_the_standard_order(self, tmp_path):
+        """cfg-written-in-order: a scrambled v31 file is rewritten in DEFAULT_CFG's order, an unknown key last."""
         # Arrange
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         old = {
-            "config_version": 30,
-            "title": "Dev",
             "custom_buttons": [],
+            "serial": {"flow_control": "none", "port": "COM3"},
             "log_file": "",
+            "my_note": "kept",
+            "title": "Dev",
+            "config_version": 31,
         }
         config_path.write_text(json.dumps(old, indent=4))
 
@@ -430,9 +433,13 @@ class TestLoadConfig:
         load_config(str(config_path))
 
         # Assert
-        keys = list(json.loads(config_path.read_text(encoding="utf-8")))
-        actual = keys[keys.index("custom_buttons_side") + 1]
-        assert actual == "custom_buttons", f"the key sits just ahead of custom_buttons: {keys}"
+        written = json.loads(config_path.read_text(encoding="utf-8"))
+        assert list(written) == [*DEFAULT_CFG, "my_note"], (
+            "every key in its group, the backfilled ones too, the unknown one last"
+        )
+        default_serial = DEFAULT_CFG["serial"]
+        assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+        assert list(written["serial"]) == list(default_serial), "serial in its own order"
 
     def test_backfilled_mutable_default_is_deep_copied(self, tmp_path):
         """A backfilled list is a copy, so editing a loaded config cannot corrupt DEFAULT_CFG."""
@@ -722,6 +729,36 @@ class TestLoadConfigEnvExpansion:
 
 
 # -- validate_config: serial port setting validation --------------------------
+
+
+class TestOrderedCfg:
+    """config.ordered_cfg: the layout every config file is written in."""
+
+    def test_known_keys_take_the_defaults_order_and_unknown_keys_follow(self):
+        """Known keys in DEFAULT_CFG's order, then unknown keys in the order they had; values untouched."""
+        # Arrange
+        buttons = [{"name": "A"}]
+        cfg = {"zz_extra": 1, "custom_buttons": buttons, "aa_extra": 2, "title": "T", "eol": "\n"}
+
+        # Act
+        actual = ordered_cfg(cfg)
+
+        # Assert
+        assert list(actual) == ["title", "eol", "custom_buttons", "zz_extra", "aa_extra"], (
+            "the defaults' order, then the rest as they were"
+        )
+        assert actual["custom_buttons"] is buttons, "a value is the same object, untouched"
+
+    def test_a_nested_default_orders_its_keys_too(self):
+        """serial's keys follow the default's order; a sub-key the default does not have comes last."""
+        # Arrange
+        cfg = {"serial": {"flow_control": "none", "extra": 1, "port": "COM3"}}
+
+        # Act
+        actual = list(ordered_cfg(cfg)["serial"])
+
+        # Assert
+        assert actual == ["port", "flow_control", "extra"], "the default's order, then the rest"
 
 
 class TestCfgChoice:

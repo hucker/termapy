@@ -478,6 +478,20 @@ class TestDemoConfigSetup:
         expected = ["dev", "plugin", "proto", "run", "sym"]
         assert actual == expected, "no empty ss/ cap/ prof/ viz/ shipped with the demo"
 
+    def test_setup_writes_the_standard_order(self, tmp_path) -> None:
+        """cfg-written-in-order: --demo copies demo.cfg as it is, so the template keeps DEFAULT_CFG's order."""
+        import json
+
+        from termapy.config import ordered_cfg, setup_demo_config
+
+        # Act
+        written = json.loads(setup_demo_config(tmp_path).read_text(encoding="utf-8"))
+
+        # Assert
+        assert json.dumps(written) == json.dumps(ordered_cfg(written)), (
+            "reorder builtins/demo/demo.cfg's entries into DEFAULT_CFG's order"
+        )
+
     def test_setup_idempotent(self, tmp_path) -> None:
         """Running demo setup again leaves an existing config untouched, keeping user edits."""
         from termapy.config import setup_demo_config

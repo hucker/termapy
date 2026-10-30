@@ -113,6 +113,38 @@ class TestHelpLine:
 
         _run(scenario)
 
+    def test_an_enum_key_lists_its_values_once(self, tmp_path):
+        """custom_buttons_side's help lists bottom, left, right after one Valid label (it read "Valid: Valid:")."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Act
+                screen, _ = await _open(app, pilot, cfg, path, highlight_key="custom_buttons_side")
+                await pilot.pause()
+
+                # Assert
+                help_text = _plain(screen.query_one("#config-help", Static))
+                assert "Valid: bottom, left, right." in help_text, help_text
+                assert help_text.count("Valid:") == 1, f"one label, not two: {help_text!r}"
+
+        _run(scenario)
+
+    def test_no_hint_carries_its_own_valid_label(self):
+        """The help line labels every hint "Valid:" itself, so a hint starting with it shows the label twice."""
+        from termapy.defaults import CFG_HELP
+
+        # Act
+        actual = sorted(
+            key
+            for key, entry in CFG_HELP.items()
+            if isinstance(entry[1], str) and entry[1].startswith("Valid:")
+        )
+
+        # Assert
+        assert actual == [], f"drop the 'Valid:' prefix from these hints: {actual}"
+
     def test_unknown_key_help_suggests_the_nearest(self, tmp_path):
         """A misspelled key is called out with the closest real key as a suggestion."""
 
@@ -182,6 +214,8 @@ class TestValueValidation:
             ("echo", '"false"', "must be true or false"),
             ("custom_baud", "maybe", "must be true or false"),
             ("parity", '"X"', "must be one of: E, M, N, O, S"),
+            ("json_style", '"pretty"', "must be one of: color, compact, indent"),
+            ("custom_buttons_side", '"top"', "must be one of: bottom, left, right"),
             ("baud_rate", '"fast"', "must be a positive integer"),
             ("baud_rate", "0", "must be a positive integer"),
             ("cmd_delay_ms", "-1", "must be positive"),

@@ -66,6 +66,10 @@ $(BAUD) <- /port.baud_rate
 /cfg echo
 /cfg.auto echo false
 /cfg echo
+/cfg.auto custom_buttons_side Right
+/cfg custom_buttons_side
+/cfg.auto custom_buttons_side up
+/cfg.auto custom_buttons_side bottom
 
 # ── REPL: config dump (full JSON) ───────────────────────────────────────────
 /print === section: config dump ===

@@ -143,12 +143,20 @@ demo> /cfg.auto echo false
 demo> /cfg echo
   False
   [48/219] /cfg echo (102us)
+demo> /cfg.auto custom_buttons_side Right
+  custom_buttons_side = 'right'  (session)
+demo> /cfg custom_buttons_side
+  right
+demo> /cfg.auto custom_buttons_side up
+  Error: Invalid custom_buttons_side: up (use bottom/left/right)
+demo> /cfg.auto custom_buttons_side bottom
+  custom_buttons_side = 'bottom'  (session)
 demo> /print === section: config dump ===
   === section: config dump ===
   [49/219] /print === section: config dump === (102us)
 demo> /cfg.dump
   {
-      "config_version": 30,
+      "config_version": 31,
       "default_ui": "tui",
       "vt100_hint": true,
       "quiet_start": true,
@@ -208,6 +216,7 @@ demo> /cfg.dump
       "proto_frame_gap_ms": 50,
       "proto_results_template": "{name}_results.json",
       "max_grep_lines": 100,
+      "custom_buttons_side": "bottom",
       "custom_buttons": [
           {
               "enabled": true,
@@ -923,11 +932,15 @@ DESCRIPTION
   Three modes:
     /cfg                  - TUI: open Cfg picker.  CLI: list configs.
     /cfg baud_rate        - show current value of 'baud_rate'
-    /cfg baud_rate 115200 - change with confirmation dialog
+    /cfg baud_rate 115200 - change it (the TUI asks first)
   
-  Type is auto-detected from the existing value (int, float,
-  bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
-  Changes are saved to the JSON config file.
+  The value is read as the key's current type (int, float, bool,
+  string). Bool accepts:
+    on/off/true/false/yes/no/1/0/y/n/t/f
+  A key with a fixed set of values (parity, json_style,
+  custom_buttons_side, ...) takes one of them in any case.
+  A change lasts for this session; to keep it, set it in the
+  config editor.
   
   Use /cfg.dump to print every key/value pair as JSON.
   Use /cfg.auto to set values without confirmation (for scripts).

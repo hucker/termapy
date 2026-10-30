@@ -552,7 +552,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 30,
+    "config_version": 31,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -612,6 +612,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "run_enabled": true,
     "proto_enabled": true,
     "record_enabled": true,
+    "custom_buttons_side": "bottom",
     "custom_buttons": []
 }
 ```

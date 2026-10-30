@@ -18,9 +18,12 @@ from typing import Any
 import serial
 
 from termapy.defaults import (
+    CFG_CHOICES,
+    CUSTOM_BUTTON_SIDES,
     DEFAULT_CFG,
     JSON_STYLES,
     STANDARD_BAUD_RATES,
+    UI_MODES,
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
     VALID_PARITIES,
@@ -1009,6 +1012,8 @@ def validate_config(cfg: dict) -> list[str]:
     _check_set(serial, "stop_bits", (int, float), VALID_STOP_BITS, warnings, key_prefix="serial.")
     _check_set(serial, "flow_control", str, VALID_FLOW_CONTROLS, warnings, key_prefix="serial.")
     _check_set(cfg, "json_style", str, set(JSON_STYLES), warnings)
+    _check_set(cfg, "custom_buttons_side", str, set(CUSTOM_BUTTON_SIDES), warnings)
+    _check_set(cfg, "default_ui", str, set(UI_MODES), warnings)
 
     # Boolean keys hold a JSON boolean: a string or number here is
     # type-checked, never parsed (bool-one-vocabulary; a templated value
@@ -1052,6 +1057,29 @@ def validate_config(cfg: dict) -> list[str]:
     _check_non_negative(cfg, "cmd_delay_ms", warnings)
 
     return warnings
+
+
+def cfg_choice(key: str, value: object) -> object:
+    """``value`` spelled as ``CFG_CHOICES`` has it when ``key`` is a fixed-value key, else as given.
+
+    Text matches in any case: ``/cfg parity e`` stores ``E`` and ``/cfg
+    custom_buttons_side Right`` stores ``right``, the spelling the file and
+    its checks expect.
+
+    Raises:
+        ValueError: ``value`` is not one of the key's choices.
+    """
+    choices = CFG_CHOICES.get(key)
+    if choices is None:
+        return value
+    if isinstance(value, str):
+        for choice in choices:
+            if isinstance(choice, str) and choice.casefold() == value.casefold():
+                return choice
+    elif value in choices:
+        return value
+    names = "/".join(str(choice) for choice in sorted(choices, key=str))
+    raise ValueError(f"Invalid {key}: {value} (use {names})")
 
 
 def _check_set(

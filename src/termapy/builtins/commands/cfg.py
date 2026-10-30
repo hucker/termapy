@@ -18,6 +18,7 @@ from termapy.builtins.commands._cfg_icon import (
 )
 from termapy.config import (
     ConfigExistsError,
+    cfg_choice,
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
@@ -39,7 +40,7 @@ from termapy.help_dynamic import cfg_status, compose
 from termapy.matching import closest, did_you_mean
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
 from termapy.plugins.params import ParamSpec
-from termapy.scripting import coerce_to_type
+from termapy.scripting import BOOL_TOKENS_HELP, coerce_to_type
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -87,11 +88,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.result(str(val))
         return CmdResult.ok(value=str(val))
     # /cfg key value - validate and delegate for confirmation
-    value_str = parts[1]
     try:
-        new_val = coerce_to_type(value_str, container[key])
-    except (ValueError, TypeError) as e:
-        return CmdResult.fail(msg=f"Type error: {e}")
+        new_val = _typed_value(container, key, parts[1])
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     old_val = container[key]
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
@@ -104,6 +104,20 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     else:
         ctx.internal.apply_cfg(key, new_val)
     return CmdResult.ok(value=str(new_val))
+
+
+def _typed_value(container, key: str, value_str: str) -> object:
+    """``value_str`` as ``key``'s type, and for a fixed-value key spelled as the config has it.
+
+    Raises:
+        ValueError: The text is not the key's type (a ``Type error``), or
+            not one of its choices.
+    """
+    try:
+        value = coerce_to_type(value_str, container[key])
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Type error: {e}") from e
+    return cfg_choice(key, value)
 
 
 def _unknown_key(cfg, key: str) -> CmdResult:
@@ -155,9 +169,9 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     if key in _PATH_VALUED_CFG_KEYS and value_str:
         ctx.fs.guard_external_path(value_str, f"cfg {key}")
     try:
-        new_val = coerce_to_type(value_str, container[key])
-    except (ValueError, TypeError) as e:
-        return CmdResult.fail(msg=f"Type error: {e}")
+        new_val = _typed_value(container, key, value_str)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     ctx.internal.apply_cfg(key, new_val)
     return CmdResult.ok(value=str(new_val))
 
@@ -699,18 +713,22 @@ def on_app_stop(ctx: PluginContext) -> None:
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
-_CFG_PROSE = """\
+_CFG_PROSE = f"""\
 Three modes:
-  {prefix}cfg                  - TUI: open Cfg picker.  CLI: list configs.
-  {prefix}cfg baud_rate        - show current value of 'baud_rate'
-  {prefix}cfg baud_rate 115200 - change with confirmation dialog
+  {{prefix}}cfg                  - TUI: open Cfg picker.  CLI: list configs.
+  {{prefix}}cfg baud_rate        - show current value of 'baud_rate'
+  {{prefix}}cfg baud_rate 115200 - change it (the TUI asks first)
 
-Type is auto-detected from the existing value (int, float,
-bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
-Changes are saved to the JSON config file.
+The value is read as the key's current type (int, float, bool,
+string). Bool accepts:
+  {BOOL_TOKENS_HELP}
+A key with a fixed set of values (parity, json_style,
+custom_buttons_side, ...) takes one of them in any case.
+A change lasts for this session; to keep it, set it in the
+config editor.
 
-Use {prefix}cfg.dump to print every key/value pair as JSON.
-Use {prefix}cfg.auto to set values without confirmation (for scripts)."""
+Use {{prefix}}cfg.dump to print every key/value pair as JSON.
+Use {{prefix}}cfg.auto to set values without confirmation (for scripts)."""
 
 
 def _cfg_long_help(ctx: PluginContext) -> str:

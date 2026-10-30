@@ -859,9 +859,34 @@ def test_v29_to_v30_uses_the_configs_prefix():
     assert result["on_connect_cmd"] == "!run on_connect", "the run command in this config's prefix"
 
 
+def test_v30_to_v31_adds_custom_buttons_side():
+    """Migration v30->v31 writes custom_buttons_side as bottom, the layout older configs had."""
+    # Arrange
+    cfg = {"config_version": 30, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["custom_buttons_side"] == "bottom", "default added"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
+
+
+def test_v30_to_v31_preserves_existing_custom_buttons_side():
+    """Migration v30->v31 does not overwrite a custom_buttons_side already set."""
+    # Arrange
+    cfg = {"config_version": 30, "port": "COM4", "custom_buttons_side": "right"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["custom_buttons_side"] == "right", "existing value preserved"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
-    # Arrange -- a config from v17 needs six steps to reach v23.
+    # Arrange -- a config from v17 runs every migrator since.
     cfg = {"config_version": 17}
 
     # Act
@@ -870,9 +895,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labeled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 13, (
-        f"v17 -> v30 covers thirteen migrators "
-        f"(17->18 ... 28->29, 29->30); "
+    assert len(steps) == 14, (
+        f"v17 -> v31 covers fourteen migrators "
+        f"(17->18 ... 29->30, 30->31); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -889,6 +914,7 @@ def test_migration_steps_recorded_per_version():
         "v27 -> v28",
         "v28 -> v29",
         "v29 -> v30",
+        "v30 -> v31",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), f"step {step!r} should start with {prefix!r}"
@@ -906,7 +932,7 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 10, f"ten steps (v20->v21 ... v28->v29, v29->v30); got {steps!r}"
+    assert len(steps) == 11, f"eleven steps (v20->v21 ... v29->v30, v30->v31); got {steps!r}"
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
     )
@@ -941,7 +967,9 @@ def test_a_saved_step_list_is_not_shown_again():
 
     # Assert
     actual = [step.split(":")[0] for step in first_steps]
-    assert actual == ["v28 -> v29", "v29 -> v30"], "this run's two steps, none of the saved ones"
+    assert actual == ["v28 -> v29", "v29 -> v30", "v30 -> v31"], (
+        "this run's three steps, none of the saved ones"
+    )
     assert "_migration_steps" not in second, "a current config shows no steps, saved list or not"
 
 

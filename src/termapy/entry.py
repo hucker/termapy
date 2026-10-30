@@ -565,8 +565,10 @@ def main() -> None:
             # OSError: config file missing / permission denied.
             # ValueError: json.JSONDecodeError is a ValueError subclass.
             pass
+        from termapy.defaults import UI_MODES
+
         mode = (_peek_cfg or {}).get("default_ui", "tui")
-        if mode not in ("cli", "tui", "vt100"):
+        if mode not in UI_MODES:
             mode = "tui"
 
     prev_mode = None

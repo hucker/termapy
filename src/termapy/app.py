@@ -24,6 +24,7 @@ import serial
 from rich.style import Style
 from rich.text import Text
 from textual import on, work
+from textual.actions import SkipAction
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -403,6 +404,9 @@ class SerialTerminal(TerminalHost, App):
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
         Binding("escape", "stop_script", "Stop Script", show=False),
+        # Shift+Up/Down from the prompt start a keyboard selection in the
+        # output pane; once the pane has focus its own bindings take them.
+        Binding("shift+up,shift+down", "select_output", "Select output", show=False),
         # F-keys for top-row buttons -- defined in _HOTKEYS (module top)
         # so the binding and the tooltip annotation share one source.
         *[Binding(k, a, lbl, show=False) for (k, a, lbl) in _HOTKEYS.values()],
@@ -3290,11 +3294,21 @@ class SerialTerminal(TerminalHost, App):
             inp.action_end()
 
     def on_key(self, event) -> None:
-        """Handle Up/Down for history cycling, Escape to dismiss popup or clear."""
-        if event.key not in ("up", "down", "escape"):
-            return
+        """Handle Up/Down for history cycling, Escape to dismiss popup or clear.
+
+        In the output pane a printable key goes back to the prompt and is
+        typed there, and Escape clears a selection and returns to it.
+        """
         # Don't intercept keys when a modal screen is active
         if len(self.screen_stack) > 1:
+            return
+        pane = self.focused if isinstance(self.focused, SelectableRichLog) else None
+        if pane is not None and event.is_printable and event.character:
+            if self._return_to_prompt(pane, event.character):
+                event.prevent_default()
+                event.stop()
+            return
+        if event.key not in ("up", "down", "escape"):
             return
 
         inp = self.query_one("#cmd", Input)
@@ -3305,6 +3319,11 @@ class SerialTerminal(TerminalHost, App):
             if self._engine.serial_claimed:
                 self._xfer_cancel.set()
                 event.prevent_default()
+            elif pane is not None:
+                # Nothing is selected here (the pane keeps an Escape that
+                # clears a selection, SelectionDismissed): back to the
+                # prompt, and Escape keeps its other jobs.
+                self._return_to_prompt(pane)
             elif popup_visible:
                 self._hide_history()
                 event.prevent_default()
@@ -3342,6 +3361,37 @@ class SerialTerminal(TerminalHost, App):
             inp.value = value
             inp.action_end()
             event.prevent_default()
+
+    def on_selectable_rich_log_selection_dismissed(
+        self, message: SelectableRichLog.SelectionDismissed
+    ) -> None:
+        """Escape cleared a selection in the pane: the keyboard goes back to the prompt."""
+        self._return_to_prompt(message.log)
+
+    def action_select_output(self) -> None:
+        """Shift+Up/Down from the prompt: select the output's newest row, the keyboard now in the pane."""
+        if len(self.screen_stack) > 1:
+            raise SkipAction()
+        pane = next(
+            (pane for pane in self.query(SelectableRichLog) if pane.display and pane.lines),
+            None,
+        )
+        if pane is None:
+            raise SkipAction()
+        pane.focus()
+        pane.select_newest_row()
+
+    def _return_to_prompt(self, pane: SelectableRichLog, typed: str | None = None) -> bool:
+        """Give the keyboard back to the prompt, typing ``typed`` there; False while a script owns it."""
+        inp = self.query_one("#cmd", Input)
+        if inp.disabled:
+            return False
+        if typed is not None:
+            pane.deselect()
+        inp.focus()
+        if typed is not None:
+            inp.insert_text_at_cursor(typed)
+        return True
 
     def action_stop_script(self) -> None:
         """Stop a running script or repeat (Escape key)."""

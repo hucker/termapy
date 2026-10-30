@@ -106,7 +106,10 @@ terminal's own selection:
    the selection.
 
 Native terminals (Windows Terminal, iTerm2, most Linux terminals)
-usually accept plain **Shift+click** for the same bypass.  For the
+usually accept plain **Shift+click** for the same bypass.  If your
+terminal keeps **Shift+PageUp** and **Shift+PageDown** for its own
+scrollback, keyboard selection still works with **Shift** and the
+arrow keys.  For the
 whole session, the config's log file holds everything; `Ctrl+S`
 saves an SVG image of the screen and `Ctrl+T` the output pane's
 whole text.

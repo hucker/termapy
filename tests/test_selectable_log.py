@@ -1,4 +1,4 @@
-"""SelectableRichLog: a drag in the output pane selects the text shown, and Ctrl+C copies it.
+"""SelectableRichLog: the output pane selects by mouse or keyboard, and Ctrl+C copies the text shown.
 
 Textual's selection machinery (the drag, the highlight style, the
 ``ctrl+c`` binding, OSC 52) is the screen's; a widget takes part by
@@ -6,8 +6,11 @@ stamping its lines with offsets and extracting text for a ``Selection``.
 ``RichLog`` does neither, so these tests pin the two hooks
 ``SelectableRichLog`` adds and the cases a log has that a static widget
 does not: scrolling, wrapped and composite renderables, lines arriving
-while a selection stands, and the two events that invalidate one.  A
-bare host app holds the widget; one test drives the real app's pane.
+while a selection stands, and the two events that invalidate one.  The
+keyboard half moves a selection's end with Shift and a movement key,
+holds the view still while anything is selected, and hands the keys
+between the prompt and the pane.  A bare host app holds the widget; the
+prompt and pane tests drive the real app.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ import json
 from rich.table import Table
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.widgets import Input
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.widgets import LinkLog, SelectableRichLog
@@ -208,6 +212,226 @@ class TestKeyboard:
         _run(scenario)
 
 
+class TestKeyboardSelection:
+    """Shift with a movement key moves a selection's end from where it began."""
+
+    def test_shift_right_extends_from_the_clicked_character(self):
+        """After a click, Shift+Right selects one character per press from the clicked one."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                # Arrange
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 5)
+                await pilot.pause()
+                await pilot.click(log, offset=(2, 1))
+                # Act
+                for _ in range(3):
+                    await pilot.press("shift+right")
+                await pilot.pause()
+                # Assert
+                assert app.screen.get_selected_text() == "ne ", "three characters from column 2"
+
+        _run(scenario)
+
+    def test_shift_down_moves_a_row_and_keeps_the_column(self):
+        """Shift+Down moves the end to the next row, same column."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 5)
+                await pilot.pause()
+                await pilot.click(log, offset=(2, 1))
+                await pilot.press("shift+down")
+                await pilot.pause()
+                actual = app.screen.get_selected_text()
+                assert actual == "ne 01 payload\nli", "from column 2 of row 1 to column 2 of row 2"
+
+        _run(scenario)
+
+    def test_shift_left_at_a_row_start_wraps_to_the_row_above(self):
+        """At column 0, Shift+Left moves the end to the end of the row above."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 5)
+                await pilot.pause()
+                await pilot.click(log, offset=(0, 2))
+                await pilot.press("shift+left", "shift+left")
+                await pilot.pause()
+                assert app.screen.get_selected_text() == "d", (
+                    "the row break, then the last character of the row above"
+                )
+
+        _run(scenario)
+
+    def test_shift_home_and_end_reach_the_row_ends(self):
+        """Shift+End selects to the end of the row; Shift+Home from there to its start."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 5)
+                await pilot.pause()
+                await pilot.click(log, offset=(5, 1))
+                await pilot.press("shift+end")
+                await pilot.pause()
+                assert app.screen.get_selected_text() == "01 payload", "to the row's end"
+                await pilot.press("shift+home")
+                await pilot.pause()
+                assert app.screen.get_selected_text() == "line ", (
+                    "back past the start point to column 0"
+                )
+
+        _run(scenario)
+
+    def test_keys_extend_a_mouse_selection(self):
+        """After a drag, Shift+Down moves the drag's end a row on."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                # Arrange: the drag selects "line " on row 1
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 5)
+                await pilot.pause()
+                await _drag(pilot, log, (0, 1), (4, 1))
+                assert app.screen.get_selected_text() == "line ", "the drag"
+                # Act
+                await pilot.press("shift+down")
+                await pilot.pause()
+                # Assert
+                actual = app.screen.get_selected_text()
+                assert actual == "line 01 payload\nline ", "the drag's end moved one row down"
+
+        _run(scenario)
+
+    def test_page_keys_move_a_page_and_keep_the_end_in_view(self):
+        """Shift+PageUp moves the end a page up and scrolls it into view."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                # Arrange: scrolled to the bottom, keys starting on the bottom row
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 40)
+                await pilot.pause()
+                log.scroll_end(animate=False)
+                await pilot.pause()
+                top = round(log.scroll_offset.y)
+                await pilot.click(log, offset=(0, 11))
+                # Act: two pages up from the bottom row
+                await pilot.press("shift+pageup", "shift+pageup")
+                await pilot.pause()
+                # Assert
+                cursor_row = top + 11 - 2 * 11
+                selected = app.screen.get_selected_text()
+                assert selected is not None, "something is selected"
+                rows = selected.splitlines()
+                assert rows[0] == f"line {cursor_row:02d} payload", "the end moved two pages up"
+                assert len(rows) == 2 * 11, "two pages of eleven rows each"
+                assert round(log.scroll_offset.y) == cursor_row, (
+                    "the moving end is the top row shown"
+                )
+
+        _run(scenario)
+
+    def test_a_second_keyboard_selection_starts_fresh(self):
+        """After a selection ends, the next one starts from the new click, not the old anchor."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 5)
+                await pilot.pause()
+                await pilot.click(log, offset=(2, 1))
+                await pilot.press("shift+right")
+                await pilot.pause()
+                assert log.deselect() is True, "the first selection existed"
+                await pilot.click(log, offset=(0, 3))
+                await pilot.press("shift+right", "shift+right")
+                await pilot.pause()
+                assert app.screen.get_selected_text() == "li", (
+                    "two characters from the second click"
+                )
+
+        _run(scenario)
+
+    def test_the_newest_row_with_text_is_selected(self):
+        """select_newest_row selects the last row that has text, skipping trailing blank rows."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 3)
+                log.write("")
+                await pilot.pause()
+                log.select_newest_row()
+                await pilot.pause()
+                assert app.screen.get_selected_text() == "line 02 payload"
+
+        _run(scenario)
+
+
+class TestFollowHold:
+    """While anything is selected the log holds still; it follows new output again after."""
+
+    def test_a_selection_holds_the_view_and_its_end_follows_again(self):
+        """New lines leave a selected view where it is; deselecting returns to the newest line."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                # Arrange
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 30)
+                await pilot.pause()
+                log.scroll_end(animate=False)
+                log.select_newest_row()
+                await pilot.pause()
+                held = round(log.scroll_offset.y)
+                # Act: output keeps arriving while the selection stands
+                _write_lines(log, 5, first=30)
+                await pilot.pause()
+                # Assert
+                assert round(log.scroll_offset.y) == held, "the view held still under the selection"
+                log.deselect()
+                await pilot.pause()
+                assert log.auto_scroll is True, "following resumes"
+                assert round(log.scroll_offset.y) == round(log.max_scroll_y), (
+                    "and catches up to the end"
+                )
+
+        _run(scenario)
+
+    def test_a_trim_ends_the_hold(self):
+        """A write that trims the top drops the selection and resumes following."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=(40, 12)) as pilot:
+                log = app.query_one(SelectableRichLog)
+                _write_lines(log, 50)
+                await pilot.pause()
+                log.select_newest_row()
+                await pilot.pause()
+                assert log.auto_scroll is False, "held while selected"
+                _write_lines(log, 20, first=50)
+                await pilot.pause()
+                assert log.text_selection is None, "the trim dropped the selection"
+                assert log.auto_scroll is True, "and the hold with it"
+
+        _run(scenario)
+
+
 class TestSelectionLifetime:
     """A selection stands while its line numbers mean the same thing, and not a moment longer."""
 
@@ -251,6 +475,112 @@ class TestSelectionLifetime:
                 log.clear()
                 await pilot.pause()
                 assert log.text_selection is None, "a cleared log has no selection"
+
+        _run(scenario)
+
+
+def _terminal(tmp_path):
+    """The real app over a DEMO config that does not connect."""
+    from termapy.app import SerialTerminal
+
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    serial = DEFAULT_CFG["serial"]
+    assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {**DEFAULT_CFG, "serial": {**serial, "port": "DEMO"}, "auto_connect": False}
+    path = proj / "proj.cfg"
+    path.write_text(json.dumps(cfg, indent=4), encoding="utf-8")
+    cfg = {**cfg, "_config_path": str(path)}
+    app = SerialTerminal(cfg, str(path))
+    app.repl.global_root = tmp_path  # keep the checkout's plugin/ out of the boot
+    return app
+
+
+class TestPromptAndPane:
+    """The keyboard moves between the prompt and the output pane without the mouse."""
+
+    def test_shift_up_in_the_prompt_selects_the_newest_output_row(self, tmp_path):
+        """Shift+Up from the prompt selects the newest output row; again grows it upward."""
+
+        async def scenario():
+            app = _terminal(tmp_path)
+            async with app.run_test(size=(100, 30)) as pilot:
+                # Arrange
+                await pilot.pause()
+                output = app.query_one("#output", LinkLog)
+                output.clear()
+                for word in ("alpha", "beta", "gamma"):
+                    output.write(Text(word))
+                app.query_one("#cmd").focus()
+                await pilot.pause()
+                # Act / Assert
+                await pilot.press("shift+up")
+                await pilot.pause()
+                assert app.focused is output, "the keyboard moved into the pane"
+                assert app.screen.get_selected_text() == "gamma", "the newest row"
+                await pilot.press("shift+up")
+                await pilot.pause()
+                assert app.screen.get_selected_text() == "beta\ngamma", "grown one row up"
+
+        _run(scenario)
+
+    def test_typing_in_the_pane_types_in_the_prompt(self, tmp_path):
+        """A printable key in the pane goes to the prompt, which takes the focus, and ends the selection."""
+
+        async def scenario():
+            app = _terminal(tmp_path)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                output = app.query_one("#output", LinkLog)
+                output.clear()
+                output.write(Text("hello"))
+                output.focus()
+                output.select_newest_row()
+                await pilot.pause()
+                await pilot.press("x")
+                await pilot.pause()
+                prompt = app.query_one("#cmd", Input)
+                assert app.focused is prompt, "the prompt has the keyboard again"
+                assert prompt.value == "x", "and the key was typed there"
+                assert output.text_selection is None, "the selection ended"
+
+        _run(scenario)
+
+    def test_escape_clears_a_selection_without_stopping_a_script(self, tmp_path):
+        """Escape in the pane clears its selection and returns to the prompt; the stop flag stays down."""
+
+        async def scenario():
+            app = _terminal(tmp_path)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                output = app.query_one("#output", LinkLog)
+                output.clear()
+                output.write(Text("hello"))
+                output.focus()
+                output.select_newest_row()
+                await pilot.pause()
+                await pilot.press("escape")
+                await pilot.pause()
+                assert output.text_selection is None, "the selection is gone"
+                assert app.focused is app.query_one("#cmd", Input), "back at the prompt"
+                assert app.repl._script_stop.is_set() is False, "Escape did not also stop scripts"
+
+        _run(scenario)
+
+    def test_escape_with_nothing_selected_returns_and_keeps_its_job(self, tmp_path):
+        """With nothing selected, Escape in the pane returns to the prompt and still does what it always did."""
+
+        async def scenario():
+            app = _terminal(tmp_path)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                output = app.query_one("#output", LinkLog)
+                output.focus()
+                await pilot.pause()
+                await pilot.press("escape")
+                await pilot.pause()
+                assert app.focused is app.query_one("#cmd", Input), "back at the prompt"
+                assert app.repl._script_stop.is_set() is True, "Escape's stop-script job ran"
 
         _run(scenario)
 

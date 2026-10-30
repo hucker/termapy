@@ -71,6 +71,55 @@ class TestSemantics:
     def test_one_to_clear_forbids_rmw(self, rows):
         assert rows["SERCOM0_INTFLAG"]["rmw"] is False, "oneToClear must not be mask-written"
 
+    def test_a_field_read_action_flags_its_register(self):
+        """A readAction on one field is the register's: reading the register reads the field."""
+        # Arrange: clear-on-read on one field of a register that has no tag of its own
+        text = SVD_SAMPLE.read_text(encoding="utf-8").replace(
+            "<field><name>RXC</name><bitOffset>2</bitOffset><bitWidth>1</bitWidth></field>",
+            "<field><name>RXC</name><bitOffset>2</bitOffset><bitWidth>1</bitWidth>"
+            "<readAction>clear</readAction></field>",
+            1,
+        )
+        # Act
+        rows = {row["name"]: row for row in svd.convert(text)["registers"]}
+        # Assert
+        assert rows["SERCOM0_INTFLAG"]["read_effect"] is True, (
+            "the field's tag reached the register"
+        )
+        assert "read_effect" not in rows["SERCOM0_DBGCTRL"], "a register with no tag stays clean"
+
+    def test_a_field_one_to_clear_forbids_rmw(self):
+        """A write-1-to-clear field forbids masked writes to its register, as a register tag does."""
+        # Arrange: move oneToClear from the register onto its DRE field
+        text = (
+            SVD_SAMPLE.read_text(encoding="utf-8")
+            .replace("<modifiedWriteValues>oneToClear</modifiedWriteValues>", "", 1)
+            .replace(
+                "<field><name>DRE</name><bitOffset>0</bitOffset><bitWidth>1</bitWidth></field>",
+                "<field><name>DRE</name><bitOffset>0</bitOffset><bitWidth>1</bitWidth>"
+                "<modifiedWriteValues>oneToClear</modifiedWriteValues></field>",
+                1,
+            )
+        )
+        # Act
+        rows = {row["name"]: row for row in svd.convert(text)["registers"]}
+        # Assert
+        assert rows["SERCOM0_INTFLAG"]["rmw"] is False, "the field's tag reached the register"
+
+    def test_a_field_marked_modify_keeps_rmw(self):
+        """modify is the spec's default, so a field that states it adds no flag."""
+        # Arrange: PORT DIR has no tag of its own; its one field says modify
+        text = SVD_SAMPLE.read_text(encoding="utf-8").replace(
+            "<bitWidth>32</bitWidth>\n",
+            "<bitWidth>32</bitWidth>\n<modifiedWriteValues>modify</modifiedWriteValues>\n",
+            1,
+        )
+        assert "<modifiedWriteValues>modify" in text, "the fixture edit landed"
+        # Act
+        rows = {row["name"]: row for row in svd.convert(text)["registers"]}
+        # Assert
+        assert "rmw" not in rows["PORT_GROUP0_DIR"], "modify leaves masked writes allowed"
+
     def test_reset_value_inherits_and_overrides(self, rows):
         assert rows["PORT_GROUP0_DIR"]["reset"] == "0x00000000", "device default, register width"
         assert rows["SERCOM0_DBGCTRL"]["reset"] == "0x01", "register override, one byte"

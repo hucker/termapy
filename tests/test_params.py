@@ -7,6 +7,8 @@ docstring.  There is no ``@pytest.mark.spec`` marker convention in this repo
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from termapy.plugins import CmdResult, Command, PluginInfo
@@ -842,3 +844,31 @@ class TestBoolType:
         """A bool param shows as on|off in the synopsis."""
         spec = ParamSpec("addr", "bool", default=True)
         assert synthesize_synopsis([spec]) == "{addr=on|off}", "reads like the enum it replaces"
+
+
+def test_parameter_help_fills_in_the_live_prefix(tmp_path, capsys):
+    """prefix-never-hardcoded: /help and the MCP catalog show a parameter's {prefix} as the live prefix."""
+    # Arrange: every built-in, under a prefix that is not the default
+    from termapy.cli import CLITerminal
+    from termapy.defaults import DEFAULT_CFG
+    from termapy.mcp.catalog import build_catalog
+
+    serial = DEFAULT_CFG["serial"]
+    assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {**DEFAULT_CFG, "serial": {**serial, "port": ""}, "cmd_prefix": "!"}
+    path = tmp_path / "c" / "c.cfg"
+    path.parent.mkdir()
+    path.write_text(json.dumps(cfg))
+    terminal = CLITerminal(cfg, str(path), no_color=True, term_width=120)
+    terminal.repl.global_root = tmp_path  # keep the checkout's plugin/ out of the boot
+    declared = sorted(name for name, info in terminal.repl._plugins.items() if info.params)
+    capsys.readouterr()
+    # Act
+    for name in declared:
+        terminal.repl.dispatch_full(f"!help {name}")
+    pages = capsys.readouterr().out
+    catalog = json.dumps(build_catalog(terminal.repl.ctx))
+    # Assert
+    assert "library part name (see !dev.lib)" in pages, "dev.use's parameter help, filled in"
+    assert "{prefix}" not in pages, "no help page shows the placeholder"
+    assert "{prefix}" not in catalog, "nor does any catalog entry"

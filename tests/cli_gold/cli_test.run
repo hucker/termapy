@@ -388,6 +388,9 @@ MEM.R 0x1000 2 --json
 /proto.info
 /cfg.file demo_legacy.profile.json
 /dev.list
+/dev.regs demo_uart
+/dev.regs demo_uart *_STA
+/dev.regs nosuch
 /dev.lib
 /dev.lib zzz*
 /dev.use nosuch

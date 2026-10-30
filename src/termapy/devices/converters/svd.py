@@ -23,6 +23,8 @@ What is handled (the shapes a real Atmel / ST / NXP file uses):
 - ``access`` -> ``rw`` / ``ro`` / ``wo``; ``readAction`` present ->
   ``read_effect``; ``modifiedWriteValues`` other than ``modify`` ->
   ``rmw: false`` (a write-1-to-clear register must never be mask-written).
+  Either tag counts on the register or on any of its fields: a read
+  reads every field, and a masked write writes every field back.
 - Fields by ``bitOffset``+``bitWidth``, ``bitRange`` (``[msb:lsb]``) or
   ``lsb``/``msb``; ``enumeratedValues`` -> ``values`` (``0x``, decimal
   and ``#`` binary; wildcard and default-only entries are skipped).
@@ -350,11 +352,19 @@ class _Builder:
         size_bits = reg_defaults["size"]
         size = max(1, (size_bits + 7) // 8)
         description = _clean(_first(chain, "description"))
-        read_effect = bool(_first(chain, "readAction"))
-        modified = _first(chain, "modifiedWriteValues")
-        rmw = modified in ("", "modify")
         fields_el = _first_child(chain, "fields")
         fields = _fields(fields_el, size) if fields_el is not None else []
+        # The spec allows both tags on a field too, and a field's side
+        # effect is the register's: reading the register reads the field,
+        # and a masked write writes the field back.
+        field_els = fields_el.findall("field") if fields_el is not None else []
+        read_effect = bool(_first(chain, "readAction")) or any(
+            _text(field_el, "readAction") for field_el in field_els
+        )
+        written = {_first(chain, "modifiedWriteValues")} | {
+            _text(field_el, "modifiedWriteValues") for field_el in field_els
+        }
+        rmw = written <= {"", "modify"}
         for label, dim_offset in _dims(el):
             name = self._unique(f"{prefix}_{_ident(_expand(_text(el, 'name'), label))}")
             row: dict[str, Any] = {

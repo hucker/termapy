@@ -18,7 +18,7 @@ from termapy.symbols.provenance import IN_SYNC, UNKNOWN, check_staleness
 from termapy.symbols.table import Region, Symbol, SymbolTable, hex_digits, section_label
 
 if TYPE_CHECKING:
-    from termapy.devices import Device, LibraryPart
+    from termapy.devices import Device, LibraryPart, Register
 
 
 def hex_addr(addr: int, address_bits: int = 32) -> str:
@@ -194,6 +194,81 @@ def library_columns() -> tuple[Column, ...]:
         Column("LAYER", lambda record: record["layer"]),
         Column("CATEGORY", lambda record: record["category"] or "-"),
     )
+
+
+def register_flags(record: dict[str, Any]) -> str:
+    """The hazards a register record carries, spelled as its device file spells them.
+
+    ``read_effect`` (reading it changes device state) and ``rmw: false``
+    (a masked write would write back, and so clear, flags nobody named):
+    the two facts that make an innocent-looking command touch the chip
+    in a way the user did not ask for.  ``""`` for a plain register.
+    """
+    flags = []
+    if record["read_effect"]:
+        flags.append("read_effect")
+    if not record["rmw"]:
+        flags.append("rmw: false")
+    return ", ".join(flags)
+
+
+def register_columns() -> tuple[Column, ...]:
+    """The ``/dev.regs`` table over :func:`register_records`: one row per register.
+
+    FLAGS is drawn in yellow so a hazard is seen before anyone reads the
+    register.  No cell is clickable: a click that prefilled a read would
+    put the hazard one Enter away.
+    """
+    return (
+        Column("ADDRESS", lambda record: record["addr_hex"]),
+        Column("NAME", lambda record: record["name"]),
+        Column("SIZE", lambda record: str(record["size"]), right=True),
+        Column("ACCESS", lambda record: record["access"]),
+        Column("FLAGS", register_flags, style=lambda record: "yellow"),
+        Column("PERIPHERAL", lambda record: record["peripheral"] or "-"),
+        Column("DESCRIPTION", lambda record: record["description"]),
+    )
+
+
+def register_records(registers: list[Register], *, address_bits: int = 32) -> list[dict[str, Any]]:
+    """The ``data=`` twin for ``/dev.regs``: one record per register, from the device file.
+
+    Everything the file says about a register: where it is, the safety
+    trio the memory commands act on (``access``, ``read_effect``,
+    ``rmw``), its context, its reset value (None when the file does not
+    say) and its bit fields -- what a caller needs to decide whether a
+    read is safe before making one.
+
+    Args:
+        registers: The registers to describe (``Device.registers``).
+        address_bits: Address width for ``addr_hex``.
+    """
+    return [
+        {
+            "name": register.symbol.name,
+            "addr": register.symbol.addr,
+            "addr_hex": hex_addr(register.symbol.addr, address_bits),
+            "size": register.symbol.size,
+            "access": register.symbol.access,
+            "read_effect": register.symbol.read_effect,
+            "rmw": register.symbol.rmw,
+            "peripheral": register.peripheral,
+            "group": register.group,
+            "description": register.description,
+            "reset": register.reset,
+            "fields": [
+                {
+                    "name": field.name,
+                    "bit": field.bit,
+                    "width": field.width,
+                    "description": field.description,
+                    "values": {str(value): label for value, label in field.values},
+                }
+                for field in register.fields
+            ],
+        }
+        for register in registers
+    ]
 
 
 def library_records(

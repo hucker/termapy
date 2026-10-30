@@ -417,7 +417,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("PARAMETERS"))
         for line in render_parameters_block(plugin.params):
-            ctx.io.output_markup(escape_markup(line))
+            ctx.io.output_markup(escape_markup(interpolate_help(line, ctx.prefix)))
 
     # FLAGS ───────────────────────────────────────────────────────────────────
     rows = canonical_flags(plugin.flags)

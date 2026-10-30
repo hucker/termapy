@@ -332,7 +332,7 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
                 "type": param.type,
                 "required": param.required,
                 "default": param.default,
-                "help": param.help,
+                "help": interpolate_help(param.help, ctx.prefix),
                 "values": [enum_value.canonical for enum_value in param.values],
                 "variadic": param.variadic,
                 # How the argument binds: a positional is given by place,

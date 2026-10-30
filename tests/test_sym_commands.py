@@ -1854,6 +1854,132 @@ class TestDevList:
         assert config_path.stem in out, "the per-config layer carries the config name"
 
 
+class TestDevRegs:
+    """One loaded device's registers, read from its file and never from the chip."""
+
+    _REGS = [
+        {
+            "name": "CTRL",
+            "addr": "0x50000000",
+            "size": 4,
+            "peripheral": "ADC",
+            "description": "Control",
+            "reset": "0x00000001",
+            "fields": [{"name": "EN", "bit": 0}],
+        },
+        {
+            "name": "DATA",
+            "addr": "0x50000004",
+            "size": 4,
+            "access": "ro",
+            "read_effect": True,
+            "peripheral": "ADC",
+            "description": "Result FIFO",
+        },
+        {
+            "name": "INTFLAG",
+            "addr": "0x50000008",
+            "size": 1,
+            "rmw": False,
+            "peripheral": "ADC",
+            "description": "Flags; write 1 to clear",
+        },
+        {"name": "UART_DATA", "addr": "0x50001000", "size": 4, "peripheral": "UART"},
+    ]
+
+    def _engine(self, sym_env):
+        """sym_env with the hazard part installed and loaded, its load lines dropped."""
+        engine, config_path, output = sym_env
+        _install_device(config_path.parent / "dev", "hazard", self._REGS)
+        engine.fire_lifecycle("on_app_start")
+        output.clear()
+        return engine, output
+
+    def test_lists_every_register_in_file_order(self, sym_env):
+        """The value is the register names, for capture; the title names the device."""
+        # Arrange
+        engine, output = self._engine(sym_env)
+        # Act
+        result = engine.dispatch("dev.regs hazard")
+        # Assert
+        assert result.success, result.error
+        assert result.value.splitlines() == ["CTRL", "DATA", "INTFLAG", "UART_DATA"]
+        assert _texts(output)[0] == "hazard - 4 registers", "the shared table's title line"
+
+    def test_flags_show_the_hazards(self, sym_env):
+        """FLAGS names read_effect and rmw: false as the file spells them, and nothing else."""
+        # Arrange
+        engine, output = self._engine(sym_env)
+        # Act
+        engine.dispatch("dev.regs hazard")
+        # Assert
+        rows = {line.split()[1]: line for line in _texts(output)[3:]}
+        assert "read_effect" in rows["DATA"], "a read that pops the FIFO is flagged"
+        assert "rmw: false" in rows["INTFLAG"], "a write-1-to-clear register is flagged"
+        assert "read_effect" not in rows["CTRL"] and "rmw" not in rows["CTRL"], (
+            "a plain register carries no flag"
+        )
+
+    def test_the_flag_cell_is_drawn_in_yellow(self, sym_env):
+        """The hazard stands out where the frontend can color it; the plain text is unchanged."""
+        # Arrange
+        engine, _ = self._engine(sym_env)
+        pieces: list = []
+        engine.ctx.io._write_segments = lambda segment, color: pieces.extend(segment)
+        # Act
+        engine.dispatch("dev.regs hazard DATA")
+        # Assert
+        flagged = [piece for piece in pieces if piece.text == "read_effect"]
+        assert flagged and flagged[0].style == "yellow", "the FLAGS cell carries its style"
+
+    def test_a_pattern_matches_register_or_peripheral(self, sym_env):
+        """name-one-matcher: plain text contains, over the name and the peripheral."""
+        # Arrange
+        engine, _ = self._engine(sym_env)
+        # Act
+        by_peripheral = engine.dispatch("dev.regs hazard UART")
+        by_glob = engine.dispatch("dev.regs hazard *DATA")
+        nothing = engine.dispatch("dev.regs hazard zzz*")
+        # Assert
+        assert by_peripheral.value == "UART_DATA", "the peripheral picked its block"
+        assert by_glob.value.splitlines() == ["DATA", "UART_DATA"], "an anchored glob"
+        assert nothing.success and nothing.value == "", "no match is an empty answer"
+
+    def test_data_carries_the_safety_facts_and_fields(self, sym_env):
+        """list-one-format: the records hold the safety trio, reset and fields for an agent."""
+        # Arrange
+        engine, _ = self._engine(sym_env)
+        # Act
+        result = engine.dispatch("dev.regs hazard --json")
+        # Assert
+        by_name = {record["name"]: record for record in result.data}
+        assert by_name["DATA"]["read_effect"] is True, "the read hazard is data"
+        assert by_name["INTFLAG"]["rmw"] is False, "so is the write hazard"
+        assert by_name["CTRL"]["reset"] == 1, "the reset value, as a number"
+        assert by_name["CTRL"]["fields"][0]["name"] == "EN", "and the bit fields"
+        assert by_name["CTRL"]["addr_hex"] == "0x50000000", "hex beside the integer"
+
+    def test_runs_with_no_port_open(self, sym_env):
+        """The listing reads the file, never the chip: it needs no connection at all."""
+        # Arrange: sym_env has no serial port, so any device read would be refused
+        engine, _ = self._engine(sym_env)
+        # Act
+        result = engine.dispatch("dev.regs hazard")
+        # Assert
+        assert result.success, "listing a read_effect register touched nothing"
+
+    def test_an_unknown_device_fails_and_points_at_the_list(self, sym_env):
+        """A device that is not loaded fails with the standard phrasing and a way forward."""
+        # Arrange
+        engine, _ = self._engine(sym_env)
+        # Act
+        result = engine.dispatch("dev.regs nosuch")
+        # Assert
+        assert result.success is False, "nothing to list is a failure"
+        assert result.error.startswith("Unknown device: nosuch"), result.error
+        assert "dev.list" in result.error, "and it says how to see what is loaded"
+
+
 # -- /dev.lib ----------------------------------------------------------------
 
 

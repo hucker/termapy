@@ -81,6 +81,8 @@ Scripts are picked and run from the **Run** button in the title bar
 | **Ctrl+T** / **Alt+T** | Save text screenshot                                |
 | **Ctrl+C** / **Cmd+C** | Copy selected text to the clipboard                 |
 | **Ctrl+A**             | Select all output text (click the output first)     |
+| **Shift+Up**           | Select output from the newest line, from the prompt |
+| **Shift+arrows**       | Grow or shrink an output selection                  |
 | **Up/Down**            | Cycle through command history                       |
 | **Right**              | Accept type-ahead suggestion                        |
 
@@ -103,6 +105,18 @@ larger one short without saying so; the session log holds the whole
 session.  A few older terminals don't support OSC 52; if the copy
 does nothing, hold **Shift** (or **Alt** in some terminals) while
 dragging to use your terminal's own selection instead.
+
+The keyboard selects too.  From the prompt, **Shift+Up** selects the
+newest output line, and each further press grows the selection a line
+up.  In the output window, **Shift** with an arrow key moves the
+selection's end a character or a line, **Shift+Home** and
+**Shift+End** move it to the start or end of the line, and
+**Shift+PageUp** and **Shift+PageDown** move it a page; it starts
+from where you last clicked, or extends a selection you dragged.
+While anything is selected the window stops following new output, so
+the selection stays put, and catches up when it ends.  **Escape**
+clears the selection and returns you to the prompt, and typing any
+character does the same, typing it there.
 
 ## Command palette
 

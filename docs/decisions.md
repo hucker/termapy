@@ -584,8 +584,14 @@ the better one. The same change, made in `RichLog` itself, goes to
 Textual as a pull request under its conventions (snapshot test,
 CHANGELOG, black); when termapy's floor passes the release that has it,
 the override goes and `LinkLog` subclasses `RichLog` again. With the
-focus, which a click gives it, Ctrl+A selects every line; Shift+arrow
-selection is a later step on the same hooks, since Textual has none for
-log widgets. The Textual floor moves from 0.80 to 2.0, the
+focus, which a click gives it, Ctrl+A selects every line. The keyboard
+selects on the same hooks, which Textual offers for no log widget:
+Shift+Up from the prompt selects the newest line and moves the keys into
+the pane, where Shift with an arrow, Home, End, PageUp or PageDown moves
+the selection's end; Escape clears it and returns to the prompt without
+stopping a script, and any typed character goes back to the prompt. While
+anything is selected the pane stops following new output. Chuck: up/down
+and left/right both, or neither. This part stays termapy's; the mouse
+half is what Textual could take. The Textual floor moves from 0.80 to 2.0, the
 release with the selection API; whether the code already needs a newer
 one is a chore of its own.

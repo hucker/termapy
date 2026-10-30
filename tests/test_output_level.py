@@ -206,6 +206,11 @@ class TestMarkupChannelGating:
 
 
 class TestStripLevelFlags:
+    def test_text_without_a_level_flag_comes_back_unchanged(self):
+        """Spacing survives when there is no flag to take out: a device line's indent is its content."""
+        actual = _strip_level_flags("  print('a  b')")
+        assert actual == ("  print('a  b')", None), "no flag, no re-spacing"
+
     def test_strips_known_flag(self):
         """A --level flag mid-args is removed and the remaining args rejoined."""
         actual_args, actual_level = _strip_level_flags("foo --silent bar")

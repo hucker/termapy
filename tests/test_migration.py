@@ -884,6 +884,32 @@ def test_v30_to_v31_preserves_existing_custom_buttons_side():
     assert result["custom_buttons_side"] == "right", "existing value preserved"
 
 
+def test_v32_to_v33_adds_the_paste_keys():
+    """Migration v32->v33 turns multi-line paste on, 10 ms a line (TeraTerm's default)."""
+    # Arrange
+    cfg = {"config_version": 32, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    actual = (result["multiline_paste"], result["multiline_paste_delay_ms"])
+    assert actual == (True, 10), "defaults added"
+
+
+def test_v32_to_v33_preserves_set_paste_keys():
+    """Migration v32->v33 keeps paste values already set."""
+    # Arrange
+    cfg = {"multiline_paste": False, "multiline_paste_delay_ms": 50, "config_version": 32}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    actual = (result["multiline_paste"], result["multiline_paste_delay_ms"])
+    assert actual == (False, 50), "existing values preserved"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 runs every migrator since.
@@ -895,9 +921,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labeled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 15, (
-        f"v17 -> v32 covers fifteen migrators "
-        f"(17->18 ... 30->31, 31->32); "
+    assert len(steps) == 16, (
+        f"v17 -> v33 covers sixteen migrators "
+        f"(17->18 ... 31->32, 32->33); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -916,6 +942,7 @@ def test_migration_steps_recorded_per_version():
         "v29 -> v30",
         "v30 -> v31",
         "v31 -> v32",
+        "v32 -> v33",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), f"step {step!r} should start with {prefix!r}"
@@ -933,7 +960,7 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 12, f"twelve steps (v20->v21 ... v30->v31, v31->v32); got {steps!r}"
+    assert len(steps) == 13, f"thirteen steps (v20->v21 ... v31->v32, v32->v33); got {steps!r}"
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
     )
@@ -968,8 +995,8 @@ def test_a_saved_step_list_is_not_shown_again():
 
     # Assert
     actual = [step.split(":")[0] for step in first_steps]
-    assert actual == ["v28 -> v29", "v29 -> v30", "v30 -> v31", "v31 -> v32"], (
-        "this run's four steps, none of the saved ones"
+    assert actual == ["v28 -> v29", "v29 -> v30", "v30 -> v31", "v31 -> v32", "v32 -> v33"], (
+        "this run's five steps, none of the saved ones"
     )
     assert "_migration_steps" not in second, "a current config shows no steps, saved list or not"
 

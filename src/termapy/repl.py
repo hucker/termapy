@@ -180,11 +180,15 @@ def _strip_level_flags(args: str) -> tuple[str, str | None]:
     before per-command flag parsing.  Returns ``(remaining_args, level)``
     where ``level`` is the canonical name or None if no level flag was
     seen.  Conflicting level flags on the same call use the last-wins
-    rule (matches argparse).
+    rule (matches argparse).  Without a level flag the text comes back
+    as given: a device line's spacing is part of the line (indented code
+    pasted into a device REPL), so only taking a flag out may re-space it.
     """
     if not args:
         return args, None
     tokens = args.split()
+    if not any(token in LEVEL_FLAGS for token in tokens):
+        return args, None
     remaining: list[str] = []
     level: str | None = None
     for token in tokens:
@@ -1665,8 +1669,10 @@ class ReplEngine:
         # Read the live echo flag (``self.echo``), not ``cfg["echo"]``
         # -- so ``/echo`` governs bare device commands the same way it
         # governs slash commands (which read the flag above).  The cfg key
-        # seeds the flag at init; the flag is the session truth.
-        if self.echo and cmd and not self.cfg.get("request_mode"):
+        # seeds the flag at init; the flag is the session truth.  An empty
+        # line is echoed too: it sends a bare line ending (send_bare_enter,
+        # a blank line in a paste), and the echo is how the user sees it went.
+        if self.echo and not self.cfg.get("request_mode"):
             _announce(cmd, eol=eol_label)
 
         if is_connected and not is_connected():
@@ -1817,6 +1823,12 @@ class ReplEngine:
             return CmdResult.ok(value="")
         name = parts[0].lower()
         raw_args = parts[1] if len(parts) > 1 else ""
+        if self.command_has_raw_args(name):
+            # A raw_args command takes its text as written, past the one
+            # blank after the name: /term.send carries a device line, and
+            # split() would drop that line's indentation with the separator.
+            rest = line.lstrip()[len(parts[0]) :]
+            raw_args = rest[1:] if rest[:1].isspace() else rest
         args = self._expand_template(raw_args)
 
         # Universal --json flag: stripped before the plugin lookup (unlike

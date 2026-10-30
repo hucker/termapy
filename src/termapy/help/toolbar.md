@@ -80,6 +80,7 @@ Scripts are picked and run from the **Run** button in the title bar
 | **Ctrl+S** / **Alt+S** | Save SVG screenshot                                 |
 | **Ctrl+T** / **Alt+T** | Save text screenshot                                |
 | **Ctrl+C** / **Cmd+C** | Copy selected text to the clipboard                 |
+| **Ctrl+V** / **Cmd+V** | Paste into the prompt; several lines are all sent   |
 | **Ctrl+A**             | Select all output text (click the output first)     |
 | **Shift+Up**           | Select output from the newest line, from the prompt |
 | **Shift+arrows**       | Grow or shrink an output selection                  |
@@ -90,6 +91,18 @@ The `Ctrl+Shift+digit` and `Alt+letter` aliases work inside VS Code's
 integrated terminal, which intercepts some F-keys and Ctrl chords.
 Clearing the screen is `/cls` (or the palette's Clear Screen); the
 screenshot folder is the **SS** button (or `/ss.explore`).
+
+## Pasting several lines
+
+Paste a block of lines into the prompt and every line is sent, one after
+another, as if you typed it and pressed Enter, as TeraTerm does: a device
+line goes as pasted, indentation and all, a blank line sends a bare line
+ending, and a line starting with `/` runs as a command, so a pasted script
+works too.  The lines go `multiline_paste_delay_ms` apart (10 by default,
+TeraTerm's), giving a device time to take each one.  **Escape** stops the
+rest, and a line that fails stops it as well.  A one-line paste lands in
+the prompt for you to edit.  Set `multiline_paste` to `false` to paste
+only the first line, as before.
 
 ## Copying text
 

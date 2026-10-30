@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.folders import ensure_folder
+from termapy.folders import ensure_folder, file_suggestion
 from termapy.plugins import CmdResult, UsageError
 from termapy.scripting import resolve_seq_filename
 from termapy.vendor.xmodem import XMODEM
@@ -117,7 +117,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
 
     path = _resolve_path(filename, _get_xfer_root(ctx))
     if not path.is_file():
-        return CmdResult.fail(msg=f"File not found: {path}")
+        return CmdResult.fail(msg=f"File not found: {path}{file_suggestion(path.parent, filename)}")
 
     file_size = path.stat().st_size
     ctx.io.output(f"  XMODEM send: {path.name} ({file_size} bytes) -- Esc to cancel")

@@ -277,8 +277,9 @@ class TestParseAddressSymbols:
 
     def test_bare_hex_is_a_name(self, table):
         """CAFE is looked up as a name, not read as 0xCAFE as the old plugin did."""
-        # Act / Assert -- the deliberate inversion of the old hex guess
-        with pytest.raises(ValueError, match=r"^Unknown symbol: CAFE$"):
+        # Act / Assert -- the deliberate inversion of the old hex guess; the
+        # name the table does hold is offered (registry did-you-mean-one)
+        with pytest.raises(ValueError, match=r"^Unknown symbol: CAFE -- did you mean cafeh\?$"):
             parse_address("CAFE", table)
 
     def test_name_without_table(self):

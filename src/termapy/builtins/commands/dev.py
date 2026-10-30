@@ -45,7 +45,7 @@ from termapy.devices import (
 from termapy.devices.converters import FORMATS, find_converter
 from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, state_line
-from termapy.matching import matches
+from termapy.matching import closest, did_you_mean, matches
 from termapy.plugins import BoundaryException, CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.symbols import get_devices, get_table, install_devices, parse_number
@@ -95,7 +95,17 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     ctx.fs.guard_external_path(raw, "Source path")
     path = cfg_relative_path(ctx.config_path, raw)
     if not path.is_file():
-        return CmdResult.fail(msg=not_found_message("Source file", raw, ctx.config_path))
+        message = not_found_message("Source file", raw, ctx.config_path)
+        # A part name where a file belongs: the part is already converted,
+        # and the command that adds it is /dev.use.
+        parts = scan_libraries(_library_layers(ctx))[0]
+        named = next(
+            (part.device for part in parts if part.device.casefold() == raw.strip().casefold()),
+            None,
+        )
+        if named:
+            message += did_you_mean([f"{ctx.prefix}dev.use {named}"])
+        return CmdResult.fail(msg=message)
     try:
         data, text = read_source(path)
     except OSError as e:
@@ -235,8 +245,10 @@ def _handler_regs(ctx: PluginContext, args: str) -> CmdResult:
     pattern = str(ctx.arg("pattern") or "").strip()
     device = next((device for device in get_devices(ctx) if device.name == name), None)
     if device is None:
+        hint = did_you_mean(closest(name, (loaded.name for loaded in get_devices(ctx))))
         return CmdResult.fail(
-            msg=f"Unknown device: {name} (try {ctx.prefix}dev.list to see what is loaded)"
+            msg=f"Unknown device: {name}"
+            + (hint or f" (try {ctx.prefix}dev.list to see what is loaded)")
         )
     # A name pattern (registry name-one-matcher) over the register AND its
     # peripheral, so "SERCOM0" finds a block and "*_CTRLA" a register.
@@ -263,8 +275,10 @@ def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
     parts = scan_libraries(_library_layers(ctx))[0]
     match = next((p for p in parts if p.device == part), None)
     if match is None:
+        hint = did_you_mean(closest(part, (library_part.device for library_part in parts)))
         return CmdResult.fail(
-            msg=f"No library part named {part} (try {ctx.prefix}dev.lib to see what there is)"
+            msg=f"Unknown library part: {part}"
+            + (hint or f" (try {ctx.prefix}dev.lib to see what there is)")
         )
     placements = str(ctx.arg("at") or "").split()
     instances = _parse_placements(placements)
@@ -481,6 +495,7 @@ COMMAND = Command(
         "list": Command(
             help="List the devices this config has loaded, with their layer and placement.",
             handler=_handler_list,
+            shows=True,
         ),
         "regs": Command(
             params=[
@@ -500,6 +515,7 @@ COMMAND = Command(
             ],
             help="List a loaded device's registers from its file (never the chip), flagging risky reads and writes.",
             handler=_handler_regs,
+            shows=True,
         ),
         "use": Command(
             params=[
@@ -533,6 +549,7 @@ COMMAND = Command(
             ],
             help="List the parts the device library holds (available, not loaded).",
             handler=_handler_lib,
+            shows=True,
         ),
     },
 )

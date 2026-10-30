@@ -394,6 +394,10 @@ MEM.R 0x1000 2 --json
 /dev.lib
 /dev.lib zzz*
 /dev.use nosuch
+/dev.regs demo_uar
+/sym u1_mode
+/cfg baud_rat
+/held
 /cap.stop
 /print === section: coverage: protocol ===
 /proto.send --dry-run "AT\r"

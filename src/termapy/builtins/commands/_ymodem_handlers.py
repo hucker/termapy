@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.folders import ensure_folder
+from termapy.folders import ensure_folder, file_suggestion
 from termapy.plugins import CmdResult, UsageError
 from termapy.vendor.ymodem.Protocol import ProtocolType
 from termapy.vendor.ymodem.Socket import ModemSocket
@@ -44,7 +44,8 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     for filename in filenames:
         path = _resolve_path(filename, _get_xfer_root(ctx))
         if not path.is_file():
-            return CmdResult.fail(msg=f"File not found: {path}")
+            hint = file_suggestion(path.parent, filename)
+            return CmdResult.fail(msg=f"File not found: {path}{hint}")
         paths.append(str(path))
 
     total_size = sum(Path(p).stat().st_size for p in paths)

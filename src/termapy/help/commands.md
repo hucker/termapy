@@ -72,6 +72,19 @@ nothing is an error: `/cap.delete adc_*`, `/run.legacy test_*`. Only the
 folders termapy writes (`ss/`, `cap/`, `prof/`) delete by pattern; a
 script or plugin you wrote is deleted one name at a time, after a yes.
 
+A name that names nothing suggests the names you most likely meant, with
+case ignored: a command, a config key or config, a symbol or register, a
+device or library part, and any file a command looks for, where the rest
+of the path you typed is kept. In the TUI each suggestion is a link. One
+that only shows or opens something (a help page, a listing, an editor)
+runs when you click it; one that acts (runs a script, writes a file,
+sends to the device) waits in the input line for Enter.
+
+```text
+/dev.use pic32cm51641e00100
+  Error: Unknown library part: pic32cm51641e00100 -- did you mean pic32cm5164le00100?
+```
+
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/board`                  | List the dev boards termapy ships starters for, and which is plugged in     |

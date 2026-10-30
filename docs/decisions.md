@@ -624,3 +624,42 @@ entry here. The MCP server graduates when every host-access limit
 `help/mcp-server.md` states is enforced, the 2026-10-29 security review's
 Tier 1 and 2a; the others when their commands and file formats stop
 changing.
+
+## 2026-10-30 — One did-you-mean: case ignored, edit distance, a reach that grows with the name
+
+A name that names nothing is answered with the names it most likely
+meant, picked by `matching.closest` and phrased by `matching.did_you_mean`
+(registry `did-you-mean-one`). It replaced four homemade copies (a
+hand-written edit distance in `repl.py` for commands and flags, a private
+import of it in the config editor, `difflib` in the profile loader) worded
+four ways, and reaches the places that had none: config keys and names,
+scripts and data-folder files, symbols and registers, devices and library
+parts. **Why:** Chuck mistyped `pic32cm51641e00100` (a one for an L) and
+asked that the user "work less from memory"; the algorithm had only to be
+"good enough for the cases we will throw at it", and speed was not the
+test ("waiting .3 seconds when you make a mistake isn't that bad"). **The
+evidence:** 1,300 generated typos of termapy's real names (301 commands,
+63 config keys, a PIC32CM's 2517 registers, 12 part numbers; dropped,
+doubled, swapped and wrong letters, one-for-L and zero-for-O, case, two at
+once) and ten words that are typos of nothing. Ignoring case was worth
+about fifteen points everywhere, since neither old algorithm did. With it,
+edit distance put the name meant first 94-100% of the time. `difflib`
+scored about the same overall but failed where registers live: it does not
+count a swap of neighbors as one edit, and its ties among numbered
+siblings (SERCOM0 to SERCOM5) ranked 5, 4, 3, so `SERCOM_2USART...` never
+offered SERCOM2; it also answered `status` and `config` with register
+lists. A flat two-edit limit answered junk for short words (`foo` became
+`/log` and `/os`), so the reach scales with the length typed: one edit up
+to 4 characters, two up to 10, three beyond. A candidate whose length
+alone is out of reach is skipped before its distance is computed. No
+algorithm can tell which digit of a numbered family was meant, which is
+why three names come back. crcglot keeps ranking its own algorithm names
+(its knowledge, by the library boundary rule); termapy only phrases them.
+The same day it reached every file a command looks for and misses
+(Chuck: "can we extend this to file names? That could be very
+useful"): the folder the command searched is listed, only the last
+part of the typed path is matched, and the suggestion keeps the rest
+as typed, so a mistyped vendor SVD path offers the whole corrected
+path. It lists a folder only where the command could already read:
+every site guards its path first or is unreachable over MCP, and
+`/profile.validate`, which reads its path unguarded, is left without one.

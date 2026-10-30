@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from termapy.plugins import CmdResult, DirectiveInfo, DirectiveResult
-from termapy.repl import ReplEngine, ScriptCtx, _edit_distance, _suggest_command
+from termapy.repl import ReplEngine, ScriptCtx
 
 # -- Fixtures ----------------------------------------------------------------
 
@@ -41,128 +41,6 @@ def engine(tmp_path):
     eng.ctx.fs.capabilities = caps
 
     return eng, output
-
-
-# -- _edit_distance ----------------------------------------------------------
-
-
-class TestEditDistance:
-    def test_identical_strings(self):
-        """Equal strings are zero edits apart, so an exact name always ranks first."""
-        # Act
-        actual = _edit_distance("hello", "hello")
-
-        # Assert
-        assert actual == 0, "identical strings have distance 0"
-
-    def test_single_insertion(self):
-        """One added character costs exactly one edit."""
-        # Act
-        actual = _edit_distance("cat", "cats")
-
-        # Assert
-        assert actual == 1, "one insertion is distance 1"
-
-    def test_single_deletion(self):
-        """One dropped character costs exactly one edit."""
-        # Act
-        actual = _edit_distance("cats", "cat")
-
-        # Assert
-        assert actual == 1, "one deletion is distance 1"
-
-    def test_substitution(self):
-        """One replaced character costs exactly one edit."""
-        # Act
-        actual = _edit_distance("cat", "car")
-
-        # Assert
-        assert actual == 1, "one substitution is distance 1"
-
-    def test_transposition(self):
-        """Swapped adjacent letters count as one edit, not two -- the common typo."""
-        # Act
-        actual = _edit_distance("ab", "ba")
-
-        # Assert
-        assert actual == 1, "transposition counts as 1 edit"
-
-    def test_empty_strings(self):
-        """Two empty strings are zero edits apart rather than an error."""
-        # Act
-        actual = _edit_distance("", "")
-
-        # Assert
-        assert actual == 0, "empty strings have distance 0"
-
-    def test_one_empty(self):
-        """Distance to an empty string is the other string's full length."""
-        # Act
-        actual = _edit_distance("abc", "")
-
-        # Assert
-        assert actual == 3, "distance to empty is length of other string"
-
-    def test_completely_different(self):
-        """No shared characters costs one substitution per position."""
-        # Act
-        actual = _edit_distance("abc", "xyz")
-
-        # Assert
-        assert actual == 3, "all characters different"
-
-
-# -- _suggest_command --------------------------------------------------------
-
-
-class TestSuggestCommand:
-    def test_close_match(self):
-        """A one-letter typo suggests the intended command with its prefix."""
-        # Arrange
-        plugins = {"help": None, "echo": None, "exit": None}
-
-        # Act
-        actual = _suggest_command("halp", plugins, "/")
-
-        # Assert
-        assert actual is not None, "finds close match"
-        assert "/help" in actual, "suggests /help for halp"
-
-    def test_no_match(self):
-        """A name far from every command yields no suggestion at all."""
-        # Arrange
-        plugins = {"help": None, "echo": None}
-
-        # Act
-        actual = _suggest_command("zzzzzzz", plugins, "/")
-
-        # Assert
-        assert actual is None, "no match for distant string"
-
-    def test_exact_match_distance_zero(self):
-        """An exact command name is itself offered as a suggestion."""
-        # Arrange
-        plugins = {"help": None, "echo": None}
-
-        # Act
-        actual = _suggest_command("help", plugins, "/")
-
-        # Assert
-        assert actual is not None, "exact match found"
-        assert "/help" in actual, "includes exact match"
-
-    def test_multiple_suggestions(self):
-        """When several commands tie at distance 1, the suggestion includes them."""
-        # Arrange
-        plugins = {"cap": None, "car": None, "cat": None, "xyz": None}
-
-        # Act
-        actual = _suggest_command("cab", plugins, "/")
-
-        # Assert
-        assert actual is not None, "finds multiple close matches"
-        # All three (cap, car, cat) are distance 1 from cab
-        assert "/cap" in actual, "includes cap"
 
 
 # -- ScriptCtx.record -------------------------------------------------------

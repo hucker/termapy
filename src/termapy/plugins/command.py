@@ -578,6 +578,13 @@ class Command:
             inherits from the nearest ancestor that declares one, and a root
             that declares none is stable; any subcommand may override.
             Validated at construction (registry ``maturity-declared-once``).
+        shows: True when the command only shows or opens something -- a
+            page, a list, a lookup, a file in a viewer or an editor -- and
+            changes nothing in the session, the files or the device.  A
+            click on a link to it runs it at once; a link to any other
+            command fills the input line for Enter (registry
+            ``links-are-data``).  Not inherited: each command says so for
+            itself.  Requires ``safety="safe"``, checked at construction.
     """
 
     help: str
@@ -598,6 +605,7 @@ class Command:
     help_list: str = ""
     group: str = GROUP_DEFAULT
     maturity: str = ""
+    shows: bool = False
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -624,6 +632,11 @@ class Command:
             raise ValueError(
                 f"/{self.name or '<command>'}: unknown maturity {self.maturity!r} "
                 f"(use {'/'.join(MATURITY_LEVELS)})"
+            )
+        if self.shows and self.safety != "safe":
+            raise ValueError(
+                f"/{self.name or '<command>'}: shows= is for a command that changes "
+                f"nothing, and safety {self.safety!r} says this one does"
             )
         if not self.params:
             return
@@ -937,6 +950,8 @@ class PluginInfo:
         maturity: How settled the command is, resolved at load: its own
             ``Command.maturity``, else the nearest ancestor's, else
             ``"stable"`` (registry ``maturity-declared-once``).
+        shows: ``Command.shows``: it only shows or opens, so a click on a
+            link to it runs it.
     """
 
     name: str
@@ -958,6 +973,7 @@ class PluginInfo:
     help_list: str = ""
     group: str = GROUP_DEFAULT
     maturity: str = "stable"
+    shows: bool = False
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.

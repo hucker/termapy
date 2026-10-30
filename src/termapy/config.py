@@ -44,6 +44,7 @@ from termapy.folders import (
     SYMBOLS_SUFFIX,
     default_file_name,
     ensure_folder,
+    file_suggestion,
 )
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
@@ -1509,9 +1510,16 @@ def not_found_message(subject: str, raw: str, config_path: str) -> str:
     """
     base = f"{subject} not found: {raw}"
     if Path(raw).is_absolute() or not config_path:
-        return base
-    folder = Path(config_path).parent.name
-    return f"{base} (a relative path is measured from the {folder} config folder)"
+        return f"{base}{file_suggestion(Path(raw).parent, raw)}"
+    cfg_folder = Path(config_path).parent
+    hint = file_suggestion((cfg_folder / raw).parent, raw)
+    return f"{base} (a relative path is measured from the {cfg_folder.name} config folder){hint}"
+
+
+def config_names() -> list[str]:
+    """The names of the configs under ``cfg_dir()``, each ``<name>/<name>.cfg``: what a config name may be."""
+    root = cfg_dir()
+    return [cfg_file.stem for cfg_file in root.glob("*/*.cfg")] if root.is_dir() else []
 
 
 def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:

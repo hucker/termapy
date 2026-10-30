@@ -1826,7 +1826,15 @@ demo> /dev.lib
 demo> /dev.lib zzz*
   library 'zzz*' - empty
 demo> /dev.use nosuch
-  Error: No library part named nosuch (try /dev.lib to see what there is)
+  Error: Unknown library part: nosuch (try /dev.lib to see what there is)
+demo> /dev.regs demo_uar
+  Error: Unknown device: demo_uar -- did you mean demo_uart?
+demo> /sym u1_mode
+  Error: Unknown symbol: u1_mode -- did you mean U1_MODE, U1MODE?
+demo> /cfg baud_rat
+  Error: Unknown config key: baud_rat -- did you mean baud_rate?
+demo> /held
+  Error: Unknown command: held -- did you mean /help?
 demo> /cap.stop
 demo> /print === section: coverage: protocol ===
   === section: coverage: protocol ===

@@ -845,6 +845,104 @@ def test_matcher_guard_fires_on_a_probe():
     assert len(found) == 2, "both fnmatch imports flagged; the matcher import is not"
 
 
+# ── Suggestions have one owner ────────────────────────────────────────────────
+#
+# A name that names nothing is answered by ``matching.closest`` and phrased by
+# ``matching.did_you_mean``.  Before them (2026-10-30) four modules had their
+# own: a hand-written edit distance in repl.py, a private import of it in the
+# config editor, and difflib in the profile loader, worded four ways.  A
+# difflib import, an edit-distance function or the phrase anywhere else is a
+# fifth copy.  The phrase is allowed where it is not a name suggestion.
+SUGGESTION_PHRASE_ALLOWED = {
+    # A syntax hint, not a name match: "/var X = 1" is how to set a variable.
+    "termapy/builtins/commands/var.py",
+    # The editor's help pane draws the suggested key in green; the key
+    # itself comes from matching.closest.
+    "termapy/dialogs/config_editor.py",
+}
+
+
+def _suggestion_copies(tree: ast.AST, rel: str, *, phrase_allowed: bool = False) -> list[str]:
+    """Every difflib import, edit-distance function and did-you-mean string in ``rel``, docstrings aside."""
+    docstrings = {
+        id(node.body[0].value)
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+    }
+    found = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Import) and any(alias.name == "difflib" for alias in node.names)
+        ) or (isinstance(node, ast.ImportFrom) and node.module == "difflib"):
+            found.append(f"{rel}:{node.lineno}  {ast.unparse(node)}")
+        elif (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and "edit_distance" in node.name
+        ):
+            found.append(f"{rel}:{node.lineno}  def {node.name}")
+        elif (
+            not phrase_allowed
+            and isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and "did you mean" in node.value.casefold()
+            and id(node) not in docstrings
+        ):
+            found.append(f"{rel}:{node.lineno}  {node.value!r}")
+    return found
+
+
+def test_suggestions_have_one_owner():
+    """did-you-mean-one: only matching.py computes or phrases a did-you-mean suggestion."""
+    # Arrange / Act
+    violations = [
+        line
+        for path in _package_python_files()
+        if (rel := path.relative_to(SRC.parent).as_posix()) != MATCHER_OWNER
+        for line in _suggestion_copies(
+            ast.parse(path.read_text(encoding="utf-8")),
+            rel,
+            phrase_allowed=rel in SUGGESTION_PHRASE_ALLOWED,
+        )
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a mistyped name's suggestion comes from termapy.matching:\n  "
+        + "\n  ".join(violations)
+        + "\n\nCall did_you_mean(closest(name, candidates)) instead."
+    )
+
+
+def test_suggestion_guard_fires_on_a_probe():
+    """did-you-mean-one: the guard flags difflib, an edit distance and the phrase, never a docstring."""
+    # Arrange
+    probe = (
+        '"""A docstring may say did you mean."""\n'
+        "import difflib\n"
+        "def _edit_distance(a, b):\n    return 0\n"
+        'def fail(name):\n    return f"Unknown: {name} -- did you mean {name}?"\n'
+    )
+
+    # Act
+    found = _suggestion_copies(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 3, "the import, the function and the phrase; not the docstring"
+
+
+def test_the_suggestion_allowlist_is_not_stale():
+    """did-you-mean-one: each file allowed the phrase still uses it, so the list only shrinks."""
+    stale = [
+        rel
+        for rel in sorted(SUGGESTION_PHRASE_ALLOWED)
+        if "did you mean" not in (SRC.parent / rel).read_text(encoding="utf-8").casefold()
+    ]
+    assert stale == [], f"drop these from SUGGESTION_PHRASE_ALLOWED: {stale}"
+
+
 # ── Port names are compared one way ───────────────────────────────────────────
 #
 # A typed port name and a listed one are the same port when the OS would open
@@ -1374,7 +1472,6 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
         "term.log",
         "term.send_bare_enter",
         "xfer.root",
-        "xfer.xmodem.send",
         "xfer.ymodem.send",
     }
 )

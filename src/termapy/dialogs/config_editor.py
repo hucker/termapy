@@ -31,6 +31,7 @@ from termapy.defaults import DEFAULT_CFG, cmd_prefix
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
+from termapy.matching import closest
 from termapy.plugins import interpolate_help
 from termapy.scripting import parse_bool
 
@@ -370,13 +371,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         raw_val = m.group(2)
         entry = CFG_HELP.get(key)
         if not entry:
-            from termapy.repl import _edit_distance
-
-            best, best_dist = None, 3
-            for k in CFG_HELP:
-                d = _edit_distance(key, k)
-                if d < best_dist:
-                    best, best_dist = k, d
+            best = next(iter(closest(key, CFG_HELP, limit=1)), None)
             unknown = Text(f'Line {row + 1}: Unknown key "{key}"', style="red")
             if best:
                 unknown.append_text(Text.assemble("\nDid you mean ", (f'"{best}"', "green"), "?"))

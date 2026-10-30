@@ -430,6 +430,27 @@ COMMAND = Command(
 
 An unknown folder name fails when the plugin loads.
 
+## Commands that only show: `shows=`
+
+A link in termapy's output that names your command (a did-you-mean in an
+error, say) fills the input line for Enter, so a click never runs
+something that acts. If your command only shows or opens something -- a
+page, a listing, a lookup, a file in a viewer or editor -- and changes
+nothing in the session, the files or the device, declare it, and a click
+runs it at once:
+
+```python
+COMMAND = Command(
+    name="peek",
+    args="<name>",
+    help="Show a register's description.",
+    handler=_handler,
+    shows=True,
+)
+```
+
+`shows=True` with a `safety` other than `safe` fails when the plugin loads.
+
 ## Setting commands: bare queries, never mutates
 
 A command that reads/writes an on/off flag or a multi-value option follows

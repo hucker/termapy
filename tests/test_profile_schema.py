@@ -831,7 +831,7 @@ class TestCompatibilityWarnings:
         result = validate_profile(profile)
         # Assert
         assert result.ok is True, "typo'd field still loads (warn, not fail)"
-        assert any("saftey" in w and "did you mean 'safety'" in w for w in result.warnings), (
+        assert any("saftey" in w and "did you mean safety" in w for w in result.warnings), (
             "warning carries a did-you-mean suggestion"
         )
 
@@ -843,7 +843,7 @@ class TestCompatibilityWarnings:
         result = validate_profile(profile)
         # Assert
         assert any(
-            "destructiv" in w and "did you mean 'destructive'" in w for w in result.warnings
+            "destructiv" in w and "did you mean destructive" in w for w in result.warnings
         ), "value typos get suggestions too"
 
     def test_unrelated_unknown_field_has_no_suggestion(self):
@@ -1028,7 +1028,7 @@ class TestValidateProfileCli:
         # Assert
         assert result.returncode == 1, "--strict turns warnings into failure"
         assert "FAIL" in result.stderr, "FAIL verdict under --strict"
-        assert "did you mean 'safety'" in result.stderr, "suggestion surfaced where CI logs show it"
+        assert "did you mean safety" in result.stderr, "suggestion surfaced where CI logs show it"
 
     def test_cli_strict_passes_clean_profile(self, tmp_path):
         """A warning-free profile still passes under --strict; strict only escalates warnings."""

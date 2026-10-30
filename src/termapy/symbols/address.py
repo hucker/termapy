@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass, replace
 from typing import Final
 
+from termapy.matching import closest, did_you_mean
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.symbols.table import Symbol, SymbolTable, hex_digits
 
@@ -161,7 +162,8 @@ def _resolve_base(text: str, table: SymbolTable | None) -> Address:
         raise ValueError(f"Invalid address: {text}")
     if table is None or not len(table):
         raise ValueError(STATE_MESSAGES["symbols_loaded"])
-    raise ValueError(f"Unknown symbol: {text}")
+    hint = did_you_mean(closest(name, (symbol.name for symbol in table.symbols)))
+    raise ValueError(f"Unknown symbol: {text}{hint}")
 
 
 def _exact_match(text: str, table: SymbolTable | None) -> Address | None:

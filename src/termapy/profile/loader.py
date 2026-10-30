@@ -38,6 +38,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from termapy.matching import closest, did_you_mean
+
 # Schema location, exported so callers (validators, REPL plugins,
 # external tools) can load it without hardcoding the path.
 SCHEMA_PATH = Path(__file__).parent / "schema.json"
@@ -269,17 +271,15 @@ def _is_extension_key(key: Any) -> bool:
 
 
 def _suggest(name: str, candidates: Any) -> str:
-    """Return ``; did you mean 'x'?`` for the closest candidate, or ``""``.
+    """Return `` -- did you mean x?`` for the closest candidate, or ``""``.
 
     Spelling errors are the main way a tolerated-unknown slips past an
     author (a misspelled ``safety`` key silently un-gates a command),
     so every warning about an unknown name carries the nearest
-    canonical one when the edit distance is plausibly a typo.
+    canonical one when the edit distance is plausibly a typo (registry
+    ``did-you-mean-one``).
     """
-    import difflib
-
-    matches = difflib.get_close_matches(name, list(candidates), n=1, cutoff=0.6)
-    return f"; did you mean {matches[0]!r}?" if matches else ""
+    return did_you_mean(closest(name, candidates, limit=1))
 
 
 def _warn_unknown(obj: Any, level: str, loc: str, out: list[str]) -> None:

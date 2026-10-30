@@ -45,7 +45,7 @@ class TestDidYouMeanHelper:
     """``_did_you_mean`` forwards to ``crcglot.suggest_algorithms``."""
 
     def test_typo_returns_suggestion_suffix(self):
-        """A near-miss name yields the '; did you mean: ' suffix naming the intended algorithm."""
+        """A near-miss name yields the ' -- did you mean ' suffix naming the intended algorithm."""
         # Arrange / Act
         actual = _did_you_mean("crc16-modbsu")
 
@@ -53,7 +53,7 @@ class TestDidYouMeanHelper:
         # the catalog name the user clearly intended.  Don't pin the
         # full suggestion list -- crcglot owns the ranking and may
         # reorder across bumps.
-        assert actual.startswith("; did you mean: "), (
+        assert actual.startswith(" -- did you mean "), (
             f"suffix should start with sentinel; got {actual!r}"
         )
         assert "crc16-modbus" in actual, (
@@ -91,7 +91,7 @@ class TestSuggestionRendersAtHandlerSites:
 
         # Assert
         assert not result.success, "typo'd algo should fail"
-        assert "did you mean: " in (result.error or ""), (
+        assert "did you mean " in (result.error or ""), (
             f"_handler_crc_info should emit suggestion; got {result.error!r}"
         )
         assert "crc16-modbus" in (result.error or ""), (

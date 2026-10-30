@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.help_dynamic import is_state_line
 from termapy.markup import markup_to_plain, match_parts, underline_markup
-from termapy.matching import is_glob, matches
+from termapy.matching import closest, did_you_mean, is_glob, matches
 from termapy.plugins import (
     ENVIRONMENTS,
     GROUP_TERMINAL,
@@ -711,6 +711,10 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
 
     # 4. No hits anywhere -- hint at the deeper tool.
     p = ctx.prefix
+    # Bare names: what /help takes, so a click fills in /help <name>.
+    hint = did_you_mean(closest(name, plugins))
+    if hint:
+        return CmdResult.fail(msg=f"No command matches '{name}'{hint}")
     return CmdResult.fail(
         msg=f"No command matches '{name}'. Try {p}search {name} for a deeper search."
     )
@@ -1135,23 +1139,28 @@ candidates, and a name typed with its prefix ({prefix}help {prefix}cfg)
 reads as the name alone. Typing {prefix}help with zero matches points you at
 {prefix}search.""",
     handler=_handler,
+    shows=True,
     sub_commands={
         "target": Command(
             help="Print only imported target device commands.",
             handler=_handler_target,
+            shows=True,
         ),
         "run": Command(
             help="List available .run scripts with descriptions.",
             handler=_handler_run,
+            shows=True,
         ),
         "plugin": Command(
             help="List loaded plugins grouped by source.",
             handler=_handler_plugin,
+            shows=True,
         ),
         "dev": Command(
             args="<cmd>",
             help="Print a command handler's Python docstring.",
             handler=_handler_dev,
+            shows=True,
         ),
         "group": Command(
             args="{name|*}",
@@ -1177,6 +1186,7 @@ A plugin joins a group by declaring it -- including the terminal group,
 where it then sits among the built-ins. Nothing about where a command
 came from decides where it appears.""",
             handler=_handler_group,
+            shows=True,
         ),
     },
 )

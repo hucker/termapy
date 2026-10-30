@@ -16,6 +16,9 @@ none of it lives here (CLAUDE.md: infrastructure never lives under
 - ``/dev.use <part> {at=NAME@ADDR ...}`` -- add a library part to this
   config, with where it sits on THIS board.
 - ``/dev.list`` -- the devices THIS config loaded, with layer and placement.
+- ``/dev.regs <device> {pattern}`` -- one loaded device's registers, from
+  its file and never from the chip, with the flags that make a read or a
+  masked write risky.
 - ``/dev.lib {pattern}`` -- the parts the library holds.  A different
   question from ``/dev.list``: available, not installed.
 """
@@ -45,13 +48,15 @@ from termapy.help_dynamic import compose, state_line
 from termapy.matching import matches
 from termapy.plugins import BoundaryException, CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
-from termapy.symbols import get_devices, install_devices, parse_number
+from termapy.symbols import get_devices, get_table, install_devices, parse_number
 from termapy.symbols.format import (
     device_columns,
     device_records,
     hex_addr,
     library_columns,
     library_records,
+    register_columns,
+    register_records,
 )
 
 if TYPE_CHECKING:
@@ -218,6 +223,38 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     )
 
 
+def _handler_regs(ctx: PluginContext, args: str) -> CmdResult:
+    """One loaded device's registers, from its file: address, access and hazard flags.
+
+    Reads the registers as loaded, never the chip, so it is safe on a live
+    board: some registers change state when read (``read_effect``) and
+    some must not be mask-written (``rmw: false``), and FLAGS shows both
+    before anyone runs a ``/mem.*`` command on them.
+    """
+    name = str(ctx.arg("device") or "")
+    pattern = str(ctx.arg("pattern") or "").strip()
+    device = next((device for device in get_devices(ctx) if device.name == name), None)
+    if device is None:
+        return CmdResult.fail(
+            msg=f"Unknown device: {name} (try {ctx.prefix}dev.list to see what is loaded)"
+        )
+    # A name pattern (registry name-one-matcher) over the register AND its
+    # peripheral, so "SERCOM0" finds a block and "*_CTRLA" a register.
+    matched = [
+        register
+        for register in device.registers()
+        if matches(register.symbol.name, pattern) or matches(register.peripheral, pattern)
+    ]
+    table = get_table(ctx)
+    return CmdResult.table(
+        f"{device.name} '{pattern}'" if pattern else device.name,
+        "register",
+        register_columns(),
+        register_records(matched, address_bits=table.address_bits if table else 32),
+        value="\n".join(register.symbol.name for register in matched),
+    )
+
+
 def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
     """Add a library part to THIS config, with where it sits on this board."""
     part = str(ctx.arg("part") or "").strip()
@@ -374,6 +411,7 @@ _GRAMMAR_HELP: Final[str] = (
     "  {prefix}dev.use <part>                       - add a library part to this config\n"
     "  {prefix}dev.use <part> at=ADC1@0x60000000    - ... and say where it sits\n"
     "  {prefix}dev.list                             - what this config has loaded\n"
+    "  {prefix}dev.regs <device> {pattern}          - its registers, hazards flagged\n"
     "  {prefix}dev.lib {pattern}                    - what the library offers\n"
     "\n"
     "Storing a part once is the point: a 2500-register MCU is a fact about the\n"
@@ -443,6 +481,25 @@ COMMAND = Command(
         "list": Command(
             help="List the devices this config has loaded, with their layer and placement.",
             handler=_handler_list,
+        ),
+        "regs": Command(
+            params=[
+                ParamSpec(
+                    "device",
+                    "str",
+                    positional=True,
+                    required=True,
+                    help="loaded device name (see {prefix}dev.list)",
+                ),
+                ParamSpec(
+                    "pattern",
+                    "str",
+                    positional=True,
+                    help="filter by register or peripheral: SERCOM0 contains, *_CTRLA a glob",
+                ),
+            ],
+            help="List a loaded device's registers from its file (never the chip), flagging risky reads and writes.",
+            handler=_handler_regs,
         ),
         "use": Command(
             params=[

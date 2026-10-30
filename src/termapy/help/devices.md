@@ -59,6 +59,22 @@ board's parts in its own `lib/` and the config folder is self-contained:
 check it in and its references resolve on any machine. Nothing in a
 library loads by itself; it is a pool to pick from with `/dev.use`.
 
+## See a part's registers
+
+```text
+/dev.regs pic32cm5164le00100            # every register: address, size, access, flags
+/dev.regs pic32cm5164le00100 SERCOM0    # one peripheral (contains, or a glob)
+```
+
+`/dev.regs` reads the device file, never the chip, so it is safe on a live
+board. FLAGS marks the registers to handle with care: `read_effect`
+(reading it changes state -- a FIFO pops, a flag clears) and `rmw: false`
+(a masked write would write back, and so clear, flags you did not name).
+An SVD import sets them from `readAction` and `modifiedWriteValues`, on
+the register or on any of its fields. The PIC32CM SVDs carry neither tag,
+so on those parts FLAGS is empty and the datasheet is the only source;
+add the flags to the library part by hand where it matters.
+
 ## Placing a part: two ADCs of the same type
 
 A bus ADC has no SVD, so its part is written once by hand, with offsets
@@ -118,7 +134,7 @@ into `dev/` still loads, and is right for a one-off.
 | `name`, `addr`, `size` | Required per register. `addr` is absolute, or an offset when `relocatable` |
 | `fields` | Bit fields (`bit`, `width`, optional `values` labels); `type` is derived from them, so never give both |
 | `access`, `read_effect`, `rmw` | `rw`/`ro`/`wo`; reading changes state (a FIFO pops, a flag clears); mask-writes forbidden |
-| `peripheral`, `group`, `description`, `reset` | Context for `/sym.info` and the register view |
+| `peripheral`, `group`, `description`, `reset` | Context shown by `/dev.regs` |
 | `relocatable` + `instances` | Offsets from a base; each placed copy prefixes its registers with its name |
 
 Register names must be identifiers (no dots -- `.` is field access).

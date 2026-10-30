@@ -1808,6 +1808,19 @@ demo> /dev.list
   DEVICE     REGISTERS  LAYER  PLACEMENT
   ---------  ---------  -----  ---------
   demo_uart          2  demo
+demo> /dev.regs demo_uart
+  demo_uart - 2 registers
+  ADDRESS     NAME     SIZE  ACCESS  FLAGS       PERIPHERAL  DESCRIPTION
+  ----------  -------  ----  ------  ----------  ----------  ----------------------------------------
+  0xBF806000  U1_MODE     4  rw                  U1          Mode
+  0xBF806010  U1_STA      4  rw      rmw: false  U1          Status and control; flags clear on write
+demo> /dev.regs demo_uart *_STA
+  demo_uart '*_STA' - 1 register
+  ADDRESS     NAME    SIZE  ACCESS  FLAGS       PERIPHERAL  DESCRIPTION
+  ----------  ------  ----  ------  ----------  ----------  ----------------------------------------
+  0xBF806010  U1_STA     4  rw      rmw: false  U1          Status and control; flags clear on write
+demo> /dev.regs nosuch
+  Error: Unknown device: nosuch (try /dev.list to see what is loaded)
 demo> /dev.lib
   library - empty
 demo> /dev.lib zzz*

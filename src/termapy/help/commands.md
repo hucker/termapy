@@ -222,6 +222,7 @@ script or plugin you wrote is deleted one name at a time, after a yes.
 | `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
 | `/dev.lib {pattern}`      | List the parts the libraries hold (available, not loaded), with their layer |
 | `/dev.list`               | List the devices this config has loaded, with layer and placement           |
+| `/dev.regs <device> {pattern}` | List a loaded device's registers from its file (never the chip), hazards flagged |
 | `/dev.use <part> {at=<value>}` | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.color {on\|off\|toggle}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |

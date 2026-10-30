@@ -289,6 +289,7 @@ The most common ones:
 | `/dev.import <file> {format=<value>} {category=<value>} {to=<value>} {use=on\|off}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
 | `/dev.lib {pattern}`                 | List the parts the libraries hold (available, not loaded), with their layer  |
 | `/dev.list`                          | List the devices this config has loaded, with layer and placement            |
+| `/dev.regs <device> {pattern}`       | List a loaded device's registers from its file (never the chip), hazards flagged |
 | `/dev.use <part> {at=<value>}`       | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
 | `/var {name}`                        | List user variables, or show one by name                                      |
 | `/var.set <NAME> <value>`            | Set a user variable                                                           |

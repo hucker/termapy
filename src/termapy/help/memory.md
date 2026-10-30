@@ -223,11 +223,13 @@ or `read_effect` it is skipped instead and the audit line says
 line's `before=`.
 
 These gates need no per-register knowledge beyond what a device file
-already carries, which is deliberate: `access` is populated in every
-vendor SVD, but `readAction` -- the field that would say *which*
-registers are destructive to read -- is empty in all of them. That
-knowledge lives only in datasheet prose, so termapy refuses the sweep
-rather than pretending to a safety list it cannot have.
+already carries, which is deliberate. The eight PIC32CM-LE SVDs checked
+populate `access` but carry no `readAction` -- the tag that would say
+*which* registers are destructive to read -- and no
+`modifiedWriteValues`. Where a vendor's file has them, on a register or
+on a field, the import sets `read_effect` and `rmw: false`; where it does
+not, that knowledge lives only in datasheet prose, so termapy refuses the
+sweep rather than pretending to a safety list it cannot have.
 
 They do need a device file. The gates know only the registers a loaded
 file describes; with none loaded, `/mem.dump 0x40000000 0x1000` is an

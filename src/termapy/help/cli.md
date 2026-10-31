@@ -249,6 +249,33 @@ Bare `--ports` (no filter) does NOT include `DEMO` in the listing --
 it only appears when you specifically ask for it, the same way
 pyserial's `loop://` URL handler is reachable but not enumerated.
 
+## `--kill`: stop leftover sessions
+
+Every running termapy -- a TUI, a CLI, an MCP server an editor started, a
+`--web` server -- leaves a breadcrumb in the app state folder
+(`%LOCALAPPDATA%\termapy\running\` on Windows) naming its config and the
+port it has open.  `--kill` reads them:
+
+```text
+$ termapy --kill
+PID    MODE  CONFIG  PORT  STARTED
+-----  ----  ------  ----  -------------------
+21552  mcp   m3_bin  COM4  2026-10-27 16:38:45
+28172  cli   demo    DEMO  2026-10-31 08:56:24
+```
+
+Bare `--kill` only lists.  Give it a target to stop sessions, after a yes:
+
+```sh
+termapy --kill all      # every termapy, say before an update
+termapy --kill COM4     # whichever session holds COM4
+termapy --kill m3_bin   # the sessions on that config (m3* picks several)
+```
+
+With no terminal to answer on (a pipe), the answer is no.  A stopped session
+writes no `Session End` to its log.  A session started before breadcrumbs
+existed is not listed: end that one from Task Manager or `kill`, once.
+
 ## Other flags worth knowing
 
 | Flag              | What it does                                                  |

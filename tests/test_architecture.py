@@ -594,6 +594,8 @@ ALLOWED_RAW_MKDIR: frozenset[str] = frozenset(
         "termapy/app_dirs.py",
         "termapy/builtins/commands/_cfg_icon.py",
         "termapy/builtins/commands/app.py",
+        # The app-wide running/ folder of breadcrumbs, not a config's data folder.
+        "termapy/breadcrumbs.py",
         "termapy/config.py",
         "termapy/devices/__init__.py",
         # /firmware.copy creates the user's own output folder, not a data folder.

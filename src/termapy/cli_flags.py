@@ -252,11 +252,12 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
 # perceived gain is zero for human consumers.
 _WATCH_INTERVAL_S = 0.2
 
-# Fixed-width columns for --watch log lines.  Tuned from the chip
-# table's longest plausible values so rows line up column-for-column
-# across the whole run (a log shouldn't re-layout mid-stream).  Real
-# data that exceeds these widths overflows the column rather than
-# forcing every prior row to be re-rendered.
+# Column widths for --watch log lines, so rows line up column-for-column
+# across the whole run (a log shouldn't re-layout mid-stream).  The
+# text columns -- port, mfg, description, chip -- are floors that each
+# watch session grows to its fleet's longest cell (``_watch_widths``):
+# until 2026-10-31 a chip name longer than its fixed width (the Pico and
+# Espressif rows) pushed the rest of its row out of line.
 #
 # Column 1 is a single-char event marker: ``+`` added, ``-`` removed,
 # ``~`` changed, blank for baseline and open/close transitions.  The
@@ -270,9 +271,9 @@ _WATCH_WIDTHS = {
     # ``_watch_port_width`` -- a platform floor grown to the initial
     # fleet's longest name -- and threaded through the formatters.
     "state": 6,  # closed / open (matches pyserial's is_open)
-    "mfg": 9,  # Microchip, Espressif, Parallels, SparkFun, ...
-    "description": 18,  # "USB Serial Device" = 17
-    "chip": 32,  # "FTDI FT230X / FT231X / FT234XD" = 30
+    "mfg": 9,  # floor: Microchip, Espressif, Parallels, SparkFun, ...
+    "description": 18,  # floor: "USB Serial Device" = 17
+    "chip": 32,  # floor: "FTDI FT230X / FT231X / FT234XD" = 30
     "speed": 10,  # "Full-Speed" / "High-Speed"
     "vid_pid": 9,  # 0403:6001
     "sn": 20,  # "020026702RYN040952" = 18
@@ -301,6 +302,36 @@ def _watch_port_width(devices, floor: int | None = None) -> int:
     if floor is None:
         floor = 6 if sys.platform == "win32" else 32
     return max([floor] + [len(device) for device in devices])
+
+
+# The watch columns whose width follows the fleet, beside the port.
+_WATCH_GROWN = ("mfg", "description", "chip")
+
+
+def _watch_widths(fleet, start: dict[str, int] | None = None) -> dict[str, int]:
+    """Column widths for one watch session, grown to fit ``fleet``.
+
+    The port column grows as ``_watch_port_width`` describes, and the
+    mfg, description and chip columns the same way, from their
+    ``_WATCH_WIDTHS`` floors: grow-only, so a longer late arrival bumps
+    a column once and every later row aligns.
+
+    Args:
+        fleet: The ``ChipFacts`` present now.
+        start: The session's widths so far; None at watch start.
+
+    Returns:
+        A width for every column, ``port`` included.
+    """
+    fleet = list(fleet)
+    widths = dict(start) if start else dict(_WATCH_WIDTHS)
+    widths["port"] = _watch_port_width(
+        [facts.device or "-" for facts in fleet], floor=widths.get("port")
+    )
+    cells = [_watch_cells(facts) for facts in fleet]
+    for column in _WATCH_GROWN:
+        widths[column] = max([widths[column]] + [len(cell[column]) for cell in cells])
+    return widths
 
 
 def run_usb(args: argparse.Namespace, *, source=None) -> None:
@@ -390,9 +421,9 @@ def run_watch(args: argparse.Namespace, *, source: PortSource | None = None) -> 
     }
     note = " (in-use not shown on Windows)" if watch_fast else ""
     print(f"[{banner_ts}] monitoring {len(initial)} port(s); Ctrl+C to exit{note}")
-    port_w = _watch_port_width(initial)
+    widths = _watch_widths(initial.values())
     for device in sorted(initial):
-        print(_format_state_line(" ", initial[device], port_w))
+        print(_format_state_line(" ", initial[device], widths))
 
     previous = initial
     try:
@@ -403,65 +434,70 @@ def run_watch(args: argparse.Namespace, *, source: PortSource | None = None) -> 
                 for f in port_control._gather_all_chip_facts(fast=watch_fast, source=source)
                 if f.device is not None
             }
-            # Grow-only: a longer name than anything seen so far bumps
-            # the column so every FUTURE row aligns.  The one visible
+            # Grow-only: a longer cell than anything seen so far bumps
+            # its column so every FUTURE row aligns.  The one visible
             # seam at the growth moment beats the alternative -- that
             # port's rows overflowing forever.  Never shrinks, so no
             # flapping.
-            port_w = max(port_w, _watch_port_width(current))
-            _emit_diff(previous, current, port_w)
+            widths = _watch_widths(current.values(), start=widths)
+            _emit_diff(previous, current, widths)
             previous = current
     except KeyboardInterrupt:
         print()  # clean newline after ^C
         sys.exit(0)
 
 
-def _format_state_line(marker: str, facts, port_w: int) -> str:
-    """Format a full ``[time] <marker> <port> <state> <chip data...>`` line.
+def _watch_cells(facts) -> dict[str, str]:
+    """The text of each watch column for one port, before padding.
 
-    Used for baseline rows, open/close transitions, post-``+`` detail
-    rows, and ``~`` change rows.  ``marker`` should be a single char:
-    ``' '`` (no event), ``'+'``, ``'-'``, or ``'~'``.  ``port_w`` is the
-    session's port-column width from ``_watch_port_width``.
+    The one place a cell's text is decided, so ``_watch_widths`` measures
+    exactly what ``_format_state_line`` prints.
     """
     from termapy.usb import mfg as _mfg_alias
 
-    ts = datetime.now().strftime("%H:%M:%S")
-    state = _state_of(facts)
-    mfg = _mfg_alias(facts.manufacturer) or "-"
     description = (facts.description or "-").strip() or "-"
     # Strip trailing "(COMx)" clutter that pyserial sometimes appends.
     device = facts.device or "-"
     if description.endswith(f"({device})"):
         description = description[: -(len(device) + 3)].rstrip() or "-"
-    chip = facts.model if facts.model and facts.model != "unknown" else "-"
-    speed = _speed_of(facts)
-    vid_pid = facts.vid_pid if facts.vid_pid and ":" in facts.vid_pid else "-"
-    sn = facts.serial or "-"
-    w = _WATCH_WIDTHS
-    return (
-        f"[{ts}] "
-        f"{marker:<{w['marker']}}  "
-        f"{device:<{port_w}}  "
-        f"{state:<{w['state']}}  "
-        f"{mfg:<{w['mfg']}}  "
-        f"{description:<{w['description']}}  "
-        f"{chip:<{w['chip']}}  "
-        f"{speed:<{w['speed']}}  "
-        f"{vid_pid:<{w['vid_pid']}}  "
-        f"{sn:<{w['sn']}}"
-    )
+    return {
+        "port": device,
+        "state": _state_of(facts),
+        "mfg": _mfg_alias(facts.manufacturer) or "-",
+        "description": description,
+        "chip": facts.model if facts.model and facts.model != "unknown" else "-",
+        "speed": _speed_of(facts),
+        "vid_pid": facts.vid_pid if facts.vid_pid and ":" in facts.vid_pid else "-",
+        "sn": facts.serial or "-",
+    }
 
 
-def _format_marker_line(marker: str, device: str, port_w: int) -> str:
+# The columns of a state line, left to right, after the marker.
+_WATCH_COLUMNS = ("port", "state", "mfg", "description", "chip", "speed", "vid_pid", "sn")
+
+
+def _format_state_line(marker: str, facts, widths: dict[str, int]) -> str:
+    """Format a full ``[time] <marker> <port> <state> <chip data...>`` line.
+
+    Used for baseline rows, open/close transitions, post-``+`` detail
+    rows, and ``~`` change rows.  ``marker`` should be a single char:
+    ``' '`` (no event), ``'+'``, ``'-'``, or ``'~'``.  ``widths`` is the
+    session's column widths from ``_watch_widths``.
+    """
+    ts = datetime.now().strftime("%H:%M:%S")
+    cells = _watch_cells(facts)
+    padded = "  ".join(f"{cells[column]:<{widths[column]}}" for column in _WATCH_COLUMNS)
+    return f"[{ts}] {marker:<{widths['marker']}}  {padded}"
+
+
+def _format_marker_line(marker: str, device: str, widths: dict[str, int]) -> str:
     """Format a sparse ``[time] <marker>  <port>`` line.
 
     Used for ``-`` removals and the first line of a two-line ``+``
     sequence.  Only the timestamp, marker, and port name are known.
     """
     ts = datetime.now().strftime("%H:%M:%S")
-    w = _WATCH_WIDTHS
-    return f"[{ts}] {marker:<{w['marker']}}  {device:<{port_w}}"
+    return f"[{ts}] {marker:<{widths['marker']}}  {device:<{widths['port']}}"
 
 
 def _state_of(facts) -> str:
@@ -490,7 +526,7 @@ def _speed_of(facts) -> str:
 def _emit_diff(
     previous: dict[str, ChipFacts],
     current: dict[str, ChipFacts],
-    port_w: int,
+    widths: dict[str, int],
 ) -> None:
     """Print log lines for changes between two snapshots.
 
@@ -506,19 +542,19 @@ def _emit_diff(
     """
     for device, facts in sorted(current.items()):
         if device not in previous:
-            print(_format_marker_line("+", device, port_w))
-            print(_format_state_line(" ", facts, port_w))
+            print(_format_marker_line("+", device, widths))
+            print(_format_state_line(" ", facts, widths))
 
     for device in sorted(previous):
         if device not in current:
-            print(_format_marker_line("-", device, port_w))
+            print(_format_marker_line("-", device, widths))
 
     for device in sorted(set(previous) & set(current)):
         old, new = previous[device], current[device]
         if _state_of(old) != _state_of(new):
-            print(_format_state_line(" ", new, port_w))
+            print(_format_state_line(" ", new, widths))
         if (old.serial or "") != (new.serial or "") or ((old.vid_pid or "") != (new.vid_pid or "")):
-            print(_format_state_line("~", new, port_w))
+            print(_format_state_line("~", new, widths))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

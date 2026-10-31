@@ -247,24 +247,18 @@ def _handler_ver_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _APP_LONG_HELP = """\
-Inspect app-wide state and config.
+What belongs to termapy as a whole rather than to one config: the app
+folder and its files, the version, and the termapy sessions running on
+this machine.
 
-  {prefix}app.list             list files in the app folder(s)
-  {prefix}app.explore          open the app folder in the file manager
-  {prefix}app.state            print state.json path
-  {prefix}app.state.dump       print state.json contents
-  {prefix}app.state.edit       open state.json in the system editor
-  {prefix}app.config           print config.json path
-  {prefix}app.config.dump      print config.json contents
-  {prefix}app.config.edit      open config.json in the system editor
-  {prefix}app.ver              print termapy version (installed)
-  {prefix}app.ver.latest       latest version on PyPI (bare value)
-  {prefix}app.ver.info         installed-vs-PyPI comparison
+Sessions: {prefix}app.running lists them; {prefix}app.kill others stops every
+one but this, {prefix}app.kill all this one too (last, through {prefix}exit).
 
-state.json is app-written (PyPI update-check timestamps, caches);
-.edit is exposed for symmetry but hand-edits usually get silently
-overwritten.  config.json is reserved for user-editable global
-preferences; no feature reads it yet."""
+Files: {prefix}app.state and {prefix}app.config print a path; add .dump to print
+the file, .edit to open it.  state.json is written by termapy (update-check
+times), so a hand edit is usually overwritten; config.json is for global
+preferences, though no feature reads it yet.  {prefix}app.ver.latest and
+{prefix}app.ver.info compare with PyPI."""
 
 
 # ── /app.running, /app.kill ───────────────────────────────────────────────────
@@ -349,15 +343,19 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _KILL_LONG_HELP = (
-    "Stops the termapys that <target> picks, after a yes: others (every\n"
-    "session but this one), all (this one too), the one holding a port\n"
-    "(COM3), or the ones on a config (rig; rig* picks several).  When this\n"
-    "session is picked it goes last, through {prefix}exit, so it saves its\n"
-    "history and ends its log.  The use is a\n"
-    "clean system, say before an update: an MCP server an editor started\n"
-    "and forgot keeps its port and termapy.exe busy.  Not over MCP: an\n"
-    "agent cannot end your sessions.  {prefix}app.running lists them;\n"
-    "termapy --kill does the same from the command line."
+    "Stops termapy sessions, after a yes.  <target> is one of:\n"
+    "\n"
+    "  others   every session but this one\n"
+    "  all      every session, this one last\n"
+    "  COM3     the session holding that port\n"
+    "  rig      the sessions on that config (rig* picks several)\n"
+    "\n"
+    "This session is never killed: when a target picks it, it goes last,\n"
+    "through {prefix}exit, so it saves its history and ends its log.  Use it\n"
+    "for a clean system, say before an update, when a forgotten MCP server\n"
+    "still holds a port.  Not over MCP: an agent cannot end your sessions.\n"
+    "{prefix}app.running lists the sessions; termapy --kill does the same\n"
+    "from the command line."
 )
 
 
@@ -365,12 +363,12 @@ _KILL_LONG_HELP = (
 COMMAND = Command(
     group="advanced",
     name="app",
-    help="App-wide state and config.",
+    help="App-wide state, config and running sessions.",
     long_help=_APP_LONG_HELP,
     handler=None,
     sub_commands={
         "running": Command(
-            help="List the termapys running on this machine.",
+            help="List the termapy sessions running on this machine.",
             long_help=(
                 "Every running termapy -- a TUI, a CLI, an MCP server, a web or\n"
                 "VT100 session -- with its mode, config and the port it has open.\n"
@@ -380,7 +378,7 @@ COMMAND = Command(
             shows=True,
         ),
         "kill": Command(
-            help="Stop the termapys a target picks: all, a port or a config (asks first).",
+            help="Stop termapy sessions: others, all, a port or a config (asks first).",
             long_help=_KILL_LONG_HELP,
             handler=_handler_kill,
             params=[

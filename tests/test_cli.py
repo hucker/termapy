@@ -2118,7 +2118,7 @@ class TestPlainFileHistory:
 
 
 class TestWatchPortWidth:
-    """Port-column width: platform floor grown to the initial fleet."""
+    """Column widths: the port, mfg, description and chip floors grown to the fleet."""
 
     def test_floor_wins_over_short_devices(self):
         """Short port names never shrink the column below the floor."""
@@ -2238,6 +2238,56 @@ class TestWatchPortWidth:
         assert grown_offsets.pop() > baseline_offset, (
             "the seam: post-growth offset exceeds the baseline's"
         )
+
+    def test_a_long_chip_name_widens_its_column(self, capsys, monkeypatch):
+        """A chip or description longer than its floor widens the column, so every row stays aligned.
+
+        Found 2026-10-31: the Pico and Espressif chip names are longer than
+        the fixed CHIP width, and pushed the rest of their rows right.
+        """
+        # Arrange -- one chip name past the 32-column floor, one under it
+        import argparse
+
+        from termapy import cli_flags
+
+        fleet = _synthetic_facts(
+            ("COM5", "MSFT", "Raspberry Pi Pico MicroPython firmware", "2E8A:0005", "E665"),
+            ("COM7", "FTDI", "FTDI FT232R / FT245R", "0403:6001", "BG03U7VTA"),
+        )
+        fleet[1].description = "A description far past the eighteen-column floor"
+        monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
+        looks = [0]
+
+        def _snapshots():
+            looks[0] += 1
+            if looks[0] == 1:
+                return fleet
+            raise KeyboardInterrupt
+
+        # Act
+        with pytest.raises(SystemExit):
+            cli_flags.run_watch(argparse.Namespace(), source=_snapshots)
+
+        # Assert -- anchor on the speed column, present in both rows
+        out = capsys.readouterr().out
+        rows = [line for line in out.splitlines() if "Full-Speed" in line]
+        assert len(rows) == 2, f"one state row per port; got:\n{out}"
+        offsets = {row.index("Full-Speed") for row in rows}
+        assert len(offsets) == 1, f"SPEED starts at one offset on every row; got {sorted(offsets)}"
+
+    def test_a_shorter_fleet_never_shrinks_a_column(self):
+        """Grow-only: widths a session reached stay when only shorter cells are present."""
+        # Arrange
+        from termapy.cli_flags import _watch_widths
+
+        wide = _watch_widths(_synthetic_facts(("COM5", "MSFT", "x" * 50, "2E8A:0005", "E665")))
+        short_fleet = _synthetic_facts(("COM7", "FTDI", "FTDI FT232R", "0403:6001", "BG03"))
+
+        # Act
+        actual = _watch_widths(short_fleet, start=wide)["chip"]
+
+        # Assert
+        assert actual == 50, "the chip column keeps the width it grew to"
 
 
 class TestNewFlag:

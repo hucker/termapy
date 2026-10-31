@@ -25,18 +25,23 @@ A single-line-per-port table, same schema as the in-app port picker.
 
 ```text
 $ termapy --ports
-PORT  MFG   VENDOR     DESCRIPTION        CHIP                             SPEED       VID:PID    SERIAL #            DRIVER   LOCATION  IF
-----  ----  ---------  -----------------  -------------------------------  ----------  ---------  ------------------  -------  --------  --
-COM3  MSFT  Microchip  USB Serial Device  Microchip MPLAB PICkit 5 (VCOM)  High-Speed  04D8:9036  020026702RYN040952  usbser   1-8.4     1
-COM4  FTDI  FTDI       USB Serial Port    FTDI FT230X / FT231X / FT234XD   Full-Speed  0403:6015  D20JSV68A           FTSER2K  1-8.2
-COM7  FTDI  FTDI       USB Serial Port    FTDI FT232R / FT245R             Full-Speed  0403:6001  BG03U7VTA           FTSER2K  1-8.3
+PORT  MFG   VENDOR     DESCRIPTION        PRODUCT            CHIP                             SPEED       VID:PID    SERIAL #            DRIVER   LOCATION  IF
+----  ----  ---------  -----------------  -----------------  -------------------------------  ----------  ---------  ------------------  -------  --------  --
+COM3  MSFT  Microchip  USB Serial Device  MPLAB PICkit 5     Microchip MPLAB PICkit 5 (VCOM)  High-Speed  04D8:9036  020026702RYN040952  usbser   1-8.4     1
+COM4  FTDI  FTDI       USB Serial Port    FT230X Basic UART  FTDI FT230X / FT231X / FT234XD   Full-Speed  0403:6015  D20JSV68A           FTSER2K  1-8.2
+COM7  FTDI  FTDI       USB Serial Port    FT232R USB UART    FTDI FT232R / FT245R             Full-Speed  0403:6001  BG03U7VTA           FTSER2K  1-8.3
 ```
+
+Three columns name the device, each from a different source:
+DESCRIPTION is the name the driver gives the port (often just "USB Serial
+Device"), PRODUCT is what the device calls itself (its USB product
+string), and CHIP is termapy's own table of known chips.
 
 Columns you don't need are dropped automatically: on a machine where no
 port has a serial number, the `SERIAL #` column disappears.  On narrow
 terminals, columns drop in this order until the row fits: speed, chip,
-VID:PID, driver, vendor, SERIAL #, IF, location.  PORT, MFG and DESCRIPTION
-always stay.
+VID:PID, driver, vendor, PRODUCT, SERIAL #, IF, location.  PORT, MFG and
+DESCRIPTION always stay.
 
 Filter to a single port by name:
 
@@ -192,6 +197,7 @@ Each `--ports --json` record has a stable schema:
   "manufacturer_raw": "Future Technology Devices, Inc.",
   "vendor": "FTDI",
   "description": "USB Serial Converter",
+  "product": "FT232R USB UART",
   "chip": "FTDI FT232R",
   "speed": "Full-Speed",
   "vid": 1027,
@@ -200,7 +206,8 @@ Each `--ports --json` record has a stable schema:
   "serial_number": "AL01ABCD",
   "in_use": false,
   "driver": "ftdi_sio",
-  "location": "Hub_#0009.Port_#0004"
+  "location": "Hub_#0009.Port_#0004",
+  "interface_number": null
 }
 ```
 

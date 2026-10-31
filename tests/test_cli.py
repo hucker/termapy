@@ -266,7 +266,7 @@ class TestTermHex:
 
         # Act -- DEMO answers AT with OK CR LF; the row prints before the
         # line reaches the watcher, so the match means the row is out
-        cli._serial_send("AT")
+        cli.ctx.serial.send("AT")
         matched = cli.repl.wait_for_match(lambda line: line == "OK", timeout=2.0)
         cli._disconnect()
         printed = capsys.readouterr().out.splitlines()

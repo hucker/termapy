@@ -243,7 +243,7 @@ class PluginContext:
 
         The handles are constructed by the host (or auto-defaulted to
         no-op handles by the dataclass field defaults), so we don't
-        rebuild them here.  But two handles need information that
+        rebuild them here.  But some handles need information that
         only PluginContext knows:
 
           - ``IOHandle.output_level_fn`` needs to read the current
@@ -252,9 +252,12 @@ class PluginContext:
             ``UIHandle.capabilities`` need the same ``CapabilitySet``
             the dispatcher reads, so capability gates fire correctly.
 
-        Set them here so hosts don't have to remember.
+        Set them here so hosts don't have to remember.  So is
+        ``SerialHandle._cfg``: ``ctx.serial.send`` reads the line ending,
+        encoding and transmit delays from the live config.
         """
         self.io.output_level_fn = lambda: self.output_level
+        self.serial._cfg = lambda: self.cfg
         self.sync_capabilities()
 
     def sync_capabilities(self) -> None:

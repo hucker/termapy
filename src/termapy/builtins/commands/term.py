@@ -117,10 +117,9 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """
     if not args:
         raise UsageError()
-    encoding = ctx.cfg.get("encoding", "utf-8")
-    line_ending = ctx.cfg.get("eol", "\r")
     try:
-        ctx.serial.write((args + line_ending).encode(encoding))
+        # A device line, so it goes out paced (``ctx.serial.send``).
+        ctx.serial.send(args)
     # Plugin handlers can be called from many hosts; OSError covers
     # the file-descriptor / IO classes and pyserial.SerialException
     # is a subclass of Exception. Match dispatch_full's legacy catch.

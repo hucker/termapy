@@ -1052,6 +1052,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_title_bar.py                   | Regression tests for title_bar.update_port with a read-only cfg                                                                                    |
 | test_title_tooltip.py               | Tests for the title-bar tooltip formatters (pure string logic)                                                                                     |
 | test_tree_render.py                 | Unit tests for `termapy.tree_render` (the `FileTree` renderer)                                                                                     |
+| test_tx_pacing.py                   | Tests for transmit pacing -- tx_char_delay_ms and tx_line_delay_ms on every device line, never on binary                                           |
 | test_typed_lines.py                 | Tests for typed_lines -- the lines typed at the prompt, per config, that /run.last replays                                                         |
 | test_update_check.py                | Tests for update_check.check and its bail-out paths                                                                                                |
 | test_usage_error.py                 | Dispatch-level tests for the UsageError mechanism                                                                                                  |

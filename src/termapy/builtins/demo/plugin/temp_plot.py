@@ -53,7 +53,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         raise UsageError(f"Invalid count: {args.strip()!r}") from None
 
     encoding = ctx.cfg.get("encoding", "utf-8")
-    line_ending = ctx.cfg.get("eol", "\r")
     readings: list[float] = []
 
     ctx.io.output(f"Sampling {count} temperatures...", "dim")
@@ -61,7 +60,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     with ctx.serial.io():
         for _ in range(count):
             ctx.serial.drain()
-            ctx.serial.write(f"AT+TEMP{line_ending}".encode(encoding))
+            ctx.serial.send("AT+TEMP")
             raw = ctx.serial.read_raw()
             text = raw.decode(encoding, errors="replace").strip()
 

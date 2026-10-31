@@ -360,7 +360,7 @@ class TestInitFlags:
         assert flags["hex"] is True, "hex_mode read from cfg"
 
 
-# -- _serial_write / _serial_send -------------------------------------------
+# -- _serial_write / ctx.serial.send -------------------------------------------
 
 
 class TestSerialIO:
@@ -399,28 +399,30 @@ class TestSerialIO:
         # TX observers notified
         host.engine.notify_tx.assert_called_once_with(b"\x01\x02")
 
-    def test_serial_send_appends_line_ending(self, host):
-        """_serial_send appends the configured eol (CR here) and writes the encoded line."""
+    def test_ctx_send_appends_line_ending(self, host):
+        """The host's ctx.serial.send appends the configured eol (CR here) and writes the line to its port."""
         # Arrange
         host.engine.serial_port = MagicMock()
+        ctx = host._build_plugin_context(host._build_internal_handle())
 
         # Act
-        host._serial_send("AT")
+        ctx.serial.send("AT")
 
         # Assert
         expected = b"AT\r"
         # text + line_ending encoded and written
         host.engine.serial_port.write.assert_called_once_with(expected)
 
-    def test_serial_send_custom_encoding(self, host):
-        """_serial_send honors a non-default encoding and eol taken from cfg."""
+    def test_ctx_send_custom_encoding(self, host):
+        """The host's ctx.serial.send reads the encoding and eol from the live cfg, set after the context was built."""
         # Arrange
+        host.engine.serial_port = MagicMock()
+        ctx = host._build_plugin_context(host._build_internal_handle())
         host.cfg["encoding"] = "ascii"
         host.cfg["eol"] = "\n"
-        host.engine.serial_port = MagicMock()
 
         # Act
-        host._serial_send("OK")
+        ctx.serial.send("OK")
 
         # Assert
         expected = b"OK\n"

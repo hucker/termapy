@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 33
+CURRENT_CONFIG_VERSION = 34
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -748,6 +748,21 @@ def _migrate_v32_to_v33(cfg: dict) -> dict:
 
 
 MIGRATIONS[32] = _migrate_v32_to_v33
+
+
+def _migrate_v33_to_v34(cfg: dict) -> dict:
+    """Add ``tx_char_delay_ms`` and ``tx_line_delay_ms``, both 0 (off).
+
+    TeraTerm's transmit delay: a device line can go out paced, one
+    character at a time, for a device that drops bytes arriving back to
+    back.  Off by default, so nothing a config sends changes.
+    """
+    cfg.setdefault("tx_char_delay_ms", 0)
+    cfg.setdefault("tx_line_delay_ms", 0)
+    return cfg
+
+
+MIGRATIONS[33] = _migrate_v33_to_v34
 
 
 def migrate_config(cfg: dict) -> dict:

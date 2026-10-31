@@ -900,6 +900,137 @@ def test_matcher_guard_fires_on_a_probe():
     assert len(found) == 2, "both fnmatch imports flagged; the matcher import is not"
 
 
+# ── A text line goes out one way ──────────────────────────────────────────────
+#
+# A device line goes through ``ctx.serial.send``, which adds the line ending,
+# encodes it and paces it (tx_char_delay_ms / tx_line_delay_ms).  Encoding a
+# line by hand and writing the bytes skips the pacing: until 2026-10-31 ten
+# places did, /term.send among them.  Binary is the other path, ``write``
+# with bytes as given.  These files write encoded text on purpose.
+ENCODED_WRITE_ALLOWED = {
+    # The owner: SerialHandle.send itself.
+    "termapy/plugins/handles/serial.py",
+    # /raw sends text exactly as typed: no line ending, no pacing.
+    "termapy/builtins/commands/raw.py",
+    # The protocol subsystem is binary, its setup lines included
+    # (decision 2026-10-31): /proto, its debugger, termapy --proto.
+    "termapy/builtins/commands/proto.py",
+    "termapy/proto_debug.py",
+    "termapy/protocol/runner.py",
+}
+
+
+def _is_encode_call(node: ast.AST) -> bool:
+    """Whether ``node`` is a call of some ``.encode(...)``."""
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "encode"
+    )
+
+
+def _encoded_writes(tree: ast.AST, rel: str) -> list[str]:
+    """Every ``.write(...)`` of encoded text in ``rel``, written directly or through a name.
+
+    A name counts when the same function (or the module) assigns it from an
+    ``.encode(...)`` call: ``payload = line.encode(enc); port.write(payload)``.
+    """
+    scopes: list[ast.AST] = [
+        node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    scopes.append(tree)
+    found: dict[int, str] = {}
+    for scope in scopes:
+        encoded = {
+            target.id
+            for node in ast.walk(scope)
+            if isinstance(node, ast.Assign) and _is_encode_call(node.value)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+        }
+        for node in ast.walk(scope):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "write"
+                and node.args
+            ):
+                continue
+            arg = node.args[0]
+            if _is_encode_call(arg) or (isinstance(arg, ast.Name) and arg.id in encoded):
+                found[id(node)] = f"{rel}:{node.lineno}  {ast.unparse(node)}"
+    return sorted(found.values())
+
+
+def _encoded_write_files() -> dict[str, list[str]]:
+    """``{rel: [violation lines]}`` for every package file that writes encoded text.
+
+    Device code under a ``firmware/`` folder runs on the board, not in
+    termapy, and is not read.
+    """
+    found: dict[str, list[str]] = {}
+    for path in _package_python_files():
+        if "firmware" in path.relative_to(SRC).parts:
+            continue
+        rel = path.relative_to(SRC.parent).as_posix()
+        writes = _encoded_writes(ast.parse(path.read_text(encoding="utf-8")), rel)
+        if writes:
+            found[rel] = writes
+    return found
+
+
+def test_text_lines_go_out_through_send():
+    """tx-text-one-path: outside the allowlist no code encodes text and writes the bytes; a line goes through ctx.serial.send."""
+    # Arrange / Act
+    violations = [
+        line
+        for rel, lines in _encoded_write_files().items()
+        if rel not in ENCODED_WRITE_ALLOWED
+        for line in lines
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a device line goes through ctx.serial.send, which adds the line ending,"
+        " encodes and paces it:\n  "
+        + "\n  ".join(violations)
+        + "\n\nCall ctx.serial.send(text); write(bytes) is for binary, sent as given."
+    )
+
+
+def test_tx_guard_fires_on_a_probe():
+    """The guard flags an encoded write, direct or through a name, and passes a bytes write."""
+    # Arrange
+    probe = (
+        "def direct(ctx, text):\n"
+        "    ctx.serial.write((text + '\\r').encode('utf-8'))\n"
+        "def named(port, text):\n"
+        "    payload = text.encode('ascii')\n"
+        "    port.write(payload)\n"
+        "def binary(ctx, data):\n"
+        "    ctx.serial.write(bytes(data))\n"
+    )
+
+    # Act
+    found = _encoded_writes(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 2, f"the direct and the named encoded writes, not the bytes one: {found}"
+
+
+def test_encoded_write_allowlist_has_no_stale_entries():
+    """Every ENCODED_WRITE_ALLOWED file still writes encoded text, so the list only describes reality."""
+    # Arrange / Act
+    actual = set(_encoded_write_files())
+
+    # Assert
+    stale = sorted(ENCODED_WRITE_ALLOWED - actual)
+    assert stale == [], (
+        "ENCODED_WRITE_ALLOWED lists files with no encoded write left; drop them:\n  "
+        + "\n  ".join(stale)
+    )
+
+
 # ── Suggestions have one owner ────────────────────────────────────────────────
 #
 # A name that names nothing is answered by ``matching.closest`` and phrased by

@@ -49,10 +49,11 @@ COMMAND = Command(
     help="Send raw text to serial (no transforms or line ending).",
     long_help=(
         "Sends the text exactly as typed, encoded with the config's\n"
-        "encoding: no line ending, no $(VAR) expansion, no transforms.\n"
-        "Use it for a partial line or a device that frames without a\n"
-        "line ending.  For a literal line WITH the line ending, use\n"
-        "{prefix}term.send."
+        "encoding: no line ending, no $(VAR) expansion, no transforms,\n"
+        "and no pacing (tx_char_delay_ms and tx_line_delay_ms apply to\n"
+        "lines only).  Use it for a partial line or a device that frames\n"
+        "without a line ending.  For a literal line WITH the line ending,\n"
+        "paced, use {prefix}term.send."
     ),
     handler=_handler,
     needs=CapabilitySet.SERIAL_CONNECTED,

@@ -43,7 +43,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 33,
+    "config_version": 34,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {
@@ -63,6 +63,8 @@ Here is an example config for a device called `iot_device`:
     "mcp_on_connect_cmd": "",
     "encoding": "utf-8",
     "eol": "\r",
+    "tx_char_delay_ms": 0,
+    "tx_line_delay_ms": 0,
     "eol_rx": "auto",
     "eol_markers": false,
     "send_bare_enter": false,
@@ -155,6 +157,8 @@ reported as a type warning.
 | `mcp_on_connect_cmd`          | `""`                          | Extra command to run after connecting in MCP mode. Common: `echo off` / `color off` to silence device at the source (MCP already strips ANSI; `/term.color on` re-enables) |
 | `encoding`                    | `utf-8`                       | Character encoding (utf-8, latin-1, ascii, cp437) |
 | `eol`                         | `"\r"`                        | Appended to each sent command: `\r`, `\r\n`, or `\n` |
+| `tx_char_delay_ms`            | `0`                           | Delay in ms after each character of a line sent to the device (TeraTerm's transmit delay, msec/char), for a device that drops bytes sent back to back; `0` = off. File transfers, `/proto` and `/raw` are never paced |
+| `tx_line_delay_ms`            | `0`                           | Delay in ms after each line sent to the device (TeraTerm's msec/line); `0` = off |
 | `eol_rx`                      | `auto`                        | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx) |
 | `eol_markers`                 | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
 | `send_bare_enter`             | `false`                       | Send line ending on empty Enter (for "press enter to continue" prompts) |

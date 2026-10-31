@@ -1,23 +1,15 @@
 """Request/response I/O pipeline for synchronous device exchanges.
 
 Pure helper that drives the **drain -> send -> wait -> collect** cycle every
-synchronous serial-command exchange shares.  Two callers today:
-
-- The MCP profile executor (``mcp/server.py:_dispatch_via_profile``) for
-  commands declared in a loaded device profile.  It then runs
-  :func:`response_parsers.parse_response` over the collected text per the
-  profile's ``response.format`` rules.
-- The REPL ``json_mode`` fallthrough (``repl.py:_exec_json_mode``) for
-  ad-hoc bare commands when ``cfg["json_mode"]`` is on.  It returns the
-  text verbatim wrapped in a JSON envelope.
-
-Keeping the I/O pipeline in one place ensures both callers have identical
-drain/timing/idle-gap semantics -- a regression in one path can't diverge
-silently from the other.
+synchronous serial-command exchange shares.  Its caller is the MCP
+profile executor (``mcp/server.py:_dispatch_via_profile``) for commands
+declared in a loaded device profile, which then runs
+:func:`response_parsers.parse_response` over the collected text per the
+profile's ``response.format`` rules.
 
 This module is **pure plumbing** -- no parsing, no host coupling.  Callers
-inject the four functions they need (write, drain, wait, optional async
-event recorder) so the helper works in any environment that exposes those
+inject the functions they need (send, drain, wait, optional async event
+recorder) so the helper works in any environment that exposes those
 operations.
 """
 
@@ -30,22 +22,21 @@ from typing import Any
 
 def request_response(
     *,
-    serial_write: Callable[[bytes], None],
+    send: Callable[[str], None],
     drain_recent_lines: Callable[[], list[str]],
     wait_for_lines: Callable[..., list[str]],
     command: str,
-    encoding: str,
-    line_ending: str,
     timeout_s: float,
     terminator: str = "",
     idle_gap_s: float = 0.05,
     on_drained_line: Callable[[str], None] | None = None,
     wait: bool = True,
 ) -> dict[str, Any]:
-    """Drain stale lines, send command + line_ending, wait for response.
+    """Drain stale lines, send the command as a line, wait for response.
 
     Args:
-        serial_write: Sync byte-write callable; raises ``OSError`` /
+        send: Sends one text line, its ending added and paced
+            (``ctx.serial.send``); raises ``OSError`` /
             ``serial.SerialException`` on transport failure.
         drain_recent_lines: Snapshot-and-clear the engine's recent-lines
             ring buffer.  Called once before send so stale lines from a
@@ -53,12 +44,8 @@ def request_response(
         wait_for_lines: Line-oriented response collector.  Called with
             ``timeout=...``, ``terminator=...``, ``idle_gap=...``.
             Returns the lines that arrived during the window.
-        command: Command text to send.  Must NOT include the line ending
-            -- the helper appends ``line_ending`` so callers can't forget.
-        encoding: Encoding used for the send-side ``str -> bytes`` step.
-            Typically ``"utf-8"`` from ``cfg["encoding"]``.
-        line_ending: Bytes appended to ``command`` (as a string, then
-            encoded).  Typically ``"\\r"`` from ``cfg["eol"]``.
+        command: Command text to send, without the line ending: ``send``
+            adds the configured one.
         timeout_s: Outer wall-clock cap for the response window.  When
             this elapses, ``wait_for_lines`` returns whatever it has.
         terminator: Optional regex; first matching line ends collection.
@@ -92,13 +79,12 @@ def request_response(
         for line in stale:
             on_drained_line(line)
 
-    # Send.  The encode is inside the try: a character outside the
-    # configured encoding is a send failure to report, not an exception
-    # for the caller's worker thread.
+    # Send.  Inside the try: a character outside the configured encoding
+    # is a send failure to report, not an exception for the caller's
+    # worker thread.
     t0 = time.perf_counter()
     try:
-        payload = (command + line_ending).encode(encoding)
-        serial_write(payload)
+        send(command)
     except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
         return {
             "elapsed_s": time.perf_counter() - t0,

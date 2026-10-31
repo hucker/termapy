@@ -1246,9 +1246,8 @@ def _dispatch_via_profile(
 
     # Wire-level settings come from cfg, not the profile.  The cfg is
     # the user's session ("how I'm wired up"); the profile is the
-    # device contract ("what commands you accept").
-    encoding = host.cfg.get("encoding", "utf-8")
-    eol_send = host.cfg.get("eol", "\r")
+    # device contract ("what commands you accept").  ctx.serial.send
+    # reads the line ending, encoding and transmit delays itself.
     default_response_timeout_ms = int(host.cfg.get("default_response_timeout_ms", 1000) or 1000)
     raw_response = spec.get("response") or {}
     response = raw_response if isinstance(raw_response, dict) else {}
@@ -1286,12 +1285,10 @@ def _dispatch_via_profile(
         idle_gap_s = 0.05
 
     rr = request_response(
-        serial_write=host._serial_write,
+        send=host.ctx.serial.send,
         drain_recent_lines=host.repl.drain_recent_lines,
         wait_for_lines=host.repl.wait_for_lines,
         command=command_text,
-        encoding=encoding,
-        line_ending=eol_send,
         timeout_s=timeout_s,
         terminator=terminator,
         idle_gap_s=idle_gap_s,

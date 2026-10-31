@@ -90,6 +90,12 @@ DEFAULT_CFG = {
     # Line text: what goes out, how it comes back
     "encoding": "utf-8",
     "eol": "\r",
+    # Transmit delay (TeraTerm's msec/char and msec/line): a device line
+    # goes out one character at a time, this many ms apart, and waits this
+    # long after its line ending.  For a device that drops bytes arriving
+    # back to back.  Binary (file transfers, /proto, /raw) is never paced.
+    "tx_char_delay_ms": 0,
+    "tx_line_delay_ms": 0,
     # Receive newline: how incoming device output is split into lines.
     # "auto" treats CR, LF, and CRLF all as line terminators (TeraTerm's
     # Receive=AUTO -- works for any device); cr/lf/crlf force a single
@@ -372,6 +378,14 @@ CFG_HELP: dict[str, tuple] = {
     "eol": (
         "Appended to each sent command (set: {prefix}term.eol).",
         r'"\r" (CR), "\n" (LF), "\r\n" (CRLF), or a combination; also \0 \x03 \x04.',
+    ),
+    "tx_char_delay_ms": (
+        "Delay in ms after each character of a line sent to the device.",
+        "0 = off. Non-negative integer. For a device that drops bytes sent back to back.",
+    ),
+    "tx_line_delay_ms": (
+        "Delay in ms after each line sent to the device.",
+        "0 = off. Non-negative integer. Lines only: binary sends are never paced.",
     ),
     "eol_rx": (
         "How received device output is split into lines (set: {prefix}term.eol.rx).",

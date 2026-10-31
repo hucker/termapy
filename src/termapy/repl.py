@@ -784,9 +784,7 @@ class ReplEngine:
         self._write_json({"cmd": command}, result=False, indent=False)
 
         encoding = self.cfg.get("encoding", "utf-8")
-        line_ending = self.cfg.get("eol", "\r")
         timeout_ms = int(self.cfg.get("default_response_timeout_ms", 1000))
-        payload = (command + line_ending).encode(encoding)
 
         t0 = _time.perf_counter()
         error = ""
@@ -794,7 +792,7 @@ class ReplEngine:
         try:
             with self.ctx.serial.io():
                 self.ctx.serial.drain()
-                self.ctx.serial.write(payload)
+                self.ctx.serial.send(command)
                 response = self.ctx.serial.read_raw(timeout_ms=timeout_ms)
             text = response.decode(encoding, errors="replace").strip()
             # request_mode output is a structured data value, not terminal
@@ -1731,14 +1729,12 @@ class ReplEngine:
                 # handle it here -- symmetric with the request_mode empty-line
                 # path above.  (Reached only when a frontend forwards an empty
                 # line, which it does only when send_bare_enter is set.)
-                ending = self.cfg.get("eol", "\r")
-                encoding = self.cfg.get("encoding", "utf-8")
                 if self.ctx.serial.write is not None:
                     # No handler's guard out here: a failed write must
                     # come back as a result, not raise into the caller's
                     # worker thread.
                     try:
-                        self.ctx.serial.write(ending.encode(encoding))
+                        self.ctx.serial.send("")
                     except (OSError, UnicodeError, LookupError) as e:
                         _fail_status(f"Send error: {e}", "red")
                         return CmdResult.fail(msg=f"Send error: {e}")
@@ -2334,9 +2330,7 @@ class ReplEngine:
             if stripped.startswith(sctx.prefix):
                 cmd_result = self.dispatch(stripped[len(sctx.prefix) :].strip())
             elif self.ctx.serial.is_connected():
-                self.ctx.serial.write(
-                    (stripped + self.cfg.get("eol", "\r")).encode(self.cfg.get("encoding", "utf-8"))
-                )
+                self.ctx.serial.send(stripped)
                 cmd_result = None
             else:
                 cmd_result = None

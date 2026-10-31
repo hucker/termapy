@@ -167,6 +167,27 @@ device → Properties → Port Settings → Advanced → set "Latency Timer
 `/port.chip.latency_timer` shows the current value on Linux (Windows
 doesn't expose it via the same path).
 
+## When the device drops characters you send
+
+Some devices lose bytes that arrive back to back: a small receive buffer,
+or a UART that cannot keep up at full speed. The symptom is a reply to a
+command you did not type, such as `Unknown command: AT+VE`. Pace what
+termapy sends, as TeraTerm's transmit delay does:
+
+```text
+/cfg.auto tx_char_delay_ms 1
+```
+
+`tx_char_delay_ms` hands each character of a line to the driver on its
+own, that many milliseconds apart; `tx_line_delay_ms` waits after each
+line. Both are 0 (off) by default; set them in the config to keep them.
+The spacing is what termapy gives the driver: a USB adapter's driver can
+still group bytes, and its own settings (an FTDI adapter's Advanced port
+settings, say) are where to tune that. Every line sent to
+the device is paced: typed, from a script, pasted, or sent by an MCP
+agent. Binary is not: file transfers, `/proto` and `/raw` go out exactly
+as given.
+
 ## When you're evaluating whether to buy a faster cable
 
 USB-serial chips come in two speed classes:

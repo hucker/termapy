@@ -1058,7 +1058,7 @@ class TestSerialRxHandoff:
                 app.repl.ctx.ns("flags")["hex"] = True
 
                 # Act -- DEMO answers AT with OK CR LF
-                app._serial_send("AT")
+                app.ctx.serial.send("AT")
                 for _ in range(250):
                     if "4F 4B 0D 0A" in app._get_screen_text():
                         break

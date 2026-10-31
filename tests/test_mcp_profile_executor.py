@@ -8,7 +8,8 @@ This is the bridge from "termapy sent some bytes" to "the LLM gets
 These tests build an MCPHost with no real serial port and stub the
 plumbing:
   - ``host.engine`` is monkeypatched to report ``is_connected=True``.
-  - ``host._serial_write`` records outbound bytes.
+  - ``host.ctx.serial.write`` (what ``ctx.serial.send`` writes through)
+    records outbound bytes.
   - Inbound device replies are simulated by feeding lines into
     ``host.repl.feed_lines()`` from a helper thread (so the
     ``wait_for_lines`` blocking loop sees them as fresh arrivals).
@@ -40,8 +41,9 @@ def host(tmp_path, monkeypatch):
     """Build an MCPHost with no port, with a fake-connected engine.
 
     ``engine.is_connected`` is a property; we override it on the
-    instance's class for the duration of the test.  ``_serial_write``
-    is captured so tests can assert on outbound bytes.
+    instance's class for the duration of the test.  The context's
+    ``serial.write`` -- what ``ctx.serial.send`` writes through -- is
+    captured so tests can assert on outbound bytes.
     """
     cfg = dict(DEFAULT_CFG)
     cfg["port"] = ""
@@ -64,7 +66,11 @@ def host(tmp_path, monkeypatch):
 
     # Capture outbound bytes; suppress the real port write (there is no port).
     sent: list[bytes] = []
-    monkeypatch.setattr(h, "_serial_write", lambda data: sent.append(data))
+    # Both doors to the one write: the profile path sends through
+    # ctx.serial.write, the fall-through hands dispatch_full the host's
+    # _serial_write (the same function in production).
+    h.ctx.serial.write = sent.append
+    monkeypatch.setattr(h, "_serial_write", sent.append)
     h._sent = sent  # ty: ignore[unresolved-attribute] -- convenience handle for tests
     return h
 
@@ -87,11 +93,11 @@ def _reply_after_send(host: MCPHost, lines: list[str]) -> None:
     The race we need to avoid: if we push lines before _dispatch_via_profile
     drains the recent-lines buffer, those lines get archived as stale
     pre_send_drain events instead of being treated as the response.
-    Hooking into the captured _serial_write so the push happens after
+    Hooking into the captured ctx.serial.write so the push happens after
     the executor has sent its bytes guarantees correct ordering.
     """
     pushed = threading.Event()
-    original_write = host._serial_write
+    original_write = host.ctx.serial.write
 
     def _wrapped(data: bytes) -> None:
         original_write(data)
@@ -104,7 +110,7 @@ def _reply_after_send(host: MCPHost, lines: list[str]) -> None:
 
         threading.Thread(target=_push, daemon=True).start()
 
-    host._serial_write = _wrapped  # ty: ignore[invalid-assignment] -- spy on writes
+    host.ctx.serial.write = _wrapped
 
 
 # ── Profile fixtures ────────────────────────────────────────────────────────

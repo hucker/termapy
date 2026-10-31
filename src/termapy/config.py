@@ -1091,6 +1091,8 @@ def validate_config(cfg: dict) -> list[str]:
     _check_positive(cfg, "max_lines", warnings)
     _check_non_negative(cfg, "cmd_delay_ms", warnings)
     _check_non_negative(cfg, "multiline_paste_delay_ms", warnings)
+    _check_non_negative(cfg, "tx_char_delay_ms", warnings)
+    _check_non_negative(cfg, "tx_line_delay_ms", warnings)
 
     return warnings
 

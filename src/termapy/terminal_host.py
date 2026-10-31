@@ -538,7 +538,6 @@ class TerminalHost:
             update_port=lambda name: self._update_port(name),
             apply_port_effects=lambda effects: self._apply_port_effects(effects),
             write=self._serial_write,
-            send=self._serial_send,
             read_raw=self._serial_read_raw,
             drain=self._drain_rx_queue,
             wait_idle=lambda timeout_ms=100, max_wait_s=3.0: self._wait_for_idle(
@@ -732,12 +731,6 @@ class TerminalHost:
             raise SerialException(STATE_MESSAGES["serial_connected"])
         port.write(data)
         self.engine.notify_tx(data)
-
-    def _serial_send(self, text: str) -> None:
-        """Send text with configured line ending and encoding."""
-        ending = self.cfg.get("eol", "\r")
-        encoding = self.cfg.get("encoding", "utf-8")
-        self._serial_write((text + ending).encode(encoding))
 
     # -- Dispatch -------------------------------------------------------------
 

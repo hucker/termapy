@@ -380,10 +380,13 @@ def _handler_delete(ctx: PluginContext, args: str) -> CmdResult:
     assert path is not None, "log.delete declares session_log"
     if not path.exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
-    ctx.internal.stop_session_log()
+    stopped = ctx.internal.stop_session_log()
     try:
         path.unlink()
     except OSError as e:
+        # A failed delete changes nothing: a log it stopped is started again.
+        if stopped:
+            ctx.internal.start_session_log()
         return CmdResult.fail(msg=f"Delete failed: {e}")
     ctx.io.result(f"Deleted {path.name}; {ctx.prefix}log.start begins a new one")
     # The deleted path, so a script can log or confirm it.

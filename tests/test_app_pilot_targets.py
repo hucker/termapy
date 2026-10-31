@@ -997,6 +997,38 @@ class TestLogStartStop:
 
         asyncio.run(scenario())
 
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="only Windows refuses to delete an open file"
+    )
+    def test_a_delete_refused_by_another_holder_keeps_logging(self, app_factory):
+        """A second termapy on the same config holds the log open: the delete fails and the log runs on.
+
+        Found 2026-10-30 by hand: the delete stopped the log first, so the
+        failure left it silently stopped.
+        """
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.session_log_path()
+                assert log is not None and log.exists(), "the TUI keeps a log"
+                other_window = open(log, encoding="utf-8")
+
+                # Act
+                try:
+                    await self._type(pilot, "/log.delete", "Error: Delete failed")
+                    await self._type(pilot, "/print still-logged", "still-logged")
+                    await until(pilot, lambda: "still-logged" in self._text(log))
+                finally:
+                    other_window.close()
+
+                # Assert
+                assert log.exists(), "the delete was refused"
+                assert "still-logged" in self._text(log), "and the log is still written"
+
+        asyncio.run(scenario())
+
 
 # ── Clickable output ────────────────────────────────────────────────────────
 

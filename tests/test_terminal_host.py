@@ -604,24 +604,35 @@ class TestEnsureHelpServer:
 
 
 class _LoggingHost(_StubHost):
-    """A host whose session log is ``log_file`` (None: keeps none), recording when it stops it."""
+    """A host whose session log is ``log_file`` (None: keeps none), recording each stop and start.
+
+    ``running`` is whether the log is being written when the command runs.
+    """
 
     log_file: Path | None = None
+    running: bool = True
     stops: int = 0
+    starts: int = 0
 
     def session_log_path(self) -> Path | None:
         return self.log_file
 
     def _stop_session_log(self) -> bool:
         self.stops += 1
-        return True
+        was_running, self.running = self.running, False
+        return was_running
+
+    def _start_session_log(self) -> bool:
+        self.starts += 1
+        was_stopped, self.running = not self.running, True
+        return was_stopped
 
 
 class TestLogDelete:
     """/log.delete removes the frontend's own session log through ctx.internal (review 2026-10-15, D3)."""
 
     @staticmethod
-    def _delete(host, log_file: Path | None):
+    def _delete(host, log_file: Path | None, running: bool = True):
         """Run /log.delete's handler against ``host``'s real handle wiring."""
         from termapy.builtins.commands.log import _handler_delete
 
@@ -629,6 +640,7 @@ class TestLogDelete:
             host.cfg, host.config_path, host.engine, host.repl, host.capture
         )
         logging_host.log_file = log_file
+        logging_host.running = running
         ctx = logging_host._build_plugin_context(logging_host._build_internal_handle())
         return logging_host, _handler_delete(ctx, "")
 
@@ -670,6 +682,34 @@ class TestLogDelete:
         # Assert
         assert result.success is False, "fails on OSError"
         assert result.error.startswith("Delete failed: "), result.error
+
+    def test_a_failed_delete_leaves_a_running_log_running(self, host, tmp_path):
+        """The delete stops the log to remove the file; when the OS refuses, the log is started again."""
+        # Arrange -- a folder where the log should be: it exists, unlink refuses
+        folder = tmp_path / "session.log"
+        folder.mkdir()
+
+        # Act
+        logging_host, result = self._delete(host, folder)
+
+        # Assert
+        assert result.success is False, "the delete failed"
+        actual = (logging_host.stops, logging_host.starts, logging_host.running)
+        assert actual == (1, 1, True), "a failed delete leaves the log as it was: running"
+
+    def test_a_failed_delete_leaves_a_stopped_log_stopped(self, host, tmp_path):
+        """A log already stopped when the delete fails is not started by it."""
+        # Arrange
+        folder = tmp_path / "session.log"
+        folder.mkdir()
+
+        # Act
+        logging_host, result = self._delete(host, folder, running=False)
+
+        # Assert
+        assert result.success is False, "the delete failed"
+        actual = (logging_host.starts, logging_host.running)
+        assert actual == (0, False), "a failed delete leaves the log as it was: stopped"
 
 
 # -- _fire_app_start ------------------------------------------------------------

@@ -83,6 +83,26 @@ def _restore_store(store: dict[str, Any], saved: dict[str, Any]) -> None:
     store.update(saved)
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _isolate_app_state(tmp_path_factory):
+    """Point the app state folder at a temporary one for the whole run.
+
+    Every session a test starts leaves a breadcrumb there (``breadcrumbs``)
+    and the update check keeps its timestamps there; a test run must never
+    write into the user's own app folder.  A test that needs its own folder
+    still sets ``TERMAPY_STATE_DIR`` with monkeypatch, which restores this.
+    """
+    import os
+
+    saved = os.environ.get("TERMAPY_STATE_DIR")
+    os.environ["TERMAPY_STATE_DIR"] = str(tmp_path_factory.mktemp("app_state"))
+    yield
+    if saved is None:
+        os.environ.pop("TERMAPY_STATE_DIR", None)
+    else:
+        os.environ["TERMAPY_STATE_DIR"] = saved
+
+
 @pytest.fixture(autouse=True)
 def _isolate_variables():
     """Hand every test the ``$(NAME)`` stores as they were before it ran (registry ``variables-isolated``).

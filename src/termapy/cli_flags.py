@@ -677,6 +677,77 @@ def run_check(args: argparse.Namespace) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# The columns of the --kill listing.
+_KILL_COLUMNS = ("PID", "MODE", "CONFIG", "PORT", "STARTED")
+
+
+def _print_crumbs(crumbs) -> None:
+    """Print running termapys as a table, each column as wide as its widest cell."""
+    rows = [
+        [
+            str(crumb.pid),
+            crumb.frontend,
+            crumb.config_name or "-",
+            crumb.open_port or "-",
+            crumb.started.replace("T", " "),
+        ]
+        for crumb in crumbs
+    ]
+    widths = [
+        max([len(header)] + [len(row[i]) for row in rows]) for i, header in enumerate(_KILL_COLUMNS)
+    ]
+    for cells in [list(_KILL_COLUMNS), ["-" * width for width in widths], *rows]:
+        print("  ".join(cell.ljust(width) for cell, width in zip(cells, widths)).rstrip())
+
+
+def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> None:
+    """``--kill``: list the termapys running on this machine, or stop the ones a target picks.
+
+    Bare ``--kill`` lists them and changes nothing.  ``--kill all``, a port
+    (``COM3``) or a config name lists the ones it picks, asks, and stops
+    them (``breadcrumbs.stop``).  A running termapy is found by the
+    breadcrumb it leaves, so one started before breadcrumbs existed is not
+    seen.  Exits 0 when nothing picked is left running, including when
+    nothing was running; 1 when the target picks nothing, the answer is no,
+    or a process would not stop.
+
+    Args:
+        args: Parsed CLI namespace; ``kill`` is the target, ``""`` when bare.
+        confirm: Asks the yes/no question (``confirm_on_stdin`` at a terminal).
+    """
+    from termapy import breadcrumbs
+
+    running = breadcrumbs.read_running()
+    if not running:
+        print("No termapy is running.")
+        sys.exit(0)
+    target = args.kill
+    if not target:
+        _print_crumbs(running)
+        sys.exit(0)
+    breadcrumbs.prune_stale()
+    picked = breadcrumbs.select(running, target)
+    if not picked:
+        print(
+            f"termapy: no running termapy matches {target}{breadcrumbs.suggest(running, target)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    _print_crumbs(picked)
+    noun = "process" if len(picked) == 1 else "processes"
+    if not confirm(f"Stop {len(picked)} termapy {noun}?"):
+        print("Nothing stopped.")
+        sys.exit(1)
+    failed = 0
+    for crumb in picked:
+        if breadcrumbs.stop(crumb):
+            print(f"Stopped {crumb.pid} ({crumb.summary})")
+        else:
+            failed += 1
+            print(f"termapy: could not stop {crumb.pid} ({crumb.summary})", file=sys.stderr)
+    sys.exit(1 if failed else 0)
+
+
 def confirm_on_stdin(message: str) -> bool:
     """Ask ``message`` on stdin with a ``[y/N]`` default of No.
 

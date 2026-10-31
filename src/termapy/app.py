@@ -1848,6 +1848,7 @@ class SerialTerminal(TerminalHost, App):
         self.repl.ctx.ns("flags")["line_no"] = cfg.get("line_no", False)
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
+        self._leave_breadcrumb()
         self.history = self._load_history()
         self._history_nav.reset()
         self.repl.ctx.config_path = path
@@ -4092,6 +4093,11 @@ def _run_web_mode(args) -> None:
     import os
 
     os.environ.setdefault("TERMAPY_GUI", "0")
+    # The server holds no serial port (each browser session is a TUI
+    # process with its own breadcrumb); this one lets --kill find it.
+    from termapy import breadcrumbs
+
+    breadcrumbs.leave("web", config=args.config or "")
     server = Server(
         " ".join(cmd_parts),
         host="localhost",

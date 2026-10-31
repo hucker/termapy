@@ -110,6 +110,7 @@ class TestCommandDeclaration:
             ("cfg.delete", "destructive"),  # a whole config folder
             ("demo.force", "destructive"),  # rewrites the demo config over its edits
             ("cfg.icon.remove", "mutable"),  # /cfg.icon makes it again
+            ("app.kill", "destructive"),  # ends other sessions, mid-work if need be
             ("exit", "mutable"),  # ends the session; nothing is lost
         ],
     )

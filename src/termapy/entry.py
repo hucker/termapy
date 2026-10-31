@@ -194,6 +194,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Port for web server (default: 8000)",
     )
     parser.add_argument(
+        "--kill",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="TARGET",
+        help=(
+            "List the termapys running on this machine. With a TARGET -- all, a "
+            "port (COM3) or a config name -- stop the ones it picks, after a yes"
+        ),
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="Strip ANSI color codes from output (CLI mode)",
@@ -369,7 +380,7 @@ def _run_validate_profile(path_str: str, strict: bool = False) -> None:
 
 
 def _no_terminal_to_confirm(question: str) -> bool:
-    """``--new``'s overwrite answer when stdin is not a terminal: always No."""
+    """The answer to ``--new``'s and ``--kill``'s question when stdin is not a terminal: always No."""
     print(f"termapy: {question} No terminal to answer on, so no.", file=sys.stderr)
     return False
 
@@ -411,6 +422,11 @@ def main() -> None:
         from termapy.cli_flags import run_chips
 
         run_chips(args)
+    if args.kill is not None:
+        from termapy.cli_flags import confirm_on_stdin, run_kill
+
+        confirm = confirm_on_stdin if sys.stdin.isatty() else _no_terminal_to_confirm
+        run_kill(args, confirm=confirm)
     if args.validate_profile is not None:
         _run_validate_profile(args.validate_profile, strict=args.strict)
 

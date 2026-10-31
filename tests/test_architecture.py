@@ -594,6 +594,8 @@ ALLOWED_RAW_MKDIR: frozenset[str] = frozenset(
         "termapy/app_dirs.py",
         "termapy/builtins/commands/_cfg_icon.py",
         "termapy/builtins/commands/app.py",
+        # The app-wide running/ folder of breadcrumbs, not a config's data folder.
+        "termapy/breadcrumbs.py",
         "termapy/config.py",
         "termapy/devices/__init__.py",
         # /firmware.copy creates the user's own output folder, not a data folder.
@@ -1733,7 +1735,9 @@ NOT_IN_GOLD: dict[str, str] = {
     "app.config.dump": "prints the user's app-wide config, which differs per machine",
     "app.config.edit": _OPENS_APP,
     "app.explore": _OPENS_APP,
+    "app.kill": "ends other termapy processes on this machine, after a yes; tests/test_breadcrumbs.py drives it",
     "app.list": "lists the user's app folder, which differs per machine",
+    "app.running": "lists the termapy processes on this machine, by PID and start time",
     "app.state": _PATH,
     "app.state.dump": "prints the user's app state (update-check times), which differs per machine",
     "app.state.edit": _OPENS_APP,

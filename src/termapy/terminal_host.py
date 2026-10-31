@@ -220,9 +220,27 @@ class TerminalHost:
         in place before anything else happens.
         """
         self._register_vars()
+        self._leave_breadcrumb()
         self._on_app_prestart()
         self.repl.fire_lifecycle("on_app_prestart")
         self.repl.fire_lifecycle("on_app_start")
+
+    def _leave_breadcrumb(self) -> None:
+        """Tell ``termapy --kill`` what this session holds: frontend, config and open port.
+
+        Called when the session starts, connects, disconnects, loses its
+        port and switches config, so the breadcrumb always names the port
+        this process has open (``breadcrumbs``).
+        """
+        from termapy import breadcrumbs
+
+        serial_cfg = self.cfg.get("serial") or {}
+        breadcrumbs.leave(
+            self.front_end,
+            config=self.config_path or "",
+            port=str(serial_cfg.get("port") or ""),
+            open_port=(self.engine.open_device or "") if self.engine.is_connected else "",
+        )
 
     def _register_vars(self) -> None:
         """Register the session's variables: ``$(FRONT_END)``, ``$(CFG)``, ``$(CFG.*)``.
@@ -342,6 +360,7 @@ class TerminalHost:
         self.repl.fire_lifecycle("on_connect")
         self._start_reader()
         self._on_connected(full)
+        self._leave_breadcrumb()
 
     def _on_connected(self, message: str) -> None:
         """Called after a successful connection.  Override for UI updates."""
@@ -370,6 +389,7 @@ class TerminalHost:
         msg = f"Disconnected: {actual}" if actual else "Disconnected."
         self.write(msg, "red")
         self._on_disconnected()
+        self._leave_breadcrumb()
 
     def _port_lost(self) -> None:
         """Tear down after the port vanished mid-session (an unplug, a driver reset).
@@ -389,6 +409,7 @@ class TerminalHost:
         if self.capture.active:
             self._stop_capture()
         self._on_disconnected()
+        self._leave_breadcrumb()
 
     def _clear_device_state(self) -> None:
         """Wipe namespaces tied to the device that just disconnected.
@@ -830,6 +851,7 @@ class TerminalHost:
         # changes) land in the engine's dict while ctx.cfg reads a stale
         # snapshot forever after.
         self.cfg = self.repl._cfg_data
+        self._leave_breadcrumb()
         self._setup_context()
         self.repl.fire_lifecycle("on_config_load")
         # auto_connect lives in the newly-loaded cfg -- if the user's

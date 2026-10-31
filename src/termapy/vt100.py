@@ -149,10 +149,14 @@ def _resolve_cfg(args) -> dict:
         config_path = path
 
     try:
-        return load_config(config_path)
+        cfg = load_config(config_path)
     except CONFIG_LOAD_ERRORS as e:
         print(f"termapy: failed to load config: {e}", file=sys.stderr)
         sys.exit(1)
+    # The path rides along, as the headless proto runner's does, so the
+    # breadcrumb can name the config.
+    cfg["_config_path"] = str(config_path)
+    return cfg
 
 
 def run_vt100_mode(args) -> str | None:
@@ -186,6 +190,14 @@ def run_vt100_mode(args) -> str | None:
     except (_serial.SerialException, OSError, ValueError) as e:
         print(f"termapy: cannot open serial port: {e}", file=sys.stderr)
         sys.exit(1)
+    from termapy import breadcrumbs
+
+    breadcrumbs.leave(
+        "vt100",
+        config=str(cfg.get("_config_path") or ""),
+        port=str(cfg["serial"].get("port") or ""),
+        open_port=str(getattr(port, "port", "") or ""),
+    )
 
     # miniterm's Windows Console swaps sys.stdout/sys.stderr for UTF-8 wrappers
     # and never restores them (its own main() exits the process, so it never

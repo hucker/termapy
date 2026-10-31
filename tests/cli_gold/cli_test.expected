@@ -1466,7 +1466,7 @@ demo> /help.plugin
   /tui          stable     Switch to TUI mode.
 
 -- Application Plugins --
-  /app          stable     App-wide state and config.
+  /app          stable     App-wide state, config and running sessions.
   /board        prototype  Starter projects for real dev boards: list, new, firmware.
   /cap          stable     Data capture tools.
   /cfg          stable     Show or set config values.

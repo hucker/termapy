@@ -104,11 +104,13 @@ USB_SERIAL_CHIPS: dict[tuple[int, int], ChipInfo] = {
     # Microchip (vid 0x04D8) -- Linux drivers/hid/hid-ids.h
     (0x04D8, 0x00DD): ChipInfo("Microchip MCP2221 (UART+I2C)", "full", 460_800),
     (0x04D8, 0x00DF): ChipInfo("Microchip MCP2200", "full", 1_000_000),
-    # 0x9036 is a composite (MI_xx) Microchip USB-CDC device -- not one
-    # of the dedicated bridge ICs.  Most likely a dev board / instrument
-    # using a PIC or SAMD MCU's native USB stack to expose CDC.  Keep
-    # the entry generic until the specific product is identified.
-    (0x04D8, 0x9036): ChipInfo("Microchip USB-CDC device", "full", 1_000_000),
+    # 0x9036 is the MPLAB PICkit 5 debugger, a composite device: Microchip's
+    # WinUSB driver INF (mchpwinusbdevice.inf 3.1.0.0, 2025-06-11) binds its
+    # interface 0 as "MPLAB PICkit 5 In-Circuit Debugger", and interface 1
+    # is the CDC serial port its user's guide calls VCOM.  High-Speed per
+    # that guide (DS-50003525A p. 80: "USB speeds of 480 Mbit/s").
+    # max_baud not verified: the guide states no VCOM limit.
+    (0x04D8, 0x9036): ChipInfo("Microchip MPLAB PICkit 5 (VCOM)", "high", 1_000_000),
     # STMicroelectronics (vid 0x0483) -- usb.ids; 374F "Mini" not verified
     (0x0483, 0x5740): ChipInfo("STM32 Virtual COM Port", "full", 2_000_000),
     (0x0483, 0x374B): ChipInfo("ST-Link V2-1 (with VCP)", "full", 2_000_000),

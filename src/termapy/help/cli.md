@@ -25,11 +25,11 @@ A single-line-per-port table, same schema as the in-app port picker.
 
 ```text
 $ termapy --ports
-PORT  MFG   VENDOR     DESCRIPTION        CHIP                            SPEED       VID:PID    SERIAL #            DRIVER   LOCATION  IF
-----  ----  ---------  -----------------  ------------------------------  ----------  ---------  ------------------  -------  --------  --
-COM3  MSFT  Microchip  USB Serial Device  Microchip USB-CDC device        Full-Speed  04D8:9036  020026702RYN040952  usbser   1-8.4     1
-COM4  FTDI  FTDI       USB Serial Port    FTDI FT230X / FT231X / FT234XD  Full-Speed  0403:6015  D20JSV68A           FTSER2K  1-8.2
-COM7  FTDI  FTDI       USB Serial Port    FTDI FT232R / FT245R            Full-Speed  0403:6001  BG03U7VTA           FTSER2K  1-8.3
+PORT  MFG   VENDOR     DESCRIPTION        CHIP                             SPEED       VID:PID    SERIAL #            DRIVER   LOCATION  IF
+----  ----  ---------  -----------------  -------------------------------  ----------  ---------  ------------------  -------  --------  --
+COM3  MSFT  Microchip  USB Serial Device  Microchip MPLAB PICkit 5 (VCOM)  High-Speed  04D8:9036  020026702RYN040952  usbser   1-8.4     1
+COM4  FTDI  FTDI       USB Serial Port    FTDI FT230X / FT231X / FT234XD   Full-Speed  0403:6015  D20JSV68A           FTSER2K  1-8.2
+COM7  FTDI  FTDI       USB Serial Port    FTDI FT232R / FT245R             Full-Speed  0403:6001  BG03U7VTA           FTSER2K  1-8.3
 ```
 
 Columns you don't need are dropped automatically: on a machine where no
@@ -62,7 +62,7 @@ present at startup; `Ctrl+C` to exit.
 ```text
 $ termapy --watch
 [15:57:57] monitoring 3 port(s); Ctrl+C to exit
-[15:57:57]    COM3    closed  MSFT       USB Serial Device   -                                 -           04D8:9036  020026702RYN040952
+[15:57:57]    COM3    closed  MSFT       USB Serial Device   Microchip MPLAB PICkit 5 (VCOM)   High-Speed  04D8:9036  020026702RYN040952
 [15:57:57]    COM4    closed  FTDI       USB Serial Port     FTDI FT230X / FT231X / FT234XD    Full-Speed  0403:6015  D20JSV68A
 [15:57:57]    COM7    closed  FTDI       USB Serial Port     FTDI FT232R / FT245R              Full-Speed  0403:6001  BG03U7VTA
 [15:58:01]    COM7    open    FTDI       USB Serial Port     FTDI FT232R / FT245R              Full-Speed  0403:6001  BG03U7VTA
@@ -138,12 +138,12 @@ $ termapy --info
   Manufacturer: Microsoft
   Serial #    : 020026702RYN040952
   Location    : 1-8.3:x.1
-  VID:PID     : 04D8:9036
+  VID:PID     : 04D8:000A
   Model       : unknown
   USB Speed   : unknown (chip not in lookup table)
   Permissions : n/a
   In Use      : no
-  (chip 04D8:9036 not in termapy's lookup table -- please report at https://github.com/hucker/termapy/issues so we can add it)
+  (chip 04D8:000A not in termapy's lookup table -- please report at https://github.com/hucker/termapy/issues so we can add it)
 
   COM4
   Description  : USB Serial Port (COM4)

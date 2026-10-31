@@ -231,36 +231,55 @@ def _write_scripts(cfg_path: str, **scripts: str) -> None:
 
 class TestScriptOverlay:
     def test_a_typed_run_mounts_the_overlay_and_restores_the_bar(self, app_factory):
-        """A typed /run disables the prompt under a Stop overlay that names the script chain, then hands the bar and focus back."""
+        """A typed /run disables the prompt under a Stop overlay that names the script chain, then hands the bar and focus back.
+
+        Each script waits on a /confirm the test answers, so the overlay is
+        read while it shows that step.  Sampling a 300 ms /delay instead
+        missed the inner script under tox's parallel load (2026-10-17 and
+        2026-10-31, both on Python 3.13).  The label arrives as a message
+        while the dialog comes through call_from_thread, so the dialog can
+        be up a beat before the label names its step: each wait is for both.
+        """
+
+        def asking(app, message: str) -> bool:
+            screen = app.screen
+            return (
+                _confirm_ready(app)
+                and isinstance(screen, ConfirmDialog)
+                and screen.message == message
+            )
 
         async def scenario():
             app, _, path = app_factory()
-            _write_scripts(path, outer="/run inner\n/delay 300ms\n", inner="/delay 300ms\n")
+            _write_scripts(path, outer="/run inner\n/confirm second\n", inner="/confirm first\n")
             async with app.run_test() as pilot:
                 await pilot.pause()
                 bar = app.query_one("#bottom-bar")
                 inp = app.query_one("#cmd", Input)
-                labels: set[str] = set()
-                prompt_disabled_during = False
 
-                # Act -- type the run, then watch the overlay until it is gone
+                def label() -> str:
+                    return str(bar.query_one("#script-label", Static).render())
+
+                # Act -- answer each script's question once the overlay shows that step
                 await _submit(pilot, "/run outer")
-                assert await until(pilot, lambda: bool(bar.query("#script-stop"))), (
-                    "overlay mounted"
-                )
-                for _ in range(250):
-                    if not bar.query("#script-stop"):
-                        break
-                    labels.add(str(bar.query_one("#script-label", Static).render()))
-                    prompt_disabled_during = prompt_disabled_during or inp.disabled
-                    await pilot.pause(0.02)
+                assert await until(
+                    pilot, lambda: asking(app, "first") and "inner.run" in label()
+                ), f"the inner script asks, its overlay naming the chain: {label()}"
+                during_inner, prompt_disabled_during = label(), inp.disabled
+                await pilot.click("#confirm-yes")
+                assert await until(
+                    pilot, lambda: asking(app, "second") and "inner.run" not in label()
+                ), f"then the outer script, its overlay naming it alone: {label()}"
+                during_outer = label()
+                await pilot.click("#confirm-yes")
+                assert await until(pilot, lambda: not bar.query("#script-stop")), "the overlay goes"
                 assert await until(pilot, lambda: app.focused is inp), "focus returns to the prompt"
 
                 # Assert
-                assert any("outer.run" in label and "inner.run" not in label for label in labels), (
-                    f"the outer script alone, with its step counter: {labels}"
+                assert "outer.run → inner.run" in during_inner, during_inner
+                assert "outer.run" in during_outer and "inner.run" not in during_outer, (
+                    f"the outer script alone, with its step counter: {during_outer}"
                 )
-                assert any("outer.run → inner.run" in label for label in labels), labels
                 assert prompt_disabled_during is True, "the prompt is off while the script runs"
                 assert (inp.disabled, bar.disabled) == (False, False), "prompt and bar usable again"
                 assert all(child.display for child in bar.children), "the buttons are back"
@@ -1048,10 +1067,42 @@ def _text_offset(app, text: str) -> tuple[int, int]:
     return x, y
 
 
+async def _settled(pilot, app, polls: int = 3) -> None:
+    """Wait until the output pane stops growing, so an offset computed from it still holds.
+
+    A help page arrives in pieces; clicking while it still scrolls hits the
+    wrong line.  Found 2026-10-31 under tox's parallel load, where a click
+    on a help link landed between links and ran nothing.
+    """
+    previous, steady = -1, 0
+    for _ in range(250):  # about 5 s
+        count = len(_screen(app))
+        steady = steady + 1 if count == previous else 0
+        if steady >= polls:
+            return
+        previous = count
+        await pilot.pause(0.02)
+
+
 async def _click_text(pilot, app, text: str) -> None:
-    """Click the first visible occurrence of ``text`` in the output pane with the mouse."""
+    """Click the first visible occurrence of ``text`` in the output pane, once it has settled."""
+    await _settled(pilot, app)
     await pilot.click("#output", offset=_text_offset(app, text))
     await pilot.pause()
+
+
+async def _click_until(pilot, app, text: str, done, tries: int = 3) -> None:
+    """Click ``text`` until ``done()`` holds, at most ``tries`` times.
+
+    Under load a click can land between links and run nothing; another click
+    is then harmless, while a click on the wrong link still fails the
+    caller's check.  Each try waits ``until``'s whole window first, so a slow
+    click that did land is never repeated.
+    """
+    for _ in range(tries):
+        await _click_text(pilot, app, text)
+        if await until(pilot, done):
+            return
 
 
 async def _hover_text(pilot, app, text: str) -> None:
@@ -1075,11 +1126,19 @@ class TestClickableOutput:
                 await until(pilot, lambda: any("hello.run" in line for line in _screen(app)))
 
                 # Act
-                await _click_text(pilot, app, "hello.run")
-                await until(pilot, lambda: sum("clicked-ok" in line for line in _screen(app)) == 1)
+                await _click_until(
+                    pilot,
+                    app,
+                    "hello.run",
+                    lambda: sum("clicked-ok" in line for line in _screen(app)) == 1,
+                )
                 await until(pilot, lambda: not app.query_one("#bottom-bar").disabled)
-                await _click_text(pilot, app, "hello.run")
-                await until(pilot, lambda: sum("clicked-ok" in line for line in _screen(app)) == 2)
+                await _click_until(
+                    pilot,
+                    app,
+                    "hello.run",
+                    lambda: sum("clicked-ok" in line for line in _screen(app)) == 2,
+                )
 
                 # Assert
                 runs = sum("clicked-ok" in line for line in _screen(app))
@@ -1125,8 +1184,12 @@ class TestClickableOutput:
                 )
 
                 # Act
-                await _click_text(pilot, app, "/help?")
-                await until(pilot, lambda: any("-- Terminal --" in line for line in _screen(app)))
+                await _click_until(
+                    pilot,
+                    app,
+                    "/help?",
+                    lambda: any("-- Terminal --" in line for line in _screen(app)),
+                )
 
                 # Assert
                 assert app.history[-1] == "/help", "the click ran the fixed command, into history"
@@ -1227,8 +1290,9 @@ class TestClickableOutput:
                 await until(pilot, lambda: any("!cfg.loaded " in line for line in _screen(app)))
 
                 # Act
-                await _click_text(pilot, app, "!cfg.loaded ")
-                await until(pilot, lambda: app.history[-1] == "!help cfg.loaded")
+                await _click_until(
+                    pilot, app, "!cfg.loaded ", lambda: app.history[-1] == "!help cfg.loaded"
+                )
 
                 # Assert
                 assert app.history[-1] == "!help cfg.loaded", (
@@ -1255,8 +1319,9 @@ class TestClickableOutput:
                 # Act
                 await _click_text(pilot, app, "/run - ")
                 filled = app.query_one("#cmd", Input).value
-                await _click_text(pilot, app, "Run picker")
-                await until(pilot, lambda: isinstance(app.screen, ScriptPicker))
+                await _click_until(
+                    pilot, app, "Run picker", lambda: isinstance(app.screen, ScriptPicker)
+                )
 
                 # Assert
                 assert filled == "/run ", "the name waits in the input line, ready for a file"
@@ -1278,8 +1343,12 @@ class TestClickableOutput:
                 row = next(line for line in _screen(app) if "hello.run" in line)
 
                 # Act
-                await _click_text(pilot, app, "hello.run")
-                await until(pilot, lambda: any("clicked-ok" in line for line in _screen(app)))
+                await _click_until(
+                    pilot,
+                    app,
+                    "hello.run",
+                    lambda: any("clicked-ok" in line for line in _screen(app)),
+                )
 
                 # Assert
                 assert row.startswith("  hello.run"), "in the page's column, not flush left"
@@ -1355,8 +1424,7 @@ class TestClickableOutput:
                 inp = app.query_one("#cmd", Input)
 
                 # Act
-                await _click_text(pilot, app, "/cfg.loaded - ")
-                await until(pilot, lambda: inp.has_focus)
+                await _click_until(pilot, app, "/cfg.loaded - ", lambda: inp.has_focus)
                 filled = inp.value
                 await pilot.press("x")
 

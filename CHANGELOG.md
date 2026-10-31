@@ -1,6 +1,127 @@
 # Changelog
 
-## Unreleased
+## 0.79.0 (2026-10-31)
+
+Starter projects for dev boards, with the device-side firmware they run;
+symbols, types and constants read from a build's ELF; output you can
+click; a terminal that pastes, selects and logs the way a TeraTerm user
+expects; and `termapy --kill` for the sessions an editor started and
+forgot.
+
+### Dev boards and device firmware
+
+Both families are new and marked **prototype**: they may change in any
+release.
+
+- **`/board` and `termapy --board BOARD`** set up a starter project for an
+  attached dev board: a config that finds the board by its USB serial
+  number, a device profile holding every command it answers, and the
+  firmware to load on it, so a new board answers the REPL and an MCP
+  agent on day one. Two boards so far, the Raspberry Pi Pico and the
+  ESP32-S3 DevKitC-1; `/board.list` names them. The S3 also answers the
+  MEM wire spec, and its `led` sets each of red, green and blue.
+- **`/firmware`** ships termapy's device-side reference sources in the
+  wheel: `termapy_json`, which replies in a JSON-RPC 2.0 envelope
+  (`{"result": ..., "id": N}`, or an error), and the MEM module, which now
+  takes the platform's memory map (below). `/firmware.copy` writes a
+  module's whole kit into the config's folder. The shipped sources are
+  plain ASCII.
+
+### Symbols and memory from the build
+
+The `/sym`, `/mem` and `/dev` families are marked **preview**: they work,
+and may change in any release.
+
+- **`/sym.import` reads a build's ELF**: its symbols, with C types from the
+  debug info. Constants come from the build too, and a pointer constant
+  names the block it points at.
+- **`/mem` honors each name's size and access**, `/mem.write` takes a value
+  at a name, and every `/mem` command follows the output level
+  (quiet, normal, verbose).
+- **`/dev.regs`** lists a device's registers from its device file, with
+  hazards flagged. `/dev.list` and `/dev.lib` answer with the same table
+  as every other list.
+- The demo ships a device file, so its `CONSOLE` alias works out of the
+  box.
+
+### A terminal for daily use
+
+- **A paste of several lines sends every line**, each as if typed (a line
+  starting with `/` runs as a command), 10 ms apart as TeraTerm does
+  (`multiline_paste_delay_ms`). Escape stops a long paste, a failed line
+  stops the rest, and `multiline_paste` set to false pastes only the first
+  line, as before.
+- **The output pane selects and copies**: drag with the mouse or extend
+  with Shift and the arrow keys, Ctrl+C copies, Ctrl+A selects all.
+  Ctrl+T saves the pane's whole text. Ctrl+A also selects all in the
+  config, script and proto editors.
+- **`/log.stop` and `/log.start`** pause and resume the session log, with
+  a `Log Stopped` and a `Log Started` line at the ends of the gap.
+  `/log.delete` leaves the log stopped until `/log.start` begins a new
+  one, and a delete Windows refuses (another termapy has the file open)
+  changes nothing. The log also follows a config switch now.
+- **`custom_buttons_side`** puts the custom buttons in a column on the
+  left or right of the output.
+- `/run --echo` shows each line of a script as it runs, and `echo_fmt` now
+  governs directive lines too.
+- Fixes: the port picker is as wide as its table and its rows never wrap;
+  the two prompt dialogs have an OK button; Quick Setup counts the port
+  list, not the hardware; the proto debug screen's three lists behave
+  alike and its number fields refuse what they cannot read.
+
+### Help, maturity and did-you-mean
+
+- **`/help` folds the commands by group**: the terminal commands in full,
+  the others one line per group. `/help.group <name>` expands a group,
+  and answers as a table.
+- **Every command says how settled it is**: stable (covered by the
+  compatibility promise), preview (works, may change) or prototype (new,
+  may change or go). It shows on each help page, in every listing and in
+  the MCP catalog, and the first use of a prototype family in a session
+  says so. The README has a Feature status table.
+- **A mistyped name gets a did-you-mean** wherever you type a name from
+  memory, and in the TUI the suggestions are clickable.
+
+### Ports: PRODUCT, names and chips
+
+- **A PRODUCT column** in `--ports`, `/port.list` and the port picker shows
+  the name each device reports for itself (`MPLAB PICkit 5`, `FT230X
+  Basic UART`), now read on Windows too; `--json` carries it as `product`.
+- **A port name matches the port the system would open**: `com3` is
+  `COM3` on Windows, and a `/dev/serial/by-id` link is its device on Linux
+  and macOS. A config's `com3` used to connect but read as unplugged
+  everywhere else.
+- A config that names its port by serial number loads like one that names
+  a COM port, without the port picker, and the title's port tooltips show
+  the device as the port and the serial number as the serial number.
+- The USB chip table names each part from its vendor's own source, and
+  04D8:9036 is the MPLAB PICkit 5's serial port.
+- `--watch` widens its columns to fit long chip names instead of pushing
+  the rest of the row out of line.
+- Display labels on label/value pages are Title Case (`Baud Rate`,
+  `USB Speed`), and the serial number reads `Serial #` everywhere.
+
+### Stopping leftover sessions
+
+- Every running termapy leaves a breadcrumb in the app folder (`running/`).
+  **`termapy --kill`** lists them, and with a target stops them after a
+  yes: `all`, `others`, a port (`COM4`) or a config name. Use it for a
+  clean system before an update, when an editor's forgotten MCP server
+  still holds a port and `termapy.exe`.
+- Inside termapy, **`/app.running`** lists the sessions and
+  **`/app.kill`** stops them: `others` is every session but yours, `all`
+  includes yours, which goes last, through `/exit`. Not over MCP: an
+  agent cannot end your sessions. `/app.list` shows the `running/` folder
+  with its session count.
+
+### Configs and the command line
+
+- Every config file is written in one order, grouped by what its keys
+  set; existing configs are migrated when they load.
+- A custom `cmd_prefix` reaches every TUI button and link: nineteen of
+  them sent their command to the device under a prefix such as `!`.
+- A `-e` one-shot with no config prints only its command's output,
+  without the welcome banner.
 
 ### Clickable lists in the TUI
 

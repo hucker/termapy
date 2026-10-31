@@ -312,22 +312,24 @@ def prune_stale() -> int:
 
 
 def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
-    """The breadcrumbs ``target`` picks: ``all``, a port, or a config name.
+    """The breadcrumbs ``target`` picks: ``all``, ``others``, a port, or a config name.
 
-    A port is compared the way termapy compares port names everywhere
-    (``port_control.same_port``), against the port open now and the
-    config's setting.  A config name is exact, case ignored; a wildcard
+    ``others`` picks the same as ``all`` here: a session that asks drops
+    itself from the result (``/app.kill``), and the ``--kill`` process is
+    not a session.  A port is compared the way termapy compares port names
+    everywhere (``port_control.same_port``), against the port open now and
+    the config's setting.  A config name is exact, case ignored; a wildcard
     makes either a glob (``matching``), so ``m3*`` picks several.
 
     Args:
         crumbs: The running termapys.
-        target: ``all``, a port such as ``COM3``, or a config name.
+        target: ``all``, ``others``, a port such as ``COM3``, or a config name.
 
     Returns:
         The picked breadcrumbs, in the order given.
     """
     crumbs = list(crumbs)
-    if target.casefold() == "all":
+    if target.casefold() in ("all", "others"):
         return crumbs
     from termapy.matching import is_glob, matches
     from termapy.port_control import same_port

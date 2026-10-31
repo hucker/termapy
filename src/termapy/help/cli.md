@@ -273,7 +273,10 @@ termapy --kill m3_bin   # the sessions on that config (m3* picks several)
 ```
 
 Inside termapy, `/app.running` lists the same sessions and
-`/app.kill <target>` stops them, never the session you type it in.
+`/app.kill <target>` stops them: `/app.kill others` every session but the
+one you type it in, `/app.kill all` that one too.  When a target picks the
+session you type it in, that one goes last, through `/exit`, so it saves its
+history.
 
 With no terminal to answer on (a pipe), the answer is no.  A stopped session
 writes no `Session End` to its log.  A session started before breadcrumbs

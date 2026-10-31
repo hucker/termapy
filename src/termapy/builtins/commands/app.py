@@ -16,7 +16,7 @@ Command surface:
 - ``/app.config.dump``  print ``config.json`` contents to the terminal
 - ``/app.config.edit``  open ``config.json`` in the system editor
 - ``/app.running``      list the termapys running on this machine
-- ``/app.kill``         stop the other termapys a target picks, after a yes
+- ``/app.kill``         stop the termapys a target picks, after a yes
 
 There is no bare ``/app`` -- every action is a subcommand.  Both
 ``state.json`` and ``config.json`` expose ``.edit`` for symmetry,
@@ -304,32 +304,44 @@ def _handler_running(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
-    """Stop the other termapys a target picks, after a yes; never this session (``breadcrumbs.stop``)."""
+    """Stop the termapys a target picks, after a yes (``breadcrumbs.stop``).
+
+    ``others`` is every session but this one (tmux's ``kill-session -a``);
+    ``all`` and any target that picks this session include it.  This
+    session is never killed: it goes last, through ``exit``, so it saves
+    its history and ends its log like any exit.  If another session would
+    not stop, this one stays open to show why.
+    """
     target = ctx.arg("target")
     running = breadcrumbs.read_running()
-    others = [crumb for crumb in running if crumb.pid != os.getpid()]
-    picked = breadcrumbs.select(others, target)
+    picked = breadcrumbs.select(running, target)
+    if target.casefold() == "others":
+        picked = [crumb for crumb in picked if crumb.pid != os.getpid()]
+        if not picked:
+            return CmdResult.fail(msg="No other termapy is running.")
     if not picked:
-        if breadcrumbs.select(running, target):
-            return CmdResult.fail(
-                msg=f"Only this session matches {target} -- {ctx.prefix}exit ends it"
-            )
         return CmdResult.fail(
-            msg=f"No running termapy matches {target}{breadcrumbs.suggest(others, target)}"
+            msg=f"No running termapy matches {target}{breadcrumbs.suggest(running, target)}"
         )
+    own = any(crumb.pid == os.getpid() for crumb in picked)
+    others = [crumb for crumb in picked if crumb.pid != os.getpid()]
     noun = "session" if len(picked) == 1 else "sessions"
-    listing = "; ".join(f"{crumb.pid} ({crumb.summary})" for crumb in picked)
+    listing = "; ".join(f"{crumb.pid} ({crumb.summary})" for crumb in others)
+    if own:
+        listing = f"{listing}; {os.getpid()} (this session)" if listing else "this session"
     if not ctx.ui.confirm(f"Stop {len(picked)} termapy {noun}: {listing}?"):
         return CmdResult.fail(msg="Nothing stopped.")
     breadcrumbs.prune_stale()
-    stopped = [crumb for crumb in picked if breadcrumbs.stop(crumb)]
+    stopped = [crumb for crumb in others if breadcrumbs.stop(crumb)]
     for crumb in stopped:
         ctx.io.result(f"Stopped {crumb.pid} ({crumb.summary})")
-    failed = [crumb for crumb in picked if crumb not in stopped]
+    failed = [crumb for crumb in others if crumb not in stopped]
     if failed:
         return CmdResult.fail(
             msg="Could not stop " + ", ".join(f"{crumb.pid} ({crumb.summary})" for crumb in failed)
         )
+    if own:
+        return ctx.internal.dispatch("exit")
     return CmdResult.ok(
         value="\n".join(str(crumb.pid) for crumb in stopped),
         data=[_session_record(crumb) for crumb in stopped],
@@ -337,12 +349,14 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _KILL_LONG_HELP = (
-    "Stops the termapys that <target> picks, after a yes: all of them, the\n"
-    "one holding a port (COM3), or the ones on a config (rig; rig* picks\n"
-    "several).  This session is never stopped -- {prefix}exit ends it.  The\n"
-    "use is a clean system, say before an update: an MCP server an editor\n"
-    "started and forgot keeps its port and termapy.exe busy.  Not over MCP:\n"
-    "an agent cannot end your sessions.  {prefix}app.running lists them;\n"
+    "Stops the termapys that <target> picks, after a yes: others (every\n"
+    "session but this one), all (this one too), the one holding a port\n"
+    "(COM3), or the ones on a config (rig; rig* picks several).  When this\n"
+    "session is picked it goes last, through {prefix}exit, so it saves its\n"
+    "history and ends its log.  The use is a\n"
+    "clean system, say before an update: an MCP server an editor started\n"
+    "and forgot keeps its port and termapy.exe busy.  Not over MCP: an\n"
+    "agent cannot end your sessions.  {prefix}app.running lists them;\n"
     "termapy --kill does the same from the command line."
 )
 
@@ -366,7 +380,7 @@ COMMAND = Command(
             shows=True,
         ),
         "kill": Command(
-            help="Stop the other termapys a target picks: all, a port or a config (asks first).",
+            help="Stop the termapys a target picks: all, a port or a config (asks first).",
             long_help=_KILL_LONG_HELP,
             handler=_handler_kill,
             params=[
@@ -376,7 +390,7 @@ COMMAND = Command(
                     positional=True,
                     required=True,
                     hint="<target>",
-                    help="all, a port such as COM3, or a config name",
+                    help="others, all, a port such as COM3, or a config name",
                 )
             ],
             needs=CapabilitySet(interactive=True, confirm_dialog=True),

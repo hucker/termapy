@@ -224,6 +224,7 @@ class TestSelect:
         [
             ("all", [1, 2, 3]),
             ("ALL", [1, 2, 3]),
+            ("others", [1, 2, 3]),
             ("COM7", [1]),
             ("COM4", [3]),
             ("rig", [1]),
@@ -234,6 +235,7 @@ class TestSelect:
         ids=[
             "all",
             "all, any case",
+            "others: all, until a session drops itself",
             "the port open now",
             "the config's port, not open",
             "a config name",
@@ -397,17 +399,56 @@ class TestAppCommands:
         ]
         assert actual == [(os.getpid(), "cli", "rig", True)]
 
-    def test_kill_never_stops_its_own_session(self, cli_demo, state_dir):
-        """A target that picks only this session fails and points at /exit instead."""
+    def test_kill_ends_this_session_through_exit(self, cli_demo, state_dir):
+        """Picked by its own target, the session is not killed: after a yes it leaves through /exit."""
         # Arrange
         cli_demo._fire_app_start()
 
         # Act
-        result = cli_demo.repl.dispatch_full("/app.kill rig")
+        with patch("builtins.input", return_value="y"):
+            result = cli_demo.repl.dispatch_full("/app.kill rig")
 
         # Assert
-        expected = (False, "Only this session matches rig -- /exit ends it")
-        assert (result.success, result.error) == expected
+        assert result.success, result.error
+        assert cli_demo._exit_requested is True, "the session asked to exit, the clean way"
+
+    def test_all_includes_this_session(self, cli_demo, state_dir):
+        """all means every session, this one too, which leaves last through /exit (tmux kill-server)."""
+        # Arrange
+        cli_demo._fire_app_start()
+
+        # Act
+        with patch("builtins.input", return_value="y"):
+            result = cli_demo.repl.dispatch_full("/app.kill all")
+
+        # Assert
+        assert result.success, result.error
+        assert cli_demo._exit_requested is True, "this session was part of all"
+
+    def test_others_never_includes_this_session(self, cli_demo, state_dir):
+        """others means every session but this one (tmux kill-session -a); alone, there is none."""
+        # Arrange
+        cli_demo._fire_app_start()
+
+        # Act
+        result = cli_demo.repl.dispatch_full("/app.kill others")
+
+        # Assert
+        assert (result.success, result.error) == (False, "No other termapy is running.")
+        assert cli_demo._exit_requested is False, "this session keeps running"
+
+    def test_a_no_keeps_this_session_open(self, cli_demo, state_dir):
+        """Answering no to a target that picks this session leaves it running."""
+        # Arrange
+        cli_demo._fire_app_start()
+
+        # Act
+        with patch("builtins.input", return_value="n"):
+            result = cli_demo.repl.dispatch_full("/app.kill rig")
+
+        # Assert
+        assert (result.success, result.error) == (False, "Nothing stopped.")
+        assert cli_demo._exit_requested is False, "no exit was asked for"
 
     def test_kill_is_out_of_an_agents_reach(self, cli_demo):
         """/app.kill needs a person and a yes, which MCP has neither of, so an agent cannot end sessions."""
@@ -420,7 +461,7 @@ class TestAppCommands:
 
     @pytest.mark.slow
     def test_kill_suggests_then_asks_then_stops(self, cli_demo, state_dir):
-        """Twice in a row: a typo gets a suggestion, a no keeps the session, a yes stops it."""
+        """Twice in a row: a typo gets a suggestion, a no keeps the other session, then others stops it alone."""
         # Arrange
         cli_demo._fire_app_start()
         with _child_session(state_dir, config="probe.cfg", open_port="COM9") as (child, _):
@@ -428,14 +469,17 @@ class TestAppCommands:
             typo = cli_demo.repl.dispatch_full("/app.kill prbe")
             with patch("builtins.input", return_value="n"):
                 declined = cli_demo.repl.dispatch_full("/app.kill probe")
+            still_running = child.poll() is None
             with patch("builtins.input", return_value="y"):
-                stopped = cli_demo.repl.dispatch_full("/app.kill probe")
+                stopped = cli_demo.repl.dispatch_full("/app.kill others")
 
             # Assert
             assert typo.error == "No running termapy matches prbe -- did you mean probe?"
             assert (declined.success, declined.error) == (False, "Nothing stopped.")
+            assert still_running, "a no left the other session running"
             assert stopped.success, stopped.error
-            assert child.wait(timeout=10) is not None, "the session's process has exited"
+            assert child.wait(timeout=10) is not None, "the other session's process has exited"
+            assert cli_demo._exit_requested is False, "others left this session running"
 
 
 @pytest.fixture

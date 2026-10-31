@@ -101,6 +101,26 @@ class TestZeroConfigWelcomeBanner:
         assert "/help" in result.stdout, f"should mention /help; stdout: {result.stdout!r}"
 
 
+class TestZeroConfigOneShot:
+    """A one-shot prints only what its command prints, config or no config."""
+
+    def test_exec_prints_no_welcome(self):
+        """-e with no config runs the command without the welcome banner, as with a config.
+
+        Found 2026-10-31: ``termapy -e /port.usb`` printed "No config
+        found", the port list and the connect hints before the tree.
+        """
+        # Act
+        result = _run_zero_config(args=["-e", "/print one-shot-output"])
+
+        # Assert
+        assert result.returncode == 0, f"stderr: {result.stderr!r}"
+        out = result.stdout
+        assert "one-shot-output" in out, f"the command ran; stdout: {out!r}"
+        assert "No config found" not in out, f"no welcome banner; stdout: {out!r}"
+        assert "Available ports:" not in out, f"no port list; stdout: {out!r}"
+
+
 class TestZeroConfigRunPreserved:
     """--run without an inferrable config still errors (not a zero-config case).
 

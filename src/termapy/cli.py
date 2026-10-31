@@ -662,12 +662,14 @@ class CLITerminal(TerminalHost):
         # user type /port.connect <name> to pick one.  Every other path --
         # a real config file, --demo, --run with an inferred config --
         # has a non-empty cfg["serial"]["port"] by contract, so the else branch
-        # here just connects as before.
+        # here just connects as before.  A one-shot (-e) prints only what
+        # its command prints, so it skips the welcome as it skips the
+        # hint and the on-connect commands below.
         if self.zero_config:
-            self._show_zero_config_welcome()
-        else:
-            if not self._connect():
-                sys.exit(1)
+            if not self.is_oneshot:
+                self._show_zero_config_welcome()
+        elif not self._connect():
+            sys.exit(1)
 
         # Show hint before on_connect_cmd so it appears first.  All
         # connect-time autorun (banner, on_connect_cmd) is gated on

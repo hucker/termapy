@@ -4072,6 +4072,9 @@ def _run_web_mode(args) -> None:
         f"  {DEFAULT_CMD_PREFIX}tui and {DEFAULT_CMD_PREFIX}cli mode switching are not available."
     )
     print(f"  {DEFAULT_CMD_PREFIX}help.open may not work in the browser.")
+    if args.web_host not in ("localhost", "127.0.0.1", "::1"):
+        print(f"  Open to the network at {args.web_host}. There is no login:")
+        print("  anyone who can reach this address can drive the port.")
     print("=" * 60)
     print()
 
@@ -4094,7 +4097,7 @@ def _run_web_mode(args) -> None:
     os.environ.setdefault("TERMAPY_GUI", "0")
     server = Server(
         " ".join(cmd_parts),
-        host="localhost",
+        host=args.web_host,
         port=args.web_port,
         title="Termapy",
     )

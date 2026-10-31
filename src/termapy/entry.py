@@ -71,6 +71,21 @@ class _OneCommand(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
+def _web_host(text: str) -> str:
+    """Read ``--web-host``: an address a browser can come back to, never a wildcard.
+
+    textual-serve builds the page's links from the address it listens on,
+    so ``0.0.0.0`` or ``::`` would listen everywhere and hand the browser
+    an address it cannot reach.
+    """
+    if text.strip("[]") in ("0.0.0.0", "::"):
+        raise argparse.ArgumentTypeError(
+            f"{text} listens everywhere but gives the browser no address to come "
+            "back to; give this machine's own address, e.g. 192.168.1.50"
+        )
+    return text
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser.  No side effects; pure construction."""
     parser = argparse.ArgumentParser(
@@ -192,6 +207,17 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=8000,
         help="Port for web server (default: 8000)",
+    )
+    parser.add_argument(
+        "--web-host",
+        type=_web_host,
+        default="localhost",
+        help=(
+            "Address the web server listens on (default: localhost, this machine "
+            "only). Give this machine's network address (e.g. 192.168.1.50) to "
+            "open it from another computer: there is no login, so anyone who can "
+            "reach it can drive the port"
+        ),
     )
     parser.add_argument(
         "--no-color",

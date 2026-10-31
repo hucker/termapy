@@ -2117,6 +2117,46 @@ class TestPlainFileHistory:
         assert actual == expected, "TUI plain-lines loader sees CLI entries"
 
 
+class TestWebHostFlag:
+    """--web-host chooses where the web server listens: this machine by default, a network address on request."""
+
+    def test_the_default_is_this_machine_only(self):
+        """Without --web-host the server listens on localhost, unreachable from other computers."""
+        # Arrange
+        from termapy.entry import _build_parser
+
+        # Act
+        args = _build_parser().parse_args(["--web"])
+
+        # Assert
+        assert args.web_host == "localhost"
+
+    def test_a_network_address_is_taken_as_given(self):
+        """A LAN address passes through, so a browser on another computer can reach the server."""
+        # Arrange
+        from termapy.entry import _build_parser
+
+        # Act
+        args = _build_parser().parse_args(["--web", "--web-host", "192.168.1.50"])
+
+        # Assert
+        assert args.web_host == "192.168.1.50"
+
+    @pytest.mark.parametrize("wildcard", ["0.0.0.0", "::", "[::]"])
+    def test_a_wildcard_is_refused_with_the_reason(self, wildcard, capsys):
+        """A listen-everywhere address is refused: the page would link back to an address no browser can reach."""
+        # Arrange
+        from termapy.entry import _build_parser
+
+        # Act
+        with pytest.raises(SystemExit) as exit_info:
+            _build_parser().parse_args(["--web", "--web-host", wildcard])
+
+        # Assert
+        assert exit_info.value.code == 2, "a usage error"
+        assert "give this machine's own address" in capsys.readouterr().err
+
+
 class TestWatchPortWidth:
     """Column widths: the port, mfg, description and chip floors grown to the fleet."""
 

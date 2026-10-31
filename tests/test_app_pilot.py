@@ -1415,6 +1415,63 @@ class TestMultilinePaste:
         _run(scenario)
 
 
+class TestRunLast:
+    """What the prompt keeps for /run.last: a line typed and Entered, never a pasted one."""
+
+    def test_enter_keeps_the_line_and_run_last_replays_it(self, app_factory):
+        """A line Entered at the prompt is kept, and /run.last 1 runs it again on screen."""
+
+        async def scenario():
+            from textual.widgets import Input
+
+            # Arrange
+            app, _, path = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                inp = app.query_one("#cmd", Input)
+                bar = app.query_one("#bottom-bar")
+
+                def kept() -> list[str]:
+                    return [line.text for line in app.repl.typed_lines.lines(path)]
+
+                # Act
+                inp.value = "/print typed-once"
+                inp.focus()
+                await pilot.pause()
+                await pilot.press("enter")
+                await until(pilot, lambda: kept() and not bar.disabled)
+                inp.value = "/run.last 1"
+                await pilot.pause()
+                await pilot.press("enter")
+                await until(pilot, lambda: app._get_screen_text().count("typed-once") == 4)
+
+                # Assert
+                actual = app._get_screen_text().count("typed-once")
+                assert actual == 4, "the echo and output of the typed line, then of its replay"
+                assert kept() == ["/print typed-once"], "the typed line is kept, /run.last is not"
+
+        _run(scenario)
+
+    def test_a_paste_is_not_kept(self, app_factory):
+        """The lines a paste runs are never kept, so /run.last never replays a paste."""
+
+        async def scenario():
+            # Arrange
+            app, _, path = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                _paste(app, "/print pasted-one\n/print pasted-two\n")
+                await until(pilot, lambda: "pasted-two" in app._get_screen_text())
+
+                # Assert
+                assert "pasted-two" in app._get_screen_text(), "the paste ran"
+                assert app.repl.typed_lines.lines(path) == [], "a paste feeds nothing"
+
+        _run(scenario)
+
+
 class _RaisingPort:
     """A SerialPort whose write() fails, e.g. the adapter is unplugged mid-send.
 

@@ -1547,6 +1547,7 @@ class TestDispatchCapabilities:
             "profile_loaded": "No profile loaded.",
             "symbols_loaded": "No symbols loaded.",
             "capture_idle": "Capture already active - use {prefix}cap.stop first.",
+            "script_idle": "Not available in a script.",
         }
 
     def test_no_config_answers_no_config_loaded(self, cap_env):

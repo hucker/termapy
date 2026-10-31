@@ -70,6 +70,42 @@ refused if it already exists (delete or pick a new name).  Add a `#`
 docstring at the top of the recorded file and it becomes self-describing
 in `/run.list` and `/run.help`.
 
+## Replaying what you typed: `/run.last`
+
+To run the last few commands again without retyping them or writing a
+script, list them with bare `/run.last`:
+
+```text
+demo> /run.last
+  typed in demo - 4 lines
+  #  COMMAND     RESULT
+  -  ----------  -----------------------
+  3  /port.info  ok
+  2  AT+VER      ok
+     /nosuch     Unknown command: nosuch
+  1  AT+STATUS   ok
+```
+
+`/run.last 2` runs lines 2 and 1 again, in the order you typed them. Each
+command is echoed as it runs, as `/run --echo` does; a device line echoes
+as your `echo` setting says, as it did when you typed it. Escape stops the
+replay, and so does the first line that fails. In the TUI, clicking a
+number puts `/run.last N` in the prompt for you to run.
+
+The list is what you typed, line for line. A typed `/run my_script` is one
+line: replaying it runs the script again, and the script runs its own
+steps. The lines inside a script are never listed, nor a paste, nor
+`/run.last` itself.
+
+`/run.last` is a convenience for the prompt, not a script command: a
+script that runs it is refused (`Not available in a script.`), and so is
+a replay inside a replay.
+
+Only a line that succeeded gets a number. A failed one is listed with its
+error and never replays: fix it from the Up-arrow history instead. Each
+config keeps its own list while termapy runs; a restart starts every list
+empty.
+
 ## Script commands
 
 | Command | Description |

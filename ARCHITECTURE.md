@@ -196,6 +196,7 @@ src/termapy/
 ├── terminal_host.py        #              Base class for the TUI, CLI and MCP frontends: builds the PluginContext, owns the one TX path
 ├── title_bar.py            #              Title-bar rendering for the TUI App
 ├── tree_render.py          #              Render a 2-level file tree with box-drawing connectors
+├── typed_lines.py          #              The lines typed at the prompt, in order, per config: what `/run.last` replays
 ├── update_check.py         #              Background PyPI update check for termapy
 ├── usb_tree.py             #              Enumerate the whole USB tree, not just the ports that carry a UART
 ├── variables.py            #              Variable engine: the `$(NAME)` namespace, storage, and expansion
@@ -1021,6 +1022,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_request_response.py            | Tests for `termapy.request_response.request_response`                                                                                              |
 | test_resolve_config.py              | Tests for resolve_config - command-line config resolution chain                                                                                    |
 | test_run_docstring.py               | Tests for the .run-file docstring parser (termapy.run_docstring)                                                                                   |
+| test_run_last.py                    | Tests for /run.last -- list the lines typed at the prompt, and replay the newest of them                                                           |
 | test_run_record.py                  | Tests for /run.record -- session capture to a .run file                                                                                            |
 | test_scripting.py                   | Tests for termapy.scripting - pure functions, no serial or Textual needed                                                                          |
 | test_search_markup.py               | Regression tests for /search and cli output rendering markup-safety                                                                                |
@@ -1050,6 +1052,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_title_bar.py                   | Regression tests for title_bar.update_port with a read-only cfg                                                                                    |
 | test_title_tooltip.py               | Tests for the title-bar tooltip formatters (pure string logic)                                                                                     |
 | test_tree_render.py                 | Unit tests for `termapy.tree_render` (the `FileTree` renderer)                                                                                     |
+| test_typed_lines.py                 | Tests for typed_lines -- the lines typed at the prompt, per config, that /run.last replays                                                         |
 | test_update_check.py                | Tests for update_check.check and its bail-out paths                                                                                                |
 | test_usage_error.py                 | Dispatch-level tests for the UsageError mechanism                                                                                                  |
 | test_usb_mfg.py                     | Tests for termapy.usb.aliases -- USB manufacturer alias folding                                                                                    |

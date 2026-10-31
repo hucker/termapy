@@ -94,9 +94,14 @@ def _is_recording() -> bool:
 
 
 # A session's first and last line in each session log it writes, the TUI's
-# and MCP's alike.  A start with no end is a session that did not end cleanly.
+# and MCP's alike.  A log whose last marker is a start (this one or Log
+# Started) is a session that did not end cleanly.
 SESSION_START: Final[str] = f"{' Session Start ':-^60s}"
 SESSION_END: Final[str] = f"{' Session End ':-^60s}"
+# The two ends of a gap inside a session: /log.stop writes the first before
+# the TUI lets go of its log, /log.start the second when it opens it again.
+LOG_STOPPED: Final[str] = f"{' Log Stopped ':-^60s}"
+LOG_STARTED: Final[str] = f"{' Log Started ':-^60s}"
 
 
 class TerminalHost:
@@ -459,7 +464,8 @@ class TerminalHost:
             # Which file this frontend's session log is: one owner, the
             # host's session_log_path (registry session-log-one-owner).
             session_log_path=lambda: self.session_log_path(),
-            close_session_log=lambda: self._close_session_log(),
+            start_session_log=lambda: self._start_session_log(),
+            stop_session_log=lambda: self._stop_session_log(),
             # How this frontend opens a file for editing (/edit decides which).
             edit_file=lambda path: self._edit_file(path),
             # What this frontend refreshes when a command deletes files.
@@ -975,9 +981,18 @@ class TerminalHost:
         """
         return None
 
-    def _close_session_log(self) -> None:
-        """Let go of the session log file before ``/log.delete`` removes it.
+    def _start_session_log(self) -> bool:
+        """``/log.start``: write the session log again; False when it already is.
 
-        A host that keeps the file open (the TUI) closes it here; the
-        default holds nothing open.
+        Only a host whose log can be stopped (the TUI) has anything to
+        start; the default's log never stops.
         """
+        return False
+
+    def _stop_session_log(self) -> bool:
+        """``/log.stop`` and ``/log.delete``: let go of the log until ``/log.start``.
+
+        False when it was already stopped.  A host that keeps the file
+        open (the TUI) closes it here; the default holds nothing open.
+        """
+        return False

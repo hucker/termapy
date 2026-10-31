@@ -5,6 +5,8 @@
 * ``/log.fingerprint`` -- write a provenance fingerprint to the log
 * ``/log.list``        -- the log as a one-row file list (``/help log`` ends with it)
 * ``/log.show``        -- open the log in the system viewer
+* ``/log.start``       -- write the log again after ``/log.stop``
+* ``/log.stop``        -- stop writing the log; the file stays
 
 "The session log" is the frontend's own: the TUI's ``<cfg>.log`` (or
 ``log_file``), the MCP server's ``mcp/session.log``, and none in the CLI.
@@ -327,28 +329,71 @@ _SHOW_LONG_HELP = (
 )
 
 
+# ── /log.start, /log.stop ─────────────────────────────────────────────────────
+
+
+def _handler_start(ctx: PluginContext, args: str) -> CmdResult:
+    """Write the session log again after /log.stop or /log.delete; the frontend opens it."""
+    path = ctx.internal.session_log_path()
+    assert path is not None, "log.start declares session_log"
+    try:
+        started = ctx.internal.start_session_log()
+    except OSError as e:
+        return CmdResult.fail(msg=f"Log error: {e}")
+    ctx.io.result(f"Log started: {path}" if started else f"Log already running: {path}")
+    return CmdResult.ok(value=path)
+
+
+_START_HELP = "Write the session log again after {prefix}log.stop or {prefix}log.delete."
+_START_LONG_HELP = (
+    "Opens the session log again, appending to it from a 'Log Started'\n"
+    "line, or begins a new file after {prefix}log.delete.  Running it while\n"
+    "the log is being written changes nothing and says so."
+)
+
+
+def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
+    """Stop writing the session log until /log.start; the frontend closes it, the file stays."""
+    path = ctx.internal.session_log_path()
+    assert path is not None, "log.stop declares session_log"
+    stopped = ctx.internal.stop_session_log()
+    ctx.io.result(f"Log stopped: {path}" if stopped else "Log already stopped.")
+    return CmdResult.ok(value=path)
+
+
+_STOP_HELP = "Stop writing the session log until {prefix}log.start."
+_STOP_LONG_HELP = (
+    "Writes a 'Log Stopped' line, closes the session log and writes\n"
+    "nothing to it until {prefix}log.start, a config switch included.  The\n"
+    "file stays.  It lasts for this session: the next start of termapy\n"
+    "logs as usual.  Not over MCP: an agent cannot pause the log of\n"
+    "what it did."
+)
+
+
 # ── /log.delete ───────────────────────────────────────────────────────────────
 
 
 def _handler_delete(ctx: PluginContext, args: str) -> CmdResult:
-    """Delete the session log file; the frontend lets go of it first."""
+    """Delete the session log file; the frontend stops the log first, and it stays stopped."""
     path = ctx.internal.session_log_path()
     assert path is not None, "log.delete declares session_log"
     if not path.exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
-    ctx.internal.close_session_log()
+    ctx.internal.stop_session_log()
     try:
         path.unlink()
     except OSError as e:
         return CmdResult.fail(msg=f"Delete failed: {e}")
-    ctx.io.result(f"Deleted {path.name}")
+    ctx.io.result(f"Deleted {path.name}; {ctx.prefix}log.start begins a new one")
     # The deleted path, so a script can log or confirm it.
     return CmdResult.ok(value=path)
 
 
 _DELETE_HELP = "Delete the session log file."
 _DELETE_LONG_HELP = (
-    "Removes the session log from disk (the TUI closes it first).  Not\n"
+    "Removes the session log from disk.  The TUI stops the log first,\n"
+    "and it stays stopped until {prefix}log.start begins a new file.  Not\n"
     "over MCP: an agent cannot erase the log of what it did.  The CLI\n"
     "keeps no session log, so it has no {prefix}log commands."
 )
@@ -358,7 +403,7 @@ _DELETE_LONG_HELP = (
 COMMAND = Command(
     group="terminal",
     name="log",
-    help="Session log: print, fingerprint, or open it.",
+    help="Session log: start, stop, print, fingerprint, or open it.",
     # Bare /log does what the Log button does: open the session log.
     bare_sub="show",
     help_list="list",
@@ -408,6 +453,24 @@ COMMAND = Command(
             handler=_handler_show,
             shows=True,
             needs=CapabilitySet(session_log=True, config_loaded=True, gui_apps=True),
+        ),
+        "start": Command(
+            args="",
+            help=_START_HELP,
+            long_help=_START_LONG_HELP,
+            handler=_handler_start,
+            # Interactive like /log.stop, the command it undoes: over MCP the
+            # log is never stopped.
+            needs=CapabilitySet(session_log=True, config_loaded=True, interactive=True),
+            safety="mutable",
+        ),
+        "stop": Command(
+            args="",
+            help=_STOP_HELP,
+            long_help=_STOP_LONG_HELP,
+            handler=_handler_stop,
+            needs=CapabilitySet(session_log=True, config_loaded=True, interactive=True),
+            safety="mutable",
         ),
     },
 )

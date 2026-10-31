@@ -404,9 +404,10 @@ class TestSessionLog:
         assert log_path is not None and log_path.name == "session.log"
         assert Path(named["value"]) == log_path.resolve(), "$(CFG.LOG_FILE) is the same file"
 
-    def test_an_agent_cannot_delete_its_log(self, host):
-        """/log.delete needs an interactive session: an agent cannot erase the log of what it did."""
-        result = asyncio.run(host.run_command_async("/log.delete", "normal", 5.0))
+    @pytest.mark.parametrize("command", ["log.delete", "log.stop", "log.start"])
+    def test_an_agent_cannot_delete_or_pause_its_log(self, host, command):
+        """/log.delete, /log.stop and /log.start need an interactive session: an agent cannot erase or pause the log of what it did."""
+        result = asyncio.run(host.run_command_async(f"/{command}", "normal", 5.0))
         assert result["success"] is False
         assert "interactive" in result["error"]
 

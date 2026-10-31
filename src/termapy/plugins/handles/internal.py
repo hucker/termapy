@@ -159,10 +159,13 @@ class InternalHandle:
     # session log to (TUI <cfg>.log or log_file, MCP mcp/session.log), or
     # None where it keeps none (CLI).  The one answer to "which log": every
     # /log.* command, $(CFG.LOG_FILE) and /cfg.info read it (registry
-    # session-log-one-owner).  close_session_log() lets go of the file
-    # before /log.delete removes it (the TUI holds it open).
+    # session-log-one-owner).  stop_session_log() -> bool lets go of the
+    # file until start_session_log() -> bool opens it again, each False when
+    # the log already was in that state; /log.delete stops it first, since
+    # the TUI holds it open.
     session_log_path: Callable = lambda: None
-    close_session_log: Callable = lambda: None
+    start_session_log: Callable = lambda: False
+    stop_session_log: Callable = lambda: False
 
     # edit_file(path) -> None: open a project file for editing, this
     # frontend's way: the TUI's own editor for a config, .run or .pro file,

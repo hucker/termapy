@@ -604,16 +604,17 @@ class TestEnsureHelpServer:
 
 
 class _LoggingHost(_StubHost):
-    """A host whose session log is ``log_file`` (None: keeps none), recording when it lets go of it."""
+    """A host whose session log is ``log_file`` (None: keeps none), recording when it stops it."""
 
     log_file: Path | None = None
-    closes: int = 0
+    stops: int = 0
 
     def session_log_path(self) -> Path | None:
         return self.log_file
 
-    def _close_session_log(self) -> None:
-        self.closes += 1
+    def _stop_session_log(self) -> bool:
+        self.stops += 1
+        return True
 
 
 class TestLogDelete:
@@ -643,7 +644,7 @@ class TestLogDelete:
         assert (result.success, result.error) == (False, f"Log file not found: {log_file}")
 
     def test_deletes_the_frontends_log_after_letting_go_of_it(self, host, tmp_path):
-        """The frontend's log is closed, then removed, and the deleted path is the value."""
+        """The frontend's log is stopped, then removed, and the deleted path is the value."""
         # Arrange
         log_file = tmp_path / "session.log"
         log_file.write_text("session log data")
@@ -654,7 +655,7 @@ class TestLogDelete:
         # Assert
         assert result.success, result.error
         assert not log_file.exists(), "log file deleted"
-        assert logging_host.closes == 1, "the frontend let go of the file first"
+        assert logging_host.stops == 1, "the frontend stopped the log first, and it stays stopped"
         assert result.value == str(log_file.resolve())
 
     def test_a_delete_the_os_refuses_fails_with_its_reason(self, host, tmp_path):

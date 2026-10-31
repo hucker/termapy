@@ -186,6 +186,7 @@ class TestPortsJsonShape:
             "manufacturer_raw",
             "vendor",
             "description",
+            "product",
             "chip",
             "speed",
             "vid",
@@ -774,6 +775,65 @@ class TestVendorLookup:
 
 
 # ── Interface column behavior in port_format ──────────────────────────────────
+
+
+class TestProductColumn:
+    """PRODUCT is what the device calls itself, beside the driver's DESCRIPTION and termapy's CHIP."""
+
+    def test_the_cell_is_folded_to_ascii(self):
+        """A trademark sign in the device's name is dropped from the cell, as the USB tree drops it."""
+        # Arrange
+        from termapy.port_format import row_from_facts
+
+        # Act
+        _, row = row_from_facts(_make_facts(product="MPLAB\u00ae PICkit 5"))
+
+        # Assert
+        assert row["product"] == "MPLAB PICkit 5"
+
+    def test_the_json_record_keeps_the_name_as_reported(self):
+        """The --json record carries the product string unfolded, sign included."""
+        # Arrange
+        from termapy.port_format import facts_to_json_record
+
+        # Act
+        actual = facts_to_json_record(_make_facts(product="MPLAB\u00ae PICkit 5"))["product"]
+
+        # Assert
+        assert actual == "MPLAB\u00ae PICkit 5", "a consumer gets the device's own text"
+
+    def test_the_column_vanishes_when_no_device_reports_one(self):
+        """When no port has a product string, as for built-in COM ports, the column is omitted."""
+        # Arrange
+        from termapy.port_format import active_columns, row_from_facts
+
+        rows = [
+            row_from_facts(_make_facts(device="COM1", product=None)),
+            row_from_facts(_make_facts(device="COM2", product=None)),
+        ]
+
+        # Act
+        actual = active_columns(rows)
+
+        # Assert
+        assert "product" not in actual, "nothing to show means no column"
+
+    def test_the_column_appears_when_any_device_reports_one(self):
+        """One port with a product string keeps the column, with ? for the ports that have none."""
+        # Arrange
+        from termapy.port_format import active_columns, row_from_facts
+
+        rows = [
+            row_from_facts(_make_facts(device="COM1", product=None)),
+            row_from_facts(_make_facts(device="COM7", product="FT232R USB UART")),
+        ]
+
+        # Act
+        columns = active_columns(rows)
+
+        # Assert
+        assert "product" in columns, "kept when any row has a product"
+        assert rows[0][1]["product"] == "?", "a port without one shows the unknown marker"
 
 
 class TestInterfaceColumn:

@@ -838,6 +838,8 @@ import os  # noqa: E402
 import pytest  # noqa: E402
 
 from termapy.port_control import (  # noqa: E402
+    _BUS_REPORTED_DEVICE_DESC,
+    _DEVICE_ID_SEP,
     _RESERVED_PORTS,
     MATCH_AMBIGUOUS,
     MATCH_LITERAL,
@@ -848,8 +850,11 @@ from termapy.port_control import (  # noqa: E402
     ChipFacts,
     _build_demo_fleet,
     _check_in_use,
+    _devpropkey,
     _gather_all_chip_facts,
+    _is_usb_device_node,
     _windows_location_chain,
+    _windows_usb_product,
     chip_field,
     chip_info,
     gather_chip_facts,
@@ -1518,6 +1523,63 @@ class TestWindowsLocationChain:
         assert actual == "1-8.3", f"no interface, no suffix; got {actual!r}"
 
 
+class TestWindowsUsbProduct:
+    """The device's own product name comes from the USB device node, never from an interface's.
+
+    Found 2026-10-31: a PICkit 5's serial interface reports the placeholder
+    USB_DEVICE_CDC_NAME, while the device itself reports MPLAB PICkit 5.
+    """
+
+    @pytest.mark.parametrize(
+        ("parts", "vid_pid", "expected"),
+        [
+            (["USB", "VID_04D8&PID_9036", "020026702RYN040952"], "04D8:9036", True),
+            (["USB", "VID_04D8&PID_9036&MI_01", "6&1C949859&0&0001"], "04D8:9036", False),
+            (["FTDIBUS", "VID_0403+PID_6001+BG03U7VTA", "0000"], "0403:6001", False),
+            (["USB", "VID_0403&PID_6001", "BG03U7VT"], "0403:6001", True),
+            (["USB", "VID_0BDA&PID_5487", "5&2D5D2A&0&2"], "04D8:9036", False),
+            (["usb", "vid_04d8&pid_9036", "020026702RYN040952"], "04d8:9036", True),
+            (["USB", "VID_04D8&PID_9036"], "04D8:9036", False),
+        ],
+        ids=[
+            "the device",
+            "an interface of it",
+            "the FTDI bus node",
+            "the FTDI device above it",
+            "a hub above it",
+            "any case",
+            "no instance part",
+        ],
+    )
+    def test_only_the_device_node_answers(self, parts, vid_pid, expected):
+        """The climb stops at USB plus the port's VID and PID with no interface, nowhere else."""
+        # Act
+        actual = _is_usb_device_node(_DEVICE_ID_SEP.join(parts), vid_pid)
+
+        # Assert
+        assert actual == expected
+
+    def test_the_property_key_is_laid_out_as_windows_reads_it(self):
+        """The DEVPROPKEY is 20 bytes: the GUID with its first fields little-endian, then the id."""
+        # Act
+        actual = _devpropkey(*_BUS_REPORTED_DEVICE_DESC)
+
+        # Assert -- devpkey.h's {540b947e-...}: Data1 0x540B947E lands
+        # byte-reversed, the last eight GUID bytes as written, id 4 last
+        assert len(actual) == 20, "a 16-byte GUID and a 4-byte property id"
+        assert actual[:4] == bytes([0x7E, 0x94, 0x0B, 0x54]), "Data1 little-endian"
+        assert actual[8:16] == bytes([0xA8, 0xA2, 0x6A, 0x0B, 0x89, 0x4C, 0xBD, 0xA2])
+        assert actual[16:] == bytes([4, 0, 0, 0]), "property id 4, little-endian"
+
+    def test_an_unknown_device_yields_no_product(self):
+        """An unknown device, or no Windows bindings, yields None rather than raising."""
+        # Act
+        actual = _windows_usb_product("NOSUCHDEVICE", "04D8:9036")
+
+        # Assert
+        assert actual is None, f"enrichment degrades to blank; got {actual!r}"
+
+
 class TestSplitLocationInterface:
     """A location carries two facts; they belong in two fields.
 
@@ -1607,6 +1669,7 @@ class TestListPortRecords:
             "manufacturer_raw",
             "vendor",
             "description",
+            "product",
             "chip",
             "speed",
             "vid",

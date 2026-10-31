@@ -356,3 +356,20 @@ class TestReaderTeardown:
         )
         assert engine.port_obj is new_port, "the new handle must still be installed"
         assert getattr(new_port, "is_open", False) is True, "new port stays open"
+
+
+class TestAdapterIdentity:
+    """hw_loopback: what the real adapter says about itself reaches the port facts."""
+
+    def test_the_adapter_reports_its_own_product_name(self, loopback_device):
+        """The adapter's product string is read on every OS; on Windows through the climb past FTDIBUS."""
+        # Arrange
+        from termapy.port_control import gather_chip_facts
+
+        # Act
+        facts = gather_chip_facts(loopback_device, fast=True, enrich=True)
+
+        # Assert -- pyserial reads it on Linux and macOS; on Windows only
+        # the devnode climb to the USB device node finds it
+        assert facts is not None, f"{loopback_device} is listed"
+        assert facts.product, "the device's own product string reaches the facts"

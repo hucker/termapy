@@ -324,10 +324,10 @@ def _clean_desc(raw: str | None) -> str | None:
     """
     if not raw:
         return None
-    return _ascii_fold(raw.rsplit(";", 1)[-1].strip()) or None
+    return ascii_fold(raw.rsplit(";", 1)[-1].strip()) or None
 
 
-def _ascii_fold(text: str) -> str:
+def ascii_fold(text: str) -> str:
     """Best-effort ASCII rendering of an OS-supplied string.
 
     Decomposes accents and drops what will not encode, so a name stays

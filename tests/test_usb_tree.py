@@ -22,10 +22,10 @@ from termapy.usb_tree import (
     UnsupportedPlatform,
     UsbNode,
     UsbRecord,
-    _ascii_fold,
     _clean_desc,
     _linux_records,
     _parent_path,
+    ascii_fold,
     build_tree,
     gather_usb_tree,
     render_tree,
@@ -330,7 +330,7 @@ class TestDescriptions:
         """Registered and trademark signs are removed, not expanded into the letters TM."""
         # Act -- NFKD alone expands a trademark sign into the letters
         # "TM", which reads worse than removing it.
-        actual = _ascii_fold("MPLAB® PICkit™5")
+        actual = ascii_fold("MPLAB® PICkit™5")
 
         # Assert
         assert actual == "MPLAB PICkit5", f"reads the way it is said; got {actual!r}"
@@ -338,7 +338,7 @@ class TestDescriptions:
     def test_accents_fold_rather_than_vanish(self):
         """Accented letters fold to their ASCII base so names stay readable and findable."""
         # Act
-        actual = _ascii_fold("Café Widget")
+        actual = ascii_fold("Café Widget")
 
         # Assert -- dropping the letter would corrupt the name; folding
         # keeps it findable.

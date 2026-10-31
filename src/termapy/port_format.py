@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 from termapy.matching import matches
 from termapy.port_control import CHIP_FIELD_LABELS
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, mfg as _mfg_alias
+from termapy.usb_tree import ascii_fold
 
 if TYPE_CHECKING:
     from termapy.port_control import ChipFacts
@@ -46,7 +47,7 @@ _EMPTY = "?"
 
 
 # Column order, left to right.  Optional columns (``sn``, ``driver``,
-# ``vendor``, ``location``) are conditionally hidden via
+# ``vendor``, ``product``, ``location``) are conditionally hidden via
 # ``active_columns`` when every row is blank, so platforms that don't
 # populate them (e.g. macOS for ``driver``, non-USB ports for
 # ``vendor``) just don't show them.
@@ -55,6 +56,7 @@ PORT_COLUMNS: tuple[str, ...] = (
     "manufacturer",
     "vendor",
     "description",
+    "product",
     "chip",
     "speed",
     "vid_pid",
@@ -73,6 +75,10 @@ COLUMN_HEADERS: dict[str, str] = {
     "manufacturer": "MFG",
     "vendor": "VENDOR",
     "description": "DESCRIPTION",
+    # What the device calls itself (its USB product string), beside the
+    # name a driver gave the port in DESCRIPTION and termapy's table name
+    # in CHIP.  Labelled as on the /port.chip page, like the serial number.
+    "product": CHIP_FIELD_LABELS["product"].upper(),
     "chip": "CHIP",
     "speed": "SPEED",
     "vid_pid": "VID:PID",
@@ -81,9 +87,10 @@ COLUMN_HEADERS: dict[str, str] = {
     "sn": CHIP_FIELD_LABELS["serial"].upper(),
     "driver": "DRIVER",
     "location": "LOCATION",
-    # Two chars wide: bInterfaceNumber, present only for a device that
-    # exposes more than one function.  Its own column so LOCATION holds
-    # nothing but the physical path and reads the same on every row.
+    # Two chars wide: bInterfaceNumber, present for a composite device --
+    # one with several functions, or a firmware USB stack (TinyUSB) that
+    # declares even a lone serial port that way.  Its own column so
+    # LOCATION holds nothing but the physical path on every row.
     "interface_number": "IF",
 }
 
@@ -110,6 +117,7 @@ DROP_ORDER: tuple[str, ...] = (
     "vid_pid",
     "driver",
     "vendor",
+    "product",
     "sn",
     "interface_number",
     "location",
@@ -138,6 +146,9 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     if not description:
         description = "Serial port"
 
+    # Folded to ASCII for the console, as the USB tree folds its names
+    # ("MPLAB(R) PICkit 5" drops the sign); the JSON record keeps it as given.
+    product = ascii_fold(facts.product or "") or _EMPTY
     chip = facts.model if facts.model and facts.model != "unknown" else _EMPTY
 
     speed = _EMPTY
@@ -155,7 +166,7 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     # consistent ("Silicon Labs" -> "SiLabs", "Microchip" -> "Microchip").
     vendor = _mfg_alias(facts.vendor) or _EMPTY
     location = facts.location or _EMPTY
-    # Blank, not "?": a single-function device has no interface to name,
+    # Blank, not "?": a non-composite device has no interface to name,
     # which is different from one whose interface we failed to read.
     interface_number = facts.interface_number or ""
 
@@ -164,6 +175,7 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
         "manufacturer": manufacturer,
         "vendor": vendor,
         "description": description,
+        "product": product,
         "chip": chip,
         "speed": speed,
         "vid_pid": vid_pid,
@@ -247,6 +259,8 @@ def facts_to_json_record(facts: ChipFacts) -> dict:
         "manufacturer_raw": raw_mfg,
         "vendor": facts.vendor,
         "description": facts.description,
+        # The device's own product string, as reported: what it calls itself.
+        "product": facts.product,
         "chip": facts.model if facts.model and facts.model != "unknown" else None,
         "speed": _normalize_speed(facts.usb_speed),
         "vid": vid,
@@ -261,11 +275,11 @@ def facts_to_json_record(facts: ChipFacts) -> dict:
         # Windows registry's "Hub_#0011.Port_#0003" when the topology
         # can't be read.
         "location": facts.location,
-        # bInterfaceNumber, for a device exposing more than one function
-        # (a debugger with a CDC port alongside it, or one channel of a
-        # multi-port FTDI chip).  null when there is nothing to
-        # disambiguate.  Kept separate from location so that field is
-        # always just the path.
+        # bInterfaceNumber, for a composite device (a debugger with a CDC
+        # port alongside it, one channel of a multi-port FTDI chip, or a
+        # TinyUSB board whose serial port is its only function).  null
+        # for a non-composite device.  Kept separate from location so
+        # that field is always just the path.
         "interface_number": facts.interface_number,
     }
 
@@ -291,7 +305,7 @@ def _normalize_speed(usb_speed: str | None) -> str | None:
 def active_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
     """Drop purely-blank optional columns from the display list.
 
-    ``sn``, ``driver``, ``vendor``, ``location`` and
+    ``sn``, ``driver``, ``vendor``, ``product``, ``location`` and
     ``interface_number`` are optional: if
     every port reports ``?`` for one of them (common on built-in
     COM1/stock adapters, on macOS where ``driver`` isn't gathered
@@ -301,7 +315,7 @@ def active_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
     ports but are informative enough to always show.
     """
     cols = list(PORT_COLUMNS)
-    optional = ("sn", "driver", "vendor", "location", "interface_number")
+    optional = ("sn", "driver", "vendor", "product", "location", "interface_number")
     for col in optional:
         if rows and all(not row[col] or row[col] == _EMPTY for _, row in rows):
             cols.remove(col)

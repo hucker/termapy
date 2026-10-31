@@ -21,7 +21,7 @@ import re
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 from termapy.defaults import (
     VALID_BYTE_SIZES,
@@ -438,8 +438,8 @@ class ChipFacts:
     serial: str | None = None
     location: str | None = None
     # bInterfaceNumber, split out of the location string so ``location``
-    # is the physical path and nothing else.  Only multi-function
-    # devices have one -- see ``split_location_interface``.
+    # is the physical path and nothing else.  Only composite devices
+    # have one -- see ``split_location_interface``.
     interface_number: str | None = None
     interface: str | None = None
     vid_pid: str | None = None
@@ -627,22 +627,48 @@ _DEVICE_ID_SEP = "\\"
 _CM_LOCATE_DEVNODE_NORMAL = 0
 _CM_DRP_LOCATION_PATHS = 0x24
 _CR_SUCCESS = 0
+# DEVPKEY_Device_BusReportedDeviceDesc (devpkey.h): the string the device
+# itself reports, as the (GUID, property id) pair ``_devpropkey`` lays out.
+_BUS_REPORTED_DEVICE_DESC = ("540b947e-8b40-45bc-a8a2-6a0b894cbda2", 4)
+_DEVPROP_TYPE_STRING = 0x12
+
+
+def _devpropkey(guid: str, pid: int) -> bytes:
+    """A DEVPROPKEY as it sits in memory: the GUID in Windows' little-endian layout, then the id."""
+    import uuid
+
+    return uuid.UUID(guid).bytes_le + pid.to_bytes(4, "little")
+
+
 # USB allows at most 7 tiers of hubs, so the node that knows the topology
 # is always a few hops up.  Bound the walk anyway.
 _MAX_DEVNODE_HOPS = 8
 
 
+class _CfgMgr32(NamedTuple):
+    """The cfgmgr32 calls the devnode walks use, with the ctypes types they take."""
+
+    ctypes: Any
+    DWORD: Any
+    ULONG: Any
+    locate: Any
+    get_parent: Any
+    get_prop: Any
+    get_id: Any
+    get_devprop: Any
+
+
 @functools.lru_cache(maxsize=1)
-def _cfgmgr32():
-    """Bind the three cfgmgr32 calls the location walk needs, once.
+def _cfgmgr32() -> _CfgMgr32 | None:
+    """Bind the cfgmgr32 calls the devnode walks need, once.
 
     Lazy and cached because ``port_control`` sits on the CLI's fast path
     (``termapy --ports`` exists to be quick), so the DLL is not loaded
-    unless a Windows location is actually asked for.
+    unless a Windows location or product name is actually asked for.
 
     Returns:
-        A tuple of (ctypes, DWORD, ULONG, locate, get_parent, get_prop),
-        or None off Windows or if the bindings cannot be made.
+        The bound calls, or None off Windows or if the bindings cannot
+        be made.
     """
     if sys.platform != "win32":
         return None
@@ -667,7 +693,20 @@ def _cfgmgr32():
             ULONG,
         ]
         get_prop.restype = ctypes.c_long
-        return ctypes, DWORD, ULONG, locate, get_parent, get_prop
+        get_id = cfgmgr.CM_Get_Device_IDW
+        get_id.argtypes = [DWORD, PWCHAR, ULONG, ULONG]
+        get_id.restype = ctypes.c_long
+        get_devprop = cfgmgr.CM_Get_DevNode_PropertyW
+        get_devprop.argtypes = [
+            DWORD,
+            ctypes.c_void_p,
+            ctypes.POINTER(ULONG),
+            ctypes.c_void_p,
+            ctypes.POINTER(ULONG),
+            ULONG,
+        ]
+        get_devprop.restype = ctypes.c_long
+        return _CfgMgr32(ctypes, DWORD, ULONG, locate, get_parent, get_prop, get_id, get_devprop)
     except (ImportError, OSError, AttributeError):
         return None
 
@@ -731,10 +770,12 @@ def split_location_interface(location: str | None) -> tuple[str | None, str | No
 
     Every backend spells a location the same way -- ``bus-port.port``,
     with an optional ``:<config>.<interface>`` tail naming one function
-    of a multi-function device.  Only devices that HAVE more than one
-    function carry the tail, so the raw string changes shape from row to
-    row: a plain adapter reads ``1-8.3`` while a debugger with a CDC
-    function alongside it reads ``1-8.4:x.1``.
+    of a composite device.  Only composite devices carry the tail: one
+    with several functions, or a firmware USB stack (TinyUSB) that
+    declares even a lone serial port that way, which then reads
+    interface 0.  So the raw string changes shape from row to row: a
+    plain adapter reads ``1-8.3`` while a debugger with a CDC function
+    alongside it reads ``1-8.4:x.1``.
 
     Splitting here means the two facts are displayed in their own
     columns, so every location cell holds the same kind of value and
@@ -752,7 +793,7 @@ def split_location_interface(location: str | None) -> tuple[str | None, str | No
 
     Returns:
         ``(path, interface_number)``; the second is None when the device
-        has nothing to disambiguate.
+        is not composite.
     """
     if not location:
         return None, None
@@ -781,7 +822,8 @@ def _windows_location_paths(device_id: str, *, walk: bool = True) -> str | None:
     bound = _cfgmgr32()
     if bound is None:
         return None
-    ctypes, DWORD, ULONG, locate, get_parent, get_prop = bound
+    ctypes, DWORD, ULONG = bound.ctypes, bound.DWORD, bound.ULONG
+    locate, get_parent, get_prop = bound.locate, bound.get_parent, bound.get_prop
     devinst = DWORD()
     located = locate(
         ctypes.byref(devinst),
@@ -838,6 +880,87 @@ def _windows_location_chain(device_id: str) -> str | None:
     """
     paths = _windows_location_paths(device_id)
     return parse_location_paths(paths) if paths else None
+
+
+def _is_usb_device_node(node_id: str, vid_pid: str) -> bool:
+    """True when a Windows device instance ID names the USB device ``vid_pid`` itself.
+
+    The device's ID is the bus ``USB``, then ``VID_04D8&PID_9036``, then
+    the instance.  An interface of it adds ``&MI_01`` to the middle part,
+    and a vendor bus such as FTDIBUS spells it ``VID_0403+PID_6001+...``,
+    so neither is the device.  Instance IDs are case-insensitive.
+
+    Args:
+        node_id: A device instance ID.
+        vid_pid: ``VID:PID`` in hex, e.g. ``"04D8:9036"``.
+
+    Returns:
+        Whether the node is that USB device.
+    """
+    parts = node_id.upper().split(_DEVICE_ID_SEP)
+    if len(parts) < 3 or ":" not in vid_pid:
+        return False
+    vid, pid = vid_pid.upper().split(":", 1)
+    return parts[0] == "USB" and parts[1] == f"VID_{vid}&PID_{pid}"
+
+
+def _windows_usb_product(device_id: str, vid_pid: str) -> str | None:
+    """Return the product name the USB device behind a Windows port reports.
+
+    pyserial reads this string (the device's iProduct) on Linux and
+    macOS, but on Windows reports only the names drivers give a port
+    ("USB Serial Device").  Windows keeps the device's own string as the
+    PnP property BusReportedDeviceDesc.  The port's node is often not
+    the device: an interface of a composite device (an ``&MI_01`` node)
+    or an FTDIBUS node.  So climb to the USB device node itself, the
+    first whose instance ID is the bus ``USB`` and ``VID_xxxx&PID_yyyy``
+    with no interface, as pyserial reads the device and
+    not the interface elsewhere.  An interface node holds its interface
+    string instead, which firmware can leave as a placeholder (the
+    PICkit 5's reads ``USB_DEVICE_CDC_NAME``).
+
+    Args:
+        device_id: Device instance ID of the port's node.
+        vid_pid: The port's ``VID:PID``, e.g. ``"04D8:9036"``.
+
+    Returns:
+        The device's product string, or None on any failure.  Best-effort
+        enrichment, never the reason a lookup fails.
+    """
+    bound = _cfgmgr32()
+    if bound is None:
+        return None
+    ctypes = bound.ctypes
+    devinst = bound.DWORD()
+    if (
+        bound.locate(
+            ctypes.byref(devinst),
+            ctypes.create_unicode_buffer(device_id),
+            _CM_LOCATE_DEVNODE_NORMAL,
+        )
+        != _CR_SUCCESS
+    ):
+        return None
+    for _ in range(_MAX_DEVNODE_HOPS):
+        node_id = ctypes.create_unicode_buffer(512)
+        if bound.get_id(devinst, node_id, len(node_id), 0) != _CR_SUCCESS:
+            return None
+        if _is_usb_device_node(node_id.value, vid_pid):
+            key = ctypes.create_string_buffer(_devpropkey(*_BUS_REPORTED_DEVICE_DESC))
+            value = ctypes.create_unicode_buffer(256)
+            size = bound.ULONG(ctypes.sizeof(value))
+            prop_type = bound.ULONG(0)
+            got = bound.get_devprop(
+                devinst, key, ctypes.byref(prop_type), value, ctypes.byref(size), 0
+            )
+            if got != _CR_SUCCESS or prop_type.value != _DEVPROP_TYPE_STRING:
+                return None
+            return value.value.strip() or None
+        parent = bound.DWORD()
+        if bound.get_parent(ctypes.byref(parent), devinst, 0) != _CR_SUCCESS:
+            return None
+        devinst = parent
+    return None
 
 
 def _windows_match_inst(
@@ -902,6 +1025,8 @@ def _windows_match_inst(
             facts.location = (
                 _windows_location_chain(device_id) if device_id else None
             ) or _windows_lookup_location(winreg_mod, inst_key)
+        if not facts.product and device_id and facts.vid_pid:
+            facts.product = _windows_usb_product(device_id, facts.vid_pid)
         return True
 
 

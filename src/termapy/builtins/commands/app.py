@@ -7,7 +7,7 @@ Termapy has two scopes of configuration: per-project (lives in
 
 Command surface:
 
-- ``/app.list``         list the files in the app folder(s), newest first
+- ``/app.list``         list the app folder(s): files and the running sessions
 - ``/app.explore``      open the app folder in the OS file manager
 - ``/app.state``        print ``state.json``'s path
 - ``/app.state.dump``   print ``state.json`` contents to the terminal
@@ -48,6 +48,7 @@ from termapy.app_dirs import (
 from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command
 from termapy.plugins.params import ParamSpec
+from termapy.plugins.views import counted
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -80,24 +81,72 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
 # ── /app.list ─────────────────────────────────────────────────────────────────
 
 
-def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List the files in the app folder, newest first: NAME, SIZE, UPDATED.
+_FILE_CELLS = {column.title: column for column in FILE_COLUMNS}
 
-    Every record is ``file_record`` plus ``folder``, the file's folder as a
-    full path, so a structured consumer learns where the files are on every
-    platform.  Windows and macOS keep state and config in one folder, which
-    is the table's title; Linux splits them (XDG_STATE_HOME vs
-    XDG_CONFIG_HOME), and then a FOLDER column shows it.  A folder that does
-    not exist yet lists as empty: listing creates nothing.
+
+def _entry_size(record: dict) -> str:
+    """A file's size, or for the ``running/`` folder the sessions it holds."""
+    if "sessions" in record:
+        return counted(record["sessions"], "session")
+    return _FILE_CELLS["SIZE"].cell(record)
+
+
+# The /app.list columns: the shared file columns, with NAME running each
+# entry's viewer and SIZE counting the sessions in running/.
+_LIST_COLUMNS = (
+    Column("NAME", lambda record: record["name"], run=lambda record: record["open"]),
+    Column("SIZE", _entry_size, right=True),
+    _FILE_CELLS["UPDATED"],
+)
+
+
+def _running_record() -> dict | None:
+    """The ``running/`` row, its size the live sessions in it; None before any session made it."""
+    folder = breadcrumbs.running_dir()
+    if not folder.is_dir():
+        return None
+    return {
+        **file_record(folder),
+        "name": f"{folder.name}/",
+        "bytes": None,
+        "folder": str(folder.parent),
+        "sessions": len(breadcrumbs.read_running()),
+        "open": "app.running",
+    }
+
+
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
+    """List the app folder, newest first: NAME, SIZE, UPDATED.
+
+    The files, each record ``file_record`` plus ``folder`` (its folder's
+    full path, so a structured consumer learns where the files are on
+    every platform) and ``open`` (the command a click on its name runs:
+    its ``.dump``, or the folder).  Ahead of them the ``running/`` folder of
+    session breadcrumbs, sized by how many sessions run, opening
+    ``/app.running``.  Windows and macOS keep state and config in one
+    folder, which is the table's title; Linux splits them (XDG_STATE_HOME
+    vs XDG_CONFIG_HOME), and then a FOLDER column shows it.  A folder that
+    does not exist yet lists as empty: listing creates nothing.
     """
+    viewers = {app_state_file().name: "app.state.dump", app_config_file().name: "app.config.dump"}
     folders = sorted({app_state_dir(), app_config_dir()})
     files = [file for folder in folders for file in list_entries(folder, "*")]
-    records = [{**file_record(file), "folder": str(file.parent)} for file in files]
-    names = "\n".join(file.name for file in files)
+    records = [
+        {
+            **file_record(file),
+            "folder": str(file.parent),
+            "open": viewers.get(file.name, "app.explore"),
+        }
+        for file in files
+    ]
+    running = _running_record()
+    if running is not None:
+        records.insert(0, running)
+    names = "\n".join(record["name"] for record in records)
     if len(folders) == 1:
-        return CmdResult.table(str(folders[0]), "file", FILE_COLUMNS, records, value=names)
-    columns = (*FILE_COLUMNS, Column("FOLDER", lambda record: record["folder"]))
-    return CmdResult.table("app folders", "file", columns, records, value=names)
+        return CmdResult.table(str(folders[0]), "item", _LIST_COLUMNS, records, value=names)
+    columns = (*_LIST_COLUMNS, Column("FOLDER", lambda record: record["folder"]))
+    return CmdResult.table("app folders", "item", columns, records, value=names)
 
 
 # ── /app.state ────────────────────────────────────────────────────────────────
@@ -395,7 +444,7 @@ COMMAND = Command(
             safety="destructive",
         ),
         "list": Command(
-            help="List the files in the app folder, newest first.",
+            help="List the app folder: its files and the running sessions, newest first.",
             handler=_handler_list,
             shows=True,
         ),

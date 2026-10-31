@@ -97,7 +97,13 @@ from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
-from termapy.terminal_host import SESSION_END, SESSION_START, TerminalHost
+from termapy.terminal_host import (
+    LOG_STARTED,
+    LOG_STOPPED,
+    SESSION_END,
+    SESSION_START,
+    TerminalHost,
+)
 from termapy.widgets import (
     LINK_META,
     CommandSuggester,
@@ -513,6 +519,9 @@ class SerialTerminal(TerminalHost, App):
         self._first_run = first_run
         self._initial_output_level = output_level
         self.log_fh = None
+        # Set by /log.stop (and /log.delete) until /log.start: no log is
+        # opened meanwhile, a config switch included.
+        self._log_stopped = False
         self.last_screenshot: str | None = None
         self.repl = ReplEngine(
             cfg,
@@ -994,7 +1003,7 @@ class SerialTerminal(TerminalHost, App):
         return session_log_file(self.cfg, self.config_path)
 
     def _close_session_log(self) -> None:
-        """Close the open log handle so ``/log.delete`` can remove the file.
+        """Close the open log handle: the session ends, or ``/log.stop`` lets go of it.
 
         ``_log_line`` tolerates a handle closed under it from a worker.
         """
@@ -1008,13 +1017,44 @@ class SerialTerminal(TerminalHost, App):
         The session leaves a log two ways, both while it is still open: the
         app exits (``on_unmount``) or a switch moves the session to another
         config's file (``_follow_session_log``).  So every ``Session Start``
-        has its ``Session End`` -- unless the session did not end cleanly,
-        which is what a start without an end then says.  ``/log.delete``
-        closes without one: the file is going.
+        has its ``Session End`` -- unless ``/log.stop`` closed the log
+        first, and its last line says ``Log Stopped``, or the session did
+        not end cleanly, which is what a start without an end then says.
         """
         if self.log_fh and not self.log_fh.closed:
             self._log_line("#", SESSION_END)
         self._close_session_log()
+
+    def _stop_session_log(self) -> bool:
+        """``/log.stop``: mark the gap, close the log, and keep it closed until ``/log.start``.
+
+        Returns False when it was already stopped.  ``/log.delete`` stops
+        it before removing the file, so a delete leaves it stopped too.
+        """
+        if self._log_stopped:
+            return False
+        self._log_stopped = True
+        if self.log_fh and not self.log_fh.closed:
+            self._log_line("#", LOG_STOPPED)
+        self._close_session_log()
+        return True
+
+    def _start_session_log(self) -> bool:
+        """``/log.start``: open the log again, appending, from a ``Log Started`` line.
+
+        Returns False when it was not stopped.  A file that cannot be
+        opened raises ``OSError`` with the log still stopped, for the
+        command to report.
+        """
+        if not self._log_stopped:
+            return False
+        self._log_stopped = False
+        try:
+            self._open_log(LOG_STARTED)
+        except OSError:
+            self._log_stopped = True
+            raise
+        return True
 
     def _on_app_prestart(self) -> None:
         """Open the session log, then show the VS Code tip, so startup is in the log.
@@ -1026,15 +1066,15 @@ class SerialTerminal(TerminalHost, App):
         self._open_log()
         self._maybe_show_vscode_tip()
 
-    def _open_log(self) -> None:
-        """Open the log file if a config is loaded and log isn't already open."""
-        if self.log_fh or not self.config_path:
+    def _open_log(self, marker: str = SESSION_START) -> None:
+        """Open the log file from a *marker* line if a config is loaded and the log is neither open nor stopped."""
+        if self.log_fh or self._log_stopped or not self.config_path:
             return
         log_path = self.session_log_path()
         if log_path is None:
             return
         self.log_fh = open(log_path, "a", encoding="utf-8")
-        self._log_line("#", SESSION_START)
+        self._log_line("#", marker)
 
     def _follow_session_log(self, previous: Path | None) -> None:
         """Move the session log to the config just switched to.
@@ -1328,7 +1368,7 @@ class SerialTerminal(TerminalHost, App):
         # see THIS session's lines, not the previous session's.  The log is
         # block-buffered, so without the flush its tail is still in memory.
         self._save_history()
-        # /log.delete closes the handle from a dispatch worker, so it may
+        # /log.stop closes the handle from a dispatch worker, so it may
         # already be closed here; a flush on a closed file is ValueError.
         # Non-critical log I/O is swallowed, as everywhere else.
         if self.log_fh and not self.log_fh.closed:
@@ -1566,7 +1606,7 @@ class SerialTerminal(TerminalHost, App):
         """Write a prefixed line to the log file.
 
         THREADING: reached from the reader path (``_write_batch``) and from
-        dispatch workers, while ``/log.delete`` closes and nulls ``log_fh``
+        dispatch workers, while ``/log.stop`` closes and nulls ``log_fh``
         on another thread.  Bind the handle to a local so the write cannot
         land on ``None``, and catch ``ValueError`` -- writing to a file that
         closed between the bind and the write raises that, not ``OSError``.
@@ -1582,7 +1622,7 @@ class SerialTerminal(TerminalHost, App):
                 fh.write(f"[{ts}] {prefix} {text}\n")
                 fh.flush()
             except (OSError, ValueError):
-                pass  # closed under us by /log.delete, or a disk error
+                pass  # closed under us by /log.stop or /log.delete, or a disk error
 
     def _log_lines(self, prefix: str, texts: list[str]) -> None:
         """Write a batch of prefixed lines with one write and one flush.
@@ -1606,7 +1646,7 @@ class SerialTerminal(TerminalHost, App):
             fh.write(block)
             fh.flush()
         except (OSError, ValueError):
-            pass  # closed under us by /log.delete, or a disk error
+            pass  # closed under us by /log.stop or /log.delete, or a disk error
 
     def _wait_for_data(self, timeout_ms: int = 250) -> bool:
         """Block until RX arrives or *timeout_ms* elapses (``ctx.serial``).
@@ -2562,7 +2602,7 @@ class SerialTerminal(TerminalHost, App):
             return
 
         def on_confirmed(confirmed: bool) -> None:
-            # Single owner of the delete (close fh + unlink + status):
+            # Single owner of the delete (stop the log + unlink + status):
             # /log.delete.  The palette only adds the confirm gate.
             if confirmed:
                 self._dispatch_on_thread(f"{cmd_prefix(self.cfg)}log.delete")

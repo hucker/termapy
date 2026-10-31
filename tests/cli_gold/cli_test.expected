@@ -1482,7 +1482,7 @@ demo> /help.plugin
   /firmware     prototype  Device-side sources termapy ships: list, copy, show, dump.
   /grep         stable     Search the scrollback for lines matching a pattern (case-insensitive regex).
   /help         stable     Print the command landscape or look up a specific command.
-  /log          stable     Session log: print, fingerprint, or open it.
+  /log          stable     Session log: start, stop, print, fingerprint, or open it.
   /mcp          preview    MCP catalog and status (Model Context Protocol).
   /mem          preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
   /os           stable     Run a shell command and show output (10s timeout). e.g. /os dir
@@ -1917,7 +1917,7 @@ SEE ALSO
 demo> /search fingerprint
 /log.fingerprint {--show} - Write a full session fingerprint (OS, terminal, port params) to the session log.
   (flags) --show Also echo the fingerprint to the terminal output.
-/log - Session log: print, fingerprint, or open it.
+/log - Session log: start, stop, print, fingerprint, or open it.
   2 matches.
 demo> /print === section: coverage: memory and variables ===
   === section: coverage: memory and variables ===
@@ -1941,6 +1941,10 @@ demo> /log.fingerprint
   Error: /log.fingerprint requires: session_log (not available in this environment)
 demo> /log.list
   Error: /log.list requires: session_log (not available in this environment)
+demo> /log.start
+  Error: /log.start requires: session_log (not available in this environment)
+demo> /log.stop
+  Error: /log.stop requires: session_log (not available in this environment)
 demo> /grep OK
   Error: Grep not available: no scrollback in CLI mode
 demo> /find OK

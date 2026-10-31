@@ -148,11 +148,13 @@ sends to the device) waits in the input line for Enter.
 | `/help.run`               | List available .run scripts with descriptions                               |
 | `/help.target`            | Show only imported target device commands                                   |
 | `/log`                    | Open the session log (same as the Log button and `/log.show`)               |
-| `/log.delete`             | Delete the session log file (TUI only; the CLI keeps no log)                |
+| `/log.delete`             | Delete the session log file; it stays stopped until `/log.start` (TUI only) |
 | `/log.dump {N}`           | Print the session log (all, or an N-line slice) to the terminal             |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
 | `/log.list`               | List the session log file with its size and age (`/help log` ends with it)  |
 | `/log.show`               | Open the session log in the system viewer                                   |
+| `/log.start`              | Write the session log again after a stop or a delete (TUI only)             |
+| `/log.stop`               | Stop writing the session log until `/log.start`; the file stays (TUI only)  |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
 | `/mcp.info`               | Show MCP-mode status (pid, catalog size, port, profile, captures)           |
 | `/mem.and <target> <mask>` | AND a mask into one word (atomic via MEM.M when available)                 |

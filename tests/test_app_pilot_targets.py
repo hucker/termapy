@@ -864,6 +864,172 @@ class TestSessionLogFollowsConfig:
         asyncio.run(scenario())
 
 
+class TestLogStartStop:
+    """/log.stop closes the session log until /log.start, and a delete leaves it stopped.
+
+    Until 2026-10-30 there was no stop, and a /log.delete silently ended
+    the log until the next config switch.
+    """
+
+    @staticmethod
+    def _text(path) -> str:
+        log = Path(path)
+        return log.read_text(encoding="utf-8") if log.exists() else ""
+
+    @staticmethod
+    async def _type(pilot, text: str, shows: str) -> bool:
+        """Submit ``text`` and wait for a screen line starting ``shows``, so the next command runs after it."""
+        await _submit(pilot, text)
+        return await until(
+            pilot, lambda: any(line.strip().startswith(shows) for line in _screen(pilot.app))
+        )
+
+    def test_stop_then_start_leaves_a_marked_gap(self, app_factory):
+        """What runs between /log.stop and /log.start never reaches the log; a marker stands at each end."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.session_log_path()
+
+                # Act
+                await self._type(pilot, "/print before-stop", "before-stop")
+                await self._type(pilot, "/log.stop", "Log stopped")
+                await self._type(pilot, "/print while-stopped", "while-stopped")
+                await self._type(pilot, "/log.start", "Log started")
+                await self._type(pilot, "/print after-start", "after-start")
+                await until(pilot, lambda: "after-start" in self._text(log))
+
+                # Assert
+                logged = self._text(log)
+                actual = [
+                    logged.find(mark)
+                    for mark in ("before-stop", "Log Stopped", "Log Started", "after-start")
+                ]
+                assert -1 not in actual and actual == sorted(actual), (
+                    f"the gap's markers stand between the lines around it: {actual}"
+                )
+                assert "while-stopped" not in logged, "nothing is written while stopped"
+
+        asyncio.run(scenario())
+
+    def test_a_second_stop_or_start_changes_nothing_and_says_so(self, app_factory):
+        """Twice in a row: the second /log.stop and /log.start each say the state and add no marker."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.session_log_path()
+                steps = [
+                    ("/log.stop", "Log stopped"),
+                    ("/log.stop", "Log already stopped."),
+                    ("/log.start", "Log started"),
+                    ("/log.start", "Log already running"),
+                ]
+
+                # Act
+                shown = [await self._type(pilot, text, shows) for text, shows in steps]
+                await self._type(pilot, "/print all-done", "all-done")
+                await until(pilot, lambda: "all-done" in self._text(log))
+
+                # Assert
+                assert shown == [True] * len(steps), f"each answer reaches the screen: {shown}"
+                logged = self._text(log)
+                actual = (logged.count("Log Stopped"), logged.count("Log Started"))
+                assert actual == (1, 1), "one marker at each end of the one gap"
+
+        asyncio.run(scenario())
+
+    def test_a_switch_while_stopped_opens_no_log(self, app_factory, tmp_path):
+        """Stopped lasts through a config switch; /log.start then opens the new config's log."""
+
+        async def scenario():
+            app, _, _ = app_factory(name="first")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                first_log = app.session_log_path()
+                await self._type(pilot, "/log.stop", "Log stopped")
+                second_cfg, second_path = _write_cfg(tmp_path, name="second")
+
+                # Act
+                app._switch_config(second_cfg, second_path)
+                await pilot.pause()
+                second_log = app.session_log_path()
+                await self._type(pilot, "/print in-second", "in-second")
+                await self._type(pilot, "/log.start", "Log started")
+                await self._type(pilot, "/print second-logged", "second-logged")
+                await until(pilot, lambda: "second-logged" in self._text(second_log))
+
+                # Assert
+                second = self._text(second_log)
+                assert "in-second" not in second, "the switch opened no log while stopped"
+                assert "in-second" not in self._text(first_log), "nor kept writing the first"
+                assert "Log Started" in second, "/log.start opened the second config's log"
+                assert "second-logged" in second, "and the session writes it"
+
+        asyncio.run(scenario())
+
+    def test_a_delete_leaves_the_log_stopped_until_start(self, app_factory):
+        """After /log.delete nothing recreates the file; /log.start begins a new one at its marker."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.session_log_path()
+                assert log is not None and log.exists(), "the TUI keeps a log"
+
+                # Act
+                await self._type(pilot, "/log.delete", "Deleted")
+                await self._type(pilot, "/print after-delete", "after-delete")
+                recreated = log.exists()
+                await self._type(pilot, "/log.start", "Log started")
+                await self._type(pilot, "/print new-log", "new-log")
+                await until(pilot, lambda: "new-log" in self._text(log))
+
+                # Assert
+                assert recreated is False, "nothing recreated the file while stopped"
+                lines = self._text(log).splitlines()
+                assert "Log Started" in lines[0], "the new file begins at /log.start"
+                assert "after-delete" not in "\n".join(lines), "the stopped stretch is not in it"
+
+        asyncio.run(scenario())
+
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="only Windows refuses to delete an open file"
+    )
+    def test_a_delete_refused_by_another_holder_keeps_logging(self, app_factory):
+        """A second termapy on the same config holds the log open: the delete fails and the log runs on.
+
+        Found 2026-10-30 by hand: the delete stopped the log first, so the
+        failure left it silently stopped.
+        """
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.session_log_path()
+                assert log is not None and log.exists(), "the TUI keeps a log"
+                other_window = open(log, encoding="utf-8")
+
+                # Act
+                try:
+                    await self._type(pilot, "/log.delete", "Error: Delete failed")
+                    await self._type(pilot, "/print still-logged", "still-logged")
+                    await until(pilot, lambda: "still-logged" in self._text(log))
+                finally:
+                    other_window.close()
+
+                # Assert
+                assert log.exists(), "the delete was refused"
+                assert "still-logged" in self._text(log), "and the log is still written"
+
+        asyncio.run(scenario())
+
+
 # ── Clickable output ────────────────────────────────────────────────────────
 
 

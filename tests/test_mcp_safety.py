@@ -106,6 +106,7 @@ class TestCommandDeclaration:
             ("ss.delete", "destructive"),  # a screenshot, or every one
             ("run.profile.delete", "destructive"),  # a saved profile, or every one
             ("log.delete", "destructive"),  # the session log
+            ("log.stop", "mutable"),  # /log.start writes it again
             ("cfg.delete", "destructive"),  # a whole config folder
             ("demo.force", "destructive"),  # rewrites the demo config over its edits
             ("cfg.icon.remove", "mutable"),  # /cfg.icon makes it again

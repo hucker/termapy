@@ -1099,7 +1099,16 @@ class TestNoSessionLog:
     """D3: the CLI keeps no session log, and every /log command and $(CFG.LOG_FILE) agrees."""
 
     @pytest.mark.parametrize(
-        "command", ["log.dump", "log.delete", "log.fingerprint", "log.show", "edit.log"]
+        "command",
+        [
+            "log.dump",
+            "log.delete",
+            "log.fingerprint",
+            "log.show",
+            "log.start",
+            "log.stop",
+            "edit.log",
+        ],
     )
     def test_the_cli_keeps_no_session_log(self, cli, command):
         """Every command on the session log is refused by the gate, for want of session_log.

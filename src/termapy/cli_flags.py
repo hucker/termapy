@@ -681,13 +681,6 @@ def run_check(args: argparse.Namespace) -> None:
 _KILL_COLUMNS = ("PID", "MODE", "CONFIG", "PORT", "STARTED")
 
 
-def _crumb_summary(crumb) -> str:
-    """One line naming a running termapy: frontend, config and open port."""
-    return (
-        f"{crumb.frontend}, {crumb.config_name or 'no config'}, {crumb.open_port or 'no port open'}"
-    )
-
-
 def _print_crumbs(crumbs) -> None:
     """Print running termapys as a table, each column as wide as its widest cell."""
     rows = [
@@ -735,13 +728,8 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
     breadcrumbs.prune_stale()
     picked = breadcrumbs.select(running, target)
     if not picked:
-        from termapy.matching import closest, did_you_mean
-
-        names = {crumb.config_name for crumb in running if crumb.config_name}
-        names |= {crumb.open_port for crumb in running if crumb.open_port}
         print(
-            f"termapy: no running termapy matches {target}"
-            f"{did_you_mean(closest(target, sorted(names)))}",
+            f"termapy: no running termapy matches {target}{breadcrumbs.suggest(running, target)}",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -753,10 +741,10 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
     failed = 0
     for crumb in picked:
         if breadcrumbs.stop(crumb):
-            print(f"Stopped {crumb.pid} ({_crumb_summary(crumb)})")
+            print(f"Stopped {crumb.pid} ({crumb.summary})")
         else:
             failed += 1
-            print(f"termapy: could not stop {crumb.pid} ({_crumb_summary(crumb)})", file=sys.stderr)
+            print(f"termapy: could not stop {crumb.pid} ({crumb.summary})", file=sys.stderr)
     sys.exit(1 if failed else 0)
 
 

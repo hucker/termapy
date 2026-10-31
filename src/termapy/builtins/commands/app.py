@@ -15,6 +15,8 @@ Command surface:
 - ``/app.config``       print ``config.json``'s path
 - ``/app.config.dump``  print ``config.json`` contents to the terminal
 - ``/app.config.edit``  open ``config.json`` in the system editor
+- ``/app.running``      list the termapys running on this machine
+- ``/app.kill``         stop the other termapys a target picks, after a yes
 
 There is no bare ``/app`` -- every action is a subcommand.  Both
 ``state.json`` and ``config.json`` expose ``.edit`` for symmetry,
@@ -31,8 +33,10 @@ Windows and macOS they share one folder.  ``/app.explore`` and
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING
 
+from termapy import breadcrumbs
 from termapy.app_dirs import (
     app_config_dir,
     app_config_file,
@@ -43,6 +47,7 @@ from termapy.app_dirs import (
 )
 from termapy.folder_ops import FILE_COLUMNS, file_record, list_entries
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command
+from termapy.plugins.params import ParamSpec
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -262,6 +267,86 @@ overwritten.  config.json is reserved for user-editable global
 preferences; no feature reads it yet."""
 
 
+# ── /app.running, /app.kill ───────────────────────────────────────────────────
+
+
+def _session_record(crumb: breadcrumbs.Crumb) -> dict:
+    """One running termapy as a record: the table's row and the JSON answer."""
+    return {
+        "pid": crumb.pid,
+        "frontend": crumb.frontend,
+        "config": crumb.config_name,
+        "config_path": crumb.config,
+        "port": crumb.port,
+        "open_port": crumb.open_port,
+        "started": crumb.started,
+        "this_session": crumb.pid == os.getpid(),
+    }
+
+
+_SESSION_COLUMNS = (
+    Column("PID", lambda record: str(record["pid"]), right=True),
+    Column(
+        "MODE",
+        lambda record: record["frontend"] + (" (this)" if record["this_session"] else ""),
+    ),
+    Column("CONFIG", lambda record: record["config"] or "-"),
+    Column("PORT", lambda record: record["open_port"] or "-"),
+    Column("STARTED", lambda record: record["started"].replace("T", " ")),
+)
+
+
+def _handler_running(ctx: PluginContext, args: str) -> CmdResult:
+    """List the termapys running on this machine, from their breadcrumbs (``breadcrumbs``)."""
+    records = [_session_record(crumb) for crumb in breadcrumbs.read_running()]
+    value = "\n".join(str(record["pid"]) for record in records)
+    return CmdResult.table("running termapys", "session", _SESSION_COLUMNS, records, value=value)
+
+
+def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
+    """Stop the other termapys a target picks, after a yes; never this session (``breadcrumbs.stop``)."""
+    target = ctx.arg("target")
+    running = breadcrumbs.read_running()
+    others = [crumb for crumb in running if crumb.pid != os.getpid()]
+    picked = breadcrumbs.select(others, target)
+    if not picked:
+        if breadcrumbs.select(running, target):
+            return CmdResult.fail(
+                msg=f"Only this session matches {target} -- {ctx.prefix}exit ends it"
+            )
+        return CmdResult.fail(
+            msg=f"No running termapy matches {target}{breadcrumbs.suggest(others, target)}"
+        )
+    noun = "session" if len(picked) == 1 else "sessions"
+    listing = "; ".join(f"{crumb.pid} ({crumb.summary})" for crumb in picked)
+    if not ctx.ui.confirm(f"Stop {len(picked)} termapy {noun}: {listing}?"):
+        return CmdResult.fail(msg="Nothing stopped.")
+    breadcrumbs.prune_stale()
+    stopped = [crumb for crumb in picked if breadcrumbs.stop(crumb)]
+    for crumb in stopped:
+        ctx.io.result(f"Stopped {crumb.pid} ({crumb.summary})")
+    failed = [crumb for crumb in picked if crumb not in stopped]
+    if failed:
+        return CmdResult.fail(
+            msg="Could not stop " + ", ".join(f"{crumb.pid} ({crumb.summary})" for crumb in failed)
+        )
+    return CmdResult.ok(
+        value="\n".join(str(crumb.pid) for crumb in stopped),
+        data=[_session_record(crumb) for crumb in stopped],
+    )
+
+
+_KILL_LONG_HELP = (
+    "Stops the termapys that <target> picks, after a yes: all of them, the\n"
+    "one holding a port (COM3), or the ones on a config (rig; rig* picks\n"
+    "several).  This session is never stopped -- {prefix}exit ends it.  The\n"
+    "use is a clean system, say before an update: an MCP server an editor\n"
+    "started and forgot keeps its port and termapy.exe busy.  Not over MCP:\n"
+    "an agent cannot end your sessions.  {prefix}app.running lists them;\n"
+    "termapy --kill does the same from the command line."
+)
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     group="advanced",
@@ -270,6 +355,33 @@ COMMAND = Command(
     long_help=_APP_LONG_HELP,
     handler=None,
     sub_commands={
+        "running": Command(
+            help="List the termapys running on this machine.",
+            long_help=(
+                "Every running termapy -- a TUI, a CLI, an MCP server, a web or\n"
+                "VT100 session -- with its mode, config and the port it has open.\n"
+                "This session is marked (this).  {prefix}app.kill stops them."
+            ),
+            handler=_handler_running,
+            shows=True,
+        ),
+        "kill": Command(
+            help="Stop the other termapys a target picks: all, a port or a config (asks first).",
+            long_help=_KILL_LONG_HELP,
+            handler=_handler_kill,
+            params=[
+                ParamSpec(
+                    "target",
+                    "str",
+                    positional=True,
+                    required=True,
+                    hint="<target>",
+                    help="all, a port such as COM3, or a config name",
+                )
+            ],
+            needs=CapabilitySet(interactive=True, confirm_dialog=True),
+            safety="destructive",
+        ),
         "list": Command(
             help="List the files in the app folder, newest first.",
             handler=_handler_list,

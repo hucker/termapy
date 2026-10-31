@@ -7,6 +7,8 @@ import json
 import os
 import subprocess
 import sys
+from contextlib import contextmanager
+from unittest.mock import patch
 
 import pytest
 
@@ -20,6 +22,44 @@ def state_dir(tmp_path, monkeypatch):
     folder = tmp_path / "state"
     monkeypatch.setenv("TERMAPY_STATE_DIR", str(folder))
     return folder
+
+
+@contextmanager
+def _child_session(state_dir, *, config: str = "rig.cfg", open_port: str = "COM9"):
+    """A child process that leaves a breadcrumb and waits; yields it and its breadcrumb.
+
+    The breadcrumb is found by what it holds: on Windows a venv's python.exe
+    is a launcher whose own child runs the code, so the breadcrumb's PID is
+    not ``child.pid``.  Ending the interpreter ends its launcher too, which is
+    why the cleanup stops the breadcrumb's process rather than ``child``.
+    """
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import time\n"
+            "from termapy.breadcrumbs import Breadcrumb\n"
+            f"Breadcrumb().write('cli', config={config!r}, open_port={open_port!r})\n"
+            "print('ready', flush=True)\n"
+            "time.sleep(60)\n",
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+        env={**os.environ, "TERMAPY_STATE_DIR": str(state_dir)},
+    )
+    crumb = None
+    try:
+        assert child.stdout is not None
+        assert child.stdout.readline().strip() == "ready", "the child wrote its breadcrumb"
+        crumb = next(crumb for crumb in breadcrumbs.read_running() if crumb.open_port == open_port)
+        yield child, crumb
+    finally:
+        if crumb is not None:
+            breadcrumbs.stop(crumb)
+        if child.poll() is None:
+            child.kill()
+        if child.stdout is not None:
+            child.stdout.close()
 
 
 def _crumb(**fields) -> Crumb:
@@ -238,29 +278,7 @@ class TestStop:
     @pytest.mark.slow
     def test_stop_ends_a_session_and_removes_its_breadcrumb(self, state_dir):
         """A live session's process ends and its breadcrumb is deleted."""
-        # Arrange -- a child that leaves a breadcrumb and waits
-        child = subprocess.Popen(
-            [
-                sys.executable,
-                "-c",
-                "import time\n"
-                "from termapy.breadcrumbs import Breadcrumb\n"
-                "Breadcrumb().write('cli', config='rig.cfg', open_port='COM9')\n"
-                "print('ready', flush=True)\n"
-                "time.sleep(60)\n",
-            ],
-            stdout=subprocess.PIPE,
-            text=True,
-            env={**os.environ, "TERMAPY_STATE_DIR": str(state_dir)},
-        )
-        try:
-            assert child.stdout is not None
-            assert child.stdout.readline().strip() == "ready", "the child wrote its breadcrumb"
-            # Found by what it holds: on Windows a venv's python.exe is a
-            # launcher whose own child runs the code, so the breadcrumb's PID
-            # is not child.pid.  Ending the interpreter ends its launcher too.
-            crumb = next(crumb for crumb in breadcrumbs.read_running() if crumb.open_port == "COM9")
-
+        with _child_session(state_dir) as (child, crumb):
             # Act
             actual = breadcrumbs.stop(crumb)
 
@@ -270,11 +288,6 @@ class TestStop:
             assert not (state_dir / "running" / f"{crumb.pid}.json").exists(), (
                 "its breadcrumb is gone"
             )
-        finally:
-            if child.poll() is None:
-                child.kill()
-            if child.stdout is not None:
-                child.stdout.close()
 
 
 class TestKillFlag:
@@ -363,6 +376,66 @@ class TestSessionTrail:
         assert (record["frontend"], record["port"]) == ("cli", "DEMO")
         assert at_start == "", "nothing is open at start"
         assert steps == ["DEMO", "", "DEMO", ""], "connect names the port, disconnect clears it"
+
+
+class TestAppCommands:
+    """/app.running and /app.kill: the same breadcrumbs, from inside a session."""
+
+    def test_running_lists_this_session_marked(self, cli_demo, state_dir):
+        """/app.running answers a record per session and marks the one that ran it."""
+        # Arrange
+        cli_demo._fire_app_start()
+
+        # Act
+        result = cli_demo.repl.dispatch_full("/app.running")
+
+        # Assert
+        assert result.success, result.error
+        actual = [
+            (record["pid"], record["frontend"], record["config"], record["this_session"])
+            for record in result.data
+        ]
+        assert actual == [(os.getpid(), "cli", "rig", True)]
+
+    def test_kill_never_stops_its_own_session(self, cli_demo, state_dir):
+        """A target that picks only this session fails and points at /exit instead."""
+        # Arrange
+        cli_demo._fire_app_start()
+
+        # Act
+        result = cli_demo.repl.dispatch_full("/app.kill rig")
+
+        # Assert
+        expected = (False, "Only this session matches rig -- /exit ends it")
+        assert (result.success, result.error) == expected
+
+    def test_kill_is_out_of_an_agents_reach(self, cli_demo):
+        """/app.kill needs a person and a yes, which MCP has neither of, so an agent cannot end sessions."""
+        # Act
+        plugin = cli_demo.repl.plugin_for("app.kill")
+
+        # Assert
+        assert plugin is not None, "/app.kill is registered"
+        assert (plugin.needs.interactive, plugin.needs.confirm_dialog) == (True, True)
+
+    @pytest.mark.slow
+    def test_kill_suggests_then_asks_then_stops(self, cli_demo, state_dir):
+        """Twice in a row: a typo gets a suggestion, a no keeps the session, a yes stops it."""
+        # Arrange
+        cli_demo._fire_app_start()
+        with _child_session(state_dir, config="probe.cfg", open_port="COM9") as (child, _):
+            # Act
+            typo = cli_demo.repl.dispatch_full("/app.kill prbe")
+            with patch("builtins.input", return_value="n"):
+                declined = cli_demo.repl.dispatch_full("/app.kill probe")
+            with patch("builtins.input", return_value="y"):
+                stopped = cli_demo.repl.dispatch_full("/app.kill probe")
+
+            # Assert
+            assert typo.error == "No running termapy matches prbe -- did you mean probe?"
+            assert (declined.success, declined.error) == (False, "Nothing stopped.")
+            assert stopped.success, stopped.error
+            assert child.wait(timeout=10) is not None, "the session's process has exited"
 
 
 @pytest.fixture

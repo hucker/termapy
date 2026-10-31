@@ -68,6 +68,14 @@ class Crumb:
         """The config's name, its file stem; empty when none is loaded."""
         return Path(self.config).stem if self.config else ""
 
+    @property
+    def summary(self) -> str:
+        """One phrase naming the session: frontend, config and open port."""
+        return (
+            f"{self.frontend}, {self.config_name or 'no config'}, "
+            f"{self.open_port or 'no port open'}"
+        )
+
 
 # ── Process identity ─────────────────────────────────────────────────────────
 
@@ -339,6 +347,20 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
         if hit:
             picked.append(crumb)
     return picked
+
+
+def suggest(crumbs: Iterable[Crumb], target: str) -> str:
+    """The did-you-mean for a target that picked nothing, from the configs and ports running.
+
+    Returns:
+        `` -- did you mean a, b?``, or ``""`` when nothing is close.
+    """
+    from termapy.matching import closest, did_you_mean
+
+    crumbs = list(crumbs)
+    names = {crumb.config_name for crumb in crumbs if crumb.config_name}
+    names |= {crumb.open_port for crumb in crumbs if crumb.open_port}
+    return did_you_mean(closest(target, sorted(names)))
 
 
 def stop(crumb: Crumb) -> bool:

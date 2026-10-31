@@ -272,6 +272,9 @@ termapy --kill COM4     # whichever session holds COM4
 termapy --kill m3_bin   # the sessions on that config (m3* picks several)
 ```
 
+Inside termapy, `/app.running` lists the same sessions and
+`/app.kill <target>` stops them, never the session you type it in.
+
 With no terminal to answer on (a pipe), the answer is no.  A stopped session
 writes no `Session End` to its log.  A session started before breadcrumbs
 existed is not listed: end that one from Task Manager or `kill`, once.

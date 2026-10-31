@@ -89,7 +89,7 @@ PuTTY works. So does minicom, screen, and CoolTerm. Use them if they do what you
 
 - **Runs anywhere Python does.** Same tool on Windows, macOS, Linux. No GUI installer, no system dependencies.
 - **Session logging and screenshots.** Every session is logged. Ctrl+S saves an SVG screenshot you can paste into a report or email.
-- **Scripting.** Record a sequence of commands in a text file and replay it with one click. Add delays, prompts, and REPL commands.
+- **Scripting.** Record a sequence of commands in a text file and replay it with one click, or rerun the last few commands you typed with `/run.last`. Add delays, prompts, and REPL commands.
 - **Data capture.** Capture serial text (timed) or binary data (by byte/record count) to files. Binary captures use the same format spec language as protocol testing to decode mixed-type records into CSV/TSV.
 - **Binary protocol testing.** Send raw hex, run scripted send/expect tests with pass/fail, decode Modbus and custom protocols with pluggable visualizers.
 - **Plugin system.** Add custom commands with a simple Python API. Drop a file in a folder, define a handler, done. Includes examples to get started.

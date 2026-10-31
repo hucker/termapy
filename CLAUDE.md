@@ -170,7 +170,7 @@ All other paths relative to `src/termapy/`.
     `name-one-matcher`)**: only `matching.py` imports `fnmatch`.
     A name that names nothing is answered with the names it most
     likely meant: `matching.closest` picks them, `matching.did_you_mean`
-    phrases them (` -- did you mean a, b?`), at every name typed from
+    phrases them (a space, then `-- did you mean a, b?`), at every name typed from
     memory (decision 2026-10-30). **Enforced by
     `tests/test_architecture.py` (registry `did-you-mean-one`)**: no other
     module imports `difflib`, defines an edit distance or spells the phrase.
@@ -207,10 +207,11 @@ All other paths relative to `src/termapy/`.
   frozen shared instance each, docstring on hover; spell out unusual
   combinations inline; never a module-local `_NEEDS` constant.
   Missing session state is the gate's answer, never a handler's: a
-  config, an open port, a device profile, a symbol table, or no capture
-  already running (`No config loaded.`, `Not connected.`, `No profile
-  loaded.`, `No symbols loaded.`, `Capture already active - use /cap.stop
-  first.`). A command that only reports the state (`/profile.info`,
+  config, an open port, a device profile, a symbol table, no capture
+  already running, or no script running (`No config loaded.`, `Not
+  connected.`, `No profile loaded.`, `No symbols loaded.`, `Capture already
+  active - use /cap.stop first.`, `Not available in a script.`). A command
+  that only reports the state (`/profile.info`,
   `/sym.info`) is not gated: declare the need and drop the
   check (registry `state-answered-by-gate`); code that must say it anyway
   reads `capabilities.STATE_MESSAGES`, the view of the capability field
@@ -423,7 +424,7 @@ The narrative — the thread diagram, the two hand-off mechanisms and why each r
 - **No `read_loop` callback may block on another thread** (registry `rx-never-blocks`): RX reaches the UI through `app._rx_enqueue`, never a blocking `call_from_thread`, because a blocking callback deadlocks teardown and stalls the reader until the driver drops bytes.
 - `_acquire_dispatch_guard` is **non-blocking on the main thread and a bounded wait off it** (registry `dispatch-guard-main-never-parks`): main never parks on a lock a worker holds; a worker waits rather than dropping the line and fails with "Busy" only after `_DISPATCH_WAIT_S`. The guard is an `RLock`, so nested `ctx.dispatch` on the same thread is allowed.
 - **One outermost script at a time, enforced in `ReplEngine.start_script` for every frontend** (registry `script-single-owner`): a nested `/run` on the owning thread is allowed, a launch from any other thread is refused. Never add a second guard in a frontend; the engine owns this rule.
-- **A plugin must never `clear()` the shared `script_stop_event`** (registry `plugin-never-clears-stop`). It belongs to the script, and clearing it erases a stop the user just requested. `/repeat`, `/proto.run`, `/delay` and the TUI's multi-line paste (`app._paste_on_thread`) may clear it only when not in a script, where each is itself the outermost cancellable operation.
+- **A plugin must never `clear()` the shared `script_stop_event`** (registry `plugin-never-clears-stop`). It belongs to the script, and clearing it erases a stop the user just requested. `/repeat`, `/run.last`, `/proto.run`, `/delay` and the TUI's multi-line paste (`app._paste_on_thread`) may clear it only when not in a script, where each is itself the outermost cancellable operation.
 - `_ask()`, behind `_confirm()` and the TUI's `/cfg <key> <value>`, blocks on an event and posts its dialog via `call_from_thread`, so it must be called from a background thread; main-thread misuse fails closed (registry `confirm-off-main`).
 - `_BLOCKING_COMMANDS` in `repl.py` is **not** a threading mechanism despite its name (registry `blocking-commands-need-sctx`). It holds only `/run` and `/run.profile`, intercepted because they run a nested script inline with the `ScriptCtx` — see the comment at its definition. The test for adding one is "does it need the ScriptCtx?", never "does it block?" or "does it stop the script?" (any command stops it through `ctx.internal.script_stop()`). An intercepted copy of a command drifts from the dispatched one: `/delay`, `/expect` and `/confirm` each had one until 2026-10-16.
 

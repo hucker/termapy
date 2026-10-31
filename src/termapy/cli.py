@@ -614,7 +614,7 @@ class CLITerminal(TerminalHost):
                 if line.lower() == self.prefix + "quit":
                     break
 
-                self._dispatch(line)
+                self._dispatch_typed(line)
                 if self._exit_requested:
                     break
 

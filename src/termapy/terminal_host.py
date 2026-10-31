@@ -21,6 +21,7 @@ from termapy.defaults import quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.serial_port import eol_label
+from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
     from termapy.capture import CaptureEngine
@@ -121,6 +122,8 @@ class TerminalHost:
 
     _HISTORY_LIMIT: int = 30
     _help_server_port: int = 0
+    # Set when ctx.internal.typed_lines is read; see _dispatch_typed.
+    _typed_lines_read: bool = False
     # The frontend's name, ``$(FRONT_END)``; each frontend sets its own.
     front_end: ClassVar[str] = "unknown"
 
@@ -501,6 +504,7 @@ class TerminalHost:
             # host has no static dependency on a specific plugin (and
             # so the import is harmless if the builtin isn't loaded).
             is_recording=_is_recording,
+            typed_lines=self._read_typed_lines,
             # ``update_find_bar`` is None on the base host; the TUI
             # subclass sets it to its own _update_find_bar method
             # after super().__init__() runs.  CLI/MCP hosts inherit
@@ -749,6 +753,29 @@ class TerminalHost:
             eol_label=eol_label,
             report=report,
         )
+
+    def _dispatch_typed(self, line: str) -> CmdResult:
+        """Run a line the user typed at the prompt, and keep it for ``/run.last``.
+
+        The one feed of ``repl.typed_lines``: the TUI's Enter (a clicked
+        link too, which runs as typed) and the CLI prompt come here; a
+        script line, a paste and a replayed line never do.  The line is
+        kept under the config active when it was typed, so a ``/cfg.load``
+        lands in the list it was typed in.  A line that read the typed
+        lines is not kept: ``/run.last``, or ``/repeat`` around it, would
+        replay its own replay.
+        """
+        config = self.repl.config_path
+        self._typed_lines_read = False
+        result = self.ctx.dispatch(line)
+        if not self._typed_lines_read:
+            self.repl.typed_lines.add(config, TypedLine(line, result.success, result.error))
+        return result
+
+    def _read_typed_lines(self) -> list[TypedLine]:
+        """The active config's typed lines (``ctx.internal.typed_lines``); marks the read."""
+        self._typed_lines_read = True
+        return self.repl.typed_lines.lines(self.repl.config_path)
 
     # -- Port effects ---------------------------------------------------------
 

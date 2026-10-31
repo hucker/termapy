@@ -3219,9 +3219,9 @@ class SerialTerminal(TerminalHost, App):
 
     @work(thread=True)
     def _dispatch_on_thread_interactive(self, cmd: str) -> None:
-        """Background dispatch for interactive input (restores placeholder)."""
+        """Background dispatch for typed input: keeps the line for /run.last, restores the placeholder."""
         try:
-            self._dispatch_single(cmd)
+            self._dispatch_typed(cmd)
         except RuntimeError:
             pass
         try:

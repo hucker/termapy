@@ -1341,6 +1341,7 @@ SUBCOMMANDS
   /run.edit       stable     Open a .run file for editing.
   /run.explore    stable     Open run/ in the system file explorer.
   /run.help       stable     Show /run help, or print a script's docstring.
+  /run.last       stable     Replay the last <count> commands typed (bare /run.last lists them).
   /run.legacy     stable     Scan a .run script for legacy command names (report, or --fix to rewrite).
   /run.list       stable     List .run scripts, newest first, with size, age, and docstring summary.
   /run.profile    stable     Run a script with per-line timing (CSV to prof/).
@@ -2009,6 +2010,10 @@ demo> /delay 1ms
   Delay 1ms done.
 demo> /run.record
   Error: Not recording.
+demo> /run.last
+  Error: Not available in a script.
+demo> /run.last 1
+  Error: Not available in a script.
 demo> /cap.delete
   Error: Usage: /cap.delete <name|pattern>
 demo> /cap.delete nosuch.txt

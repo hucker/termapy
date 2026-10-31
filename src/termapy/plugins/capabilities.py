@@ -257,6 +257,17 @@ class CapabilitySet:
         attainable=True,
     )
 
+    # What:  No script is running: the command was typed at the prompt (or
+    #        clicked), not read from a .run file.  The inverse of block_until.
+    # Where: Dynamic -- evaluated per dispatch.  /run.last declares it: it
+    #        replays what the user typed, a convenience for the prompt that
+    #        no script should depend on.
+    script_idle: bool = _restricted(
+        "no script running",
+        state="Not available in a script.",
+        attainable=True,
+    )
+
     # What:  An interactive session -- a human at a terminal with
     #        persistent scrollback, modal dialog support, or in-band UI
     #        chrome (mode switch, screen clear, line numbers).  Also

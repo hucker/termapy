@@ -113,6 +113,11 @@ class InternalHandle:
     add_post_dispatch_observer: Callable | None = None  # (cb) -> token
     remove_post_dispatch_observer: Callable | None = None  # (token) -> None
     is_recording: Callable | None = None  # () -> bool; TUI Record button reads this
+    # typed_lines() -> list[TypedLine]: the active config's lines typed at
+    # the prompt, oldest first (/run.last).  The host marks the read: a
+    # typed line that read them is not kept, so a replay never replays
+    # itself.  [] where nothing is typed (MCP).
+    typed_lines: Callable = lambda: []
 
     # Raw pyserial handle (serial.Serial | None).  The deliberate escape
     # hatch for built-ins that need pyserial's own API -- DTR/RTS/CTS/DSR,

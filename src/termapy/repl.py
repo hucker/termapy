@@ -75,6 +75,7 @@ from termapy.scripting import (
     strip_leading_echo,
 )
 from termapy.symbols import session as symbols_session
+from termapy.typed_lines import TypedLines
 
 # Lifecycle events with CORE listeners (plugin resolution, then the symbol
 # auto-load) that run before the plugin hooks: exactly the moments a config
@@ -368,6 +369,13 @@ class ReplEngine:
         # Observer exceptions are caught so a buggy subscriber can't
         # break dispatch.
         self._post_dispatch_observers: list[Callable[[str, CmdResult], None]] = []
+
+        # The lines typed at the prompt, per config, for /run.last.  Not an
+        # observer: those see every outermost line, a script's included,
+        # and only the frontend knows a line was typed
+        # (TerminalHost._dispatch_typed feeds it).  Survives a config
+        # switch, as the engine does.
+        self.typed_lines = TypedLines()
 
         # Lifecycle hooks - flat list in load order. fire_lifecycle() filters
         # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
@@ -2580,6 +2588,7 @@ class ReplEngine:
 
           - ``block_until``: true only inside a script (script runner
             executes on a background thread where blocking is safe).
+          - ``script_idle``: its inverse, true only outside a script.
           - ``serial_connected``: true only when a port is currently open.
           - ``config_loaded``: true only while a config is loaded.
 
@@ -2590,6 +2599,8 @@ class ReplEngine:
         dynamic_fields: dict[str, bool] = {}
         if self.in_script:
             dynamic_fields["block_until"] = True
+        else:
+            dynamic_fields["script_idle"] = True
         # ctx.serial.is_connected may be absent on a minimal test fake.
         # getattr with a default is forgiving without hiding bugs in
         # a real is_connected() implementation.

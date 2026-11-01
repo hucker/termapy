@@ -1303,13 +1303,11 @@ class TestMultilinePaste:
                 assert app._connect() is True, "DEMO port should connect"
                 port = _RecordingPort()
                 app._engine._serial_port = port
-                bar = app.query_one("#bottom-bar")
-
                 # Act -- a long paste, stopped after its first line
                 _paste(app, "\n".join(f"L{i}" for i in range(20)))
                 await until(pilot, lambda: len(port.written) >= 1)
                 app.action_stop_script()
-                await until(pilot, lambda: not bar.disabled)
+                await until(pilot, lambda: not app._busy)
                 stopped_at = len(port.written)
                 # Act -- the next paste
                 _paste(app, "A\nB")
@@ -1335,11 +1333,9 @@ class TestMultilinePaste:
                 assert app._connect() is True, "DEMO port should connect"
                 port = _RecordingPort()
                 app._engine._serial_port = port
-                bar = app.query_one("#bottom-bar")
-
                 # Act
                 _paste(app, "A\nB")
-                await until(pilot, lambda: len(port.written) == 2 and not bar.disabled)
+                await until(pilot, lambda: len(port.written) == 2 and not app._busy)
                 _paste(app, "C\nD")
                 await until(pilot, lambda: len(port.written) == 4)
 
@@ -1415,6 +1411,66 @@ class TestMultilinePaste:
         _run(scenario)
 
 
+class TestBusyLook:
+    """A typed command greys the bar only if it is still running after _BUSY_LOOK_DELAY_S."""
+
+    @staticmethod
+    async def _enter(pilot, app, line: str) -> list[bool]:
+        """Type ``line``, press Enter, wait for it to finish; return every value the bar's disabled took."""
+        from textual.widgets import Input
+
+        seen: list[bool] = []
+
+        def record(value: bool) -> None:
+            seen.append(value)
+
+        app.watch(app.query_one("#bottom-bar"), "disabled", record, init=False)
+        inp = app.query_one("#cmd", Input)
+        inp.value = line
+        inp.focus()
+        await pilot.pause()
+        await pilot.press("enter")
+        await until(pilot, lambda: not app._busy, seconds=5.0)
+        await pilot.pause(0.3)
+        return seen
+
+    def test_a_quick_command_never_greys_the_bar(self, app_factory):
+        """A command that finishes at once leaves the buttons alone: greying them made them flash."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                seen = await self._enter(pilot, app, "/print quick")
+
+                # Assert
+                assert seen == [], "a quick command greyed the bar: the buttons flash"
+                assert app.query_one("#cmd").placeholder != "Running... escape to cancel", (
+                    "a quick command showed the busy placeholder"
+                )
+
+        _run(scenario)
+
+    def test_a_slow_command_greys_the_bar_and_restores_it(self, app_factory):
+        """A command still running after the delay greys the bar, and it comes back when it ends."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                seen = await self._enter(pilot, app, "/delay 600ms")
+
+                # Assert
+                assert seen == [True, False], "greyed while it ran, then back"
+                assert not app.query_one("#bottom-bar").disabled
+
+        _run(scenario)
+
+
 class TestRunLast:
     """What the prompt keeps for /run.last: a line typed and Entered, never a pasted one."""
 
@@ -1429,7 +1485,6 @@ class TestRunLast:
             async with app.run_test() as pilot:
                 await pilot.pause()
                 inp = app.query_one("#cmd", Input)
-                bar = app.query_one("#bottom-bar")
 
                 def kept() -> list[str]:
                     return [line.text for line in app.repl.typed_lines.lines(path)]
@@ -1439,7 +1494,7 @@ class TestRunLast:
                 inp.focus()
                 await pilot.pause()
                 await pilot.press("enter")
-                await until(pilot, lambda: kept() and not bar.disabled)
+                await until(pilot, lambda: kept() and not app._busy)
                 inp.value = "/run.last 1"
                 await pilot.pause()
                 await pilot.press("enter")

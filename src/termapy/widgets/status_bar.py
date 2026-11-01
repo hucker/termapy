@@ -10,6 +10,7 @@ running and so had no coverage.
 
 from __future__ import annotations
 
+from rich.cells import cell_len
 from textual.timer import Timer
 from textual.widgets import Label
 
@@ -48,13 +49,34 @@ class StatusBar(Label):
         # overlays: text, never markup (registry widget-text-literal).
         super().__init__("", markup=False, **kwargs)
         self._timer: Timer | None = None
+        self._text = ""
+        # The widest text laid out since the label was last hidden.
+        self._width = 0
+
+    def _set_text(self, text: str) -> None:
+        """Show ``text``, laying out the screen only when it grows wider.
+
+        A layout pass repaints the bottom row and the output pane: a plugin
+        refreshing a counter twice a second (``ctx.io.status_bar``) made the
+        screen flicker.  Unchanged text repaints nothing, and text no wider
+        than the label already is repaints the label alone (Textual's
+        ``layout=False``): a shorter text keeps the label's width,
+        right-aligned in it, until the label is hidden.
+        """
+        if text == self._text:
+            return
+        self._text = text
+        grows = cell_len(text) > self._width
+        if grows:
+            self._width = cell_len(text)
+        self.update(text, layout=grows)
 
     def show(self, text: str, timeout: float = 5.0) -> None:
         """Show transient text that auto-clears after ``timeout`` seconds."""
         if not text:
             self.clear_status()
             return
-        self.update(text)
+        self._set_text(text)
         self.add_class("visible")
         if self._timer is not None:
             self._timer.stop()
@@ -62,14 +84,16 @@ class StatusBar(Label):
 
     def set_progress(self, text: str) -> None:
         """Show persistent text with no auto-clear.  Empty text hides."""
-        self.update(text)
+        self._set_text(text)
         if text:
             self.add_class("visible")
         else:
             self.remove_class("visible")
+            self._width = 0
 
     def clear_status(self) -> None:
-        """Clear the text and hide the label."""
-        self.update("")
+        """Clear the text and hide the label; the next text lays it out afresh."""
+        self._set_text("")
         self.remove_class("visible")
+        self._width = 0
         self._timer = None

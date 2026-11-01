@@ -52,6 +52,9 @@ CFG_CHOICES: dict[str, Collection[object]] = {
     "json_style": JSON_STYLES,
     "custom_buttons_side": CUSTOM_BUTTON_SIDES,
 }
+# Cfg keys termapy writes itself, never the user: the config editor heads
+# their help line with a red DO NOT EDIT.
+MANAGED_CFG_KEYS = frozenset({"config_version"})
 
 # Single source of truth for the REPL command prefix default.  Used
 # in DEFAULT_CFG, the ``cmd_prefix(cfg)`` helper, and as the default
@@ -599,7 +602,7 @@ CFG_HELP: dict[str, tuple] = {
     ),
     # Meta
     "config_version": (
-        "[bold red]DO NOT EDIT[/] - schema version, managed automatically.",
+        "Schema version, managed automatically.",
         "Current version: " + str(CURRENT_CONFIG_VERSION),
     ),
     "custom_buttons_side": (

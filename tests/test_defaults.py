@@ -131,6 +131,27 @@ class TestCfgHelpCoverage:
                 bad.append((key, len(valid)))
         assert bad == [], f"help 'valid' hints must be one line (<= {self.VALID_MAX} chars): {bad}"
 
+    # Keys whose help shows markup as an example of what to type, so the
+    # editor showing it literally is right.
+    MARKUP_EXAMPLE_KEYS = frozenset({"echo_fmt"})
+
+    def test_help_text_holds_no_markup(self):
+        """markup-escape: CFG_HELP is plain prose the editor escapes, so a markup tag in it shows as literal text."""
+        # Arrange / Act -- a closing tag is the sign of markup; a bare [x] may be prose
+        bad = [
+            (key, part)
+            for key, entry in CFG_HELP.items()
+            if key not in self.MARKUP_EXAMPLE_KEYS
+            for part in (entry if isinstance(entry, tuple) else (entry,))[:2]
+            if isinstance(part, str) and "[/" in part
+        ]
+
+        # Assert
+        assert bad == [], (
+            "the config editor escapes help text, so markup here shows as literal"
+            f" tags (config_version's [bold red] did, 2026-10-13 to 2026-11-01): {bad}"
+        )
+
 
 class TestDefaultCfg:
     def test_has_config_version(self):

@@ -19,6 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from termapy.markup import escape_markup
 from termapy.protocol.core import format_hex
 
 
@@ -232,14 +233,24 @@ class SerialPort:
 CLEAR_SCREEN_RE = re.compile(r"(\x1b\[H)?\x1b\[2J")
 PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
 
-# Visible EOL markers (dim ANSI text)
+# Visible EOL markers on received lines (dim ANSI text: received lines
+# render from ANSI)
 _EOL_CR = "\x1b[2m\\r\x1b[0m"
 _EOL_LF = "\x1b[2m\\n\x1b[0m"
 
+# The same markers for an echo line, which is Rich markup
+# (``ReplEngine.format_echo_markup``): ANSI there shows as raw codes.
+_EOL_MARKUP = {"\r": "[dim]\\r[/dim]", "\n": "[dim]\\n[/dim]"}
 
-def eol_label(line_ending: str) -> str:
-    """Format a line ending string with visible markers."""
-    return line_ending.replace("\r", _EOL_CR).replace("\n", _EOL_LF)
+
+def eol_label_markup(line_ending: str) -> str:
+    """A line ending as Rich markup for an echo line: CR and LF as dim ``\\r`` / ``\\n``.
+
+    Until 2026-11-01 the echo used the received lines' ANSI markers, and
+    the TUI, which renders the echo from markup, showed ``AT[2m\\r[0m``.
+    Any other character of the line ending is escaped as it is.
+    """
+    return "".join(_EOL_MARKUP.get(char, escape_markup(char)) for char in line_ending)
 
 
 # Receive-newline modes (mirrors TeraTerm's Receive newline: AUTO/CR/LF/CR+LF).

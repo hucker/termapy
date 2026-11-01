@@ -28,7 +28,7 @@ from termapy.config import (
     prepare_cfg_folder,
     write_config_file,
 )
-from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, cmd_prefix
+from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, MANAGED_CFG_KEYS, cmd_prefix
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
@@ -387,7 +387,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
         status_markup, error_markup = self._validate_value(key, raw_val)
 
         # Build help text: line number, description, valid values, current value, error/preview
-        heading = [f"[dim]Line {row + 1:d}: {escape_markup(desc)}[/]"]
+        warning_markup = "[bold red]DO NOT EDIT[/] - " if key in MANAGED_CFG_KEYS else ""
+        heading = [f"[dim]Line {row + 1:d}:[/] {warning_markup}[dim]{escape_markup(desc)}[/]"]
         if valid:
             heading.append(f"Valid: [dim italic]{escape_markup(valid)}[/]")
         lines = [*heading, f"Value: {status_markup}"]

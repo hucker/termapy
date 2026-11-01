@@ -118,9 +118,10 @@ whole text.
 ### Ctrl-key capture (Windows + Linux)
 
 VS Code's integrated terminal on Windows and Linux captures
-`Ctrl+P` (Quick Open), `Ctrl+S` (Save), and `Ctrl+T` (Go to Symbol in Workspace) before
-they reach the shell.  Inside termapy that means those shortcuts
-never fire unless you rebind them in VS Code.
+`Ctrl+P` (Quick Open), `Ctrl+S` (Save), `Ctrl+T` (Go to Symbol in
+Workspace) and `Ctrl+F` (the terminal's own find) before they reach the
+shell.  Inside termapy that means those shortcuts never fire unless you
+rebind them in VS Code.
 
 **macOS VS Code** uses `Cmd+*` for those shortcuts, so `Ctrl+*`
 passes through normally there -- no fallback needed.
@@ -136,6 +137,7 @@ platform:
 | Save SVG        | Ctrl+S  | Alt+S        |
 | Save text       | Ctrl+T  | Alt+T        |
 | Command palette | Ctrl+P  | Alt+P        |
+| Find (config editor) | Ctrl+F | Alt+F   |
 
 VS Code rarely captures Alt-key combos, so the fallbacks survive.
 When termapy starts inside VS Code's terminal on Windows or Linux,
@@ -161,6 +163,11 @@ If you'd rather keep your `Ctrl+*` muscle memory, edit your VS Code
   {
     "key": "ctrl+t",
     "command": "-workbench.action.showAllSymbols",
+    "when": "terminalFocus"
+  },
+  {
+    "key": "ctrl+f",
+    "command": "-workbench.action.terminal.focusFind",
     "when": "terminalFocus"
   }
 ]

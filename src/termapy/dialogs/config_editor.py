@@ -29,7 +29,13 @@ from termapy.config import (
     write_config_file,
 )
 from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, MANAGED_CFG_KEYS, cmd_prefix
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
+from termapy.dialogs._common import (
+    _DISMISS_BINDINGS,
+    _FIND_BINDINGS,
+    _MODAL_BTN_CSS,
+    EditorTextArea,
+    FindRow,
+)
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
 from termapy.matching import closest
@@ -40,7 +46,7 @@ from termapy.scripting import parse_bool
 class ConfigEditor(ModalScreen[tuple | None]):
     """Modal dialog to edit JSON config. Returns (cfg_dict, path) or None."""
 
-    BINDINGS = _DISMISS_BINDINGS
+    BINDINGS = [*_DISMISS_BINDINGS, *_FIND_BINDINGS]
 
     CSS = f"""
     ConfigEditor {{ align: center middle; }}
@@ -113,13 +119,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
         with Vertical(id="config-dialog"):
             yield Static(f"JSON: {self.config_path}", id="config-title", markup=False)
-            yield EditorTextArea(
+            editor = EditorTextArea(
                 json.dumps(self._disk_cfg, indent=4),
                 language="json",
                 theme="monokai",
                 show_line_numbers=True,
                 id="config-editor",
             )
+            yield editor
+            yield FindRow(editor, id="config-find")
             with Horizontal(id="save-as-row"):
                 yield Input(
                     placeholder="filename.cfg",
@@ -130,6 +138,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 yield Static("", id="config-help", markup=False)
                 yield Static("", id="config-error", markup=False)
                 with Horizontal(id="config-btn-col"):
+                    yield Button("Find", id="cfg-find", variant="warning")
                     yield Button("Save", id="cfg-save", variant="success")
                     yield Button("Save As", id="cfg-save-as", variant="primary")
                     yield Button("Cancel", id="cfg-cancel", variant="error")
@@ -142,6 +151,9 @@ class ConfigEditor(ModalScreen[tuple | None]):
         self.query_one(
             "#save-as-input", Input
         ).tooltip = "New filename for Save As (the .cfg extension is added automatically)."
+        self.query_one(
+            "#cfg-find", Button
+        ).tooltip = "Find text in the JSON (Ctrl+F; Alt+F in VS Code)."
         self.query_one("#cfg-save", Button).tooltip = "Validate and save changes to this config."
         self.query_one("#cfg-save-as", Button).tooltip = "Save the config to a new filename."
         self.query_one("#cfg-cancel", Button).tooltip = "Discard changes and close."
@@ -500,6 +512,14 @@ class ConfigEditor(ModalScreen[tuple | None]):
             err.add_class("visible")
             return
         self.dismiss((new_cfg, path))
+
+    def action_find(self) -> None:
+        """Ctrl+F / Alt+F: open the find bar."""
+        self.query_one("#config-find", FindRow).open()
+
+    @on(Button.Pressed, "#cfg-find")
+    def find_pressed(self) -> None:
+        self.action_find()
 
     @on(Button.Pressed, "#cfg-save-as")
     def save_as_config(self) -> None:

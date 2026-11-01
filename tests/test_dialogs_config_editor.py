@@ -113,6 +113,34 @@ class TestHelpLine:
 
         _run(scenario)
 
+    def test_a_managed_key_is_headed_do_not_edit_in_red(self, tmp_path):
+        """config_version's help opens with a red DO NOT EDIT, rendered: no markup tag shows as text."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Act
+                screen, _ = await _open(app, pilot, cfg, path, highlight_key="config_version")
+                await pilot.pause()
+
+                # Assert
+                content = screen.query_one("#config-help", Static).render()
+                help_text = str(content)
+                assert ": DO NOT EDIT - Schema version, managed automatically." in help_text, (
+                    help_text
+                )
+                assert "[" not in help_text, f"no markup tag shows as text: {help_text!r}"
+                start = help_text.index("DO NOT EDIT")
+                red = [
+                    span
+                    for span in content.spans
+                    if span.start <= start < span.end and "red" in str(span.style)
+                ]
+                assert red, f"DO NOT EDIT is red: {content.spans!r}"
+
+        _run(scenario)
+
     def test_an_enum_key_lists_its_values_once(self, tmp_path):
         """custom_buttons_side's help lists bottom, left, right after one Valid label (it read "Valid: Valid:")."""
 

@@ -96,7 +96,7 @@ from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
-from termapy.serial_port import eol_label
+from termapy.serial_port import eol_label_markup
 from termapy.terminal_host import (
     LOG_STARTED,
     LOG_STOPPED,
@@ -3332,7 +3332,7 @@ class SerialTerminal(TerminalHost, App):
                 status=self._status,
                 serial_write=self._serial_write,
                 is_connected=lambda: self.is_connected,
-                eol_label=eol_label,
+                eol_label=eol_label_markup,
                 report=report,
             )
         finally:
@@ -3369,7 +3369,7 @@ class SerialTerminal(TerminalHost, App):
                 status=self._status,
                 serial_write=self._serial_write,
                 is_connected=lambda: self.is_connected,
-                eol_label=eol_label,
+                eol_label=eol_label_markup,
             )
         finally:
             self._dispatch_guard.release()

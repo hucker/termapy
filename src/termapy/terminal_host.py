@@ -21,7 +21,7 @@ from termapy.defaults import quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.scripting import strip_ansi
-from termapy.serial_port import eol_label, strip_eol_markers
+from termapy.serial_port import eol_label_markup, strip_eol_markers
 from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
@@ -750,7 +750,7 @@ class TerminalHost:
             status=self.status,
             serial_write=self._serial_write,
             is_connected=lambda: self.engine.is_connected,
-            eol_label=eol_label,
+            eol_label=eol_label_markup,
             report=report,
         )
 

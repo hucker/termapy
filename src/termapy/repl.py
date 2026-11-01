@@ -1498,7 +1498,8 @@ class ReplEngine:
 
         Args:
             text: The command or device line as typed.
-            eol_label: Renders a line ending visibly, or ``None`` for no
+            eol_label: Renders a line ending visibly as Rich markup
+                (``serial_port.eol_label_markup``), or ``None`` for no
                 markers (slash commands send no line ending).
 
         Returns:
@@ -1506,10 +1507,12 @@ class ReplEngine:
         """
         from termapy.variables import expand_vars
 
+        # The marker is markup already, so it joins after the text is escaped.
+        marker_markup = ""
         if eol_label is not None and self.cfg.get("eol_markers", False):
-            text += eol_label(self.cfg.get("eol", "\r"))
+            marker_markup = eol_label(self.cfg.get("eol", "\r"))
         fmt = expand_vars(self.cfg.get("echo_fmt", "> {cmd}"))
-        return fmt.replace("{cmd}", escape_markup(text))
+        return fmt.replace("{cmd}", escape_markup(text) + marker_markup)
 
     def dispatch_full(
         self,

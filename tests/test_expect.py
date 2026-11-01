@@ -584,14 +584,16 @@ class TestEolMarkers:
 
     def test_a_text_capture_holds_no_marker_text(self, cli, tmp_path):
         """A line carrying the display marker is captured as the device sent it, with no \\r\\n text."""
-        # Arrange
-        from termapy.serial_port import eol_label
+        # Arrange -- the line as the reader produces it with eol_markers on
+        from termapy.serial_port import SerialReader
 
+        [marked] = SerialReader(show_line_endings=True).process(b"OK\r\n").lines
+        assert marked != "OK", "the reader marked the line"
         path = tmp_path / "cap.txt"
         assert cli.capture.start(path=path, file_mode="w", mode="text", duration=60.0)
 
         # Act
-        cli._feed_rx_consumers(["OK" + eol_label("\r\n")])
+        cli._feed_rx_consumers([marked])
         cli.capture.stop()
 
         # Assert

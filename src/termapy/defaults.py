@@ -354,66 +354,72 @@ def _preview_markup(raw_val: str) -> str:
 CFG_HELP: dict[str, tuple] = {
     # Serial
     "serial": (
-        "pyserial connection parameters (edit the nested keys below).",
+        "pyserial connection settings; edit the nested keys below.",
         "Nested: port, baud_rate, byte_size, parity, stop_bits, flow_control.",
     ),
     "port": (
-        "Serial port: device name, USB serial number, fallback chain, DEMO, or URL.",
+        "Port name, USB serial number, SN|COM3 fallback, DEMO, or a URL.",
         _list_ports,
     ),
     "baud_rate": (
-        "Serial baud rate. Non-standard rates require custom_baud = true.",
-        "Standard: 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600",
+        "Line speed in bits per second; must match the device.",
+        "Standard: 110 to 921600, 115200 most common. Others: custom_baud.",
     ),
     "custom_baud": (
-        "Allow non-standard baud rates (modern drivers accept arbitrary rates).",
+        "Allow a non-standard baud_rate; most modern drivers take any rate.",
         "true, false",
     ),
-    "byte_size": ("Data bits per byte.", "5, 6, 7, 8"),
-    "parity": (
-        "Parity bit.",
-        "N (None), E (Even), O (Odd), M (Mark), S (Space)",
+    "byte_size": (
+        "Data bits per character; 8 for nearly every modern device.",
+        "5, 6, 7, 8. Default: 8",
     ),
-    "stop_bits": ("Stop bits.", "1, 1.5, 2"),
+    "parity": (
+        "Parity bit on each character; must match the device, usually N.",
+        "N (None), E (Even), O (Odd), M (Mark), S (Space). Default: N",
+    ),
+    "stop_bits": (
+        "Stop bits ending each character; must match the device, usually 1.",
+        "1, 1.5, 2. Default: 1",
+    ),
     "flow_control": (
-        "Flow control mode.",
+        "How the port paces data: RTS/CTS wires, XON/XOFF bytes, or neither.",
         "none, rtscts, xonxoff, manual (shows DTR/RTS/Break buttons)",
     ),
     "encoding": (
-        "Character encoding for serial data (set: {prefix}term.encoding).",
-        "Common: utf-8, latin-1, ascii, cp437",
+        "Turns device bytes into text and back (set: {prefix}term.encoding).",
+        "Common: utf-8, latin-1, ascii, cp437. Default: utf-8",
     ),
     "eol": (
-        "Appended to each sent command (set: {prefix}term.eol).",
-        r'"\r" (CR), "\n" (LF), "\r\n" (CRLF), or a combination; also \0 \x03 \x04.',
+        "Line ending added to each line sent to the device ({prefix}term.eol).",
+        r'"\r" CR (default), "\n" LF, "\r\n" CRLF; also \0 \x03 \x04.',
     ),
     "tx_char_delay_ms": (
-        "Delay in ms after each character of a line sent to the device.",
-        "0 = off. Non-negative integer. For a device that drops bytes sent back to back.",
+        "Pause in ms after each character of a line sent to the device.",
+        "0 = off. For a device that drops bytes sent back to back.",
     ),
     "tx_line_delay_ms": (
-        "Delay in ms after each line sent to the device.",
-        "0 = off. Non-negative integer. Lines only: binary sends are never paced.",
+        "Pause in ms after each line sent to the device.",
+        "0 = off. Lines only: binary sends are never paced.",
     ),
     "eol_rx": (
-        "How received device output is split into lines (set: {prefix}term.eol.rx).",
-        "auto (CR/LF/CRLF all break), cr, lf, or crlf. Default: auto",
+        "How device output is split into lines (set: {prefix}term.eol.rx).",
+        "auto (CR, LF and CRLF all end a line), cr, lf, crlf. Default: auto",
     ),
     "cmd_delay_ms": (
-        "Delay in ms between commands in multi-command input.",
-        "0 = no delay. Positive integer.",
+        "Pause in ms after each of the TUI's on-connect commands.",
+        "0 = no pause. Non-negative integer.",
     ),
     "multiline_paste": (
-        "A paste of several lines into the prompt sends every line, as if typed.",
-        "true/false. Off: only the first line lands in the prompt. Escape stops a paste.",
+        "Pasting several lines into the prompt sends each one, as if typed.",
+        "true, false. Off: only the first line lands. Escape stops a paste.",
     ),
     "multiline_paste_delay_ms": (
-        "Delay in ms between the lines of a multi-line paste.",
-        "0 = no delay. Non-negative integer. Default: 10 (TeraTerm's).",
+        "Pause in ms between the lines of a multi-line paste.",
+        "0 = no pause. Non-negative integer. Default: 10 (TeraTerm's).",
     ),
     "control_keys": (
-        "Ctrl+C/D/Z and Escape reach the device when the prompt has no use for them.",
-        "true/false (set: {prefix}term.control_keys). Off: they only copy, delete and clear.",
+        "Ctrl+C/D/Z and Esc go to the device when termapy has no use for them.",
+        "true, false ({prefix}term.control_keys). Off: copy, delete, clear only.",
     ),
     "protocol": (
         "Wire format the device speaks.",
@@ -421,7 +427,7 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "ndjson_field_routing": (
         "NDJSON: which inbound JSON fields the MCP bridge routes on.",
-        "Keys response_id/error_field/event_field; override for non-default fields.",
+        "Keys response_id, error_field, event_field; change for other names.",
     ),
     "response_id": (
         "NDJSON field name carrying a reply's correlation id.",
@@ -436,190 +442,193 @@ CFG_HELP: dict[str, tuple] = {
         "Default: event",
     ),
     "default_response_timeout_ms": (
-        "Fallback response wait for profile commands lacking response.timeout_ms.",
-        "Positive integer ms.  Per-command response.timeout_ms always wins.",
+        "Reply wait for a profile command that sets no response.timeout_ms.",
+        "Positive integer ms. Default: 1000. A command's own timeout wins.",
     ),
     # Connection
     "auto_connect": (
-        "Connect to the port automatically on startup.",
-        "true, false    ",
+        "Open the port as soon as termapy starts.",
+        "true, false",
     ),
     "auto_reconnect": (
-        "Retry connection every 2.5s if the port drops or fails to open.",
+        "Retry every 2.5 s when the port drops or fails to open.",
         "true, false",
     ),
     "on_connect_cmd": (
-        "Command to run after connecting (all frontends).",
+        "Command run after every connect, in every frontend.",
         "One command; for several, a .run file. Example: {prefix}run welcome",
     ),
     "tui_on_connect_cmd": (
-        "Extra command to run after connecting in TUI mode (after on_connect_cmd).",
-        "One command; for several, a .run file. Useful for interactive-only setup.",
+        "Extra command after connecting in the TUI, after on_connect_cmd.",
+        "One command; for several, a .run file. For TUI-only setup.",
     ),
     "cli_on_connect_cmd": (
-        "Extra command to run after connecting in CLI mode (after on_connect_cmd).",
-        "One command; for several, a .run file. Useful for interactive-only setup.",
+        "Extra command after connecting in the CLI, after on_connect_cmd.",
+        "One command; for several, a .run file. For CLI-only setup.",
     ),
     "mcp_on_connect_cmd": (
-        "Extra command to run after connecting in MCP mode (after on_connect_cmd).",
-        "One command; for several, a .run file. Common: 'echo off' to silence device echo.",
+        "Extra command after connecting under MCP, after on_connect_cmd.",
+        "One command; for several, a .run file. Common: device echo off.",
     ),
     # Input
     "send_bare_enter": (
-        "Send the line ending on an empty Enter (toggle: {prefix}term.send_bare_enter).",
+        "Enter on an empty prompt sends a line ending ({prefix}term.send_bare_enter).",
         "true, false",
     ),
     "echo": (
-        "Echo device commands sent to the wire (toggle: {prefix}term.echo).",
+        "Show the lines you send to the device in the output ({prefix}term.echo).",
         "true, false",
     ),
     "echo_fmt": (
-        "Rich markup format for echoed commands.",
+        "Rich markup for a line shown by echo; {cmd} is the line sent.",
         "{cmd} is replaced. Example: [purple]> {cmd}[/]",
         _preview_markup,
     ),
     "default_ui": (
-        "Default UI mode when launching without a mode flag.",
+        "Frontend to start in when no mode flag (--cli, --vt100) is given.",
         "tui, cli, vt100. Default: tui",
     ),
     "vt100_hint": (
-        "Show a VS Code key-capture tip in --vt100 mode.",
+        "In --vt100 mode under VS Code, show a tip about captured keys.",
         "true, false. VS Code terminals capture some keys before the device.",
     ),
     "quiet_start": (
-        "Start quietly: show the connection and any problem, keep the detail in the log.",
-        "true, false. False also shows the load table and the full connect line.",
+        "Show only the connection and any problem at start; detail in the log.",
+        "true, false. False also shows the load table and full connect line.",
     ),
     "cmd_prefix": (
-        "Prefix for local REPL commands.",
-        "Default: /. Example: ! would make commands like !help",
+        "Starts a termapy command; any other line goes to the device.",
+        "Default: /. Example: ! makes commands like !help",
     ),
     "cli_prompt": (
-        "Prompt string for CLI mode input.",
-        "Default: '> '",
+        "Prompt shown for input in CLI mode.",
+        "Default: '$(CFG)> ', the config name. $(...) variables expand.",
     ),
     "cli_completion": (
-        "Enable CLI tab completion, auto-suggest, and help toolbar.",
+        "CLI tab completion, history auto-suggest and the help toolbar.",
         "true, false. Default: true",
     ),
     # Display
     "title": (
-        "Title bar center text.",
+        "Text in the center of the title bar.",
         "Empty = config filename. Supports $(env.NAME).",
     ),
     "border_color": (
-        "Title bar and border color.",
+        "Color of the title bar and the output border.",
         "CSS name (blue, red, green) or hex (#ff6600). Empty = blue.",
         _preview_color,
     ),
-    "max_lines": ("Scrollback buffer size.", "Positive integer. Default: 10000"),
+    "max_lines": (
+        "Lines the output pane keeps; past this the oldest drop off.",
+        "Positive integer. Default: 10000",
+    ),
     "timestamps": (
         "Prefix each line with [HH:MM:SS.mmm] (toggle: {prefix}term.timestamps).",
         "true, false",
     ),
     "eol_markers": (
-        "Show dim \\r \\n markers in serial output (toggle: {prefix}term.eol.markers).",
-        "true, false. Debug mode for line-ending issues.",
+        "Show dim \\r \\n markers in serial output ({prefix}term.eol.markers).",
+        "true, false. For tracking down line-ending problems.",
     ),
     "line_no": (
         "Show line numbers in serial output (toggle: {prefix}term.line_no).",
         "true, false",
     ),
     "hex": (
-        "Display received bytes as hex instead of text (toggle: {prefix}term.hex).",
+        "Show received bytes as hex instead of text (toggle: {prefix}term.hex).",
         "true, false",
     ),
     "request_mode": (
-        "Session JSON mode: device exchanges AND termapy commands.",
-        "true/false. On: everything answers as a JSON envelope. See {prefix}term.request.",
+        "Every answer, from the device or termapy, comes as a JSON envelope.",
+        "true, false. See {prefix}term.request.",
     ),
     "request_err_pattern": (
-        "Regex on request_mode responses that flags a device-side error.",
-        r"Match => success=false. Empty disables. Override: {prefix}term.request on err=<re>.",
+        "Regex that marks a request_mode reply as a device-side error.",
+        r"Match: success=false. Empty: off. {prefix}term.request on err=<re>",
     ),
     "json_style": (
-        "How JSON prints (request_mode, --json): compact, indent, or color.",
-        "compact = one line per answer; indent; color = indented + highlighted. {prefix}term.json",
+        "How JSON prints in request_mode and --json (set: {prefix}term.json).",
+        "compact (one line), indent, color (indented and highlighted).",
     ),
     "strip_device_echo": (
         "Drop a half-duplex device's echoed command from request_mode replies.",
-        "true/false. On: a reply's leading line matching the command is removed.",
+        "true, false. On: a first reply line matching the command is dropped.",
     ),
     "max_grep_lines": (
-        "Maximum lines shown by {prefix}grep.",
+        "Most lines {prefix}grep shows for one search.",
         "Positive integer. Default: 100",
     ),
     "file_xfer_root": (
-        "Root directory for file transfers (empty = the config's cap/ folder).",
-        "Absolute path, or empty for the default.",
+        "Folder XMODEM/YMODEM use; empty = the config's cap/ folder.",
+        "Absolute path, or empty. Set: {prefix}xfer.root",
     ),
     # Logging
     "log_file": (
-        "The TUI's session log file path.",
-        "Empty = <name>.log in config subfolder. MCP logs to mcp/session.log; the CLI keeps none.",
+        "The TUI's session log; empty = <config>.log in the config's folder.",
+        "MCP logs to mcp/session.log; the CLI keeps no log.",
     ),
     "show_traceback": ("Show full stack trace on serial errors.", "true, false"),
     # Proto
     "proto_frame_gap_ms": (
-        "Silence gap (ms) to detect end of a binary frame.",
+        "Silence in ms that ends a binary frame in a protocol test.",
         "Positive integer. Default: 50",
     ),
     "proto_results_template": (
-        "Filename template for proto test JSON results.",
-        "Placeholders: {name}, {proto_name}, {datetime}",
+        "File name for a protocol test's JSON results.",
+        "Placeholders: {name}, {proto_name}, {datetime}, {date}, {time}",
     ),
     # Access
     "config_read_only": (
-        "Disable Edit button in pickers.",
+        "Grey out Edit, Rename and Delete in the cfg, run and proto pickers.",
         "true, false. {prefix}cfg still changes in-memory values.",
     ),
     "profile_path": (
-        "Explicit path to a v2 device profile.  MCP-only: --mcp loads it on connect.",
-        'file path (e.g. "termapy_cfg/myrig/myrig.profile.json"), or empty.',
+        "Device profile MCP loads on connect; empty = found by convention.",
+        'File path, e.g. "termapy_cfg/myrig/myrig.profile.json", or empty.',
     ),
     "validate_typed_args": (
-        "Validate bare-command typed args against the active profile before sending.",
-        "true/false. Off = raw access (device errors are truth); on mirrors MCP.",
+        "Check typed device commands against the profile before sending.",
+        "true, false. Off: the device judges (raw access); on: as MCP does.",
     ),
     # Title-bar buttons
     "cfg_enabled": (
         "Show the Cfg button in the title bar.",
-        "true, false.",
+        "true, false",
     ),
     "run_enabled": (
         "Show the Run button in the title bar.",
-        "true, false.",
+        "true, false",
     ),
     "proto_enabled": (
         "Show the Proto button in the title bar.",
-        "true, false.",
+        "true, false",
     ),
     "record_enabled": (
-        "Show the Record button next to the REPL prompt (toggles {prefix}run.record).",
-        "true, false.",
+        "Show the Record button by the prompt (toggles {prefix}run.record).",
+        "true, false",
     ),
     # Custom buttons (nested keys)
-    "enabled": ("Whether this button is visible in the toolbar.", "true, false"),
-    "name": ("Button display text.", "Short text shown on the button."),
+    "enabled": ("Show this button on the toolbar.", "true, false"),
+    "name": ("Label shown on the button.", "Short text."),
     "command": (
-        "Command to execute when clicked.",
-        r"Serial text, /repl command, or \n-separated sequence.",
+        "What a click runs: text for the device or a termapy command.",
+        r"One line, or several separated by \n.",
     ),
     "tooltip": (
         "Hover text for the button.",
-        "Shown when mouse hovers over the button.",
+        "Shown when the mouse rests on the button.",
     ),
     # Meta
     "config_version": (
-        "Schema version, managed automatically.",
+        "Config format version; termapy updates it when it migrates the file.",
         "Current version: " + str(CURRENT_CONFIG_VERSION),
     ),
     "custom_buttons_side": (
-        "Where custom buttons sit: the bottom bar, or a column on the left or right edge.",
+        "Where custom buttons go: the bottom bar or a left or right column.",
         f"{', '.join(CUSTOM_BUTTON_SIDES)}. A column scrolls when it holds more than fit.",
     ),
     "custom_buttons": (
-        "Array of custom toolbar button objects.",
+        "Toolbar buttons of your own, each running a command.",
         "Each has: enabled, name, command, tooltip. See help: custom-buttons.",
     ),
 }

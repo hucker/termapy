@@ -544,6 +544,12 @@ class SerialTerminal(TerminalHost, App):
         self._history_mtime_seen: float = 0.0
         self.history: list[str] = self._load_history()
         self._history_nav = HistoryNavigator()
+        # A typed command or paste is in flight (_begin_busy / _end_busy);
+        # its grey-bar look comes only after _BUSY_LOOK_DELAY_S.
+        self._busy = False
+        self._busy_look_timer: Timer | None = None
+        self._busy_look_shown = False
+        self._saved_placeholder = ""
         # Clickable output (_write_link_segments): link id -> Link, the
         # newest _LINK_LIMIT kept, so a long session's table stays bounded.
         self._links: OrderedDict[int, Link] = OrderedDict()
@@ -3086,10 +3092,7 @@ class SerialTerminal(TerminalHost, App):
             self.history.pop(0)
         self._update_suggester()
 
-        inp = self.query_one("#cmd", Input)
-        self._saved_placeholder = inp.placeholder
-        inp.placeholder = "Running... escape to cancel"
-        self._set_input_busy(True)
+        self._begin_busy("Running... escape to cancel")
         self._dispatch_on_thread_interactive(cmd)
 
     def on_prompt_input_multiline_paste(self, event: PromptInput.MultilinePaste) -> None:
@@ -3105,12 +3108,10 @@ class SerialTerminal(TerminalHost, App):
             inp.insert_text_at_cursor(lines[0])
             self._status(f"Pasted 1 of {len(lines)} lines: multiline_paste is off.", "yellow")
             return
-        if self.query_one("#bottom-bar").disabled or self.repl.in_script:
+        if self._busy or self.repl.in_script:
             self._status(self._BUSY_MSG, "yellow")
             return
-        self._saved_placeholder = inp.placeholder
-        inp.placeholder = f"Pasting {len(lines)} lines... escape to stop"
-        self._set_input_busy(True)
+        self._begin_busy(f"Pasting {len(lines)} lines... escape to stop")
         self._paste_on_thread(lines)
 
     # -- Clickable output ------------------------------------------------------
@@ -3188,10 +3189,47 @@ class SerialTerminal(TerminalHost, App):
             inp.cursor_position = len(inp.value)
             inp.focus()
             return
-        if self.query_one("#bottom-bar").disabled:
+        if self._busy or self.query_one("#bottom-bar").disabled:
             self._status(self._BUSY_MSG, "yellow")
             return
         self._submit_line(command)
+
+    # A typed command or paste that finishes sooner than this never shows the
+    # busy look: greying the bar and putting it back for a quick command
+    # made every button flash.
+    _BUSY_LOOK_DELAY_S = 0.15
+
+    def _begin_busy(self, placeholder: str) -> None:
+        """A typed command or paste starts: busy now, and looks it if it is still running soon.
+
+        ``_busy`` is the fact (Escape and the click and paste checks read it);
+        the grey bar and the ``placeholder`` come only after
+        ``_BUSY_LOOK_DELAY_S``, so a quick command repaints nothing.
+        """
+        self._busy = True
+        if self._busy_look_timer is not None:
+            self._busy_look_timer.stop()
+
+        def _look() -> None:
+            self._busy_look_timer = None
+            inp = self.query_one("#cmd", Input)
+            self._saved_placeholder = inp.placeholder
+            inp.placeholder = placeholder
+            self._set_input_busy(True)
+            self._busy_look_shown = True
+
+        self._busy_look_timer = self.set_timer(self._BUSY_LOOK_DELAY_S, _look)
+
+    def _end_busy(self) -> None:
+        """The typed command or paste ended: not busy, and the busy look undone if it was shown."""
+        self._busy = False
+        if self._busy_look_timer is not None:
+            self._busy_look_timer.stop()
+            self._busy_look_timer = None
+        if self._busy_look_shown:
+            self._busy_look_shown = False
+            self._restore_input_placeholder()
+            self._set_input_busy(False)
 
     def _restore_input_placeholder(self) -> None:
         """Restore the command input placeholder after execution."""
@@ -3231,17 +3269,13 @@ class SerialTerminal(TerminalHost, App):
 
     @work(thread=True)
     def _dispatch_on_thread_interactive(self, cmd: str) -> None:
-        """Background dispatch for typed input: keeps the line for /run.last, restores the placeholder."""
+        """Background dispatch for typed input: keeps the line for /run.last, then ends the busy state."""
         try:
             self._dispatch_typed(cmd)
         except RuntimeError:
             pass
         try:
-            self.call_from_thread(self._restore_input_placeholder)
-        except RuntimeError:
-            pass
-        try:
-            self.call_from_thread(self._set_input_busy, False)
+            self.call_from_thread(self._end_busy)
         except RuntimeError:
             pass
 
@@ -3291,8 +3325,7 @@ class SerialTerminal(TerminalHost, App):
         if sent < len(lines):
             self._status(f"Paste stopped after {sent} of {len(lines)} lines.", "yellow")
         try:
-            self.call_from_thread(self._restore_input_placeholder)
-            self.call_from_thread(self._set_input_busy, False)
+            self.call_from_thread(self._end_busy)
         except RuntimeError:
             pass
 
@@ -3557,13 +3590,13 @@ class SerialTerminal(TerminalHost, App):
     def _nothing_running(self) -> bool:
         """Whether no script and no command runs, so a key has nothing of termapy's to stop.
 
-        A script keeps the bar live for its Stop button, so it is asked for;
-        a typed command, paste or replay greys the bar the prompt sits in,
-        which takes the prompt's focus; a command from a button or the
-        palette holds the dispatch guard (tested non-blocking, so main never
-        waits on it).
+        A script is asked for (it keeps the bar live for its Stop button); a
+        typed command, paste or replay is ``_busy`` from submit to finish,
+        including the pause between pasted lines and before its grey look
+        shows; a command from a button or the palette holds the dispatch
+        guard (tested non-blocking, so main never waits on it).
         """
-        if self.repl.in_script:
+        if self.repl.in_script or self._busy:
             return False
         if not self._dispatch_guard.acquire(blocking=False):
             return False

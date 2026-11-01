@@ -1132,7 +1132,7 @@ class TestClickableOutput:
                     "hello.run",
                     lambda: sum("clicked-ok" in line for line in _screen(app)) == 1,
                 )
-                await until(pilot, lambda: not app.query_one("#bottom-bar").disabled)
+                await until(pilot, lambda: not app._busy)
                 await _click_until(
                     pilot,
                     app,

@@ -113,3 +113,57 @@ def test_transient_message_auto_clears_after_timeout():
             assert not bar.has_class("visible"), "auto-cleared after timeout"
 
     _run(scenario)
+
+
+def test_a_counter_never_narrows_the_bar_while_it_shows():
+    """A shorter text keeps the bar's width (no layout pass), a wider one grows it; text always updates.
+
+    A layout pass repaints the bottom row and the output pane, so a plugin
+    refreshing a counter twice a second made the screen flicker.  The width
+    holding is the visible sign that no layout ran.
+    """
+
+    async def scenario():
+        async with _Host().run_test() as pilot:
+            bar = pilot.app.query_one(StatusBar)
+            bar.show("TX:1,000  RX:2,000", timeout=99)
+            await pilot.pause()
+            wide = bar.size.width
+
+            # Act
+            bar.show("TX:9  RX:9", timeout=99)
+            await pilot.pause()
+            after_shorter = bar.size.width
+            shown = str(bar.render()).strip()
+            bar.show("TX:10,000  RX:20,000", timeout=99)
+            await pilot.pause()
+            after_wider = bar.size.width
+
+            # Assert
+            assert shown == "TX:9  RX:9", "the shorter text is what shows"
+            assert after_shorter == wide, "a shorter text keeps the width: no layout"
+            assert after_wider > wide, "a wider text grows the bar"
+
+    _run(scenario)
+
+
+def test_hiding_the_bar_lets_the_next_text_size_it_afresh():
+    """After the bar hides, a short text gets a short bar again, not the old widest."""
+
+    async def scenario():
+        async with _Host().run_test() as pilot:
+            bar = pilot.app.query_one(StatusBar)
+            bar.show("a long status message for a moment", timeout=99)
+            await pilot.pause()
+            wide = bar.size.width
+
+            # Act
+            bar.clear_status()
+            await pilot.pause()
+            bar.show("ok", timeout=99)
+            await pilot.pause()
+
+            # Assert
+            assert bar.size.width < wide, "sized for the new text"
+
+    _run(scenario)

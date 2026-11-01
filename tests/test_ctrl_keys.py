@@ -450,7 +450,7 @@ class TestEscape:
 
                 # Act -- in the 400 ms gap after the first line
                 await pilot.press("escape")
-                await until(pilot, lambda: not app.query_one("#bottom-bar").disabled)
+                await until(pilot, lambda: not app._busy)
                 await pilot.pause(0.2)
 
                 # Assert

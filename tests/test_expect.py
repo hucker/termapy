@@ -297,18 +297,119 @@ class TestExpectTimeout:
         assert result.success is False, "bad duration = failure"
 
 
+# ── fail= ends the wait on an error reply ───────────────────────────────────
+
+
+class TestFail:
+    def test_a_fail_line_ends_the_wait_at_once(self, env):
+        """A line containing fail= fails the expect when it arrives, long before the timeout, naming the line."""
+        # Arrange
+        eng, ctx, _output = env
+
+        def delayed_feed():
+            time.sleep(0.1)
+            eng.feed_lines(["ERROR: bad command"])
+
+        threading.Thread(target=delayed_feed, daemon=True).start()
+
+        # Act
+        start = time.monotonic()
+        result = eng.dispatch("expect timeout=5s fail=ERROR match=OK")
+        elapsed = time.monotonic() - start
+
+        # Assert
+        assert result.error == 'Expect "OK" failed: ERROR: bad command'
+        assert elapsed < 2.0, f"the error ended the wait, not the 5 s timeout; took {elapsed:.2f}s"
+
+    def test_a_match_still_succeeds_with_fail_set(self, env):
+        """With fail= set, the expected reply matches as before and is the value."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.feed_lines(["OK"])
+
+        # Act
+        result = eng.dispatch("expect timeout=1s fail=ERROR match=OK")
+
+        # Assert
+        assert (result.success, result.value) == (True, "OK")
+
+    def test_a_line_with_both_fails(self, env):
+        """An error reply that mentions the expected text still fails: fail= wins on one line."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.feed_lines(["ERROR: not OK"])
+
+        # Act
+        result = eng.dispatch("expect timeout=1s fail=ERROR match=OK")
+
+        # Assert
+        assert result.error == 'Expect "OK" failed: ERROR: not OK'
+
+    def test_without_fail_an_error_reply_waits_for_the_timeout(self, env):
+        """fail= is opt-in: without it an error line is just another line, as before."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.feed_lines(["ERROR: bad command"])
+
+        # Act
+        result = eng.dispatch("expect timeout=200ms match=OK")
+
+        # Assert
+        assert result.error == 'Expect "OK" timeout after 200ms'
+
+    def test_regex_fail_is_a_regex(self, env):
+        """In /expect.regex, fail= is a regex like match=: an anchored error fails, a mid-line one does not."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.feed_lines(["info: ERR counter reset", "ERR 5"])
+
+        # Act
+        result = eng.dispatch("expect.regex timeout=1s fail=^ERR match=^OK$")
+
+        # Assert
+        assert result.error == 'Expect "^OK$" failed: ERR 5', "only the line starting ERR fails it"
+
+    def test_an_invalid_fail_regex_fails_fast(self, env):
+        """A malformed fail= pattern fails with a regex error instead of waiting."""
+        # Arrange
+        eng, ctx, _output = env
+
+        # Act
+        result = eng.dispatch("expect.regex timeout=1s fail=(unclosed match=OK")
+
+        # Assert
+        assert result.error.startswith("Expect: invalid regex:")
+
+    def test_a_fail_consumes_its_line(self, env):
+        """Two expects in a row: the second waits for new output instead of failing on the same error."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.feed_lines(["ERROR: bad command"])
+
+        # Act
+        first = eng.dispatch("expect timeout=1s fail=ERROR match=OK")
+        second = eng.dispatch("expect timeout=200ms fail=ERROR match=OK")
+
+        # Assert
+        assert first.error.startswith('Expect "OK" failed:'), "the error fails the first"
+        assert second.error == 'Expect "OK" timeout after 200ms', "the error was consumed"
+
+
 # ── Inside a .run script, on the CLI against the DEMO device ───────────────
 
 
-@pytest.fixture
-def cli(tmp_path):
-    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
+def _connected_cli(tmp_path, **overrides):
+    """A CLI connected to the DEMO port, its cfg folder under tmp_path, ``overrides`` over the defaults."""
     from termapy.cli import CLITerminal
     from termapy.defaults import DEFAULT_CFG
 
     default_serial = DEFAULT_CFG["serial"]
     assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
-    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
+    cfg = {
+        **DEFAULT_CFG,
+        "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200},
+        **overrides,
+    }
     config_path = tmp_path / "rig" / "rig.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
@@ -316,6 +417,21 @@ def cli(tmp_path):
     # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
     terminal.repl.global_root = tmp_path
     assert terminal._connect() is True, "the DEMO port opens"
+    return terminal
+
+
+@pytest.fixture
+def cli(tmp_path):
+    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
+    terminal = _connected_cli(tmp_path)
+    yield terminal
+    terminal._disconnect()
+
+
+@pytest.fixture
+def marked_cli(tmp_path):
+    """The same CLI with eol_markers on, so the reader appends its display marker to each line."""
+    terminal = _connected_cli(tmp_path, eol_markers=True)
     yield terminal
     terminal._disconnect()
 
@@ -403,3 +519,80 @@ class TestInAScript:
 
         # Assert
         assert params["timeout"].default == 5.0
+
+    def test_output_from_before_the_script_never_answers_it(self, cli, tmp_path, capsys):
+        """A reply left unconsumed before a script cannot pass its expect: the stale OK that once passed fail=ERROR."""
+        # Arrange -- an OK nothing consumed, as an aborted earlier run leaves one
+        cli.repl.feed_lines(["OK"])
+        script = _script(
+            tmp_path,
+            "AT+BOGUS",
+            "/expect timeout=5s fail=ERROR match=OK",
+            "/print reached-the-end",
+        )
+
+        # Act
+        cli.repl.dispatch_full(f"/run {script}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "Expect \"OK\" failed: ERROR: Unknown command 'AT+BOGUS'" in out, (
+            "the device's reply decides, not the OK from before the script"
+        )
+        assert "reached-the-end" not in out
+
+    def test_a_device_error_stops_the_script_at_once(self, cli, tmp_path, capsys):
+        """The DEMO device's ERROR reply fails fail=ERROR at once and the script stops there."""
+        # Arrange
+        script = _script(
+            tmp_path,
+            "AT+BOGUS",
+            "/expect timeout=5s fail=ERROR match=OK",
+            "/print reached-the-end",
+        )
+
+        # Act
+        start = time.monotonic()
+        cli.repl.dispatch_full(f"/run {script}")
+        elapsed = time.monotonic() - start
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "Expect \"OK\" failed: ERROR: Unknown command 'AT+BOGUS'" in out
+        assert "reached-the-end" not in out, "the line after a failed expect never runs"
+        assert elapsed < 3.0, f"failed on the reply, not the 5 s timeout; took {elapsed:.2f}s"
+
+
+# ── The eol_markers display marker is not data ──────────────────────────────
+
+
+class TestEolMarkers:
+    def test_an_anchored_regex_matches_a_marked_line(self, marked_cli, tmp_path, capsys):
+        """With eol_markers on, ^OK$ still matches the device's OK: the watcher sees the line as sent."""
+        # Arrange
+        script = _script(
+            tmp_path, "AT", "/expect.regex timeout=2s match=^OK$", "/print reached-the-end"
+        )
+
+        # Act
+        marked_cli.repl.dispatch_full(f"/run {script}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert 'Expect "^OK$" matched' in out
+        assert "reached-the-end" in out
+
+    def test_a_text_capture_holds_no_marker_text(self, cli, tmp_path):
+        """A line carrying the display marker is captured as the device sent it, with no \\r\\n text."""
+        # Arrange
+        from termapy.serial_port import eol_label
+
+        path = tmp_path / "cap.txt"
+        assert cli.capture.start(path=path, file_mode="w", mode="text", duration=60.0)
+
+        # Act
+        cli._feed_rx_consumers(["OK" + eol_label("\r\n")])
+        cli.capture.stop()
+
+        # Assert
+        assert path.read_text(encoding="utf-8").splitlines() == ["OK"]

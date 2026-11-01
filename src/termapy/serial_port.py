@@ -264,6 +264,20 @@ HEX_ROW_BYTES = 16
 _EOL_MARKERS = {"cr": _EOL_CR, "lf": _EOL_LF, "crlf": _EOL_CR + _EOL_LF}
 
 
+def strip_eol_markers(line: str) -> str:
+    """``line`` without the end-of-line marker ``eol_markers`` appends for display.
+
+    The marker is display, not data: the expect watcher and a text
+    capture take the line as the device sent it, so ``^OK$`` matches and
+    a captured file holds no ``\\r\\n`` text.  Markers are only ever
+    appended, so only the end of the line is looked at.
+    """
+    for marker in (_EOL_MARKERS["crlf"], _EOL_CR, _EOL_LF):
+        if line.endswith(marker):
+            return line[: -len(marker)]
+    return line
+
+
 def split_rx_lines(buf: str, mode: str) -> tuple[list[tuple[str, str]], str]:
     """Split a receive buffer into complete ``(content, terminator)`` lines.
 

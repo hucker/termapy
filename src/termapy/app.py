@@ -2995,8 +2995,9 @@ class SerialTerminal(TerminalHost, App):
         flags = self.repl.ctx.ns("flags")
         show_ln = flags.get("line_no", False)
         color_on = flags.get("color", True)
-        # One ANSI strip per line, reused by the plain-render, log and
-        # capture paths below; each used to run its own (E3).
+        # One ANSI strip per line, reused by the plain-render and log paths
+        # below; each used to run its own (E3).  A text capture strips its
+        # own copy, without the eol_markers marker (_feed_rx_consumers).
         plain = [ANSI_RE.sub("", text) for text in lines]
         # from_ansi renders device SGR color; when color is off, render the
         # already-stripped copy so raw escapes don't leak through.  A hex
@@ -3031,7 +3032,7 @@ class SerialTerminal(TerminalHost, App):
             # from the per-line rendering.
             log.write(Text("\n").join(renderables))
         self._log_lines("<", plain)
-        self._feed_rx_consumers(lines, plain)
+        self._feed_rx_consumers(lines)
 
     @on(Input.Changed, "#cmd")
     def _on_cmd_changed(self, event: Input.Changed) -> None:

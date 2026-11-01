@@ -20,7 +20,8 @@ from termapy.config_resolve import resolve_config
 from termapy.defaults import quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
-from termapy.serial_port import eol_label
+from termapy.scripting import strip_ansi
+from termapy.serial_port import eol_label, strip_eol_markers
 from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
@@ -659,7 +660,7 @@ class TerminalHost:
             return self.engine.serial_port.read_raw(timeout_ms, frame_gap)
         return b""
 
-    def _feed_rx_consumers(self, lines: list[str], plain: list[str]) -> None:
+    def _feed_rx_consumers(self, lines: list[str]) -> None:
         """Hand received lines to the consumers every frontend shares.
 
         The expect watcher and text capture.  Each frontend calls this for
@@ -668,12 +669,18 @@ class TerminalHost:
         half, so ``/cap.text`` over MCP recorded nothing, which is why the
         list lives here and not in three copies.
 
+        Both get the line as the device sent it: the ``eol_markers`` display
+        marker comes off first, so ``/expect.regex match=^OK$`` matches and a
+        captured file holds no ``\\r\\n`` text, and the capture gets it with
+        ANSI stripped.
+
         Args:
             lines: Received lines as the reader produced them.
-            plain: The same lines with ANSI stripped, for the capture file.
         """
-        self.repl.feed_lines(lines)
+        received = [strip_eol_markers(line) for line in lines]
+        self.repl.feed_lines(received)
         if self.capture.active and self.capture.mode == "text":
+            plain = [strip_ansi(line) for line in received]
             if self.capture.feed_text(plain):
                 # Write failed mid-capture -- stop so the abort is visible
                 # instead of silently dropping the rest.

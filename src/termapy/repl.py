@@ -2234,6 +2234,12 @@ class ReplEngine:
             # on_script_start fires for the outermost script only.  The seq
             # plugin clears counters and refreshes {starttime} from its hook.
             self.fire_lifecycle("on_script_start")
+            # A script's expects answer to its own run.  A line left from
+            # before it -- a reply nothing consumed, minutes old -- would
+            # satisfy its first /expect and shift every match after it by
+            # one (found 2026-10-31, when a stale OK passed a fail=ERROR).
+            with self._expect_lock:
+                self._recent_lines.clear()
             # A script's slash-commands live in a file, so echoing each
             # back (echo_repl) is noise -- default it off for the run.  A
             # script that WANTS to show its commands re-enables it with

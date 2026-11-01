@@ -450,12 +450,12 @@ class CLITerminal(TerminalHost):
             for shown in lines if color_on else plain:
                 self._raw(shown)
             # Expect watcher and text capture, the same as every frontend.
-            self._feed_rx_consumers(lines, plain)
+            self._feed_rx_consumers(lines)
 
         def on_hex(rows: list[str], lines: list[str]) -> None:
             for row in rows:
                 self._raw(row)
-            self._feed_rx_consumers(lines, [strip_ansi(line) for line in lines])
+            self._feed_rx_consumers(lines)
 
         def on_disconnect() -> None:
             self._err("Serial disconnected")

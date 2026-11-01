@@ -915,6 +915,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_crcglot_abi.py                 | Does crcglot's compiled extension run on THIS interpreter?                                                                                         |
 | test_credits_data.py                | The dependency registry must agree with pyproject.toml, the vendored tree, and the surfaces that render it                                         |
 | test_credits_sync.py                | Guard the markdown -> credits.py sync                                                                                                              |
+| test_ctrl_keys.py                   | Tests for control characters reaching the device: /term.ctrl, and the TUI's Ctrl+C and Ctrl+D                                                      |
 | test_defaults.py                    | Tests for defaults.py - validation constants, resolve_color, preview helpers                                                                       |
 | test_demo.py                        | Tests for FakeSerial demo device - ASCII, GPS/NMEA, Modbus RTU, and config setup                                                                   |
 | test_demo_memory.py                 | The demo device's native memory: `MEM.R` / `MEM.W` / `MEM.INFO`                                                                                    |

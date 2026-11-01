@@ -72,14 +72,16 @@ Scripts are picked and run from the **Run** button in the title bar
 | Key                    | Action                                              |
 | ---------------------- | --------------------------------------------------- |
 | **Ctrl+Q**             | Quit (also dismisses any open dialog)               |
-| **Escape**             | Dismiss dialog / clear input / exit history         |
+| **Escape**             | Stop, close; clear prompt; empty: Esc to the device |
 | **F1**–**F4**          | Help / Cfg / Run / Proto (same as the buttons)      |
 | **F10**                | Edit the current config                             |
 | **Ctrl+Shift+1**–**5** | Same four, plus Edit Config on **5**                |
 | **Ctrl+P** / **Alt+P** | Open command palette                                |
 | **Ctrl+S** / **Alt+S** | Save SVG screenshot                                 |
 | **Ctrl+T** / **Alt+T** | Save text screenshot                                |
-| **Ctrl+C** / **Cmd+C** | Copy selected text to the clipboard                 |
+| **Ctrl+C** / **Cmd+C** | Copy the selection; with none, Ctrl-C to the device |
+| **Ctrl+D**             | On an empty prompt, send Ctrl-D to the device       |
+| **Ctrl+Z**             | On an empty prompt, send Ctrl-Z to the device       |
 | **Ctrl+V** / **Cmd+V** | Paste into the prompt; several lines are all sent   |
 | **Ctrl+A**             | Select all output text (click the output first)     |
 | **Shift+Up**           | Select output from the newest line, from the prompt |
@@ -107,7 +109,15 @@ only the first line, as before.
 ## Copying text
 
 Drag across the main output window to select text, then press
-**Ctrl+C** (**Cmd+C** on macOS) to copy it to your clipboard.  The
+**Ctrl+C** (**Cmd+C** on macOS) to copy it to your clipboard.  With
+nothing selected, **Ctrl+C** belongs to the device, as in any terminal:
+termapy sends it Ctrl-C (byte 03), the key that stops a running
+MicroPython program.  On an empty prompt **Ctrl+D** sends Ctrl-D and
+**Ctrl+Z** sends Ctrl-Z, the key an AT modem takes to send an SMS.
+**Escape** with nothing running clears the prompt, or sends Esc when it
+is empty. `/term.control_keys off` keeps these keys termapy's for the
+session; `"control_keys": false` in the config file keeps them so.
+`/term.ctrl` sends any control character from a script or the CLI.  The
 selection is highlighted, and the copy is the text as shown: wrapped
 lines and table rules included, colors dropped.  Click the window
 first and press **Ctrl+A** to select everything.  The

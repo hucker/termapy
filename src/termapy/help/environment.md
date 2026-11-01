@@ -97,7 +97,8 @@ The TUI captures mouse events, so the terminal's own click-and-drag
 selection does not work while termapy has focus.  It does not need
 to: drag across the output window to select, and **Ctrl+C** copies the
 selection through the terminal's OSC 52 channel (see **Copying text**
-on the Toolbar page).  If the copy does nothing, the terminal does not
+on the Toolbar page).  With nothing selected, **Ctrl+C** goes to the
+device instead.  If the copy does nothing, the terminal does not
 relay OSC 52; then bypass the TUI's mouse capture and use the
 terminal's own selection:
 

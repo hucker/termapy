@@ -147,12 +147,14 @@ Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outsi
 | Ctrl+S  | Save SVG screenshot                 |
 | Ctrl+T  | Save text screenshot                |
 | Ctrl+P  | Command palette                     |
-| Ctrl+C  | Copy the selected output text       |
+| Ctrl+C  | Copy the selected text; with nothing selected, send Ctrl-C to the device |
+| Ctrl+D  | On an empty prompt, send Ctrl-D to the device |
+| Ctrl+Z  | On an empty prompt, send Ctrl-Z to the device (an AT modem's send-SMS key) |
 | Ctrl+A  | Select all output (click it first)  |
 | Shift+Up | Select output lines from the prompt; then Shift+arrows grow it |
 | F1–F4   | Help / Cfg / Run / Proto buttons (Ctrl+Shift+1–4 in VS Code); F10 edits the config |
 | Up/Down | Cycle through command history       |
-| Escape  | Clear input / exit history browsing |
+| Escape  | Stop what is running; otherwise clear the prompt, or, when it is empty, send Esc to the device |
 | Right   | Accept type-ahead suggestion        |
 
 See [Environment and compatibility](src/termapy/help/environment.md)
@@ -552,7 +554,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 34,
+    "config_version": 35,
     "title": "",
     "border_color": "",
     "serial": {
@@ -580,6 +582,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "cmd_delay_ms": 0,
     "multiline_paste": true,
     "multiline_paste_delay_ms": 10,
+    "control_keys": true,
     "echo": false,
     "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
     "timestamps": false,

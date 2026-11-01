@@ -156,7 +156,7 @@ demo> /print === section: config dump ===
   [49/219] /print === section: config dump === (102us)
 demo> /cfg.dump
   {
-      "config_version": 34,
+      "config_version": 35,
       "title": "Demo Device",
       "border_color": "",
       "serial": {
@@ -184,6 +184,7 @@ demo> /cfg.dump
       "cmd_delay_ms": 0,
       "multiline_paste": true,
       "multiline_paste_delay_ms": 10,
+      "control_keys": true,
       "echo": false,
       "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
       "timestamps": false,
@@ -1728,10 +1729,14 @@ demo> /term.output
   normal
 demo> /term.send_bare_enter
   off
+demo> /term.control_keys
+  on
 demo> /term.timestamps
   off
 demo> /term.color
   off
+demo> /term.ctrl 1
+  Error: Invalid control key: 1 (use a letter A-Z, one of @ [ \ ] ^ _, or esc)
 demo> /term.info
   echo           : on
   echo_repl      : on
@@ -1744,6 +1749,7 @@ demo> /term.info
   eol_markers    : off
   timestamps     : off
   send_bare_enter: off
+  control_keys   : on
   encoding       : utf-8
 demo> /term.log a line for the session log, not the screen
 demo> /port.mode

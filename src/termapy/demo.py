@@ -233,11 +233,21 @@ class FakeSerial:
 
     # -- serial.Serial methods ---------------------------------------------
 
+    # Keys a terminal sends on their own: every control character
+    # (/term.ctrl, the TUI's Ctrl+C, Ctrl+D, Ctrl+Z and Escape) and DEL, but not
+    # CR or LF, which a bare Enter sends alone and the device must see.
+    _TERMINAL_KEYS = frozenset((*range(0x20), 0x7F)) - {0x0D, 0x0A}
+
     def write(self, data: bytes) -> int:
         """Write data to the simulated device.
 
         Accumulates bytes and processes when a line ending is detected
-        (ASCII) or a complete Modbus frame arrives (binary).
+        (ASCII) or a complete Modbus frame arrives (binary).  A control
+        key written alone into an empty buffer is a keystroke, not the
+        first byte of a Modbus frame (a frame arrives whole), so the device
+        drops it, as a console would; kept, four of them read as a bad
+        frame and drew a binary error reply.  Not during XMODEM or YMODEM,
+        where a lone 04 is the sender's end of transmission.
 
         Args:
             data: Bytes to write.
@@ -246,6 +256,14 @@ class FakeSerial:
             Number of bytes written.
         """
         with self._lock:
+            transfer = self._xmodem_state is not None or self._ymodem_state is not None
+            if (
+                len(data) == 1
+                and data[0] in self._TERMINAL_KEYS
+                and not self._input_buf
+                and not transfer
+            ):
+                return 1
             self._input_buf.extend(data)
             self._process_input()
         return len(data)

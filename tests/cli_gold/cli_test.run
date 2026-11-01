@@ -374,8 +374,10 @@ MEM.R 0x1000 2 --json
 /term.json
 /term.output
 /term.send_bare_enter
+/term.control_keys
 /term.timestamps
 /term.color
+/term.ctrl 1
 /term.info
 /term.log a line for the session log, not the screen
 /port.mode

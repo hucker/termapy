@@ -448,7 +448,7 @@ class MCPHost(TerminalHost):
             lines: The decoded lines.
             rows: The hex view's rows, or ``None`` in the text view.
         """
-        self._feed_rx_consumers(lines, [strip_ansi(line) for line in lines])
+        self._feed_rx_consumers(lines)
         texts = [self._rx_text(line) for line in lines]
         self._log_lines([f"< {text}" for text in texts])
         if self._call_active.is_set():

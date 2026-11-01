@@ -111,8 +111,8 @@ empty.
 | Command | Description |
 |---------|-------------|
 | `/delay <duration>` | Pause execution (e.g. `500ms`, `2s`, `1.5s`). Escape or Ctrl+C cancels it and the script. |
-| `/expect {timeout=<dur>} match=<text>` | Wait for a serial line containing `<text>` (default 5s). A timeout fails the line and stops the script. |
-| `/expect.regex {timeout=<dur>} match=<pattern>` | Same but the pattern is a regex. |
+| `/expect {timeout=<dur>} {fail=<text>} match=<text>` | Wait for a serial line containing `<text>` (default 5s). A timeout fails the line and stops the script; so does a line containing the `fail=` text, as soon as it arrives. |
+| `/expect.regex {timeout=<dur>} {fail=<pattern>} match=<pattern>` | Same, but both patterns are regexes. |
 | `/confirm {message}` | Ask Yes/Cancel: a dialog in the TUI, a y/n prompt in the CLI. Canceling stops the script. |
 | `/run <script>` | Run a nested script (max 5 levels deep) |
 | `/run.profile <script>` | Run nested script with per-line timing |
@@ -122,8 +122,19 @@ Keywords use `key=value` syntax (spaces around `=` are OK). `match=` must be
 last -- everything after it is the pattern.
 
 `/expect` also searches lines that arrived before it ran, so a fast reply is
-not missed. A match consumes the output up to and including the matched line:
-two `AT` / `/expect match=OK` pairs in a row each wait for their own `OK`.
+not missed, back to the start of the script: output from before the script
+never answers it. A match consumes the output up to and including the
+matched line: two `AT` / `/expect match=OK` pairs in a row each wait for
+their own `OK`.
+
+`fail=` ends the wait on an error reply instead of waiting out the timeout:
+`/expect timeout=5s fail=ERROR match=OK` fails the moment the device answers
+`ERROR`, and the message names the line. A line that contains both fails, so
+`ERROR: not OK` is an error. The `fail=` text cannot hold a space (keywords
+split on spaces); in `/expect.regex` write `\s` for one, as in
+`fail=\+CME\sERROR`. Regex covers the other shapes: `^OK$` is the whole
+line, `OK$` its end, `ERROR|FAIL` either. Each line is compared as the
+device sent it, without its line ending.
 
 ## Profiling
 

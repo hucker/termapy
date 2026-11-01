@@ -143,5 +143,7 @@ agent can call each one, its arguments checked before they are sent. A new
 command also gets its profile entry; the starter's tests fail until it has
 one.
 
-Ctrl-C in the terminal stops the monitor and leaves the MicroPython `>>>`
-prompt; Ctrl-D restarts it.
+Ctrl-C stops the monitor and leaves the MicroPython `>>>` prompt; Ctrl-D
+restarts it. In the TUI, press **Ctrl+C** with no text selected, and
+**Ctrl+D** on an empty prompt. From a script, the CLI or an MCP agent, send
+them with `/term.ctrl c` and `/term.ctrl d`.

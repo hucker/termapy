@@ -21,6 +21,7 @@ from termapy.plugins import (
     UsageError,
     parse_output_level,
 )
+from termapy.plugins.params import ParamSpec
 from termapy.scripting import (
     SETTING_QUERY,
     SETTING_TOGGLE,
@@ -130,6 +131,35 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     # the read pipeline, not back via this CmdResult.  Returning the
     # sent bytes here would be a misleading "value" (input, not output).
     return CmdResult.ok(value="")
+
+
+# The keys a control character is typed with, in byte order: Ctrl+@ is 00,
+# Ctrl+A..Z are 01..1A, Ctrl+[ \ ] ^ _ are 1B..1F (ASCII 64..95, less 64).
+_CTRL_KEYS = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+# Names for keys nobody remembers as a Ctrl chord: esc is Ctrl+[.
+_CTRL_NAMES = {"ESC": "["}
+
+
+def _handler_ctrl(ctx: PluginContext, args: str) -> CmdResult:
+    """Send one control character: ``/term.ctrl c`` is Ctrl-C, byte 03; the value is ``^C``.
+
+    ``esc`` names Ctrl+[ (1B).  A raw byte, as ``/raw`` sends: no line
+    ending, never paced.  The TUI's Ctrl+C with nothing selected and Ctrl+D
+    on an empty prompt dispatch it, so a key and a script or agent send the
+    same way.
+    """
+    typed = ctx.arg("key")
+    key = _CTRL_NAMES.get(typed.upper(), typed.upper())
+    if len(key) != 1 or key not in _CTRL_KEYS:
+        return CmdResult.fail(
+            msg=f"Invalid control key: {typed} (use a letter A-Z, one of @ [ \\ ] ^ _, or esc)"
+        )
+    try:
+        ctx.serial.write(bytes([_CTRL_KEYS.index(key)]))
+    # The same boundary catch as /term.send: a failed write is the answer.
+    except (OSError, Exception) as e:  # noqa: BLE001  -- boundary catch
+        return CmdResult.fail(msg=f"Send error: {e}")
+    return CmdResult.ok(value=f"^{key}")
 
 
 def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
@@ -384,6 +414,11 @@ def _handler_send_bare_enter(ctx: PluginContext, args: str) -> CmdResult:
     return _cfg_toggle(ctx, args, "send_bare_enter")
 
 
+def _handler_control_keys(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle whether the TUI's Ctrl+C, Ctrl+D, Ctrl+Z and Escape reach the device (cfg ``control_keys``)."""
+    return _cfg_toggle(ctx, args, "control_keys")
+
+
 def _handler_encoding(ctx: PluginContext, args: str) -> CmdResult:
     """Show or set the byte-decoding encoding (utf-8, latin-1, ...)."""
     name = args.strip()
@@ -493,6 +528,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         "eol_markers": bool(ctx.cfg.get("eol_markers")),
         "timestamps": bool(ctx.cfg.get("timestamps")),
         "send_bare_enter": bool(ctx.cfg.get("send_bare_enter")),
+        "control_keys": bool(ctx.cfg.get("control_keys", True)),
         "encoding": str(ctx.cfg.get("encoding", "utf-8")),
     }
     rows = [
@@ -606,6 +642,38 @@ COMMAND = Command(
             ),
             handler=_handler_send,
             raw_args=True,
+            needs=CapabilitySet.SERIAL_CONNECTED,
+        ),
+        "ctrl": Command(
+            help="Send a control character to the device (c is Ctrl-C, byte 03).",
+            long_help=(
+                "Sends the one byte a Ctrl+<key> stands for: {prefix}term.ctrl c is\n"
+                "Ctrl-C (03), d is Ctrl-D (04), esc is Esc (1B, also [).  Letters\n"
+                "A-Z and @ [ \\ ] ^ _ are the keys, and esc; case does not matter.\n"
+                "A raw byte, as {prefix}raw sends: no line ending, never paced.\n"
+                "\n"
+                "In the TUI, Ctrl+C with no text selected sends Ctrl-C, Ctrl+D\n"
+                "and Ctrl+Z on an empty prompt send Ctrl-D and Ctrl-Z, and\n"
+                "Escape with nothing running, on an empty prompt, sends Esc;\n"
+                "with text selected, Ctrl+C copies.  {prefix}term.control_keys off keeps\n"
+                "the keys termapy's.  A script, a button or an MCP agent\n"
+                "sends one with this command: Ctrl-C stops a running\n"
+                "MicroPython program.\n"
+                "\n"
+                "Example:\n"
+                "  {prefix}term.ctrl c"
+            ),
+            handler=_handler_ctrl,
+            params=[
+                ParamSpec(
+                    "key",
+                    "str",
+                    positional=True,
+                    required=True,
+                    hint="<key>",
+                    help="the key held with Ctrl: a letter, or @ [ \\ ] ^ _; or esc",
+                ),
+            ],
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "line_no": Command(
@@ -788,6 +856,25 @@ COMMAND = Command(
             args="{on|off|toggle}",
             help="Send line ending on empty Enter (for press-to-continue prompts).",
             handler=_handler_send_bare_enter,
+        ),
+        "control_keys": Command(
+            args="{on|off|toggle}",
+            help="Let Ctrl+C, Ctrl+D, Ctrl+Z and Escape reach the device in the TUI (on by default).",
+            long_help=(
+                "On, a key the prompt has no use for goes to the device: Ctrl+C\n"
+                "with no text selected sends Ctrl-C, Ctrl+D and Ctrl+Z on an\n"
+                "empty prompt send Ctrl-D and Ctrl-Z, and Escape with nothing\n"
+                "running, on an empty prompt, sends Esc.  Off, Ctrl+C only\n"
+                "copies, Ctrl+D only deletes, Ctrl+Z does nothing, and Escape\n"
+                "only stops and clears: nothing reaches the device, for one a\n"
+                "stray control byte would upset.  {prefix}term.ctrl sends one\n"
+                "either way.\n"
+                "\n"
+                "This command sets it for the session.  To keep the keys\n"
+                'termapy\'s in every session, set "control_keys": false in the\n'
+                "config file."
+            ),
+            handler=_handler_control_keys,
         ),
         "encoding": Command(
             args="{name}",

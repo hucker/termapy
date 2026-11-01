@@ -443,7 +443,18 @@ class SerialTerminal(TerminalHost, App):
         Binding("ctrl+p", "command_palette", "Command Palette", show=False, priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
-        Binding("escape", "stop_script", "Stop Script", show=False),
+        # Escape stops what runs; with nothing to stop it clears the prompt,
+        # or, empty, is the device's (control_keys).
+        Binding("escape", "stop_script", "Stop, clear, or Esc to the device", show=False),
+        # Ctrl+C, Ctrl+D and Ctrl+Z the focused widget did not take go to the device
+        # (/term.ctrl) while control_keys is on: a selection anywhere copies
+        # first (Input, then the screen, pass Ctrl+C on when nothing is
+        # selected), and the prompt keeps Ctrl+D and Ctrl+Z while it holds
+        # text.
+        # Replaces Textual's quit hint.
+        Binding("ctrl+c", "send_control('c')", "Ctrl-C to the device", show=False),
+        Binding("ctrl+d", "send_control('d')", "Ctrl-D to the device", show=False),
+        Binding("ctrl+z", "send_control('z')", "Ctrl-Z to the device", show=False),
         # Shift+Up/Down from the prompt start a keyboard selection in the
         # output pane; once the pane has focus its own bindings take them.
         Binding("shift+up,shift+down", "select_output", "Select output", show=False),
@@ -3450,7 +3461,9 @@ class SerialTerminal(TerminalHost, App):
             elif pane is not None:
                 # Nothing is selected here (the pane keeps an Escape that
                 # clears a selection, SelectionDismissed): back to the
-                # prompt, and Escape keeps its other jobs.
+                # prompt, and Escape keeps its other jobs.  The binding
+                # still sees the pane focused (the focus moves after this
+                # key), so it stops what runs and sends the device nothing.
                 self._return_to_prompt(pane)
             elif popup_visible:
                 self._hide_history()
@@ -3522,8 +3535,52 @@ class SerialTerminal(TerminalHost, App):
         return True
 
     def action_stop_script(self) -> None:
-        """Stop a running script or repeat (Escape key)."""
+        """Escape: stop what is running; with nothing to stop, clear the prompt, or send Esc when it is empty.
+
+        ``on_key`` runs first and keeps Escape for its own jobs (cancel a
+        transfer, close the history popup, leave history browsing), and then
+        this binding never fires.  Here Escape stops a script, a paste, a
+        replay, a /delay or a /repeat.  With nothing running and the prompt
+        focused, it clears the prompt, or, empty, is the device's
+        (``/term.ctrl esc``) unless ``control_keys`` is off: the same shape
+        as Ctrl+C (copy, else send) and Ctrl+D (delete, else send).
+        """
+        inp = self.query_one("#cmd", Input)
+        if self.focused is inp and self._nothing_running():
+            if inp.value:
+                inp.value = ""
+            elif self.cfg.get("control_keys", True):
+                self._dispatch_on_thread(self._repl_line("term.ctrl esc"))
+            return
         self.repl._script_stop.set()
+
+    def _nothing_running(self) -> bool:
+        """Whether no script and no command runs, so a key has nothing of termapy's to stop.
+
+        A script keeps the bar live for its Stop button, so it is asked for;
+        a typed command, paste or replay greys the bar the prompt sits in,
+        which takes the prompt's focus; a command from a button or the
+        palette holds the dispatch guard (tested non-blocking, so main never
+        waits on it).
+        """
+        if self.repl.in_script:
+            return False
+        if not self._dispatch_guard.acquire(blocking=False):
+            return False
+        self._dispatch_guard.release()
+        return True
+
+    def action_send_control(self, key: str) -> None:
+        """Send Ctrl+<key> to the device, as ``/term.ctrl <key>``, when nothing on screen took it.
+
+        Reached only after the focused widget passed the key on: Ctrl+C
+        when no text is selected, Ctrl+D or Ctrl+Z on an empty prompt.  Never over a
+        dialog: Textual's binding chain stops at a modal screen, so app
+        bindings do not fire there.  With ``control_keys`` off the key does
+        nothing.
+        """
+        if self.cfg.get("control_keys", True):
+            self._dispatch_on_thread(self._repl_line(f"term.ctrl {key}"))
 
     def action_btn_help(self) -> None:
         self._btn_help()

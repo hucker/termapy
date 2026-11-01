@@ -43,7 +43,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 34,
+    "config_version": 35,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {
@@ -71,6 +71,7 @@ Here is an example config for a device called `iot_device`:
     "cmd_delay_ms": 0,
     "multiline_paste": true,
     "multiline_paste_delay_ms": 10,
+    "control_keys": true,
     "echo": false,
     "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
     "timestamps": false,
@@ -165,6 +166,7 @@ reported as a type warning.
 | `cmd_delay_ms`                | `0`                           | Milliseconds between commands in autoconnect and multi-command input |
 | `multiline_paste`             | `true`                        | A paste of several lines into the prompt sends every line, as if typed (TeraTerm's paste); `false` pastes only the first line (see [Toolbar](toolbar.md)) |
 | `multiline_paste_delay_ms`    | `10`                          | Delay in ms between the lines of a multi-line paste (TeraTerm's default); `0` = none |
+| `control_keys`                | `true`                        | In the TUI, Ctrl+C with nothing selected, Ctrl+D and Ctrl+Z on an empty prompt, and Escape with nothing running on an empty prompt go to the device; `false` keeps them termapy's (copy, delete, clear) in every session (set for one session: /term.control_keys) |
 | `echo`                        | `false`                       | Echo device commands sent to the wire (bare + `/term.send`). Runtime: `/term.echo {on\|off\|toggle}` |
 | `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |
 | `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |

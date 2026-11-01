@@ -241,6 +241,7 @@ sends to the device) waits in the input line for Enter.
 | `/dev.use <part> {at=<value>}` | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.color {on\|off\|toggle}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |
+| `/term.ctrl <key>`        | Send a control character to the device: `c` is Ctrl-C (03), `d` Ctrl-D, `esc` Esc |
 | `/term.echo {on\|off\|toggle}`    | Toggle local echo of device commands (see also `/term.echo_repl`)           |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
 | `/term.eol {cr\|lf\|crlf\|none\|cycle}` | Show or set the line ending sent with commands (session override)    |

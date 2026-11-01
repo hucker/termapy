@@ -112,6 +112,11 @@ DEFAULT_CFG = {
     # PasteDelayPerLine default); off, only the first line lands.
     "multiline_paste": True,
     "multiline_paste_delay_ms": 10,
+    # The TUI's Ctrl+C (nothing selected), Ctrl+D and Ctrl+Z (empty prompt)
+    # and Escape (nothing running, empty prompt) go to the device, as in
+    # any terminal.  false keeps them termapy's, for a device a stray
+    # control byte would upset.
+    "control_keys": True,
     # Input echo of device commands sent to the wire (bare lines +
     # /term.send).  A separate session-only flag, echo_repl, governs echo
     # of REPL/slash commands (/cfg, /help, ...) -- it has no cfg key
@@ -405,6 +410,10 @@ CFG_HELP: dict[str, tuple] = {
     "multiline_paste_delay_ms": (
         "Delay in ms between the lines of a multi-line paste.",
         "0 = no delay. Non-negative integer. Default: 10 (TeraTerm's).",
+    ),
+    "control_keys": (
+        "Ctrl+C/D/Z and Escape reach the device when the prompt has no use for them.",
+        "true/false (set: {prefix}term.control_keys). Off: they only copy, delete and clear.",
     ),
     "protocol": (
         "Wire format the device speaks.",

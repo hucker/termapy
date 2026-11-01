@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 34
+CURRENT_CONFIG_VERSION = 35
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -763,6 +763,20 @@ def _migrate_v33_to_v34(cfg: dict) -> dict:
 
 
 MIGRATIONS[33] = _migrate_v33_to_v34
+
+
+def _migrate_v34_to_v35(cfg: dict) -> dict:
+    """Add ``control_keys`` (on): Ctrl+C, Ctrl+D, Ctrl+Z and Escape reach the device.
+
+    In the TUI, a key the prompt has no use for -- Ctrl+C with nothing
+    selected, Ctrl+D, Ctrl+Z or Escape on an empty prompt -- now goes to
+    the device, as in any terminal; off keeps them termapy's.
+    """
+    cfg.setdefault("control_keys", True)
+    return cfg
+
+
+MIGRATIONS[34] = _migrate_v34_to_v35
 
 
 def migrate_config(cfg: dict) -> dict:

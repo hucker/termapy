@@ -16,9 +16,10 @@ import pytest
 from textual.app import App
 from textual.widgets import Button, Input, Static, TextArea
 
-from termapy.defaults import DEFAULT_CFG
+from termapy.defaults import CFG_HELP, DEFAULT_CFG, DEFAULT_CMD_PREFIX
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.confirm_dialog import ConfirmDialog
+from termapy.plugins.command import interpolate_help
 from termapy.port_control import reserved_serial
 
 
@@ -108,7 +109,8 @@ class TestHelpLine:
 
                 # Assert
                 help_text = _plain(screen.query_one("#config-help", Static))
-                assert f"Line {row + 1}: Appended to each sent command" in help_text
+                expected = interpolate_help(CFG_HELP["eol"][0], DEFAULT_CMD_PREFIX)
+                assert f"Line {row + 1}: {expected}" in help_text, help_text
                 assert "Value: eol = \\r" in help_text, help_text
 
         _run(scenario)
@@ -127,9 +129,8 @@ class TestHelpLine:
                 # Assert
                 content = screen.query_one("#config-help", Static).render()
                 help_text = str(content)
-                assert ": DO NOT EDIT - Schema version, managed automatically." in help_text, (
-                    help_text
-                )
+                expected = f": DO NOT EDIT - {CFG_HELP['config_version'][0]}"
+                assert expected in help_text, help_text
                 assert "[" not in help_text, f"no markup tag shows as text: {help_text!r}"
                 start = help_text.index("DO NOT EDIT")
                 red = [
@@ -161,7 +162,6 @@ class TestHelpLine:
 
     def test_no_hint_carries_its_own_valid_label(self):
         """The help line labels every hint "Valid:" itself, so a hint starting with it shows the label twice."""
-        from termapy.defaults import CFG_HELP
 
         # Act
         actual = sorted(

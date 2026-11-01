@@ -8,6 +8,7 @@ from termapy.defaults import (
     CFG_HELP,
     COLOR_ALIASES,
     DEFAULT_CFG,
+    DEFAULT_CMD_PREFIX,
     STANDARD_BAUD_RATES,
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -18,6 +19,7 @@ from termapy.defaults import (
     _preview_markup,
     resolve_color,
 )
+from termapy.plugins.command import interpolate_help
 
 # -- Validation constants ----------------------------------------------------
 
@@ -91,8 +93,11 @@ class TestCfgHelpCoverage:
     the structural fix for CFG_HELP drifting out of sync by hand.
     """
 
-    DESC_MAX = 80  # "Line N: <desc>" stays on one line in the help panel
-    VALID_MAX = 90  # "Valid: <hint>" stays on one line too
+    # Measured as the editor shows it, {prefix} filled in: the panel shares
+    # its row with three buttons and is three lines tall, so a wrapped line
+    # pushes the Value line out of sight.
+    DESC_MAX = 70  # "Line N: <desc>"
+    VALID_MAX = 70  # "Valid: <hint>"
 
     def test_every_landable_key_has_help(self):
         """Every cfg key, nested ones included, has a help entry -- no 'unknown key' line."""
@@ -113,8 +118,11 @@ class TestCfgHelpCoverage:
         bad = []
         for key, entry in CFG_HELP.items():
             desc = entry[0] if isinstance(entry, tuple) else entry
-            if isinstance(desc, str) and ("\n" in desc or len(desc) > self.DESC_MAX):
-                bad.append((key, len(desc)))
+            if not isinstance(desc, str):
+                continue
+            shown = interpolate_help(desc, DEFAULT_CMD_PREFIX)
+            if "\n" in desc or len(shown) > self.DESC_MAX:
+                bad.append((key, len(shown)))
         assert bad == [], (
             f"help descriptions must be one line (<= {self.DESC_MAX} chars, no newline): {bad}"
         )
@@ -127,8 +135,11 @@ class TestCfgHelpCoverage:
                 continue
             valid = entry[1]
             # entry[1] may be a dynamic callable (e.g. _list_ports); skip those.
-            if isinstance(valid, str) and ("\n" in valid or len(valid) > self.VALID_MAX):
-                bad.append((key, len(valid)))
+            if not isinstance(valid, str):
+                continue
+            shown = interpolate_help(valid, DEFAULT_CMD_PREFIX)
+            if "\n" in valid or len(shown) > self.VALID_MAX:
+                bad.append((key, len(shown)))
         assert bad == [], f"help 'valid' hints must be one line (<= {self.VALID_MAX} chars): {bad}"
 
     # Keys whose help shows markup as an example of what to type, so the

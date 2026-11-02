@@ -86,6 +86,45 @@ def test_newer_message_replaces_older():
     _run(scenario)
 
 
+def test_a_stale_auto_clear_leaves_a_newer_message():
+    """A stopped timer can still fire once (Textual's Windows sleep): the first message's clear leaves the second alone."""
+
+    async def scenario():
+        async with _Host().run_test() as pilot:
+            bar = pilot.app.query_one(StatusBar)
+            bar.show("first", timeout=99)
+            stale = bar._shown
+            bar.show("second", timeout=99)
+
+            # Act -- the first message's auto-clear fires after its stop
+            bar._clear_if_current(stale)
+
+            # Assert
+            assert bar.has_class("visible") and "second" in str(bar.content), (
+                "a stale auto-clear hid the newer message"
+            )
+
+    _run(scenario)
+
+
+def test_progress_outlives_a_transient_message_timer():
+    """Progress text is persistent: a transient message's auto-clear set before it never hides it."""
+
+    async def scenario():
+        async with _Host().run_test() as pilot:
+            bar = pilot.app.query_one(StatusBar)
+            bar.show("saved", timeout=0.05)
+            bar.set_progress("Capturing -> cap.txt")
+            await pilot.pause(0.3)
+
+            # Assert
+            assert bar.has_class("visible") and "Capturing" in str(bar.content), (
+                "the transient message's timer cleared the progress text"
+            )
+
+    _run(scenario)
+
+
 def test_progress_is_persistent_and_hides_on_empty():
     """Progress text shows without a timeout and is hidden only by an empty set_progress()."""
 

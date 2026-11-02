@@ -224,8 +224,8 @@ GROUPS = (GROUP_TERMINAL, "protocol", "devices", "advanced", GROUP_DEFAULT)
 # command declares one, its subcommands inherit it from the nearest
 # ancestor that declares one, and any of them may override; an
 # undeclared root is stable.  The words follow Node.js's stability index
-# and Python's PEP 411 provisional packages: anything not stable is
-# outside termapy's compatibility promise.  ``/help`` shows the level in
+# and Python's PEP 411 provisional packages: anything not stable may
+# change in any release.  ``/help`` shows the level in
 # its color, the MCP catalog carries it, and a prototype family notes
 # itself once a session when it first runs.
 MATURITY_LEVELS = ("stable", "preview", "prototype")
@@ -235,8 +235,8 @@ MATURITY_COLORS = {"stable": "green", "preview": "yellow", "prototype": "red"}
 
 # What each level promises, in the words /help and the MCP catalog use.
 MATURITY_MEANINGS = {
-    "stable": "covered by termapy's compatibility promise",
-    "preview": "works, but may change in any release, outside the compatibility promise",
+    "stable": "tested and part of the standard release",
+    "preview": "works and is used daily, but may change in any release",
     "prototype": "new and incomplete: may change or be removed in any release",
 }
 
@@ -605,6 +605,11 @@ class Command:
             argument, so a click on it must not run it.  Not inherited.
             Requires ``safety="safe"``, no ``picker`` and no required
             argument, checked at construction.
+        intro: What this family of commands is for, in a sentence or two of
+            plain words.  Shown above the list when a bare call lists the
+            subcommands, and first on the ``/help`` page.  Requires
+            ``sub_commands``; written as one line, wrapped when shown
+            (registry ``family-has-intro``).
     """
 
     help: str
@@ -628,6 +633,7 @@ class Command:
     maturity: str = ""
     shows: bool = False
     state: bool = False
+    intro: str = ""
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -662,6 +668,11 @@ class Command:
             )
         self.cfg = validate_cfg_uses(self.cfg, self.name)
         _validate_state(self)
+        if self.intro and not self.sub_commands:
+            raise ValueError(
+                f"/{self.name or '<command>'}: intro= introduces a family, "
+                "and this command has no subcommands"
+            )
         if not self.params:
             return
         validate_param_specs(self.params, self.name)
@@ -980,6 +991,7 @@ class PluginInfo:
             link to it runs it.
         state: ``Command.state``: its bare form reports current state, so
             ``/help`` runs it for CURRENT STATE.
+        intro: ``Command.intro``: what this family is for, first on its page.
     """
 
     name: str
@@ -1004,6 +1016,7 @@ class PluginInfo:
     maturity: str = "stable"
     shows: bool = False
     state: bool = False
+    intro: str = ""
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.
@@ -1042,6 +1055,10 @@ class PluginInfo:
 
 # An optional group of a synopsis, ``{...}``: what a bare call may leave out.
 _OPTIONAL_GROUP = re.compile(r"\{[^{}]*\}")
+
+
+# The width a family's intro wraps to, the width long_help is written to.
+INTRO_WIDTH = 72
 
 
 def has_required_arg(args: str) -> bool:
@@ -1138,12 +1155,20 @@ def interpolate_help(text: str, prefix: str) -> str:
     return text.replace("{prefix}", prefix)
 
 
+def intro_text(intro: str, prefix: str) -> str:
+    """A family's intro as shown: the prefix filled in, wrapped to a page's width."""
+    from textwrap import fill
+
+    return fill(interpolate_help(intro, prefix), INTRO_WIDTH) if intro else ""
+
+
 def resolve_long_help(plugin: PluginInfo, ctx: PluginContext) -> str:
-    """Return ``plugin.long_help`` as a prefix-interpolated string.
+    """Return ``plugin.long_help`` as a prefix-interpolated string, its intro first.
 
     Static strings pass through with ``{prefix}`` substituted.  Callables
     are invoked with the live ``PluginContext`` and their return value
-    gets the same substitution.
+    gets the same substitution.  ``Command.intro`` comes first, so the
+    page, ``/search`` and the MCP catalog all read it from here.
 
     Any exception raised by a callable is caught and returned as a
     fallback string so that ``/help`` rendering can never itself fail.
@@ -1160,7 +1185,9 @@ def resolve_long_help(plugin: PluginInfo, ctx: PluginContext) -> str:
             hp = hp(ctx)
         except BoundaryException as e:
             hp = f"(dynamic help failed: {e})"
-    return interpolate_help(hp or "", ctx.prefix)
+    body = interpolate_help(hp or "", ctx.prefix)
+    intro = intro_text(plugin.intro, ctx.prefix)
+    return "\n\n".join(part for part in (intro, body) if part)
 
 
 # Device commands live in ``active_profile.commands`` (dicts in the

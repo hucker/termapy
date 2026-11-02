@@ -319,6 +319,10 @@ class CLITerminal(TerminalHost):
             source="app",
             group="terminal",
             needs=CapabilitySet.INTERACTIVE,
+            intro=(
+                "The plain-text frontend's own settings: for now, whether its prompt "
+                "offers tab completion and suggestions."
+            ),
         )
         self.repl.register_hook(
             "cli.completion",

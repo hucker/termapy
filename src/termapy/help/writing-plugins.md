@@ -845,7 +845,10 @@ the matching capability on `Command.needs`.
 
 ## Subcommands
 
-Use `sub_commands` for related operations (e.g. `/tool.run`, `/tool.status`):
+Use `sub_commands` for related operations (e.g. `/tool.run`, `/tool.status`).
+Give the family an `intro`, a sentence or two on what it is for. It shows
+above the subcommand list when `/tool` is typed bare, and first on the
+`/help tool` page:
 
 ```python
 COMMAND = Command(

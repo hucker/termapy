@@ -1,6 +1,6 @@
 # Devices
 
-> **Status: preview.** This works and is used daily, but it is still being developed and sits outside termapy's compatibility promise: its commands, files and behavior may change in any release.
+> **Status: preview.** This works and is used daily, but it is still being developed: its commands, files and behavior may change in any release.
 
 A linker map has every symbol the firmware defines and none of the
 registers the silicon fixes -- no linker ever sees `PORTA_OUT`. A

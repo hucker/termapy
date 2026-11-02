@@ -755,6 +755,11 @@ COMMAND = Command(
     name="cfg",
     args="{key {value}}",
     help="Show or set config values.",
+    intro=(
+        "A config is one device's settings: a JSON file in its own folder, with that "
+        "device's scripts, logs and captures beside it. Create, load, edit and change"
+        " configs here."
+    ),
     long_help=_cfg_long_help,
     handler=_handler,
     picker="cfg",
@@ -906,6 +911,10 @@ COMMAND = Command(
         "icon": Command(
             args="{--force}",
             help="Create a desktop / menu launcher for the current cfg.",
+            intro=(
+                "A desktop or menu launcher that opens this config directly: create one, list"
+                " them, or remove one."
+            ),
             long_help=_ICON_LONG_HELP,
             handler=_handler_icon,
             cfg={"title": "names the launcher"},

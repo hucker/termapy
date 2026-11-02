@@ -182,6 +182,10 @@ COMMAND = Command(
     handler=_handler_list,
     shows=True,
     help="Print environment variables for $(env.NAME) expansion (alias: {prefix}env.list).",
+    intro=(
+        "Use the process environment in commands and configs as $(env.NAME), so a "
+        "checked-in config stays portable between machines."
+    ),
     long_help=_env_long_help,
     sub_commands={
         "list": Command(

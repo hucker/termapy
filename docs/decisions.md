@@ -802,3 +802,11 @@ which it showed for a key that may be zero. Refusing also closed a gap: `/cfg` s
 a path key without `/cfg.auto`'s sandbox check, and `file_xfer_root` was not on the
 list at all. `port_control.PORT_PROPS` stays as the pyserial attribute map, held to
 the table by a test.
+
+## 2026-11-02 — A status says what it means
+
+`stable` reads "tested and part of the standard release" and `preview` "works
+and is used daily, but may change in any release". Both used to lean on
+"termapy's compatibility promise", in the words the 2026-10-29 entry chose, and
+no document ever defined one, so the phrase claimed something that did not exist.
+Chuck's definition: stable means tested and part of the standard release.

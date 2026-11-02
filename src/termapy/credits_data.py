@@ -148,9 +148,9 @@ CREDITS: tuple[Credit, ...] = (
         "CRC engine",
         "Chuck Bass",
         "https://github.com/hucker/crcglot",
-        note="the reveng CRC catalog, detection / reversal, and multi-language code "
-        "generation behind every /proto.crc.* command; extracted from termapy "
-        "into its own package.",
+        note="the Python engine behind every /proto.crc.* command: computation, detection / "
+        "reversal and multi-language code generation, using the reveng catalog's definitions "
+        "and check values; extracted from termapy into its own package.",
         in_tooltip=True,
     ),
     Credit(

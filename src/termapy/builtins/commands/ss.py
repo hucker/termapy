@@ -47,6 +47,10 @@ COMMAND = Command(
     group="terminal",
     name="ss",
     help="Screenshot tools: save SVG/text, manage folder.",
+    intro=(
+        "Save what is on screen as an SVG image or as text, and manage the "
+        "screenshots kept in this config's ss/ folder."
+    ),
     long_help=_ss_long_help,
     # Bare /ss does what the SS button does: open ss/.
     bare_sub="explore",

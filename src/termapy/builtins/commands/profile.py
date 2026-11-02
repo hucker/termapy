@@ -409,10 +409,13 @@ COMMAND = Command(
     group="devices",
     name="profile",
     help="Device profile commands (MCP profile schema, validator, loader).",
+    intro=(
+        "A device profile describes a serial device's commands as data: typed args, "
+        "help text, response shapes and error patterns. An MCP agent calls them by "
+        "name."
+    ),
     long_help=(
-        "A device profile declaratively describes a serial device's "
-        "command catalog: typed args, help text, response shapes, error "
-        "patterns.  Wire-level settings (baud, line endings, encoding, "
+        "Wire-level settings (baud, line endings, encoding, "
         "ndjson) live in the cfg file; the profile describes the device "
         "side only.  Profiles are the input the MCP server consumes to "
         "bridge LLMs to serial devices.  See "

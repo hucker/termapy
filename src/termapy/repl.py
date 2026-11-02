@@ -1231,6 +1231,7 @@ class ReplEngine:
         shows: bool = False,
         cfg: dict[str, str] | None = None,
         state: bool = False,
+        intro: str = "",
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1264,6 +1265,7 @@ class ReplEngine:
             cfg: The config keys it depends on, each with how it uses the
                 value (see ``Command.cfg``).
             state: Its bare form reports current state (see ``Command.state``).
+            intro: What this family is for (see ``Command.intro``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -1301,6 +1303,7 @@ class ReplEngine:
             shows=shows,
             cfg=dict(cfg) if cfg else {},
             state=state,
+            intro=intro,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:

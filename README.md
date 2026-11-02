@@ -111,7 +111,7 @@ See the [detailed feature comparison](docs/comparison.md) against RealTerm, Cool
 
 ## Feature status
 
-Termapy is in beta: everything not listed here is stable and ready for public testing. These parts work and are used daily, but they are still being developed, sit outside the compatibility promise, and may change in any release.
+Termapy is in beta: everything not listed here is stable and ready for public testing. These parts work and are used daily, but they are still being developed and may change in any release.
 
 | Feature | Commands | Status |
 | --- | --- | --- |

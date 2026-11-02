@@ -230,7 +230,7 @@ NAME
   /cfg.loaded - Show what the config load loaded: plugins, symbols, devices.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 CURRENT STATE
   Loaded - 5 files
@@ -373,19 +373,18 @@ NAME
   /port - Serial port tools: connect, disconnect, list, configure.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /port {name}
   /port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list
 
 DESCRIPTION
-  Connected: DEMO @ 115200 8N1
+  Connect to, disconnect from, list, or configure the serial port.
+  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD), USB chip
+  identification, and the mode settings.
 
-  Connect to, disconnect from, list, or configure the serial
-  port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
-  USB chip identification (/port.chip.*), and the four mode
-  settings baud_rate, byte_size, parity, stop_bits.
+  Connected: DEMO @ 115200 8N1
 
 CONFIG
   serial.port = "DEMO"  set for the session, then reconnects
@@ -699,7 +698,7 @@ NAME
   /echo - Toggle echo of device commands sent to the wire. Use /echo.silent to set without echoing.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /echo {on|off}
@@ -715,19 +714,18 @@ NAME
   /port - Serial port tools: connect, disconnect, list, configure.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /port {name}
   /port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list
 
 DESCRIPTION
-  Connected: DEMO @ 115200 8N1
+  Connect to, disconnect from, list, or configure the serial port.
+  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD), USB chip
+  identification, and the mode settings.
 
-  Connect to, disconnect from, list, or configure the serial
-  port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
-  USB chip identification (/port.chip.*), and the four mode
-  settings baud_rate, byte_size, parity, stop_bits.
+  Connected: DEMO @ 115200 8N1
 
 CONFIG
   serial.port = "DEMO"  set for the session, then reconnects
@@ -762,13 +760,17 @@ NAME
   /cfg - Show or set config values.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /cfg {key {value}}
   /cfg -- bare: opens the Cfg picker in the TUI; elsewhere runs /cfg.list
 
 DESCRIPTION
+  A config is one device's settings: a JSON file in its own folder, with
+  that device's scripts, logs and captures beside it. Create, load, edit
+  and change configs here.
+
   Active cfg = demo (2 configs available)
 
   Three modes:
@@ -818,12 +820,15 @@ NAME
   /var - List user variables, or show one by name.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /var {name}
 
 DESCRIPTION
+  Named values you set or capture from a command or a device reply, then
+  use in any command as $(NAME).
+
   Currently defined: 0 user, 6 datetime, 15 context, 1 launch
 
   User-defined variables use $(NAME) syntax (case-sensitive).
@@ -904,12 +909,15 @@ NAME
   /cap - Data capture tools.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /cap -- bare: runs /cap.explore
 
 DESCRIPTION
+  Save device output to a file in the config's cap/ folder, as text, as
+  raw binary or as decoded values, and manage the captures kept there.
+
   0 files in cap/
 
 AVAILABLE
@@ -934,12 +942,15 @@ NAME
   /ss - Screenshot tools: save SVG/text, manage folder.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /ss -- bare: runs /ss.explore
 
 DESCRIPTION
+  Save what is on screen as an SVG image or as text, and manage the
+  screenshots kept in this config's ss/ folder.
+
   0 screenshots in ss/
 
 AVAILABLE
@@ -958,12 +969,15 @@ NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /proto -- bare: opens the Proto picker in the TUI; elsewhere runs /proto.list
 
 DESCRIPTION
+  Talk to a device that speaks bytes rather than lines: send raw bytes,
+  run protocol test scripts, debug a test step by step, and work out CRCs.
+
   3 scripts in proto/
 
   Send examples:
@@ -1023,7 +1037,11 @@ NAME
   /plugin - Plugin-folder tools: list, explore, show, dump, edit.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
+
+DESCRIPTION
+  Plugins are Python files that add your own commands to termapy. These
+  commands manage the ones in this config's plugin/ folder.
 
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
@@ -1041,12 +1059,16 @@ NAME
   /sym - Symbol table: name -> address, or address -> name+offset.
 
 STATUS
-  preview - works, but may change in any release, outside the compatibility promise
+  preview - works and is used daily, but may change in any release
 
 SYNOPSIS
   /sym <addr|name>
 
 DESCRIPTION
+  A symbol table gives the addresses in your firmware their names, so /mem
+  can read and write by name. It comes from your build's ELF or linker
+  map.
+
   Current symbols = 21 (sym/demo.symbols.json)
 
   Symbols come from your build: /sym.import <file> converts its ELF (names,
@@ -1091,13 +1113,17 @@ NAME
   /mem - Device memory: dump, typed reads, writes and bit ops via /sym names.
 
 STATUS
-  preview - works, but may change in any release, outside the compatibility promise
+  preview - works and is used daily, but may change in any release
 
 SYNOPSIS
   /mem -- bare: runs /mem.info
 
 DESCRIPTION
-  Reads and writes device memory.  Native firmware implements the
+  Read and write memory on the device: dumps, typed reads, writes and bit
+  operations, by address or by symbol name. The device's firmware has to
+  support it.
+
+  Native firmware implements the
   termapy MEM spec (see /help memory):
 
     MEM.R <addr> <len>      -> rows "<ADDR>: <XX XX ...>" then OK
@@ -1155,11 +1181,16 @@ NAME
   /run - Run a script file, or list available scripts.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /run {filename}
   /run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list
+
+DESCRIPTION
+  A script is a text file of commands and device lines, run one after
+  another. Run, record and time the scripts in this config's run/ folder,
+  and manage them here.
 
 FLAGS
   --echo - Echo each command line as it runs (a script is quiet by default).
@@ -1199,7 +1230,7 @@ NAME
   /grep - Search the scrollback for lines matching a pattern (case-insensitive regex).
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /grep <pattern>
@@ -1261,7 +1292,7 @@ NAME
   /term.eol - Show or set the line ending sent with commands (cr/lf/crlf/none).
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 CURRENT STATE
   cr
@@ -1270,6 +1301,9 @@ SYNOPSIS
   /term.eol {cr|lf|crlf|none|cycle}
 
 DESCRIPTION
+  What ends a line: the ending added to each line sent, how received
+  output is split into lines, and whether line endings are shown.
+
   Sets the line ending appended to every command sent to the
   device.  Tokens: cr (\r), lf (\n), crlf (\r\n), none.
   Bare /term.eol reports the current ending.
@@ -1295,7 +1329,7 @@ NAME
   /term.info - Snapshot the state of every /term.* toggle.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 CURRENT STATE
   echo           : on
@@ -1332,7 +1366,7 @@ NAME
   /port.baud_rate - Show or set baud rate.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 CURRENT STATE
   115200
@@ -1354,7 +1388,7 @@ NAME
   /port.dtr - Show or set DTR line (hardware only).
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 CURRENT STATE
   1
@@ -1370,6 +1404,16 @@ AVAILABLE
 
 SEE ALSO
   /port.baud_rate, /port.break, /port.byte_size, /port.cd, /port.chip, /port.close, /port.connect, /port.cts, /port.disconnect, /port.dsr, /port.flow_control, /port.help, /port.info, /port.list, /port.mode, /port.open, /port.parity, /port.ri, /port.rts, /port.stop_bits, /port.usb, /port
+demo> /xfer
+  Move files between the host and the device over the serial link, using
+  XMODEM or YMODEM.
+
+  /xfer - 3 subcommands
+  COMMAND       DESCRIPTION
+  -- --
+  /xfer.root    Show or set the file transfer root directory.
+  /xfer.xmodem  XMODEM file transfer.
+  /xfer.ymodem  YMODEM file transfer (batch, 1K blocks).
 demo> /print === section: help required capabilities ===
   === section: help required capabilities ===
 demo> /help profile.save
@@ -1377,7 +1421,7 @@ NAME
   /profile.save - Write the active profile to a file (default: <cfg_dir>/<cfg_stem>.profile.json).
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /profile.save {path}
@@ -1402,7 +1446,7 @@ NAME
   /sym.search - Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
 
 STATUS
-  preview - works, but may change in any release, outside the compatibility promise
+  preview - works and is used daily, but may change in any release
 
 SYNOPSIS
   /sym.search <pattern>
@@ -1420,7 +1464,7 @@ NAME
   /cap.text - Capture serial text to a file for a timed duration.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=<command>}
@@ -1845,7 +1889,7 @@ NAME
   /print - Print a message to the terminal.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 SYNOPSIS
   /print <text>
@@ -1870,7 +1914,7 @@ NAME
   /ss.list - List files in ss/, newest first, with size and age.
 
 STATUS
-  stable - covered by termapy's compatibility promise
+  stable - tested and part of the standard release
 
 DESCRIPTION (developer)
     List the screenshots in the config's ss/ folder, newest first, with size and age.

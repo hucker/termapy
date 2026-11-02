@@ -172,6 +172,11 @@ COMMAND = Command(
     name="firmware",
     maturity="prototype",
     help="Device-side sources termapy ships: list, copy, show, dump.",
+    intro=(
+        "Source code termapy ships for your device's firmware, so the device can "
+        "answer termapy's memory and JSON commands. Copy it into your project and "
+        "build it."
+    ),
     long_help=_long_help,
     bare_sub="list",
     sub_commands={

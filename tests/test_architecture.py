@@ -1265,6 +1265,60 @@ def test_one_validator_guard_fires_on_a_probe():
     assert not _calls_the_check(bad, "surface"), "a rule of its own is flagged"
 
 
+# ── Guard: a family says what it is for (registry family-has-intro) ─────────
+#
+# A command with subcommands, at any level, declares Command.intro.  Before
+# 2026-11-02 bare /dev printed a list with nothing saying what the family was for.
+INTRO_MAX_CHARS = 220
+
+
+def _intro_problems(tables: dict[str, dict[str, Any]]) -> tuple[list[str], list[str]]:
+    """``(missing, unfit)``: families with no intro, and intros too long or not one line."""
+    missing: set[str] = set()
+    unfit: set[str] = set()
+    for frontend, table in tables.items():
+        for name, info in table.items():
+            kids = [kid for kid in info.children if kid in table and not table[kid].hidden]
+            if info.hidden or not kids:
+                continue
+            if not info.intro:
+                missing.add(f"{frontend}: {name}")
+            if len(info.intro) > INTRO_MAX_CHARS or "\n" in info.intro:
+                unfit.add(name)
+    return sorted(missing), sorted(unfit)
+
+
+def test_every_family_says_what_it_is_for(tmp_path):
+    """family-has-intro: every command with subcommands, at any level, declares a short intro."""
+    # Arrange / Act
+    missing, unfit = _intro_problems(_frontend_plugins(tmp_path))
+
+    # Assert
+    assert missing == [], f"these families do not say what they are for: {missing}"
+    assert unfit == [], f"an intro is one line of at most {INTRO_MAX_CHARS} characters: {unfit}"
+
+
+def test_family_intro_guard_fires_on_a_probe():
+    """family-has-intro: the guard flags a silent command with subcommands at any level and an overlong intro, and passes a leaf."""
+    from types import SimpleNamespace
+
+    def info(children=(), intro="") -> SimpleNamespace:
+        return SimpleNamespace(hidden=False, children=list(children), intro=intro)
+
+    table = {
+        "a": info(["a.x"]),
+        "a.x": info(["a.x.y"]),
+        "a.x.y": info(),
+        "b": info(["b.z"], intro="x" * 500),
+        "b.z": info(["b.z.y"], intro="Fine."),
+        "b.z.y": info(),
+        "leaf": info(),
+    }
+    missing, unfit = _intro_problems({"CLI": table})
+    assert missing == ["CLI: a", "CLI: a.x"], "silent at the top and lower down"
+    assert unfit == ["b"], "an overlong intro"
+
+
 # ── Guard: a state read changes nothing (registry state-read-immutable) ─────
 #
 # ``Command.state`` promises that a command's bare form changes nothing,
@@ -2049,7 +2103,6 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
         "term.encoding",
         "term.log",
         "term.send_bare_enter",
-        "xfer.root",
         "xfer.ymodem.send",
     }
 )

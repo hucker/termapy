@@ -2437,6 +2437,10 @@ COMMAND = Command(
     group="protocol",
     name="proto",
     help="Binary protocol tools: send, run, debug, hex, crc, info.",
+    intro=(
+        "Talk to a device that speaks bytes rather than lines: send raw bytes, run "
+        "protocol test scripts, debug a test step by step, and work out CRCs."
+    ),
     long_help=_proto_long_help,
     handler=_handler,
     picker="proto",
@@ -2496,10 +2500,20 @@ COMMAND = Command(
         ),
         "crc": Command(
             help="Browse and compute CRC algorithms.",
+            intro=(
+                "Compute, verify, identify and reverse-engineer CRCs, and generate code for "
+                "them in several languages, using crcglot and its more than 100 named "
+                "algorithms."
+            ),
             long_help=(
-                "More than 100 named CRC algorithms come from the reveng CRC\n"
-                "catalog maintained by Greg Cook since 1999:\n"
+                "The algorithm definitions and their check values, the test cases,\n"
+                "come from the reveng CRC catalogue, maintained by Greg Cook since\n"
+                "1999:\n"
                 "  https://reveng.sourceforge.io/crc-catalogue/all.htm\n"
+                "\n"
+                "The code that computes CRCs and generates source is crcglot, a\n"
+                "separate Python package written independently of reveng:\n"
+                "  https://github.com/hucker/crcglot\n"
                 "\n"
                 "Every algorithm is verified against its catalog check\n"
                 "value (the CRC of the ASCII string '123456789') on every\n"

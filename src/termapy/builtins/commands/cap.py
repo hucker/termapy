@@ -799,6 +799,10 @@ COMMAND = Command(
     group="terminal",
     name="cap",
     help="Data capture tools.",
+    intro=(
+        "Save device output to a file in the config's cap/ folder, as text, as raw "
+        "binary or as decoded values, and manage the captures kept there."
+    ),
     long_help=_cap_folder_line,
     handler=None,
     # Bare /cap does what the Cap button does: open cap/.

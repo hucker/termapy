@@ -180,6 +180,7 @@ def register_tui_hooks(app) -> None:
         _bind(app, _hook_ss_svg),
         source="app",
         needs=CapabilitySet.SCREEN_CAPTURE,
+        intro="Save what is on screen as an SVG image in this config's ss/ folder, with or without a status message.",
     )
     app.repl.register_hook(
         "ss.svg.silent",

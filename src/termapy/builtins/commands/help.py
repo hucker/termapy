@@ -1323,6 +1323,10 @@ COMMAND = Command(
         "--mcp": "Show only commands visible to the MCP catalog.",
     },
     help="Print the command landscape or look up a specific command.",
+    intro=(
+        "Find your way around termapy: every command by group, the connected device's"
+        " commands, scripts, plugins, and the full help pages."
+    ),
     long_help="""\
 Three ways to find things:
 

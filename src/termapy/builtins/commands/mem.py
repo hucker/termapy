@@ -1259,7 +1259,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _LONG_HELP: Final[str] = (
-    "Reads and writes device memory.  Native firmware implements the\n"
+    "Native firmware implements the\n"
     "termapy MEM spec (see {prefix}help memory):\n"
     "\n"
     '  MEM.R <addr> <len>      -> rows "<ADDR>: <XX XX ...>" then OK\n'
@@ -1305,6 +1305,11 @@ COMMAND = Command(
     name="mem",
     maturity="preview",
     help="Device memory: dump, typed reads, writes and bit ops via {prefix}sym names.",
+    intro=(
+        "Read and write memory on the device: dumps, typed reads, writes and bit "
+        "operations, by address or by symbol name. The device's firmware has to "
+        "support it."
+    ),
     long_help=_LONG_HELP,
     # Bare /mem = /mem.info: the availability check/status page, so the
     # natural first thing to type both probes the device and shows the

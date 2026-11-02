@@ -381,6 +381,8 @@ MEM.R 0x1000 2 --json
 /term.control_keys
 /term.timestamps
 /term.color
+/term.color on
+/term.color off
 /term.ctrl 1
 /term.info
 /term.log a line for the session log, not the screen

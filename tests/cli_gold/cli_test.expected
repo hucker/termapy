@@ -1806,6 +1806,10 @@ demo> /term.timestamps
   off
 demo> /term.color
   off
+demo> /term.color on
+  on
+demo> /term.color off
+  off
 demo> /term.ctrl 1
   Error: Invalid control key: 1 (use a letter A-Z, one of @ [ \ ] ^ _, or esc)
 demo> /term.info

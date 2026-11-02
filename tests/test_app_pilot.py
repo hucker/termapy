@@ -1470,6 +1470,41 @@ class TestBusyLook:
 
         _run(scenario)
 
+    def test_a_busy_look_timer_firing_after_its_command_ended_changes_nothing(self, app_factory):
+        """A stopped timer can still fire once (Textual's Windows sleep): after _end_busy, its fire leaves the bar usable.
+
+        Found 2026-11-01: a help page that rendered in about
+        _BUSY_LOOK_DELAY_S greyed the bar after it ended, and every click
+        answered Busy until the app was restarted.
+        """
+        from textual.widgets import Input
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                bar = app.query_one("#bottom-bar")
+                inp = app.query_one("#cmd", Input)
+                placeholder = inp.placeholder
+
+                # Arrange -- a command begins and ends before its busy look is due
+                app._begin_busy("Running... escape to cancel")
+                stale = app._busy_generation
+                app._end_busy()
+
+                # Act -- the timer set for that command fires anyway
+                app._show_busy_look(stale, "Running... escape to cancel")
+                await pilot.pause()
+
+                # Assert
+                actual = (app._busy, bar.disabled, app._busy_look_shown, inp.placeholder)
+                expected = (False, False, False, placeholder)
+                assert actual == expected, (
+                    "a late busy look greyed the bar: every click answers Busy"
+                )
+
+        _run(scenario)
+
 
 class TestRunLast:
     """What the prompt keeps for /run.last: a line typed and Entered, never a pasted one."""
@@ -2246,6 +2281,45 @@ class TestBatchedOutputIsEquivalent:
                     "with color off the escapes are stripped, not leaked as "
                     f"literal characters. Screen was: {text!r}"
                 )
+
+        _run(scenario)
+
+    def test_color_off_writes_termapy_lines_plain_with_their_links(self, app_factory):
+        """With color off a status line, a markup line and a linked row render with no color, and the link still carries its click action."""
+        from rich.style import Style
+        from textual.widgets import RichLog
+
+        from termapy.plugins.views import Link, Piece
+        from termapy.widgets import LINK_META
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.query_one("#output", RichLog)
+                app.repl.ctx.ns("flags")["color"] = False
+
+                # Act
+                app._status("a status line", "green")
+                app._write_output_markup("[bold red]a markup line[/]")
+                app._write_link_segments([Piece("/help", Link("help"), "cyan")], color=None)
+                await pilot.pause()
+
+                # Assert
+                written = log.lines[-3:]
+                colored = [
+                    segment.text
+                    for strip in written
+                    for segment in strip
+                    if segment.style is not None and (segment.style.color or segment.style.bgcolor)
+                ]
+                assert colored == [], f"color off, yet these segments carry a color: {colored}"
+                link = next(segment for segment in written[-1] if segment.text == "/help")
+                assert isinstance(link.style, Style) and LINK_META in link.style.meta, (
+                    "the link lost its click action"
+                )
+                assert link.style.underline, "the link lost its underline"
+                assert "".join(segment.text for segment in written[0]).startswith("a status line")
 
         _run(scenario)
 

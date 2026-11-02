@@ -164,6 +164,17 @@ class CLITerminal(TerminalHost):
 
     # -- Output ---------------------------------------------------------------
 
+    def _sync_console_color(self) -> None:
+        """The console follows /term.color: with the flag off every print is plain, as --no-color starts it.
+
+        Read at each print rather than set by the command: the flag is
+        a session value any frontend's command sets, and the console is
+        this frontend's.
+        """
+        ctx = getattr(getattr(self, "repl", None), "ctx", None)
+        if ctx is not None:
+            self.console.no_color = not ctx.ns("flags").get("color", True)
+
     def write(self, text: str, color: str = "") -> None:
         """Write text to stdout via Rich console.
 
@@ -172,6 +183,7 @@ class CLITerminal(TerminalHost):
         ``[...]`` in it always shows.  Callers that want true Rich markup
         should use ``write_markup`` instead.
         """
+        self._sync_console_color()
         if color:
             self.console.print(f"[{color}]{escape_markup(text)}[/]")
         else:
@@ -179,6 +191,7 @@ class CLITerminal(TerminalHost):
 
     def write_markup(self, text: str) -> None:
         """Write Rich markup text to stdout."""
+        self._sync_console_color()
         self.console.print(text)
 
     def status(self, text: str, color: str = "") -> None:
@@ -195,6 +208,7 @@ class CLITerminal(TerminalHost):
         contains literal ``[/]`` (e.g. a Rich MarkupError repeated as
         ``err_msg``).
         """
+        self._sync_console_color()
         indented = textwrap.indent(text, "  ")
         if color:
             self.console.print(f"[{color}]{escape_markup(indented)}[/]")

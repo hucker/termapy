@@ -17,6 +17,7 @@ import traceback
 from collections import OrderedDict
 from collections.abc import Sequence
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from threading import Event
 
@@ -112,6 +113,7 @@ from termapy.widgets import (
     PromptInput,
     SelectableRichLog,
     StatusBar,
+    without_color,
 )
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
@@ -550,6 +552,9 @@ class SerialTerminal(TerminalHost, App):
         self._busy = False
         self._busy_look_timer: Timer | None = None
         self._busy_look_shown = False
+        # Counts every begin and end, so a busy-look timer that fires late
+        # (after _end_busy) knows its command is over and does nothing.
+        self._busy_generation = 0
         self._saved_placeholder = ""
         # Clickable output (_write_link_segments): link id -> Link, the
         # newest _LINK_LIMIT kept, so a long session's table stays bounded.
@@ -1160,7 +1165,7 @@ class SerialTerminal(TerminalHost, App):
         # which renders as a faint dimmed tone; we want something that
         # actually draws the eye.
         try:
-            output = self.query_one("#output", RichLog)
+            self.query_one("#output", RichLog)
         except SHUTDOWN_RACE:
             return
         rule = "-" * 72
@@ -1171,7 +1176,7 @@ class SerialTerminal(TerminalHost, App):
             "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
             rule,
         ):
-            output.write(Text(line, style="bold green"))
+            self._pane_write(Text(line, style="bold green"))
             self._log_line("#", line)
 
     @work(thread=True)
@@ -1582,6 +1587,26 @@ class SerialTerminal(TerminalHost, App):
         except RuntimeError:
             return None  # app shutting down
 
+    def _pane_write(self, content: str | Text) -> None:
+        """Write to the output pane as /term.color has it: with color off, every color is dropped.
+
+        Bold, italic, underline and the links' click actions stay, so a
+        help page reads the same and still clicks; a markup string is
+        parsed as the pane parses it.  With color on, ``content`` goes to
+        the widget as it is.  Main thread only, like the widget.
+        """
+        log = self.query_one("#output", RichLog)
+        if self._color_on():
+            log.write(content)
+            return
+        text = Text.from_markup(content) if isinstance(content, str) else content
+        log.write(without_color(text))
+
+    def _color_on(self) -> bool:
+        """Whether /term.color is on: the session flag, on before the context exists."""
+        ctx = getattr(getattr(self, "repl", None), "ctx", None)
+        return True if ctx is None else bool(ctx.ns("flags").get("color", True))
+
     def _status(self, text: str, color: str = "dim") -> None:
         """Write a termapy status message with consistent formatting.
 
@@ -1597,7 +1622,7 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one("#output", RichLog).write(Text(text, style=f"bold italic {color}"))
+            self._pane_write(Text(text, style=f"bold italic {color}"))
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         self._log_lines("#", text.splitlines() or [""])
@@ -1757,7 +1782,7 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one("#output", RichLog).write(text)
+            self._pane_write(text)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         if log:
@@ -3158,7 +3183,7 @@ class SerialTerminal(TerminalHost, App):
                 style += Style(underline=True, meta=meta)
             line.append(piece.text, style=style)
         try:
-            self.query_one("#output", RichLog).write(line)
+            self._pane_write(line)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         self._log_lines("#", [line.plain])
@@ -3210,22 +3235,37 @@ class SerialTerminal(TerminalHost, App):
         ``_BUSY_LOOK_DELAY_S``, so a quick command repaints nothing.
         """
         self._busy = True
+        self._busy_generation += 1
         if self._busy_look_timer is not None:
             self._busy_look_timer.stop()
+        self._busy_look_timer = self.set_timer(
+            self._BUSY_LOOK_DELAY_S,
+            partial(self._show_busy_look, self._busy_generation, placeholder),
+        )
 
-        def _look() -> None:
-            self._busy_look_timer = None
-            inp = self.query_one("#cmd", Input)
-            self._saved_placeholder = inp.placeholder
-            inp.placeholder = placeholder
-            self._set_input_busy(True)
-            self._busy_look_shown = True
+    def _show_busy_look(self, generation: int, placeholder: str) -> None:
+        """The busy-look timer fired: grey the bar and show ``placeholder``, unless its command already ended.
 
-        self._busy_look_timer = self.set_timer(self._BUSY_LOOK_DELAY_S, _look)
+        ``generation`` is the command the timer was set for.  A timer's
+        ``stop()`` does not always beat a timer whose wait has already run
+        out (Textual's Windows sleep waits on an executor thread), so the
+        callback can run after ``_end_busy``; unguarded, it greyed the bar
+        for good and every click answered Busy (found 2026-11-01, on a
+        help page that took as long as ``_BUSY_LOOK_DELAY_S`` to render).
+        """
+        if generation != self._busy_generation:
+            return
+        self._busy_look_timer = None
+        inp = self.query_one("#cmd", Input)
+        self._saved_placeholder = inp.placeholder
+        inp.placeholder = placeholder
+        self._set_input_busy(True)
+        self._busy_look_shown = True
 
     def _end_busy(self) -> None:
         """The typed command or paste ended: not busy, and the busy look undone if it was shown."""
         self._busy = False
+        self._busy_generation += 1
         if self._busy_look_timer is not None:
             self._busy_look_timer.stop()
             self._busy_look_timer = None

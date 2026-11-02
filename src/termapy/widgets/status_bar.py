@@ -10,6 +10,8 @@ running and so had no coverage.
 
 from __future__ import annotations
 
+from functools import partial
+
 from rich.cells import cell_len
 from textual.timer import Timer
 from textual.widgets import Label
@@ -49,6 +51,9 @@ class StatusBar(Label):
         # overlays: text, never markup (registry widget-text-literal).
         super().__init__("", markup=False, **kwargs)
         self._timer: Timer | None = None
+        # Counts every message, so an auto-clear timer that fires late
+        # (after a newer message) knows its message is gone and does nothing.
+        self._shown = 0
         self._text = ""
         # The widest text laid out since the label was last hidden.
         self._width = 0
@@ -78,12 +83,30 @@ class StatusBar(Label):
             return
         self._set_text(text)
         self.add_class("visible")
+        self._drop_timer()
+        self._timer = self.set_timer(timeout, partial(self._clear_if_current, self._shown))
+
+    def _drop_timer(self) -> None:
+        """Forget the auto-clear timer: a new message, or progress text, outlives it."""
+        self._shown += 1
         if self._timer is not None:
             self._timer.stop()
-        self._timer = self.set_timer(timeout, self.clear_status)
+            self._timer = None
+
+    def _clear_if_current(self, shown: int) -> None:
+        """The auto-clear timer fired: clear, unless a newer message replaced the one it was set for.
+
+        A stopped timer can still fire once (Textual's Windows sleep waits
+        on an executor thread, and ``stop()`` does not always beat a wait
+        that has already run out), and that fire would clear the newer
+        text at once.
+        """
+        if shown == self._shown:
+            self.clear_status()
 
     def set_progress(self, text: str) -> None:
-        """Show persistent text with no auto-clear.  Empty text hides."""
+        """Show persistent text with no auto-clear.  Empty text hides; a transient message's timer no longer clears it."""
+        self._drop_timer()
         self._set_text(text)
         if text:
             self.add_class("visible")

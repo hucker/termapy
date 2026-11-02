@@ -857,7 +857,6 @@ COMMAND = Command(
             help="Print project summary (tree + config + buttons).",
             handler=_handler_info,
             cfg={"custom_buttons": "the enabled buttons, in the report"},
-            shows=True,
             needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(

@@ -442,7 +442,7 @@ def _compute_cmd_w(names: list[str], prefix: str) -> int:
 # ── Man-page detail view ─────────────────────────────────────────────────────
 
 
-def _bare_pieces(plugin, name: str, prefix: str) -> list[Piece]:
+def _bare_pieces(plugin, name: str, prefix: str, plugins: Mapping) -> list[Piece]:
     """What a bare invocation does, from ``picker=`` and ``bare_sub=``; ``[]`` when undeclared.
 
     The one wording for every command (registry ``bare-declared``), in
@@ -450,14 +450,14 @@ def _bare_pieces(plugin, name: str, prefix: str) -> list[Piece]:
     subcommand: ``bare: opens the Run picker in the TUI; elsewhere runs
     /run.list``, ``bare: runs /mem.info``.  A click does what the line
     says: the picker's name runs the bare command, which opens it, as its
-    button does, and the subcommand runs itself.  Safe to run because a
-    bare form only ever opens or shows something (pinned by
-    ``test_a_bare_form_only_opens_or_shows``).
+    button does, and the subcommand runs itself when it declares ``shows``.
+    One that does not fills the input line instead: ``/mem.info`` talks to
+    the device, and reading a help page must not (registry ``shows-declared``).
     """
     sub: list[Piece] = []
     if plugin.bare_sub:
         sub_name = f"{name}.{plugin.bare_sub}"
-        sub = [Piece(prefix + sub_name, Link(sub_name))]
+        sub = [Piece(prefix + sub_name, Link(sub_name, run=plugins[sub_name].shows))]
     if plugin.picker:
         picker = [
             Piece("bare: opens the "),
@@ -510,7 +510,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     # A declared bare form gets its own line, built from the declaration,
     # so every command's bare behavior reads the same way.
-    bare = _bare_pieces(plugin, name, prefix)
+    bare = _bare_pieces(plugin, name, prefix, plugins)
     if plugin.args or bare:
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("SYNOPSIS"))

@@ -1470,6 +1470,41 @@ class TestBusyLook:
 
         _run(scenario)
 
+    def test_a_busy_look_timer_firing_after_its_command_ended_changes_nothing(self, app_factory):
+        """A stopped timer can still fire once (Textual's Windows sleep): after _end_busy, its fire leaves the bar usable.
+
+        Found 2026-11-01: a help page that rendered in about
+        _BUSY_LOOK_DELAY_S greyed the bar after it ended, and every click
+        answered Busy until the app was restarted.
+        """
+        from textual.widgets import Input
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                bar = app.query_one("#bottom-bar")
+                inp = app.query_one("#cmd", Input)
+                placeholder = inp.placeholder
+
+                # Arrange -- a command begins and ends before its busy look is due
+                app._begin_busy("Running... escape to cancel")
+                stale = app._busy_generation
+                app._end_busy()
+
+                # Act -- the timer set for that command fires anyway
+                app._show_busy_look(stale, "Running... escape to cancel")
+                await pilot.pause()
+
+                # Assert
+                actual = (app._busy, bar.disabled, app._busy_look_shown, inp.placeholder)
+                expected = (False, False, False, placeholder)
+                assert actual == expected, (
+                    "a late busy look greyed the bar: every click answers Busy"
+                )
+
+        _run(scenario)
+
 
 class TestRunLast:
     """What the prompt keeps for /run.last: a line typed and Entered, never a pasted one."""

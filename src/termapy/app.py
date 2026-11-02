@@ -17,6 +17,7 @@ import traceback
 from collections import OrderedDict
 from collections.abc import Sequence
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from threading import Event
 
@@ -549,6 +550,9 @@ class SerialTerminal(TerminalHost, App):
         self._busy = False
         self._busy_look_timer: Timer | None = None
         self._busy_look_shown = False
+        # Counts every begin and end, so a busy-look timer that fires late
+        # (after _end_busy) knows its command is over and does nothing.
+        self._busy_generation = 0
         self._saved_placeholder = ""
         # Clickable output (_write_link_segments): link id -> Link, the
         # newest _LINK_LIMIT kept, so a long session's table stays bounded.
@@ -3207,22 +3211,37 @@ class SerialTerminal(TerminalHost, App):
         ``_BUSY_LOOK_DELAY_S``, so a quick command repaints nothing.
         """
         self._busy = True
+        self._busy_generation += 1
         if self._busy_look_timer is not None:
             self._busy_look_timer.stop()
+        self._busy_look_timer = self.set_timer(
+            self._BUSY_LOOK_DELAY_S,
+            partial(self._show_busy_look, self._busy_generation, placeholder),
+        )
 
-        def _look() -> None:
-            self._busy_look_timer = None
-            inp = self.query_one("#cmd", Input)
-            self._saved_placeholder = inp.placeholder
-            inp.placeholder = placeholder
-            self._set_input_busy(True)
-            self._busy_look_shown = True
+    def _show_busy_look(self, generation: int, placeholder: str) -> None:
+        """The busy-look timer fired: grey the bar and show ``placeholder``, unless its command already ended.
 
-        self._busy_look_timer = self.set_timer(self._BUSY_LOOK_DELAY_S, _look)
+        ``generation`` is the command the timer was set for.  A timer's
+        ``stop()`` does not always beat a timer whose wait has already run
+        out (Textual's Windows sleep waits on an executor thread), so the
+        callback can run after ``_end_busy``; unguarded, it greyed the bar
+        for good and every click answered Busy (found 2026-11-01, on a
+        help page that took as long as ``_BUSY_LOOK_DELAY_S`` to render).
+        """
+        if generation != self._busy_generation:
+            return
+        self._busy_look_timer = None
+        inp = self.query_one("#cmd", Input)
+        self._saved_placeholder = inp.placeholder
+        inp.placeholder = placeholder
+        self._set_input_busy(True)
+        self._busy_look_shown = True
 
     def _end_busy(self) -> None:
         """The typed command or paste ended: not busy, and the busy look undone if it was shown."""
         self._busy = False
+        self._busy_generation += 1
         if self._busy_look_timer is not None:
             self._busy_look_timer.stop()
             self._busy_look_timer = None

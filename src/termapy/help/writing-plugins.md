@@ -512,11 +512,34 @@ dispatches the explicit `toggle`/`cycle` verb, not the bare command.
 
 ## Dynamic help for runtime state
 
-If your command owns runtime state that a user should see right on its
-help page - a loaded file, an open connection, a count of cached items -
-set `long_help` to a function instead of a string. The function takes
-the `PluginContext` and returns a string. It's invoked at render time,
-so whatever it reads from `ctx.ns(...)` or `ctx.cfg` is live.
+If running your command bare reports its state - a setting's value, a status
+page, a list - declare it, and its help page shows the answer:
+
+```python
+"encoding": Command(
+    args="{name}",
+    help="Show or set the encoding.",
+    handler=_handler_encoding,
+    state=True,  # bare reports it, so /help can show it
+),
+```
+
+`/help tool.encoding` then has a CURRENT STATE section right after STATUS.
+`/help` runs the bare form silently and shows what it answers: a short value in
+full, a `CmdResult.record` or `CmdResult.table` as its rows, and past twenty
+rows the start and a link to the rest. A failure is shown too, since
+`Not connected.` is the state.
+
+The declaration is a promise: bare, the command changes nothing, sends no
+bytes, opens no port, writes no file, is fast, and answers with a `value` or a
+view rather than printing prose. Every reader of its page runs it. A `safety`
+above `safe`, a `picker` or a required argument is refused at load.
+
+For a summary no single command answers - a loaded file, an open connection, a
+count of cached items on a family's page - set `long_help` to a function
+instead of a string. The function takes the `PluginContext` and returns a
+string. It's invoked at render time, so whatever it reads from `ctx.ns(...)` or
+`ctx.cfg` is live.
 
 ```python
 from termapy.plugins.capabilities import STATE_MESSAGES

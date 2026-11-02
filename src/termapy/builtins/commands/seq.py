@@ -164,4 +164,5 @@ COMMAND = Command(
             needs=CapabilitySet.INTERACTIVE,
         ),
     },
+    state=True,
 )

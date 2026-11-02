@@ -327,6 +327,7 @@ class CLITerminal(TerminalHost):
             self._hook_cli_completion,
             source="app",
             needs=CapabilitySet.INTERACTIVE,
+            state=True,
         )
         # Historically, CLI registered placeholder hooks for TUI-only
         # commands (/line_no and friends) so users got a clear "Only
@@ -372,7 +373,7 @@ class CLITerminal(TerminalHost):
             return CmdResult.fail(msg=str(e))
         current = bool(cfg_value(self.cfg, "cli_completion"))
         if action is SETTING_QUERY:
-            self.status(f"CLI completion: {'on' if current else 'off'}")
+            ctx.io.result(f"CLI completion: {'on' if current else 'off'}")
             return CmdResult.ok(value="on" if current else "off")
         enabled = (not current) if action is SETTING_TOGGLE else action
         self.cfg["cli_completion"] = enabled

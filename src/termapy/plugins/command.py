@@ -596,6 +596,15 @@ class Command:
             command fills the input line for Enter (registry
             ``links-are-data``).  Not inherited: each command says so for
             itself.  Requires ``safety="safe"``, checked at construction.
+        state: True when running the command BARE reports its current
+            state: it changes nothing, sends no bytes, opens no port,
+            writes no file, is fast, and answers with a ``value`` or a
+            view.  ``/help`` runs it and shows the answer under CURRENT
+            STATE (registry ``state-read-immutable``).  Not the same as
+            ``shows``: ``/term.echo`` reports state bare and acts with an
+            argument, so a click on it must not run it.  Not inherited.
+            Requires ``safety="safe"``, no ``picker`` and no required
+            argument, checked at construction.
     """
 
     help: str
@@ -618,6 +627,7 @@ class Command:
     group: str = GROUP_DEFAULT
     maturity: str = ""
     shows: bool = False
+    state: bool = False
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -651,6 +661,7 @@ class Command:
                 f"nothing, and safety {self.safety!r} says this one does"
             )
         self.cfg = validate_cfg_uses(self.cfg, self.name)
+        _validate_state(self)
         if not self.params:
             return
         validate_param_specs(self.params, self.name)
@@ -967,6 +978,8 @@ class PluginInfo:
             ``"stable"`` (registry ``maturity-declared-once``).
         shows: ``Command.shows``: it only shows or opens, so a click on a
             link to it runs it.
+        state: ``Command.state``: its bare form reports current state, so
+            ``/help`` runs it for CURRENT STATE.
     """
 
     name: str
@@ -990,6 +1003,7 @@ class PluginInfo:
     group: str = GROUP_DEFAULT
     maturity: str = "stable"
     shows: bool = False
+    state: bool = False
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.
@@ -1023,6 +1037,43 @@ class PluginInfo:
         if group_error:
             raise ValueError(f"/{self.name}: invalid group {self.group!r}: {group_error}")
         self.cfg = validate_cfg_uses(self.cfg, self.name)
+        _validate_state(self)
+
+
+# An optional group of a synopsis, ``{...}``: what a bare call may leave out.
+_OPTIONAL_GROUP = re.compile(r"\{[^{}]*\}")
+
+
+def has_required_arg(args: str) -> bool:
+    """True when a synopsis names an argument outside every ``{optional}`` group.
+
+    ``/dev.lib``'s ``{<pattern>}`` is optional; ``/sym.search``'s
+    ``<pattern>`` is not, so a bare call to it is a usage error.
+    """
+    return "<" in _OPTIONAL_GROUP.sub("", args)
+
+
+def _validate_state(command: Command | PluginInfo) -> None:
+    """Refuse a ``state`` declaration ``/help`` could not run bare and silently.
+
+    One check for both records, so a host's ``register_hook`` is held to
+    what a loaded command is.
+
+    Raises:
+        ValueError: The command acts, opens a dialog bare, or needs an argument.
+    """
+    if not command.state:
+        return
+    label = f"/{command.name or '<command>'}"
+    if command.safety != "safe":
+        raise ValueError(
+            f"{label}: state= is for a command whose bare form changes nothing, "
+            f"and safety {command.safety!r} says this one does"
+        )
+    if command.picker:
+        raise ValueError(f"{label}: state= runs the bare form, and this one opens a picker")
+    if has_required_arg(command.args) or any(spec.required for spec in command.params):
+        raise ValueError(f"{label}: state= runs the bare form, and this one needs an argument")
 
 
 def validate_cfg_uses(cfg: Mapping[str, str], name: str) -> dict[str, str]:

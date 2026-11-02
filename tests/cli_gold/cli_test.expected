@@ -1,148 +1,100 @@
 Connected: DEMO
   === section: device commands ===
-  [1/219] /print === section: device commands === (280us)
 demo> AT
 OK
-  [2/219] AT (24us)
 demo> AT+PROD-ID
 +PROD-ID:BASSOMATIC-77
-  [3/219] AT+PROD-ID (43us)
 demo> AT+LED on
 OK
-  [4/219] AT+LED on (39us)
 demo> AT+LED off
 OK
-  [5/219] AT+LED off (30us)
 demo> AT+NAME?
 +NAME:Bassomatic v77
-  [6/219] AT+NAME? (50us)
 demo> AT+NAME=TestDevice
 OK
-  [7/219] AT+NAME=TestDevice (45us)
 demo> AT+NAME?
 +NAME:TestDevice
-  [8/219] AT+NAME? (43us)
 demo> AT+BAUD?
 +BAUD:115200
-  [9/219] AT+BAUD? (31us)
 demo> mem 0x1000 32
 00001000:  1B 00 00 50  7D 44 3A 21  05 00 00 00  0C 00 00 00  |...P}D:!........|
 00001010:  60 67 6E 95  9C 83 8A B1  03 00 A6 AD  D4 DB C2 C9  |`gn.............|
-  [10/308] mem 0x1000 32 (100us)
 demo> mem 0x2000 16
 00002000:  20 27 2E 35  3C 03 0A 11  18 1F 66 6D  74 7B 42 49  | '.5<.....fmt{BI|
-  [11/219] mem 0x2000 16 (87us)
 demo> AT+TEXTDUMP 3
 [000000ms] temp=22.0C voltage=3.3V sample=0
 [000050ms] temp=22.7C voltage=3.43V sample=1
 [000100ms] temp=23.4C voltage=3.36V sample=2
-  [12/219] AT+TEXTDUMP 3 (61us)
 demo> BOGUS
 ERROR: Unknown command 'BOGUS'
-  [13/219] BOGUS (63us)
 demo> AT+LED on
 OK
-  [14/219] AT+LED on (37us)
 demo> AT+LED off
 OK
-  [15/219] AT+LED off (41us)
   === section: print and echo ===
-  [16/219] /print === section: print and echo === (425us)
   off
-  [17/219] /term.echo_repl off (557us)
   repl echo is off - this output appears, with no command-echo above it
-  [18/219] /print repl echo is off - this output appears, with no co... (270us)
   on
-  [19/219] /term.echo_repl on (240us)
 demo> /print repl echo is on - this output appears with its command-echo above it
   repl echo is on - this output appears with its command-echo above it
-  [20/219] /print repl echo is on - this output appears with its com... (217us)
 demo> /print === section: variables ===
   === section: variables ===
-  [21/219] /print === section: variables === (185us)
 demo> $(DEVICE) = BASSOMATIC
   $(DEVICE) = BASSOMATIC
-  [22/219] $(DEVICE) = BASSOMATIC (295us)
 demo> $(PORT_NUM) = 42
   $(PORT_NUM) = 42
-  [23/219] $(PORT_NUM) = 42 (177us)
 demo> /print device=$(DEVICE) port=$(PORT_NUM)
   device=BASSOMATIC port=42
-  [24/219] /print device=$(DEVICE) port=$(PORT_NUM) (137us)
 demo> /var DEVICE
   $(DEVICE) = BASSOMATIC
-  [25/219] /var DEVICE (225us)
 demo> /var PORT_NUM
   $(PORT_NUM) = 42
-  [26/219] /var PORT_NUM (227us)
 demo> /var.set DEVICE updated_value
   $(DEVICE) = updated_value
-  [27/219] /var.set DEVICE updated_value (200us)
 demo> /var DEVICE
   $(DEVICE) = updated_value
-  [28/219] /var DEVICE (194us)
 demo> $(BAUD) <- /port.baud_rate
   $(BAUD) = 115200
-  [29/219] $(BAUD) <- /port.baud_rate (383us)
 demo> /var BAUD
   $(BAUD) = 115200
-  [30/219] /var BAUD (227us)
 demo> /var.clear
   Cleared 3 variable(s).
-  [31/219] /var.clear (153us)
 demo> /var DEVICE
     $(DEVICE) - not defined
-  [32/219] /var DEVICE (147us)
 demo> /print === section: config read ===
   === section: config read ===
-  [33/219] /print === section: config read === (108us)
 demo> /cfg baud_rate
   115200
-  [34/219] /cfg baud_rate (113us)
 demo> /cfg encoding
   utf-8
-  [35/219] /cfg encoding (122us)
 demo> /cfg eol
 
-  [36/219] /cfg eol (100us)
 demo> /cfg parity
   N
-  [37/219] /cfg parity (103us)
 demo> /cfg byte_size
   8
-  [38/219] /cfg byte_size (103us)
 demo> /cfg stop_bits
   1
-  [39/219] /cfg stop_bits (105us)
 demo> /cfg flow_control
   none
-  [40/219] /cfg flow_control (135us)
 demo> /cfg echo
   True
-  [41/219] /cfg echo (162us)
 demo> /cfg send_bare_enter
   False
-  [42/219] /cfg send_bare_enter (113us)
 demo> /cfg cmd_prefix
   /
-  [43/219] /cfg cmd_prefix (106us)
 demo> /cfg quiet_start
   True
 demo> /print === section: config auto-set ===
   === section: config auto-set ===
-  [44/219] /print === section: config auto-set === (117us)
 demo> /cfg.auto echo true
   echo = True  (session)
-  [45/219] /cfg.auto echo true (120us)
 demo> /cfg echo
   True
-  [46/219] /cfg echo (111us)
 demo> /cfg.auto echo false
   echo = False  (session)
-  [47/219] /cfg.auto echo false (113us)
 demo> /cfg echo
   False
-  [48/219] /cfg echo (102us)
 demo> /cfg.auto custom_buttons_side Right
   custom_buttons_side = 'right'  (session)
 demo> /cfg custom_buttons_side
@@ -153,7 +105,6 @@ demo> /cfg.auto custom_buttons_side bottom
   custom_buttons_side = 'bottom'  (session)
 demo> /print === section: config dump ===
   === section: config dump ===
-  [49/219] /print === section: config dump === (102us)
 demo> /cfg.dump
   {
       "config_version": 35,
@@ -255,13 +206,12 @@ demo> /cfg.dump
           }
       ]
   }
-  [50/219] /cfg.dump (2.1ms)
 demo> /print === section: config loaded ===
   === section: config loaded ===
 demo> /cfg.loaded
   Loaded - 5 files
   KIND     NAME                          LAYER  FILE                     COUNT  NOTE
-  -------  ----------------------------  -----  -----------------------  -----  ------------------
+  -- -- -- -- -- --
   plugin   cmd                           demo   plugin/cmd.py                1  commands crcsend
   plugin   probe                         demo   plugin/probe.py              1  commands probe
   plugin   temp_plot                     demo   plugin/temp_plot.py          1  commands temp_plot
@@ -273,6 +223,16 @@ NAME
 
 STATUS
   stable - covered by termapy's compatibility promise
+
+CURRENT STATE
+  Loaded - 5 files
+  KIND     NAME                          LAYER  FILE                     COUNT  NOTE
+  -- -- -- -- -- --
+  plugin   cmd                           demo   plugin/cmd.py                1  commands crcsend
+  plugin   probe                         demo   plugin/probe.py              1  commands probe
+  plugin   temp_plot                     demo   plugin/temp_plot.py          1  commands temp_plot
+  symbols  demo firmware (hand-written)  demo   sym/demo.symbols.json       17  12 typed
+  device   demo_uart                     demo   dev/console.device.json      2
 
 DESCRIPTION
   The table every config load reports, at startup and on a switch: one row per plugin file, symbol table and device file the load read, from the global layer and the config's own, with what each registered.  A file that failed is a row with its error.  It goes to the session log, and to the screen too when quiet_start is off.  Under MCP the profile auto-loaded on connect is a row too.  Later imports and loads (/sym.import, /dev.import, /profile.load) answer for themselves and are not added.
@@ -300,68 +260,52 @@ demo> /cfg.delete nosuch
   Error: Config not found: nosuch
 demo> /print === section: config folders ===
   === section: config folders ===
-  [51/219] /print === section: config folders === (115us)
 demo> /run.list
   run/ - 9 scripts
-  NAME                 SIZE    UPDATED   SUMMARY
-  -------------------  ------  --------  -----------------------------------------------------------
-  crc_tour.run         2.3 KB  just now  the whole /proto.crc.* API in one screen
-  doc_screenshots.run  1.1 KB  just now  Generate documentation images -- now scripts/doc_shots.py
-  expect_test.run       354 B  just now  Expect command test
-  var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
-  status_check.run       72 B  just now  Quick status check
-  smoke_test.run       1.1 KB  just now  Smoke test for demo device
-  at_demo.run           825 B  just now  AT Command Demo -- Walks through all demo device commands
-  gps_demo.run          622 B  just now  GPS/NMEA Demo -- Query simulated GPS receiver
-  welcome.run           978 B  just now  Welcome script -- Runs on connect via on_connect_cmd config
-  [52/220] /run.list (20.9ms)
+  NAME SIZE UPDATED SUMMARY
+  -- -- -- --
+  at_demo.run  <SIZE>  just now  AT Command Demo -- Walks through all demo device commands
+  crc_tour.run  <SIZE>  just now  the whole /proto.crc.* API in one screen
+  doc_screenshots.run  <SIZE>  just now  Generate documentation images -- now scripts/doc_shots.py
+  expect_test.run  <SIZE>  just now  Expect command test
+  gps_demo.run  <SIZE>  just now  GPS/NMEA Demo -- Query simulated GPS receiver
+  smoke_test.run  <SIZE>  just now  Smoke test for demo device
+  status_check.run  <SIZE>  just now  Quick status check
+  var_demo.run  <SIZE>  just now  Variable Demo -- Set variables and use them in commands
+  welcome.run  <SIZE>  just now  Welcome script -- Runs on connect via on_connect_cmd config
 demo> /proto.list
   proto/ - 3 scripts
-  NAME                 SIZE    UPDATED   TITLE
-  -------------------  ------  --------  ---------------------------
-  bitfield_inline.pro  2.7 KB  just now  Demo Bitfield Inline Format
-  modbus_inline.pro    2.2 KB  just now  Demo Modbus Inline Format
-  at_test.pro           829 B  just now  Demo AT Command Test
-  [61/296] /proto.list (5.61ms)
+  NAME SIZE UPDATED TITLE
+  -- -- -- --
+  at_test.pro  <SIZE>  just now  Demo AT Command Test
+  bitfield_inline.pro  <SIZE>  just now  Demo Bitfield Inline Format
+  modbus_inline.pro  <SIZE>  just now  Demo Modbus Inline Format
 demo> /cap.list
   cap/ - empty
-  [62/297] /cap.list (62us)
 demo> /print === section: port read ===
   === section: port read ===
-  [54/219] /print === section: port read === (146us)
 demo> /port.baud_rate
   115200
-  [55/219] /port.baud_rate (332us)
 demo> /port.parity
   N
-  [56/219] /port.parity (135us)
 demo> /port.byte_size
   8
-  [57/219] /port.byte_size (110us)
 demo> /port.stop_bits
   1
-  [58/219] /port.stop_bits (110us)
 demo> /port.flow_control
   none
-  [59/219] /port.flow_control (195us)
 demo> /port.dtr
   1
-  [60/219] /port.dtr (126us)
 demo> /port.rts
   1
-  [61/219] /port.rts (116us)
 demo> /port.cts
   1
-  [62/219] /port.cts (113us)
 demo> /port.dsr
   1
-  [63/219] /port.dsr (112us)
 demo> /port.ri
   0
-  [64/219] /port.ri (105us)
 demo> /port.cd
   1
-  [65/219] /port.cd (112us)
 demo> /port.info
   Port        : DEMO  (connected)
   Baud Rate   : 115200
@@ -384,55 +328,38 @@ demo> /port.info
   DSR: 1
   RI : 0
   CD : 1
-  [66/219] /port.info (6.16ms)
 demo> /print === section: port modify ===
   === section: port modify ===
-  [67/219] /print === section: port modify === (108us)
 demo> /port.dtr 0
   DTR -> 0
-  [68/219] /port.dtr 0 (120us)
 demo> /port.dtr
   0
-  [69/219] /port.dtr (108us)
 demo> /port.dtr 1
   DTR -> 1
-  [70/219] /port.dtr 1 (478us)
 demo> /port.dtr
   1
-  [71/219] /port.dtr (314us)
 demo> /port.rts 0
   RTS -> 0
-  [72/219] /port.rts 0 (184us)
 demo> /port.rts
   0
-  [73/219] /port.rts (153us)
 demo> /print === section: port disconnect/connect ===
   === section: port disconnect/connect ===
-  [74/219] /print === section: port disconnect/connect === (194us)
 demo> /port.disconnect
 Disconnected: DEMO
-  [75/219] /port.disconnect (6.92ms)
 demo> /port.baud_rate
   115200 (disconnected)
-  [76/219] /port.baud_rate (131us)
 demo> /port.connect
 Connected: DEMO
-  [77/219] /port.connect (7.37ms)
 demo> /port.baud_rate
   115200
-  [78/219] /port.baud_rate (218us)
 demo> /print === section: port break ===
   === section: port break ===
-  [79/219] /print === section: port break === (197us)
 demo> /port.break
   Break sent (250ms)
-  [80/219] /port.break (462us)
 demo> /port.break 100
   Break sent (100ms)
-  [81/219] /port.break 100 (169us)
 demo> /print === section: port subcommands ===
   === section: port subcommands ===
-  [82/219] /print === section: port subcommands === (140us)
 demo> /port.help
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
@@ -446,7 +373,7 @@ SYNOPSIS
 
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
-  
+
   Connect to, disconnect from, list, or configure the serial
   port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
   USB chip identification (/port.chip.*), and the four mode
@@ -480,44 +407,32 @@ SUBCOMMANDS
   /port.rts             stable     Show or set RTS line (hardware only).
   /port.stop_bits       stable     Show or set stop bits.
   /port.usb             stable     Show the whole USB tree, with serial ports marked.
-  [83/219] /port (5.68ms)
 demo> /print === section: line endings ===
   === section: line endings ===
-  [84/219] /print === section: line endings === (168us)
 demo> /show_line_endings on
     Note: /show_line_endings is legacy; use /term.line_endings.
   eol_markers = True  (session)
   on
-  [85/219] /show_line_endings on (401us)
 demo> /show_line_endings off
   eol_markers = False  (session)
   off
-  [86/219] /show_line_endings off (261us)
 demo> /print === section: seq ===
   === section: seq ===
-  [87/219] /print === section: seq === (110us)
 demo> /seq
   No counters set.
-  [88/219] /seq (114us)
 demo> /print seq1={seq1+} seq2={seq2+}
   seq1=1 seq2=1
-  [89/219] /print seq1={seq1+} seq2={seq2+} (105us)
 demo> /print seq1={seq1+} seq2={seq2}
   seq1=2 seq2=0
-  [90/219] /print seq1={seq1+} seq2={seq2} (101us)
 demo> /seq
   seq1: 2
   seq2: 0
-  [91/219] /seq (120us)
 demo> /seq.reset
   Sequence counters reset.
-  [92/219] /seq.reset (107us)
 demo> /seq
   No counters set.
-  [93/219] /seq (103us)
 demo> /print === section: proto crc ===
   === section: proto crc ===
-  [94/219] /print === section: proto crc === (101us)
 demo> /proto.crc.info crc16-modbus
   crc16-modbus
   Modbus RTU serial protocol
@@ -529,30 +444,25 @@ demo> /proto.crc.info crc16-modbus
   XorOut: 0x0000
   Check : 0x4B37  (CRC of '123456789')
   Spec  : CRC:crc16-modbus_le  or  CRC:crc16-modbus_be
-  [95/219] /proto.crc.info crc16-modbus (2.5ms)
 demo> /proto.crc.calc crc16-modbus 01 03 00 00 00 0A
     Algorithm: crc16-modbus
     Data:      01 03 00 00 00 0A  (6 bytes)
     CRC:       0xCDC5
     Bytes LE:  C5 CD
     Bytes BE:  CD C5
-  [96/219] /proto.crc.calc crc16-modbus 01 03 00 00 00 0A (12.1ms)
 demo> /proto.crc.calc crc8-maxim 48 65 6C 6C 6F
     Algorithm: crc8-maxim
     Data:      48 65 6C 6C 6F  (5 bytes)
     CRC:       0xEB
     Byte:      EB
-  [97/219] /proto.crc.calc crc8-maxim 48 65 6C 6C 6F (1.71ms)
 demo> /proto.crc.calc crc32 01 02 03 04
     Algorithm: crc32
     Data:      01 02 03 04  (4 bytes)
     CRC:       0xB63CFBCD
     Bytes LE:  CD FB 3C B6
     Bytes BE:  B6 3C FB CD
-  [98/219] /proto.crc.calc crc32 01 02 03 04 (1.66ms)
 demo> /print === section: symbols ===
   === section: symbols ===
-  [99/219] /print === section: symbols === (270us)
 demo> /sym.info
   file        : sym/demo.symbols.json
   source      : demo firmware (hand-written)
@@ -564,93 +474,65 @@ demo> /sym.info
   regions     : 2  (ram 0x00001000+0x1000 rw, rom 0x00002000+0x2000 ro)
   device      : demo_uart  (2 registers)
   alias       : CONSOLE -> U1@0xBF806000  (2 registers)
-  [109/308] /sym.info (867us)
 demo> /sym main
     0x00002000  main  [code 442 bytes main.c]
-  [101/219] /sym main (299us)
 demo> /sym 0x2010
     0x00002010  main+0x10  [code 442 bytes main.c]
-  [102/219] /sym 0x2010 (289us)
 demo> /sym gTemp
     0x00001000  gTemp  [bss 2 bytes sensor.c]
-  [103/219] /sym gTemp (279us)
 demo> /sym 4096
     0x00001000  gTemp  [bss 2 bytes sensor.c]
-  [104/219] /sym 4096 (179us)
 demo> /sym 1000
   0x000003E8  -- no symbol
-  [105/219] /sym 1000 (197us)
 demo> /sym main+0x10
     0x00002010  main+0x10  [code 442 bytes main.c]
-  [106/219] /sym main+0x10 (164us)
 demo> /sym count.12
     0x0000100C  count.12  [bss 4 bytes main.c]
-  [107/219] /sym count.12 (179us)
 demo> /sym count.12+4
     0x00001010  tick  [bss 4 bytes mon.c]
-  [108/219] /sym count.12+4 (145us)
 demo> /sym kBaud
     0x00003200  kBaud  [const 4 bytes main.c]  = 115200
-  [122/328] /sym kBaud (166us)
 demo> /sym CONSOLE
     0x00003204  CONSOLE  [const 4 bytes main.c]  -> 0xBF806000
-  [123/328] /sym CONSOLE (138us)
 demo> /sym CONSOLE_MODE
     0xBF806000  CONSOLE_MODE  [sfr 4 bytes demo_uart]  = U1_MODE
-  [124/331] /sym CONSOLE_MODE (262us)
 demo> /sym.search CONSOLE_*
     0xBF806000  CONSOLE_MODE  [sfr 4 bytes demo_uart]  = U1_MODE
     0xBF806010  CONSOLE_STA  [sfr 4 bytes demo_uart]  = U1_STA
-  [125/331] /sym.search CONSOLE_* (383us)
 demo> /mem.read CONSOLE_MODE.ON
   CONSOLE_MODE.ON = 1
-  [126/331] /mem.read CONSOLE_MODE.ON (115ms)
 demo> /sym tick
   Error: Ambiguous symbol: tick (0x00001010 mon.c, 0x00001014 adc.c; use tick@mon.c or the address)
-  [109/219] /sym tick (25us)
 demo> /sym tick@adc.c
     0x00001014  tick  [bss 4 bytes adc.c]
-  [110/219] /sym tick@adc.c (166us)
 demo> /sym U1MODE.ON
   Error: Unsupported address suffix: .ON
-  [111/219] /sym U1MODE.ON (29us)
 demo> /sym nosuch
   Error: Unknown symbol: nosuch
-  [112/219] /sym nosuch (18us)
 demo> /sym.search g*
     0x00001000  gTemp  [bss 2 bytes sensor.c]
     0x00001002  gPressure  [bss 4 bytes sensor.c]
     0x00001008  gFlags  [data 4 bytes main.c]
-  [113/219] /sym.search g* (454us)
 demo> /sym.search mon
     0x00002200  MonGpio  [code 776 bytes mon.c]
-  [114/219] /sym.search mon (163us)
 demo> /sym.search ^Mon
   No symbols matching '^Mon'
 demo> /sym.search zzz
   No symbols matching 'zzz'
-  [115/219] /sym.search zzz (141us)
 demo> /sym.import nosuch.map
   Error: Build file not found: nosuch.map (a relative path is measured from the demo config folder)
-  [125/313] /sym.import nosuch.map (403us)
 demo> /dev.import nosuch.svd
   Error: Source file not found: nosuch.svd (a relative path is measured from the demo config folder)
-  [117/220] /dev.import nosuch.svd (100us)
 demo> /sym.load nosuch.json
   Error: Symbols not found: nosuch.json
-  [117/219] /sym.load nosuch.json (108us)
 demo> /sym.unload
   Unloaded build symbols (17); 2 device registers remain.
-  [128/313] /sym.unload (243us)
 demo> /sym gTemp
   Error: Unknown symbol: gTemp
-  [119/219] /sym gTemp (21us)
 demo> /sym.load
   Loaded 17 symbols (demo.symbols.json)
-  [130/313] /sym.load (1.05ms)
 demo> /print === section: memory ===
   === section: memory ===
-  [121/219] /print === section: memory === (175us)
 demo> /mem.info
   status       : ok
   dialect      : termapy  (default)
@@ -659,46 +541,32 @@ demo> /mem.info
   endian       : le  (device)
   atomic modify: yes  (device)
   device       : answered MEM.INFO
-  [122/219] /mem.info (63.7ms)
 demo> /mem.dump gTemp 16
   1B 00 00 50 7D 44 3A 21 05 00 00 00 0C 00 00 00  |...P}D:!........|  gTemp
-  [123/219] /mem.dump gTemp 16 (66.6ms)
 demo> /mem.dump gTemp 0x10
   1B 00 00 50 7D 44 3A 21 05 00 00 00 0C 00 00 00  |...P}D:!........|  gTemp
-  [124/219] /mem.dump gTemp 0x10 (66.4ms)
 demo> /mem.dump 0x2000 4
   20 27 2E 35                                      | '.5|  main
-  [125/219] /mem.dump 0x2000 4 (65.7ms)
 demo> /mem.dump main+0x10 8
   50 57 5E A5 AC B3 BA 81                          |PW^.....|  main+0x10
-  [126/219] /mem.dump main+0x10 8 (69.1ms)
 demo> /mem.write gFlags 7
   Set gFlags = 7
-  [137/308] /mem.write gFlags 7 (124ms)
 demo> /mem.dump gFlags 4
   07 00 00 00                                      |....|  gFlags
-  [128/219] /mem.dump gFlags 4 (59.5ms)
 demo> /mem.dump U1MODE.ON 4
   Error: Unsupported address suffix here: .ON (use /mem.read or /mem.write)
-  [129/219] /mem.dump U1MODE.ON 4 (45us)
 demo> /mem.dump nosuch
   Error: Unknown symbol: nosuch
-  [130/219] /mem.dump nosuch (21us)
 demo> /mem.dump 0x9000 4
   Error: Device error: range
-  [131/219] /mem.dump 0x9000 4 (68.9ms)
 demo> /mem.write 0x1000 ZZ
   Error: Invalid hex: ZZ
-  [132/219] /mem.write 0x1000 ZZ (52us)
 demo> /mem.dump 0x1000 0
   Error: Invalid length: 0
-  [133/219] /mem.dump 0x1000 0 (56us)
 demo> /mem dump gTemp 2
   1B 00                                            |..|  gTemp
-  [134/219] /mem dump gTemp 2 (76.8ms)
 demo> /mem bogus
   Error: Unknown subcommand: bogus (subcommands: dump, read, write, or, and, xor, clear, not, str, info)
-  [135/219] /mem bogus (50us)
 demo> /mem
   status       : ok
   dialect      : termapy  (default)
@@ -707,10 +575,8 @@ demo> /mem
   endian       : le  (device)
   atomic modify: yes  (device)
   device       : answered MEM.INFO
-  [136/219] /mem (65.8ms)
 demo> /profile.load demo_legacy.profile.json
   Loaded demo_legacy.profile.json: 1 commands (rev 1.0.0).
-  [137/219] /profile.load demo_legacy.profile.json (99ms)
 demo> /mem.info
   status       : ok
   dialect      : template  (profile)
@@ -722,147 +588,104 @@ demo> /mem.info
   write        : mem {addr:X} ={byte:02X}
   ack          : ^ok\b
   settle_ms    : 100
-  [138/219] /mem.info (1.34ms)
 demo> /mem.dump gTemp 16
   1B 00 00 50 7D 44 3A 21 07 00 00 00 0C 00 00 00  |...P}D:!........|  gTemp
-  [139/219] /mem.dump gTemp 16 (1.01s)
 demo> /mem.write gTemp 300
   Set gTemp = 300
-  [150/308] /mem.write gTemp 300 (3.04s)
 demo> /mem.dump gTemp 4
   2C 01 00 50                                      |,..P|  gTemp
-  [141/219] /mem.dump gTemp 4 (1.01s)
 demo> /mem.dump 0x9000 4
   Error: Device error: err: address range 00009000..00009003 not mapped (would HardFault)
-  [142/219] /mem.dump 0x9000 4 (1s)
 demo> /profile.unload
   Unloaded profile (1 commands).
-  [143/219] /profile.unload (230us)
 demo> /mem.dump gTemp 2
   2C 01                                            |,.|  gTemp
-  [144/219] /mem.dump gTemp 2 (114ms)
 demo> /mem.read gTemp
   gTemp = 300
-  [145/219] /mem.read gTemp (57.1ms)
 demo> /mem.read gPressure
   gPressure = 1013.25
-  [146/219] /mem.read gPressure (57.5ms)
 demo> /mem.read U1MODE
     ON       = 1
     UEN      = 0
     BRGH     = 1
-  [147/219] /mem.read U1MODE (54.4ms)
 demo> /mem.read U1MODE.ON
   U1MODE.ON = 1
-  [148/219] /mem.read U1MODE.ON (61.2ms)
 demo> /mem.read sBanner char
   sBanner = 'B' (0x42)
-  [149/219] /mem.read sBanner char (67ms)
 demo> /mem.str sBanner
   "Bassomatic v77"
-  [150/219] /mem.str sBanner (60.3ms)
 demo> /mem.write U1MODE.ON 0
   Set U1MODE.ON = 0
-  [151/219] /mem.write U1MODE.ON 0 (54.8ms)
 demo> /mem.read U1MODE.ON
   U1MODE.ON = 0
-  [152/219] /mem.read U1MODE.ON (60.2ms)
 demo> /mem.or gFlags 0x10
   OR 0x00000010 at 0x00001008  gFlags
-  [153/219] /mem.or gFlags 0x10 (66.1ms)
 demo> /mem.xor gFlags 0x01
   XOR 0x00000001 at 0x00001008  gFlags
-  [154/219] /mem.xor gFlags 0x01 (126ms)
 demo> /mem.clear gFlags 0x02
   CLEAR 0x00000002 at 0x00001008  gFlags
-  [155/219] /mem.clear gFlags 0x02 (58.7ms)
 demo> /mem.not gTemp
   NOT at 0x00001000  gTemp  (0x012C -> 0xFED3)
-  [156/219] /mem.not gTemp (131ms)
 demo> /mem.not gTemp
   NOT at 0x00001000  gTemp  (0xFED3 -> 0x012C)
-  [157/219] /mem.not gTemp (138ms)
 demo> /mem.or U1STA 1
   Error: RMW refused: U1STA is rmw: false (W1C/self-clearing); write the whole word
-  [158/219] /mem.or U1STA 1 (123us)
 demo> /mem.write U1MODE.ON 2
   Error: Invalid value: 2 (ON is 1 bit)
-  [159/219] /mem.write U1MODE.ON 2 (201us)
 demo> /mem.read 0x1000
   Error: Type required: /mem.read <target> <type> (u8..u64, i8..i64, f32, f64, char) -- or target a typed symbol
-  [160/219] /mem.read 0x1000 (81us)
 demo> /mem.dump gTemp 16 u16
   012C 5000 447D 213A 0014 0000 000C 0000  |,..P}D:!........|  gTemp
-  [161/219] /mem.dump gTemp 16 u16 (73.4ms)
 demo> /mem.dump gTemp 4 addr=off ascii=off
   2C 01 00 50                                      |,..P|  gTemp
-  [162/219] /mem.dump gTemp 4 addr=off ascii=off (66.3ms)
 demo> /mem.read sCount
   sCount = 3
-  [173/308] /mem.read sCount (61.9ms)
 demo> /mem.write sCount 513
   Set sCount = 513
-  [174/308] /mem.write sCount 513 (123ms)
 demo> /mem.read sCount
   sCount = 513
-  [175/308] /mem.read sCount (61.6ms)
 demo> /mem.write gPressure 2.5
   Set gPressure = 2.5
-  [176/308] /mem.write gPressure 2.5 (126ms)
 demo> /mem.read gPressure
   gPressure = 2.5
-  [177/308] /mem.read gPressure (61.2ms)
 demo> /mem.read gTemp u32
   Error: Invalid type: u32 (4 bytes) runs past the end of gTemp (2 bytes)
-  [178/308] /mem.read gTemp u32 (43us)
 demo> /mem.write gTemp 2C01
   Error: Invalid value: 2C01 (u16 takes -32768..65535)
-  [179/308] /mem.write gTemp 2C01 (87us)
 demo> /mem.write gTemp+1 0102
   Error: Write refused: 2 bytes run past the end of gTemp (2 bytes)
-  [180/308] /mem.write gTemp+1 0102 (103us)
 demo> /mem.read sBanner
   Error: Type required: sBanner is 15 bytes, not one value (give a type, or /mem.dump it)
-  [181/308] /mem.read sBanner (66us)
 demo> /mem.write sBanner 41
   Error: Write refused: sBanner is access: ro (read-only)
-  [182/308] /mem.write sBanner 41 (23us)
 demo> /mem.not main
   Error: Write refused: main is access: ro (read-only)
-  [183/308] /mem.not main (22us)
 demo> /mem.read sCmdTable
   Error: Type required: sCmdTable is 16 u32 values, not one (/mem.dump sCmdTable u32, or one with sCmdTable+4 u32)
-  [184/313] /mem.read sCmdTable (34us)
 demo> /mem.dump sCmdTable u32
   253E3730 011A132C 7D760F08 59526B64  |07>%,.....v}dkRY|  sCmdTable
   B54E4740 91AAA3BC 8D869F98 E9E2FBF4  |@GN.............|  sCmdTable+0x10
   C5DED7D0 213A33CC 1D162F28 79720B04  |.....3:!(/....ry|  sCmdTable+0x20
   556E6760 B14A435C ADA6BFB8 89829B94  |`gnU\CJ.........|  sCmdTable+0x30
-  [185/313] /mem.dump sCmdTable u32 (75.1ms)
 demo> /mem.read sCfg
     baud_div = 258
     trim     = -4
     mode     = 3
     gain     = 0.5
     inner    = 0506
-  [186/313] /mem.read sCfg (63ms)
 demo> /mem.write sCfg 0302
   Wrote 2 bytes at 0x00001028  sCfg
-  [187/313] /mem.write sCfg 0302 (124ms)
 demo> /mem.read sCfg
     baud_div = 515
     trim     = -4
     mode     = 3
     gain     = 0.5
     inner    = 0506
-  [188/313] /mem.read sCfg (64.5ms)
 demo> MEM.M 0x1000 F0 05 --json
 {"cmd": "MEM.M 0x1000 F0 05"}
-  {"cmd": "MEM.M 0x1000 F0 05", "success": true, "error": "", "value": "00001000: 2C\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0.0636}
-  [163/219] MEM.M 0x1000 F0 05 --json (63.6ms)
+  {"cmd": "MEM.M 0x1000 F0 05", "success": true, "error": "", "value": "00001000: 2C\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /print === section: help ===
   === section: help ===
-  [164/219] /print === section: help === (219us)
 demo> /help echo
 NAME
   /echo - Toggle echo of device commands sent to the wire. Use /echo.silent to set without echoing.
@@ -879,7 +702,6 @@ REQUIRED CAPABILITIES
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: no
   (MCP does not provide: interactive)
-  [165/219] /help echo (2.07ms)
 demo> /help port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
@@ -893,7 +715,7 @@ SYNOPSIS
 
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
-  
+
   Connect to, disconnect from, list, or configure the serial
   port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
   USB chip identification (/port.chip.*), and the four mode
@@ -927,7 +749,6 @@ SUBCOMMANDS
   /port.rts             stable     Show or set RTS line (hardware only).
   /port.stop_bits       stable     Show or set stop bits.
   /port.usb             stable     Show the whole USB tree, with serial ports marked.
-  [166/219] /help port (5.64ms)
 demo> /help cfg
 NAME
   /cfg - Show or set config values.
@@ -941,12 +762,12 @@ SYNOPSIS
 
 DESCRIPTION
   Active cfg = demo (2 configs available)
-  
+
   Three modes:
     /cfg                  - TUI: open Cfg picker.  CLI: list configs.
     /cfg baud_rate        - show current value of 'baud_rate'
     /cfg baud_rate 115200 - change it (the TUI asks first)
-  
+
   The value is read as the key's current type (int, float, bool,
   string). Bool accepts:
     on/off/true/false/yes/no/1/0/y/n/t/f
@@ -954,7 +775,7 @@ DESCRIPTION
   custom_buttons_side, ...) takes one of them in any case.
   A change lasts for this session; to keep it, set it in the
   config editor.
-  
+
   Use /cfg.dump to print every key/value pair as JSON.
   Use /cfg.auto to set values without confirmation (for scripts).
 
@@ -980,11 +801,10 @@ SUBCOMMANDS
 
 CONFIGS
   termapy_cfg/ - 2 configs
-  NAME          SIZE    UPDATED   PORT     BAUD    TITLE
-  ------------  ------  --------  -------  ------  -----------
-  gold_renamed  2.3 KB  just now  loop://    9600  gold_new
-  demo *        2.2 KB  just now  DEMO     115200  Demo Device
-  [167/219] /help cfg (6.35ms)
+  NAME SIZE UPDATED PORT BAUD TITLE
+  -- -- -- -- -- --
+  demo *  <SIZE>  just now  DEMO     115200  Demo Device
+  gold_renamed  <SIZE>  just now  loop://    9600  gold_new
 demo> /help var
 NAME
   /var - List user variables, or show one by name.
@@ -997,18 +817,18 @@ SYNOPSIS
 
 DESCRIPTION
   Currently defined: 0 user, 6 datetime, 15 context, 1 launch
-  
+
   User-defined variables use $(NAME) syntax (case-sensitive).
-  
+
   Setting variables (no / prefix needed):
     $(PORT) = COM7                - store literal value
     $(BAUD) <- /port.baud_rate    - capture REPL command output
     $(TEMP) <- AT+TEMP            - capture device response
-  
+
   Using variables in commands:
     /print $(PORT)
     AT+PORT=$(PORT)
-  
+
   Commands:
     /var                   - list all variables
     /var PORT              - show one variable (bare name or $(PORT))
@@ -1016,27 +836,27 @@ DESCRIPTION
     /var.set PORT val      - set a variable (literal string)
     /var.capture NAME cmd  - run cmd and store its result as NAME
     /var.clear             - clear all variables
-  
+
   Dynamic variables (current clock at point of use):
     $(DATE)              - current date (YYYY-MM-DD)
     $(TIME)              - current time (HH:MM:SS)
     $(DATETIME)          - current date and time
-  
+
   Custom format (any datetime variable, strftime after a colon):
     $(DATETIME:%Y%m%d_%H%M%S)  - filename-safe stamp (colon-free)
     $(TIME:%H%M)               - hour+minute only
     $(SESSION_DATE:%d-%b)      - works on frozen vars too
-  
+
   Launch variables (frozen when the app starts):
     $(LAUNCH_DATE)       - app start date
     $(LAUNCH_TIME)       - app start time
     $(LAUNCH_DATETIME)   - app start date and time
-  
+
   Session variables (set once per script launch, frozen):
     $(SESSION_DATE)      - script start date
     $(SESSION_TIME)      - script start time
     $(SESSION_DATETIME)  - script start date and time
-  
+
   Config variables (resolved paths from current config):
     $(CFG)               - config name (e.g. demo)
     $(CFG.DIR)           - config directory (resolved)
@@ -1053,11 +873,11 @@ DESCRIPTION
     $(CFG.BAUD)          - baud rate
     $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
     $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
-  
+
   Escaping (when your data contains literal $):
     \$(PORT)           - literal $(PORT) (not expanded)
     /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
-  
+
   Scope: variables persist for the session. They are cleared
   automatically when a script is launched from the Scripts button
   or the Run menu, but NOT when /run is typed interactively.
@@ -1071,7 +891,6 @@ SUBCOMMANDS
   /var.clear      stable     Clear all user variables.
   /var.list       stable     Explicit alias for bare /var.
   /var.set        stable     Set a user variable to a literal value.
-  [168/219] /help var (10.7ms)
 demo> /help cap
 NAME
   /cap - Data capture tools.
@@ -1102,7 +921,6 @@ SUBCOMMANDS
   /cap.struct     stable     Capture raw bytes, decode with format spec to CSV.
   /cap.text       stable     Capture serial text to a file for a timed duration.
   /cap.wire       stable     Run a command and show TX/RX bytes as inline hex + repr.
-  [169/219] /help cap (4.85ms)
 demo> /help ss
 NAME
   /ss - Screenshot tools: save SVG/text, manage folder.
@@ -1127,7 +945,6 @@ SUBCOMMANDS
   /ss.show       stable     Open the newest (or named) file in ss/ with the system viewer.
   /ss.svg        stable     Save an SVG screenshot of the terminal.
   /ss.txt        stable     Save a text screenshot (optionally last/first N lines).
-  [170/219] /help ss (2.87ms)
 demo> /help proto
 NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
@@ -1140,29 +957,29 @@ SYNOPSIS
 
 DESCRIPTION
   3 scripts in proto/
-  
+
   Send examples:
     /proto.send 01 02 03         - send three hex bytes
     /proto.send "AT\r"           - send text with carriage return
     /proto.send 0x01 "hello" 0D  - mix hex and text
     /proto.send 00 ~25ms "AT\r"  - wake byte, 25ms pause, then command
     /proto.send ~500us 01 02     - 500us delay before data
-  
+
   Inline delays use ~duration syntax (us, ms, s). Delays under
   1ms use spin-wait for precision. Delays >= 1ms use OS sleep.
-  
+
   Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
     /proto.send crc16-modbus 01 03 00 00 00 0A            - append LE CRC (default)
     /proto.send crc16-modbus_be 01 03 00 00 00 0A         - append BE CRC
     /proto.send crc16-modbus_ascii "READ 0000"             - append CRC as hex text
     /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
-  
+
   CRC tools:
     /proto.crc.list              - list all 100+ algorithms
     /proto.crc.list *modbus*     - filter by glob pattern
     /proto.crc.info crc16-modbus - show parameters for Modbus CRC
     /proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
-  
+
   Script files (.pro) support TOML format with [[test]] sections
   or flat format with send:/expect: directives. Scripts are found
   in the proto/ subfolder of your config directory.
@@ -1188,12 +1005,11 @@ SUBCOMMANDS
 
 SCRIPTS
   proto/ - 3 scripts
-  NAME                 SIZE    UPDATED   TITLE
-  -------------------  ------  --------  ---------------------------
-  modbus_inline.pro    2.2 KB  just now  Demo Modbus Inline Format
-  bitfield_inline.pro  2.7 KB  just now  Demo Bitfield Inline Format
-  at_test.pro           829 B  just now  Demo AT Command Test
-  [171/219] /help proto (5.89ms)
+  NAME SIZE UPDATED TITLE
+  -- -- -- --
+  at_test.pro  <SIZE>  just now  Demo AT Command Test
+  bitfield_inline.pro  <SIZE>  just now  Demo Bitfield Inline Format
+  modbus_inline.pro  <SIZE>  just now  Demo Modbus Inline Format
 demo> /help plugin
 NAME
   /plugin - Plugin-folder tools: list, explore, show, dump, edit.
@@ -1212,7 +1028,6 @@ SUBCOMMANDS
   /plugin.list       stable     List files in plugin/, newest first, with size and age.
   /plugin.rename     stable     Rename a file in plugin/ (extension kept; never overwrites).
   /plugin.show       stable     Open the newest (or named) file in plugin/ with the system viewer.
-  [172/219] /help plugin (1.56ms)
 demo> /help sym
 NAME
   /sym - Symbol table: name -> address, or address -> name+offset.
@@ -1225,13 +1040,13 @@ SYNOPSIS
 
 DESCRIPTION
   Current symbols = 21 (sym/demo.symbols.json)
-  
+
   Symbols come from your build: /sym.import <file> converts its ELF (names,
   sizes and the C types in its debug info) or its linker map (names and
   sizes) to sym/<cfg>.symbols.json in the config folder (a generated file,
   overwritten on re-import) and loads it.  The sidecar auto-loads whenever
   the config loads -- TUI, CLI and MCP alike.
-  
+
   Address forms:
     0x1000         hex
     1000h          hex (assembly suffix)
@@ -1241,10 +1056,10 @@ DESCRIPTION
     tick@adc.c     duplicate static, qualified by file (adc or src/adc.c too)
     name.<bit>     a bit, slice or field (see /help mem); an exact symbol
                    name wins, so count.12 is the symbol count.12
-  
+
   Search forms (/sym.search): the exact name first, else a name
   pattern: plain text is contained (gpio), a wildcard globs (Mon*).
-  
+
   Commands:
     /sym <addr|name>        - name -> address, or address -> name+offset
     /sym.import {file}      - convert an ELF or a linker map and load it
@@ -1263,7 +1078,6 @@ SUBCOMMANDS
   /sym.load      preview    Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
   /sym.search    preview    Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
   /sym.unload    preview    Clear the loaded symbol table.
-  [173/219] /help sym (6.65ms)
 demo> /help mem
 NAME
   /mem - Device memory: dump, typed reads, writes and bit ops via /sym names.
@@ -1277,28 +1091,28 @@ SYNOPSIS
 DESCRIPTION
   Reads and writes device memory.  Native firmware implements the
   termapy MEM spec (see /help memory):
-  
+
     MEM.R <addr> <len>      -> rows "<ADDR>: <XX XX ...>" then OK
     MEM.W <addr> <hex>      -> OK
     MEM.M <addr> <and> <or> -> the old word, then OK   (atomic masked write)
     MEM.INFO                -> one JSON line then OK
     any failure             -> ERR <reason>
-  
+
   A device with its own peek/poke grammar is described by the profile's
   "memory" block (dialect template).  Targets take every /sym form plus
   bits: gTemp, main+0x10, U1MODE.ON, gFlags.4-6, 0x1000.15.  Bit and
   mask writes use the device's atomic MEM.M when advertised, else a
   read + write-back that can race an ISR (xor always does).
-  
+
   A named target stays inside its symbol: a read's type and a write's
   bytes may not run past its end, and an access: ro symbol (code,
   constants, read-only registers) refuses every write.  A symbol with
   no type reads and writes as the unsigned integer of its size.
-  
+
   Every mutation is audited in the session log (address, word before
   and after, registers touched, origin).  Over MCP they are
   destructive: confirm=true.
-  
+
   Commands:
     /mem.dump <target> {len} {type}  - hexdump; u16/u32 word columns,
                                        i*/f* decimal/float; addr= ascii=
@@ -1310,7 +1124,7 @@ DESCRIPTION
     /mem.not <target>                - invert one word
     /mem.str <target> {max}          - NUL-terminated string (default cap 256)
     /mem.info                        - dialect, limits, endian, atomic modify
-  
+
   Bare /mem is /mem.info: it probes the device (MEM.INFO) and shows
   the availability verdict, so it doubles as the check after connect.
 
@@ -1328,7 +1142,6 @@ SUBCOMMANDS
   /mem.str      preview    Read a NUL-terminated string at an address or symbol.
   /mem.write    preview    Write a value to a named symbol, register or field, or hex bytes at an address (audited).
   /mem.xor      preview    XOR a mask into one word (always read + write-back).
-  [174/219] /help mem (5.69ms)
 demo> /help run
 NAME
   /run - Run a script file, or list available scripts.
@@ -1362,18 +1175,17 @@ SUBCOMMANDS
 
 SCRIPTS
   run/ - 9 scripts
-  NAME                 SIZE    UPDATED   SUMMARY
-  -------------------  ------  --------  -----------------------------------------------------------
-  crc_tour.run         2.3 KB  just now  the whole /proto.crc.* API in one screen
-  doc_screenshots.run  1.1 KB  just now  Generate documentation images -- now scripts/doc_shots.py
-  expect_test.run       354 B  just now  Expect command test
-  var_demo.run         1.1 KB  just now  Variable Demo -- Set variables and use them in commands
-  status_check.run       72 B  just now  Quick status check
-  gps_demo.run          622 B  just now  GPS/NMEA Demo -- Query simulated GPS receiver
-  smoke_test.run       1.1 KB  just now  Smoke test for demo device
-  at_demo.run           825 B  just now  AT Command Demo -- Walks through all demo device commands
-  welcome.run           978 B  just now  Welcome script -- Runs on connect via on_connect_cmd config
-  [175/219] /help run (3.13ms)
+  NAME SIZE UPDATED SUMMARY
+  -- -- -- --
+  at_demo.run  <SIZE>  just now  AT Command Demo -- Walks through all demo device commands
+  crc_tour.run  <SIZE>  just now  the whole /proto.crc.* API in one screen
+  doc_screenshots.run  <SIZE>  just now  Generate documentation images -- now scripts/doc_shots.py
+  expect_test.run  <SIZE>  just now  Expect command test
+  gps_demo.run  <SIZE>  just now  GPS/NMEA Demo -- Query simulated GPS receiver
+  smoke_test.run  <SIZE>  just now  Smoke test for demo device
+  status_check.run  <SIZE>  just now  Quick status check
+  var_demo.run  <SIZE>  just now  Variable Demo -- Set variables and use them in commands
+  welcome.run  <SIZE>  just now  Welcome script -- Runs on connect via on_connect_cmd config
 demo> /help grep
 NAME
   /grep - Search the scrollback for lines matching a pattern (case-insensitive regex).
@@ -1413,7 +1225,6 @@ REQUIRED CAPABILITIES
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: no
   (MCP does not provide: interactive)
-  [176/222] /help grep (4.05ms)
 demo> /help max_grep_lines
 NAME
   max_grep_lines - Most lines /grep shows for one search.
@@ -1430,13 +1241,133 @@ USED BY
   /grep  caps the matches shown
 
   A change by /cfg max_grep_lines <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
-  [177/222] /help max_grep_lines (1.35ms)
 demo> /search max_grep_lines
 /grep <pattern> - Search the scrollback for lines matching a pattern (case-insensitive regex).
   (cfg) max_grep_lines: caps the matches shown
   (long_help) ...rom results.  Max results controlled by max_grep_lines config (default 100).  Examples:   /gre...
   1 match.
-  [178/222] /search max_grep_lines (8.08ms)
+demo> /print === section: help current state ===
+  === section: help current state ===
+demo> /help term.eol
+NAME
+  /term.eol - Show or set the line ending sent with commands (cr/lf/crlf/none).
+
+STATUS
+  stable - covered by termapy's compatibility promise
+
+CURRENT STATE
+  cr
+
+SYNOPSIS
+  /term.eol {cr|lf|crlf|none|cycle}
+
+DESCRIPTION
+  Sets the line ending appended to every command sent to the
+  device.  Tokens: cr (\r), lf (\n), crlf (\r\n), none.
+  Bare /term.eol reports the current ending.
+
+  See also: /term.eol.rx (receive-side newline) and
+  /term.eol.markers (show \r \n markers for debugging).
+
+CONFIG
+  eol = "\r"  set for the session; bare shows it
+  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SUBCOMMANDS
+  /term.eol.markers    stable     Toggle dim visible \r \n markers in received output.
+  /term.eol.rx         stable     Show or set how received output is split into lines (auto/cr/lf/crlf).
+
+SEE ALSO
+  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.hex, /term.info, /term.json, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.usb_db, /term.verbose, /term
+demo> /help term.info
+NAME
+  /term.info - Snapshot the state of every /term.* toggle.
+
+STATUS
+  stable - covered by termapy's compatibility promise
+
+CURRENT STATE
+  echo           : on
+  echo_repl      : on
+  color          : off
+  output         : normal
+  hex            : off
+  line_no        : off
+  eol            : cr
+  eol_rx         : auto
+  eol_markers    : off
+  timestamps     : off
+  send_bare_enter: off
+  control_keys   : on
+  encoding       : utf-8
+
+CONFIG
+  eol = "\r"               in the snapshot
+  eol_rx = "auto"          in the snapshot
+  eol_markers = false      in the snapshot
+  timestamps = false       in the snapshot
+  send_bare_enter = false  in the snapshot
+  control_keys = true      in the snapshot
+  encoding = "utf-8"       in the snapshot
+  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.hex, /term.json, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.usb_db, /term.verbose, /term
+demo> /help port.baud_rate
+NAME
+  /port.baud_rate - Show or set baud rate.
+
+STATUS
+  stable - covered by termapy's compatibility promise
+
+CURRENT STATE
+  115200
+
+SYNOPSIS
+  /port.baud_rate {value}
+
+DESCRIPTION
+  Current baud rate = 115200
+
+CONFIG
+  serial.baud_rate = 115200  set for the session; bare shows it
+  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /port.break, /port.byte_size, /port.cd, /port.chip, /port.close, /port.connect, /port.cts, /port.disconnect, /port.dsr, /port.dtr, /port.flow_control, /port.help, /port.info, /port.list, /port.mode, /port.open, /port.parity, /port.ri, /port.rts, /port.stop_bits, /port.usb, /port
+demo> /help port.dtr
+NAME
+  /port.dtr - Show or set DTR line (hardware only).
+
+STATUS
+  stable - covered by termapy's compatibility promise
+
+CURRENT STATE
+  1
+
+SYNOPSIS
+  /port.dtr {on|off}
+
+DESCRIPTION
+  Current DTR (out) = 1
+
+REQUIRED CAPABILITIES
+  serial_connected - an open serial port
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /port.baud_rate, /port.break, /port.byte_size, /port.cd, /port.chip, /port.close, /port.connect, /port.cts, /port.disconnect, /port.dsr, /port.flow_control, /port.help, /port.info, /port.list, /port.mode, /port.open, /port.parity, /port.ri, /port.rts, /port.stop_bits, /port.usb, /port
 demo> /print === section: help required capabilities ===
   === section: help required capabilities ===
 demo> /help profile.save
@@ -1518,7 +1449,6 @@ demo> /profile.save
   Error: No profile loaded.
 demo> /print === section: help.run ===
   === section: help.run ===
-  [176/219] /print === section: help.run === (156us)
 demo> /help.run
 -- Scripts --
   /run at_demo                  AT Command Demo -- Walks through all demo device commands
@@ -1531,10 +1461,8 @@ demo> /help.run
   /run var_demo                 Variable Demo -- Set variables and use them in commands
   /run welcome                  Welcome script -- Runs on connect via on_connect_cmd config
   9 scripts.
-  [177/219] /help.run (5.17ms)
 demo> /print === section: help.plugin ===
   === section: help.plugin ===
-  [178/219] /print === section: help.plugin === (185us)
 demo> /help.plugin
 -- Application --
   /cli          stable     Already in CLI mode.
@@ -1589,14 +1517,12 @@ demo> /help.plugin
   /confirm      stable     Show Yes/Cancel dialog; Cancel stops a running script.
   /expect       stable     Wait for text in serial output (blocks until match or timeout).
   45 commands.
-  [179/219] /help.plugin (6.49ms)
 demo> /print === section: help.group ===
   === section: help.group ===
-  [180/219] /print === section: help.group === (185us)
 demo> /help.group
   groups - 5 groups
   GROUP     COMMANDS  NAMES                                          NOTE
-  --------  --------  ---------------------------------------------  ----
+  -- -- -- --
   advanced        12  app, confirm, credits, edit, env, expect, ...
   devices          6  board, dev, firmware, mem, profile, sym
   plugins          3  crcsend, probe, temp_plot
@@ -1605,7 +1531,7 @@ demo> /help.group
 demo> /help.group devices
   devices - 6 commands
   COMMAND    LEVEL      DESCRIPTION
-  ---------  ---------  --------------------------------------------------------------------
+  -- -- --
   /board     prototype  Starter projects for real dev boards: list, new, firmware.
   /dev       preview    Device files: a part's registers as data (see /help devices).
   /firmware  prototype  Device-side sources termapy ships: list, copy, show, dump.
@@ -1615,7 +1541,7 @@ demo> /help.group devices
 demo> /help.group dev*
   devices - 6 commands
   COMMAND    LEVEL      DESCRIPTION
-  ---------  ---------  --------------------------------------------------------------------
+  -- -- --
   /board     prototype  Starter projects for real dev boards: list, new, firmware.
   /dev       preview    Device files: a part's registers as data (see /help devices).
   /firmware  prototype  Device-side sources termapy ships: list, copy, show, dump.
@@ -1624,24 +1550,19 @@ demo> /help.group dev*
   /sym       preview    Symbol table: name -> address, or address -> name+offset.
 demo> /help.group nope
   Error: Unknown group: nope (use advanced, devices, plugins, protocol, terminal)
-  [183/219] /help.group nope (30us)
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
-  [180/219] /print === section: cap.poll === (154us)
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
     counter     AT+RAMP
           1         0.0
           2         0.1
           3         0.2
   Poll complete (3 samples)
-  [181/219] /cap.poll count=3 delay=0 --notime cmd=AT+RAMP (208ms)
 demo> /cap.poll fmt=bogus cmd=AT
   Error: /cap.poll: invalid fmt: 'bogus' (expected one of: csv, json)
   Usage: /cap.poll {count=<N>} {delay=<dur>} {file=<path>} {labels=<value>} {regex=<value>} {fmt=csv|json} {timeout=<dur>} cmd=<command>
-  [182/219] /cap.poll fmt=bogus cmd=AT (1.1ms)
 demo> /print === section: repeat ===
   === section: repeat ===
-  [183/219] /print === section: repeat === (362us)
 demo> /repeat count=3 cmd=/print hello
 demo> /print hello
   hello
@@ -1649,7 +1570,6 @@ demo> /print hello
   hello
 demo> /print hello
   hello
-  [184/219] /repeat count=3 cmd=/print hello (3.16ms)
 demo> /repeat count=3 var=I cmd=/print iteration $(I)
 demo> /print iteration $(I)
   iteration 1
@@ -1657,127 +1577,91 @@ demo> /print iteration $(I)
   iteration 2
 demo> /print iteration $(I)
   iteration 3
-  [185/219] /repeat count=3 var=I cmd=/print iteration $(I) (2.4ms)
 demo> /repeat cmd=AT
   Error: /repeat: missing required parameter 'count'
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [186/219] /repeat cmd=AT (969us)
 demo> /repeat count=0 cmd=AT
   Error: /repeat: count must be >= 1 (got 0)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [187/219] /repeat count=0 cmd=AT (1.27ms)
 demo> /repeat count=abc cmd=AT
   Error: /repeat: invalid count: 'abc' (expected an integer)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [188/219] /repeat count=abc cmd=AT (713us)
 demo> /repeat count=1 delay=xyz cmd=AT
   Error: /repeat: invalid delay: 'xyz' (expected duration, e.g. 500ms, 1.5s)
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [189/219] /repeat count=1 delay=xyz cmd=AT (465us)
 demo> /repeat foo count=1 cmd=AT
   Error: /repeat: unexpected argument: 'foo'
   Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
-  [190/219] /repeat foo count=1 cmd=AT (369us)
 demo> /print === section: env vars ===
   === section: env vars ===
-  [191/219] /print === section: env vars === (123us)
 demo> /env.set TERMAPY_GOLD_VAR hello_world
     TERMAPY_GOLD_VAR=hello_world
-  [192/219] /env.set TERMAPY_GOLD_VAR hello_world (113us)
 demo> /env.list TERMAPY_GOLD_VAR
   Environment snapshot - 1 variable
   NAME              VALUE
-  ----------------  -----------
+  -- --
   TERMAPY_GOLD_VAR  hello_world
-  [193/219] /env.list TERMAPY_GOLD_VAR (127us)
 demo> /env.set TERMAPY_GOLD_VAR updated
     TERMAPY_GOLD_VAR=updated
-  [194/219] /env.set TERMAPY_GOLD_VAR updated (108us)
 demo> /env.list TERMAPY_GOLD_VAR
   Environment snapshot - 1 variable
   NAME              VALUE
-  ----------------  -------
+  -- --
   TERMAPY_GOLD_VAR  updated
-  [195/219] /env.list TERMAPY_GOLD_VAR (109us)
 demo> /env.list zzz_no_such_*
   Environment snapshot - empty
 demo> /print === section: errors ===
   === section: errors ===
-  [196/219] /print === section: errors === (105us)
 demo> /nonexistent_command
   Error: Unknown command: nonexistent_command
-  [197/219] /nonexistent_command (17.4ms)
 demo> /cfg nonexistent_key
   Error: Unknown config key: nonexistent_key
-  [198/219] /cfg nonexistent_key (6us)
 demo> /port.baud_rate not_a_number
   Error: Invalid baud rate: not_a_number
-  [199/219] /port.baud_rate not_a_number (133us)
 demo> /port.parity X
   Error: Invalid parity: X (use E, M, N, O, S)
-  [200/219] /port.parity X (125us)
 demo> /port.dtr maybe
   Error: Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)
-  [201/219] /port.dtr maybe (126us)
 demo> /port.break -5
   Error: Invalid duration (use milliseconds, e.g. 250)
-  [202/219] /port.break -5 (116us)
 demo> /print === section: capability gates (tui_mode + screen_capture) ===
   === section: capability gates (tui_mode + screen_capture) ===
-  [203/219] /print === section: capability gates (tui_mode + screen_c... (117us)
 demo> /line_no on
     Note: /line_no is legacy; use /term.line_no.
   Error: /term.line_no requires: tui_mode (not available in this environment)
-  [204/219] /line_no on (243us)
 demo> /ss.svg
   Error: /ss.svg requires: screen_capture (not available in this environment)
-  [205/219] /ss.svg (252us)
 demo> /ss.txt
   Error: /ss.txt requires: screen_capture (not available in this environment)
-  [206/219] /ss.txt (278us)
 demo> /print === section: json mode ===
   === section: json mode ===
-  [207/219] /print === section: json mode === (129us)
 demo> /term.line_no --json
-  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0.0}
-  [208/219] /term.line_no --json (328us)
+  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /term.request on
   request_mode = True  (session)
   on
-  [209/219] /term.request on (217us)
 demo> /print hello enveloped
-  {"cmd": "/print hello enveloped", "success": true, "error": "", "value": "hello enveloped", "data": null, "output_lines": ["hello enveloped"], "elapsed_s": 0.0}
-  [210/219] /print hello enveloped (8us)
+  {"cmd": "/print hello enveloped", "success": true, "error": "", "value": "hello enveloped", "data": null, "output_lines": ["hello enveloped"], "elapsed_s": 0}
 demo> /var.set GOLD 42
-  {"cmd": "/var.set GOLD 42", "success": true, "error": "", "value": "42", "data": null, "output_lines": ["  $(GOLD) = 42"], "elapsed_s": 0.0}
-  [211/219] /var.set GOLD 42 (46us)
+  {"cmd": "/var.set GOLD 42", "success": true, "error": "", "value": "42", "data": null, "output_lines": ["  $(GOLD) = 42"], "elapsed_s": 0}
 demo> /var GOLD
-  {"cmd": "/var GOLD", "success": true, "error": "", "value": "42", "data": null, "output_lines": [], "elapsed_s": 0.0}
-  [212/219] /var GOLD (6us)
+  {"cmd": "/var GOLD", "success": true, "error": "", "value": "42", "data": null, "output_lines": [], "elapsed_s": 0}
 {"cmd": "AT"}
-  {"cmd": "AT", "success": true, "error": "", "value": "OK", "data": null, "output_lines": [], "elapsed_s": 0.0539}
-  [213/219] AT (53.9ms)
+  {"cmd": "AT", "success": true, "error": "", "value": "OK", "data": null, "output_lines": [], "elapsed_s": 0}
 {"cmd": "AT+PROD-ID"}
-  {"cmd": "AT+PROD-ID", "success": true, "error": "", "value": "+PROD-ID:BASSOMATIC-77", "data": null, "output_lines": [], "elapsed_s": 0.0613}
-  [214/219] AT+PROD-ID (61.3ms)
+  {"cmd": "AT+PROD-ID", "success": true, "error": "", "value": "+PROD-ID:BASSOMATIC-77", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /nope_bogus_cmd
-  {"cmd": "/nope_bogus_cmd", "success": false, "error": "Unknown command: nope_bogus_cmd", "value": "", "data": null, "output_lines": [], "elapsed_s": 0.0}
-  [215/219] /nope_bogus_cmd (19.4ms)
+  {"cmd": "/nope_bogus_cmd", "success": false, "error": "Unknown command: nope_bogus_cmd", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /mem
-  {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}, "device_error": null, "problem": null, "template": null}, "output_lines": [], "elapsed_s": 0.061}
-  [231/297] /mem (61ms)
+  {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}, "device_error": null, "problem": null, "template": null}, "output_lines": [], "elapsed_s": 0}
 demo> /term.request off
   request_mode = False  (session)
-  {"cmd": "/term.request off", "success": true, "error": "", "value": "off", "data": null, "output_lines": ["off"], "elapsed_s": 0.0004}
-  [217/219] /term.request off (390us)
+  {"cmd": "/term.request off", "success": true, "error": "", "value": "off", "data": null, "output_lines": ["off"], "elapsed_s": 0}
 demo> MEM.R 0x1000 2 --json
 {"cmd": "MEM.R 0x1000 2"}
-  {"cmd": "MEM.R 0x1000 2", "success": true, "error": "", "value": "00001000: 25 01\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0.0596}
-  [218/219] MEM.R 0x1000 2 --json (59.6ms)
+  {"cmd": "MEM.R 0x1000 2", "success": true, "error": "", "value": "00001000: 25 01\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /print prose is back
   prose is back
-  [219/219] /print prose is back (263us)
-  Script cli_test.run done (11.3s)
 demo> /print === section: coverage: terminal settings ===
   === section: coverage: terminal settings ===
 demo> /term.echo
@@ -1862,12 +1746,11 @@ demo> /run.dump status_check
   /delay 300ms
 demo> /proto
   proto/ - 3 scripts
-  NAME                 SIZE    UPDATED   TITLE
-  -------------------  ------  --------  ---------------------------
-  bitfield_inline.pro  2.7 KB  just now  Demo Bitfield Inline Format
-  modbus_inline.pro    2.2 KB  just now  Demo Modbus Inline Format
-  at_test.pro           829 B  just now  Demo AT Command Test
-  [257/296] /proto (3.09ms)
+  NAME SIZE UPDATED TITLE
+  -- -- -- --
+  at_test.pro  <SIZE>  just now  Demo AT Command Test
+  bitfield_inline.pro  <SIZE>  just now  Demo Bitfield Inline Format
+  modbus_inline.pro  <SIZE>  just now  Demo Modbus Inline Format
 demo> /proto.info
   Hex Mode : off
   Connected: yes
@@ -1905,18 +1788,18 @@ demo> /cfg.file demo_legacy.profile.json
 demo> /dev.list
   devices - 1 device
   DEVICE     REGISTERS  LAYER  PLACEMENT
-  ---------  ---------  -----  ---------
+  -- -- -- --
   demo_uart          2  demo
 demo> /dev.regs demo_uart
   demo_uart - 2 registers
   ADDRESS     NAME     SIZE  ACCESS  FLAGS       PERIPHERAL  DESCRIPTION
-  ----------  -------  ----  ------  ----------  ----------  ----------------------------------------
+  -- -- -- -- -- -- --
   0xBF806000  U1_MODE     4  rw                  U1          Mode
   0xBF806010  U1_STA      4  rw      rmw: false  U1          Status and control; flags clear on write
 demo> /dev.regs demo_uart *_STA
   demo_uart '*_STA' - 1 register
   ADDRESS     NAME    SIZE  ACCESS  FLAGS       PERIPHERAL  DESCRIPTION
-  ----------  ------  ----  ------  ----------  ----------  ----------------------------------------
+  -- -- -- -- -- -- --
   0xBF806010  U1_STA     4  rw      rmw: false  U1          Status and control; flags clear on write
 demo> /dev.regs nosuch
   Error: Unknown device: nosuch (try /dev.list to see what is loaded)
@@ -2043,47 +1926,36 @@ demo> /find.max_count
   /find.max_count = 100
 demo> /print === section: firmware: the shipped device-side sources ===
   === section: firmware: the shipped device-side sources ===
-  [322/338] /print === section: firmware: the shipped device-side sou... (110us)
 demo> /firmware
   Note: /firmware is a prototype; it may change or be removed.
   firmware - 2 targets
   NAME  LANGUAGE  FILES                           SIZE
-  ----  --------  ------------------------------  -------
-  mem   c         termapy_mem.c, termapy_mem.h    24.3 KB
-  json  c         termapy_json.c, termapy_json.h  41.1 KB
-  [323/338] /firmware (1.78ms)
+  -- -- -- --
+  json  c         termapy_json.c, termapy_json.h  <SIZE>
+  mem   c         termapy_mem.c, termapy_mem.h  <SIZE>
 demo> /firmware.list
   firmware - 2 targets
   NAME  LANGUAGE  FILES                           SIZE
-  ----  --------  ------------------------------  -------
-  mem   c         termapy_mem.c, termapy_mem.h    24.3 KB
-  json  c         termapy_json.c, termapy_json.h  41.1 KB
-  [324/338] /firmware.list (596us)
+  -- -- -- --
+  json  c         termapy_json.c, termapy_json.h  <SIZE>
+  mem   c         termapy_mem.c, termapy_mem.h  <SIZE>
 demo> /firmware.copy nosuch
   Error: Unknown target: nosuch (use json, mem)
-  [325/338] /firmware.copy nosuch (11us)
 demo> /firmware.copy mem lang=rust
   Error: Unknown language: rust (use c)
-  [326/338] /firmware.copy mem lang=rust (10us)
 demo> /firmware.copy lang=rust
   Error: Unknown language: rust (use c)
-  [327/339] /firmware.copy lang=rust (10us)
 demo> /firmware.dump mem
   Error: Specify a file: termapy_mem.c, termapy_mem.h
-  [327/338] /firmware.dump mem (6us)
 demo> /firmware.dump mem nosuch.h
   Error: Unknown file: nosuch.h (use termapy_mem.c, termapy_mem.h)
-  [328/338] /firmware.dump mem nosuch.h (8us)
 demo> /print === section: board: starter projects for dev boards ===
   === section: board: starter projects for dev boards ===
-  [330/342] /print === section: board: starter projects for dev board... (118us)
 demo> /board.new nosuch
   Note: /board is a prototype; it may change or be removed.
   Error: Unknown board: nosuch (use esp32s3, pico)
-  [331/342] /board.new nosuch (10us)
 demo> /board.firmware nosuch
   Error: Unknown board: nosuch (use esp32s3, pico)
-  [332/342] /board.firmware nosuch (9us)
 demo> /print === section: coverage: files, timing, recording ===
   === section: coverage: files, timing, recording ===
 demo> /run.rename status_check status_probe

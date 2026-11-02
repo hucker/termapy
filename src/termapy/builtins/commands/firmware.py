@@ -180,6 +180,7 @@ COMMAND = Command(
             long_help=_long_help,
             handler=_handler_list,
             shows=True,
+            state=True,
         ),
         "copy": Command(
             help="Write the shipped sources into the config's firmware/ folder: every module of a language, or one by name; never overwrites.",

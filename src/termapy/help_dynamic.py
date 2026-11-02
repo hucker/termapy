@@ -2,6 +2,8 @@
 
 A plugin's ``Command.long_help`` may be a ``(PluginContext) -> str`` callable
 that is invoked every time ``/help <cmd>`` renders its DESCRIPTION section.
+A command whose bare form answers the fact declares ``Command.state`` instead,
+and ``/help`` shows the answer; these are for a summary no command gives.
 The functions in this module are small, pure utilities for the common
 shapes those callables take:
 

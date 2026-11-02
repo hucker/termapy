@@ -13,8 +13,10 @@ a guard you meet too late.
 from __future__ import annotations
 
 import ast
+import json
 import re
 import unicodedata
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -1212,6 +1214,262 @@ def test_shows_exemptions_are_not_stale(tmp_path):
         )
     )
     assert stale == [], f"drop these from SHOWS_EXEMPT: {stale}"
+
+
+# ── Guard: a state read changes nothing (registry state-read-immutable) ─────
+#
+# ``Command.state`` promises that a command's bare form changes nothing,
+# sends no bytes, opens no port, writes no file and answers, because /help
+# runs it for every reader of its page.  This reads each tagged command
+# twice against a connected DEMO and compares what the session holds.  An
+# empty answer is one only these two may give: nothing is loaded.
+STATE_MAY_ANSWER_EMPTY = frozenset({"sym.info", "profile.info"})
+
+
+def _session_state(cli: Any) -> tuple[str, str, list[tuple[str, int, int]]]:
+    """The config, every non-empty namespace and the config folder's files, comparable."""
+    folder = Path(cli.config_path).parent
+    namespaces = {key: value for key, value in cli.repl.ctx._namespaces.items() if value}
+    return (
+        json.dumps(cli.repl._cfg_data, default=str, sort_keys=True),
+        repr(namespaces),
+        sorted(
+            (str(path), path.stat().st_mtime_ns, path.stat().st_size)
+            for path in folder.rglob("*")
+            if path.is_file()
+        ),
+    )
+
+
+def _state_read_problems(cli: Any, capsys: Any, names: Iterable[str]) -> list[str]:
+    """What reading each command's state did that it promised not to."""
+    ctx = cli.repl.ctx
+    sent: list[bytes] = []
+    saved_write = ctx.serial.write
+    ctx.serial.write = sent.append  # the seam dispatch_full hands a writer in through
+    problems: list[str] = []
+    try:
+        for name in names:
+            capsys.readouterr()
+            before = _session_state(cli)
+            first = cli.repl.read_state(name)
+            second = cli.repl.read_state(name)
+            printed = capsys.readouterr().out
+            found = {
+                "changed the session": _session_state(cli) != before,
+                "sent bytes": bool(sent),
+                f"printed {printed!r}": bool(printed),
+                "answered differently the second time": first.value != second.value,
+                "gave no answer": (
+                    first.success
+                    and first.view is None
+                    and first.value in ("", None)
+                    and name not in STATE_MAY_ANSWER_EMPTY
+                ),
+            }
+            problems += [f"{name} {what}" for what, happened in found.items() if happened]
+            sent.clear()
+    finally:
+        ctx.serial.write = saved_write
+    return problems
+
+
+def _connected_demo(tmp_path: Path) -> Any:
+    """A CLI host on a connected DEMO over a throwaway config, started as run() starts it."""
+    from termapy.cli import CLITerminal
+    from termapy.defaults import DEFAULT_CFG
+
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO"}}
+    path = tmp_path / "state" / "state.cfg"
+    path.parent.mkdir()
+    path.write_text(json.dumps(cfg))
+    cli = CLITerminal(cfg, str(path), no_color=True, term_width=120)
+    cli.repl.global_root = tmp_path
+    cli._fire_app_start()
+    cli._connect()
+    return cli
+
+
+def test_reading_a_commands_state_changes_nothing(tmp_path, capsys):
+    """state-read-immutable: every tagged command reads twice with the session, the files and the wire unchanged, printing nothing."""
+    # Arrange
+    cli = _connected_demo(tmp_path)
+    names = sorted(name for name, info in cli.repl._plugins.items() if info.state)
+    assert len(names) > 50, "the tag reached the table"
+
+    # Act
+    try:
+        problems = _state_read_problems(cli, capsys, names)
+    finally:
+        cli._disconnect()
+
+    # Assert
+    assert problems == [], (
+        "/help runs these for every reader of their page, so a read must change nothing:\n  "
+        + "\n  ".join(problems)
+    )
+
+
+def test_state_read_guard_fires_on_a_probe(tmp_path, capsys):
+    """state-read-immutable: a bare form that sets a flag, writes a file, sends bytes, prints or answers nothing is named."""
+    # Arrange
+    from termapy.plugins import CmdResult
+
+    cli = _connected_demo(tmp_path)
+    folder = Path(cli.config_path).parent
+
+    def sets_a_flag(ctx, args):
+        """Change the session."""
+        ctx.ns("flags")["probe"] = True
+        return CmdResult.ok(value="on")
+
+    def writes_a_file(ctx, args):
+        """Touch the config folder."""
+        (folder / "probe.txt").write_text("x")
+        return CmdResult.ok(value="on")
+
+    def sends_bytes(ctx, args):
+        """Talk to the device."""
+        ctx.serial.send("AT")
+        return CmdResult.ok(value="on")
+
+    def prints(ctx, args):
+        """Print past the silent level."""
+        print("probe")
+        return CmdResult.ok(value="on")
+
+    def answers_nothing(ctx, args):
+        """Print prose and return no answer."""
+        ctx.io.output("prose only")
+        return CmdResult.ok(value="")
+
+    def is_clean(ctx, args):
+        """Keep the promise."""
+        return CmdResult.ok(value="on")
+
+    handlers = [sets_a_flag, writes_a_file, sends_bytes, prints, answers_nothing, is_clean]
+    for handler in handlers:
+        cli.repl.register_hook(handler.__name__, "", "h", handler, state=True)
+
+    # Act
+    try:
+        problems = _state_read_problems(cli, capsys, [handler.__name__ for handler in handlers])
+    finally:
+        cli._disconnect()
+
+    # Assert
+    named = {problem.split(" ", 1)[0] for problem in problems}
+    expected = {"sets_a_flag", "writes_a_file", "sends_bytes", "prints", "answers_nothing"}
+    assert named == expected, f"each broken promise is named and the clean one is not: {problems}"
+
+
+# ── Guard: a command that reports state says so (registry state-declared) ───
+#
+# The shapes that promise a bare query: a setting's synopsis (``{on|off|toggle}``
+# or ``{...|cycle}``), an ``.info`` page, and a ``cfg=`` phrase saying "bare
+# shows it".  Each declares ``state=True`` or says here why /help must not run
+# it.  The list only shrinks.
+STATE_EXEMPT: dict[str, str] = {
+    "app.ver.info": "fetches the newest release from PyPI",
+    "cfg.info": "writes the project report to the config's folder",
+    "edit.info": "opens the project report in an editor",
+    "mcp.info": "walks every command's long_help for the catalog",
+    "mem.info": "sends MEM.INFO to the device and rewrites the cache",
+    "port.info": "on Windows, disconnected, opens the port to test whether it is in use",
+}
+
+
+def _reports_state(name: str, info: Any) -> bool:
+    """Whether a declaration promises that the bare form is a query; a required argument means it has none."""
+    from termapy.plugins.command import has_required_arg
+
+    if has_required_arg(info.args):
+        return False
+    return (
+        info.args.endswith(("toggle}", "cycle}"))
+        or name.rsplit(".", 1)[-1] == "info"
+        or any("bare shows it" in use for use in info.cfg.values())
+    )
+
+
+def _state_declaration_problems(
+    tables: dict[str, dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    """``(undeclared, disagreeing)``: state-shaped commands without the tag, and names the frontends split on."""
+    undeclared = sorted(
+        {
+            f"{frontend}: {name}"
+            for frontend, table in tables.items()
+            for name, info in table.items()
+            if not info.hidden
+            and _reports_state(name, info)
+            and not info.state
+            and name not in STATE_EXEMPT
+        }
+    )
+    names = set().union(*tables.values())
+    disagreeing = sorted(
+        name
+        for name in names
+        if len({table[name].state for table in tables.values() if name in table}) > 1
+    )
+    return undeclared, disagreeing
+
+
+def test_commands_that_report_state_declare_it(tmp_path):
+    """state-declared: every setting and .info page declares state=True, or STATE_EXEMPT says why /help must not run it."""
+    # Arrange / Act
+    undeclared, disagreeing = _state_declaration_problems(_frontend_plugins(tmp_path))
+
+    # Assert
+    assert undeclared == [], (
+        "these promise a bare query, so /help can show their state; declare state=True, or "
+        "add the name to STATE_EXEMPT with the reason a help page must not run it:\n  "
+        + "\n  ".join(undeclared)
+    )
+    assert disagreeing == [], f"frontends disagree on state= for: {disagreeing}"
+
+
+def test_state_declaration_guard_fires_on_a_probe():
+    """state-declared: the guard flags an undeclared setting, .info page and cfg phrase, a frontend split, and passes an exempt name."""
+    from types import SimpleNamespace
+
+    def info(state: bool, args: str = "", cfg: dict[str, str] | None = None) -> SimpleNamespace:
+        return SimpleNamespace(hidden=False, state=state, args=args, cfg=cfg or {})
+
+    tables = {
+        "CLI": {
+            "a.flag": info(False, args="{on|off|toggle}"),
+            "a.mode": info(False, args="{x|y|cycle}"),
+            "a.info": info(False),
+            "a.size": info(False, cfg={"max_lines": "set for the session; bare shows it"}),
+            "a.send": info(False, args="<text>"),
+            "a.crc.info": info(False, args="<name>"),
+            "cfg.info": info(False),
+            "b.flag": info(True, args="{on|off|toggle}"),
+        },
+        "TUI": {"b.flag": info(False)},
+    }
+    undeclared, disagreeing = _state_declaration_problems(tables)
+    expected = ["CLI: a.flag", "CLI: a.info", "CLI: a.mode", "CLI: a.size"]
+    assert undeclared == expected, "each shape is caught; acting and exempt commands are not"
+    assert disagreeing == ["b.flag"], "the frontends split on b.flag"
+
+
+def test_state_exemptions_are_not_stale(tmp_path):
+    """state-declared: each exempt name is one the guard would flag (registered, state-shaped, undeclared), so the list only shrinks."""
+    tables = _frontend_plugins(tmp_path)
+    stale = sorted(
+        name
+        for name in STATE_EXEMPT
+        if not any(
+            name in table and not table[name].state and _reports_state(name, table[name])
+            for table in tables.values()
+        )
+    )
+    assert stale == [], f"drop these from STATE_EXEMPT: {stale}"
 
 
 # ── Port names are compared one way ───────────────────────────────────────────

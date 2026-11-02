@@ -262,6 +262,7 @@ COMMAND = Command(
             args="{N}",
             help="Show or set per-session match cap (default 100).",
             handler=_handler_max_count,
+            state=True,
         ),
     },
 )

@@ -322,6 +322,7 @@ COMMAND = Command(
                     help="Print the MCP session log file path.",
                     handler=_handler_log_path,
                     needs=CapabilitySet.CONFIG_LOADED,
+                    state=True,
                 ),
             },
         ),

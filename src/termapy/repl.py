@@ -65,6 +65,7 @@ from termapy.plugins import (
     load_plugins_from_dir,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
+from termapy.plugins.command import has_required_arg
 from termapy.plugins.params import parse_params
 from termapy.plugins.views import error_pieces
 from termapy.scripting import (
@@ -87,8 +88,6 @@ _CORE_LIFECYCLE: frozenset[str] = frozenset({"on_app_start", "on_config_load"})
 # token, whitespace, then the partial argument (possibly empty) running to
 # the end.  ``complete_file_arg`` matches it from just past the prefix.
 _FILE_ARG_RE = re.compile(r"(\S+)\s+(\S*)\Z")
-# An optional group of a synopsis, ``{...}``: what a bare call may leave out.
-_OPTIONAL_GROUP = re.compile(r"\{[^{}]*\}")
 # How often a wait for a device line checks for a script stop (Escape).
 _EXPECT_STOP_POLL_S = 0.1
 
@@ -300,6 +299,9 @@ class ReplEngine:
         self.write = write  # write(text, color="dim") callback
         # Prototype families that have said so this session (_note_prototype).
         self._prototypes_noted: set[str] = set()
+        # True while read_state runs: dispatch keeps the view, prints no
+        # failure and says no prototype note; a nested read is refused.
+        self._reading_state = False
         self.trusted_only = trusted_only
         self.global_root = global_root
         self._trusted_notice_shown = False
@@ -1228,6 +1230,7 @@ class ReplEngine:
         group: str = "",
         shows: bool = False,
         cfg: dict[str, str] | None = None,
+        state: bool = False,
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1260,6 +1263,7 @@ class ReplEngine:
                 means ``GROUP_DEFAULT``.
             cfg: The config keys it depends on, each with how it uses the
                 value (see ``Command.cfg``).
+            state: Its bare form reports current state (see ``Command.state``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -1296,6 +1300,7 @@ class ReplEngine:
             group=group or GROUP_DEFAULT,
             shows=shows,
             cfg=dict(cfg) if cfg else {},
+            state=state,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -1392,10 +1397,7 @@ class ReplEngine:
         plugin = self._plugins.get(name.lower())
         if plugin is None or not plugin.shows:
             return False
-        # A required argument is a <name> outside every {optional} group:
-        # /dev.lib's {<pattern>} is optional, /sym.search's <pattern> is not.
-        needs_args = "<" in _OPTIONAL_GROUP.sub("", plugin.args)
-        return bool(rest) or not needs_args
+        return bool(rest) or not has_required_arg(plugin.args)
 
     def complete_file_arg(self, line: str) -> tuple[int, list[str]] | None:
         """File names that complete a line's first argument, newest first.
@@ -1783,6 +1785,39 @@ class ReplEngine:
         if token in self._post_dispatch_observers:
             self._post_dispatch_observers.remove(token)
 
+    def read_state(self, name: str) -> CmdResult:
+        """Run a state command bare for its answer: nothing printed, its view kept (``Command.state``).
+
+        The ordinary dispatch path, so the capability gate still answers
+        (``Not connected.`` is the state) and a handler that raises comes
+        back as a failure, at the silent level so a handler's own prose
+        goes nowhere.  ``wants_data`` is forced off so the page reads the
+        same in every frontend; the outer command's flags survive, since
+        dispatch clears them on its way out.  A read inside a read is
+        refused, so a tagged command whose bare form runs ``/help`` cannot
+        recurse.
+
+        Args:
+            name: The command's name, without its prefix.
+
+        Returns:
+            The result, with its ``view`` when it has one.
+        """
+        if self._reading_state:
+            return CmdResult.fail(msg="Already reading a command's state.")
+        ctx = self.ctx
+        saved = (ctx._call_level, ctx.wants_data, ctx.active_flags)
+        ctx._call_level = "silent"
+        ctx.wants_data = False
+        self._reading_state = True
+        self._handler_depth += 1
+        try:
+            return self._dispatch_inner(name)
+        finally:
+            self._handler_depth -= 1
+            self._reading_state = False
+            ctx._call_level, ctx.wants_data, ctx.active_flags = saved
+
     def dispatch(self, line: str, *, report: bool = True) -> CmdResult:
         """Parse and dispatch a REPL command (prefix already stripped).
 
@@ -1924,7 +1959,12 @@ class ReplEngine:
             a caller that answers with the result prints it at its own
             exit, so a forwarded or captured failure shows once and keeps
             its ``error`` for the envelope.
+
+            A state read (``read_state``) takes the result as it is: the
+            help page renders it, so nothing prints here and the view stays.
             """
+            if self._reading_state:
+                return result
             if wants_json:
                 self._emit_json_envelope(
                     f"{self.prefix}{name} {args}".rstrip(),
@@ -1941,7 +1981,7 @@ class ReplEngine:
             refusal = self._capability_refusal(plugin, name)
             if refusal is not None:
                 return _finish(CmdResult.fail(msg=refusal))
-            if plugin.maturity == "prototype":
+            if plugin.maturity == "prototype" and not self._reading_state:
                 self._note_prototype(name)
             # Universal level-flag pre-pass: strip --silent/--quiet/--normal/
             # --verbose before per-command flag parsing so every command

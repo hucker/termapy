@@ -505,6 +505,7 @@ COMMAND = Command(
             help="Print metadata of the active profile.",
             handler=_handler_info,
             shows=True,
+            state=True,
         ),
     },
 )

@@ -454,6 +454,7 @@ COMMAND = Command(
             handler=_handler_list,
             shows=True,
             needs=CapabilitySet.SESSION_LOG,
+            state=True,
         ),
         "show": Command(
             args="",

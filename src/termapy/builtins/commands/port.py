@@ -593,6 +593,7 @@ COMMAND = Command(
                 "serial.parity": "set for the session; bare shows it",
                 "serial.stop_bits": "set for the session; bare shows it",
             },
+            state=True,
         ),
         "disconnect": Command(
             help="Disconnect from the serial port.",
@@ -627,6 +628,7 @@ COMMAND = Command(
             long_help=_cfg_value_long_help("baud_rate", "baud rate"),
             handler=_make_prop_handler("baud_rate"),
             cfg={"serial.baud_rate": "set for the session; bare shows it"},
+            state=True,
         ),
         "byte_size": Command(
             args="{value}",
@@ -634,6 +636,7 @@ COMMAND = Command(
             long_help=_cfg_value_long_help("byte_size", "byte size"),
             handler=_make_prop_handler("byte_size"),
             cfg={"serial.byte_size": "set for the session; bare shows it"},
+            state=True,
         ),
         "parity": Command(
             args="{value}",
@@ -641,6 +644,7 @@ COMMAND = Command(
             long_help=_port_parity_long_help,
             handler=_make_prop_handler("parity"),
             cfg={"serial.parity": "set for the session; bare shows it"},
+            state=True,
         ),
         "stop_bits": Command(
             args="{value}",
@@ -648,6 +652,7 @@ COMMAND = Command(
             long_help=_cfg_value_long_help("stop_bits", "stop bits"),
             handler=_make_prop_handler("stop_bits"),
             cfg={"serial.stop_bits": "set for the session; bare shows it"},
+            state=True,
         ),
         "flow_control": Command(
             args="{mode}",
@@ -655,6 +660,7 @@ COMMAND = Command(
             long_help=_port_flow_long_help,
             handler=_handler_flow,
             cfg={"serial.flow_control": "set for the session; bare shows it"},
+            state=True,
         ),
         "dtr": Command(
             args="{on|off}",
@@ -662,6 +668,7 @@ COMMAND = Command(
             long_help=_port_hw_line_long_help("dtr", "out"),
             handler=_make_hw_handler("dtr"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "rts": Command(
             args="{on|off}",
@@ -669,30 +676,35 @@ COMMAND = Command(
             long_help=_port_hw_line_long_help("rts", "out"),
             handler=_make_hw_handler("rts"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "cts": Command(
             help="Show CTS state (read-only).",
             long_help=_port_hw_line_long_help("cts", "in"),
             handler=_make_signal_handler("cts"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "dsr": Command(
             help="Show DSR state (read-only).",
             long_help=_port_hw_line_long_help("dsr", "in"),
             handler=_make_signal_handler("dsr"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "ri": Command(
             help="Show Ring Indicator state (read-only).",
             long_help=_port_hw_line_long_help("ri", "in"),
             handler=_make_signal_handler("ri"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "cd": Command(
             help="Show Carrier Detect state (read-only).",
             long_help=_port_hw_line_long_help("cd", "in"),
             handler=_make_signal_handler("cd"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "break": Command(
             args="{duration_ms}",

@@ -739,3 +739,31 @@ missing, which a loaded config never is. A container default comes back
 as a copy, as `default_cfg` copies, so no caller holds the table's own
 list. Registry `cfg-read-one-reader`. The first half of H1 in the
 2026-11-01 config review; the schema table is the second.
+
+## 2026-11-02 — A command declares that it reports state, and /help runs it
+
+`Command(state=True)` says that running a command bare reports its current
+state. `/help <cmd>` runs it and shows the answer in a CURRENT STATE section
+right after STATUS: a short value in full, a record's rows, a list's rows, and
+past twenty rows the start and a link to the rest. Chuck asked for it
+because the pages that showed live state were the hand-written ones: of 27
+bare-query settings, 8 showed their value. A hand-written state line is the
+second-class solution the `cfg=` declaration replaced, with a second defect:
+the page and the command can disagree (`/help port.mode` built its own frame
+text, and `/help port.dtr` said `?` with the port closed).
+
+The word is `state`, not `status`, because STATUS is already the page's
+maturity section. It is not `shows`: `/term.echo` reports state bare and acts
+with an argument, so a click on it must not run it, and `shows` includes
+viewer-openers. It is a plain boolean with no config key to turn it off; the
+renderer handles size, so a declaration has nothing to tune.
+
+The read is the ordinary dispatch path at the silent level, so the capability
+gate still answers and `Not connected.` is shown as the state. The promise is
+behavioral, so its guard is too: every tagged command is read twice against a
+connected DEMO and the session, the files and the wire are compared (registry
+`state-read-immutable`). A query in name is not always a query in fact, and
+these stay untagged with their reason in `STATE_EXEMPT`: `/port.info` and
+`/port.chip` open the port on Windows while disconnected to test whether it is
+in use, `/mem.info` sends `MEM.INFO`, `/cfg.info` writes its report, and
+`/app.ver.info` calls PyPI.

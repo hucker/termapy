@@ -1367,6 +1367,127 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    @staticmethod
+    def _write_script(path: str, name: str, text: str) -> None:
+        """A run script in the config's run/ folder."""
+        folder = Path(path).parent / "run"
+        folder.mkdir(exist_ok=True)
+        (folder / f"{name}.run").write_text(text, encoding="utf-8")
+
+    def test_a_pasted_connect_finishes_its_on_connect_script_before_the_next_line(
+        self, app_factory
+    ):
+        """paste-waits-for-on-connect: the script runs whole, then the next pasted line, with its echo."""
+
+        async def scenario():
+            # Arrange
+            app, _, path = app_factory(tui_on_connect_cmd="/run setup")
+            self._write_script(path, "setup", "/print step1\n/delay 300ms\n/print step2\n")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+
+                # Act
+                _paste(app, "/port.connect\n/print after\n")
+                await until(pilot, lambda: "after" in app._get_screen_text(), seconds=10.0)
+                text = app._get_screen_text()
+                app._disconnect()
+
+                # Assert
+                assert text.index("step2") < text.index("after"), f"interleaved:\n{text}"
+                assert "> /print after" in text, f"the pasted line lost its echo:\n{text}"
+
+        _run(scenario)
+
+    def test_plain_on_connect_commands_come_first_too(self, app_factory):
+        """paste-waits-for-on-connect: a command that is not a script is waited for as well, across the settling pause."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(tui_on_connect_cmd="/print hook")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+
+                # Act
+                _paste(app, "/port.connect\n/print after\n")
+                await until(pilot, lambda: "after" in app._get_screen_text(), seconds=10.0)
+                text = app._get_screen_text()
+                app._disconnect()
+
+                # Assert
+                assert text.index("hook") < text.index("after"), f"interleaved:\n{text}"
+
+        _run(scenario)
+
+    def test_two_connects_in_one_paste_each_wait(self, app_factory):
+        """paste-waits-for-on-connect: the wait holds for each connect, and the count returns to none."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(tui_on_connect_cmd="/print hook")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                lines = "/port.connect\n/print one\n/port.disconnect\n/port.connect\n/print two\n"
+
+                # Act
+                _paste(app, lines)
+                await until(pilot, lambda: "two" in app._get_screen_text(), seconds=15.0)
+                await until(pilot, lambda: not app._busy, seconds=5.0)
+                text = app._get_screen_text()
+                runs = app._on_connect_runs
+                app._disconnect()
+
+                # Assert
+                first, second = text.index("hook"), text.rindex("hook")
+                assert first < text.index("one") < second < text.index("two"), text
+                assert runs == 0, "every run is counted out"
+
+        _run(scenario)
+
+    def test_escape_during_the_wait_stops_the_script_and_the_paste(self, app_factory):
+        """paste-waits-for-on-connect: Escape ends the wait as it ends the script, so the rest of the paste never goes."""
+
+        async def scenario():
+            # Arrange
+            app, _, path = app_factory(tui_on_connect_cmd="/run setup")
+            self._write_script(path, "setup", "/delay 30s\n")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                _paste(app, "/port.connect\n/print after\n")
+                await until(pilot, lambda: app.repl.in_script, seconds=10.0)
+
+                # Act
+                app.action_stop_script()
+                await until(pilot, lambda: not app._busy, seconds=10.0)
+                text = app._get_screen_text()
+                app._disconnect()
+
+                # Assert
+                assert "Paste stopped after 1 of 2 lines" in text, text
+                assert "> /print after" not in text, "the rest of the paste did not go"
+
+        _run(scenario)
+
+    def test_a_buttons_sequence_waits_too(self, app_factory):
+        """paste-waits-for-on-connect: several commands from one button have the same shape as a paste and take the same wait."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(tui_on_connect_cmd="/print hook")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+
+                # Act
+                worker = app._dispatch_sequence_on_thread(["/port.connect", "/print after"])
+                await worker.wait()
+                await pilot.pause()
+                text = app._get_screen_text()
+                app._disconnect()
+
+                # Assert
+                assert text.index("hook") < text.index("after"), f"interleaved:\n{text}"
+
+        _run(scenario)
+
     def test_off_pastes_only_the_first_line_and_says_so(self, app_factory):
         """With multiline_paste off, the first line lands in the prompt and a status names the rest."""
 

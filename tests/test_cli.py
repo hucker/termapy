@@ -205,6 +205,21 @@ class TestTermColor:
         assert result.success, "command succeeds"
         assert cli.repl.ctx.ns("flags")["color"] is False, "color disabled"
 
+    def test_the_console_follows_the_flag(self, cli):
+        """The CLI console goes plain when color is off and colored when on, at the next print."""
+        # Arrange -- the fixture starts under --no-color
+        assert cli.console.no_color is True, "starts plain under --no-color"
+
+        # Act / Assert -- on: a print finds the console colored again
+        cli.repl.dispatch("term.color on")
+        cli.write("colored")
+        assert cli.console.no_color is False, "on re-enables the console's color"
+
+        # Act / Assert -- off: the next print is plain
+        cli.repl.dispatch("term.color off")
+        cli.status("plain")
+        assert cli.console.no_color is True, "off makes every print plain, as --no-color does"
+
     def test_color_bare_queries(self, cli):
         """A bare /term.color only queries; it must not flip the setting."""
         # Arrange

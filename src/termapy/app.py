@@ -112,6 +112,7 @@ from termapy.widgets import (
     PromptInput,
     SelectableRichLog,
     StatusBar,
+    without_color,
 )
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
@@ -1163,7 +1164,7 @@ class SerialTerminal(TerminalHost, App):
         # which renders as a faint dimmed tone; we want something that
         # actually draws the eye.
         try:
-            output = self.query_one("#output", RichLog)
+            self.query_one("#output", RichLog)
         except SHUTDOWN_RACE:
             return
         rule = "-" * 72
@@ -1174,7 +1175,7 @@ class SerialTerminal(TerminalHost, App):
             "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
             rule,
         ):
-            output.write(Text(line, style="bold green"))
+            self._pane_write(Text(line, style="bold green"))
             self._log_line("#", line)
 
     @work(thread=True)
@@ -1585,6 +1586,26 @@ class SerialTerminal(TerminalHost, App):
         except RuntimeError:
             return None  # app shutting down
 
+    def _pane_write(self, content: str | Text) -> None:
+        """Write to the output pane as /term.color has it: with color off, every color is dropped.
+
+        Bold, italic, underline and the links' click actions stay, so a
+        help page reads the same and still clicks; a markup string is
+        parsed as the pane parses it.  With color on, ``content`` goes to
+        the widget as it is.  Main thread only, like the widget.
+        """
+        log = self.query_one("#output", RichLog)
+        if self._color_on():
+            log.write(content)
+            return
+        text = Text.from_markup(content) if isinstance(content, str) else content
+        log.write(without_color(text))
+
+    def _color_on(self) -> bool:
+        """Whether /term.color is on: the session flag, on before the context exists."""
+        ctx = getattr(getattr(self, "repl", None), "ctx", None)
+        return True if ctx is None else bool(ctx.ns("flags").get("color", True))
+
     def _status(self, text: str, color: str = "dim") -> None:
         """Write a termapy status message with consistent formatting.
 
@@ -1600,7 +1621,7 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one("#output", RichLog).write(Text(text, style=f"bold italic {color}"))
+            self._pane_write(Text(text, style=f"bold italic {color}"))
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         self._log_lines("#", text.splitlines() or [""])
@@ -1760,7 +1781,7 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one("#output", RichLog).write(text)
+            self._pane_write(text)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         if log:
@@ -3159,7 +3180,7 @@ class SerialTerminal(TerminalHost, App):
                 style += Style(underline=True, meta=meta)
             line.append(piece.text, style=style)
         try:
-            self.query_one("#output", RichLog).write(line)
+            self._pane_write(line)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         self._log_lines("#", [line.plain])

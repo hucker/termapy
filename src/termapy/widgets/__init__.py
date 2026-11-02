@@ -10,7 +10,7 @@ UI-layer (imports Textual).
 """
 
 from termapy.widgets.checkbox import StrongCheckbox
-from termapy.widgets.link_log import LINK_META, LinkLog
+from termapy.widgets.link_log import LINK_META, LinkLog, without_color
 from termapy.widgets.prompt_input import PromptInput
 from termapy.widgets.selectable_log import SelectableRichLog
 from termapy.widgets.selection_list import StrongSelectionList
@@ -26,4 +26,5 @@ __all__ = [
     "StatusBar",
     "StrongCheckbox",
     "StrongSelectionList",
+    "without_color",
 ]

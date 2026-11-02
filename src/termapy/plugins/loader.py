@@ -34,8 +34,10 @@ from termapy.plugins.command import (
     Transform,
     TransformInfo,
     interpolate_help,
+    intro_text,
 )
 from termapy.plugins.params import synthesize_synopsis
+from termapy.plugins.views import Column
 
 
 def builtins_dir() -> Path:
@@ -302,7 +304,7 @@ def _flatten_command(
         # Synthetic handler for interior nodes: lists subcommands, or
         # redirects the space form.  A declared bare_sub is the
         # dispatcher's, so a bare call never reaches this handler.
-        handler = _make_interior_handler(full_name, children)
+        handler = _make_interior_handler(full_name, children, node.intro)
 
     if not handler:
         return result
@@ -336,6 +338,7 @@ def _flatten_command(
         shows=node.shows,
         cfg=dict(node.cfg),
         state=node.state,
+        intro=node.intro,
     )
     result.insert(0, info)
     return result
@@ -359,10 +362,13 @@ def _check_child(full_name: str, children: list[str], key: str, sub: str) -> Non
         )
 
 
-def _make_interior_handler(full_name: str, children: list[str]) -> Callable:
+def _make_interior_handler(full_name: str, children: list[str], intro: str = "") -> Callable:
     """Create a synthetic handler for an interior command node.
 
-    Bare (``/proto.crc``), the handler lists the subcommands; a node that
+    Bare (``/proto.crc``), the handler says what the family is for and
+    returns its subcommands as the standard table (registry
+    ``list-one-format``): a name is clickable and opens that command's help,
+    and the JSON is the same records.  A node that
     declares ``bare_sub`` never gets here bare, because the dispatcher
     runs that child first (``/mem`` -> ``/mem.info``).  With arguments,
     the first token is treated as a subcommand name -- ``/mem dump 0x0``
@@ -374,6 +380,8 @@ def _make_interior_handler(full_name: str, children: list[str]) -> Callable:
     Args:
         full_name: Dotted command path (e.g. "proto").
         children: Dotted names of direct subcommands.
+        intro: ``Command.intro``, shown above the list so a bare call says
+            what the family is for.
 
     Returns:
         A handler callable with the standard (ctx, args) signature.
@@ -396,15 +404,25 @@ def _make_interior_handler(full_name: str, children: list[str]) -> Callable:
                 return ctx.internal.dispatch(f"{child_name} {rest}".rstrip())
             short_names = ", ".join(name.rsplit(".", 1)[1] for name in children)
             return CmdResult.fail(msg=f"Unknown subcommand: {first} (subcommands: {short_names})")
-        ctx.io._write(f"Subcommands of {prefix}{full_name}:")
+        if intro and not ctx.wants_data:
+            ctx.io.output(intro_text(intro, prefix), "")
+            ctx.io.output("", "")
         plugins = ctx.internal.plugins
-        for child_name in children:
-            child = plugins.get(child_name)
-            if child:
-                arg_str = f" {child.args}" if child.args else ""
-                help_text = interpolate_help(child.help, prefix)
-                ctx.io._write(f"  {prefix}{child_name}{arg_str} - {help_text}")
-        return None
+        records = [
+            {"command": child_name, "help": interpolate_help(plugins[child_name].help, prefix)}
+            for child_name in children
+            if child_name in plugins and not plugins[child_name].hidden
+        ]
+        columns = (
+            Column(
+                "COMMAND",
+                lambda record: prefix + record["command"],
+                run=lambda record: f"help {record['command']}",
+            ),
+            Column("DESCRIPTION", lambda record: record["help"]),
+        )
+        names = "\n".join(record["command"] for record in records)
+        return CmdResult.table(prefix + full_name, "subcommand", columns, records, value=names)
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Bare {full_name} lists its subcommands; with arguments, the first token names the subcommand to run."

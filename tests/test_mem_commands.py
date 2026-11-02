@@ -1047,7 +1047,7 @@ class TestSpaceForm:
 
         # Assert
         assert result is None or result.success is True, "the listing is not an error"
-        assert "Subcommands of /app:" in capsys.readouterr().out, "the listing renders"
+        assert "/app - " in capsys.readouterr().out, "the listing renders"
 
 
 class TestRequestModeEnvelope:

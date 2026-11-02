@@ -128,6 +128,10 @@ COMMAND = Command(
     group="advanced",
     name="expect",
     help="Wait for text in serial output (blocks until match or timeout).",
+    intro=(
+        "Wait for a line from the device before going on, which is how a script "
+        "pauses for a reply and fails when the reply is wrong."
+    ),
     long_help=(
         "Block until the device outputs a line containing <text>.\n"
         "Returns the matched line as the result value; fails on\n"

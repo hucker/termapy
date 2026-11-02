@@ -112,8 +112,6 @@ def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
 _SEQ_PROSE = """\
-Sequence counters are used in script templates for auto-numbering.
-
 Placeholders:
   {seq1+}  - increment counter 1, then substitute its value
   {seq1}   - substitute counter 1 without incrementing
@@ -153,6 +151,7 @@ COMMAND = Command(
     group="advanced",
     name="seq",
     help="Print sequence counters.",
+    intro="Sequence counters are used in script templates for auto-numbering.",
     long_help=_seq_long_help,
     handler=_handler,
     needs=CapabilitySet.INTERACTIVE,  # script-state primitive

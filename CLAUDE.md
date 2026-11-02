@@ -84,6 +84,7 @@ All other paths relative to `src/termapy/`.
   open: `bare_sub="explore"` / `"show"`. Never code a bare branch in a
   handler that the declarations can express; `/help` renders them as
   the command's bare form (registry `bare-declared`).
+- **A family says what it is for** (registry `family-has-intro`): `Command(intro=...)`, one or two plain sentences, on every command with subcommands, at any level. It shows above the generic subcommand list and first on the `/help` page, so a long_help never repeats it.
 - **A command whose bare form reports state declares it** (registries
   `state-read-immutable`, `state-declared`, decision 2026-11-02):
   `Command(state=True)` promises that bare it changes nothing, sends no bytes,

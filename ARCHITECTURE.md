@@ -941,6 +941,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_env_var_gates.py               | Tests for the env-var security gates                                                                                                               |
 | test_examples_load.py               | Guard: every plugin under examples/plugins/ must load cleanly                                                                                      |
 | test_expect.py                      | Tests for the /expect and /expect.regex commands                                                                                                   |
+| test_family_intro.py                | A family of commands says what it is for (registry family-has-intro)                                                                               |
 | test_file_completion.py             | File-argument completion: the `Command.files` declaration and the engine's reader                                                                  |
 | test_find.py                        | Tests for /find -- interactive scrollback match navigation                                                                                         |
 | test_firmware.py                    | The `/firmware` command and the tables behind it: every shipped target is listed, copyable and printable                                           |

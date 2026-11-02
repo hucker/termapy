@@ -5,7 +5,7 @@ deserve explicit thanks.
 
 ## reveng (Greg Cook)
 
-Every named CRC algorithm in termapy comes from the
+Every named CRC algorithm in termapy is defined by the
 [**reveng CRC catalog**](https://reveng.sourceforge.io/crc-catalogue/all.htm)
 maintained by **Greg Cook** since 1999.  The reveng project documents
 the polynomial, initial value, reflection, and xor-out parameters for
@@ -22,8 +22,10 @@ values on every commit.
 The reveng catalog is published as reference data -- the polynomial
 parameters describe well-documented public standards (ITU, NXP,
 IEEE, Modbus, Bluetooth SIG, etc.) rather than original creative
-work.  Termapy uses the parameter values but does not incorporate any
-of reveng's own source code.  The reveng tool itself is licensed
+work.  [crcglot](https://github.com/hucker/crcglot), the package behind
+`/proto.crc`, is a separate Python implementation written independently of
+reveng: it uses the catalog's parameter values and check values, and none
+of reveng's own source code.  The reveng tool itself is written in C and licensed
 GPLv3+; see the [reveng project page](https://reveng.sourceforge.io)
 for details.
 
@@ -75,10 +77,11 @@ Each one below is a direct runtime dependency declared in
 - [**platformdirs**](https://github.com/platformdirs/platformdirs) --
   cross-platform user state / config directory resolution (community
   fork of the original appdirs by ActiveState).
-- [**crcglot**](https://github.com/hucker/crcglot) -- the reveng CRC
-  catalog, detection / reversal, and multi-language code generation
-  behind every /proto.crc.* command; extracted from termapy into its
-  own package.
+- [**crcglot**](https://github.com/hucker/crcglot) -- the Python
+  engine behind every /proto.crc.* command: computation, detection /
+  reversal and multi-language code generation, using the reveng
+  catalog's definitions and check values; extracted from termapy into
+  its own package.
 - [**pyelftools**](https://github.com/eliben/pyelftools) -- reads a
   build's ELF for /sym.import: the symbol table, and each variable's C
   type from its DWARF debug info; public domain.

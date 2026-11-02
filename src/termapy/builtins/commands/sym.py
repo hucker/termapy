@@ -429,6 +429,11 @@ COMMAND = Command(
     maturity="preview",
     args="<addr|name>",
     help="Symbol table: name -> address, or address -> name+offset.",
+    intro=(
+        "A symbol table gives the addresses in your firmware their names, so "
+        "{prefix}mem can read and write by name. It comes from your build's ELF or "
+        "linker map."
+    ),
     long_help=_long_help,
     handler=_handler_root,
     shows=True,

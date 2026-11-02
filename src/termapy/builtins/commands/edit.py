@@ -107,6 +107,10 @@ COMMAND = Command(
     name="edit",
     args="<filename>",
     help="Open a project file for editing (run/, proto/ or plugin/).",
+    intro=(
+        "Open this config's files in an editor: its scripts, protocol tests and "
+        "plugins, the config itself, its session log and its project report."
+    ),
     handler=_handler_root,
     shows=True,
     needs=CapabilitySet.FILE_EDITOR,

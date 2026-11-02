@@ -296,10 +296,6 @@ def _handler_ver_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _APP_LONG_HELP = """\
-What belongs to termapy as a whole rather than to one config: the app
-folder and its files, the version, and the termapy sessions running on
-this machine.
-
 Sessions: {prefix}app.running lists them; {prefix}app.kill others stops every
 one but this, {prefix}app.kill all this one too (last, through {prefix}exit).
 
@@ -413,6 +409,11 @@ COMMAND = Command(
     group="advanced",
     name="app",
     help="App-wide state, config and running sessions.",
+    intro=(
+        "What belongs to termapy as a whole rather than to one config: the app folder"
+        " and its files, the version, and the termapy sessions running on this "
+        "machine."
+    ),
     long_help=_APP_LONG_HELP,
     handler=None,
     sub_commands={
@@ -458,6 +459,11 @@ COMMAND = Command(
         ),
         "state": Command(
             help="Print state.json path.",
+            intro=(
+                "The app-wide state.json, which termapy writes itself, such as when it last "
+                "checked PyPI for updates: print its path or contents, or open it in an "
+                "editor."
+            ),
             long_help=(
                 "Bare: print the path.\n"
                 "  {prefix}app.state.dump      print state.json contents\n"
@@ -480,6 +486,10 @@ COMMAND = Command(
         ),
         "config": Command(
             help="Print config.json path.",
+            intro=(
+                "The app-wide config.json, shared by every config: print its path or "
+                "contents, or open it in an editor."
+            ),
             long_help=(
                 "Bare: print the path.\n"
                 "  {prefix}app.config.dump     print config.json contents\n"
@@ -502,6 +512,7 @@ COMMAND = Command(
         ),
         "ver": Command(
             help="Print termapy version (installed).",
+            intro="The termapy version: what is installed, and the newest release on PyPI.",
             handler=_handler_ver,
             sub_commands={
                 "latest": Command(

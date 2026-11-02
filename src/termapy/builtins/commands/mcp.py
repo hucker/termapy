@@ -270,8 +270,12 @@ COMMAND = Command(
     name="mcp",
     maturity="preview",
     help="MCP catalog and status (Model Context Protocol).",
+    intro=(
+        "The MCP server lets an AI agent drive termapy and the device. These commands"
+        " show what it offers and what it has done."
+    ),
     long_help=(
-        "MCP-mode tools.  {prefix}mcp.catalog dumps the JSON command catalog\n"
+        "{prefix}mcp.catalog dumps the JSON command catalog\n"
         "(same content as the termapy://commands.json MCP resource).\n"
         "{prefix}mcp.info shows MCP-mode state: this process's pid, catalog\n"
         "size, port, active profile metadata, capture artifact count.\n"
@@ -308,6 +312,10 @@ COMMAND = Command(
         ),
         "log": Command(
             help="Open the MCP session log in the system viewer.",
+            intro=(
+                "The session log the MCP server writes: open it in a viewer, print it, or "
+                "report where it is."
+            ),
             handler=_handler_log,
             needs=CapabilitySet.CONFIG_GUI_APPS,
             sub_commands={

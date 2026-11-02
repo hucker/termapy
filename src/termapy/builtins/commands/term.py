@@ -553,8 +553,12 @@ COMMAND = Command(
     group="terminal",
     name="term",
     help="Terminal display / session toggles (echo, line_no, timestamps, ...).",
+    intro=(
+        "Runtime display and session toggles: what is echoed and shown, line endings,"
+        " encoding and how answers are formatted."
+    ),
     long_help=(
-        "Runtime display and session toggles.  Collapses what used to be\n"
+        "This collapses what used to be\n"
         "scattered top-level commands (/echo, /line_no, /show_line_endings)\n"
         "under one namespace and adds runtime access to a handful of\n"
         "config-key toggles that previously required {prefix}cfg, plus the\n"
@@ -700,6 +704,10 @@ COMMAND = Command(
         "eol": Command(
             args="{cr|lf|crlf|none|cycle}",
             help="Show or set the line ending sent with commands (cr/lf/crlf/none).",
+            intro=(
+                "What ends a line: the ending added to each line sent, how received output is"
+                " split into lines, and whether line endings are shown."
+            ),
             long_help=(
                 "Sets the line ending appended to every command sent to the\n"
                 "device.  Tokens: cr (\\r), lf (\\n), crlf (\\r\\n), none.\n"

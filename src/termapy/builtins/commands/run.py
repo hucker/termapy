@@ -336,6 +336,11 @@ COMMAND = Command(
     name="run",
     args="{filename}",
     help="Run a script file, or list available scripts.",
+    intro=(
+        "A script is a text file of commands and device lines, run one after another."
+        " Run, record and time the scripts in this config's run/ folder, and manage "
+        "them here."
+    ),
     handler=_handler_root,
     flags={"--echo": "Echo each command line as it runs (a script is quiet by default)."},
     files="run",
@@ -419,6 +424,10 @@ COMMAND = Command(
         "profile": Command(
             args="<filename>",
             help="Run a script with per-line timing (CSV to prof/).",
+            intro=(
+                "Run a script and time each line, with the timings saved as CSV in the "
+                "config's prof/ folder, and manage those files."
+            ),
             handler=_handler_profile,
             files="run",
             sub_commands={

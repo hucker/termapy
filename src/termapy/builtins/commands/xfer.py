@@ -76,10 +76,10 @@ COMMAND = Command(
     group="protocol",
     name="xfer",
     help="File transfer: settings and XMODEM / YMODEM send and receive.",
+    intro=(
+        "Move files between the host and the device over the serial link, using XMODEM or YMODEM."
+    ),
     long_help=(
-        "Move files between the host and the device over the serial "
-        "link.\n"
-        "\n"
         "Settings:\n"
         "  {prefix}xfer.root [path]            Show or set the transfer root "
         "directory.\n"
@@ -103,6 +103,7 @@ COMMAND = Command(
         ),
         "xmodem": Command(
             help="XMODEM file transfer.",
+            intro="Send or receive one file over XMODEM, in 128-byte blocks.",
             handler=None,
             needs=CapabilitySet.INTERACTIVE,
             sub_commands={
@@ -124,6 +125,9 @@ COMMAND = Command(
         ),
         "ymodem": Command(
             help="YMODEM file transfer (batch, 1K blocks).",
+            intro=(
+                "Send or receive files over YMODEM, in 1K blocks; a send can take several files."
+            ),
             handler=None,
             needs=CapabilitySet.INTERACTIVE,
             sub_commands={

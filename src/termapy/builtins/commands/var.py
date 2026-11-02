@@ -363,6 +363,10 @@ COMMAND = Command(
     name="var",
     args="{name}",
     help="List user variables, or show one by name.",
+    intro=(
+        "Named values you set or capture from a command or a device reply, then use "
+        "in any command as $(NAME)."
+    ),
     long_help=_var_long_help,
     handler=_handler_list,
     shows=True,

@@ -408,6 +408,10 @@ COMMAND = Command(
     group="terminal",
     name="log",
     help="Session log: start, stop, print, fingerprint, or open it.",
+    intro=(
+        "A transcript of this session: the commands, the device's replies and what "
+        "termapy said, so you can see later what happened."
+    ),
     # Bare /log does what the Log button does: open the session log.
     bare_sub="show",
     help_list="list",

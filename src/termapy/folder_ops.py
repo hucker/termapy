@@ -826,6 +826,7 @@ def edit_folder_command(folder: str) -> Command:
     long_help = _folder_long_help(folder)  # the subs: the count line alone
     return replace(
         edit_command(folder),
+        intro=f"Open a {spec.ext} file from {folder}/ in an editor, list them, or open the folder.",
         sub_commands={
             "list": Command(
                 help=f"List {spec.ext} files.",

@@ -380,16 +380,6 @@ def _make_signal_handler(signal: str):
 # signal line declares Command.state instead, and /help shows what it answers.
 
 
-def _port_root_long_help(ctx: PluginContext) -> str:
-    return compose(
-        port_status(ctx),
-        "Connect to, disconnect from, list, or configure the serial\n"
-        "port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),\n"
-        "USB chip identification ({prefix}port.chip.*), and the four mode\n"
-        "settings baud_rate, byte_size, parity, stop_bits.",
-    )
-
-
 def _port_info_long_help(ctx: PluginContext) -> str:
     return compose(
         port_status(ctx),
@@ -430,7 +420,12 @@ COMMAND = Command(
     name="port",
     args="{name}",
     help="Serial port tools: connect, disconnect, list, configure.",
-    long_help=_port_root_long_help,
+    intro=(
+        "Connect to, disconnect from, list, or configure the serial port. Subcommands"
+        " cover live signals (DTR/RTS/CTS/DSR/RI/CD), USB chip identification, and "
+        "the mode settings."
+    ),
+    long_help=port_status,
     handler=_handler_root,
     cfg={"serial.port": "set for the session, then reconnects"},
     picker="port",
@@ -650,6 +645,10 @@ COMMAND = Command(
         "chip": Command(
             args="{name|*}",
             help="Identify USB-serial chip(s) and report USB speed class.",
+            intro=(
+                "Identify the USB-serial chip behind a port: its maker, model, USB speed and "
+                "driver, as a report or one field at a time."
+            ),
             handler=_handler_chip,
             cfg={"serial.port": "the port it identifies by default"},
             sub_commands={

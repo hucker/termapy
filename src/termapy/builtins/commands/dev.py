@@ -450,6 +450,11 @@ COMMAND = Command(
     name="dev",
     maturity="preview",
     help="Device files: a part's registers as data (see {prefix}help devices).",
+    intro=(
+        "A part's registers as data, from a vendor's register file, so {prefix}mem "
+        "can read and write them by name. Import a part into a library, then add it "
+        "to this config."
+    ),
     long_help=_long_help,
     sub_commands={
         "import": Command(

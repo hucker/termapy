@@ -208,8 +208,7 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _LONG_HELP = """\
-Search the scrollback for matching lines and navigate them
-interactively.  Matched lines are highlighted (reverse video) in a
+Matched lines are highlighted (reverse video) in a
 frozen snapshot of the scrollback; arrow buttons in the bottom row
 step through them.
 
@@ -241,6 +240,7 @@ COMMAND = Command(
     name="find",
     args="{pattern}",
     help="Navigate scrollback matches with an interactive find bar.",
+    intro="Search the scrollback for matching lines and navigate them interactively.",
     long_help=_LONG_HELP,
     handler=_handler,
     needs=CapabilitySet.INTERACTIVE,

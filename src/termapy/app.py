@@ -552,6 +552,11 @@ class SerialTerminal(TerminalHost, App):
         self._busy = False
         self._busy_look_timer: Timer | None = None
         self._busy_look_shown = False
+        # On-connect runs not finished yet (_run_on_connect).  A paste or a
+        # button's sequence waits for them, so its next line cannot reach the
+        # device ahead of the setup they do.
+        self._on_connect_runs = 0
+        self._on_connect_lock = threading.Lock()
         # Counts every begin and end, so a busy-look timer that fires late
         # (after _end_busy) knows its command is over and does nothing.
         self._busy_generation = 0
@@ -1446,7 +1451,9 @@ class SerialTerminal(TerminalHost, App):
             command for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd")
         ]
         if connect_cmds:
-            self._run_lines(connect_cmds, delay=0.2)
+            with self._on_connect_lock:
+                self._on_connect_runs += 1
+            self._run_on_connect(connect_cmds)
 
     def _on_connect_failed(self) -> None:
         """TUI post-connect failure: update status, auto-reconnect (on main)."""
@@ -1542,23 +1549,39 @@ class SerialTerminal(TerminalHost, App):
         ctx = self.repl.ctx
         self.push_screen(ProtoDebugScreen(path, ctx, script, final))
 
-    @work(thread=True)
-    def _run_lines(
-        self,
-        cmds: list[str],
-        echo_prefix: str = "",
-        delay: float = 0,
-    ) -> None:
-        """Send multiple commands in a background thread.
+    # How long a connect settles before its on-connect commands run.
+    _ON_CONNECT_DELAY_S = 0.2
 
-        Args:
-            cmds: Command strings to send.
-            echo_prefix: Optional prefix for echoed output.
-            delay: Seconds to wait before sending the first command.
+    @work(thread=True)
+    def _run_on_connect(self, cmds: list[str]) -> None:
+        """Run the on-connect commands on a worker of their own, after the connect settles.
+
+        Counted from before the worker starts until it ends, whatever
+        happens, so ``_wait_for_on_connect`` holds a paste's next line for
+        the whole of it: the settling pause too, when no script is running yet.
         """
-        if delay:
-            time.sleep(delay)
-        self._send_lines(cmds, echo_prefix=echo_prefix)
+        try:
+            time.sleep(self._ON_CONNECT_DELAY_S)
+            self._send_lines(cmds)
+        finally:
+            with self._on_connect_lock:
+                self._on_connect_runs -= 1
+
+    def _wait_for_on_connect(self) -> None:
+        """Hold this worker while on-connect commands or a script it did not start are running.
+
+        A paste or a button's sequence takes the dispatch guard one line at a
+        time, so without this its lines run between another worker's: a
+        pasted ``/port.connect`` started the on-connect script 200 ms later,
+        the next pasted line reached the device ahead of what the script set
+        up, and it lost its echo to the script's echo-off.  Its own ``/run``
+        has returned by the time this is asked, so a running script is someone
+        else's.  Off the main thread only.  The shared stop event ends the
+        wait: Escape, and the app stopping.
+        """
+        stop = self.repl._script_stop
+        while (self._on_connect_runs > 0 or self.repl.in_script) and not stop.wait(0.05):
+            pass
 
     def _send_lines(self, lines: list[str], echo_prefix: str = "") -> None:
         """Send multiple commands with cmd_delay_ms between each.
@@ -3324,8 +3347,9 @@ class SerialTerminal(TerminalHost, App):
 
     @work(thread=True)
     def _dispatch_sequence_on_thread(self, cmds: list[str]) -> None:
-        """Run a sequence of commands on a background thread."""
+        """Run a sequence of commands on a background thread, waiting out on-connect commands between them."""
         for cmd in cmds:
+            self._wait_for_on_connect()
             try:
                 self._dispatch_single(cmd)
             except RuntimeError:
@@ -3344,7 +3368,8 @@ class SerialTerminal(TerminalHost, App):
         into a closed port answers once rather than once per line.  Escape
         stops it through the shared stop event, which the paste may clear
         because it is then the outermost cancellable operation (registry
-        ``plugin-never-clears-stop``).
+        ``plugin-never-clears-stop``).  Each line waits its turn behind
+        on-connect commands (registry ``paste-waits-for-on-connect``).
         """
         stop = self.repl._script_stop
         if not self.repl.in_script:
@@ -3353,6 +3378,7 @@ class SerialTerminal(TerminalHost, App):
         prefix = cmd_prefix(self.cfg)
         sent = 0
         for line in lines:
+            self._wait_for_on_connect()
             if stop.is_set():
                 break
             command = line.strip() if line.lstrip().startswith(prefix) else line

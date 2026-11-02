@@ -68,9 +68,10 @@ def is_state_line(line: str) -> bool:
 def state_line(label: str, value: Any) -> str:
     """Format a single green status line: ``Current <label> = <value>``.
 
-    This is the canonical shape for every "single value" dynamic help --
-    baud rate, bytesize, active profile, etc. Using it consistently keeps
-    the visual signal uniform across commands.
+    This is the canonical shape for a "single value" summary on a family's
+    page -- the symbol table, the devices.  Using it consistently keeps the
+    visual signal uniform across commands.  A value the command itself
+    answers declares ``Command.state`` instead.
     """
     return green(f"Current {label} = {value}")
 

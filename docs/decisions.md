@@ -767,3 +767,10 @@ these stay untagged with their reason in `STATE_EXEMPT`: `/port.info` and
 `/port.chip` open the port on Windows while disconnected to test whether it is
 in use, `/mem.info` sends `MEM.INFO`, `/cfg.info` writes its report, and
 `/app.ver.info` calls PyPI.
+
+The hand-written state lines on the twelve port settings and signal lines are
+deleted, their prose kept: the value now appears once, and it is what the
+command answers. The green line's label also named a signal's direction
+(`DTR (out)`); `Show or set` and `read-only` in each command's help say the same.
+Summaries on a family's page (`/help port`, `/help cfg`, `/help sym`) stay
+hand-written, because no single command gives them as one line.

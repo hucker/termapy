@@ -608,16 +608,9 @@ def _long_help(ctx):
 ```
 
 `compose` drops empty parts, so a callable that returns `""` for
-"no state yet" collapses gracefully. For a single-value command
-that needs no prose, you can pass the helper directly:
-
-```python
-"baud_rate": Command(
-    help="Show or set baud rate.",
-    long_help=lambda ctx: state_line("baud rate", ctx.cfg["serial"]["baud_rate"]),
-    handler=_baud_handler,
-),
-```
+"no state yet" collapses gracefully. A single value the command itself
+answers needs none of this: declare `state=True`, and the page and the
+command cannot disagree.
 
 ## Serial I/O pattern
 

@@ -384,6 +384,38 @@ class TestTheRead:
         assert out.count('"cmd"') == 1, "one envelope"
 
 
+class TestThePortSettings:
+    @pytest.mark.parametrize(
+        "command", ["baud_rate", "byte_size", "parity", "stop_bits", "flow_control", "mode"]
+    )
+    def test_a_closed_port_shows_what_the_command_answers_and_says_it_once(
+        self, cli, capsys, command
+    ):
+        """With no port open a setting's page is the command's own answer, from the config, and no second hand-written value."""
+        # Arrange
+        expected = cli.repl.dispatch_full(f"/port.{command}").value
+
+        # Act
+        page = _page(cli, capsys, f"/help port.{command}")
+
+        # Assert
+        assert _state_lines(page) == [f"  {expected}"], "the page and the command agree"
+        assert "Current " not in page, "the value appears once, in CURRENT STATE"
+
+    @pytest.mark.parametrize("line", ["dtr", "rts", "cts", "dsr", "ri", "cd"])
+    def test_a_closed_ports_signal_line_says_so_and_says_it_once(self, cli, capsys, line):
+        """A signal line with no port shows the gate's words, not a ? beside them."""
+        page = _page(cli, capsys, f"/help port.{line}")
+        assert _state_lines(page) == [f"  {STATE_MESSAGES['serial_connected']}"]
+        assert "= ?" not in page, "no hand-written value disagrees with the section"
+
+    def test_the_prose_a_setting_had_is_still_there(self, cli, capsys):
+        """Losing the state line loses only that line: parity's values, flow control's warning and mode's forms stay."""
+        assert "M - mark (always 1)" in _page(cli, capsys, "/help port.parity")
+        assert "a mismatch will" in _page(cli, capsys, "/help port.flow_control")
+        assert "115200 N81" in _page(cli, capsys, "/help port.mode")
+
+
 class TestEveryFrontend:
     def test_connected_to_the_demo_the_page_shows_the_live_values(self, cli, capsys):
         """On an open port the frame settings and the signal lines come from the command, in the CLI."""

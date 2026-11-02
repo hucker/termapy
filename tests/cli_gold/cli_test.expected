@@ -1332,9 +1332,6 @@ CURRENT STATE
 SYNOPSIS
   /port.baud_rate {value}
 
-DESCRIPTION
-  Current baud rate = 115200
-
 CONFIG
   serial.baud_rate = 115200  set for the session; bare shows it
   A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
@@ -1356,9 +1353,6 @@ CURRENT STATE
 
 SYNOPSIS
   /port.dtr {on|off}
-
-DESCRIPTION
-  Current DTR (out) = 1
 
 REQUIRED CAPABILITIES
   serial_connected - an open serial port

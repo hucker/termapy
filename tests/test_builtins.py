@@ -1536,20 +1536,6 @@ class TestHelp:
             "existing cfg prose still renders after dynamic line"
         )
 
-    def test_help_port_baud_rate_shows_current_value(self, repl_env):
-        """/help port.baud_rate prints the single-value state line."""
-        # Arrange -- fixture cfg["baud_rate"] = 115200
-        engine, _, _, output = repl_env
-
-        # Act
-        engine.dispatch("help port.baud_rate")
-
-        # Assert
-        texts = [text for text, _ in output]
-        assert any("Current baud rate = 115200" in text for text in texts), (
-            "dynamic state line reflects cfg value"
-        )
-
     def test_help_renders_flags_section(self, repl_env):
         """/help <cmd> shows a FLAGS section for commands that declare flags."""
         # Arrange

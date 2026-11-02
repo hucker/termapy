@@ -280,8 +280,8 @@ class TestValueValidation:
             ("custom_buttons_side", '"top"', "must be one of: bottom, left, right"),
             ("baud_rate", '"fast"', "must be a positive integer"),
             ("baud_rate", "0", "must be a positive integer"),
-            ("cmd_delay_ms", "-1", "must be positive"),
-            ("cmd_delay_ms", '"soon"', "must be an integer"),
+            ("cmd_delay_ms", "-1", "must be a non-negative integer"),
+            ("cmd_delay_ms", '"soon"', "must be a non-negative integer"),
             ("eol", '"abc"', "must be CR/LF/NUL/ETX/EOT bytes only"),
         ],
     )
@@ -336,7 +336,7 @@ class TestValueValidation:
                 _, low_error = screen._validate_value("baud_rate", "100")
 
                 # Assert
-                assert "non-standard rate" in hint, "a hint, not an error"
+                assert "not a standard rate" in hint, "a hint, not an error"
                 assert "(custom)" in custom_status and custom_error == "", (
                     "custom_baud makes it green"
                 )

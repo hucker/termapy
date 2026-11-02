@@ -160,7 +160,7 @@ src/termapy/
 ├── config_resolve.py       #              Config-path resolution helpers
 ├── converters.py           #              Converter registries -- vendor files in, termapy data out, one record type
 ├── credits_data.py         #              The dependency and attribution registry -- one table, every consumer iterates it
-├── defaults.py             # (650 lines)  Default config values and file templates
+├── defaults.py             # (650 lines)  The config schema, one table, and the file templates
 ├── demo.py                 # (2132 lines) Simulated serial device for demo mode
 ├── demo_ndjson.py          #              Simulated NDJSON serial device for `DEMO_JSON` port name
 ├── demo_vt100.py           #              Simulated VT100/ANSI serial device for the `DEMO_VT100` port name
@@ -901,6 +901,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_cfg_icon.py                    | Tests for /cfg.icon -- per-cfg desktop launcher creation                                                                                           |
 | test_cfg_info_report.py             | The /cfg.info project report: its tails, and the exit hook that rewrites it                                                                        |
 | test_cfg_load.py                    | End-to-end tests for /cfg.load                                                                                                                     |
+| test_cfg_schema.py                  | The config schema is one table, and one validator answers for the file, the editor and /cfg (registry cfg-schema-one-table)                        |
 | test_checkbox.py                    | Behavioral tests for StrongCheckbox -- the glyph flips with the value                                                                              |
 | test_cli.py                         | Unit tests for CLITerminal - hooks, helpers, output, and dispatch                                                                                  |
 | test_cli_exec.py                    | End-to-end tests for `--exec` / `-e` one-shot CLI mode                                                                                             |

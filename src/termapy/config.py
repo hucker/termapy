@@ -13,22 +13,17 @@ import sys
 import threading
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import serial
 
 from termapy.defaults import (
     CFG_CHOICES,
-    CUSTOM_BUTTON_SIDES,
+    CFG_KEYS,
     DEFAULT_CFG,
-    JSON_STYLES,
     STANDARD_BAUD_RATES,
-    UI_MODES,
-    VALID_BYTE_SIZES,
-    VALID_FLOW_CONTROLS,
-    VALID_PARITIES,
-    VALID_STOP_BITS,
-    cfg_key_paths,
+    CfgKey,
+    cfg_key,
     cfg_value,
     cmd_prefix,
     default_cfg,
@@ -863,15 +858,13 @@ _ENV_EXPAND_EXCLUDED_KEYS = frozenset(ON_CONNECT_KEYS)
 
 
 def _collect_bool_paths() -> frozenset[tuple[str, ...]]:
-    """Every config key whose default is a bool, as a path, from the one key list (``cfg_key_paths``)."""
-    return frozenset(
-        tuple(path.split(".")) for path in cfg_key_paths() if isinstance(cfg_value({}, path), bool)
-    )
+    """Every config key of kind ``bool``, as a path, from the one table (``CFG_KEYS``)."""
+    return frozenset(tuple(record.path.split(".")) for record in CFG_KEYS if record.kind == "bool")
 
 
 # The cfg keys that hold a boolean, by path (("echo",), ("serial",
-# "custom_baud")), derived from DEFAULT_CFG's types so a new boolean key
-# is covered without a second list.  bool-one-vocabulary: a templated
+# "custom_baud")), derived from the schema so a new boolean key is
+# covered without a second list.  bool-one-vocabulary: a templated
 # value landing on one of these is read with the vocabulary at
 # expansion; a bare JSON string there is type-checked by validate_config.
 BOOL_CFG_PATHS: frozenset[tuple[str, ...]] = _collect_bool_paths()
@@ -953,11 +946,10 @@ def expand_env_cfg(
 def validate_config(cfg: dict) -> list[str]:
     """Validate config values and return a list of warning strings.
 
-    Checks serial port settings, encoding, and numeric constraints.
-    Keys not in ``DEFAULT_CFG`` are flagged: if they appear in
-    ``DEPRECATED_CFG`` they're called out as deprecated with the
+    Every key gets ``check_cfg_value``, the one check the config editor and
+    ``/cfg`` use too.  Keys not in ``DEFAULT_CFG`` are flagged: if they
+    appear in ``DEPRECATED_CFG`` they're called out as deprecated with the
     rename-or-removal history; otherwise flagged as a potential typo.
-    Non-standard baud rates produce a warning but are not rejected.
 
     Args:
         cfg: Config dict to validate.
@@ -1006,91 +998,210 @@ def validate_config(cfg: dict) -> list[str]:
             else:
                 warnings.append(f"unknown key: '{key}' (typo?)")
 
-    # port must be a non-empty string.  A valid port is a literal
-    # device name ("COM3", "/dev/ttyUSB0"), a USB serial number, a
-    # reserved name ("DEMO", "DEMO_FAIL"), a pipe-separated fallback
-    # chain of those, or a pyserial URL -- anything except empty.
-    # The zero-config CLI synthesizes an in-memory cfg with port="" to
-    # bootstrap a REPL with no config file, but that path never hits
-    # validate_config (no load_config, no --check).  Any config
-    # actually persisted to disk gets a warning here.
-    serial = cfg.get("serial", {})
-    p = serial.get("port")
-    if p is not None:
-        if not isinstance(p, str):
-            warnings.append(f"serial.port: expected str, got {type(p).__name__}")
-        elif p == "":
-            warnings.append(
-                "serial.port: must not be empty (use a device name, USB serial number, or 'DEMO')"
-            )
-
-    # An on-connect field is one command (v30).  A line break means a
-    # chain, which is skipped rather than sent to a device as one line.
-    # An older cfg (``--check`` reads it as it is on disk) has its chains moved
-    # into run files by the v29 -> v30 step at load instead.
+    # An on-connect field is one command (v30).  An older cfg (``--check``
+    # reads it as it is on disk) has its chains moved into run files by the
+    # v29 -> v30 step at load instead, so they are not its problem yet.
     chains_migrate = ver is not None and ver < 30
-    for key in ON_CONNECT_KEYS:
-        value = cfg.get(key)
-        if not chains_migrate and isinstance(value, str) and len(value.strip().splitlines()) > 1:
-            warnings.append(
-                f"{key}: one command per field, so it is skipped; put several "
-                f"in a .run file and set {key} to {cmd_prefix(cfg)}run <name>"
-            )
-
-    # Type + value checks for serial settings
-    _check_set(serial, "byte_size", int, VALID_BYTE_SIZES, warnings, key_prefix="serial.")
-    _check_set(serial, "parity", str, VALID_PARITIES, warnings, key_prefix="serial.")
-    _check_set(serial, "stop_bits", (int, float), VALID_STOP_BITS, warnings, key_prefix="serial.")
-    _check_set(serial, "flow_control", str, VALID_FLOW_CONTROLS, warnings, key_prefix="serial.")
-    _check_set(cfg, "json_style", str, set(JSON_STYLES), warnings)
-    _check_set(cfg, "custom_buttons_side", str, set(CUSTOM_BUTTON_SIDES), warnings)
-    _check_set(cfg, "default_ui", str, set(UI_MODES), warnings)
-
-    # Boolean keys hold a JSON boolean: a string or number here is
-    # type-checked, never parsed (bool-one-vocabulary; a templated value
-    # was read with the vocabulary at expansion).
-    for path in sorted(BOOL_CFG_PATHS):
-        node: Any = cfg
-        for part in path[:-1]:
-            node = node.get(part) if isinstance(node, dict) else None
-        value = node.get(path[-1]) if isinstance(node, dict) else None
-        if value is not None and not isinstance(value, bool):
-            warnings.append(f"{'.'.join(path)}: expected bool, got {type(value).__name__}")
-
-    # Baud rate - standard rates only unless custom_baud is enabled
-    val = serial.get("baud_rate")
-    if val is not None:
-        if not isinstance(val, int):
-            warnings.append(f"serial.baud_rate: expected int, got {type(val).__name__}")
-        elif val <= 0:
-            warnings.append(f"serial.baud_rate: must be positive, got {val}")
-        elif serial.get("custom_baud"):
-            if val < 300:
-                warnings.append(f"serial.baud_rate: custom baud requires >= 300, got {val}")
-        elif val not in STANDARD_BAUD_RATES:
-            warnings.append(
-                f"serial.baud_rate: {val} is not a standard rate -- set custom_baud to true to allow non-standard rates"
-            )
-
-    # Encoding - must be a valid Python codec
-    enc = cfg.get("encoding")
-    if enc is not None:
-        if not isinstance(enc, str):
-            warnings.append(f"encoding: expected str, got {type(enc).__name__}")
-        else:
-            try:
-                codecs.lookup(enc)
-            except LookupError:
-                warnings.append(f"encoding: unknown codec '{enc}'")
-
-    # Numeric constraints
-    _check_positive(cfg, "max_lines", warnings)
-    _check_non_negative(cfg, "cmd_delay_ms", warnings)
-    _check_non_negative(cfg, "multiline_paste_delay_ms", warnings)
-    _check_non_negative(cfg, "tx_char_delay_ms", warnings)
-    _check_non_negative(cfg, "tx_line_delay_ms", warnings)
-
+    for record in CFG_KEYS:
+        if chains_migrate and record.kind == "command":
+            continue
+        value = _value_as_written(cfg, record.path)
+        if value is None:
+            continue
+        finding = check_cfg_value(record.path, value, cfg)
+        if finding is not None:
+            warnings.append(_finding_text(record.path, value, finding))
     return warnings
+
+
+def _value_as_written(cfg: Mapping, path: str) -> Any:
+    """``cfg``'s value at ``path``, or ``None`` when the file does not hold it."""
+    node: Any = cfg
+    for part in path.split("."):
+        if not isinstance(node, Mapping):
+            return None
+        node = node.get(part)
+    return node
+
+
+def _finding_text(path: str, value: object, finding: "CfgFinding") -> str:
+    """A finding as a load warning: the key, what it must be, and what it holds, kept short."""
+    shown = json.dumps(value, default=str)
+    if value == "" or "\n" in str(value):
+        return f"{path}: {finding.reason}"
+    return f"{path}: {finding.reason}, got {shown if len(shown) <= 60 else shown[:57] + '...'}"
+
+
+class CfgFinding(NamedTuple):
+    """What ``check_cfg_value`` found wrong with a value.
+
+    Attributes:
+        reason: What the value must be, as a clause that reads after its
+            key: ``must be a positive integer``.
+        refuse: False when the value is unusual rather than wrong, a
+            non-standard baud rate: a load warns, the editor shows it yellow
+            and ``/cfg`` takes it with a note.
+    """
+
+    reason: str
+    refuse: bool = True
+
+
+# The bytes a line ending may hold.
+_EOL_BYTES = "\r\n\0\x03\x04"
+
+
+def _check_bool(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A JSON boolean: text or a number here is type-checked, never parsed (bool-one-vocabulary)."""
+    return None if isinstance(value, bool) else CfgFinding("must be true or false")
+
+
+def _check_int(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A whole number, at least ``record.min`` when the row sets one."""
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and (record.min is None or value >= record.min)
+    ):
+        return None
+    shapes = {None: "an integer", 0: "a non-negative integer", 1: "a positive integer"}
+    shape = shapes.get(record.min, f"an integer of at least {record.min}")
+    return CfgFinding(f"must be {shape}")
+
+
+def _check_enum(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """One of the row's choices, as the file spells it; ``true`` is not the number 1."""
+    if not isinstance(value, (bool, list, dict)) and value in record.choices:
+        return None
+    names = ", ".join(str(choice) for choice in sorted(record.choices, key=str))
+    return CfgFinding(f"must be one of: {names}")
+
+
+def _check_str(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """Text, whatever it says: a title, a format, a file name."""
+    return None if isinstance(value, str) else CfgFinding("must be text")
+
+
+def _check_regex(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A pattern that compiles, so a bad one is found here and not at first use."""
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    try:
+        re.compile(value)
+    except re.error as e:
+        return CfgFinding(f"does not compile: {e}")
+    return None
+
+
+def _check_encoding(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """The name of a codec Python has."""
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    try:
+        codecs.lookup(value)
+    except (LookupError, ValueError):
+        return CfgFinding("must name a codec Python knows")
+    return None
+
+
+def _check_command(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """One command: a line break means a chain, which is skipped rather than sent as one line."""
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    if len(value.strip().splitlines()) > 1:
+        return CfgFinding(
+            f"one command per field, so it is skipped; put several in a .run file "
+            f"and set {record.path} to {cmd_prefix(cfg)}run <name>"
+        )
+    return None
+
+
+def _check_port(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """Anything but empty: a device name, a USB serial number, a reserved name, a chain or a URL.
+
+    The zero-config CLI synthesizes an in-memory cfg with an empty port to
+    bootstrap a REPL with no config file, but that path never hits this
+    check; a config on disk does.
+    """
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    if not value:
+        return CfgFinding("must not be empty (use a device name, USB serial number, or 'DEMO')")
+    return None
+
+
+def _check_baud(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A positive whole number; a non-standard one is unusual, not wrong, and custom_baud permits it."""
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        return CfgFinding("must be a positive integer")
+    if cfg_value(cfg, "serial.custom_baud"):
+        return CfgFinding("custom baud requires >= 300") if value < 300 else None
+    if value not in STANDARD_BAUD_RATES:
+        return CfgFinding("not a standard rate: set custom_baud to true to allow it", refuse=False)
+    return None
+
+
+def _check_eol(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """Only line-ending and control bytes: junk like ``abc`` would go out after every line."""
+    if isinstance(value, str) and all(char in _EOL_BYTES for char in value):
+        return None
+    return CfgFinding(
+        r'must be CR/LF/NUL/ETX/EOT bytes only (e.g. "", "\r", "\n", "\r\n", "\0", '
+        r'"\u0003" (ETX), "\u0004" (EOT)); '
+        f"{cmd_prefix(cfg)}term.eol sets it by name"
+    )
+
+
+def _check_section(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A JSON object: its leaves have rows of their own."""
+    return None if isinstance(value, dict) else CfgFinding("must be a JSON object")
+
+
+def _check_list(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A JSON list: the custom buttons, edited in the config editor."""
+    return None if isinstance(value, list) else CfgFinding("must be a JSON list")
+
+
+# One check per ``CfgKey.kind``.  A test holds every row's kind to this table.
+CFG_CHECKS = {
+    "bool": _check_bool,
+    "int": _check_int,
+    "enum": _check_enum,
+    "str": _check_str,
+    "path": _check_str,
+    "regex": _check_regex,
+    "encoding": _check_encoding,
+    "command": _check_command,
+    "port": _check_port,
+    "baud": _check_baud,
+    "eol": _check_eol,
+    "section": _check_section,
+    "list": _check_list,
+}
+
+
+def check_cfg_value(key: str, value: object, cfg: Mapping | None = None) -> CfgFinding | None:
+    """What is wrong with ``value`` for config key ``key``, or ``None`` when it is fine.
+
+    The one check behind a load (``validate_config``), the config editor
+    and ``/cfg``, so "is this value OK" has one answer (registry
+    ``cfg-schema-one-table``).
+
+    Args:
+        key: A path, a unique leaf or a custom button's field.  A name the
+            schema does not hold has no rule, so it is fine here.
+        value: The value as a config holds it: real JSON types, never text
+            still to be parsed.
+        cfg: The config it sits in, for the rule that reads a second key
+            (``custom_baud``, ``cmd_prefix``).
+
+    Returns:
+        The finding, or ``None``.
+    """
+    record = cfg_key(key)
+    if record is None:
+        return None
+    return CFG_CHECKS[record.kind](record, value, cfg or {})
 
 
 def cfg_choice(key: str, value: object) -> object:
@@ -1098,7 +1209,8 @@ def cfg_choice(key: str, value: object) -> object:
 
     Text matches in any case: ``/cfg parity e`` stores ``E`` and ``/cfg
     custom_buttons_side Right`` stores ``right``, the spelling the file and
-    its checks expect.
+    its checks expect.  A numeric choice matches as a number, so ``/cfg
+    stop_bits 1.5`` works whatever the key holds now.
 
     Raises:
         ValueError: ``value`` is not one of the key's choices.
@@ -1106,69 +1218,23 @@ def cfg_choice(key: str, value: object) -> object:
     choices = CFG_CHOICES.get(key)
     if choices is None:
         return value
-    if isinstance(value, str):
-        for choice in choices:
-            if isinstance(choice, str) and choice.casefold() == value.casefold():
-                return choice
-    elif value in choices:
-        return value
+    for choice in choices:
+        if _same_choice(value, choice):
+            return choice
     names = "/".join(str(choice) for choice in sorted(choices, key=str))
     raise ValueError(f"Invalid {key}: {value} (use {names})")
 
 
-def _check_set(
-    cfg: dict,
-    key: str,
-    expected_type: type | tuple[type, ...],
-    valid: set,
-    warnings: list[str],
-    key_prefix: str = "",
-) -> None:
-    """Check that cfg[key] has the right type and is in the valid set.
-
-    ``key_prefix`` is prepended to ``key`` in any warning message,
-    so callers checking nested sub-dicts (e.g. cfg["serial"]) can
-    pass ``key_prefix="serial."`` to get user-visible warnings like
-    ``serial.byte_size: ...`` instead of bare ``byte_size: ...``.
-    """
-    val = cfg.get(key)
-    if val is None:
-        return
-    label = f"{key_prefix}{key}"
-    if not isinstance(val, expected_type):
-        warnings.append(f"{label}: expected {_type_name(expected_type)}, got {type(val).__name__}")
-        return
-    if val not in valid:
-        warnings.append(f"{label}: invalid value {val!r}, expected one of {sorted(valid)}")
-
-
-def _check_positive(cfg: dict, key: str, warnings: list[str]) -> None:
-    """Check that cfg[key] is a positive integer."""
-    val = cfg.get(key)
-    if val is None:
-        return
-    if not isinstance(val, int):
-        warnings.append(f"{key}: expected int, got {type(val).__name__}")
-    elif val <= 0:
-        warnings.append(f"{key}: must be positive, got {val}")
-
-
-def _check_non_negative(cfg: dict, key: str, warnings: list[str]) -> None:
-    """Check that cfg[key] is a non-negative integer."""
-    val = cfg.get(key)
-    if val is None:
-        return
-    if not isinstance(val, int):
-        warnings.append(f"{key}: expected int, got {type(val).__name__}")
-    elif val < 0:
-        warnings.append(f"{key}: must be non-negative, got {val}")
-
-
-def _type_name(t: type | tuple[type, ...]) -> str:
-    """Return a readable name for a type or tuple of types."""
-    if isinstance(t, tuple):
-        return "/".join(x.__name__ for x in t)
-    return t.__name__
+def _same_choice(value: object, choice: object) -> bool:
+    """Whether ``value``, typed or held, is ``choice``: text in any case, a number by value."""
+    if isinstance(choice, str):
+        return isinstance(value, str) and choice.casefold() == value.casefold()
+    if isinstance(value, str):
+        try:
+            return float(value) == choice
+        except ValueError:
+            return False
+    return value == choice
 
 
 # Exception types ``load_config`` can realistically raise.  Callers

@@ -1216,6 +1216,53 @@ def test_shows_exemptions_are_not_stale(tmp_path):
     assert stale == [], f"drop these from SHOWS_EXEMPT: {stale}"
 
 
+# ── Guard: one answer to "is this value OK" (registry cfg-schema-one-table) ──
+#
+# A load, the config editor and /cfg each ask config.check_cfg_value.  Before
+# 2026-11-02 each kept its own rules and they disagreed: the editor's baud list
+# lacked four rates a load accepted, and /cfg checked almost nothing.
+CFG_CHECK_SURFACES = {
+    "config.py": "validate_config",
+    "dialogs/config_editor.py": "ConfigEditor._validate_value",
+    "builtins/commands/cfg.py": "_typed_value",
+}
+
+
+def _calls_the_check(tree: ast.Module, qualname: str) -> bool:
+    """Whether ``qualname`` in ``tree`` calls ``check_cfg_value``."""
+    return any(
+        scope == qualname
+        and isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "check_cfg_value"
+        for scope, node in _scoped_nodes(tree)
+    )
+
+
+def test_every_surface_checks_through_the_one_validator():
+    """cfg-schema-one-table: a load, the config editor and /cfg all ask config.check_cfg_value."""
+    # Arrange
+    trees = {rel.replace("\\", "/"): tree for rel, tree in _source_modules()}
+
+    # Act
+    missing = [
+        f"{rel}: {qualname}"
+        for rel, qualname in CFG_CHECK_SURFACES.items()
+        if not _calls_the_check(trees[rel], qualname)
+    ]
+
+    # Assert
+    assert missing == [], f"these stopped asking the one validator: {missing}"
+
+
+def test_one_validator_guard_fires_on_a_probe():
+    """cfg-schema-one-table: the guard passes a function that calls the check and flags one that does its own."""
+    good = ast.parse("def surface(cfg):\n    return check_cfg_value('k', 1, cfg)\n")
+    bad = ast.parse("def surface(cfg):\n    return cfg['k'] > 0\n")
+    assert _calls_the_check(good, "surface"), "it asks the validator"
+    assert not _calls_the_check(bad, "surface"), "a rule of its own is flagged"
+
+
 # ── Guard: a state read changes nothing (registry state-read-immutable) ─────
 #
 # ``Command.state`` promises that a command's bare form changes nothing,

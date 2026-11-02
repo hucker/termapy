@@ -774,3 +774,31 @@ command answers. The green line's label also named a signal's direction
 (`DTR (out)`); `Show or set` and `read-only` in each command's help say the same.
 Summaries on a family's page (`/help port`, `/help cfg`, `/help sym`) stay
 hand-written, because no single command gives them as one line.
+
+## 2026-11-02 — The config schema is one table, and one validator answers for all three surfaces
+
+Every config key is one `CfgKey` row in `defaults.CFG_KEYS`: its default, its
+kind, what bounds it, and its help. `DEFAULT_CFG`, `CFG_HELP`, `CFG_CHOICES` and
+`MANAGED_CFG_KEYS` are views of the table under their old names, so no consumer
+moved. `config.check_cfg_value` reads the kinds, and a load, the config editor
+and `/cfg` all ask it. The 2026-11-01 review's H1 and H2: the schema lived in five
+places, "is this value OK" had three answers, and validation never refused. The
+editor's baud list lacked 110, 600, 14400 and 28800, which a load accepted;
+`/cfg.auto max_lines 0`, `encoding nope` and `config_version 99` all succeeded.
+
+A new key is one row, in its group, because the table's order is the layout of a
+config file. Kinds are a closed list with one check each, and a test holds every
+row to it. There is no setter field: who sets a key is the `cfg=` declarations'
+job. `/cfg` now refuses what the check refuses (`Invalid max_lines: 0 (must be a
+positive integer)`) and `config_version` by name. A non-standard baud rate stays
+allowed, since some hardware needs one: it is a finding with `refuse=False`, so a
+load warns, the editor shows yellow and `/cfg` takes it with a note. The editor
+keeps the two things only a live editor can say, whether a port is plugged in and
+that a rate is custom.
+
+The messages are now one vocabulary (`must be true or false`), replacing
+`expected bool, got str` in load warnings and `must be positive` in the editor,
+which it showed for a key that may be zero. Refusing also closed a gap: `/cfg` set
+a path key without `/cfg.auto`'s sandbox check, and `file_xfer_root` was not on the
+list at all. `port_control.PORT_PROPS` stays as the pyserial attribute map, held to
+the table by a test.

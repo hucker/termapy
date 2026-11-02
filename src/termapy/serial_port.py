@@ -19,6 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from termapy.defaults import RX_NEWLINE_MODES
 from termapy.markup import escape_markup
 from termapy.protocol.core import format_hex
 
@@ -252,9 +253,6 @@ def eol_label_markup(line_ending: str) -> str:
     """
     return "".join(_EOL_MARKUP.get(char, escape_markup(char)) for char in line_ending)
 
-
-# Receive-newline modes (mirrors TeraTerm's Receive newline: AUTO/CR/LF/CR+LF).
-RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
 
 # Longest run of undelimited characters ``SerialReader`` accumulates before
 # flushing it as one line.

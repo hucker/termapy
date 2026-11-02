@@ -1191,6 +1191,6 @@ class TestJsonStyle:
         from termapy.config import validate_config
 
         warnings = validate_config({"json_style": "pretty"})
-        assert any(
-            warning.startswith("json_style: invalid value 'pretty'") for warning in warnings
-        ), warnings
+        assert any(warning.startswith("json_style: must be one of: ") for warning in warnings), (
+            warnings
+        )

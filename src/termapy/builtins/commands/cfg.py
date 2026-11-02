@@ -23,6 +23,7 @@ from termapy.config import (
     cfg_dir,
     cfg_history_path,
     cfg_path_for_name,
+    check_cfg_value,
     config_names,
     config_summary,
     create_config,
@@ -34,7 +35,7 @@ from termapy.config import (
     rename_config,
 )
 from termapy.config_resolve import resolve_config
-from termapy.defaults import cfg_value
+from termapy.defaults import CFG_CHOICES, cfg_key, cfg_value
 from termapy.folder_ops import FILE_COLUMNS, edit_cfg_command, file_record, list_entries
 from termapy.folders import FOLDER_PATTERNS, FOLDERS, INFO_REPORT_SUFFIX, PLUGIN, file_suggestion
 from termapy.help_dynamic import cfg_status, compose
@@ -90,7 +91,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value=str(val))
     # /cfg key value - validate and delegate for confirmation
     try:
-        new_val = _typed_value(container, key, parts[1])
+        new_val = _typed_value(ctx, container, key, parts[1])
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
     old_val = container[key]
@@ -107,18 +108,37 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=str(new_val))
 
 
-def _typed_value(container, key: str, value_str: str) -> object:
-    """``value_str`` as ``key``'s type, and for a fixed-value key spelled as the config has it.
+def _typed_value(ctx: PluginContext, container, key: str, value_str: str) -> object:
+    """``value_str`` as the value ``key`` will hold, checked by the schema's one validator.
+
+    A key the schema does not hold takes the type of what the config has.
+    A value the check calls unusual, not wrong (a non-standard baud rate),
+    is taken with a note.
 
     Raises:
-        ValueError: The text is not the key's type (a ``Type error``), or
-            not one of its choices.
+        ValueError: The key is termapy's own, the text is not the key's type
+            (a ``Type error``), or the check refuses the value.
+        MissingCapability: A path value escapes the MCP sandbox.
     """
+    record = cfg_key(key)
+    if record is not None and record.managed:
+        raise ValueError(f"Managed key: {key} (termapy writes it)")
+    if record is not None and record.kind == "path" and value_str:
+        # A path key turns a later read or load into a file primitive
+        # (log_file -> /log.dump), so it is held to the MCP sandbox.
+        ctx.fs.guard_external_path(value_str, f"cfg {key}")
+    if key in CFG_CHOICES:
+        return cfg_choice(key, value_str)
     try:
-        value = coerce_to_type(value_str, container[key])
+        value = coerce_to_type(value_str, record.default if record else container[key])
     except (ValueError, TypeError) as e:
         raise ValueError(f"Type error: {e}") from e
-    return cfg_choice(key, value)
+    finding = check_cfg_value(key, value, ctx.cfg)
+    if finding is not None and finding.refuse:
+        raise ValueError(f"Invalid {key}: {value_str} ({finding.reason})")
+    if finding is not None:
+        ctx.io.output(f"Note: {key} {finding.reason}", "yellow")
+    return value
 
 
 def _unknown_key(cfg, key: str) -> CmdResult:
@@ -149,12 +169,6 @@ def _find_cfg_container(cfg, key: str):
 
 # ── /cfg.auto handler ─────────────────────────────────────────────────────────
 
-# Cfg keys whose value is a filesystem path.  Setting one to an
-# out-of-sandbox path turns a later read/load into an arbitrary-file
-# primitive (e.g. log_file -> /log.dump), so they are contained under
-# the MCP sandbox like any other caller-supplied path.
-_PATH_VALUED_CFG_KEYS = frozenset({"log_file", "profile_path"})
-
 
 def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     """Set a config key immediately without confirmation dialog.
@@ -167,10 +181,8 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     container = _find_cfg_container(ctx.cfg, key)
     if container is None:
         return _unknown_key(ctx.cfg, key)
-    if key in _PATH_VALUED_CFG_KEYS and value_str:
-        ctx.fs.guard_external_path(value_str, f"cfg {key}")
     try:
-        new_val = _typed_value(container, key, value_str)
+        new_val = _typed_value(ctx, container, key, value_str)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
     ctx.internal.apply_cfg(key, new_val)

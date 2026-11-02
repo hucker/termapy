@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.defaults import JSON_STYLES, cfg_value
+from termapy.defaults import JSON_STYLES, RX_NEWLINE_MODES, cfg_value
 from termapy.plugins import (
     OUTPUT_LEVELS,
     CapabilitySet,
@@ -280,12 +280,6 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=arg)
 
 
-# Receive-newline modes (mirror TeraTerm's Receive newline: AUTO/CR/LF/CR+LF).
-# Kept in sync with serial_port.RX_NEWLINE_MODES; duplicated here so this
-# builtin stays decoupled from the pyserial-carrying serial_port module.
-_RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
-
-
 def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
     """Show or set how received device output is split into lines.
 
@@ -303,10 +297,10 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     if arg == "cycle":
-        arg = next_in_cycle(cfg_value(ctx.cfg, "eol_rx"), list(_RX_NEWLINE_MODES))
-    if arg not in _RX_NEWLINE_MODES:
+        arg = next_in_cycle(cfg_value(ctx.cfg, "eol_rx"), list(RX_NEWLINE_MODES))
+    if arg not in RX_NEWLINE_MODES:
         return CmdResult.fail(
-            msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)}/cycle)"
+            msg=f"Unknown receive newline: {arg} (use {'/'.join(RX_NEWLINE_MODES)}/cycle)"
         )
     ctx.internal.apply_cfg("eol_rx", arg)
     ctx.io.result(arg)

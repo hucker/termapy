@@ -481,7 +481,7 @@ termapy --cfg-dir /path/to/configs
 
 ### Config validation
 
-Termapy validates config files on load and when saving from the editor. Invalid serial settings (baud rate, parity, data bits, stop bits, flow control, encoding) and unknown keys (typos) produce yellow warnings in the log window. Non-standard baud rates are flagged but allowed, since some hardware uses custom rates.
+Termapy checks every key the same way on load, in the config editor and at `/cfg`. A bad value (a parity that does not exist, `max_lines` of 0, a regex that does not compile) produces a yellow warning on load, turns red in the editor and blocks its Save, and is refused by `/cfg` and `/cfg.auto`. Unknown keys (typos) warn too. Non-standard baud rates are flagged but allowed, since some hardware uses custom rates.
 
 To validate a config from the command line without launching the UI:
 

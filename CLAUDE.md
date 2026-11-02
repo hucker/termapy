@@ -44,9 +44,10 @@ All other paths relative to `src/termapy/`.
 - Most users have a single config per project folder (one device), but multiple configs are supported for working with more than one device — each folder gets its own isolated `termapy_cfg/` so setups don't bleed together
 - **A new config is made one way in every frontend** (registry `config-created-once`): `config.new_config` builds it and `config.create_config` writes it -- the New Config wizard, the editor's Save As, `/cfg.new` and `termapy --new NAME PORT [SETTING ...]` alike (the last two read their arguments through one function, `config.new_config_from_args`). A config already there is replaced only after the user says yes, and then only its `.cfg`; the scripts and data beside it stay. A config is **deleted** one way too (registry `config-deleted-once`): `config.delete_config` through `/cfg.delete`, which the picker's Delete button dispatches -- the whole folder, after a yes, never the active config. `/cfg.rename` is the command for `config.rename_config`.
 - `termapy_cfg/` is gitignored
-- New `DEFAULT_CFG` options must also be added to `builtins/demo/demo.cfg`
-- New config keys must be documented in: `DEFAULT_CFG` (defaults.py), README.md config reference table, `help/config.md` field reference, and the demo.cfg template
-- **`DEFAULT_CFG`'s order is the layout of every config file** (registry `cfg-written-in-order`, decision 2026-10-30): a new key goes in its group there, never at the end. Every `.cfg` is written by `config.write_config_file`, in that order; related keys are grouped by order, not nested.
+- **A config key is one row of `defaults.CFG_KEYS`** (registry `cfg-schema-one-table`, decision 2026-11-02): its default, kind, bounds and help. `DEFAULT_CFG`, `CFG_HELP`, `CFG_CHOICES` and `MANAGED_CFG_KEYS` are views, never edited. Whether a value is OK is `config.check_cfg_value`, one answer for a load, the config editor and `/cfg`; a new rule is a kind, in `CFG_CHECKS`, never a check at a call site.
+- A new key must also be added to `builtins/demo/demo.cfg`
+- New config keys must be documented in: `help/config.md` field reference, the example configs `scripts/update_doc_configs.py` keeps, and the demo.cfg template
+- **`CFG_KEYS`'s order is the layout of every config file** (registry `cfg-written-in-order`, decision 2026-10-30): a new key goes in its group there, never at the end. Every `.cfg` is written by `config.write_config_file`, in that order; related keys are grouped by order, not nested.
 
 ## Rules
 

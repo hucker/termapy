@@ -645,9 +645,13 @@ class TestBoolKeysAreTyped:
     @pytest.mark.parametrize(
         ("path", "value", "expected"),
         [
-            (("echo",), "false", "echo: expected bool, got str"),
-            (("timestamps",), 1, "timestamps: expected bool, got int"),
-            (("serial", "custom_baud"), "yes", "serial.custom_baud: expected bool, got str"),
+            (("echo",), "false", 'echo: must be true or false, got "false"'),
+            (("timestamps",), 1, "timestamps: must be true or false, got 1"),
+            (
+                ("serial", "custom_baud"),
+                "yes",
+                'serial.custom_baud: must be true or false, got "yes"',
+            ),
         ],
     )
     def test_a_non_bool_in_a_bool_key_warns_by_path(self, path, value, expected):
@@ -939,7 +943,7 @@ class TestValidateConfig:
 
         # Assert
         assert len(actual) == 1, "exactly one warning"
-        assert "expected bool" in actual[0], "type error"
+        assert "must be true or false" in actual[0], "type error"
 
     def test_standard_baud_rate_ok(self):
         """A standard rate like 9600 needs no custom_baud and draws no warning."""
@@ -965,7 +969,7 @@ class TestValidateConfig:
         assert "positive" in actual[0], "clear message"
 
     def test_baud_rate_wrong_type(self):
-        """A string baud_rate gets a type warning naming the expected int."""
+        """A string baud_rate gets a warning saying it must be a positive integer."""
         # Arrange
         cfg = _cfg_with(baud_rate="fast")
 
@@ -974,7 +978,7 @@ class TestValidateConfig:
 
         # Assert
         assert len(actual) == 1, "exactly one warning"
-        assert "expected int" in actual[0], "type error message"
+        assert "must be a positive integer" in actual[0], "type error message"
 
     def test_invalid_encoding(self):
         """An encoding Python has no codec for is flagged."""
@@ -1200,9 +1204,7 @@ class TestValidateConfig:
         # Assert
         assert len(actual) == 1, f"exactly one warning, got {actual}"
         assert "port" in actual[0], f"identifies the field; got {actual[0]!r}"
-        assert "str" in actual[0] or "int" in actual[0], (
-            f"describes the type mismatch; got {actual[0]!r}"
-        )
+        assert "must be text" in actual[0], f"says what it must be; got {actual[0]!r}"
 
 
 # -- load_config: malformed JSON handling -------------------------------------

@@ -159,6 +159,20 @@ class TestMcpHostSandboxed:
         assert not result.success, "path-valued cfg key refused outside sandbox"
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
+    @pytest.mark.parametrize(
+        "line",
+        ["cfg log_file", "cfg profile_path", "cfg file_xfer_root", "cfg.auto file_xfer_root"],
+    )
+    def test_every_path_key_is_held_to_the_sandbox_on_both_setters(self, tmp_path, line):
+        """A key of kind path is refused outside the sandbox through /cfg as through /cfg.auto: /cfg used to skip the check."""
+        # Arrange
+        host = _mcp_host(tmp_path)
+        # Act
+        result = host.repl.dispatch(rf"{line} {tmp_path}\steal.txt")
+        # Assert
+        assert not result.success, "path-valued cfg key refused outside sandbox"
+        assert "sandbox" in result.error, "refusal cites the sandbox"
+
     def test_cfg_auto_nonpath_key_still_works(self, tmp_path):
         """Only path-valued cfg keys are gated; an ordinary cfg.auto edit still succeeds."""
         # Arrange -- a normal cfg edit must NOT be gated.

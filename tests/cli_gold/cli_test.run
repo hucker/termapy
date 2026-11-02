@@ -70,6 +70,11 @@ $(BAUD) <- /port.baud_rate
 /cfg custom_buttons_side
 /cfg.auto custom_buttons_side up
 /cfg.auto custom_buttons_side bottom
+# One validator: what a load warns about, /cfg refuses (registry cfg-schema-one-table)
+/cfg.auto max_lines 0
+/cfg.auto encoding nope
+/cfg.auto eol_rx nope
+/cfg.auto config_version 99
 
 # ── REPL: config dump (full JSON) ───────────────────────────────────────────
 /print === section: config dump ===

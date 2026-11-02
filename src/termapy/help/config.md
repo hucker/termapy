@@ -54,6 +54,12 @@ section; and the editor's help line names the commands that use the key
 under the cursor. A change by `/cfg <key> <value>` or a `/term.*` setter
 lasts the session; the editor's Save writes the file.
 
+**One check.** A value is judged the same way wherever it comes from: a load
+warns about a bad one, the editor shows it red and its Save refuses, and `/cfg`
+and `/cfg.auto` refuse it (`Invalid max_lines: 0 (must be a positive integer)`).
+`config_version` is termapy's to write, so `/cfg` refuses that too. A non-standard
+baud rate is flagged everywhere and allowed, since some hardware needs one.
+
 Here is an example config for a device called `iot_device`:
 
 <!-- validate-config-keys -->

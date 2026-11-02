@@ -103,6 +103,14 @@ demo> /cfg.auto custom_buttons_side up
   Error: Invalid custom_buttons_side: up (use bottom/left/right)
 demo> /cfg.auto custom_buttons_side bottom
   custom_buttons_side = 'bottom'  (session)
+demo> /cfg.auto max_lines 0
+  Error: Invalid max_lines: 0 (must be a positive integer)
+demo> /cfg.auto encoding nope
+  Error: Invalid encoding: nope (must name a codec Python knows)
+demo> /cfg.auto eol_rx nope
+  Error: Invalid eol_rx: nope (use auto/cr/crlf/lf)
+demo> /cfg.auto config_version 99
+  Error: Managed key: config_version (termapy writes it)
 demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump

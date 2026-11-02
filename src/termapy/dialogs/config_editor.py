@@ -21,17 +21,17 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, TextArea
 
 from termapy.config import (
-    BOOL_CFG_PATHS,
     ConfigExistsError,
     cfg_path_for_name,
+    check_cfg_value,
     create_config,
     prepare_cfg_folder,
     write_config_file,
 )
 from termapy.defaults import (
-    CFG_CHOICES,
-    DEFAULT_CFG,
     MANAGED_CFG_KEYS,
+    STANDARD_BAUD_RATES,
+    cfg_key,
     cfg_key_path,
     cmd_prefix,
 )
@@ -194,33 +194,6 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
     _JSON_KEY_RE = re.compile(r'^\s*"([^"]+)"\s*:\s*(.*?)\s*,?\s*$')
 
-    # The fixed-value keys and their values, the table validate_config
-    # checks at Save, so the live check and the Save cannot disagree.
-    _VALID_VALUES: dict[str, set] = {key: set(choices) for key, choices in CFG_CHOICES.items()}
-    # Derived from DEFAULT_CFG so adding a new bool/int key to defaults
-    # automatically picks up validation here -- no parallel list to drift.
-    # The bool keys come from BOOL_CFG_PATHS, which covers the nested
-    # serial keys (custom_baud) too; "enabled" is added explicitly because
-    # it lives inside the custom_buttons list rather than at a dict path.
-    _BOOL_KEYS = {path[-1] for path in BOOL_CFG_PATHS} | {"enabled"}
-    _INT_KEYS = {
-        k for k, v in DEFAULT_CFG.items() if isinstance(v, int) and not isinstance(v, bool)
-    }
-    _STANDARD_BAUDS = {
-        300,
-        1200,
-        2400,
-        4800,
-        9600,
-        19200,
-        38400,
-        57600,
-        115200,
-        230400,
-        460800,
-        921600,
-    }
-
     def _validate_value(self, key: str, raw_val: str) -> tuple[str, str]:
         """Check a raw JSON value string.
 
@@ -270,7 +243,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     f"[green]{key_markup}[/] = {highlighted_markup}",
                     f"[dim]{escape_markup(note)}[/]",
                 )
-            if key in self._BOOL_KEYS:
+            record = cfg_key(key)
+            if record is not None and record.kind == "bool":
                 # A templated boolean is read with the vocabulary at load
                 # (config.expand_env_cfg); show what it reads as.
                 try:
@@ -289,110 +263,70 @@ class ConfigEditor(ModalScreen[tuple | None]):
         val = raw_val.strip().strip('"')
         # ``key = val`` as escaped markup, the text every status below colors
         pair_markup = escape_markup(f"{key} = {val}")
-        error = ""
-        if key in self._BOOL_KEYS:
-            # JSON grammar, not termapy's vocabulary: the editor edits the
-            # JSON text, so the value must be the literal true or false.
-            try:
-                parsed_bool = json.loads(raw_val.strip())
-            except (json.JSONDecodeError, ValueError):
-                parsed_bool = None
-            if not isinstance(parsed_bool, bool):
-                error = "[red]must be true or false[/]"
-        elif key in self._VALID_VALUES:
-            try:
-                parsed = json.loads(raw_val.strip())
-            except (json.JSONDecodeError, ValueError):
-                parsed = val
-            if parsed not in self._VALID_VALUES[key]:
-                opts = ", ".join(str(v) for v in sorted(self._VALID_VALUES[key]))
-                error = f"[red]must be one of: {escape_markup(opts)}[/]"
-        elif key == "port":
-            # comports() can fail with OSError on permission/driver
-            # issues (Linux udev, macOS IOKit, Windows WMI) and with
-            # ImportError if pyserial's list_ports backend isn't
-            # available on this platform.  Both are environmental;
-            # degrade to the neutral display.  Anything else is a
-            # bug and should surface.
-            try:
-                from serial.tools.list_ports import comports
-
-                from termapy import port_control
-
-                if port_control.synthetic_facts_for_reserved(val.upper()) is not None:
-                    return f"[green]{pair_markup}[/] [dim](simulated port)[/]", ""
-                # Present as connecting would resolve it: a serial number counts too.
-                if port_control.port_present(val):
-                    return f"[green]{pair_markup}[/]", ""
-                available = {port.device for port in comports()}
-                if available:
-                    ports_markup = escape_markup(", ".join(sorted(available)))
-                    return (
-                        f"[yellow]{pair_markup}[/]",
-                        f"[yellow]port not found (available: {ports_markup})[/]",
-                    )
-                return f"[dim]{pair_markup}[/]", ""
-            except (OSError, ImportError):
-                return f"[dim]{pair_markup}[/]", ""
-        elif key == "baud_rate":
-            try:
-                v = json.loads(raw_val.strip())
-                if not isinstance(v, int) or v <= 0:
-                    error = "[red]must be a positive integer[/]"
-                elif v not in self._STANDARD_BAUDS:
-                    custom = False
-                    # The user is typing in the editor -- the JSON is
-                    # routinely invalid between edits.  Treat any parse
-                    # failure as "custom_baud unknown" without spamming;
-                    # NoMatches covers the editor widget being gone
-                    # during teardown.
-                    try:
-                        editor_cfg = json.loads(self.query_one("#config-editor", TextArea).text)
-                        custom = editor_cfg.get("serial", {}).get("custom_baud", False)
-                    except (json.JSONDecodeError, ValueError, NoMatches):
-                        pass
-                    if custom and v >= 300:
-                        return f"[green]{pair_markup}[/] [dim](custom)[/]", ""
-                    elif custom:
-                        return f"[red]{pair_markup}[/]", "[red]custom baud requires >= 300[/]"
-                    else:
-                        return (
-                            f"[yellow]{pair_markup}[/]",
-                            "[yellow]non-standard rate -- set custom_baud to true[/]",
-                        )
-            except (json.JSONDecodeError, ValueError):
-                error = "[red]must be a positive integer[/]"
-        elif key in self._INT_KEYS:
-            try:
-                v = json.loads(raw_val.strip())
-                if not isinstance(v, int):
-                    error = "[red]must be an integer[/]"
-                elif v < 0:
-                    error = "[red]must be positive[/]"
-            except (json.JSONDecodeError, ValueError):
-                error = "[red]must be an integer[/]"
-        elif key == "eol":
-            # Decode escape sequences via JSON, then require the result
-            # to contain only CR/LF/NUL/ETX/EOT bytes (any combination).
-            # Rejects junk like "abc" or "CRAP" that the green-default
-            # would otherwise pass through.
-            try:
-                parsed = json.loads(raw_val.strip())
-            except (json.JSONDecodeError, ValueError):
-                parsed = val
-            if not isinstance(parsed, str) or not all(c in "\r\n\0\x03\x04" for c in parsed):
-                error = (
-                    r"[red]must be CR/LF/NUL/ETX/EOT bytes only "
-                    r'(e.g. "", "\r", "\n", "\r\n", "\0", '
-                    r'"\u0003" (ETX), "\u0004" (EOT))[/]'
-                )
-        if error:
-            return f"[red]{pair_markup}[/]", error
-        # Reached only for known keys (CFG_HELP entry exists) with no
-        # error.  Either explicitly validated above (bool/int/enum/
-        # port/baud) or a free-form string with no validation rule --
-        # both render green to signal "recognized field, value OK".
+        record = cfg_key(key)
+        # A section or a list opens over several lines, so this line alone
+        # says nothing about it; Save checks the whole value.
+        if record is None or record.kind in ("section", "list"):
+            return f"[green]{pair_markup}[/]", ""
+        # The JSON text as a value.  Between edits a line is routinely not
+        # JSON yet, and then it is the text as typed, which the check judges.
+        try:
+            value = json.loads(raw_val.strip())
+        except (json.JSONDecodeError, ValueError):
+            value = val
+        # The one check a load and /cfg use (registry cfg-schema-one-table).
+        finding = check_cfg_value(key, value, self._editor_cfg())
+        if finding is not None:
+            color = "red" if finding.refuse else "yellow"
+            reason_markup = escape_markup(finding.reason)
+            return f"[{color}]{pair_markup}[/]", f"[{color}]{reason_markup}[/]"
+        if record.kind == "port":
+            return self._port_status(val, pair_markup)
+        if record.kind == "baud" and value not in STANDARD_BAUD_RATES:
+            return f"[green]{pair_markup}[/] [dim](custom)[/]", ""
         return f"[green]{pair_markup}[/]", ""
+
+    def _editor_cfg(self) -> dict:
+        """The config as the editor holds it now, ``{}`` while it is not valid JSON.
+
+        The user is typing, so the JSON is routinely invalid between edits;
+        NoMatches covers the editor widget being gone during teardown.
+        """
+        try:
+            parsed = json.loads(self.query_one("#config-editor", TextArea).text)
+        except (json.JSONDecodeError, ValueError, NoMatches):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _port_status(self, val: str, pair_markup: str) -> tuple[str, str]:
+        """What only a live editor can say about a port: whether it is plugged in now.
+
+        comports() can fail with OSError on permission/driver issues
+        (Linux udev, macOS IOKit, Windows WMI) and with ImportError if
+        pyserial's list_ports backend isn't available on this platform.
+        Both are environmental, so they degrade to the neutral display.
+        Anything else is a bug and should surface.
+        """
+        try:
+            from serial.tools.list_ports import comports
+
+            from termapy import port_control
+
+            if port_control.synthetic_facts_for_reserved(val.upper()) is not None:
+                return f"[green]{pair_markup}[/] [dim](simulated port)[/]", ""
+            # Present as connecting would resolve it: a serial number counts too.
+            if port_control.port_present(val):
+                return f"[green]{pair_markup}[/]", ""
+            available = {port.device for port in comports()}
+            if available:
+                ports_markup = escape_markup(", ".join(sorted(available)))
+                return (
+                    f"[yellow]{pair_markup}[/]",
+                    f"[yellow]port not found (available: {ports_markup})[/]",
+                )
+            return f"[dim]{pair_markup}[/]", ""
+        except (OSError, ImportError):
+            return f"[dim]{pair_markup}[/]", ""
 
     def _update_help(self) -> None:
         """Update the help text based on the current cursor line."""

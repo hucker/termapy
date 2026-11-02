@@ -4178,9 +4178,11 @@ _CFG_DICT_KEYS = frozenset(key for key in cfg_key_paths() if isinstance(cfg_valu
 
 
 def _is_cfg_receiver(node: ast.AST) -> bool:
-    """``cfg``, ``ctx.cfg``, ``self._cfg_data``: an expression that is the config dict."""
+    """``cfg``, ``ctx.cfg``, ``self._cfg_data``, ``get_cfg()``: an expression that is the config dict."""
     if isinstance(node, ast.Name):
         return node.id == "cfg"
+    if isinstance(node, ast.Call):
+        return isinstance(node.func, ast.Name) and node.func.id == "get_cfg"
     return isinstance(node, ast.Attribute) and node.attr in ("cfg", "_cfg", "_cfg_data")
 
 
@@ -4210,6 +4212,8 @@ def _cfg_read_path(node: ast.AST) -> str | None:
     if found is None:
         return None
     receiver, key = found
+    if key.startswith("_"):
+        return None  # a session marker (_config_path, _config_warnings), never a config key
     if _is_cfg_receiver(receiver):
         return None if key in _CFG_DICT_KEYS else key
     inner = _literal_key(receiver)
@@ -4380,3 +4384,99 @@ COMMAND = Command(name="x", help="h", handler=reads, cfg={"baud_rate": "set", "e
         "every shape once; navigation (line 6) and a variable key (line 7) are not reads"
     )
     assert declared == {"serial.baud_rate", "eol"}, "a leaf is stored as its path"
+
+
+# ── Config values: one reader with the table's default ───────────────────────
+#
+# A config value with a default is read through defaults.cfg_value, so the
+# default is DEFAULT_CFG's and lives in one place: ~148 sites restated it in
+# a literal, five of them differently from the table (decision 2026-11-01).
+# A subscript (cfg["eol"]) stays allowed: it is loud when the key is missing.
+# The raw-file readers in config.py see a file as written, where a missing
+# key must stay missing, and are allowlisted with that reason; migration.py's
+# literal defaults are frozen history and defaults.py is the table itself.
+
+CFG_GET_ALLOWED: dict[tuple[str, str], str] = {
+    ("config.py", "validate_config"): "reads the file as written: a missing key is a finding",
+    ("config.py", "load_config"): "reads the file as written: a missing config_version is 0",
+    ("config.py", "config_summary"): "summarizes a file as written, before any backfill",
+}
+
+# Modules the reader rule does not reach: the table, and the frozen history.
+_CFG_GET_EXEMPT_MODULES = frozenset({"defaults.py", "migration.py"})
+
+
+def _cfg_get_sites(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every ``cfg.get("k", ...)`` on a config receiver, ``["serial"].get("k")`` included."""
+    return [
+        (qualname, node.lineno)
+        for qualname, node in _scoped_nodes(tree)
+        if isinstance(node, ast.Call) and _cfg_read_path(node) is not None
+    ]
+
+
+def _unallowed_cfg_gets() -> tuple[list[str], set[tuple[str, str]]]:
+    """Sites outside the allowlist, and the allowlist entries that matched something."""
+    violations: list[str] = []
+    used: set[tuple[str, str]] = set()
+    for rel, tree in _source_modules():
+        if rel in _CFG_GET_EXEMPT_MODULES:
+            continue
+        for qualname, line in _cfg_get_sites(tree):
+            if (rel, qualname) in CFG_GET_ALLOWED:
+                used.add((rel, qualname))
+            else:
+                violations.append(f"{rel}:{line} in {qualname}")
+    return violations, used
+
+
+def test_core_reads_cfg_values_through_cfg_value():
+    """cfg-read-one-reader: a config value with a default is read through defaults.cfg_value, never cfg.get("k", literal).
+
+    The fix for a red result is ``cfg_value(cfg, "key")`` (a nested key as
+    its path, ``"serial.port"``), which falls back to the table's default;
+    a reader of a file as written is allowlisted with that reason.
+    """
+    # Arrange / Act
+    violations, _ = _unallowed_cfg_gets()
+
+    # Assert
+    assert violations == [], (
+        "read the value with defaults.cfg_value(cfg, 'key'), or allowlist the function "
+        "with the reason a missing key must stay missing:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_cfg_value_guard_fires_on_a_probe():
+    """The finder flags a literal get on a config receiver, chained through serial too, and passes a subscript, navigation, cfg_value and another dict."""
+    # Arrange
+    source = """
+def reads(ctx, cfg, other, get_cfg):
+    ctx.cfg.get("eol", "\\r")
+    cfg.get("serial", {}).get("port")
+    get_cfg().get("title")
+    cfg["eol"]
+    cfg.get("serial", {})
+    cfg_value(cfg, "eol")
+    other.get("eol", "x")
+    cfg.get("_config_path")
+"""
+    tree = ast.parse(source)
+
+    # Act
+    lines = [line for _, line in _cfg_get_sites(tree)]
+
+    # Assert
+    assert lines == [3, 4, 5], (
+        "the three literal gets; not the subscript, navigation, cfg_value, another dict or a session marker"
+    )
+
+
+def test_cfg_get_allowlist_has_no_stale_entries():
+    """Every allowlisted function still reads a config value by literal get, so the allowlist only shrinks."""
+    # Arrange / Act
+    _, used = _unallowed_cfg_gets()
+
+    # Assert
+    stale = sorted(set(CFG_GET_ALLOWED) - used)
+    assert stale == [], f"allowlisted but no longer a literal cfg.get site; drop them: {stale}"

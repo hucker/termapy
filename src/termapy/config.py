@@ -666,8 +666,8 @@ def connection_string(cfg: dict, level: str = "medium", actual_port: str = "") -
         base += f" {fc}"
     if level == "medium":
         return base
-    enc = cfg.get("encoding", "utf-8")
-    le = repr(cfg.get("eol", "\r"))
+    enc = cfg_value(cfg, "encoding")
+    le = repr(cfg_value(cfg, "eol"))
     return f"{base} {enc} {le}"
 
 
@@ -710,7 +710,7 @@ def session_log_file(cfg: Mapping[str, Any], config_path: str | None) -> Path | 
     ``session-log-one-owner``).  A relative ``log_file`` resolves against
     the working directory, as it always has.
     """
-    configured = cfg.get("log_file", "")
+    configured = cfg_value(cfg, "log_file")
     if configured:
         return Path(configured).resolve()
     if config_path:

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Literal
 from crcglot import DetectMatch, DetectResult, detect
 
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
+from termapy.defaults import cfg_value
 from termapy.folder_ops import (
     build_folder_subcommands,
     edit_command,
@@ -183,8 +184,8 @@ def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int, quiet: bool) -> 
         frame_gap: Frame gap for response collection.
         quiet: Suppress output if True.
     """
-    line_ending = ctx.cfg.get("eol", "\r")
-    enc = ctx.cfg.get("encoding", "utf-8")
+    line_ending = cfg_value(ctx.cfg, "eol")
+    enc = cfg_value(ctx.cfg, "encoding")
     if not quiet:
         ctx.io.output(f"  CMD: {cmd_text}")
     ctx.serial.write((cmd_text + line_ending).encode(enc))
@@ -1772,10 +1773,10 @@ def _encode_device_cmd(ctx: PluginContext, text: str) -> bytes:
     ending is appended when it isn't already present.  That is why ``cmd=`` takes
     a bare command (``cmd=AT+RND.CUSTOM``) with no quoting and no explicit ``\\r``.
     """
-    line_ending = ctx.cfg.get("eol", "\r")
+    line_ending = cfg_value(ctx.cfg, "eol")
     if not text.endswith(line_ending):
         text += line_ending
-    return text.encode(ctx.cfg.get("encoding", "utf-8"))
+    return text.encode(cfg_value(ctx.cfg, "encoding"))
 
 
 def _send_and_capture(

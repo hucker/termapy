@@ -720,3 +720,22 @@ was reported "variable - not resolved" because the editor expanded only
 `$(env.NAME)`. It now tells an unset environment variable, an unknown
 name and a known session variable apart, asking `variables.resolve_one`,
 the namespace's one owner, whether a name exists.
+
+## 2026-11-01 — One reader of a config value, with the table's default
+
+A config value with a default is read through `defaults.cfg_value(cfg,
+"path")`. `cfg.get("key", literal)` is gone from every module but the
+table itself (`defaults.py`), the frozen history (`migration.py`) and
+three readers of a file as written in `config.py` (`validate_config`;
+`load_config`, whose `config_version` must read 0 when missing, not the
+current version; `config_summary`), each allowlisted with its reason.
+137 sites restated a default in a literal and five restated it wrong
+(`echo_fmt`, `cli_prompt`, `request_err_pattern`, `border_color`, the
+`/` prefix in the MCP server), so the same key had two defaults
+depending on who asked. The sweep was an `ast` rewrite driven by the
+guard's own finder, so the rewritten set is exactly the flagged set. A
+subscript (`cfg["eol"]`) stays allowed: it is loud when the key is
+missing, which a loaded config never is. A container default comes back
+as a copy, as `default_cfg` copies, so no caller holds the table's own
+list. Registry `cfg-read-one-reader`. The first half of H1 in the
+2026-11-01 config review; the schema table is the second.

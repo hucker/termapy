@@ -174,7 +174,13 @@ All other paths relative to `src/termapy/`.
     literal config read in a plugin module, or in a `_helper` module it
     imports, is a key a command in that module declares, probe-proven;
     that a declared key is really touched is review
-    (`cfg-declared-read`).
+    (`cfg-declared-read`). A config value with a default is read through
+    `defaults.cfg_value(cfg, "path")`, never `cfg.get("key", literal)`:
+    the default is the table's and lives in one place; a subscript stays
+    allowed, and `config.py`'s readers of a file as written are
+    allowlisted with their reason. **Enforced by
+    `tests/test_architecture.py` (registry `cfg-read-one-reader`)**,
+    probe-proven; the allowlist only shrinks.
   - **Name patterns.** A typed pattern that picks names (a list filter,
     a file glob) is read by `matching.matches`: a wildcard (`*`, `?`,
     `[`) makes a glob anchored at both ends, plain text means contains,

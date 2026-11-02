@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.help_dynamic import compose, green
 from termapy.plugins import (
     CmdResult,
@@ -244,7 +245,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
         # Device command: send to serial and capture response
         if not ctx.serial.is_connected():
             return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
-        encoding = ctx.cfg.get("encoding", "utf-8")
+        encoding = cfg_value(ctx.cfg, "encoding")
         with ctx.serial.io():
             ctx.serial.drain()
             ctx.serial.send(cmd)

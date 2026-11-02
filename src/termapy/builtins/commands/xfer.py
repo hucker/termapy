@@ -21,6 +21,7 @@ from termapy.builtins.commands._ymodem_handlers import (
     _handler_recv as _handler_ymodem_recv,
     _handler_send as _handler_ymodem_send,
 )
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     arg = args.strip()
 
     if not arg:
-        root = ctx.cfg.get("file_xfer_root", "")
+        root = cfg_value(ctx.cfg, "file_xfer_root")
         if root:
             resolved = Path(root).resolve()
             ctx.io.result(str(resolved))

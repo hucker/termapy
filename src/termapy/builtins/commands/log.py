@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import open_with_system
+from termapy.defaults import cfg_value
 from termapy.folder_ops import dump_text_slice, file_table
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
@@ -206,8 +207,8 @@ def _config_snapshot(ctx: PluginContext) -> list[str]:
     log_file = ctx.internal.session_log_path()
     lines.append(_kv("  Log File", log_file or "(none)"))
 
-    lines.append(_kv("  Encoding", ctx.cfg.get("encoding", "utf-8")))
-    lines.append(_kv("  Line Ending", repr(ctx.cfg.get("eol", "\r"))))
+    lines.append(_kv("  Encoding", cfg_value(ctx.cfg, "encoding")))
+    lines.append(_kv("  Line Ending", repr(cfg_value(ctx.cfg, "eol"))))
     lines.append(_kv("  Flow Control", ctx.cfg["serial"]["flow_control"]))
     return lines
 

@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from termapy.config import open_serial
+from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder
 from termapy.protocol.core import (
     FrameCollector,
@@ -91,8 +92,8 @@ def _drain(ser) -> None:
 
 def _run_setup_cmds(ser, cmds: list[str], cfg: dict, frame_gap_ms: int) -> None:
     """Send setup/teardown commands and drain responses."""
-    line_ending = cfg.get("eol", "\r")
-    enc = cfg.get("encoding", "utf-8")
+    line_ending = cfg_value(cfg, "eol")
+    enc = cfg_value(cfg, "encoding")
     for cmd_text in cmds:
         ser.write((cmd_text + line_ending).encode(enc))
         _read_frame(ser, frame_gap_ms, 1000)  # drain response
@@ -203,7 +204,7 @@ def build_results(
             "config": config_name,
             "port": cfg["serial"]["port"],
             "baud_rate": cfg["serial"]["baud_rate"],
-            "encoding": cfg.get("encoding", "utf-8"),
+            "encoding": cfg_value(cfg, "encoding"),
         },
         "summary": {
             "total": pass_count + fail_count,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, folder_line
@@ -435,7 +436,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         path = p
         ensure_folder(path.parent)
 
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
     cmd_prefix = ctx.prefix
 
     def extract(raw: str) -> str:
@@ -640,7 +641,7 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
                     break
                 _time.sleep(0.01)
 
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
     tx_decoded = bytes(tx).decode(encoding, errors="replace")
     rx_decoded = bytes(rx).decode(encoding, errors="replace")
 

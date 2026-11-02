@@ -26,6 +26,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
+from termapy.defaults import cfg_value
+
 
 @dataclass
 class SerialHandle:
@@ -106,11 +108,11 @@ class SerialHandle:
             LookupError: The configured encoding does not exist.
         """
         cfg = self._cfg()
-        line = text + cfg.get("eol", "\r")
-        encoding = cfg.get("encoding", "utf-8")
+        line = text + cfg_value(cfg, "eol")
+        encoding = cfg_value(cfg, "encoding")
         data = line.encode(encoding)
-        char_delay_s = cfg.get("tx_char_delay_ms", 0) / 1000
-        line_delay_s = cfg.get("tx_line_delay_ms", 0) / 1000
+        char_delay_s = cfg_value(cfg, "tx_char_delay_ms") / 1000
+        line_delay_s = cfg_value(cfg, "tx_line_delay_ms") / 1000
         if char_delay_s <= 0:
             self.write(data)
         else:

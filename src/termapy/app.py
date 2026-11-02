@@ -65,7 +65,7 @@ from termapy.config_resolve import (
     resolve_config as _resolve_config,
     resolve_proto_path,
 )
-from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix, default_cfg
+from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_value, cmd_prefix, default_cfg
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -801,7 +801,7 @@ class SerialTerminal(TerminalHost, App):
         self._suggester.update(self._cached_commands, self.history, prefix)
 
     def compose(self) -> ComposeResult:
-        title = self.cfg.get("title", "") or self.config_path
+        title = cfg_value(self.cfg, "title") or self.config_path
         port_info = self._port_info_str()
         with Horizontal(id="title-bar"):
             from importlib.metadata import (
@@ -836,15 +836,15 @@ class SerialTerminal(TerminalHost, App):
                 ver, _hotkey_label("btn-help"), prefix=cmd_prefix(self.cfg)
             )
             yield help_btn
-            if self.cfg.get("cfg_enabled", True):
+            if cfg_value(self.cfg, "cfg_enabled"):
                 cfg_btn = Button("Cfg", id="btn-cfg")
                 cfg_btn.tooltip = f"New / Edit / Load config ({_hotkey_label('btn-cfg')})."
                 yield cfg_btn
-            if self.cfg.get("run_enabled", True):
+            if cfg_value(self.cfg, "run_enabled"):
                 run_btn = Button("Run", id="btn-scripts")
                 run_btn.tooltip = f"Run a script ({_hotkey_label('btn-scripts')})."
                 yield run_btn
-            if self.cfg.get("proto_enabled", True):
+            if cfg_value(self.cfg, "proto_enabled"):
                 proto_btn = Button("Proto", id="btn-proto")
                 proto_btn.tooltip = f"Protocol test scripts ({_hotkey_label('btn-proto')})."
                 yield proto_btn
@@ -869,7 +869,7 @@ class SerialTerminal(TerminalHost, App):
             yield right
             if exit_on_right:
                 yield _make_exit_btn()
-        max_lines = self.cfg.get("max_lines", 10000)
+        max_lines = cfg_value(self.cfg, "max_lines")
         # Docks inside this container stay between the title bar and the
         # bottom bar; a dock on the screen would run over both.
         with Container(id="main-area"):
@@ -926,7 +926,7 @@ class SerialTerminal(TerminalHost, App):
                 # record_enabled is false.  All recording state
                 # lives in the recorder builtin -- this button just
                 # dispatches /run.record and refreshes its visual.
-                if self.cfg.get("record_enabled", True):
+                if cfg_value(self.cfg, "record_enabled"):
                     record_btn = Button(
                         # Angle brackets mark this as a state indicator
                         # rather than a discovery button.  Square
@@ -1114,7 +1114,7 @@ class SerialTerminal(TerminalHost, App):
         """Apply border_color from config to title bar and output border."""
         from termapy.defaults import resolve_color
 
-        color = resolve_color(self.cfg.get("border_color", "") or "blue")
+        color = resolve_color(cfg_value(self.cfg, "border_color") or "blue")
         bar = self.query_one("#title-bar")
         bar.styles.background = color
         self.query_one("#output", RichLog).styles.border = ("solid", color)
@@ -1372,7 +1372,7 @@ class SerialTerminal(TerminalHost, App):
                 QuickSetup(title="Welcome to Termapy - Quick Setup"),
                 callback=self._on_quick_setup,
             )
-        elif self.cfg.get("auto_connect"):
+        elif cfg_value(self.cfg, "auto_connect"):
             self._connect()
         else:
             self._status(f"{self._port_info_str()} - press Connect to start")
@@ -1450,7 +1450,7 @@ class SerialTerminal(TerminalHost, App):
     def _show_connect_failed(self) -> None:
         """Main thread: the body of ``_on_connect_failed``."""
         self._set_conn_status("Disconnected")
-        if self.cfg.get("auto_reconnect"):
+        if cfg_value(self.cfg, "auto_reconnect"):
             self._auto_reconnect()
 
     @property
@@ -1561,7 +1561,7 @@ class SerialTerminal(TerminalHost, App):
         Called from a background thread (@work). _status and
         _dispatch_single are both thread-safe.
         """
-        delay_s = self.cfg.get("cmd_delay_ms", 0) / 1000.0
+        delay_s = cfg_value(self.cfg, "cmd_delay_ms") / 1000.0
         for command in lines:
             command = command.strip()
             if not command:
@@ -1862,8 +1862,8 @@ class SerialTerminal(TerminalHost, App):
                 self._status(f"  {step}", "yellow")
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
-        self.repl.ctx.ns("flags")["hex"] = cfg.get("hex", False)
-        self.repl.ctx.ns("flags")["line_no"] = cfg.get("line_no", False)
+        self.repl.ctx.ns("flags")["hex"] = cfg_value(cfg, "hex")
+        self.repl.ctx.ns("flags")["line_no"] = cfg_value(cfg, "line_no")
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
         self._leave_breadcrumb()
@@ -1889,7 +1889,7 @@ class SerialTerminal(TerminalHost, App):
         # us, so rebuild the suggester after the pass, not before it.
         self.repl.fire_lifecycle("on_config_load")
         self._rebuild_suggester_commands()
-        if was_connected or cfg.get("auto_connect"):
+        if was_connected or cfg_value(cfg, "auto_connect"):
             self._connect()
 
     def _switch_to_cli(self) -> CmdResult:
@@ -2168,7 +2168,7 @@ class SerialTerminal(TerminalHost, App):
         self.push_screen(
             ScriptPicker(
                 self.repl.scripts_dir,
-                read_only=self.cfg.get("config_read_only", False),
+                read_only=cfg_value(self.cfg, "config_read_only"),
                 gui_apps=self.repl.ctx.capabilities.gui_apps,
                 web=self.is_web,
             ),
@@ -2181,7 +2181,7 @@ class SerialTerminal(TerminalHost, App):
         self.push_screen(
             ProtoPicker(
                 self.repl.proto_dir,
-                read_only=self.cfg.get("config_read_only", False),
+                read_only=cfg_value(self.cfg, "config_read_only"),
                 gui_apps=self.repl.ctx.capabilities.gui_apps,
                 web=self.is_web,
             ),
@@ -2203,7 +2203,7 @@ class SerialTerminal(TerminalHost, App):
         the dialog stays pure in its inputs and testable.
         """
         if read_only is None:
-            read_only = self.cfg.get("config_read_only", False)
+            read_only = cfg_value(self.cfg, "config_read_only")
         return ConfigPicker(
             current_path,
             read_only=read_only,
@@ -2515,7 +2515,7 @@ class SerialTerminal(TerminalHost, App):
         Custom button commands support \\n as a multi-command separator.
         """
         idx = int(btn_id.split("-")[-1])
-        buttons = self.cfg.get("custom_buttons", [])
+        buttons = cfg_value(self.cfg, "custom_buttons")
         if idx >= len(buttons):
             return
         # "{prefix}" in a button command is the config's REPL prefix, so the
@@ -2889,7 +2889,7 @@ class SerialTerminal(TerminalHost, App):
         if self._shutting_down:
             return
         self._port_lost()
-        if self.cfg.get("auto_reconnect"):
+        if cfg_value(self.cfg, "auto_reconnect"):
             self._auto_reconnect()
 
     def _clear_output(self) -> None:
@@ -3011,7 +3011,7 @@ class SerialTerminal(TerminalHost, App):
             log = self.query_one("#output", RichLog)
         except SHUTDOWN_RACE:
             return  # widgets torn down between flag check and query
-        show_ts = self.cfg.get("timestamps", False)
+        show_ts = cfg_value(self.cfg, "timestamps")
         flags = self.repl.ctx.ns("flags")
         show_ln = flags.get("line_no", False)
         color_on = flags.get("color", True)
@@ -3074,7 +3074,7 @@ class SerialTerminal(TerminalHost, App):
         self._history_nav.reset()
         cmd = event.value.strip()
         if not cmd:
-            if self.cfg.get("send_bare_enter", False):
+            if cfg_value(self.cfg, "send_bare_enter"):
                 self._dispatch_on_thread("")
             return
 
@@ -3107,7 +3107,7 @@ class SerialTerminal(TerminalHost, App):
         """
         lines = event.lines
         inp = self.query_one("#cmd", Input)
-        if not self.cfg.get("multiline_paste", True):
+        if not cfg_value(self.cfg, "multiline_paste"):
             inp.insert_text_at_cursor(lines[0])
             self._status(f"Pasted 1 of {len(lines)} lines: multiline_paste is off.", "yellow")
             return
@@ -3309,7 +3309,7 @@ class SerialTerminal(TerminalHost, App):
         stop = self.repl._script_stop
         if not self.repl.in_script:
             stop.clear()
-        delay_s = self.cfg.get("multiline_paste_delay_ms", 10) / 1000.0
+        delay_s = cfg_value(self.cfg, "multiline_paste_delay_ms") / 1000.0
         prefix = cmd_prefix(self.cfg)
         sent = 0
         for line in lines:
@@ -3585,7 +3585,7 @@ class SerialTerminal(TerminalHost, App):
         if self.focused is inp and self._nothing_running():
             if inp.value:
                 inp.value = ""
-            elif self.cfg.get("control_keys", True):
+            elif cfg_value(self.cfg, "control_keys"):
                 self._dispatch_on_thread(self._repl_line("term.ctrl esc"))
             return
         self.repl._script_stop.set()
@@ -3615,22 +3615,22 @@ class SerialTerminal(TerminalHost, App):
         bindings do not fire there.  With ``control_keys`` off the key does
         nothing.
         """
-        if self.cfg.get("control_keys", True):
+        if cfg_value(self.cfg, "control_keys"):
             self._dispatch_on_thread(self._repl_line(f"term.ctrl {key}"))
 
     def action_btn_help(self) -> None:
         self._btn_help()
 
     def action_btn_cfg(self) -> None:
-        if self.cfg.get("cfg_enabled", True):
+        if cfg_value(self.cfg, "cfg_enabled"):
             self._btn_cfg()
 
     def action_btn_run(self) -> None:
-        if self.cfg.get("run_enabled", True):
+        if cfg_value(self.cfg, "run_enabled"):
             self._btn_scripts()
 
     def action_btn_proto(self) -> None:
-        if self.cfg.get("proto_enabled", True):
+        if cfg_value(self.cfg, "proto_enabled"):
             self._btn_proto()
 
     def action_btn_open_config(self) -> None:
@@ -3796,14 +3796,14 @@ class SerialTerminal(TerminalHost, App):
         """
         for old_button in list(self.query(".custom-btn")):
             await old_button.remove()
-        side = self.cfg.get("custom_buttons_side", "bottom")
+        side = cfg_value(self.cfg, "custom_buttons_side")
         bar = self.query_one("#custom-bar", Horizontal)
         column = self.query_one("#custom-side", VerticalScroll)
         target = column if side in ("left", "right") else bar
         column.set_class(side == "left", "left")
         buttons = [
             self._custom_button(i, entry)
-            for i, entry in enumerate(self.cfg.get("custom_buttons", []))
+            for i, entry in enumerate(cfg_value(self.cfg, "custom_buttons"))
             if entry.get("enabled", False)
         ]
         if buttons:
@@ -4120,7 +4120,7 @@ def _run_proto_headless(args) -> None:
         sys.exit(2)
 
     # Run tests
-    template = cfg.get("proto_results_template", "{name}_results.json")
+    template = cfg_value(cfg, "proto_results_template")
     # run_proto_tests executes user-supplied .pro content, which drives
     # arbitrary command handlers and serial I/O; ValueError comes from
     # the parser specifically, everything else from the test session

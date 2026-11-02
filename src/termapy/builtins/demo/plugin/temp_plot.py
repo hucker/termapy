@@ -24,6 +24,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 
 if TYPE_CHECKING:
@@ -52,7 +53,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError:
         raise UsageError(f"Invalid count: {args.strip()!r}") from None
 
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
     readings: list[float] = []
 
     ctx.io.output(f"Sampling {count} temperatures...", "dim")

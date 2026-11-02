@@ -237,6 +237,18 @@ class TestCfgKeyPaths:
         with pytest.raises(KeyError):
             cfg_value({}, "serial.nope")
 
+    def test_a_container_default_comes_back_as_a_copy(self):
+        """cfg-read-one-reader: a missing list or dict key yields a copy of the table's default, so a caller cannot mutate the table."""
+        # Act
+        buttons = cfg_value({}, "custom_buttons")
+        buttons.append({"enabled": False, "name": "X", "command": "", "tooltip": ""})
+
+        # Assert
+        assert len(cfg_value({}, "custom_buttons")) == 4, "the table is untouched"
+        assert cfg_value({}, "custom_buttons") == DEFAULT_CFG["custom_buttons"], (
+            "a fresh copy each time"
+        )
+
 
 # -- _list_ports -------------------------------------------------------------
 

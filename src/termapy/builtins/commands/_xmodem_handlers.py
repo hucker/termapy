@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder, file_suggestion
 from termapy.plugins import CmdResult, UsageError
 from termapy.scripting import resolve_seq_filename
@@ -77,7 +78,7 @@ def _get_xfer_root(ctx: PluginContext) -> Path:
     Returns:
         Resolved directory path for file transfer operations.
     """
-    root = ctx.cfg.get("file_xfer_root", "")
+    root = cfg_value(ctx.cfg, "file_xfer_root")
     if root:
         return Path(root).resolve()
     return ctx.fs.cap_dir

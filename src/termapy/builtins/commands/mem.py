@@ -41,6 +41,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Final, Literal
 
+from termapy.defaults import cfg_value
 from termapy.devices import distinct_spans, registers_in_range, span_groups
 from termapy.memory import (
     DeviceMemoryError,
@@ -124,7 +125,7 @@ def _exchange_factory(ctx: PluginContext, dialect: Dialect) -> Callable[[str], s
     exchange timeout expires; the engine reports what it got.  ANSI color
     is stripped so a monitor with color on still parses.
     """
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
 
     def exchange(command: str) -> str:
         buffer = bytearray()
@@ -1167,7 +1168,7 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
             truncated = True
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
-    text = collected.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace")
+    text = collected.decode(cfg_value(ctx.cfg, "encoding"), errors="replace")
     bits = memory.info.address_bits
     suffix = "  ... (truncated)" if truncated else ""
     # The address prefix is a locator (verbose); the string is the answer.

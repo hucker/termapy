@@ -29,7 +29,7 @@ from termapy.config import (
     open_serial,
 )
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
-from termapy.defaults import cmd_prefix
+from termapy.defaults import cfg_value, cmd_prefix
 from termapy.folders import FOLDER_EXTS, RUN
 from termapy.markup import escape_markup
 from termapy.plugins import CapabilitySet, CmdResult
@@ -356,7 +356,7 @@ class CLITerminal(TerminalHost):
             action = parse_bool_setting(args)
         except ValueError as e:
             return CmdResult.fail(msg=str(e))
-        current = bool(self.cfg.get("cli_completion", True))
+        current = bool(cfg_value(self.cfg, "cli_completion"))
         if action is SETTING_QUERY:
             self.status(f"CLI completion: {'on' if current else 'off'}")
             return CmdResult.ok(value="on" if current else "off")
@@ -431,7 +431,7 @@ class CLITerminal(TerminalHost):
         """
         if not sys.stdout.isatty():
             return None
-        if not self.cfg.get("cli_completion", True):
+        if not cfg_value(self.cfg, "cli_completion"):
             return None
         # Imported here, not at the top: prompt_toolkit costs ~0.2 s, and a
         # one-shot (-e, --run) never builds a prompt.
@@ -598,7 +598,7 @@ class CLITerminal(TerminalHost):
                 try:
                     from termapy.variables import expand_vars
 
-                    prompt = expand_vars(self.cfg.get("cli_prompt", "> "))
+                    prompt = expand_vars(cfg_value(self.cfg, "cli_prompt"))
                     s = self._session
                     line = s.prompt(prompt) if s else input(prompt)
                 except EOFError:
@@ -606,7 +606,7 @@ class CLITerminal(TerminalHost):
 
                 line = line.strip()
                 if not line:
-                    if self.cfg.get("send_bare_enter", False):
+                    if cfg_value(self.cfg, "send_bare_enter"):
                         self._dispatch("")
                     continue
 

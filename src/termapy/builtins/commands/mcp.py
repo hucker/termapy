@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import mcp_log_path, open_with_system
+from termapy.defaults import cfg_value
 from termapy.folder_ops import dump_text_slice
 from termapy.mcp.catalog import build_catalog, catalog_json
 from termapy.plugins import CapabilitySet, CmdResult, Command
@@ -109,7 +110,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     profile_rev = cat.get("profile_revision") or None
     profile_date = cat.get("profile_date") or None
     device_name = (cat.get("device") or {}).get("name")
-    protocol = ctx.cfg.get("protocol", "text")
+    protocol = cfg_value(ctx.cfg, "protocol")
     baud = ctx.cfg["serial"]["baud_rate"]
 
     # Command count: always count what MCP would see, not what the

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.defaults import JSON_STYLES
+from termapy.defaults import JSON_STYLES, cfg_value
 from termapy.plugins import (
     OUTPUT_LEVELS,
     CapabilitySet,
@@ -266,12 +266,12 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("eol", "\r")
+        current = cfg_value(ctx.cfg, "eol")
         label = _EOL_LABELS.get(current, repr(current))
         ctx.io.result(label)
         return CmdResult.ok(value=label)
     if arg == "cycle":
-        cur = _EOL_LABELS.get(ctx.cfg.get("eol", "\r"), "cr")
+        cur = _EOL_LABELS.get(cfg_value(ctx.cfg, "eol"), "cr")
         arg = next_in_cycle(cur, list(_EOL_TOKENS))
     if arg not in _EOL_TOKENS:
         return CmdResult.fail(msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)}/cycle)")
@@ -299,11 +299,11 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("eol_rx", "auto")
+        current = cfg_value(ctx.cfg, "eol_rx")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     if arg == "cycle":
-        arg = next_in_cycle(ctx.cfg.get("eol_rx", "auto"), list(_RX_NEWLINE_MODES))
+        arg = next_in_cycle(cfg_value(ctx.cfg, "eol_rx"), list(_RX_NEWLINE_MODES))
     if arg not in _RX_NEWLINE_MODES:
         return CmdResult.fail(
             msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)}/cycle)"
@@ -324,11 +324,11 @@ def _handler_json(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("json_style", "compact")
+        current = cfg_value(ctx.cfg, "json_style")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     if arg == "cycle":
-        arg = next_in_cycle(ctx.cfg.get("json_style", "compact"), JSON_STYLES)
+        arg = next_in_cycle(cfg_value(ctx.cfg, "json_style"), JSON_STYLES)
     if arg not in JSON_STYLES:
         return CmdResult.fail(msg=f"Unknown JSON style: {arg} (use {'/'.join(JSON_STYLES)}/cycle)")
     ctx.internal.apply_cfg("json_style", arg)
@@ -405,7 +405,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         return _cfg_toggle(ctx, state_token, "request_mode")
     # No state arg: still report state if err was changed, else query.
     if err_token is not None:
-        current = bool(ctx.cfg.get("request_mode", False))
+        current = bool(cfg_value(ctx.cfg, "request_mode"))
         return CmdResult.ok(value="on" if current else "off")
     return _cfg_toggle(ctx, args, "request_mode")
 
@@ -424,7 +424,7 @@ def _handler_encoding(ctx: PluginContext, args: str) -> CmdResult:
     """Show or set the byte-decoding encoding (utf-8, latin-1, ...)."""
     name = args.strip()
     if not name:
-        current = ctx.cfg.get("encoding", "utf-8")
+        current = cfg_value(ctx.cfg, "encoding")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     ctx.internal.apply_cfg("encoding", name)
@@ -516,7 +516,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     ``data`` as booleans, and read on/off in the prose.
     """
     flags = ctx.ns("flags")
-    eol = ctx.cfg.get("eol", "\r")
+    eol = cfg_value(ctx.cfg, "eol")
     data = {
         "echo": bool(flags.get("echo")),
         "echo_repl": bool(flags.get("echo_repl")),
@@ -525,12 +525,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         "hex": bool(flags.get("hex")),
         "line_no": bool(flags.get("line_no")),
         "eol": _EOL_LABELS.get(eol, repr(eol)),
-        "eol_rx": str(ctx.cfg.get("eol_rx", "auto")),
-        "eol_markers": bool(ctx.cfg.get("eol_markers")),
-        "timestamps": bool(ctx.cfg.get("timestamps")),
-        "send_bare_enter": bool(ctx.cfg.get("send_bare_enter")),
-        "control_keys": bool(ctx.cfg.get("control_keys", True)),
-        "encoding": str(ctx.cfg.get("encoding", "utf-8")),
+        "eol_rx": str(cfg_value(ctx.cfg, "eol_rx")),
+        "eol_markers": bool(cfg_value(ctx.cfg, "eol_markers")),
+        "timestamps": bool(cfg_value(ctx.cfg, "timestamps")),
+        "send_bare_enter": bool(cfg_value(ctx.cfg, "send_bare_enter")),
+        "control_keys": bool(cfg_value(ctx.cfg, "control_keys")),
+        "encoding": str(cfg_value(ctx.cfg, "encoding")),
     }
     rows = [
         (key, ("on" if value else "off") if isinstance(value, bool) else value)

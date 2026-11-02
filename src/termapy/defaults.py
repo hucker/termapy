@@ -3,6 +3,7 @@
 Pure data - no logic, no I/O, no dependencies beyond migration version.
 """
 
+import copy
 from collections.abc import Collection, Mapping
 from typing import Any
 
@@ -248,7 +249,9 @@ def cfg_value(cfg: Mapping, path: str) -> Any:
     node: Any = cfg
     for part in parts:
         if not isinstance(node, Mapping) or part not in node:
-            return default
+            # A container default is copied, as default_cfg copies: a
+            # caller must never hold the table's own list or dict.
+            return copy.deepcopy(default) if isinstance(default, (dict, list)) else default
         node = node[part]
     return node
 

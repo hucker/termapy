@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
@@ -31,7 +32,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not args:
         raise UsageError()
     try:
-        ctx.serial.write(args.encode(ctx.cfg.get("encoding", "utf-8")))
+        ctx.serial.write(args.encode(cfg_value(ctx.cfg, "encoding")))
     # OSError covers pyserial's SerialException; the encode can fail on a
     # character outside the cfg encoding, or on an unknown encoding.
     except (OSError, UnicodeError, LookupError) as e:

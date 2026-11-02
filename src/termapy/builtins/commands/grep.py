@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import find_matches
@@ -51,7 +52,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not matches:
         ctx.io.output(f"  grep: '{pattern}' - no matches")
         return CmdResult.ok(value="0")
-    max_matches = ctx.cfg.get("max_grep_lines", 100)
+    max_matches = cfg_value(ctx.cfg, "max_grep_lines")
     total = len(matches)
     shown = matches[:max_matches]
     if total > max_matches:

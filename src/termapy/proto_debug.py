@@ -29,6 +29,7 @@ from textual.widgets import (
 )
 
 from termapy.config import cfg_data_dir, open_with_system
+from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder
 from termapy.plugins import BoundaryException
 from termapy.protocol import (
@@ -300,8 +301,8 @@ class ProtoDebugScreen(ModalScreen[None]):
                 yield Static("Delay (ms):", classes="input-label")
                 yield Input(value="10", id="input-delay", type="integer", compact=True)
                 yield Static("JSON file:", classes="input-label")
-                json_default = self._script.json_file or self._ctx.cfg.get(
-                    "proto_results_template", "{name}_results.json"
+                json_default = self._script.json_file or cfg_value(
+                    self._ctx.cfg, "proto_results_template"
                 )
                 json_input = Input(value=json_default, id="input-json-file", compact=True)
                 json_input.tooltip = (
@@ -1090,8 +1091,8 @@ class ProtoDebugScreen(ModalScreen[None]):
             cmds: Command strings to send.
         """
         ctx = self._ctx
-        line_ending = ctx.cfg.get("eol", "\r")
-        enc = ctx.cfg.get("encoding", "utf-8")
+        line_ending = cfg_value(ctx.cfg, "eol")
+        enc = cfg_value(ctx.cfg, "encoding")
         for cmd_text in cmds:
             ctx.serial.write((cmd_text + line_ending).encode(enc))
             ctx.serial.read_raw(1000, self._script.frame_gap_ms)

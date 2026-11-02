@@ -27,7 +27,7 @@ from rich.text import Text
 from textual.widgets import Input, OptionList
 from textual.widgets.option_list import Option
 
-from termapy.defaults import cmd_prefix
+from termapy.defaults import cfg_value, cmd_prefix
 from termapy.dialogs import PortPicker
 from termapy.plugins import interpolate_help
 
@@ -44,7 +44,7 @@ def show_config_info(app, path: str) -> None:
     resolved = Path(path).resolve()
     app._status(f"Config dir:  {resolved.parent}", "green")
     app._status(f"Config file: {resolved}", "green")
-    xfer_root = app.cfg.get("file_xfer_root", "")
+    xfer_root = cfg_value(app.cfg, "file_xfer_root")
     if xfer_root:
         app._status(f"Xfer root:   {Path(xfer_root).resolve()}", "green")
     else:

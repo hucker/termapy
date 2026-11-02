@@ -2284,6 +2284,45 @@ class TestBatchedOutputIsEquivalent:
 
         _run(scenario)
 
+    def test_color_off_writes_termapy_lines_plain_with_their_links(self, app_factory):
+        """With color off a status line, a markup line and a linked row render with no color, and the link still carries its click action."""
+        from rich.style import Style
+        from textual.widgets import RichLog
+
+        from termapy.plugins.views import Link, Piece
+        from termapy.widgets import LINK_META
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.query_one("#output", RichLog)
+                app.repl.ctx.ns("flags")["color"] = False
+
+                # Act
+                app._status("a status line", "green")
+                app._write_output_markup("[bold red]a markup line[/]")
+                app._write_link_segments([Piece("/help", Link("help"), "cyan")], color=None)
+                await pilot.pause()
+
+                # Assert
+                written = log.lines[-3:]
+                colored = [
+                    segment.text
+                    for strip in written
+                    for segment in strip
+                    if segment.style is not None and (segment.style.color or segment.style.bgcolor)
+                ]
+                assert colored == [], f"color off, yet these segments carry a color: {colored}"
+                link = next(segment for segment in written[-1] if segment.text == "/help")
+                assert isinstance(link.style, Style) and LINK_META in link.style.meta, (
+                    "the link lost its click action"
+                )
+                assert link.style.underline, "the link lost its underline"
+                assert "".join(segment.text for segment in written[0]).startswith("a status line")
+
+        _run(scenario)
+
     def test_the_batch_logs_one_entry_per_line(self, app_factory):
         """One batched log write still yields one RX-prefixed log line per received line."""
 

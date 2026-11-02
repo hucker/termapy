@@ -83,10 +83,10 @@ def _handler_echo_repl(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
-    """Query, set or toggle rendering of the device's ANSI color, a session flag."""
-    # Render device ANSI color (SGR).  Session flag, portable across the
-    # TUI (strip before render when off) and CLI (strip in on_lines) --
-    # was a CLI-only hook before.  Default off under --no-color.
+    """Query, set or toggle color in the output, termapy's own and the device's ANSI: a session flag."""
+    # Session flag the frontends read at each write: the TUI's pane and the
+    # CLI's console go plain when it is off, and both strip the device's
+    # SGR escapes before rendering.  Default off under --no-color.
     return _bool_setting(ctx, args, "color")
 
 
@@ -613,11 +613,13 @@ COMMAND = Command(
         ),
         "color": Command(
             args="{on|off|toggle}",
-            help="Toggle rendering of device ANSI color (SGR).",
+            help="Toggle color in the output: termapy's own and the device's ANSI.",
             long_help=(
-                "Render ANSI color (SGR) from device output.  On by\n"
-                "default; off strips color so output is plain (and, in the\n"
-                "CLI, clean for piping -- the same effect as --no-color).\n"
+                "Color in the output pane and the CLI console: termapy's own\n"
+                "markup and ANSI color (SGR) from the device.  On by default;\n"
+                "off renders everything plain from the next line on (bold,\n"
+                "underline and links stay) and strips the device's escapes,\n"
+                "the same as --no-color, which starts the CLI with it off.\n"
                 "Works in both the TUI and CLI.  Legacy alias: {prefix}color."
             ),
             handler=_handler_color,

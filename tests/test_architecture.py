@@ -1146,6 +1146,8 @@ SHOW_SUFFIXES = frozenset(
 )
 SHOWS_EXEMPT: dict[str, str] = {
     "app.ver.info": "fetches the newest release from PyPI",
+    "cfg.info": "writes the project report to the config's folder",
+    "port.info": "on Windows, disconnected, opens the port to test whether it is in use",
 }
 
 

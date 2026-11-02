@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from rich.console import Console
 from rich.text import Text
 
@@ -186,6 +187,59 @@ def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
         if not command.startswith("help ") and command not in bare_forms | list_rows
     )
     assert bad == [], "one click on /help cap.delete must never delete the captures"
+
+
+@pytest.mark.parametrize("name", ["port.info", "port.chip", "cfg.info", "find", "mem.info"])
+def test_what_acts_is_never_run_by_a_click(tmp_path, name):
+    """shows-declared: a query in name that opens a port, writes a file, sends to the device or closes the find bar fills the input instead."""
+    assert _engine(tmp_path)._click_runs(name) is False
+
+
+def test_what_only_shows_still_runs_on_a_click(tmp_path):
+    """Taking the tag off what acts leaves the rest: a list still runs when it is clicked."""
+    assert _engine(tmp_path)._click_runs("run.list") is True
+
+
+def test_a_suggestion_for_a_command_that_acts_fills_the_input(tmp_path):
+    """A typo's suggestion is the path a click really takes: /port.inf offers /port.info, which waits for Enter."""
+    # Act
+    links = _links_of(_engine(tmp_path), "port.inf")
+
+    # Assert
+    offered = [link for link in links if link.command.startswith("port.info")]
+    assert offered, f"the typo offers the command: {links}"
+    assert not any(link.run for link in offered), "the click fills the input and runs nothing"
+
+
+def test_the_port_info_refusal_runs_nothing_on_a_click(tmp_path):
+    """/port.info with an argument names /port.info and /port.chip: both links wait for Enter, since either can open a port."""
+    # Act
+    links = _links_of(_engine(tmp_path), "port.info COM5")
+
+    # Assert
+    named = {link.command: link.run for link in links}
+    assert named == {"port.info": False, "port.chip": False}, named
+
+
+def test_a_bare_forms_link_runs_only_what_only_shows(tmp_path):
+    """shows-declared: every bare form's link runs exactly when its subcommand declares shows, so /help mem sends nothing on a click."""
+    # Arrange
+    eng = _engine(tmp_path)
+    plugins = eng._plugins
+
+    # Act
+    actual = {}
+    for name, plugin in plugins.items():
+        if plugin.bare_sub:
+            sub_name = f"{name}.{plugin.bare_sub}"
+            links = _links_of(eng, f"help {name}")
+            actual[sub_name] = next(link.run for link in links if link.command == sub_name)
+
+    # Assert
+    expected = {sub_name: plugins[sub_name].shows for sub_name in actual}
+    assert actual == expected, "a bare form's link runs only what only shows"
+    assert actual["mem.info"] is False, "reading /help mem must not send MEM.INFO"
+    assert actual["run.list"] is True, "a list still runs"
 
 
 def test_a_bare_form_only_opens_or_shows(tmp_path):

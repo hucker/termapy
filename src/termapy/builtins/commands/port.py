@@ -550,7 +550,6 @@ COMMAND = Command(
                 "encoding": "on the page",
                 "file_xfer_root": "on the page when set",
             },
-            shows=True,
         ),
         "baud_rate": Command(
             args="{value}",
@@ -653,7 +652,6 @@ COMMAND = Command(
             help="Identify USB-serial chip(s) and report USB speed class.",
             handler=_handler_chip,
             cfg={"serial.port": "the port it identifies by default"},
-            shows=True,
             sub_commands={
                 "list": Command(
                     args="{pattern}",

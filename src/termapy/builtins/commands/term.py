@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.defaults import JSON_STYLES
+from termapy.defaults import JSON_STYLES, cfg_value
 from termapy.plugins import (
     OUTPUT_LEVELS,
     CapabilitySet,
@@ -212,7 +212,7 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     return _bool_setting(ctx, args, "hex")
 
 
-# ── Config-persisted toggles (via ctx.internal.apply_cfg) ─────────────────────
+# ── Session cfg toggles (apply_cfg; only the editor's Save persists) ─────────
 
 
 def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
@@ -220,8 +220,9 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
 
     Bare invocation QUERIES (shows state, mutates nothing); ``on``/``off``
     sets; the explicit verb ``toggle`` flips; anything else errors.
-    Persists via ``ctx.internal.apply_cfg`` (only when the value actually
-    changes); the ConfigEditor dialog is the only path that writes to disk.
+    Applies via ``ctx.internal.apply_cfg`` for the session (only when the
+    value actually changes); nothing here writes to disk.  The config
+    editor's Save (``/cfg.edit``) is the only path that persists.
     """
     try:
         action = parse_bool_setting(args)
@@ -260,17 +261,17 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
     Bare invocation reports the current ending as a token; an argument
     (``cr`` / ``lf`` / ``crlf`` / ``none``) sets it for the session via
     ``apply_cfg`` -- the same in-memory path the other /term.* toggles
-    use.  Persisting to disk is still /cfg eol or the Config
-    Editor; this is the quick runtime override.
+    use, and the same session-only change ``/cfg eol`` makes.  Only the
+    config editor's Save (``/cfg.edit``) persists it.
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("eol", "\r")
+        current = cfg_value(ctx.cfg, "eol")
         label = _EOL_LABELS.get(current, repr(current))
         ctx.io.result(label)
         return CmdResult.ok(value=label)
     if arg == "cycle":
-        cur = _EOL_LABELS.get(ctx.cfg.get("eol", "\r"), "cr")
+        cur = _EOL_LABELS.get(cfg_value(ctx.cfg, "eol"), "cr")
         arg = next_in_cycle(cur, list(_EOL_TOKENS))
     if arg not in _EOL_TOKENS:
         return CmdResult.fail(msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)}/cycle)")
@@ -298,11 +299,11 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("eol_rx", "auto")
+        current = cfg_value(ctx.cfg, "eol_rx")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     if arg == "cycle":
-        arg = next_in_cycle(ctx.cfg.get("eol_rx", "auto"), list(_RX_NEWLINE_MODES))
+        arg = next_in_cycle(cfg_value(ctx.cfg, "eol_rx"), list(_RX_NEWLINE_MODES))
     if arg not in _RX_NEWLINE_MODES:
         return CmdResult.fail(
             msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)}/cycle)"
@@ -323,11 +324,11 @@ def _handler_json(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("json_style", "compact")
+        current = cfg_value(ctx.cfg, "json_style")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     if arg == "cycle":
-        arg = next_in_cycle(ctx.cfg.get("json_style", "compact"), JSON_STYLES)
+        arg = next_in_cycle(cfg_value(ctx.cfg, "json_style"), JSON_STYLES)
     if arg not in JSON_STYLES:
         return CmdResult.fail(msg=f"Unknown JSON style: {arg} (use {'/'.join(JSON_STYLES)}/cycle)")
     ctx.internal.apply_cfg("json_style", arg)
@@ -404,7 +405,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         return _cfg_toggle(ctx, state_token, "request_mode")
     # No state arg: still report state if err was changed, else query.
     if err_token is not None:
-        current = bool(ctx.cfg.get("request_mode", False))
+        current = bool(cfg_value(ctx.cfg, "request_mode"))
         return CmdResult.ok(value="on" if current else "off")
     return _cfg_toggle(ctx, args, "request_mode")
 
@@ -423,7 +424,7 @@ def _handler_encoding(ctx: PluginContext, args: str) -> CmdResult:
     """Show or set the byte-decoding encoding (utf-8, latin-1, ...)."""
     name = args.strip()
     if not name:
-        current = ctx.cfg.get("encoding", "utf-8")
+        current = cfg_value(ctx.cfg, "encoding")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     ctx.internal.apply_cfg("encoding", name)
@@ -515,7 +516,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     ``data`` as booleans, and read on/off in the prose.
     """
     flags = ctx.ns("flags")
-    eol = ctx.cfg.get("eol", "\r")
+    eol = cfg_value(ctx.cfg, "eol")
     data = {
         "echo": bool(flags.get("echo")),
         "echo_repl": bool(flags.get("echo_repl")),
@@ -524,12 +525,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         "hex": bool(flags.get("hex")),
         "line_no": bool(flags.get("line_no")),
         "eol": _EOL_LABELS.get(eol, repr(eol)),
-        "eol_rx": str(ctx.cfg.get("eol_rx", "auto")),
-        "eol_markers": bool(ctx.cfg.get("eol_markers")),
-        "timestamps": bool(ctx.cfg.get("timestamps")),
-        "send_bare_enter": bool(ctx.cfg.get("send_bare_enter")),
-        "control_keys": bool(ctx.cfg.get("control_keys", True)),
-        "encoding": str(ctx.cfg.get("encoding", "utf-8")),
+        "eol_rx": str(cfg_value(ctx.cfg, "eol_rx")),
+        "eol_markers": bool(cfg_value(ctx.cfg, "eol_markers")),
+        "timestamps": bool(cfg_value(ctx.cfg, "timestamps")),
+        "send_bare_enter": bool(cfg_value(ctx.cfg, "send_bare_enter")),
+        "control_keys": bool(cfg_value(ctx.cfg, "control_keys")),
+        "encoding": str(cfg_value(ctx.cfg, "encoding")),
     }
     rows = [
         (key, ("on" if value else "off") if isinstance(value, bool) else value)
@@ -578,8 +579,7 @@ COMMAND = Command(
             help="Local echo of device commands sent to the wire (cfg echo).",
             long_help=(
                 "Local echo of DEVICE commands -- the bare lines and\n"
-                "{prefix}term.send text that go out on the wire.  Persisted\n"
-                "via cfg echo.\n"
+                "{prefix}term.send text that go out on the wire.\n"
                 "\n"
                 "termapy splits local echo in two: this ({prefix}term.echo)\n"
                 "for device commands, and {prefix}term.echo_repl for\n"
@@ -590,6 +590,7 @@ COMMAND = Command(
                 "See also: {prefix}term.echo_repl."
             ),
             handler=_handler_echo,
+            cfg={"echo": "seeds the session flag at startup"},
         ),
         "echo_repl": Command(
             args="{on|off|toggle}",
@@ -643,6 +644,12 @@ COMMAND = Command(
                 "For raw bytes WITHOUT a line ending, use {prefix}raw."
             ),
             handler=_handler_send,
+            cfg={
+                "eol": "appended to the text",
+                "encoding": "encodes the text",
+                "tx_char_delay_ms": "paces the characters",
+                "tx_line_delay_ms": "pauses after the line",
+            },
             raw_args=True,
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
@@ -682,12 +689,14 @@ COMMAND = Command(
             args="{on|off|toggle}",
             help="Toggle line numbers in serial output (TUI only).",
             handler=_handler_line_no,
+            cfg={"line_no": "seeds the session flag at startup"},
             needs=CapabilitySet.TUI_MODE,
         ),
         "line_endings": Command(
             args="{on|off|toggle}",
             help="Hidden alias for {prefix}term.eol.markers.",
             handler=_handler_eol_markers,
+            cfg={"eol_markers": "set for the session; bare shows it"},
             hidden=True,
         ),
         "eol": Command(
@@ -698,14 +707,11 @@ COMMAND = Command(
                 "device.  Tokens: cr (\\r), lf (\\n), crlf (\\r\\n), none.\n"
                 "Bare {prefix}term.eol reports the current ending.\n"
                 "\n"
-                "This is a session override (in-memory, like the other\n"
-                "{prefix}term.* toggles).  To persist, use {prefix}cfg "
-                "eol or the Config Editor.\n"
-                "\n"
                 "See also: {prefix}term.eol.rx (receive-side newline) and\n"
                 "{prefix}term.eol.markers (show \\r \\n markers for debugging)."
             ),
             handler=_handler_eol,
+            cfg={"eol": "set for the session; bare shows it"},
             sub_commands={
                 "rx": Command(
                     args="{auto|cr|lf|crlf|cycle}",
@@ -721,11 +727,10 @@ COMMAND = Command(
                         "  lf     only LF ends a line\n"
                         "  crlf   only the CRLF pair ends a line\n"
                         "\n"
-                        "Bare {prefix}term.eol.rx reports the current mode.  This is\n"
-                        "a session override (in-memory); persist with {prefix}cfg\n"
-                        "eol_rx or the Config Editor."
+                        "Bare {prefix}term.eol.rx reports the current mode."
                     ),
                     handler=_handler_eol_rx,
+                    cfg={"eol_rx": "set for the session; bare shows it"},
                 ),
                 "markers": Command(
                     args="{on|off|toggle}",
@@ -735,11 +740,11 @@ COMMAND = Command(
                         "\\r \\n markers so you can see exactly how the device\n"
                         "terminates lines.  Distinct from {prefix}term.eol (which\n"
                         "SETS the sent ending) and {prefix}term.eol.rx (which\n"
-                        "controls how received output is split).  Persisted via\n"
-                        "cfg eol_markers.  Legacy aliases: {prefix}term.line_endings,\n"
-                        "{prefix}show_line_endings."
+                        "controls how received output is split).  Legacy aliases:\n"
+                        "{prefix}term.line_endings, {prefix}show_line_endings."
                     ),
                     handler=_handler_eol_markers,
+                    cfg={"eol_markers": "set for the session; bare shows it"},
                 ),
             },
         ),
@@ -771,6 +776,7 @@ COMMAND = Command(
             args="{on|off|toggle}",
             help="Toggle [HH:MM:SS.mmm] timestamp prefix on each line.",
             handler=_handler_timestamps,
+            cfg={"timestamps": "set for the session; bare shows it"},
         ),
         "hex": Command(
             args="{on|off|toggle}",
@@ -787,6 +793,7 @@ COMMAND = Command(
                 "shown in hex. {prefix}proto.hex sets the same flag."
             ),
             handler=_handler_hex,
+            cfg={"hex": "seeds the session flag at startup"},
         ),
         "request": Command(
             args="{on|off|toggle}",
@@ -833,6 +840,7 @@ COMMAND = Command(
                 "authoring a profile."
             ),
             handler=_handler_request,
+            cfg={"request_mode": "set for the session; bare shows it"},
         ),
         "json": Command(
             args="{compact|indent|color|cycle}",
@@ -849,15 +857,16 @@ COMMAND = Command(
                 "\n"
                 'The request echo ({"cmd": ...}) stays on one line in\n'
                 "every style.  MCP gets the envelope as data, so the style\n"
-                "does not touch it.  A session setting; persist it with\n"
-                "{prefix}cfg json_style indent."
+                "does not touch it."
             ),
             handler=_handler_json,
+            cfg={"json_style": "set for the session; bare shows it"},
         ),
         "send_bare_enter": Command(
             args="{on|off|toggle}",
             help="Send line ending on empty Enter (for press-to-continue prompts).",
             handler=_handler_send_bare_enter,
+            cfg={"send_bare_enter": "set for the session; bare shows it"},
         ),
         "control_keys": Command(
             args="{on|off|toggle}",
@@ -877,15 +886,26 @@ COMMAND = Command(
                 "config file."
             ),
             handler=_handler_control_keys,
+            cfg={"control_keys": "set for the session; bare shows it"},
         ),
         "encoding": Command(
             args="{name}",
             help="Show or set byte-decoding encoding (utf-8, latin-1, ascii, cp437).",
             handler=_handler_encoding,
+            cfg={"encoding": "set for the session; bare shows it"},
         ),
         "info": Command(
             help="Snapshot the state of every {prefix}term.* toggle.",
             handler=_handler_info,
+            cfg={
+                "eol": "in the snapshot",
+                "eol_rx": "in the snapshot",
+                "eol_markers": "in the snapshot",
+                "timestamps": "in the snapshot",
+                "send_bare_enter": "in the snapshot",
+                "control_keys": "in the snapshot",
+                "encoding": "in the snapshot",
+            },
             shows=True,
         ),
         "usb_db": Command(

@@ -22,6 +22,8 @@ import os
 import sys
 from pathlib import Path
 
+from termapy.defaults import cfg_value
+
 
 def _miniterm_settings(cfg: dict) -> dict:
     """Map a config dict to the settings the passthrough needs.
@@ -36,9 +38,9 @@ def _miniterm_settings(cfg: dict) -> dict:
         ``{"echo": bool, "eol": str, "encoding": str}``.
     """
     return {
-        "echo": cfg.get("echo", False),
-        "eol": cfg.get("eol", "\r"),
-        "encoding": cfg.get("encoding", "utf-8"),
+        "echo": cfg_value(cfg, "echo"),
+        "eol": cfg_value(cfg, "eol"),
+        "encoding": cfg_value(cfg, "encoding"),
     }
 
 
@@ -58,7 +60,7 @@ def _vscode_key_hint(cfg: dict) -> str | None:
         The tip string (newline-terminated), or None when disabled via
         ``vt100_hint`` or not running under VS Code.
     """
-    if not cfg.get("vt100_hint", True):
+    if not cfg_value(cfg, "vt100_hint"):
         return None
     if os.environ.get("TERM_PROGRAM") != "vscode":
         return None
@@ -195,7 +197,7 @@ def run_vt100_mode(args) -> str | None:
     breadcrumbs.leave(
         "vt100",
         config=str(cfg.get("_config_path") or ""),
-        port=str(cfg["serial"].get("port") or ""),
+        port=str(cfg_value(cfg, "serial.port") or ""),
         open_port=str(getattr(port, "port", "") or ""),
     )
 

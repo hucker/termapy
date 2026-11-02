@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Any
 from termapy import load_report
 from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import mcp_dir, mcp_log_path, on_connect_commands, open_serial
+from termapy.defaults import cfg_value
 from termapy.folder_ops import file_record
 from termapy.folders import PROFILE_SUFFIX
 from termapy.markup import markup_to_plain
@@ -115,7 +116,7 @@ class MCPHost(TerminalHost):
         self.cfg = cfg
         self.config_path = config_path
         self.verbose = verbose
-        self.prefix = cfg.get("cmd_prefix", "/")
+        self.prefix = cfg_value(cfg, "cmd_prefix")
         self._xfer_cancel = threading.Event()
 
         # Resolve mcp/ state directory and log path -- both follow the
@@ -577,7 +578,7 @@ class MCPHost(TerminalHost):
         the load report's profile row (``/cfg.loaded``) until the
         disconnect clears it.
         """
-        explicit = ctx.cfg.get("profile_path", "")
+        explicit = cfg_value(ctx.cfg, "profile_path")
         candidate: Path | None = None
         if explicit and isinstance(explicit, str):
             candidate = Path(explicit)
@@ -1248,7 +1249,7 @@ def _dispatch_via_profile(
     # the user's session ("how I'm wired up"); the profile is the
     # device contract ("what commands you accept").  ctx.serial.send
     # reads the line ending, encoding and transmit delays itself.
-    default_response_timeout_ms = int(host.cfg.get("default_response_timeout_ms", 1000) or 1000)
+    default_response_timeout_ms = int(cfg_value(host.cfg, "default_response_timeout_ms") or 1000)
     raw_response = spec.get("response") or {}
     response = raw_response if isinstance(raw_response, dict) else {}
     fmt = response.get("format", "none")

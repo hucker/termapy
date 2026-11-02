@@ -476,6 +476,28 @@ def _port_hw_line_long_help(line: str, direction: str):
     return _long
 
 
+# The /port.chip.<field> commands, one per chip fact: the help line each
+# shows.  The handler and the config declaration are the same for all, so
+# a new fact is a row here (and its ChipFacts field), never a new entry.
+_CHIP_FIELD_HELP = {
+    "device": "Show port device name.",
+    "description": "Show OS-reported port description.",
+    "manufacturer": "Show USB manufacturer string.",
+    "product": "Show USB product string.",
+    "serial": "Show USB serial number of the cable.",
+    "location": "Show USB topology location.",
+    "interface": "Show interface label (multi-channel chips).",
+    "vid_pid": "Show USB VID:PID hex string.",
+    "model": "Show identified chip model from the lookup table.",
+    "usb_speed": "Show theoretical USB speed class for the chip.",
+    "negotiated": "Show OS-reported negotiated USB link speed (Linux only).",
+    "driver": "Show the OS driver name (Linux + Windows).",
+    "latency_timer": "Show FTDI latency timer value (Linux + FTDI only).",
+    "max_baud": "Show maximum baud rate the chip supports.",
+    "permissions": "Show read/write permission status for the device.",
+    "in_use": "Show whether another process has the port open.",
+}
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 
 COMMAND = Command(
@@ -485,6 +507,7 @@ COMMAND = Command(
     help="Serial port tools: connect, disconnect, list, configure.",
     long_help=_port_root_long_help,
     handler=_handler_root,
+    cfg={"serial.port": "set for the session, then reconnects"},
     picker="port",
     bare_sub="list",
     sub_commands={
@@ -545,6 +568,14 @@ COMMAND = Command(
                 "Example: {prefix}port.connect COM3 9600 N81 crlf echo"
             ),
             handler=_handler_connect,
+            cfg={
+                "serial.baud_rate": "set for the session before opening",
+                "serial.parity": "set for the session before opening",
+                "serial.byte_size": "set for the session before opening",
+                "serial.stop_bits": "set for the session before opening",
+                "eol": "set for the session before opening",
+                "echo": "set for the session before opening",
+            },
         ),
         "open": Command(
             help="Legacy alias for {prefix}port.connect.",
@@ -556,11 +587,18 @@ COMMAND = Command(
             help="Show or set serial mode (e.g. {prefix}port.mode 9600 N81).",
             long_help=_port_mode_long_help,
             handler=_handler_mode,
+            cfg={
+                "serial.baud_rate": "set for the session; bare shows it",
+                "serial.byte_size": "set for the session; bare shows it",
+                "serial.parity": "set for the session; bare shows it",
+                "serial.stop_bits": "set for the session; bare shows it",
+            },
         ),
         "disconnect": Command(
             help="Disconnect from the serial port.",
             long_help=port_status,
             handler=_handler_disconnect,
+            cfg={"serial.port": "the port it closes"},
         ),
         "close": Command(
             help="Legacy alias for {prefix}port.disconnect.",
@@ -571,6 +609,16 @@ COMMAND = Command(
             help="Print status, params, chip, and live signals for the connected port.",
             long_help=_port_info_long_help,
             handler=_handler_info,
+            cfg={
+                "serial.port": "the port it reports",
+                "serial.baud_rate": "on the page",
+                "serial.byte_size": "on the page",
+                "serial.parity": "on the page",
+                "serial.stop_bits": "on the page",
+                "serial.flow_control": "on the page",
+                "encoding": "on the page",
+                "file_xfer_root": "on the page when set",
+            },
             shows=True,
         ),
         "baud_rate": Command(
@@ -578,30 +626,35 @@ COMMAND = Command(
             help="Show or set baud rate.",
             long_help=_cfg_value_long_help("baud_rate", "baud rate"),
             handler=_make_prop_handler("baud_rate"),
+            cfg={"serial.baud_rate": "set for the session; bare shows it"},
         ),
         "byte_size": Command(
             args="{value}",
             help="Show or set data bits.",
             long_help=_cfg_value_long_help("byte_size", "byte size"),
             handler=_make_prop_handler("byte_size"),
+            cfg={"serial.byte_size": "set for the session; bare shows it"},
         ),
         "parity": Command(
             args="{value}",
             help="Show or set parity.",
             long_help=_port_parity_long_help,
             handler=_make_prop_handler("parity"),
+            cfg={"serial.parity": "set for the session; bare shows it"},
         ),
         "stop_bits": Command(
             args="{value}",
             help="Show or set stop bits.",
             long_help=_cfg_value_long_help("stop_bits", "stop bits"),
             handler=_make_prop_handler("stop_bits"),
+            cfg={"serial.stop_bits": "set for the session; bare shows it"},
         ),
         "flow_control": Command(
             args="{mode}",
             help="Show or set flow control (none/rtscts/xonxoff/manual).",
             long_help=_port_flow_long_help,
             handler=_handler_flow,
+            cfg={"serial.flow_control": "set for the session; bare shows it"},
         ),
         "dtr": Command(
             args="{on|off}",
@@ -651,6 +704,7 @@ COMMAND = Command(
             args="{name|*}",
             help="Identify USB-serial chip(s) and report USB speed class.",
             handler=_handler_chip,
+            cfg={"serial.port": "the port it identifies by default"},
             shows=True,
             sub_commands={
                 "list": Command(
@@ -671,86 +725,15 @@ COMMAND = Command(
                     handler=_handler_chip_list,
                     shows=True,
                 ),
-                "device": Command(
-                    args="{name|*}",
-                    help="Show port device name.",
-                    handler=_make_chip_field_handler("device"),
-                ),
-                "description": Command(
-                    args="{name|*}",
-                    help="Show OS-reported port description.",
-                    handler=_make_chip_field_handler("description"),
-                ),
-                "manufacturer": Command(
-                    args="{name|*}",
-                    help="Show USB manufacturer string.",
-                    handler=_make_chip_field_handler("manufacturer"),
-                ),
-                "product": Command(
-                    args="{name|*}",
-                    help="Show USB product string.",
-                    handler=_make_chip_field_handler("product"),
-                ),
-                "serial": Command(
-                    args="{name|*}",
-                    help="Show USB serial number of the cable.",
-                    handler=_make_chip_field_handler("serial"),
-                ),
-                "location": Command(
-                    args="{name|*}",
-                    help="Show USB topology location.",
-                    handler=_make_chip_field_handler("location"),
-                ),
-                "interface": Command(
-                    args="{name|*}",
-                    help="Show interface label (multi-channel chips).",
-                    handler=_make_chip_field_handler("interface"),
-                ),
-                "vid_pid": Command(
-                    args="{name|*}",
-                    help="Show USB VID:PID hex string.",
-                    handler=_make_chip_field_handler("vid_pid"),
-                ),
-                "model": Command(
-                    args="{name|*}",
-                    help="Show identified chip model from the lookup table.",
-                    handler=_make_chip_field_handler("model"),
-                ),
-                "usb_speed": Command(
-                    args="{name|*}",
-                    help="Show theoretical USB speed class for the chip.",
-                    handler=_make_chip_field_handler("usb_speed"),
-                ),
-                "negotiated": Command(
-                    args="{name|*}",
-                    help="Show OS-reported negotiated USB link speed (Linux only).",
-                    handler=_make_chip_field_handler("negotiated"),
-                ),
-                "driver": Command(
-                    args="{name|*}",
-                    help="Show the OS driver name (Linux + Windows).",
-                    handler=_make_chip_field_handler("driver"),
-                ),
-                "latency_timer": Command(
-                    args="{name|*}",
-                    help="Show FTDI latency timer value (Linux + FTDI only).",
-                    handler=_make_chip_field_handler("latency_timer"),
-                ),
-                "max_baud": Command(
-                    args="{name|*}",
-                    help="Show maximum baud rate the chip supports.",
-                    handler=_make_chip_field_handler("max_baud"),
-                ),
-                "permissions": Command(
-                    args="{name|*}",
-                    help="Show read/write permission status for the device.",
-                    handler=_make_chip_field_handler("permissions"),
-                ),
-                "in_use": Command(
-                    args="{name|*}",
-                    help="Show whether another process has the port open.",
-                    handler=_make_chip_field_handler("in_use"),
-                ),
+                **{
+                    field: Command(
+                        args="{name|*}",
+                        help=help_text,
+                        handler=_make_chip_field_handler(field),
+                        cfg={"serial.port": "the port it reports by default"},
+                    )
+                    for field, help_text in _CHIP_FIELD_HELP.items()
+                },
             },
         ),
     },

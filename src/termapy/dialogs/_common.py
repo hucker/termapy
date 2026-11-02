@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rich.text import Text
-from textual import events
+from textual import events, on
 from textual.binding import Binding, BindingType
-from textual.widgets import OptionList, Static, TextArea
+from textual.containers import Horizontal
+from textual.widgets import Button, Input, Label, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
+from textual.widgets.text_area import Selection
 
 from termapy.folder_ops import file_columns, format_file_header
 
@@ -197,6 +199,193 @@ _DISMISS_BINDINGS: list[BindingType] = [
     ("ctrl+q", "dismiss_modal", "Close"),
     ("escape", "dismiss_modal", "Close"),
 ]
+
+# Find bindings for an editor dialog that composes a ``FindRow``.  Alt+F is
+# the VS Code fallback: its integrated terminal keeps Ctrl+F for its own
+# find (help: environment).
+_FIND_BINDINGS: list[BindingType] = [
+    ("ctrl+f", "find", "Find"),
+    ("alt+f", "find", "Find"),
+]
+
+
+def find_occurrences(lines: Sequence[str], needle: str) -> list[tuple[int, int, int]]:
+    """``(row, col, length)`` of every occurrence of ``needle`` in ``lines``, in document order.
+
+    Literal and case-insensitive: a config holds ``\\r``, ``$(`` and
+    ``[purple]``, which a regex would read as syntax.  Every occurrence on a
+    line is listed, non-overlapping (``aa`` in ``aaa`` is one).  An empty
+    needle matches nothing.  A line is lowered only when that keeps its
+    length, so a column always maps back to the line as shown.
+    """
+    if not needle:
+        return []
+    found: list[tuple[int, int, int]] = []
+    key = needle.lower()
+    for row, line in enumerate(lines):
+        haystack = line.lower()
+        if len(haystack) != len(line):
+            haystack, key_here = line, needle
+        else:
+            key_here = key
+        col = haystack.find(key_here)
+        while col != -1:
+            found.append((row, col, len(needle)))
+            col = haystack.find(key_here, col + len(needle))
+    return found
+
+
+def pick_occurrence(
+    matches: Sequence[tuple[int, int, int]],
+    anchor: tuple[int, int],
+    direction: int,
+    *,
+    inclusive: bool,
+) -> int | None:
+    """The index in ``matches`` to show next from ``anchor``, wrapping; ``None`` when there are none.
+
+    Forward (``direction`` 1): the first match starting at or after the
+    anchor when ``inclusive`` (typing keeps the match under the cursor as
+    the needle grows), strictly after it otherwise (Enter moves on).
+    Backward (-1): the last match starting before the anchor.  Past either
+    end the search wraps.
+    """
+    if not matches:
+        return None
+    starts = [(row, col) for row, col, _ in matches]
+    if direction > 0:
+        for index, start in enumerate(starts):
+            if start >= anchor if inclusive else start > anchor:
+                return index
+        return 0
+    for index in range(len(starts) - 1, -1, -1):
+        if starts[index] < anchor:
+            return index
+    return len(starts) - 1
+
+
+class FindRow(Horizontal):
+    """A find bar for a modal editor: any text, literal, case-insensitive.
+
+    Hidden until ``open()``; the dialog binds ``_FIND_BINDINGS`` and a Find
+    button to it.  While its field has focus the row's own bindings are in
+    the key chain ahead of the screen's, so Escape closes the bar rather
+    than the dialog, and Up / Down step through the matches; Enter steps
+    forward through the field's own Submitted.  The current match is the
+    editor's selection, centered, so the dialog's selection handler (the
+    config editor's help panel) follows it for free.  Textual's TextArea
+    has no search of its own (8.2.8), hence the helpers above.
+    """
+
+    DEFAULT_CSS = """
+    FindRow { height: 1; display: none; }
+    FindRow.visible { display: block; }
+    FindRow Input { width: 1fr; }
+    FindRow Label {
+        width: auto; height: 1; content-align: right middle;
+        color: $accent; padding: 0 1;
+    }
+    FindRow Button {
+        min-width: 3; width: auto; height: 1; min-height: 1;
+        border: none; margin: 0 0 0 1; background: $boost;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "find_close", "Close find", show=False),
+        Binding("up", "find_prev", "Previous match", show=False),
+        Binding("down", "find_next", "Next match", show=False),
+    ]
+
+    def __init__(self, editor: TextArea, *, id: str) -> None:
+        """Build the row for ``editor``; ``id`` also prefixes the field's and count's ids."""
+        super().__init__(id=id)
+        self._editor = editor
+
+    def compose(self):
+        """The field, the ``n/m`` count, and the same ▲ ▼ × the output pane's find bar has."""
+        yield Input(placeholder="Find", id=f"{self.id}-input", compact=True)
+        yield Label("", id=f"{self.id}-count", markup=False)
+        yield Button("▲", classes="find-prev", variant="default")
+        yield Button("▼", classes="find-next", variant="default")
+        yield Button("×", classes="find-close", variant="default")
+
+    def on_mount(self) -> None:
+        """Tooltips."""
+        self.query_one(Input).tooltip = "Any text, as typed; case does not matter."
+        self.query_one(".find-prev", Button).tooltip = "Previous match (Up)"
+        self.query_one(".find-next", Button).tooltip = "Next match (Down, Enter)"
+        self.query_one(".find-close", Button).tooltip = "Close find (Escape)"
+
+    def open(self) -> None:
+        """Show the bar and focus its field; a needle left from last time is searched afresh."""
+        self.add_class("visible")
+        field = self.query_one(Input)
+        field.focus()
+        if field.value:
+            self._jump(1, inclusive=True)
+
+    def action_find_close(self) -> None:
+        """Hide the bar, keep the cursor at the match, and give the editor the focus back."""
+        self.remove_class("visible")
+        end = self._editor.selection.end
+        self._editor.selection = Selection(end, end)
+        self._editor.focus()
+
+    def action_find_next(self) -> None:
+        """Select the next match, wrapping."""
+        self._jump(1, inclusive=False)
+
+    def action_find_prev(self) -> None:
+        """Select the previous match, wrapping."""
+        self._jump(-1, inclusive=False)
+
+    @on(Input.Changed)
+    def _needle_changed(self, event: Input.Changed) -> None:
+        """Each keystroke searches again from the match under the cursor."""
+        event.stop()
+        self._jump(1, inclusive=True)
+
+    @on(Input.Submitted)
+    def _needle_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        self.action_find_next()
+
+    @on(Button.Pressed, ".find-prev")
+    def _prev_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.action_find_prev()
+
+    @on(Button.Pressed, ".find-next")
+    def _next_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.action_find_next()
+
+    @on(Button.Pressed, ".find-close")
+    def _close_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.action_find_close()
+
+    def _jump(self, direction: int, *, inclusive: bool) -> None:
+        """Select the match ``pick_occurrence`` chooses and show the count."""
+        needle = self.query_one(Input).value
+        count = self.query_one(Label)
+        editor = self._editor
+        if not needle:
+            count.update("")
+            return
+        matches = find_occurrences(editor.document.lines, needle)
+        # The selection's two ends in document order: a drag upward puts
+        # the cursor first.
+        anchor = min(editor.selection.start, editor.selection.end)
+        index = pick_occurrence(matches, anchor, direction, inclusive=inclusive)
+        if index is None:
+            count.update("0/0")
+            return
+        row, col, length = matches[index]
+        editor.selection = Selection((row, col), (row, col + length))
+        editor.scroll_cursor_visible(center=True)
+        count.update(f"{index + 1}/{len(matches)}")
 
 
 def _port_facts(ports: list) -> list[ChipFacts]:

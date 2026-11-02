@@ -38,6 +38,22 @@ protocol tests, startup and frontends, buttons. termapy writes every
 config that way, the editor's Save included, so a key you add anywhere
 moves to its group.
 
+**Finding a key.** The editor's **Find** button, or **Ctrl+F** (**Alt+F**
+in VS Code, whose terminal keeps Ctrl+F for its own find), opens a find
+bar under the text. It matches any text, keys or values, as typed:
+literal and case-insensitive, so `$(CFG)` finds the prompt template.
+Enter or Down selects the next match and Up the previous, wrapping at
+either end; the help panel follows the selection, so finding a key shows
+its help. Escape closes the bar and leaves the cursor on the match.
+
+**Who uses a key.** `/help <key>` (`/help baud_rate`, `/help serial.port`)
+shows what a key means, its current value, the config file it lives in
+and how it is spelled there, and the commands that use it, each with how;
+a command's own `/help` page lists the keys it depends on in a CONFIG
+section; and the editor's help line names the commands that use the key
+under the cursor. A change by `/cfg <key> <value>` or a `/term.*` setter
+lasts the session; the editor's Save writes the file.
+
 Here is an example config for a device called `iot_device`:
 
 <!-- validate-config-keys -->

@@ -17,7 +17,7 @@ from threading import Event
 from typing import TYPE_CHECKING, Any
 
 from termapy.capture import CaptureEngine
-from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
+from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_value, cmd_prefix
 from termapy.plugins import BoundaryException
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_port import SerialPort, SerialReader
@@ -481,17 +481,17 @@ class SerialEngine:
             port=self._port_obj,
             rx_queue=self._rx_queue,
             log=self._log,
-            encoding=self._cfg.get("encoding", "utf-8"),
+            encoding=cfg_value(self._cfg, "encoding"),
             # Lets wait_for_idle ask "when did the DEVICE last speak?" instead
             # of inspecting a port buffer this engine keeps drained.
             last_rx=lambda: self._last_rx_monotonic,
         )
         self._reader = SerialReader(
-            encoding=self._cfg.get("encoding", "utf-8"),
-            show_line_endings=self._cfg.get("eol_markers", False),
+            encoding=cfg_value(self._cfg, "encoding"),
+            show_line_endings=cfg_value(self._cfg, "eol_markers"),
             capture=self._capture,
             serial_claimed=lambda: self._serial_claimed,
-            rx_newline=self._cfg.get("eol_rx", "auto"),
+            rx_newline=cfg_value(self._cfg, "eol_rx"),
         )
         self._stop_event.clear()
         return True
@@ -639,7 +639,7 @@ class SerialEngine:
                     # each chunk so /term.eol.rx takes effect live, without a
                     # reconnect.  Cheap dict read; the cfg dict is the same
                     # object /cfg mutates (see how TX line_ending stays live).
-                    reader.rx_newline = self._cfg.get("eol_rx", "auto")
+                    reader.rx_newline = cfg_value(self._cfg, "eol_rx")
                     # The same live resync for /term.hex, which is a session
                     # flag the host owns rather than a cfg key.
                     reader.hex_display = bool(on_hex and hex_view and hex_view())

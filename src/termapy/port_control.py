@@ -28,6 +28,7 @@ from termapy.defaults import (
     VALID_FLOW_CONTROLS,
     VALID_PARITIES,
     VALID_STOP_BITS,
+    cfg_value,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.views import Item, TextLine
@@ -2023,9 +2024,9 @@ def port_info(
         ("Baud Rate", str(serial["baud_rate"])),
         ("Frame", f"{serial['byte_size']}{serial['parity']}{sb_str}"),
         ("Flow Control", str(serial["flow_control"])),
-        ("Encoding", str(cfg.get("encoding", "utf-8"))),
+        ("Encoding", str(cfg_value(cfg, "encoding"))),
     ]
-    xfer_root = cfg.get("file_xfer_root", "")
+    xfer_root = cfg_value(cfg, "file_xfer_root")
     if xfer_root:
         top_rows.append(("Xfer root", str(xfer_root)))
 
@@ -2038,7 +2039,7 @@ def port_info(
         "parity": serial["parity"],
         "stop_bits": sb,
         "flow_control": serial["flow_control"],
-        "encoding": cfg.get("encoding", "utf-8"),
+        "encoding": cfg_value(cfg, "encoding"),
         "xfer_root": xfer_root or None,
         "chip": None,
         "signals": None,

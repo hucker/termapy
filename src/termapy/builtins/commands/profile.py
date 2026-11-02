@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.folders import PROFILE_SUFFIX, file_suggestion
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.capabilities import STATE_MESSAGES
@@ -124,7 +125,7 @@ def _read_profile_json(ctx: PluginContext, timeout_ms: int) -> dict | None:
         if not chunk:
             break
         buf += chunk
-        text = buf.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace")
+        text = buf.decode(cfg_value(ctx.cfg, "encoding"), errors="replace")
         start = text.find("{")
         if start < 0:
             continue
@@ -468,6 +469,7 @@ COMMAND = Command(
                 "are applied to the live cfg."
             ),
             handler=_handler_load,
+            cfg={"encoding": "decodes the profile a cmd= fetches"},
         ),
         "save": Command(
             args="{path}",

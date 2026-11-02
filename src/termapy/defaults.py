@@ -3,7 +3,9 @@
 Pure data - no logic, no I/O, no dependencies beyond migration version.
 """
 
+import copy
 from collections.abc import Collection, Mapping
+from typing import Any
 
 from termapy.migration import CURRENT_CONFIG_VERSION
 
@@ -201,6 +203,59 @@ def default_cfg() -> dict:
     return copy.deepcopy(DEFAULT_CFG)
 
 
+def cfg_key_paths() -> tuple[str, ...]:
+    """Every config key as a dotted path, in ``DEFAULT_CFG`` order.
+
+    A top-level key is its own path; a dict value adds a path per leaf
+    after it (``serial``, then ``serial.port``, ``serial.baud_rate``, ...).
+    The custom buttons are a list, so their fields are not paths.  The one
+    spelling of "a config key" for a declaration (``Command.cfg``), a
+    reader (``cfg_value``) and the bool table (``config.BOOL_CFG_PATHS``).
+    """
+    paths: list[str] = []
+    for key, value in DEFAULT_CFG.items():
+        paths.append(key)
+        if isinstance(value, dict):
+            paths.extend(f"{key}.{leaf}" for leaf in value)
+    return tuple(paths)
+
+
+def cfg_key_path(name: str) -> str | None:
+    """The path a typed name means, or ``None`` when it names no key.
+
+    A known path is itself; a bare leaf of a nested key resolves when it
+    is unique (``baud_rate`` -> ``serial.baud_rate``); anything else,
+    including a leaf two dicts share, is ``None``.
+    """
+    paths = cfg_key_paths()
+    if name in paths:
+        return name
+    matches = [path for path in paths if "." in path and path.rpartition(".")[2] == name]
+    return matches[0] if len(matches) == 1 else None
+
+
+def cfg_value(cfg: Mapping, path: str) -> Any:
+    """``cfg``'s value at ``path``, or ``DEFAULT_CFG``'s when the config lacks it.
+
+    The one reader of a config value with a default: the default is the
+    table's, never a literal at the call site.  A path ``DEFAULT_CFG``
+    has no entry for raises ``KeyError``: that is a typo in code, not a
+    user's file, so it fails loud.
+    """
+    parts = path.split(".")
+    default: Any = DEFAULT_CFG
+    for part in parts:
+        default = default[part]
+    node: Any = cfg
+    for part in parts:
+        if not isinstance(node, Mapping) or part not in node:
+            # A container default is copied, as default_cfg copies: a
+            # caller must never hold the table's own list or dict.
+            return copy.deepcopy(default) if isinstance(default, (dict, list)) else default
+        node = node[part]
+    return node
+
+
 def cmd_prefix(cfg: Mapping) -> str:
     """Return ``cfg["cmd_prefix"]`` with the project default as fallback.
 
@@ -209,7 +264,7 @@ def cmd_prefix(cfg: Mapping) -> str:
     resolve from the same constant, so the literal ``"/"`` lives in
     exactly one place.
     """
-    return cfg.get("cmd_prefix", DEFAULT_CMD_PREFIX)
+    return cfg_value(cfg, "cmd_prefix")
 
 
 def quiet_start(cfg: Mapping) -> bool:
@@ -219,7 +274,7 @@ def quiet_start(cfg: Mapping) -> bool:
     everything the setting quiets (the load report, the connect line), so
     a cfg dict built without the key still behaves like a loaded one.
     """
-    return bool(cfg.get("quiet_start", DEFAULT_CFG["quiet_start"]))
+    return bool(cfg_value(cfg, "quiet_start"))
 
 
 # ── Config field help (description, valid values or callable) ──────────────────

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, ClassVar, Final
 from termapy import load_report
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
-from termapy.defaults import quiet_start
+from termapy.defaults import cfg_value, quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.scripting import strip_ansi
@@ -638,14 +638,14 @@ class TerminalHost:
         flags = self.ctx.ns("flags")
         flags.setdefault(
             "echo",
-            self.cfg.get("echo", False) if device_echo_allowed else False,
+            cfg_value(self.cfg, "echo") if device_echo_allowed else False,
         )
         flags.setdefault("echo_repl", echo_repl)
         flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
-        flags.setdefault("hex", self.cfg.get("hex", False))
+        flags.setdefault("hex", cfg_value(self.cfg, "hex"))
         # Line numbers: the same pattern.  Only the TUI renders them, but
         # the flag is what /term.line_no sets and /term.info reports.
-        flags.setdefault("line_no", self.cfg.get("line_no", False))
+        flags.setdefault("line_no", cfg_value(self.cfg, "line_no"))
         # Render device ANSI color (SGR).  Session flag toggled by
         # /term.color; the single source of truth for device color across
         # the TUI (strip before render when off) and CLI (strip in on_lines).
@@ -655,7 +655,7 @@ class TerminalHost:
 
     def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
         """Collect raw bytes using timeout-based framing (delegates to SerialPort)."""
-        frame_gap = frame_gap_ms or self.cfg.get("proto_frame_gap_ms", 50)
+        frame_gap = frame_gap_ms or cfg_value(self.cfg, "proto_frame_gap_ms")
         if self.engine.serial_port:
             return self.engine.serial_port.read_raw(timeout_ms, frame_gap)
         return b""
@@ -889,7 +889,7 @@ class TerminalHost:
         # MCPHost runs auto-load-profile, auto-include, on_connect_cmd,
         # mcp_on_connect_cmd, and the banner watcher.  Inlining
         # ``engine.connect()`` here used to silently skip all of those.
-        if cfg.get("auto_connect"):
+        if cfg_value(cfg, "auto_connect"):
             self._connect()
         return CmdResult.ok(value=config_path)
 

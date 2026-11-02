@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import inspect
+import json
 import re
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.defaults import CFG_HELP, cfg_key_path, cfg_value
 from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.help_dynamic import is_state_line
 from termapy.markup import markup_to_plain, match_parts, underline_markup
@@ -23,6 +25,7 @@ from termapy.plugins import (
     Command,
     UsageError,
     canonical_flags,
+    cfg_users,
     escape_markup,
     interpolate_help,
     resolve_long_help,
@@ -36,6 +39,8 @@ from termapy.plugins.views import Column, Link, Piece, TableView
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
     from termapy.plugins import PluginContext
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -105,6 +110,123 @@ def _try_link(name: str) -> Link:
     frontend adds the space after it.
     """
     return Link(name, run=False)
+
+
+# ── Config keys ──────────────────────────────────────────────────────────────
+#
+# A command declares the keys it depends on and how it uses each
+# (Command.cfg).  The CONFIG section of its page renders them with their
+# live values, /help <key> turns the index around, and one generated line
+# says where a change lasts, so no long_help repeats that (registry
+# cfg-declared).
+
+
+def _cfg_text(value: object) -> str:
+    """A config value as the file spells it; a container by its size."""
+    if isinstance(value, dict):
+        return f"{{{len(value)} keys}}"
+    if isinstance(value, list):
+        return f"[{len(value)} items]"
+    return json.dumps(value)
+
+
+def _cfg_file_name(ctx: PluginContext) -> str:
+    """The active config file's name (``demo.cfg``), as ``/help cfg`` names the config; ``""`` with none loaded."""
+    return Path(ctx.config_path).name if ctx.config_path else ""
+
+
+def _cfg_json_fragment(path: str, value: object) -> str:
+    """How a key is spelled in the config file: ``"serial": {"baud_rate": 115200}``."""
+    parts = path.split(".")
+    fragment = f'"{parts[-1]}": {_cfg_text(value)}'
+    for outer in reversed(parts[:-1]):
+        fragment = f'"{outer}": {{{fragment}}}'
+    return fragment
+
+
+def _cfg_scope_markup(prefix: str, key: str, file_name: str) -> str:
+    """The one line on where a change lasts: the session by command, the named file by the editor's Save."""
+    session_markup = escape_markup(f"{prefix}cfg {key} <value>")
+    editor_markup = escape_markup(f"{prefix}cfg.edit")
+    file_markup = escape_markup(file_name or "the config file")
+    return (
+        f"  [{_SEP}]A change by {session_markup} lasts the session; "
+        f"the config editor ({editor_markup}) saves it to {file_markup}.[/]"
+    )
+
+
+def _cfg_rows(ctx: PluginContext, uses: Mapping[str, str]) -> list[list[Piece]]:
+    """A row per declared key: ``path = value``, the path a link to the key's page, then how the command uses it."""
+    pairs = [(path, f"{path} = {_cfg_text(cfg_value(ctx.cfg, path))}") for path in uses]
+    width = max(len(pair) for _, pair in pairs)
+    return [
+        [
+            Piece("  "),
+            Piece(path, _help_link(path), _OPT),
+            Piece(pair[len(path) :].ljust(width - len(path))),
+            Piece("  " + interpolate_help(uses[path], ctx.prefix)),
+        ]
+        for path, pair in pairs
+    ]
+
+
+def _used_by_rows(prefix: str, users: Sequence[tuple[str, str]]) -> list[list[Piece]]:
+    """A row per command that declared the key: its name, a link to its page, then how it uses the key.
+
+    The column padding is its own piece, as in ``_cfg_rows``: a link
+    covers exactly the name (registry ``links-are-data``).
+    """
+    width = max(len(prefix + name) for name, _ in users)
+    return [
+        [
+            Piece("  "),
+            Piece(prefix + name, _help_link(name), _CMD),
+            Piece(" " * (width - len(prefix + name)) + "  " + interpolate_help(use, prefix)),
+        ]
+        for name, use in users
+    ]
+
+
+def _render_cfg_key_page(ctx: PluginContext, path: str) -> None:
+    """The page of a config key: what it means, its value, the commands that use it and how, where a change lasts."""
+    prefix = ctx.prefix
+    entry = CFG_HELP[path.rpartition(".")[2]]
+    desc = interpolate_help(entry[0], prefix)
+    valid = entry[1]() if callable(entry[1]) else interpolate_help(entry[1], prefix)
+    ctx.io.output_markup(_section_markup("NAME"))
+    ctx.io.output_markup(f"  [{_OPT}]{escape_markup(path)}[/] - {escape_markup(desc)}")
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_section_markup("VALUE"))
+    value, default = cfg_value(ctx.cfg, path), cfg_value({}, path)
+    line = f"{path} = {_cfg_text(value)}"
+    if value != default:
+        line += f"  (default {_cfg_text(default)})"
+    ctx.io.output_markup(f"  {escape_markup(line)}")
+    if valid:
+        ctx.io.output_markup(f"  [{_SEP}]Valid: {escape_markup(valid)}[/]")
+    # FILE: the mechanism behind the value -- the active config, a JSON
+    # file in its own folder, and the key's spelling in it.
+    file_name = _cfg_file_name(ctx)
+    if file_name:
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_section_markup("FILE"))
+        ctx.io.output_markup(
+            f"  [{_OPT}]{escape_markup(file_name)}[/]  "
+            f"{escape_markup(_cfg_json_fragment(path, value))}"
+        )
+        ctx.io.output_markup(
+            f"  [{_SEP}]The active config, JSON, in its own folder.  "
+            f"{escape_markup(prefix + 'cfg.edit')} opens it in the editor (Ctrl+F finds a key); "
+            f"{escape_markup(prefix + 'help.open config')} explains the file.[/]"
+        )
+    users = cfg_users(ctx.internal.plugins).get(path, [])
+    if users:
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_section_markup("USED BY"))
+        for segments in _used_by_rows(prefix, users):
+            ctx.io.output_markup_segments(segments)
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_cfg_scope_markup(prefix, path.rpartition(".")[2], file_name))
 
 
 def _write_docstring(ctx: PluginContext, docstring: str) -> None:
@@ -428,6 +550,16 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
             names = ", ".join([canonical, *aliases])
             ctx.io.output_markup(f"  [{_OPT}]{escape_markup(names)}[/] - {escape_markup(desc)}")
 
+    # CONFIG ──────────────────────────────────────────────────────────────────
+    # The keys the command declared it depends on, each with its live value
+    # and how this command uses it, then where a change lasts.
+    if plugin.cfg:
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_section_markup("CONFIG"))
+        for segments in _cfg_rows(ctx, plugin.cfg):
+            ctx.io.output_markup_segments(segments)
+        ctx.io.output_markup(_cfg_scope_markup(prefix, "<key>", _cfg_file_name(ctx)))
+
     # REQUIRED CAPABILITIES ───────────────────────────────────────────────────
     # Named to round-trip with the code: the rows are CapabilitySet fields,
     # declared as needs=CapabilitySet.<PROFILE> on the Command, so
@@ -678,9 +810,11 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
 
       1. Exact registry match  -> render man-page detail view.
       2. Target-device command -> render its brief one-line form.
-      3. Candidate list        -> name+help substring match, CmdResult.ok
+      3. A config key          -> its page: meaning, value, the commands
+                                  that use it (`value` = the key path).
+      4. Candidate list        -> name+help substring match, CmdResult.ok
                                   with `value` = newline-joined names.
-      4. Zero matches          -> fail with hint to try /search.
+      5. Zero matches          -> fail with hint to try /search.
 
     ``dev_mode`` routes exact matches to the developer docstring view
     instead of the normal DESCRIPTION.
@@ -702,14 +836,21 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
         _render_target_man_page(ctx, tc)
         return CmdResult.ok(value=name)
 
-    # 3. Forgiving candidate list (name + short help only -- args, long_help,
+    # 3. A config key, after the commands so /help port is the command and
+    #    /help serial.port the key; a bare leaf resolves (baud_rate).
+    path = cfg_key_path(name)
+    if path is not None:
+        _render_cfg_key_page(ctx, path)
+        return CmdResult.ok(value=path)
+
+    # 4. Forgiving candidate list (name + short help only -- args, long_help,
     #    and flags live in /search's territory).
     candidates = _find_candidates(name, plugins, ctx.prefix)
     if candidates:
         _render_candidates(ctx, name, candidates)
         return CmdResult.ok(value="\n".join(candidates))
 
-    # 4. No hits anywhere -- hint at the deeper tool.
+    # 5. No hits anywhere -- hint at the deeper tool.
     p = ctx.prefix
     # Bare names: what /help takes, so a click fills in /help <name>.
     shown = (command for command, plugin in plugins.items() if not plugin.hidden)

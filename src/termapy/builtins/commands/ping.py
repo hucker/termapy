@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
 
@@ -45,7 +46,7 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
         if response:
             ctx.io.output(f"{cmd} -- {ms:.0f}ms", "green")
             if not quiet:
-                text = response.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace").strip()
+                text = response.decode(cfg_value(ctx.cfg, "encoding"), errors="replace").strip()
                 if text:
                     ctx.io.output(f"  {text}")
         else:
@@ -82,6 +83,7 @@ COMMAND = Command(
         "repeating for count iterations.  Reports min/max/mean timing."
     ),
     handler=_handler,
+    cfg={"encoding": "decodes each reply"},
     needs=CapabilitySet.SERIAL_CONNECTED,
     params=_PING_PARAMS,
     sub_commands={
@@ -92,6 +94,7 @@ COMMAND = Command(
                 "only the timing summary is printed."
             ),
             handler=_handler_quiet,
+            cfg={"encoding": "decodes each reply"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             params=_PING_PARAMS,
         ),

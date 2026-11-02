@@ -33,6 +33,8 @@ import re
 from collections.abc import Callable
 from datetime import datetime
 
+from termapy.defaults import cfg_value
+
 # Match $(NAME) or $(NAME.SUB), with an optional :strftime format on
 # datetime-valued vars -- e.g. $(DATETIME:%Y%m%d_%H%M%S).  The format runs
 # to the closing paren and may itself contain colons (%H:%M:%S), so we split
@@ -249,8 +251,8 @@ def register_cfg_vars(
         "CFG.LOG_FILE", lambda: str(Path(get_log_path()).resolve()) if get_log_path() else ""
     )
     # port / baud_rate live under cfg["serial"] post-v22.
-    set_context_var("CFG.PORT", lambda: get_cfg().get("serial", {}).get("port", ""))
-    set_context_var("CFG.BAUD", lambda: str(get_cfg().get("serial", {}).get("baud_rate", "")))
+    set_context_var("CFG.PORT", lambda: cfg_value(get_cfg(), "serial.port"))
+    set_context_var("CFG.BAUD", lambda: str(cfg_value(get_cfg(), "serial.baud_rate")))
     set_context_var("CFG.PORT_CFG", lambda: connection_string(get_cfg(), "short"))
     set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
 
@@ -279,6 +281,16 @@ def snapshot() -> dict[str, dict[str, str]]:
 
 
 # ── Resolution and expansion ──────────────────────────────────────────────────
+
+
+def variable_refs(text: str) -> list[str]:
+    """The names ``text`` references as ``$(NAME)`` or ``$(NAME:fmt)``, in order, each once.
+
+    A ``$(env.NAME)`` counts too (its name starts with ``env.``), so a
+    caller that expands the environment first (``config.expand_env_str``)
+    can tell an unset environment variable from a session variable.
+    """
+    return list(dict.fromkeys(match.group(1) for match in _VAR_REF_RE.finditer(text)))
 
 
 def resolve_one(name: str, fmt: str | None = None) -> str | None:

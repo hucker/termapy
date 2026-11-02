@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
@@ -50,7 +51,7 @@ def _send_cmd(ctx: PluginContext, command: str) -> str | None:
         Decoded response text with trailing whitespace stripped,
         or ``None`` on timeout.
     """
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
 
     # 1. Drain - discard any stale bytes sitting in the receive buffer
     ctx.serial.drain()
@@ -143,5 +144,6 @@ COMMAND = Command(
     args="{command}",
     long_help=_LONG_HELP,
     handler=_handler,
+    cfg={"encoding": "decodes each reply"},
     needs=CapabilitySet.SERIAL_CONNECTED,
 )

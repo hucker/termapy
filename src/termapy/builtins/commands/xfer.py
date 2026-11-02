@@ -21,6 +21,7 @@ from termapy.builtins.commands._ymodem_handlers import (
     _handler_recv as _handler_ymodem_recv,
     _handler_send as _handler_ymodem_send,
 )
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     arg = args.strip()
 
     if not arg:
-        root = ctx.cfg.get("file_xfer_root", "")
+        root = cfg_value(ctx.cfg, "file_xfer_root")
         if root:
             resolved = Path(root).resolve()
             ctx.io.result(str(resolved))
@@ -97,6 +98,7 @@ COMMAND = Command(
             args="{path}",
             help="Show or set the file transfer root directory.",
             handler=_handler_root,
+            cfg={"file_xfer_root": "set for the session; bare shows it"},
         ),
         "xmodem": Command(
             help="XMODEM file transfer.",
@@ -107,12 +109,14 @@ COMMAND = Command(
                     args="<file>",
                     help="Send a file via XMODEM to the device.",
                     handler=_handler_xmodem_send,
+                    cfg={"file_xfer_root": "the folder files are sent from"},
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
                 "recv": Command(
                     args="<file>",
                     help="Receive a file via XMODEM from the device.",
                     handler=_handler_xmodem_recv,
+                    cfg={"file_xfer_root": "the folder received files land in"},
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
             },
@@ -126,12 +130,14 @@ COMMAND = Command(
                     args="<file> {file2} ...",
                     help="Send file(s) via YMODEM to the device.",
                     handler=_handler_ymodem_send,
+                    cfg={"file_xfer_root": "the folder files are sent from"},
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
                 "recv": Command(
                     args="{directory}",
                     help="Receive file(s) via YMODEM from the device.",
                     handler=_handler_ymodem_recv,
+                    cfg={"file_xfer_root": "the folder received files land in"},
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),
             },

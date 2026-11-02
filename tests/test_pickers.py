@@ -30,6 +30,9 @@ class _StubApp:
         self.config_results: list[tuple] = []
         self.connect_calls: int = 0
         self.ctx = SimpleNamespace(prefix="/", dispatch=self.dispatched.append)
+        # The Advanced path hands the editor the engine's plugin table
+        # (cfg_users) so its help line can name a key's users.
+        self.repl = SimpleNamespace(_plugins={})
 
     def _on_config_result(self, result: tuple) -> None:
         self.config_results.append(result)

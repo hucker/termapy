@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.defaults import cmd_prefix
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import find_matches
@@ -30,8 +30,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Unused -- the pattern arrives via ``ctx.arg`` (see ``params``).
     """
     pattern = ctx.arg("pattern")
-    prefix = cmd_prefix(ctx.cfg)
-    grep_cmd = f"{prefix}grep"
+    grep_cmd = f"{ctx.prefix}grep"
 
     def _is_grep_noise(line: str) -> bool:
         stripped = line.lstrip()
@@ -53,7 +52,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not matches:
         ctx.io.output(f"  grep: '{pattern}' - no matches")
         return CmdResult.ok(value="0")
-    max_matches = ctx.cfg.get("max_grep_lines", 100)
+    max_matches = cfg_value(ctx.cfg, "max_grep_lines")
     total = len(matches)
     shown = matches[:max_matches]
     if total > max_matches:
@@ -86,6 +85,7 @@ See also: {prefix}find (interactive navigation through matches with
 highlighted lines and arrow-button paging), {prefix}search (search the
 command-help corpus rather than the scrollback).""",
     handler=_handler,
+    cfg={"max_grep_lines": "caps the matches shown"},
     shows=True,
     needs=CapabilitySet.INTERACTIVE,  # scrollback only exists interactively
     params=[

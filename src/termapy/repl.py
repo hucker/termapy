@@ -20,7 +20,7 @@ from threading import Event
 from types import MappingProxyType
 
 from termapy import load_report
-from termapy.defaults import cmd_prefix, quiet_start
+from termapy.defaults import cfg_value, cmd_prefix, quiet_start
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
 from termapy.folder_ops import list_entries
 from termapy.folders import (
@@ -697,7 +697,7 @@ class ReplEngine:
         """
         import json as _json
 
-        style = self.cfg.get("json_style", "compact")
+        style = cfg_value(self.cfg, "json_style")
         spaces = 2 if indent and style in ("indent", "color") else None
         if style == "color":
             markup = json_markup(data, indent=spaces)
@@ -783,8 +783,8 @@ class ReplEngine:
         # needed for this one.
         self._write_json({"cmd": command}, result=False, indent=False)
 
-        encoding = self.cfg.get("encoding", "utf-8")
-        timeout_ms = int(self.cfg.get("default_response_timeout_ms", 1000))
+        encoding = cfg_value(self.cfg, "encoding")
+        timeout_ms = int(cfg_value(self.cfg, "default_response_timeout_ms"))
 
         t0 = _time.perf_counter()
         error = ""
@@ -805,7 +805,7 @@ class ReplEngine:
             # When strip_device_echo is on, drop that leading echo line so
             # the response is just the answer (deterministic here -- the
             # whole reply is in hand, no reader/thread coupling).
-            if self.cfg.get("strip_device_echo") and text:
+            if cfg_value(self.cfg, "strip_device_echo") and text:
                 text = strip_leading_echo(text, command)
         except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
             error = f"Send error: {exc}"
@@ -828,7 +828,7 @@ class ReplEngine:
             if "request_err_pattern_override" in flags:
                 pattern = flags["request_err_pattern_override"]
             else:
-                pattern = self.cfg.get("request_err_pattern", "")
+                pattern = cfg_value(self.cfg, "request_err_pattern")
             if pattern:
                 import re as _re
 
@@ -1227,6 +1227,7 @@ class ReplEngine:
         picker: str = "",
         group: str = "",
         shows: bool = False,
+        cfg: dict[str, str] | None = None,
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1257,6 +1258,8 @@ class ReplEngine:
                 dotted name inherits its parent's group, as a loaded
                 subcommand inherits its root's; ``""`` on a root command
                 means ``GROUP_DEFAULT``.
+            cfg: The config keys it depends on, each with how it uses the
+                value (see ``Command.cfg``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -1292,6 +1295,7 @@ class ReplEngine:
             picker=picker,
             group=group or GROUP_DEFAULT,
             shows=shows,
+            cfg=dict(cfg) if cfg else {},
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -1509,9 +1513,9 @@ class ReplEngine:
 
         # The marker is markup already, so it joins after the text is escaped.
         marker_markup = ""
-        if eol_label is not None and self.cfg.get("eol_markers", False):
-            marker_markup = eol_label(self.cfg.get("eol", "\r"))
-        fmt = expand_vars(self.cfg.get("echo_fmt", "> {cmd}"))
+        if eol_label is not None and cfg_value(self.cfg, "eol_markers"):
+            marker_markup = eol_label(cfg_value(self.cfg, "eol"))
+        fmt = expand_vars(cfg_value(self.cfg, "echo_fmt"))
         return fmt.replace("{cmd}", escape_markup(text) + marker_markup)
 
     def dispatch_full(
@@ -1681,7 +1685,7 @@ class ReplEngine:
         # seeds the flag at init; the flag is the session truth.  An empty
         # line is echoed too: it sends a bare line ending (send_bare_enter,
         # a blank line in a paste), and the echo is how the user sees it went.
-        if self.echo and not self.cfg.get("request_mode"):
+        if self.echo and not cfg_value(self.cfg, "request_mode"):
             _announce(cmd, eol=eol_label)
 
         if is_connected and not is_connected():
@@ -1694,7 +1698,7 @@ class ReplEngine:
         # to short-circuit bad args locally with the same vocabulary the
         # MCP path uses.  Skips silently when no profile is loaded or
         # the command isn't a profile entry.
-        if self.cfg.get("validate_typed_args"):
+        if cfg_value(self.cfg, "validate_typed_args"):
             fail = self._validate_bare_typed_args(cmd)
             if fail is not None:
                 # Shown as if the device had replied with the error.
@@ -1716,7 +1720,7 @@ class ReplEngine:
             # hook only sees commands the profile didn't claim.  In
             # TUI/CLI there's no profile executor on this path, so
             # request_mode applies to every bare command.
-            if self.cfg.get("request_mode") and self.ctx.serial.write is not None:
+            if cfg_value(self.cfg, "request_mode") and self.ctx.serial.write is not None:
                 return self._exec_request_mode(cmd)
             # ``--json`` is the per-call form of that dial: a bare device
             # line carrying it is ONE request/response, not a fire-and-
@@ -1854,7 +1858,7 @@ class ReplEngine:
         # outer response envelope, so printing a second envelope into
         # ``output_lines`` would duplicate exactly what the unified
         # envelope removed.
-        if not wants_json and self.cfg.get("request_mode"):
+        if not wants_json and cfg_value(self.cfg, "request_mode"):
             from termapy.variables import launch_var
 
             wants_json = launch_var("FRONT_END") != "mcp"

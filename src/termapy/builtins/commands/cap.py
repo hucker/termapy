@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, folder_line
@@ -435,7 +436,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         path = p
         ensure_folder(path.parent)
 
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
     cmd_prefix = ctx.prefix
 
     def extract(raw: str) -> str:
@@ -640,7 +641,7 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
                     break
                 _time.sleep(0.01)
 
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
     tx_decoded = bytes(tx).decode(encoding, errors="replace")
     rx_decoded = bytes(rx).decode(encoding, errors="replace")
 
@@ -887,6 +888,7 @@ COMMAND = Command(
             help="Poll commands on a schedule, display (and optionally save) results.",
             long_help=_cap_long_help_with_prose(_CAP_POLL_PROSE),
             handler=_handler_poll,
+            cfg={"encoding": "decodes each polled reply"},
             # raw_args keeps cmd= literal (device commands, no $(VAR) expansion);
             # params still parse the keywords + rest (raw_args skips only transforms).
             raw_args=True,
@@ -941,6 +943,7 @@ COMMAND = Command(
             # would be misleading.
             long_help=_CAP_WIRE_PROSE,
             handler=_handler_wire,
+            cfg={"encoding": "decodes the captured bytes"},
             # raw_args keeps cmd= literal (no $(VAR) expansion); params still
             # parse it (raw_args skips only transforms, not param parsing).
             raw_args=True,

@@ -897,6 +897,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_cap_poll.py                    | `/cap.poll`: the scheduled polling loop, its files, its validation, and its stop                                                                   |
 | test_capture.py                     | Tests for CaptureEngine - file capture state machine                                                                                               |
 | test_capture_claim.py               | A capture owns its serial claim from start to stop, inside a script or not                                                                         |
+| test_cfg_declared.py                | A command declares the config keys it uses, with how, and every surface derives from it (registry cfg-declared)                                    |
 | test_cfg_icon.py                    | Tests for /cfg.icon -- per-cfg desktop launcher creation                                                                                           |
 | test_cfg_info_report.py             | The /cfg.info project report: its tails, and the exit hook that rewrites it                                                                        |
 | test_cfg_load.py                    | End-to-end tests for /cfg.load                                                                                                                     |

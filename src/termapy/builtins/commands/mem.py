@@ -41,6 +41,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Final, Literal
 
+from termapy.defaults import cfg_value
 from termapy.devices import distinct_spans, registers_in_range, span_groups
 from termapy.memory import (
     DeviceMemoryError,
@@ -124,7 +125,7 @@ def _exchange_factory(ctx: PluginContext, dialect: Dialect) -> Callable[[str], s
     exchange timeout expires; the engine reports what it got.  ANSI color
     is stripped so a monitor with color on still parses.
     """
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
 
     def exchange(command: str) -> str:
         buffer = bytearray()
@@ -1167,7 +1168,7 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
             truncated = True
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
-    text = collected.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace")
+    text = collected.decode(cfg_value(ctx.cfg, "encoding"), errors="replace")
     bits = memory.info.address_bits
     suffix = "  ... (truncated)" if truncated else ""
     # The address prefix is a locator (verbose); the string is the answer.
@@ -1338,6 +1339,7 @@ COMMAND = Command(
             ],
             help="Hexdump or word columns at an address or symbol (default: the symbol's size, else 64).",
             handler=_handler_dump,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
@@ -1360,6 +1362,7 @@ COMMAND = Command(
             ],
             help="Read one typed value: scalar, char, register field, bit or slice.",
             handler=_handler_read,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
@@ -1384,6 +1387,7 @@ COMMAND = Command(
             ],
             help="Write a value to a named symbol, register or field, or hex bytes at an address (audited).",
             handler=_handler_write,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1396,6 +1400,7 @@ COMMAND = Command(
             ],
             help="OR a mask into one word (atomic via MEM.M when available).",
             handler=_handler_or,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1408,6 +1413,7 @@ COMMAND = Command(
             ],
             help="AND a mask into one word (atomic via MEM.M when available).",
             handler=_handler_and,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1420,6 +1426,7 @@ COMMAND = Command(
             ],
             help="XOR a mask into one word (always read + write-back).",
             handler=_handler_xor,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1432,6 +1439,7 @@ COMMAND = Command(
             ],
             help="Clear mask bits in one word: word &= ~mask (atomic via MEM.M when available).",
             handler=_handler_clear,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1443,6 +1451,7 @@ COMMAND = Command(
             ],
             help="Invert one word (always read + write-back).",
             handler=_handler_not,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1461,12 +1470,14 @@ COMMAND = Command(
             ],
             help="Read a NUL-terminated string at an address or symbol.",
             handler=_handler_str,
+            cfg={"encoding": "decodes the string read"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
         "info": Command(
             help="Show how memory access is configured: dialect, block limit, address width, endian, atomic modify.",
             handler=_handler_info,
+            cfg={"encoding": "decodes the MEM.INFO reply"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),

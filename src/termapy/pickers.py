@@ -39,7 +39,7 @@ from termapy.dialogs import (
     ProtoEditor,
     ScriptEditor,
 )
-from termapy.plugins import CmdResult
+from termapy.plugins import CmdResult, cfg_users
 
 if TYPE_CHECKING:
     from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
@@ -117,7 +117,7 @@ def on_quick_setup(app, result: tuple | None) -> None:
         # manually after editing.  The editor's Save creates the folder;
         # Cancel leaves nothing behind.
         app.push_screen(
-            ConfigEditor(cfg, config_path, is_new=True),
+            ConfigEditor(cfg, config_path, is_new=True, used_by=cfg_users(app.repl._plugins)),
             callback=app._on_config_result,
         )
         return

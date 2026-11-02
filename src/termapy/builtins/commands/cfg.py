@@ -34,6 +34,7 @@ from termapy.config import (
     rename_config,
 )
 from termapy.config_resolve import resolve_config
+from termapy.defaults import cfg_value
 from termapy.folder_ops import FILE_COLUMNS, edit_cfg_command, file_record, list_entries
 from termapy.folders import FOLDER_PATTERNS, FOLDERS, INFO_REPORT_SUFFIX, PLUGIN, file_suggestion
 from termapy.help_dynamic import cfg_status, compose
@@ -626,7 +627,7 @@ def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
     colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
 
     cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}
-    buttons = ctx.cfg.get("custom_buttons", [])
+    buttons = cfg_value(ctx.cfg, "custom_buttons")
     active = [button for button in buttons if button.get("enabled")]
     config_name = Path(ctx.config_path).stem
 
@@ -841,6 +842,7 @@ COMMAND = Command(
             flags={"--display": "Open full report in the system viewer."},
             help="Print project summary (tree + config + buttons).",
             handler=_handler_info,
+            cfg={"custom_buttons": "the enabled buttons, in the report"},
             shows=True,
             needs=CapabilitySet.CONFIG_LOADED,
         ),
@@ -893,12 +895,14 @@ COMMAND = Command(
             help="Create a desktop / menu launcher for the current cfg.",
             long_help=_ICON_LONG_HELP,
             handler=_handler_icon,
+            cfg={"title": "names the launcher"},
             flags=_ICON_FLAGS,
             needs=CapabilitySet.CONFIG_GUI_APPS,
             sub_commands={
                 "remove": Command(
                     help="Delete the launcher for the current cfg.",
                     handler=_handler_icon_remove,
+                    cfg={"title": "names the launcher it removes"},
                     needs=CapabilitySet.CONFIG_GUI_APPS,
                     safety="mutable",
                 ),

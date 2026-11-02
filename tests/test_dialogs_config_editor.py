@@ -14,9 +14,10 @@ from pathlib import Path
 
 import pytest
 from textual.app import App
-from textual.widgets import Button, Input, Static, TextArea
+from textual.widgets import Button, Input, Label, Static, TextArea
 
 from termapy.defaults import CFG_HELP, DEFAULT_CFG, DEFAULT_CMD_PREFIX
+from termapy.dialogs._common import find_occurrences, pick_occurrence
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.plugins.command import interpolate_help
@@ -42,10 +43,12 @@ def _write_cfg(tmp_path: Path, **overrides) -> tuple[dict, Path]:
     return cfg, path
 
 
-async def _open(app: App, pilot, cfg: dict, path: Path, highlight_key: str = ""):
+async def _open(app: App, pilot, cfg: dict, path: Path, highlight_key: str = "", used_by=None):
     """Push the editor and return it with the list its dismiss value lands in."""
     results: list[tuple | None] = []
-    app.push_screen(ConfigEditor(cfg, str(path), highlight_key), callback=results.append)
+    app.push_screen(
+        ConfigEditor(cfg, str(path), highlight_key, used_by=used_by), callback=results.append
+    )
     await pilot.pause()
     screen = app.screen
     assert isinstance(screen, ConfigEditor), "the editor is on top"
@@ -88,6 +91,37 @@ class TestWhatItShows:
 
 
 class TestHelpLine:
+    def test_the_help_line_names_the_commands_that_declared_the_key(self, tmp_path):
+        """cfg-declared: on a key some command declared, the panel ends with those commands; on a key none did, no such line."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            used_by = {
+                "serial.port": [
+                    ("port.disconnect", "the port it closes"),
+                    ("port.info", "the port it reports"),
+                ]
+            }
+            async with app.run_test() as pilot:
+                # Act -- opened on the port line, whose leaf resolves to serial.port
+                screen, _ = await _open(
+                    app, pilot, cfg, path, highlight_key="port", used_by=used_by
+                )
+                await pilot.pause()
+
+                # Assert
+                help_text = _plain(screen.query_one("#config-help", Static))
+                assert "Used by: /port.disconnect, /port.info" in help_text, help_text
+
+                # Act / Assert -- a key nothing declared
+                editor = screen.query_one("#config-editor", TextArea)
+                editor.cursor_location = (_title_row(editor), 0)
+                await pilot.pause()
+                assert "Used by" not in _plain(screen.query_one("#config-help", Static))
+
+        _run(scenario)
+
     def test_help_describes_the_key_under_the_cursor(self, tmp_path):
         """Moving the cursor onto a known key shows its line number, description, and value."""
 
@@ -351,6 +385,34 @@ class TestValueValidation:
                 assert "->" in resolved_status and resolved_error == "", (
                     "the resolved value is validated"
                 )
+
+        _run(scenario)
+
+    def test_a_session_variable_is_known_and_a_typo_is_not(self, tmp_path):
+        """$(DATE) in a value is a session variable expanded when the value is used, never 'not resolved'; $(NOPE) is an unknown variable."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _ = await _open(app, pilot, cfg, path)
+
+                # Act
+                known_status, known_note = screen._validate_value(
+                    "echo_fmt", '"[purple]$(DATE)> {cmd}[/]"'
+                )
+                unknown_status, unknown_note = screen._validate_value(
+                    "echo_fmt", '"$(NOPE_UNKNOWN_123)> {cmd}"'
+                )
+
+                # Assert
+                assert known_status.startswith("[green]"), "a known variable is a valid value"
+                assert (
+                    "$(DATE) is a session variable, expanded when the value is used" in known_note
+                )
+                assert "not resolved" not in known_note
+                assert unknown_status.startswith("[yellow]")
+                assert "unknown variable: $(NOPE_UNKNOWN_123)" in unknown_note
 
         _run(scenario)
 
@@ -673,5 +735,306 @@ class TestCreatingOverAConfig:
                 assert '"title": "other"' in shown, "the editor shows the new cfg, not the file"
                 assert isinstance(app.screen, ConfirmDialog), "Save asks before replacing"
                 assert json.loads(target.read_text(encoding="utf-8"))["title"] == "old"
+
+        _run(scenario)
+
+
+class TestFindHelpers:
+    """find_occurrences and pick_occurrence: the pure half of the editor's find."""
+
+    def test_every_occurrence_is_listed_in_document_order_ignoring_case(self):
+        """Two hits on one line and one on another come back in order, matched without regard to case."""
+        lines = ['"title": "zqZQ",', "none", '"x": "zq"']
+        actual = find_occurrences(lines, "ZQ")
+        expected = [(0, 10, 2), (0, 12, 2), (2, 6, 2)]
+        assert actual == expected
+
+    def test_an_empty_needle_matches_nothing(self):
+        """An empty field selects nothing rather than every position."""
+        assert find_occurrences(["abc"], "") == []
+
+    def test_occurrences_do_not_overlap(self):
+        """``aa`` in ``aaa`` is one occurrence, not two."""
+        assert find_occurrences(["aaa"], "aa") == [(0, 0, 2)]
+
+    def test_the_needle_is_literal(self):
+        """``$(CFG)`` and ``[/]`` are text to find, never a regex."""
+        line = '"echo_fmt": "[purple]$(CFG)> {cmd}[/]",'
+        assert find_occurrences([line], "$(CFG)") == [(0, 21, 6)]
+        assert find_occurrences([line], "[/]") == [(0, line.index("[/]"), 3)]
+
+    def test_forward_pick_is_inclusive_when_typing_and_exclusive_when_stepping(self):
+        """Typing keeps the match under the cursor as the needle grows; Enter moves past it."""
+        matches = [(0, 10, 2), (0, 12, 2), (2, 6, 2)]
+        assert pick_occurrence(matches, (0, 10), 1, inclusive=True) == 0, "typing keeps the match"
+        assert pick_occurrence(matches, (0, 10), 1, inclusive=False) == 1, "Enter moves on"
+
+    def test_picks_wrap_at_both_ends(self):
+        """Past the last match the first comes next; before the first, the last."""
+        matches = [(0, 10, 2), (0, 12, 2), (2, 6, 2)]
+        assert pick_occurrence(matches, (2, 6), 1, inclusive=False) == 0, "forward wrap"
+        assert pick_occurrence(matches, (0, 10), -1, inclusive=False) == 2, "backward wrap"
+
+    def test_no_matches_picks_none(self):
+        """With nothing to show the pick is None, so the bar can say 0/0."""
+        assert pick_occurrence([], (0, 0), 1, inclusive=True) is None
+
+
+def _title_row(editor: TextArea) -> int:
+    """The editor row holding the ``title`` key."""
+    return next(
+        r for r in range(editor.document.line_count) if '"title"' in str(editor.get_line(r))
+    )
+
+
+class TestFind:
+    """The editor's find bar: any text, literal, case-insensitive; Escape closes the bar, not the dialog."""
+
+    @staticmethod
+    async def _open_find(app, pilot, cfg, path, key: str = "ctrl+f"):
+        """Open the editor, focus its text and press the find key; return what the tests drive."""
+        screen, results = await _open(app, pilot, cfg, path)
+        editor = screen.query_one("#config-editor", TextArea)
+        editor.focus()
+        await pilot.pause()
+        await pilot.press(key)
+        await pilot.pause()
+        field = screen.query_one("#config-find-input", Input)
+        count = screen.query_one("#config-find-count", Label)
+        return screen, results, editor, field, count
+
+    @pytest.mark.parametrize("key", ["ctrl+f", "alt+f"])
+    def test_ctrl_f_and_alt_f_open_the_bar_and_focus_its_field(self, tmp_path, key):
+        """Both keys show the bar and put the cursor in its field; Alt+F is the VS Code fallback."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _, _, field, _ = await self._open_find(app, pilot, cfg, path, key)
+
+                # Assert
+                assert screen.query_one("#config-find").has_class("visible"), "the bar shows"
+                assert app.focused is field, "the field has the focus"
+
+        _run(scenario)
+
+    def test_the_find_button_opens_the_bar(self, tmp_path):
+        """The Find button is the discoverable way in: a click shows the bar and focuses its field."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test(size=(160, 50)) as pilot:
+                screen, _ = await _open(app, pilot, cfg, path)
+
+                # Act
+                await pilot.click("#cfg-find")
+                await pilot.pause()
+
+                # Assert
+                assert screen.query_one("#config-find").has_class("visible"), "the bar shows"
+                assert app.focused is screen.query_one("#config-find-input", Input)
+
+        _run(scenario)
+
+    def test_typing_selects_the_first_match_and_the_help_panel_follows(self, tmp_path):
+        """Each keystroke selects the first match after the cursor, counts it, and the key's help shows."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _, editor, field, count = await self._open_find(app, pilot, cfg, path)
+
+                # Act
+                field.value = "max_grep"
+                await pilot.pause()
+
+                # Assert
+                assert editor.selected_text == "max_grep", "the match is the selection"
+                assert _plain(count) == "1/1"
+                expected = interpolate_help(CFG_HELP["max_grep_lines"][0], DEFAULT_CMD_PREFIX)
+                assert expected in _plain(screen.query_one("#config-help", Static)), (
+                    "the help panel follows the selection to the found key"
+                )
+
+        _run(scenario)
+
+    def test_enter_walks_two_matches_on_one_line_and_wraps(self, tmp_path):
+        """Enter steps to the second match on the same line, then wraps to the first."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path, title="zqzq")
+            app = _Host()
+            async with app.run_test() as pilot:
+                _, _, editor, field, count = await self._open_find(app, pilot, cfg, path)
+                row = _title_row(editor)
+                col = str(editor.get_line(row)).index("zqzq")
+                field.value = "zq"
+                await pilot.pause()
+                first = (editor.selection.start, _plain(count))
+
+                # Act
+                await pilot.press("enter")
+                await pilot.pause()
+                second = (editor.selection.start, _plain(count))
+                await pilot.press("enter")
+                await pilot.pause()
+                third = (editor.selection.start, _plain(count))
+
+                # Assert
+                assert first == ((row, col), "1/2")
+                assert second == ((row, col + 2), "2/2"), "the second hit on the same line"
+                assert third == ((row, col), "1/2"), "past the last match, the first again"
+
+        _run(scenario)
+
+    def test_up_steps_back_and_wraps_to_the_last(self, tmp_path):
+        """Up from the first match wraps to the last; Up again comes back."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path, title="zqzq")
+            app = _Host()
+            async with app.run_test() as pilot:
+                _, _, editor, field, count = await self._open_find(app, pilot, cfg, path)
+                row = _title_row(editor)
+                col = str(editor.get_line(row)).index("zqzq")
+                field.value = "zq"
+                await pilot.pause()
+
+                # Act
+                await pilot.press("up")
+                await pilot.pause()
+                wrapped = (editor.selection.start, _plain(count))
+                await pilot.press("up")
+                await pilot.pause()
+                back = (editor.selection.start, _plain(count))
+
+                # Assert
+                assert wrapped == ((row, col + 2), "2/2"), "before the first match, the last"
+                assert back == ((row, col), "1/2")
+
+        _run(scenario)
+
+    def test_a_changed_document_is_searched_as_it_is_now(self, tmp_path):
+        """Matches are found in the text as edited: an added occurrence counts, a removed one is gone."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path, title="zqzq")
+            app = _Host()
+            async with app.run_test() as pilot:
+                _, _, editor, field, count = await self._open_find(app, pilot, cfg, path)
+                field.value = "zq"
+                await pilot.pause()
+                assert _plain(count) == "1/2", "two to start with"
+
+                # Act / Assert -- one more occurrence
+                editor.text = editor.text.replace("zqzq", "zqzqzq")
+                await pilot.press("enter")
+                await pilot.pause()
+                assert _plain(count) == "1/3", "the added occurrence is counted"
+
+                # Act / Assert -- none left
+                editor.text = editor.text.replace("zqzqzq", "none")
+                await pilot.press("enter")
+                await pilot.pause()
+                assert _plain(count) == "0/0", "the removed occurrences are gone"
+
+        _run(scenario)
+
+    def test_no_match_shows_zero_and_leaves_the_cursor(self, tmp_path):
+        """A needle found nowhere says 0/0 and moves nothing."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                _, _, editor, field, count = await self._open_find(app, pilot, cfg, path)
+                editor.cursor_location = (3, 2)
+                await pilot.pause()
+
+                # Act
+                field.value = "nomatchxyz"
+                await pilot.pause()
+
+                # Assert
+                assert _plain(count) == "0/0"
+                assert editor.cursor_location == (3, 2), "the cursor stays"
+
+        _run(scenario)
+
+    def test_case_and_regex_characters_are_literal(self, tmp_path):
+        """``EOL`` finds the lowercase key; ``$(CFG)`` finds the prompt template, not a regex."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                _, _, editor, field, _ = await self._open_find(app, pilot, cfg, path)
+
+                # Act / Assert
+                field.value = "EOL"
+                await pilot.pause()
+                assert editor.selected_text == "eol", "case does not matter"
+                field.value = "$(CFG)"
+                await pilot.pause()
+                assert editor.selected_text == "$(CFG)", "metacharacters are text"
+
+        _run(scenario)
+
+    def test_escape_closes_the_bar_first_and_the_dialog_second(self, tmp_path):
+        """Escape with the bar open hides it and returns to the editor at the match; a second Escape dismisses."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path, title="zqzq")
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, results, editor, field, _ = await self._open_find(app, pilot, cfg, path)
+                row = _title_row(editor)
+                col = str(editor.get_line(row)).index("zqzq")
+                field.value = "zq"
+                await pilot.pause()
+
+                # Act
+                await pilot.press("escape")
+                await pilot.pause()
+
+                # Assert
+                assert app.screen is screen, "the dialog stays open"
+                assert not screen.query_one("#config-find").has_class("visible"), "the bar hides"
+                assert app.focused is editor, "the editor has the focus back"
+                assert editor.selection.is_empty, "the match is no longer selected"
+                assert editor.cursor_location == (row, col + 2), "the cursor stays at the match"
+
+                # Act / Assert -- the second Escape is the dialog's
+                await pilot.press("escape")
+                await pilot.pause()
+                assert results == [None]
+
+        _run(scenario)
+
+    def test_reopening_searches_the_kept_needle_afresh(self, tmp_path):
+        """The field keeps its text; opening again searches the document as it is now."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path, title="zqzq")
+            app = _Host()
+            async with app.run_test() as pilot:
+                _, _, editor, field, count = await self._open_find(app, pilot, cfg, path)
+                field.value = "zq"
+                await pilot.pause()
+                await pilot.press("escape")
+                await pilot.pause()
+                editor.text = editor.text.replace("zqzq", "zqzqzq")
+                await pilot.pause()
+
+                # Act
+                await pilot.press("ctrl+f")
+                await pilot.pause()
+
+                # Assert
+                assert field.value == "zq", "the needle is kept"
+                assert _plain(count) == "1/3", "counted against the edited text"
 
         _run(scenario)

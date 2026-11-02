@@ -151,6 +151,7 @@ Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outsi
 | Ctrl+D  | On an empty prompt, send Ctrl-D to the device |
 | Ctrl+Z  | On an empty prompt, send Ctrl-Z to the device (an AT modem's send-SMS key) |
 | Ctrl+A  | Select all output (click it first)  |
+| Ctrl+F  | Find in the config editor (Alt+F in VS Code) |
 | Shift+Up | Select output lines from the prompt; then Shift+arrows grow it |
 | F1–F4   | Help / Cfg / Run / Proto buttons (Ctrl+Shift+1–4 in VS Code); F10 edits the config |
 | Up/Down | Cycle through command history       |
@@ -247,7 +248,7 @@ The most common ones:
 | `/show.cfg`                          | Show the current config file                                                  |
 | `/term`                              | Terminal display / session toggles (echo, line_no, timestamps, ...)           |
 | `/term.info`                         | Snapshot the state of every `/term.*` toggle                                  |
-| `/term.echo {on\|off\|toggle}`        | Local echo of device commands sent to the wire (persisted via cfg `echo`)     |
+| `/term.echo {on\|off\|toggle}`        | Local echo of device commands to the wire; session only, seeded by cfg `echo` |
 | `/term.echo_repl {on\|off\|toggle}`   | Local echo of REPL (slash) commands, session only; off inside scripts         |
 | `/term.line_no {on\|off\|toggle}`     | Toggle line numbers in serial output (TUI only)                               |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |

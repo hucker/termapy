@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from termapy.defaults import (
     CFG_HELP,
     COLOR_ALIASES,
@@ -17,6 +19,9 @@ from termapy.defaults import (
     _list_ports,
     _preview_color,
     _preview_markup,
+    cfg_key_path,
+    cfg_key_paths,
+    cfg_value,
     resolve_color,
 )
 from termapy.plugins.command import interpolate_help
@@ -192,6 +197,45 @@ class TestDefaultCfg:
         # Assert
         assert isinstance(DEFAULT_CFG["custom_buttons"], list), "buttons array"
         assert len(DEFAULT_CFG["custom_buttons"]) == 4, "four button slots"
+
+
+# -- Key paths and the one reader --------------------------------------------
+
+
+class TestCfgKeyPaths:
+    """cfg_key_paths, cfg_key_path and cfg_value: the one spelling of a config key and the one reader with the table's default."""
+
+    def test_paths_follow_the_file_order_with_a_dicts_leaves_right_after_it(self):
+        """Every top-level key in DEFAULT_CFG order, a nested key's leaves after the key itself, and no custom-button field."""
+        # Act
+        paths = cfg_key_paths()
+
+        # Assert
+        assert paths[:2] == ("config_version", "title"), "DEFAULT_CFG order"
+        serial_at = paths.index("serial")
+        assert paths[serial_at + 1 : serial_at + 3] == ("serial.port", "serial.baud_rate"), (
+            "a dict's leaves follow it as dotted paths"
+        )
+        assert "custom_buttons" in paths and "name" not in paths, "a list's fields are not keys"
+
+    def test_a_leaf_resolves_only_when_it_names_one_key(self):
+        """A path is itself, a unique leaf resolves to its path, and an unknown name or a button field is None."""
+        # Act / Assert
+        assert cfg_key_path("serial.port") == "serial.port"
+        assert cfg_key_path("baud_rate") == "serial.baud_rate", "a bare leaf resolves"
+        assert cfg_key_path("eol") == "eol"
+        assert cfg_key_path("nope") is None
+        assert cfg_key_path("tooltip") is None, "a custom-button field is not a key"
+
+    def test_cfg_value_walks_a_path_and_falls_back_to_the_table(self):
+        """A nested value is read; a missing leaf or dict gives DEFAULT_CFG's value; an unknown path fails loud."""
+        # Act / Assert
+        assert cfg_value({"serial": {"baud_rate": 9600}}, "serial.baud_rate") == 9600
+        assert cfg_value({"serial": {}}, "serial.baud_rate") == 115200, "a missing leaf"
+        assert cfg_value({}, "serial.baud_rate") == 115200, "a missing dict"
+        assert cfg_value({"eol": "\n"}, "eol") == "\n"
+        with pytest.raises(KeyError):
+            cfg_value({}, "serial.nope")
 
 
 # -- _list_ports -------------------------------------------------------------

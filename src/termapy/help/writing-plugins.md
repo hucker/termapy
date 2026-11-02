@@ -430,6 +430,33 @@ COMMAND = Command(
 
 An unknown folder name fails when the plugin loads.
 
+## Config keys: `cfg=`
+
+When a handler reads a config value (`ctx.cfg["serial"]["port"]`,
+`ctx.cfg.get("encoding")`) or sets one for the session
+(`ctx.internal.apply_cfg`), declare the key and how the command uses it:
+
+```python
+COMMAND = Command(
+    name="replay",
+    args="<filename>",
+    help="Replay a capture.",
+    handler=_handler,
+    cfg={"encoding": "decodes the captured bytes"},
+)
+```
+
+`/help replay` then ends its page with a CONFIG section: the key, its
+current value and your phrase, plus where a change lasts (`/cfg <key>
+<value>` for the session, the config editor's Save for the file).
+`/help encoding` lists your command among the key's users, `/search
+encoding` finds it, the config editor names it on the key's help line,
+and the MCP catalog carries the declaration. A nested key is its dotted
+path (`serial.baud_rate`); a bare leaf resolves when only one key has
+it. An unknown key or an empty phrase fails when the plugin loads. Keep
+the long help for behavior: the declaration is the one place that says
+what a key does to your command.
+
 ## Commands that only show: `shows=`
 
 A link in termapy's output that names your command (a did-you-mean in an

@@ -1227,6 +1227,7 @@ class ReplEngine:
         picker: str = "",
         group: str = "",
         shows: bool = False,
+        cfg: dict[str, str] | None = None,
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1257,6 +1258,8 @@ class ReplEngine:
                 dotted name inherits its parent's group, as a loaded
                 subcommand inherits its root's; ``""`` on a root command
                 means ``GROUP_DEFAULT``.
+            cfg: The config keys it depends on, each with how it uses the
+                value (see ``Command.cfg``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -1292,6 +1295,7 @@ class ReplEngine:
             picker=picker,
             group=group or GROUP_DEFAULT,
             shows=shows,
+            cfg=dict(cfg) if cfg else {},
         )
         # Auto-update parent's children list for dotted names
         if "." in name:

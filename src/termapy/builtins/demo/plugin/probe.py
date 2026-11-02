@@ -143,5 +143,6 @@ COMMAND = Command(
     args="{command}",
     long_help=_LONG_HELP,
     handler=_handler,
+    cfg={"encoding": "decodes each reply"},
     needs=CapabilitySet.SERIAL_CONNECTED,
 )

@@ -322,6 +322,11 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     # agent knows which commands may change (registry maturity-declared-once).
     if plugin.maturity != "stable":
         entry["maturity"] = plugin.maturity
+    # The config keys it depends on and how it uses each, as /help's CONFIG
+    # section shows them; omitted when it declares none (registry
+    # cfg-declared).
+    if plugin.cfg:
+        entry["cfg"] = {path: interpolate_help(use, ctx.prefix) for path, use in plugin.cfg.items()}
     # Structured, typed argument schema for commands that declare params --
     # parity with device commands' ``typed_args``.  Omitted (not empty) for
     # commands that haven't been migrated, so their entry shape is unchanged.

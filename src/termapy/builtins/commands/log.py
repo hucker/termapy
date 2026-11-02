@@ -437,6 +437,11 @@ COMMAND = Command(
             help=_FINGERPRINT_HELP,
             long_help=_FINGERPRINT_LONG_HELP,
             handler=_handler_fingerprint,
+            cfg={
+                "encoding": "in the fingerprint",
+                "eol": "in the fingerprint",
+                "serial.flow_control": "in the fingerprint",
+            },
             flags=_FINGERPRINT_FLAGS,
             # It writes to the session log: in the CLI, which keeps none, it
             # said "written to log" and wrote nowhere.

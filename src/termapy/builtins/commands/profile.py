@@ -468,6 +468,7 @@ COMMAND = Command(
                 "are applied to the live cfg."
             ),
             handler=_handler_load,
+            cfg={"encoding": "decodes the profile a cmd= fetches"},
         ),
         "save": Command(
             args="{path}",

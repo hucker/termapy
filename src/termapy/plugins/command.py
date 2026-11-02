@@ -553,6 +553,17 @@ class Command:
             ...) whose files the FIRST argument names, so frontends can
             suggest them as the user types.  ``""`` (default) means the
             first argument is not a data-folder file.  Validated at load.
+        cfg: The config keys the command depends on, each with how it
+            uses the value: ``{"eol": "appended to each sent line"}``.
+            A key is a path as ``defaults.cfg_key_paths`` spells it
+            (``serial.baud_rate``); a bare leaf of a nested key is
+            resolved.  ``/help`` renders them as the page's CONFIG
+            section with their live values, ``/help <key>``, the config
+            editor and ``/search`` say which commands use a key, and the
+            MCP catalog carries them, so no long_help has to say what a
+            key does to the command or where a change lasts (registry
+            ``cfg-declared``).  An unknown key or an empty phrase fails
+            at construction.
         picker: The picker (one of ``PICKERS``) a BARE invocation opens
             where the host has pickers (the TUI) -- the same dialog its
             button opens.  The dispatcher opens it instead of calling the
@@ -601,6 +612,7 @@ class Command:
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
     files: str = ""
+    cfg: dict[str, str] = field(default_factory=dict)
     picker: str = ""
     help_list: str = ""
     group: str = GROUP_DEFAULT
@@ -638,6 +650,7 @@ class Command:
                 f"/{self.name or '<command>'}: shows= is for a command that changes "
                 f"nothing, and safety {self.safety!r} says this one does"
             )
+        self.cfg = validate_cfg_uses(self.cfg, self.name)
         if not self.params:
             return
         validate_param_specs(self.params, self.name)
@@ -937,6 +950,8 @@ class PluginInfo:
         safety: Safety tier inherited from ``Command.safety``.
         files: Data folder the first argument's file lives in, inherited
             from ``Command.files``; ``""`` when it names no data-folder file.
+        cfg: The config keys it depends on, each path to how it uses the
+            value, inherited from ``Command.cfg`` (registry ``cfg-declared``).
         picker: Picker a bare invocation opens in a host with pickers,
             inherited from ``Command.picker``.
         bare_sub: Subcommand a bare invocation runs (after ``picker``,
@@ -968,6 +983,7 @@ class PluginInfo:
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
     files: str = ""
+    cfg: dict[str, str] = field(default_factory=dict)
     picker: str = ""
     bare_sub: str = ""
     help_list: str = ""
@@ -1006,6 +1022,48 @@ class PluginInfo:
         group_error = validate_group(self.group)
         if group_error:
             raise ValueError(f"/{self.name}: invalid group {self.group!r}: {group_error}")
+        self.cfg = validate_cfg_uses(self.cfg, self.name)
+
+
+def validate_cfg_uses(cfg: Mapping[str, str], name: str) -> dict[str, str]:
+    """A ``cfg=`` declaration with every key resolved to its path; ``ValueError`` names the first bad entry.
+
+    The one check for ``Command`` and ``PluginInfo`` alike: a key
+    ``defaults.cfg_key_path`` cannot place (a typo, a key that is no
+    longer in ``DEFAULT_CFG``) and a phrase that says nothing both fail
+    at load, as a bad synopsis does, rather than rendering a wrong page.
+    """
+    # Lazy as the other validators' imports are: defaults is pure data,
+    # but this module is imported by everything.
+    from termapy.defaults import cfg_key_path
+
+    resolved: dict[str, str] = {}
+    for key, use in cfg.items():
+        path = cfg_key_path(key)
+        if path is None:
+            raise ValueError(f"/{name or '<command>'}: unknown config key {key!r} in cfg=")
+        if not isinstance(use, str) or not use.strip():
+            raise ValueError(f"/{name or '<command>'}: cfg= must say how {key!r} is used")
+        resolved[path] = use.strip()
+    return resolved
+
+
+def cfg_users(plugins: Mapping[str, PluginInfo]) -> dict[str, list[tuple[str, str]]]:
+    """Key path -> ``(command name, how it uses the key)`` for every visible command that declared it, names sorted.
+
+    The reverse of the declarations, read by ``/help <key>``, the config
+    editor's help line and anything else that answers "who uses this
+    key" (registry ``cfg-declared``).  Hidden commands (legacy aliases)
+    are left out as every discovery surface leaves them out.
+    """
+    users: dict[str, list[tuple[str, str]]] = {}
+    for name in sorted(plugins):
+        info = plugins[name]
+        if info.hidden:
+            continue
+        for path, use in info.cfg.items():
+            users.setdefault(path, []).append((name, use))
+    return users
 
 
 def interpolate_help(text: str, prefix: str) -> str:

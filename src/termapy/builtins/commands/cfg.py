@@ -841,6 +841,7 @@ COMMAND = Command(
             flags={"--display": "Open full report in the system viewer."},
             help="Print project summary (tree + config + buttons).",
             handler=_handler_info,
+            cfg={"custom_buttons": "the enabled buttons, in the report"},
             shows=True,
             needs=CapabilitySet.CONFIG_LOADED,
         ),
@@ -893,12 +894,14 @@ COMMAND = Command(
             help="Create a desktop / menu launcher for the current cfg.",
             long_help=_ICON_LONG_HELP,
             handler=_handler_icon,
+            cfg={"title": "names the launcher"},
             flags=_ICON_FLAGS,
             needs=CapabilitySet.CONFIG_GUI_APPS,
             sub_commands={
                 "remove": Command(
                     help="Delete the launcher for the current cfg.",
                     handler=_handler_icon_remove,
+                    cfg={"title": "names the launcher it removes"},
                     needs=CapabilitySet.CONFIG_GUI_APPS,
                     safety="mutable",
                 ),

@@ -452,6 +452,10 @@ DESCRIPTION
   USB chip identification (/port.chip.*), and the four mode
   settings baud_rate, byte_size, parity, stop_bits.
 
+CONFIG
+  serial.port = "DEMO"  set for the session, then reconnects
+  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
@@ -894,6 +898,10 @@ DESCRIPTION
   port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
   USB chip identification (/port.chip.*), and the four mode
   settings baud_rate, byte_size, parity, stop_bits.
+
+CONFIG
+  serial.port = "DEMO"  set for the session, then reconnects
+  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
 
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
@@ -1366,6 +1374,69 @@ SCRIPTS
   at_demo.run           825 B  just now  AT Command Demo -- Walks through all demo device commands
   welcome.run           978 B  just now  Welcome script -- Runs on connect via on_connect_cmd config
   [175/219] /help run (3.13ms)
+demo> /help grep
+NAME
+  /grep - Search the scrollback for lines matching a pattern (case-insensitive regex).
+
+STATUS
+  stable - covered by termapy's compatibility promise
+
+SYNOPSIS
+  /grep <pattern>
+
+DESCRIPTION
+  Searches all visible terminal output using Python regex syntax.
+  Matching is case-insensitive. ANSI escape codes are stripped
+  before display. Grep's own output is excluded from results.
+
+  Max results controlled by max_grep_lines config (default 100).
+
+  Examples:
+    /grep error          - find lines containing 'error'
+    /grep ^OK            - lines starting with 'OK'
+    /grep temp.*\d+      - 'temp' followed by digits
+
+  See also: /find (interactive navigation through matches with
+  highlighted lines and arrow-button paging), /search (search the
+  command-help corpus rather than the scrollback).
+
+PARAMETERS
+  <pattern>  case-insensitive regex to search the scrollback for (required, must be last)
+
+CONFIG
+  max_grep_lines = 100  caps the matches shown
+  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+
+REQUIRED CAPABILITIES
+  interactive - an interactive session (a human at a terminal; not MCP)
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: no
+  (MCP does not provide: interactive)
+  [176/222] /help grep (4.05ms)
+demo> /help max_grep_lines
+NAME
+  max_grep_lines - Most lines /grep shows for one search.
+
+VALUE
+  max_grep_lines = 100
+  Valid: Positive integer. Default: 100
+
+FILE
+  demo.cfg  "max_grep_lines": 100
+  The active config, JSON, in its own folder.  /cfg.edit opens it in the editor (Ctrl+F finds a key); /help.open config explains the file.
+
+USED BY
+  /grep  caps the matches shown
+
+  A change by /cfg max_grep_lines <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+  [177/222] /help max_grep_lines (1.35ms)
+demo> /search max_grep_lines
+/grep <pattern> - Search the scrollback for lines matching a pattern (case-insensitive regex).
+  (cfg) max_grep_lines: caps the matches shown
+  (long_help) ...rom results.  Max results controlled by max_grep_lines config (default 100).  Examples:   /gre...
+  1 match.
+  [178/222] /search max_grep_lines (8.08ms)
 demo> /print === section: help required capabilities ===
   === section: help required capabilities ===
 demo> /help profile.save
@@ -1926,6 +1997,7 @@ SEE ALSO
 demo> /search fingerprint
 /log.fingerprint {--show} - Write a full session fingerprint (OS, terminal, port params) to the session log.
   (flags) --show Also echo the fingerprint to the terminal output.
+  (cfg) encoding: in the fingerprint; eol: in the fingerprint; serial.flow_c...
 /log - Session log: start, stop, print, fingerprint, or open it.
   2 matches.
 demo> /print === section: coverage: memory and variables ===

@@ -248,7 +248,7 @@ The most common ones:
 | `/show.cfg`                          | Show the current config file                                                  |
 | `/term`                              | Terminal display / session toggles (echo, line_no, timestamps, ...)           |
 | `/term.info`                         | Snapshot the state of every `/term.*` toggle                                  |
-| `/term.echo {on\|off\|toggle}`        | Local echo of device commands sent to the wire (persisted via cfg `echo`)     |
+| `/term.echo {on\|off\|toggle}`        | Local echo of device commands to the wire; session only, seeded by cfg `echo` |
 | `/term.echo_repl {on\|off\|toggle}`   | Local echo of REPL (slash) commands, session only; off inside scripts         |
 | `/term.line_no {on\|off\|toggle}`     | Toggle line numbers in serial output (TUI only)                               |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |

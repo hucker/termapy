@@ -887,6 +887,7 @@ COMMAND = Command(
             help="Poll commands on a schedule, display (and optionally save) results.",
             long_help=_cap_long_help_with_prose(_CAP_POLL_PROSE),
             handler=_handler_poll,
+            cfg={"encoding": "decodes each polled reply"},
             # raw_args keeps cmd= literal (device commands, no $(VAR) expansion);
             # params still parse the keywords + rest (raw_args skips only transforms).
             raw_args=True,
@@ -941,6 +942,7 @@ COMMAND = Command(
             # would be misleading.
             long_help=_CAP_WIRE_PROSE,
             handler=_handler_wire,
+            cfg={"encoding": "decodes the captured bytes"},
             # raw_args keeps cmd= literal (no $(VAR) expansion); params still
             # parse it (raw_args skips only transforms, not param parsing).
             raw_args=True,

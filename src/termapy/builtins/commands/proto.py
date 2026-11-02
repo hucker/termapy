@@ -2467,6 +2467,12 @@ COMMAND = Command(
             help="Run a protocol test script.",
             long_help=_proto_run_long_help,
             handler=_handler_run,
+            cfg={
+                "eol": "appended to setup and teardown commands",
+                "encoding": "encodes setup commands",
+                "serial.port": "recorded in the results",
+                "serial.baud_rate": "recorded in the results",
+            },
             needs=CapabilitySet.SERIAL_CONNECTED,
             files="proto",
             picker="proto",
@@ -2552,6 +2558,10 @@ COMMAND = Command(
                         "  {prefix}proto.crc.find cmd=AT+RND\n"
                     ),
                     handler=_handler_crc_find,
+                    cfg={
+                        "eol": "appended to the cmd= trigger",
+                        "encoding": "encodes the cmd= trigger",
+                    },
                 ),
                 # Generated entirely from crcglot.VERBS['detect'] -- params, help,
                 # and execution (via crcglot.call_verb) all come from crcglot's
@@ -2632,6 +2642,10 @@ COMMAND = Command(
                         "text), which is why this command parses its own args."
                     ),
                     handler=_handler_crc_reverse,
+                    cfg={
+                        "eol": "appended to the cmd= trigger",
+                        "encoding": "encodes the cmd= trigger",
+                    },
                 ),
                 # /proto.crc.<lang> commands are built dynamically from
                 # crcglot.LANGUAGES so every language crcglot ships gets a

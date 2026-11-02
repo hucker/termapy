@@ -28,6 +28,8 @@ from termapy.defaults import (
     VALID_FLOW_CONTROLS,
     VALID_PARITIES,
     VALID_STOP_BITS,
+    cfg_key_paths,
+    cfg_value,
     cmd_prefix,
     default_cfg,
 )
@@ -861,16 +863,10 @@ _ENV_EXPAND_EXCLUDED_KEYS = frozenset(ON_CONNECT_KEYS)
 
 
 def _collect_bool_paths() -> frozenset[tuple[str, ...]]:
-    """Every DEFAULT_CFG key whose default is a bool, as a path, one level deep like the backfill."""
-    paths: set[tuple[str, ...]] = set()
-    for key, val in DEFAULT_CFG.items():
-        if isinstance(val, bool):
-            paths.add((key,))
-        elif isinstance(val, dict):
-            for sub_key, sub_val in val.items():
-                if isinstance(sub_val, bool):
-                    paths.add((key, sub_key))
-    return frozenset(paths)
+    """Every config key whose default is a bool, as a path, from the one key list (``cfg_key_paths``)."""
+    return frozenset(
+        tuple(path.split(".")) for path in cfg_key_paths() if isinstance(cfg_value({}, path), bool)
+    )
 
 
 # The cfg keys that hold a boolean, by path (("echo",), ("serial",

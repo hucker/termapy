@@ -687,3 +687,36 @@ so a dict would have cost a migration and changes in all three for what
 adjacency gives free. This settles the "future grouping decision" the
 comment above `serial` used to leave open; only the pyserial arguments
 are nested.
+
+## 2026-11-01 — A command declares the config keys it uses, with how; the help derives the rest
+
+Five long helps said "persisted via cfg echo" or "persist with `/cfg
+eol`" when every `/term.*` setter and `/cfg <key> <value>` are
+session-only and only the config editor's Save writes the file. Fixing
+the sentences by hand was the second-class fix (Chuck: "you remember to
+update the help"): the next command would forget again. So a command's
+config dependencies are data, `Command(cfg={"eol": "appended to each
+sent line"})`, a key path (`defaults.cfg_key_paths`; a bare leaf
+resolves) to a phrase for how this command uses the value, validated at
+load like a synopsis. `/help <cmd>` renders them as a CONFIG section
+(key, live value, phrase) and one generated line on where a change
+lasts, naming the config file; `/help <key>` is a new page (meaning,
+value, the file and the key's JSON spelling in it, the commands that
+use it and how); `/search` indexes the keys; the editor's help line
+names the users; the MCP catalog carries `cfg`. The false sentences
+were deleted, not replaced. A phrase rather than a role vocabulary
+(reads / sets / seeds), chosen by Chuck from three: the ask was "the
+dependencies and how they are used", and a phrase says it where a role
+says less; it is the `help=` pattern applied to a key. The guard holds a
+plugin module's literal config reads, and those of the `_helper`
+modules it imports, to its declarations (registry `cfg-declared`); that
+a declared key is really touched is review (`cfg-declared-read`). Found
+on the way and parked for their own branch: `echo`, `hex` and `line_no`
+only seed session flags at startup, so `/cfg echo on` changes nothing
+visible, and `encoding` and `eol_markers` are captured into the reader
+at connect. The editor's panel grew a fourth line for "Used by", which
+exposed a message that had been below the fold: a `$(CFG)` in a value
+was reported "variable - not resolved" because the editor expanded only
+`$(env.NAME)`. It now tells an unset environment variable, an unknown
+name and a known session variable apart, asking `variables.resolve_one`,
+the namespace's one owner, whether a name exists.

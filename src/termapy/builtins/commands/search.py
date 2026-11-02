@@ -44,8 +44,9 @@ _SEARCH_CONTEXT = 40
 
 # Fields searched, in priority order for tier ranking. An exact flag-name
 # hit is nearly as specific as a command-name hit, so flags sits right
-# after name.
-_FUZZY_FIELDS = ("name", "flags", "help", "args", "long_help")
+# after name; a declared config key (Command.cfg) is as specific, so a
+# search for a key finds the commands that use it.
+_FUZZY_FIELDS = ("name", "flags", "cfg", "help", "args", "long_help")
 
 _CMD = "cyan"
 _SEP = "dim"
@@ -110,6 +111,10 @@ def _field_text(name: str, plugin, field: str, ctx: PluginContext | None = None)
         for canonical, aliases, desc in canonical_flags(plugin.flags):
             parts.extend([canonical, *aliases, desc])
         return " ".join(parts)
+    if field == "cfg":
+        # A device command (profile_command_view) declares no cfg keys.
+        uses = getattr(plugin, "cfg", None) or {}
+        return "; ".join(f"{path}: {use}" for path, use in uses.items())
     if field == "docstring":
         return getattr(plugin.handler, "__doc__", None) or ""
     if field == "long_help":
@@ -150,7 +155,7 @@ def _fuzzy_matches(
 
     All positive terms must appear somewhere in the searched fields; any
     match on an excluded term drops the command. Field priority (name >
-    flags > help > args > long_help, plus docstring with ``include_dev``)
+    flags > cfg > help > args > long_help, plus docstring with ``include_dev``)
     comes from the *first* positive term, keeping ranking predictable
     when two terms could each hit different fields. Results sorted by
     that tier, then alphabetically.
@@ -225,6 +230,7 @@ def _search_fields(
         ("help", plugin.help or ""),
         ("args", plugin.args or ""),
         ("flags", _field_text(name, plugin, "flags")),
+        ("cfg", _field_text(name, plugin, "cfg")),
         ("long_help", long_help_text),
     ]
     if include_dev:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import find_matches
@@ -30,8 +29,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Unused -- the pattern arrives via ``ctx.arg`` (see ``params``).
     """
     pattern = ctx.arg("pattern")
-    prefix = cmd_prefix(ctx.cfg)
-    grep_cmd = f"{prefix}grep"
+    grep_cmd = f"{ctx.prefix}grep"
 
     def _is_grep_noise(line: str) -> bool:
         stripped = line.lstrip()
@@ -86,6 +84,7 @@ See also: {prefix}find (interactive navigation through matches with
 highlighted lines and arrow-button paging), {prefix}search (search the
 command-help corpus rather than the scrollback).""",
     handler=_handler,
+    cfg={"max_grep_lines": "caps the matches shown"},
     shows=True,
     needs=CapabilitySet.INTERACTIVE,  # scrollback only exists interactively
     params=[

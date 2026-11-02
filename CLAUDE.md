@@ -158,6 +158,23 @@ All other paths relative to `src/termapy/`.
     `Command(files="run")`, and every frontend's completion reads that
     declaration; no frontend keeps a command-to-folder table (registry
     `file-arg-declared`).
+  - **Config keys.** A command declares the config keys it depends on
+    and how it uses each, `Command(cfg={"eol": "appended to each sent
+    line"})`: a path as `defaults.cfg_key_paths` spells it (a bare leaf
+    resolves) and a phrase, validated at load. `/help <cmd>` renders
+    them as its CONFIG section with live values and one generated line
+    on where a change lasts, naming the config file; `/help <key>` shows
+    a key's meaning, value, file and JSON spelling, and users; `/search`,
+    the config editor's help line and the MCP
+    catalog read the same declarations. So no long_help says what a key
+    does to a command or claims a setter persists: every setter and
+    `/cfg <key> <value>` are session-only, and the editor's Save writes
+    the file (decision 2026-11-01). **Enforced by
+    `tests/test_architecture.py` (registry `cfg-declared`)**: every
+    literal config read in a plugin module, or in a `_helper` module it
+    imports, is a key a command in that module declares, probe-proven;
+    that a declared key is really touched is review
+    (`cfg-declared-read`).
   - **Name patterns.** A typed pattern that picks names (a list filter,
     a file glob) is read by `matching.matches`: a wildcard (`*`, `?`,
     `[`) makes a glob anchored at both ends, plain text means contains,

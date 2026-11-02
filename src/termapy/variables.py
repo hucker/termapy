@@ -281,6 +281,16 @@ def snapshot() -> dict[str, dict[str, str]]:
 # ── Resolution and expansion ──────────────────────────────────────────────────
 
 
+def variable_refs(text: str) -> list[str]:
+    """The names ``text`` references as ``$(NAME)`` or ``$(NAME:fmt)``, in order, each once.
+
+    A ``$(env.NAME)`` counts too (its name starts with ``env.``), so a
+    caller that expands the environment first (``config.expand_env_str``)
+    can tell an unset environment variable from a session variable.
+    """
+    return list(dict.fromkeys(match.group(1) for match in _VAR_REF_RE.finditer(text)))
+
+
 def resolve_one(name: str, fmt: str | None = None) -> str | None:
     """Resolve a single variable name to its value, or return None if unknown.
 

@@ -298,6 +298,11 @@ COMMAND = Command(
         "info": Command(
             help="Print MCP-mode status (pid/catalog/profile/port/captures).",
             handler=_handler_info,
+            cfg={
+                "protocol": "in the summary",
+                "serial.baud_rate": "in the summary",
+                "serial.port": "the port the state line names",
+            },
             shows=True,
         ),
         "log": Command(

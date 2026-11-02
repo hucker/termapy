@@ -82,6 +82,7 @@ COMMAND = Command(
         "repeating for count iterations.  Reports min/max/mean timing."
     ),
     handler=_handler,
+    cfg={"encoding": "decodes each reply"},
     needs=CapabilitySet.SERIAL_CONNECTED,
     params=_PING_PARAMS,
     sub_commands={
@@ -92,6 +93,7 @@ COMMAND = Command(
                 "only the timing summary is printed."
             ),
             handler=_handler_quiet,
+            cfg={"encoding": "decodes each reply"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             params=_PING_PARAMS,
         ),

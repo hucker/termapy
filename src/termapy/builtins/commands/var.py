@@ -387,6 +387,7 @@ COMMAND = Command(
             help="Capture command output into a user variable.",
             long_help=_var_state_line,
             handler=_handler_capture,
+            cfg={"encoding": "decodes the device reply"},
             raw_args=True,
         ),
         "clear": Command(

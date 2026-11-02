@@ -19,7 +19,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.scripting import find_matches
 
@@ -101,7 +100,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         dismiss(ctx)
         return CmdResult.ok(value="closed")
 
-    prefix = cmd_prefix(ctx.cfg)
+    prefix = ctx.prefix
     find_cmd = f"{prefix}find"
 
     def _is_find_noise(line: str) -> bool:

@@ -28,7 +28,13 @@ from termapy.config import (
     prepare_cfg_folder,
     write_config_file,
 )
-from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, MANAGED_CFG_KEYS, cmd_prefix
+from termapy.defaults import (
+    CFG_CHOICES,
+    DEFAULT_CFG,
+    MANAGED_CFG_KEYS,
+    cfg_key_path,
+    cmd_prefix,
+)
 from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FIND_BINDINGS,
@@ -57,8 +63,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
     }}
     #config-title {{ height: 1; text-style: bold; }}
     #config-editor {{ height: 1fr; border: thick $primary; }}
-    #config-help {{ height: 3; width: 1fr; }}
-    #config-error {{ height: 3; color: $error; display: none; width: 1fr; overflow-y: auto; }}
+    #config-help {{ height: 4; width: 1fr; }}
+    #config-error {{ height: 4; color: $error; display: none; width: 1fr; overflow-y: auto; }}
     #config-error.visible {{ display: block; }}
     #save-as-row {{ height: 1; display: none; }}
     #save-as-row.visible {{ display: block; }}
@@ -71,8 +77,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
        it appears and the styling is Textual's to maintain.  Only
        the width is ours. */
     #save-as-input {{ width: 1fr; }}
-    #config-bottom {{ height: 3; }}
-    #config-btn-col {{ width: auto; layout: horizontal; align: right middle; height: 3; content-align: right middle; }}
+    #config-bottom {{ height: 4; }}
+    #config-btn-col {{ width: auto; layout: horizontal; align: right middle; height: 4; content-align: right middle; }}
     """
 
     def action_dismiss_modal(self) -> None:
@@ -86,6 +92,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         highlight_key: str = "",
         *,
         is_new: bool = False,
+        used_by: dict[str, list[tuple[str, str]]] | None = None,
     ) -> None:
         """Edit ``cfg``, saved to ``config_path``.
 
@@ -98,11 +105,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 ``config.create_config``, asking before replacing a
                 config already there, and the editor shows ``cfg``
                 rather than that file.
+            used_by: Key path to the commands that declared it
+                (``plugins.cfg_users``), named on the key's help line;
+                the data comes in so the dialog needs no engine.
         """
         super().__init__()
         self.cfg = cfg
         self.config_path = config_path
         self._is_new = is_new
+        self._used_by = used_by or {}
         self._save_as_mode = False
         self._highlight_key = highlight_key
         # Read raw JSON from disk so $(env.NAME) templates are visible
@@ -219,21 +230,45 @@ class ConfigEditor(ModalScreen[tuple | None]):
             (non-standard), or red (invalid); error is the detail message
             or empty string.
         """
-        # Template values - resolve, show expansion, then validate resolved value
+        # Template values.  A $(env.NAME) is expanded at load, so the editor
+        # expands it here and validates the result.  Any other $(NAME) is a
+        # session variable the variables engine expands when the value is
+        # used ($(CFG) in echo_fmt), so the editor says so and checks only
+        # that the name exists -- through the namespace's one owner.
         if "$(" in raw_val:
             import re as _re
 
             from termapy.config import expand_env_str
+            from termapy.variables import resolve_one, variable_refs
 
             template = raw_val.strip().strip('"')
             # Highlight $(var) references in cyan, in the escaped template
             highlighted_markup = _re.sub(r"(\$\([^)]+\))", r"[cyan]\1[/]", escape_markup(template))
             key_markup = escape_markup(key)
             resolved = expand_env_str(template)
-            if resolved == template:
+            names = variable_refs(resolved)
+            unset = [name for name in names if name.startswith("env.")]
+            if unset:
+                refs = ", ".join(f"$({name})" for name in unset)
                 return (
                     f"[yellow]{key_markup}[/] = {highlighted_markup}",
-                    "[yellow]variable - not resolved[/]",
+                    f"[yellow]variable - not resolved: {escape_markup(refs)} is not set in the "
+                    "environment[/]",
+                )
+            if names:
+                unknown = [name for name in names if resolve_one(name) is None]
+                if unknown:
+                    refs = ", ".join(f"$({name})" for name in unknown)
+                    return (
+                        f"[yellow]{key_markup}[/] = {highlighted_markup}",
+                        f"[yellow]unknown variable: {escape_markup(refs)}[/]",
+                    )
+                refs = ", ".join(f"$({name})" for name in names)
+                verb = "is a session variable" if len(names) == 1 else "are session variables"
+                note = f"{refs} {verb}, expanded when the value is used"
+                return (
+                    f"[green]{key_markup}[/] = {highlighted_markup}",
+                    f"[dim]{escape_markup(note)}[/]",
                 )
             if key in self._BOOL_KEYS:
                 # A templated boolean is read with the vocabulary at load
@@ -413,6 +448,13 @@ class ConfigEditor(ModalScreen[tuple | None]):
             preview = preview_fn(raw_val)
             if preview:
                 lines.append(preview)
+        # The commands that declared the key (registry cfg-declared); the
+        # line's key is a leaf, so serial's port resolves to its path.
+        path = cfg_key_path(key)
+        users = self._used_by.get(path, ()) if path else ()
+        if users:
+            names_markup = ", ".join(escape_markup(prefix + name) for name, _ in users)
+            lines.append(f"[dim]Used by:[/] {names_markup}")
         # Rich markup with every value escaped, so only a preview of the
         # user's own markup (an echo_fmt) can be malformed: Rich raises
         # MarkupError on mismatched tags.  NoMatches covers the widget

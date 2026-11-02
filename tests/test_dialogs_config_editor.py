@@ -43,10 +43,12 @@ def _write_cfg(tmp_path: Path, **overrides) -> tuple[dict, Path]:
     return cfg, path
 
 
-async def _open(app: App, pilot, cfg: dict, path: Path, highlight_key: str = ""):
+async def _open(app: App, pilot, cfg: dict, path: Path, highlight_key: str = "", used_by=None):
     """Push the editor and return it with the list its dismiss value lands in."""
     results: list[tuple | None] = []
-    app.push_screen(ConfigEditor(cfg, str(path), highlight_key), callback=results.append)
+    app.push_screen(
+        ConfigEditor(cfg, str(path), highlight_key, used_by=used_by), callback=results.append
+    )
     await pilot.pause()
     screen = app.screen
     assert isinstance(screen, ConfigEditor), "the editor is on top"
@@ -89,6 +91,37 @@ class TestWhatItShows:
 
 
 class TestHelpLine:
+    def test_the_help_line_names_the_commands_that_declared_the_key(self, tmp_path):
+        """cfg-declared: on a key some command declared, the panel ends with those commands; on a key none did, no such line."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            used_by = {
+                "serial.port": [
+                    ("port.disconnect", "the port it closes"),
+                    ("port.info", "the port it reports"),
+                ]
+            }
+            async with app.run_test() as pilot:
+                # Act -- opened on the port line, whose leaf resolves to serial.port
+                screen, _ = await _open(
+                    app, pilot, cfg, path, highlight_key="port", used_by=used_by
+                )
+                await pilot.pause()
+
+                # Assert
+                help_text = _plain(screen.query_one("#config-help", Static))
+                assert "Used by: /port.disconnect, /port.info" in help_text, help_text
+
+                # Act / Assert -- a key nothing declared
+                editor = screen.query_one("#config-editor", TextArea)
+                editor.cursor_location = (_title_row(editor), 0)
+                await pilot.pause()
+                assert "Used by" not in _plain(screen.query_one("#config-help", Static))
+
+        _run(scenario)
+
     def test_help_describes_the_key_under_the_cursor(self, tmp_path):
         """Moving the cursor onto a known key shows its line number, description, and value."""
 
@@ -352,6 +385,34 @@ class TestValueValidation:
                 assert "->" in resolved_status and resolved_error == "", (
                     "the resolved value is validated"
                 )
+
+        _run(scenario)
+
+    def test_a_session_variable_is_known_and_a_typo_is_not(self, tmp_path):
+        """$(DATE) in a value is a session variable expanded when the value is used, never 'not resolved'; $(NOPE) is an unknown variable."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _ = await _open(app, pilot, cfg, path)
+
+                # Act
+                known_status, known_note = screen._validate_value(
+                    "echo_fmt", '"[purple]$(DATE)> {cmd}[/]"'
+                )
+                unknown_status, unknown_note = screen._validate_value(
+                    "echo_fmt", '"$(NOPE_UNKNOWN_123)> {cmd}"'
+                )
+
+                # Assert
+                assert known_status.startswith("[green]"), "a known variable is a valid value"
+                assert (
+                    "$(DATE) is a session variable, expanded when the value is used" in known_note
+                )
+                assert "not resolved" not in known_note
+                assert unknown_status.startswith("[yellow]")
+                assert "unknown variable: $(NOPE_UNKNOWN_123)" in unknown_note
 
         _run(scenario)
 

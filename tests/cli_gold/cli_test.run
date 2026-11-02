@@ -271,6 +271,10 @@ MEM.M 0x1000 F0 05 --json
 /help sym
 /help mem
 /help run
+# A command's declared config keys (CONFIG), a key's page, and a key search.
+/help grep
+/help max_grep_lines
+/search max_grep_lines
 # REQUIRED CAPABILITIES with live status.  Here the port is open, the symbol
 # table loaded, and there is no profile and no capture: one row is (missing),
 # the rest are met, and the gated command answers with the state.

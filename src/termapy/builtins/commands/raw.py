@@ -56,6 +56,7 @@ COMMAND = Command(
         "paced, use {prefix}term.send."
     ),
     handler=_handler,
+    cfg={"encoding": "encodes the text sent"},
     needs=CapabilitySet.SERIAL_CONNECTED,
     raw_args=True,
 )

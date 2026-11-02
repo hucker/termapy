@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 
 import termapy
+from termapy.defaults import cfg_key_path, cfg_key_paths, cfg_value
 from termapy.plugins.capabilities import STATE_MESSAGES
 
 SRC = Path(termapy.__file__).parent
@@ -4159,3 +4160,223 @@ def test_a_one_row_input_asks_for_the_compact_variant():
         "compact=True to the Input instead and leave the rule to the width:\n  "
         + "\n  ".join(offenders)
     )
+
+
+# ── Config keys: a command declares what it reads ───────────────────────────
+#
+# A command declares the config keys it depends on and how (Command.cfg);
+# /help, /search, the config editor and the MCP catalog derive their answers
+# from that.  The declaration is honest only if every key a plugin module
+# reads is one some command in it declares, so this walk finds the literal
+# reads and session sets a handler or its helpers make and holds them to the
+# module's declarations.  The scope is the command module plus the _helper
+# modules it imports: a helper's reads belong to the commands that import it.
+
+# The keys whose value is a dict: a read of one of these on its own is
+# navigation (cfg.get("serial", {})); the leaf read on it is the read.
+_CFG_DICT_KEYS = frozenset(key for key in cfg_key_paths() if isinstance(cfg_value({}, key), dict))
+
+
+def _is_cfg_receiver(node: ast.AST) -> bool:
+    """``cfg``, ``ctx.cfg``, ``self._cfg_data``: an expression that is the config dict."""
+    if isinstance(node, ast.Name):
+        return node.id == "cfg"
+    return isinstance(node, ast.Attribute) and node.attr in ("cfg", "_cfg", "_cfg_data")
+
+
+def _literal_key(node: ast.AST) -> tuple[ast.AST, str] | None:
+    """``(receiver, key)`` for ``X.get("key", ...)`` or ``X["key"]``; ``None`` for any other node."""
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    ):
+        return node.func.value, node.args[0].value
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.slice, ast.Constant)
+        and isinstance(node.slice.value, str)
+    ):
+        return node.value, node.slice.value
+    return None
+
+
+def _cfg_read_path(node: ast.AST) -> str | None:
+    """The key a ``cfg.get("k")`` / ``cfg["k"]`` / ``cfg["serial"]["k"]`` node reads; ``None`` when it is not one."""
+    found = _literal_key(node)
+    if found is None:
+        return None
+    receiver, key = found
+    if _is_cfg_receiver(receiver):
+        return None if key in _CFG_DICT_KEYS else key
+    inner = _literal_key(receiver)
+    if inner is not None and inner[1] in _CFG_DICT_KEYS and _is_cfg_receiver(inner[0]):
+        return f"{inner[1]}.{key}"
+    return None
+
+
+def _str_arg(node: ast.Call, index: int) -> str | None:
+    """The string literal at positional ``index`` of a call, else ``None``."""
+    if len(node.args) > index:
+        arg = node.args[index]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            return arg.value
+    return None
+
+
+def _cfg_literal_reads(tree: ast.Module) -> list[tuple[str, str, int]]:
+    """``(qualname, key, line)`` of every literal config read or session set in ``tree``.
+
+    The shapes: ``cfg.get("k")`` / ``cfg["k"]`` on a config receiver, with
+    ``["serial"]["k"]`` read as ``serial.k``; ``_cfg_toggle(ctx, args, "k")``;
+    ``apply_cfg("k", v)``; ``cfg_value(cfg, "k")``; a ``{"cfg_update":
+    {"k": v}}`` effect; and ``update_port(name)``, which sets ``serial.port``.
+    A key is as written (a flat leaf stays a leaf); the check resolves it.
+    """
+    sites: list[tuple[str, str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        line = getattr(node, "lineno", 0)
+        path = _cfg_read_path(node)
+        if path is not None:
+            sites.append((qualname, path, line))
+        elif isinstance(node, ast.Call):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+            key = None
+            if name == "_cfg_toggle":
+                key = _str_arg(node, 2)
+            elif name == "apply_cfg":
+                key = _str_arg(node, 0)
+            elif name == "cfg_value":
+                key = _str_arg(node, 1)
+            elif name == "update_port":
+                key = "serial.port"
+            if key is not None:
+                sites.append((qualname, key, line))
+        elif isinstance(node, ast.Dict):
+            for dict_key, value in zip(node.keys, node.values, strict=True):
+                if (
+                    isinstance(dict_key, ast.Constant)
+                    and dict_key.value == "cfg_update"
+                    and isinstance(value, ast.Dict)
+                ):
+                    sites.extend(
+                        (qualname, inner.value, line)
+                        for inner in value.keys
+                        if isinstance(inner, ast.Constant) and isinstance(inner.value, str)
+                    )
+    return sites
+
+
+def _cfg_declarations(tree: ast.Module) -> set[str]:
+    """Every key path a ``Command(... cfg={...})`` in ``tree`` declares, a leaf resolved to its path."""
+    declared: set[str] = set()
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "Command"
+        ):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg == "cfg" and isinstance(keyword.value, ast.Dict):
+                for key in keyword.value.keys:
+                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                        declared.add(cfg_key_path(key.value) or key.value)
+    return declared
+
+
+def _plugin_scope(module):
+    """A command module's tree and those of the ``_helper`` siblings it imports: one declaration scope."""
+    tree = ast.parse(module.read_text(encoding="utf-8"))
+    scope = [(module, tree)]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith(
+            "termapy.builtins.commands._"
+        ):
+            helper = module.parent / f"{(node.module or '').rpartition('.')[2]}.py"
+            if helper.exists():
+                scope.append((helper, ast.parse(helper.read_text(encoding="utf-8"))))
+    return scope
+
+
+def _undeclared_cfg_reads() -> list[str]:
+    """Every literal config read in the plugin folders that no command in its module declares."""
+    root = SRC.parent.parent
+    violations: list[str] = []
+    for folder in PLUGIN_FOLDERS:
+        for module in sorted(folder.glob("*.py")):
+            if module.name.startswith("_"):
+                continue  # a helper's reads are checked with the command module that imports it
+            scope = _plugin_scope(module)
+            declared = set().union(*(_cfg_declarations(tree) for _, tree in scope))
+            for path, tree in scope:
+                for qualname, key, line in _cfg_literal_reads(tree):
+                    if (cfg_key_path(key) or key) not in declared:
+                        rel = path.relative_to(root).as_posix()
+                        violations.append(f"{rel}:{line} {qualname} reads {key!r}")
+    return violations
+
+
+def test_plugin_cfg_reads_are_declared():
+    """cfg-declared: every config key a plugin module reads or sets is one a command in it declares, with how.
+
+    The fix for a red result is ``cfg={"<key>": "<how this command uses
+    it>"}`` on the command that reads it, never a read that hides the key
+    behind a variable.
+    """
+    # Arrange / Act
+    violations = _undeclared_cfg_reads()
+
+    # Assert
+    assert violations == [], (
+        "declare the key on the command that reads it, cfg={'key': 'how it is used'}:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_cfg_read_guard_fires_on_a_probe():
+    """The read finder sees every shape, skips navigation and a variable key, and the declaration finder resolves a leaf."""
+    # Arrange -- line 3 on: each read shape once, then navigation, then a variable key
+    source = """
+def reads(ctx, args, cfg, key):
+    ctx.cfg.get("encoding", "utf-8")
+    ctx.cfg["serial"]["port"]
+    cfg.get("serial", {}).get("baud_rate")
+    ctx.cfg.get("serial", {})
+    ctx.cfg.get(key)
+    _cfg_toggle(ctx, args, "timestamps")
+    ctx.internal.apply_cfg("eol", "\\n")
+    cfg_value(ctx.cfg, "title")
+    ctx.serial.apply_port_effects({"cfg_update": {"parity": "N", "echo": True}})
+    ctx.serial.update_port("COM3")
+
+COMMAND = Command(name="x", help="h", handler=reads, cfg={"baud_rate": "set", "eol": "sent"})
+"""
+    tree = ast.parse(source)
+
+    # Act
+    reads = sorted(
+        ((key, line) for _, key, line in _cfg_literal_reads(tree)), key=lambda item: item[1]
+    )
+    declared = _cfg_declarations(tree)
+
+    # Assert
+    expected = [
+        ("encoding", 3),
+        ("serial.port", 4),
+        ("serial.baud_rate", 5),
+        ("timestamps", 8),
+        ("eol", 9),
+        ("title", 10),
+        ("parity", 11),
+        ("echo", 11),
+        ("serial.port", 12),
+    ]
+    assert reads == expected, (
+        "every shape once; navigation (line 6) and a variable key (line 7) are not reads"
+    )
+    assert declared == {"serial.baud_rate", "eol"}, "a leaf is stored as its path"

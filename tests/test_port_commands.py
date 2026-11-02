@@ -146,15 +146,15 @@ class TestHardwareLines:
         assert result.success is False, "nothing was set"
 
     @pytest.mark.parametrize(
-        ("command", "label", "level"),
+        ("command", "level"),
         [
-            ("dtr", "DTR (out)", True),
-            ("dtr", "DTR (out)", False),
-            ("cts", "CTS (in)", None),  # an input: the DEMO port's own level, read-only
+            ("dtr", True),
+            ("dtr", False),
+            ("cts", None),  # an input: the DEMO port's own level, read-only
         ],
     )
-    def test_help_shows_the_level_the_command_returns(self, cli, capsys, command, label, level):
-        """/help's state line for a line or signal shows the 0/1 the command returns, not pyserial's True/False."""
+    def test_help_shows_the_level_the_command_returns(self, cli, capsys, command, level):
+        """/help's CURRENT STATE for a line or signal is the 0/1 the command returns, not pyserial's True/False."""
         # Arrange
         if level is not None:
             setattr(_demo_port(cli), command, level)
@@ -166,7 +166,7 @@ class TestHardwareLines:
 
         # Assert
         actual = capsys.readouterr().out
-        assert f"Current {label} = {expected}" in actual, (
+        assert f"CURRENT STATE\n  {expected}\n" in actual, (
             f"help and /port.{command} agree:\n{actual}"
         )
         assert expected in ("0", "1"), "the command answers 0 or 1"

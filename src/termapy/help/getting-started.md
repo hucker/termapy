@@ -223,9 +223,11 @@ things, man-inspired:
 - `/help`                  -- the landscape: the terminal commands in full, every
   other group folded to one row you can click.  Nothing is disabled by
   folding; `/help.group <name>` expands one, `/help.group` lists them all.
-- `/help <cmd>`            -- exact match -> full man-page detail (NAME, SYNOPSIS,
-  DESCRIPTION, FLAGS, REQUIRED CAPABILITIES, SUBCOMMANDS, SEE ALSO).
-  REQUIRED CAPABILITIES rows are live status: a requirement the session
+- `/help <cmd>`            -- exact match -> full man-page detail (NAME, STATUS,
+  CURRENT STATE, SYNOPSIS, DESCRIPTION, FLAGS, REQUIRED CAPABILITIES,
+  SUBCOMMANDS, SEE ALSO).  CURRENT STATE is what a status or setting command
+  answers right now, read fresh for the page, so `/help term.eol` shows the
+  line ending in use.  REQUIRED CAPABILITIES rows are live status: a requirement the session
   can't meet right now (e.g. `serial_connected` with no port open) is
   marked `(missing)`.  AVAILABLE shows where the command could ever run
   (TUI / CLI / MCP), with the environment you are in marked `(current)`.

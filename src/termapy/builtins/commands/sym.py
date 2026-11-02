@@ -488,6 +488,7 @@ COMMAND = Command(
             help="Show the loaded symbol table: file, source, counts by section, address range.",
             handler=_handler_info,
             shows=True,
+            state=True,
         ),
     },
 )

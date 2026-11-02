@@ -275,6 +275,12 @@ MEM.M 0x1000 F0 05 --json
 /help grep
 /help max_grep_lines
 /search max_grep_lines
+# CURRENT STATE: a command that declares state shows what its bare form answers.
+/print === section: help current state ===
+/help term.eol
+/help term.info
+/help port.baud_rate
+/help port.dtr
 # REQUIRED CAPABILITIES with live status.  Here the port is open, the symbol
 # table loaded, and there is no profile and no capture: one row is (missing),
 # the rest are met, and the gated command answers with the state.

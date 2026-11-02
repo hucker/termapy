@@ -99,6 +99,7 @@ COMMAND = Command(
             help="Show or set the file transfer root directory.",
             handler=_handler_root,
             cfg={"file_xfer_root": "set for the session; bare shows it"},
+            state=True,
         ),
         "xmodem": Command(
             help="XMODEM file transfer.",

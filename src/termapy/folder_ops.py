@@ -605,6 +605,7 @@ def build_folder_subcommands(
             help=f"List files in {folder}/, newest first, with size and age.",
             handler=_make_list_handler(folder, pattern, noun, show),
             shows=True,
+            state=True,
             needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(

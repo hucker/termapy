@@ -425,6 +425,7 @@ COMMAND = Command(
             ),
             handler=_handler_running,
             shows=True,
+            state=True,
         ),
         "kill": Command(
             help="Stop termapy sessions: others, all, a port or a config (asks first).",
@@ -447,6 +448,7 @@ COMMAND = Command(
             help="List the app folder: its files and the running sessions, newest first.",
             handler=_handler_list,
             shows=True,
+            state=True,
         ),
         "explore": Command(
             help="Open the app folder in the file manager.",
@@ -474,6 +476,7 @@ COMMAND = Command(
                     needs=CapabilitySet.GUI_APPS,
                 ),
             },
+            state=True,
         ),
         "config": Command(
             help="Print config.json path.",
@@ -495,6 +498,7 @@ COMMAND = Command(
                     needs=CapabilitySet.GUI_APPS,
                 ),
             },
+            state=True,
         ),
         "ver": Command(
             help="Print termapy version (installed).",
@@ -536,6 +540,7 @@ COMMAND = Command(
                     handler=_handler_ver_info,
                 ),
             },
+            state=True,
         ),
     },
 )

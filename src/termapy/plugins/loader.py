@@ -335,6 +335,7 @@ def _flatten_command(
         maturity=maturity,
         shows=node.shows,
         cfg=dict(node.cfg),
+        state=node.state,
     )
     result.insert(0, info)
     return result

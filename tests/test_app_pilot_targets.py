@@ -1147,6 +1147,37 @@ class TestClickableOutput:
 
         asyncio.run(scenario())
 
+    def test_the_link_under_a_shortened_state_answer_runs_the_command(self, app_factory):
+        """CURRENT STATE stops at twenty lines; the link under it runs the command, as typed, for the whole answer."""
+
+        async def scenario():
+            from termapy.plugins import CmdResult
+
+            def long_answer(ctx, args):
+                """Answer more lines than the page shows."""
+                return CmdResult.ok(value="\n".join(f"row{i}" for i in range(25)))
+
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                app.repl.register_hook("longstate", "", "h", long_answer, state=True)
+                app._submit_line("/help longstate")
+                await until(pilot, lambda: not app._busy, seconds=5.0)
+                link_id = next(
+                    link_id
+                    for link_id, link in app._links.items()
+                    if link.run and link.command == "longstate"
+                )
+
+                # Act
+                app.action_click_link(link_id)
+                await until(pilot, lambda: not app._busy and app.history[-1] == "/longstate")
+
+                # Assert
+                assert app.history[-1] == "/longstate", "the click ran it, into history as typed"
+
+        asyncio.run(scenario())
+
     def test_a_prefill_link_fills_the_input_and_runs_nothing(self, app_factory):
         """A prefill link puts its command, with the prefix, in the input line for Enter."""
 

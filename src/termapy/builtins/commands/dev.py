@@ -496,6 +496,7 @@ COMMAND = Command(
             help="List the devices this config has loaded, with their layer and placement.",
             handler=_handler_list,
             shows=True,
+            state=True,
         ),
         "regs": Command(
             params=[

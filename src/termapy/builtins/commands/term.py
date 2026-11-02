@@ -591,6 +591,7 @@ COMMAND = Command(
             ),
             handler=_handler_echo,
             cfg={"echo": "seeds the session flag at startup"},
+            state=True,
         ),
         "echo_repl": Command(
             args="{on|off|toggle}",
@@ -611,6 +612,7 @@ COMMAND = Command(
                 "commands sent to the wire.  See also: {prefix}term.echo."
             ),
             handler=_handler_echo_repl,
+            state=True,
         ),
         "color": Command(
             args="{on|off|toggle}",
@@ -624,6 +626,7 @@ COMMAND = Command(
                 "Works in both the TUI and CLI.  Legacy alias: {prefix}color."
             ),
             handler=_handler_color,
+            state=True,
         ),
         "send": Command(
             args="<text>",
@@ -691,6 +694,7 @@ COMMAND = Command(
             handler=_handler_line_no,
             cfg={"line_no": "seeds the session flag at startup"},
             needs=CapabilitySet.TUI_MODE,
+            state=True,
         ),
         "line_endings": Command(
             args="{on|off|toggle}",
@@ -731,6 +735,7 @@ COMMAND = Command(
                     ),
                     handler=_handler_eol_rx,
                     cfg={"eol_rx": "set for the session; bare shows it"},
+                    state=True,
                 ),
                 "markers": Command(
                     args="{on|off|toggle}",
@@ -745,8 +750,10 @@ COMMAND = Command(
                     ),
                     handler=_handler_eol_markers,
                     cfg={"eol_markers": "set for the session; bare shows it"},
+                    state=True,
                 ),
             },
+            state=True,
         ),
         "output": Command(
             args="{silent|quiet|normal|verbose|cycle}",
@@ -764,6 +771,7 @@ COMMAND = Command(
                 "(e.g. ``{prefix}port.list.quiet`` or ``{prefix}cap show foo --silent``)."
             ),
             handler=_handler_output,
+            state=True,
         ),
         "verbose": Command(
             args="{on|off}",
@@ -777,6 +785,7 @@ COMMAND = Command(
             help="Toggle [HH:MM:SS.mmm] timestamp prefix on each line.",
             handler=_handler_timestamps,
             cfg={"timestamps": "set for the session; bare shows it"},
+            state=True,
         ),
         "hex": Command(
             args="{on|off|toggle}",
@@ -794,6 +803,7 @@ COMMAND = Command(
             ),
             handler=_handler_hex,
             cfg={"hex": "seeds the session flag at startup"},
+            state=True,
         ),
         "request": Command(
             args="{on|off|toggle}",
@@ -841,6 +851,7 @@ COMMAND = Command(
             ),
             handler=_handler_request,
             cfg={"request_mode": "set for the session; bare shows it"},
+            state=True,
         ),
         "json": Command(
             args="{compact|indent|color|cycle}",
@@ -861,12 +872,14 @@ COMMAND = Command(
             ),
             handler=_handler_json,
             cfg={"json_style": "set for the session; bare shows it"},
+            state=True,
         ),
         "send_bare_enter": Command(
             args="{on|off|toggle}",
             help="Send line ending on empty Enter (for press-to-continue prompts).",
             handler=_handler_send_bare_enter,
             cfg={"send_bare_enter": "set for the session; bare shows it"},
+            state=True,
         ),
         "control_keys": Command(
             args="{on|off|toggle}",
@@ -887,12 +900,14 @@ COMMAND = Command(
             ),
             handler=_handler_control_keys,
             cfg={"control_keys": "set for the session; bare shows it"},
+            state=True,
         ),
         "encoding": Command(
             args="{name}",
             help="Show or set byte-decoding encoding (utf-8, latin-1, ascii, cp437).",
             handler=_handler_encoding,
             cfg={"encoding": "set for the session; bare shows it"},
+            state=True,
         ),
         "info": Command(
             help="Snapshot the state of every {prefix}term.* toggle.",
@@ -907,6 +922,7 @@ COMMAND = Command(
                 "encoding": "in the snapshot",
             },
             shows=True,
+            state=True,
         ),
         "usb_db": Command(
             help="Report freshness of the bundled USB vendor database.",
@@ -938,6 +954,7 @@ COMMAND = Command(
                 "    pip install --upgrade termapy"
             ),
             handler=_handler_usb_db,
+            state=True,
         ),
         "log": Command(
             args="<text>",

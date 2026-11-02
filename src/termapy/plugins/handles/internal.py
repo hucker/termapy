@@ -95,6 +95,11 @@ class InternalHandle:
     # exit prints it once (registry ``failure-reported-once``).
     dispatch: Callable = lambda _line: None
 
+    # read_state(name) -> CmdResult: run a state command bare for its answer,
+    # nothing printed, its view kept (Command.state).  /help reads it for
+    # CURRENT STATE.  None on a bare test fake: the page leaves the section off.
+    read_state: Callable | None = None
+
     apply_cfg: Callable = lambda key, val: None  # set cfg in-memory, no dialog
     in_script: Callable = lambda: False
     # effective_capabilities() -> CapabilitySet: the engine's "what can a

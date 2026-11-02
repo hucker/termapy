@@ -169,8 +169,11 @@ def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
         f"{name}.{plugin.bare_sub}" for name, plugin in plugins.items() if plugin.bare_sub
     }
     # A help_list's rows do what they do in the list (load a config, run a
-    # script, open a screenshot), and its "more" line runs the list.
+    # script, open a screenshot), and its "more" line runs the list.  A state
+    # command's own page shows its answer the same way, and its bare form
+    # changes nothing (registry state-read-immutable).
     lists = {f"{name}.{plugin.help_list}" for name, plugin in plugins.items() if plugin.help_list}
+    lists |= {name for name, plugin in plugins.items() if plugin.state}
     list_rows = lists | {link.command for name in lists for link in _links_of(eng, name)}
 
     # Act

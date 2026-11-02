@@ -2431,6 +2431,7 @@ _FOLDER_SUBS["list"] = Command(
     handler=_handler_list,
     shows=True,
     needs=CapabilitySet.CONFIG_LOADED,
+    state=True,
 )
 COMMAND = Command(
     group="protocol",
@@ -2491,6 +2492,7 @@ COMMAND = Command(
             args="{on|off|toggle}",
             help="Toggle hex display of incoming bytes (same flag as {prefix}term.hex).",
             handler=_handler_hex,
+            state=True,
         ),
         "crc": Command(
             help="Browse and compute CRC algorithms.",
@@ -2659,6 +2661,7 @@ COMMAND = Command(
             help="Print current protocol state.",
             handler=_handler_info,
             shows=True,
+            state=True,
         ),
         "edit": edit_command("proto"),
         **_FOLDER_SUBS,

@@ -83,6 +83,15 @@ All other paths relative to `src/termapy/`.
   open: `bare_sub="explore"` / `"show"`. Never code a bare branch in a
   handler that the declarations can express; `/help` renders them as
   the command's bare form (registry `bare-declared`).
+- **A command whose bare form reports state declares it** (registries
+  `state-read-immutable`, `state-declared`, decision 2026-11-02):
+  `Command(state=True)` promises that bare it changes nothing, sends no bytes,
+  opens no port, writes no file, is fast and answers with a `value` or a view.
+  `/help` runs it, through `ctx.internal.read_state`, for a CURRENT STATE
+  section. Never hand-write a `state_line` for what the command itself answers;
+  a `long_help` callable is for a summary no command gives. A query in name that
+  breaks the promise (`/port.info`, `/mem.info`, `/cfg.info`) goes in
+  `STATE_EXEMPT` with its reason.
 - **Booleans have ONE vocabulary and ONE reader.** Wherever termapy turns
   user text into a boolean, in any frontend or file, the text is read by
   `scripting.parse_bool` — directly, or through `parse_bool_setting` and

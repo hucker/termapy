@@ -956,6 +956,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_help_groups.py                 | The grouped /help landscape: what a first session sees, and how a group is reached                                                                 |
 | test_help_images.py                 | Verify help content: image references exist and tagged config examples stay current                                                                |
 | test_help_links.py                  | links-are-data for /help: names link to pages, a page tries its command, and nothing else changes                                                  |
+| test_help_state.py                  | A command declares that its bare form reports state, and /help shows the answer (registry state-read-immutable)                                    |
 | test_help_tooltip.py                | Tests for the Help-button tooltip renderable                                                                                                       |
 | test_hex_vocabulary.py              | Hex has one vocabulary: one reader for input, in any case; one case for output                                                                     |
 | test_history_nav.py                 | Unit tests for history_nav: the Up/Down cursor and the file merge                                                                                  |

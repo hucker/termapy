@@ -768,6 +768,7 @@ COMMAND = Command(
             help="List all config files.",
             handler=_handler_list,
             shows=True,
+            state=True,
         ),
         "load": Command(
             args="<name>",
@@ -789,6 +790,7 @@ COMMAND = Command(
             ),
             handler=_handler_loaded,
             shows=True,
+            state=True,
         ),
         "new": Command(
             args="<name> <port> {baud} {mode}",

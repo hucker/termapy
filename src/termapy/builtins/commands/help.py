@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from termapy.defaults import CFG_HELP, cfg_key_path, cfg_value
 from termapy.folders import FOLDER_PATTERNS, RUN
-from termapy.help_dynamic import is_state_line
+from termapy.help_dynamic import green, is_state_line
 from termapy.markup import markup_to_plain, match_parts, underline_markup
 from termapy.matching import closest, did_you_mean, is_glob, matches
 from termapy.plugins import (
@@ -35,7 +35,7 @@ from termapy.plugins import (
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_STYLE
 from termapy.plugins.params import render_parameters_block
-from termapy.plugins.views import Column, Link, Piece, TableView
+from termapy.plugins.views import Column, Link, Piece, RecordView, TableView
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -61,6 +61,11 @@ _MAX_CMD_COL = 28
 
 # The rows a help page's list shows, newest first; the rest are a click away.
 _HELP_LIST_ROWS = 10
+
+# What CURRENT STATE shows of an answer before a link to the whole of it: a
+# status command's answer may be large, and the page is about the command.
+_HELP_STATE_ROWS = 20
+_HELP_STATE_WIDTH = 200
 
 # How much of a folded group's name list fits before it is cut.
 _FOLD_NAMES_W = 46
@@ -466,7 +471,8 @@ def _bare_pieces(plugin, name: str, prefix: str) -> list[Piece]:
 def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = False) -> None:
     """Render a command's full detail view in man-page format.
 
-    Sections: NAME, SYNOPSIS (if args), DESCRIPTION, FLAGS (if any),
+    Sections: NAME, STATUS, CURRENT STATE (if declared), SYNOPSIS (if args),
+    DESCRIPTION, FLAGS (if any),
     REQUIRED CAPABILITIES (if restrictive caps), SUBCOMMANDS (if children), SEE ALSO
     (if siblings/parent exist), then the ``help_list`` table (if declared).
     Empty sections are skipped so the page stays dense.
@@ -494,6 +500,12 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     ctx.io.output_markup(
         f"  [{MATURITY_COLORS[maturity]}]{escape_markup(maturity)}[/] - {escape_markup(meaning)}"
     )
+
+    # CURRENT STATE ───────────────────────────────────────────────────────────
+    # Run for the answer, right here at the top: what the session holds now,
+    # beside what the command is.  The developer page is about the code.
+    if plugin.state and not dev_mode:
+        _render_current_state(ctx, name)
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     # A declared bare form gets its own line, built from the declaration,
@@ -672,15 +684,72 @@ def _effective_capabilities(ctx: PluginContext) -> CapabilitySet:
     return ctx.capabilities
 
 
+def _write_more_link(ctx: PluginContext, more: int, name: str) -> None:
+    """The line under a shortened answer: how much is left, and a click that runs the whole."""
+    if more > 0:
+        ctx.io.output_markup_segments(
+            [
+                Piece("  "),
+                Piece(f"... {more} more: ", None, _SEP),
+                Piece(ctx.prefix + name, Link(name), _CMD),
+            ]
+        )
+
+
+def _write_table(ctx: PluginContext, view: TableView, name: str, limit: int) -> None:
+    """``view``'s first ``limit`` rows as page lines, the title still counting them all, then the link.
+
+    Its lines are page lines, each piece in the table line's color, so
+    they sit in the page's column in every frontend, and what a click on a
+    row does is the list's (registry ``links-are-data``).
+    """
+    shown = replace(view, records=view.records[:limit], total=len(view.records))
+    for segments, color in shown.segment_lines():
+        pieces = [piece._replace(style=piece.style or color) for piece in segments]
+        ctx.io.output_markup_segments([Piece("  "), *pieces])
+    _write_more_link(ctx, len(view.records) - len(shown.records), name)
+
+
+def _render_current_state(ctx: PluginContext, name: str) -> None:
+    """The CURRENT STATE section: run the state command and show its answer (``Command.state``).
+
+    A short answer shows whole and a long one shows its start and a link
+    to the rest.  A failure is shown too, dim, because ``Not connected.``
+    is the state.  Every value is escaped (registry ``markup-escape``).
+    """
+    read_state = ctx.internal.read_state
+    if read_state is None:
+        return
+    result = read_state(name)
+    view = result.view
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_section_markup("CURRENT STATE"))
+    if not result.success:
+        for line in result.error.splitlines():
+            ctx.io.output_markup(f"  [{_SEP}]{escape_markup(line)}[/]")
+    elif isinstance(view, TableView) and view.records:
+        _write_table(ctx, view, name, _HELP_STATE_ROWS)
+    elif isinstance(view, RecordView) and view.items:
+        for line in replace(view, items=view.items[:_HELP_STATE_ROWS]).lines():
+            ctx.io.output_markup(line)
+        _write_more_link(ctx, len(view.items) - _HELP_STATE_ROWS, name)
+    else:
+        value = "" if result.value is None else str(result.value)
+        lines = value.splitlines() or ["(none)"]
+        for line in lines[:_HELP_STATE_ROWS]:
+            cut = f"{line[:_HELP_STATE_WIDTH]}..." if len(line) > _HELP_STATE_WIDTH else line
+            line_markup = green(cut)
+            ctx.io.output_markup(f"  {line_markup}")
+        _write_more_link(ctx, len(lines) - _HELP_STATE_ROWS, name)
+
+
 def _render_help_list(ctx: PluginContext, name: str, plugin) -> None:
     """End the page with the table of the list ``help_list`` names, indented like a section.
 
     ``/help cfg`` shows the configs and ``/help run`` the scripts: the
     command's own list, so its rows, and what a click on a name does
-    (registry ``links-are-data``), are that list's.  Its lines are page
-    lines, each piece in the table line's color, so they sit in the
-    page's column in every frontend.  A folder of hundreds of
-    screenshots shows its newest ``_HELP_LIST_ROWS``, the title still
+    (registry ``links-are-data``), are that list's.  A folder of hundreds
+    of screenshots shows its newest ``_HELP_LIST_ROWS``, the title still
     counting them all, then a link to the whole list.  Left off when the
     list cannot run now (``/help run`` with no config loaded) or holds
     nothing.
@@ -692,23 +761,11 @@ def _render_help_list(ctx: PluginContext, name: str, plugin) -> None:
     view = child.handler(ctx, "").view
     if not isinstance(view, TableView) or not view.records:
         return
-    shown = replace(view, records=view.records[:_HELP_LIST_ROWS], total=len(view.records))
     ctx.io.output_markup("")
     # The heading is the list's noun, plural: CONFIGS, SCRIPTS, SCREENSHOTS,
     # LOGS, and FILES for cap/ (build_folder_subcommands' default noun).
     ctx.io.output_markup(_section_markup(f"{view.noun}s".upper()))
-    for segments, color in shown.segment_lines():
-        pieces = [piece._replace(style=piece.style or color) for piece in segments]
-        ctx.io.output_markup_segments([Piece("  "), *pieces])
-    more = len(view.records) - len(shown.records)
-    if more:
-        ctx.io.output_markup_segments(
-            [
-                Piece("  "),
-                Piece(f"... {more} more: ", None, _SEP),
-                Piece(ctx.prefix + list_name, Link(list_name), _CMD),
-            ]
-        )
+    _write_table(ctx, view, list_name, _HELP_LIST_ROWS)
 
 
 def _render_target_man_page(ctx: PluginContext, tc) -> None:

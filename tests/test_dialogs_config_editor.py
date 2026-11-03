@@ -20,8 +20,10 @@ from termapy.defaults import CFG_HELP, DEFAULT_CFG, DEFAULT_CMD_PREFIX
 from termapy.dialogs._common import find_occurrences, pick_occurrence
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.confirm_dialog import ConfirmDialog
+from termapy.plugins import PluginContext
 from termapy.plugins.command import interpolate_help
 from termapy.port_control import reserved_serial
+from termapy.variables import set_user_var
 
 
 class _Host(App):
@@ -43,11 +45,14 @@ def _write_cfg(tmp_path: Path, **overrides) -> tuple[dict, Path]:
     return cfg, path
 
 
-async def _open(app: App, pilot, cfg: dict, path: Path, highlight_key: str = "", used_by=None):
+async def _open(
+    app: App, pilot, cfg: dict, path: Path, highlight_key: str = "", used_by=None, ctx=None
+):
     """Push the editor and return it with the list its dismiss value lands in."""
     results: list[tuple | None] = []
     app.push_screen(
-        ConfigEditor(cfg, str(path), highlight_key, used_by=used_by), callback=results.append
+        ConfigEditor(cfg, str(path), highlight_key, used_by=used_by, ctx=ctx),
+        callback=results.append,
     )
     await pilot.pause()
     screen = app.screen
@@ -413,6 +418,31 @@ class TestValueValidation:
                 assert "not resolved" not in known_note
                 assert unknown_status.startswith("[yellow]")
                 assert "unknown variable: $(NOPE_UNKNOWN_123)" in unknown_note
+
+        _run(scenario)
+
+    def test_a_user_variable_is_known_through_the_sessions_context(self, tmp_path):
+        """A variable the session set is known to the editor it opens, and unknown to one with no context."""
+
+        async def scenario():
+            # Arrange
+            cfg, path = _write_cfg(tmp_path)
+            ctx = PluginContext()
+            set_user_var(ctx, "MY_TAG", "rig")
+            app = _Host()
+            async with app.run_test() as pilot:
+                value = '"$(MY_TAG)> {cmd}"'
+
+                # Act
+                with_ctx, _ = await _open(app, pilot, cfg, path, ctx=ctx)
+                known_status, _ = with_ctx._validate_value("echo_fmt", value)
+                without, _ = await _open(app, pilot, cfg, path)
+                unknown_status, unknown_note = without._validate_value("echo_fmt", value)
+
+                # Assert
+                assert known_status.startswith("[green]"), "the session holds that variable"
+                assert unknown_status.startswith("[yellow]")
+                assert "unknown variable: $(MY_TAG)" in unknown_note
 
         _run(scenario)
 

@@ -13,6 +13,7 @@ from datetime import datetime
 import pytest
 
 from termapy import variables
+from termapy.plugins import PluginContext
 
 _LEAK = "ISOLATION_PROBE"
 
@@ -20,15 +21,14 @@ _LEAK = "ISOLATION_PROBE"
 @pytest.mark.xdist_group("variables-isolation")
 class TestVariablesDoNotLeak:
     def test_a_test_writes_to_every_store(self):
-        """Set a value in each of the four stores, as a frontend and a script would."""
+        """Set a value in each of the three stores, as a frontend and a script would."""
         # Act
-        variables._VARS[_LEAK] = "user"
         variables.set_launch_var(_LEAK, "launch")
         variables.set_context_var(_LEAK, lambda: "context")
         variables._FROZEN_MOMENTS[_LEAK] = datetime(2000, 1, 1)
 
         # Assert
-        assert variables.expand_vars(f"$({_LEAK})") == "user", (
+        assert variables.expand_vars(PluginContext(), f"$({_LEAK})") == "launch", (
             "the write landed where expansion reads it"
         )
 
@@ -38,7 +38,6 @@ class TestVariablesDoNotLeak:
         leaked = [
             name
             for name, store in (
-                ("_VARS", variables._VARS),
                 ("_LAUNCH_VARS", variables._LAUNCH_VARS),
                 ("_CONTEXT_VARS", variables._CONTEXT_VARS),
                 ("_FROZEN_MOMENTS", variables._FROZEN_MOMENTS),
@@ -48,4 +47,5 @@ class TestVariablesDoNotLeak:
 
         # Assert
         assert leaked == [], f"state crossed from one test to the next: {leaked}"
-        assert variables.expand_vars(f"$({_LEAK})") == f"$({_LEAK})", "the name is unknown again"
+        actual = variables.expand_vars(PluginContext(), f"$({_LEAK})")
+        assert actual == f"$({_LEAK})", "the name is unknown again"

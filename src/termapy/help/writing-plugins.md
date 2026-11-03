@@ -171,7 +171,7 @@ makes the file a plugin, and one file may export several:
 | Export | What it adds |
 |---|---|
 | `COMMAND` | A REPL command (this page) |
-| `TRANSFORM` | A rewriter for REPL or serial input |
+| `TRANSFORM` | A rewriter for REPL or serial input, `(ctx, text) -> text` |
 | `DIRECTIVE` | A pre-dispatch line rewriter |
 | `on_app_start` / `on_config_load` / ... | Lifecycle hooks (`on_app_prestart` is for built-ins: a folder plugin loads after it fires, so its copy is skipped with a warning) |
 | `FORMAT` + `DESCRIPTION` + `DETECT` + `convert` | A linker-map converter for `/sym.import` (see [symbols.md](symbols.md)) |

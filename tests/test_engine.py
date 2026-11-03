@@ -509,13 +509,33 @@ class TestTransformChains:
             TransformInfo(
                 name="upper",
                 help="test",
-                repl=lambda s: s.upper(),
+                repl=lambda _ctx, s: s.upper(),
             )
         )
 
         # Assert
         assert eng.has_repl_transforms is True, "REPL transform registered"
         assert eng.has_serial_transforms is True, "var serial transform already loaded"
+
+    def test_a_transform_gets_the_sessions_context(self, engine):
+        """Both chains hand a transform the engine's context, which is where session state lives."""
+        # Arrange
+        eng, _ = engine
+        seen = []
+
+        def _probe(ctx, text):
+            seen.append(ctx)
+            return text
+
+        eng.register_transform(TransformInfo(name="probe", help="test", repl=_probe, serial=_probe))
+
+        # Act
+        eng.transform_repl("line")
+        eng.transform_serial("line")
+
+        # Assert
+        assert len(seen) == 2, "one call per chain"
+        assert all(ctx is eng.ctx for ctx in seen), "each call carried the engine's context"
 
     def test_serial_transform_registered(self, engine):
         """A serial-only transform adds to the serial chain without dropping REPL ones."""
@@ -527,7 +547,7 @@ class TestTransformChains:
             TransformInfo(
                 name="strip_atz",
                 help="test",
-                serial=lambda s: s.replace("ATZ", "AT"),
+                serial=lambda _ctx, s: s.replace("ATZ", "AT"),
             )
         )
 
@@ -543,7 +563,7 @@ class TestTransformChains:
             TransformInfo(
                 name="upper",
                 help="test",
-                repl=lambda s: s.upper(),
+                repl=lambda _ctx, s: s.upper(),
             )
         )
 
@@ -562,7 +582,7 @@ class TestTransformChains:
             TransformInfo(
                 name="replacer",
                 help="test",
-                serial=lambda s: s.replace("$port", "COM4"),
+                serial=lambda _ctx, s: s.replace("$port", "COM4"),
             )
         )
 
@@ -581,14 +601,14 @@ class TestTransformChains:
             TransformInfo(
                 name="first",
                 help="test",
-                repl=lambda s: s + " [A]",
+                repl=lambda _ctx, s: s + " [A]",
             )
         )
         eng.register_transform(
             TransformInfo(
                 name="second",
                 help="test",
-                repl=lambda s: s + " [B]",
+                repl=lambda _ctx, s: s + " [B]",
             )
         )
 
@@ -607,8 +627,8 @@ class TestTransformChains:
             TransformInfo(
                 name="dual",
                 help="test",
-                repl=lambda s: "REPL:" + s,
-                serial=lambda s: "SER:" + s,
+                repl=lambda _ctx, s: "REPL:" + s,
+                serial=lambda _ctx, s: "SER:" + s,
             )
         )
 
@@ -641,8 +661,8 @@ class TestTransformChains:
             TransformInfo(
                 name="dual",
                 help="test",
-                repl=lambda s: s.upper(),
-                serial=lambda s: s.lower(),
+                repl=lambda _ctx, s: s.upper(),
+                serial=lambda _ctx, s: s.lower(),
             )
         )
 
@@ -663,7 +683,7 @@ class TestTransformChains:
             TransformInfo(
                 name="vars",
                 help="Expand variables.",
-                repl=lambda s: s,
+                repl=lambda _ctx, s: s,
             )
         )
 

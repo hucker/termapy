@@ -2049,7 +2049,9 @@ class SerialTerminal(TerminalHost, App):
                 self._status(f"Failed to load config: {e}", "red")
                 return
             self.push_screen(
-                ConfigEditor(cfg, result[1], used_by=cfg_users(self.repl._plugins)),
+                ConfigEditor(
+                    cfg, result[1], used_by=cfg_users(self.repl._plugins), ctx=self.repl.ctx
+                ),
                 callback=self._on_config_result,
             )
         elif action == "rename":
@@ -2187,7 +2189,9 @@ class SerialTerminal(TerminalHost, App):
                 self._status(f"Failed to load config: {e}", "red")
                 return
             self.push_screen(
-                ConfigEditor(cfg, self.config_path, used_by=cfg_users(self.repl._plugins)),
+                ConfigEditor(
+                    cfg, self.config_path, used_by=cfg_users(self.repl._plugins), ctx=self.repl.ctx
+                ),
                 callback=self._on_config_result,
             )
         else:
@@ -2642,7 +2646,10 @@ class SerialTerminal(TerminalHost, App):
             def open_editor() -> None:
                 self.push_screen(
                     ConfigEditor(
-                        dict(self.cfg), config_path, used_by=cfg_users(self.repl._plugins)
+                        dict(self.cfg),
+                        config_path,
+                        used_by=cfg_users(self.repl._plugins),
+                        ctx=self.repl.ctx,
                     ),
                     callback=self._on_config_result,
                 )
@@ -2671,7 +2678,12 @@ class SerialTerminal(TerminalHost, App):
 
     def _palette_edit_config(self) -> None:
         self.push_screen(
-            ConfigEditor(dict(self.cfg), self.config_path, used_by=cfg_users(self.repl._plugins)),
+            ConfigEditor(
+                dict(self.cfg),
+                self.config_path,
+                used_by=cfg_users(self.repl._plugins),
+                ctx=self.repl.ctx,
+            ),
             callback=self._on_config_result,
         )
 

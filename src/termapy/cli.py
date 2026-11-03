@@ -619,7 +619,7 @@ class CLITerminal(TerminalHost):
                 try:
                     from termapy.variables import expand_vars
 
-                    prompt = expand_vars(cfg_value(self.cfg, "cli_prompt"))
+                    prompt = expand_vars(self.ctx, cfg_value(self.cfg, "cli_prompt"))
                     s = self._session
                     line = s.prompt(prompt) if s else input(prompt)
                 except EOFError:

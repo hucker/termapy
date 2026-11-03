@@ -2191,7 +2191,6 @@ class TestSessionLog:
 
     def test_markup_output_is_logged_as_text_and_its_echo_is_not(self, app_factory):
         """A command's markup output reaches the log as rendered text under #; its echo stays out (the > line has it)."""
-        from termapy.variables import unset_user_var
 
         async def scenario():
             app, _, _ = app_factory()
@@ -2218,10 +2217,7 @@ class TestSessionLog:
                 )
                 assert log.count(command) == 1, f"the command is logged once, as its > line:\n{log}"
 
-        try:
-            _run(scenario)
-        finally:
-            unset_user_var("MARKUP_TAG")  # user variables are process-global
+        _run(scenario)
 
     def test_log_commands_work_on_the_tuis_own_log(self, app_factory):
         """/log.dump reads the TUI's own log, and /log.delete closes the open file before removing it."""

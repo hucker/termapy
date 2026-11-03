@@ -832,9 +832,11 @@ class TestVarHandlerValues:
         """Looking up a defined name returns its value for $(X) capture."""
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
-        _VARS["MY_VAR"] = "hello"
+        users = user_vars(engine.ctx)
+
+        users["MY_VAR"] = "hello"
 
         # Act
         result = engine.dispatch("var MY_VAR")
@@ -859,10 +861,12 @@ class TestVarHandlerValues:
         """Bare /var returns every NAME=value pair, one per line, as the value."""
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
-        _VARS["A"] = "1"
-        _VARS["B"] = "2"
+        users = user_vars(engine.ctx)
+
+        users["A"] = "1"
+        users["B"] = "2"
 
         # Act
         result = engine.dispatch("var")
@@ -876,9 +880,11 @@ class TestVarHandlerValues:
         """/var.set returns the value just assigned, like other setter commands."""
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
-        _VARS.clear()
+        users = user_vars(engine.ctx)
+
+        users.clear()
 
         # Act
         result = engine.dispatch("var.set NEW_VAR fresh_value")
@@ -892,11 +898,13 @@ class TestVarHandlerValues:
         """/var.clear returns how many variables it removed, as a string."""
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
-        _VARS["A"] = "1"
-        _VARS["B"] = "2"
-        _VARS["C"] = "3"
+        users = user_vars(engine.ctx)
+
+        users["A"] = "1"
+        users["B"] = "2"
+        users["C"] = "3"
 
         # Act
         result = engine.dispatch("var.clear")
@@ -3336,11 +3344,12 @@ class TestRepeat:
     def test_sets_iteration_variable(self, repl_env):
         """REPEAT_N holds the 1-based iteration number while each command runs."""
         # Arrange
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
         engine, _, _, output = repl_env
+        users = user_vars(engine.ctx)
         seen_values = []
-        engine.ctx.dispatch = lambda cmd: seen_values.append(_VARS.get("REPEAT_N"))
+        engine.ctx.dispatch = lambda cmd: seen_values.append(users.get("REPEAT_N"))
 
         # Act
         engine.dispatch("repeat count=3 cmd=AT")
@@ -3353,11 +3362,12 @@ class TestRepeat:
     def test_custom_variable_name(self, repl_env):
         """var= renames the iteration variable; it still counts from 1."""
         # Arrange
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
         engine, _, _, output = repl_env
+        users = user_vars(engine.ctx)
         seen_values = []
-        engine.ctx.dispatch = lambda cmd: seen_values.append(_VARS.get("I"))
+        engine.ctx.dispatch = lambda cmd: seen_values.append(users.get("I"))
 
         # Act
         engine.dispatch("repeat count=2 var=I cmd=AT")
@@ -3368,25 +3378,27 @@ class TestRepeat:
     def test_variable_cleaned_up(self, repl_env):
         """The iteration variable is removed once the loop finishes."""
         # Arrange
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
         engine, _, _, output = repl_env
+        users = user_vars(engine.ctx)
         engine.ctx.dispatch = lambda cmd: None
 
         # Act
         engine.dispatch("repeat count=2 cmd=AT")
 
         # Assert - variable removed after repeat
-        assert "REPEAT_N" not in _VARS, (
-            f"REPEAT_N should be cleaned up, but _VARS contains: {_VARS}"
+        assert "REPEAT_N" not in users, (
+            f"REPEAT_N should be cleaned up, but the variables contain: {users}"
         )
 
     def test_variable_cleaned_up_on_error(self, repl_env):
         """The iteration variable is removed even when a dispatched command raises."""
         # Arrange
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
         engine, _, _, output = repl_env
+        users = user_vars(engine.ctx)
 
         def boom(cmd):
             raise RuntimeError("dispatch error")
@@ -3397,8 +3409,8 @@ class TestRepeat:
         engine.dispatch("repeat count=2 cmd=AT")
 
         # Assert - variable cleaned up even on error
-        assert "REPEAT_N" not in _VARS, (
-            f"REPEAT_N should be cleaned up after error, but _VARS contains: {_VARS}"
+        assert "REPEAT_N" not in users, (
+            f"REPEAT_N should be cleaned up after error, but the variables contain: {users}"
         )
 
     def test_completes_silently(self, repl_env):

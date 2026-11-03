@@ -326,7 +326,7 @@ Layers 2 and 3 are resolved by the engine (`ReplEngine.resolve_plugins`) inside 
 
 ### Transforms
 
-A `Transform` rewrites command text after the REPL/serial routing decision. Separate chains for REPL commands and serial commands. Used by the `var` plugin to expand `$(NAME)` placeholders and by `env` to expand `$(env.NAME)`:
+A `Transform` rewrites command text after the REPL/serial routing decision. Separate chains for REPL commands and serial commands, each a `(ctx, text) -> text`. Used by the `var` plugin to expand `$(NAME)` placeholders and by `env` to expand `$(env.NAME)`:
 
 ```python
 TRANSFORM = Transform(

@@ -108,11 +108,6 @@ def on_connect(ctx: PluginContext) -> None:
     ctx.ns(MEMORY_NS).clear()
 
 
-def on_config_load(ctx: PluginContext) -> None:
-    """A config switch means a different profile and device."""
-    ctx.ns(MEMORY_NS).clear()
-
-
 # ── helpers ────────────────────────────────────────────────────────────────
 
 

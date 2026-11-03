@@ -2004,7 +2004,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
         from termapy.variables import deref_ref
 
         for token in rest_tokens:
-            ok, resolved = resolve_deref(token, deref_ref)
+            ok, resolved = resolve_deref(token, lambda ref: deref_ref(ctx, ref))
             if not ok:
                 return CmdResult.fail(msg=resolved)
             try:

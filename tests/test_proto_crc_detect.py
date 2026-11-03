@@ -142,7 +142,7 @@ class TestCrcDetectVariableForms:
         # failed hex parsing, and reported "No match found" -- a wrong answer,
         # not an error.  Nothing in the suite caught it.
         eng = _engine()
-        var._VARS["F"] = FRAME_1
+        var.set_user_var(eng.ctx, "F", FRAME_1)
 
         # Act -- through the FULL pipeline, which is where splice happens
         result = _dispatch_full(eng, "/proto.crc.detect $(F)")
@@ -159,7 +159,7 @@ class TestCrcDetectVariableForms:
         # Arrange -- a value with no spaces: the two forms must reach the same
         # answer, which is what makes deref a safe drop-in for clean data
         eng = _engine()
-        var._VARS["F"] = FRAME_1
+        var.set_user_var(eng.ctx, "F", FRAME_1)
 
         # Act
         spliced = _dispatch_full(eng, "/proto.crc.detect $(F)")
@@ -174,7 +174,7 @@ class TestCrcDetectVariableForms:
         """Each $(*NAME) token binds as one entry in the variadic frame list."""
         # Arrange
         eng = _engine()
-        var._VARS.update({"p1": FRAME_1, "p2": FRAME_2, "p3": FRAME_3})
+        var.user_vars(eng.ctx).update({"p1": FRAME_1, "p2": FRAME_2, "p3": FRAME_3})
 
         # Act
         result = eng.dispatch("proto.crc.detect $(*p1) $(*p2) $(*p3)")
@@ -187,7 +187,7 @@ class TestCrcDetectVariableForms:
         # Arrange -- the arity-1 guarantee, on the real command.  Spliced, this
         # value would fork into eight arguments and match nothing.
         eng = _engine()
-        var._VARS["spaced"] = SPACED_FRAME
+        var.set_user_var(eng.ctx, "spaced", SPACED_FRAME)
 
         # Act
         result = eng.dispatch("proto.crc.detect $(*spaced)")
@@ -201,7 +201,7 @@ class TestCrcDetectVariableForms:
         """Literal frames and $(*NAME) references can mix within one frame list."""
         # Arrange
         eng = _engine()
-        var._VARS["p2"] = FRAME_2
+        var.set_user_var(eng.ctx, "p2", FRAME_2)
 
         # Act
         result = eng.dispatch(f"proto.crc.detect {FRAME_1} $(*p2) {FRAME_3}")

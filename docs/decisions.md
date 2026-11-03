@@ -848,8 +848,9 @@ in it, and there was no reason. `/find` moved, and a hook no longer satisfies th
 guard: module state needs an entry in `MODULE_STATE_OUTSIDE_NS` saying why. The
 `/run.record` file and the replay guard stay outside on their merits, a cleared dict
 cannot close a file and a replayed `/cfg.load` must not clear its own guard. The
-`/env.set` values and the user variables stay only until transforms and `expand_vars`
-take a `ctx`.
+`/env.set` values and the user variables followed once transforms and `expand_vars`
+took a `ctx`; launch and context variables stay module-level as the process's, and
+`SESSION_*` as the running script's, which outlasts a `/cfg.load` inside it.
 
 A key that starts a flag is marked `session_flag`, and `/cfg` moves the flag with
 the key. It used to change only the dict: `/cfg.auto echo false` answered `False`

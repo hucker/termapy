@@ -13,8 +13,8 @@ registration, and it holds no state of its own.  Same split as
 
 Four namespaces resolve here, in this order:
 
-  - **user vars** -- set by ``/var.set`` or ``$(NAME) = value``, cleared when
-    a top-level script starts.
+  - **user vars** -- set by ``/var.set`` or ``$(NAME) = value``, in
+    ``ctx.ns("vars")``, so a config load empties them.
   - **launch vars** -- plain strings frozen at startup (e.g. ``FRONT_END``).
   - **datetime vars** -- the dynamic clock (``DATE`` / ``TIME`` / ``DATETIME``)
     plus frozen moments (``LAUNCH_*``, ``SESSION_*``), each accepting an
@@ -22,9 +22,12 @@ Four namespaces resolve here, in this order:
   - **context vars** -- resolved through a callable at expansion time, which
     is how ``CFG.*`` tracks a config that can change mid-session.
 
-State is module level on purpose: one namespace per process, shared across
-every ``PluginContext`` in the session.  Nothing here imports Textual,
-pyserial, or anything under ``builtins/``.
+User variables are session state, so every function that touches them takes
+the ``ctx``.  The other three are the process's and stay module level: a
+frontend sets launch and context vars once at startup, and ``SESSION_*``
+belongs to the running script, of which a process has one and which outlasts
+a ``/cfg.load`` inside it.  Nothing here imports Textual, pyserial, or anything
+under ``builtins/``.
 """
 
 from __future__ import annotations
@@ -32,8 +35,12 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from termapy.defaults import cfg_value
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
 
 # Match $(NAME) or $(NAME.SUB), with an optional :strftime format on
 # datetime-valued vars -- e.g. $(DATETIME:%Y%m%d_%H%M%S).  The format runs
@@ -41,8 +48,8 @@ from termapy.defaults import cfg_value
 # on the FIRST colon only; group(2) is None when no format is given.
 _VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)(?::([^)]*))?\)")
 
-# Module-level variable storage - cleared by a config load and /var.clear.
-_VARS: dict[str, str] = {}
+# The namespace holding user variables, name -> value.
+_VARS_NS = "vars"
 
 # Frozen datetime moments, keyed by concept.  LAUNCH is frozen when this
 # module loads (app start); SESSION is frozen by ``set_start_time_vars`` at
@@ -85,46 +92,55 @@ _RETIRED_PLACEHOLDERS = {
 # ── User variables ────────────────────────────────────────────────────────────
 
 
-def set_user_var(name: str, value: str) -> None:
+def set_user_var(ctx: PluginContext, name: str, value: str) -> None:
     """Set a user variable to a literal value.
 
     Args:
+        ctx: Plugin context holding the session's variables.
         name: Variable name (no ``$()`` delimiters).
         value: Value to store.
     """
-    _VARS[name] = value
+    ctx.ns(_VARS_NS)[name] = value
 
 
-def unset_user_var(name: str) -> None:
+def unset_user_var(ctx: PluginContext, name: str) -> None:
     """Remove one user variable, ignoring a name that is not set.
 
     Args:
+        ctx: Plugin context holding the session's variables.
         name: Variable name to drop.
     """
-    _VARS.pop(name, None)
+    ctx.ns(_VARS_NS).pop(name, None)
 
 
-def user_vars() -> dict[str, str]:
+def user_vars(ctx: PluginContext) -> dict[str, str]:
     """Return the live user-variable store.
 
     The dict is the real one, not a copy -- callers that only need to read
     should treat it as read-only and go through :func:`set_user_var` /
     :func:`unset_user_var` to mutate.
 
+    Args:
+        ctx: Plugin context holding the session's variables.
+
     Returns:
         Name -> value for every user variable currently set.
     """
-    return _VARS
+    return ctx.ns(_VARS_NS)
 
 
-def clear_vars() -> int:
+def clear_vars(ctx: PluginContext) -> int:
     """Clear all user variables.
+
+    Args:
+        ctx: Plugin context holding the session's variables.
 
     Returns:
         How many variables were cleared.
     """
-    count = len(_VARS)
-    _VARS.clear()
+    store = ctx.ns(_VARS_NS)
+    count = len(store)
+    store.clear()
     return count
 
 
@@ -261,7 +277,7 @@ def register_cfg_vars(
     set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
 
 
-def snapshot() -> dict[str, dict[str, str]]:
+def snapshot(ctx: PluginContext) -> dict[str, dict[str, str]]:
     """Return every variable in every namespace, resolved, as plain data.
 
     The structured view of the whole ``$(NAME)`` namespace -- what
@@ -269,13 +285,16 @@ def snapshot() -> dict[str, dict[str, str]]:
     namespace, every value resolved at call time (context callables are
     invoked, datetime vars formatted with their defaults).
 
+    Args:
+        ctx: Plugin context holding the session's variables.
+
     Returns:
         ``{"user": {...}, "launch": {...}, "datetime": {...},
         "context": {...}}`` -- all values strings, sub-dicts empty when
         the namespace is.
     """
     return {
-        "user": dict(_VARS),
+        "user": dict(user_vars(ctx)),
         "launch": dict(_LAUNCH_VARS),
         "datetime": {
             name: resolve_datetime_var(name, None) or "" for name, _tag in datetime_var_names()
@@ -297,7 +316,7 @@ def variable_refs(text: str) -> list[str]:
     return list(dict.fromkeys(match.group(1) for match in _VAR_REF_RE.finditer(text)))
 
 
-def resolve_one(name: str, fmt: str | None = None) -> str | None:
+def resolve_one(ctx: PluginContext, name: str, fmt: str | None = None) -> str | None:
     """Resolve a single variable name to its value, or return None if unknown.
 
     Resolution order (no :fmt): user vars -> launch strings -> datetime vars
@@ -309,6 +328,7 @@ def resolve_one(name: str, fmt: str | None = None) -> str | None:
     dereference handlers that explicitly opt in.
 
     Args:
+        ctx: Plugin context holding the session's variables.
         name: Variable name (no $() delimiters, no :fmt suffix).
         fmt: Optional strftime format suffix (for datetime vars only).
 
@@ -318,7 +338,7 @@ def resolve_one(name: str, fmt: str | None = None) -> str | None:
     if fmt is not None:
         # A :fmt suffix is only meaningful on datetime vars.
         return resolve_datetime_var(name, fmt)
-    val = _VARS.get(name)
+    val = user_vars(ctx).get(name)
     if val is not None:
         return val
     val = _LAUNCH_VARS.get(name)
@@ -333,7 +353,7 @@ def resolve_one(name: str, fmt: str | None = None) -> str | None:
     return None
 
 
-def deref_ref(ref: str) -> str | None:
+def deref_ref(ctx: PluginContext, ref: str) -> str | None:
     """Resolve the inner text of one ``$(*NAME)`` / ``$(*NAME:fmt)`` reference.
 
     The arity-1 counterpart to ``expand_vars``' 0..N splice: same namespace and
@@ -342,16 +362,17 @@ def deref_ref(ref: str) -> str | None:
     value it returns is data -- the binder never re-splits or re-scans it.
 
     Args:
+        ctx: Plugin context holding the session's variables.
         ref: The text between ``$(*`` and ``)`` -- ``NAME`` or ``NAME:fmt``.
 
     Returns:
         The resolved value, or None when the name is undefined.
     """
     name, sep, fmt = ref.partition(":")
-    return resolve_one(name, fmt if sep else None)
+    return resolve_one(ctx, name, fmt if sep else None)
 
 
-def expand_vars(text: str) -> str:
+def expand_vars(ctx: PluginContext, text: str) -> str:
     """Expand $(NAME) references in a string.
 
     Resolution order (no :fmt): user vars -> launch strings -> datetime vars
@@ -362,6 +383,7 @@ def expand_vars(text: str) -> str:
     Use ``\\$`` to escape a literal ``$`` (e.g. ``\\$(PORT)`` -> ``$(PORT)``).
 
     Args:
+        ctx: Plugin context holding the session's variables.
         text: String potentially containing $(NAME) references.
 
     Returns:
@@ -378,7 +400,7 @@ def expand_vars(text: str) -> str:
     def _replace(m: re.Match) -> str:
         name = m.group(1)
         fmt = m.group(2)
-        val = resolve_one(name, fmt)
+        val = resolve_one(ctx, name, fmt)
         return val if val is not None else m.group(0)
 
     text = _VAR_REF_RE.sub(_replace, text)

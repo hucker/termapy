@@ -1147,7 +1147,7 @@ class TestNoSessionLog:
         """$(CFG.LOG_FILE) names nothing in the CLI, which keeps no session log."""
         from termapy.variables import expand_vars
 
-        assert expand_vars("$(CFG.LOG_FILE)") == "", "nothing to name"
+        assert expand_vars(cli.repl.ctx, "$(CFG.LOG_FILE)") == "", "nothing to name"
 
 
 class TestExitFromAScript:

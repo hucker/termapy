@@ -1520,7 +1520,7 @@ class ReplEngine:
         marker_markup = ""
         if eol_label is not None and cfg_value(self.cfg, "eol_markers"):
             marker_markup = eol_label(cfg_value(self.cfg, "eol"))
-        fmt = expand_vars(cfg_value(self.cfg, "echo_fmt"))
+        fmt = expand_vars(self.ctx, cfg_value(self.cfg, "echo_fmt"))
         return fmt.replace("{cmd}", escape_markup(text) + marker_markup)
 
     def dispatch_full(
@@ -2024,7 +2024,7 @@ class ReplEngine:
                 bound_params, param_error = parse_params(
                     plugin.params,
                     args,
-                    deref=None if plugin.raw_args else deref_ref,
+                    deref=None if plugin.raw_args else lambda ref: deref_ref(self.ctx, ref),
                 )
                 if param_error:
                     return _finish(
@@ -2143,15 +2143,14 @@ class ReplEngine:
     def reset_session(self) -> None:
         """Forget what this session did: a config load's first step.
 
-        The namespaces and the user variables go, and the once-a-session
+        The namespaces go, user variables among them, and the once-a-session
         prototype notes start over (registry ``config-load-deterministic``).
         A running script keeps the SESSION_* moment it froze, since the rest
         of its lines may still read it.
         """
-        from termapy.variables import clear_start_time_vars, clear_vars
+        from termapy.variables import clear_start_time_vars
 
         self.ctx.reset_namespaces()
-        clear_vars()
         self._prototypes_noted.clear()
         if not self.in_script:
             clear_start_time_vars()
@@ -2225,13 +2224,13 @@ class ReplEngine:
     def transform_repl(self, line: str) -> str:
         """Run all REPL transforms in load order."""
         for repl_transform in self._repl_transforms:
-            line = repl_transform(line)
+            line = repl_transform(self.ctx, line)
         return line
 
     def transform_serial(self, line: str) -> str:
         """Run all serial transforms in load order."""
         for serial_transform in self._serial_transforms:
-            line = serial_transform(line)
+            line = serial_transform(self.ctx, line)
         return line
 
     # -- Scripting ------------------------------------------------------------

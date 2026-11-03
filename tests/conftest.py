@@ -107,18 +107,16 @@ def _isolate_app_state(tmp_path_factory):
 def _isolate_variables():
     """Hand every test the ``$(NAME)`` stores as they were before it ran (registry ``variables-isolated``).
 
-    ``termapy.variables`` keeps the namespace in four module-level stores, and
-    a frontend registers ``$(CFG)`` and the launch vars into them when it is
-    built.  Shared by every test in a worker, they carried one test's state
-    into the next: the echo test passed only after some earlier test had built
-    a CLI on a config named ``rig.cfg``, and ``/var.clear`` counted variables
-    other tests had set.  Restoring rather than clearing keeps whatever import
-    or a wider-scoped fixture put there.
+    ``termapy.variables`` keeps launch, context and datetime variables in three
+    module-level stores, and a frontend registers ``$(CFG)`` and the launch vars
+    into them when it is built.  Shared by every test in a worker, they carried
+    one test's state into the next: the echo test passed only after some earlier
+    test had built a CLI on a config named ``rig.cfg``.  Restoring rather than
+    clearing keeps whatever import or a wider-scoped fixture put there.
     """
     from termapy import variables
 
     stores = (
-        variables._VARS,
         variables._LAUNCH_VARS,
         variables._CONTEXT_VARS,
         variables._FROZEN_MOMENTS,

@@ -493,8 +493,8 @@ class TestTransformLoading:
             "xform.py",
             """
 from termapy.plugins import Transform
-def _repl_xf(s): return s.upper()
-def _serial_xf(s): return s.lower()
+def _repl_xf(_ctx, s): return s.upper()
+def _serial_xf(_ctx, s): return s.lower()
 TRANSFORM = Transform(
     name="vars", help="Expand variables.",
     repl=_repl_xf, serial=_serial_xf,
@@ -508,8 +508,8 @@ TRANSFORM = Transform(
         # Assert
         assert len(result.transforms) == 1, "one transform loaded"
         assert result.transforms[0].name == "vars", "correct name"
-        assert result.transforms[0].repl("hello") == "HELLO", "repl works"
-        assert result.transforms[0].serial("HELLO") == "hello", "serial works"
+        assert result.transforms[0].repl(None, "hello") == "HELLO", "repl works"
+        assert result.transforms[0].serial(None, "HELLO") == "hello", "serial works"
         assert result.transforms[0].source == "test", "source propagated"
 
     def test_transform_only_file_not_skipped(self, plugin_dir):

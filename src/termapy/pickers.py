@@ -117,7 +117,13 @@ def on_quick_setup(app, result: tuple | None) -> None:
         # manually after editing.  The editor's Save creates the folder;
         # Cancel leaves nothing behind.
         app.push_screen(
-            ConfigEditor(cfg, config_path, is_new=True, used_by=cfg_users(app.repl._plugins)),
+            ConfigEditor(
+                cfg,
+                config_path,
+                is_new=True,
+                used_by=cfg_users(app.repl._plugins),
+                ctx=app.repl.ctx,
+            ),
             callback=app._on_config_result,
         )
         return

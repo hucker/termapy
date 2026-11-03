@@ -137,7 +137,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     raw = args.strip()
     m = _STRIP_WRAPPER_RE.match(raw)
     name = m.group(1) if m else raw
-    users = user_vars()
+    users = user_vars(ctx)
     launches = launch_vars()
     contexts = context_vars()
     if name:
@@ -161,7 +161,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     # markup listing entirely.  ``value`` stays the flat name=value lines
     # (the scriptable form) built from the same snapshot.
     if ctx.wants_data:
-        snap = variables_snapshot()
+        snap = variables_snapshot(ctx)
         flat = [
             f"{name}={val}"
             for namespace in ("user", "launch", "datetime", "context")
@@ -201,7 +201,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
     value = parts[1]
-    set_user_var(name, value)
+    set_user_var(ctx, name, value)
     ctx.io.output_markup(_var_line_markup(name, value))
     return CmdResult.ok(value=value)
 
@@ -253,7 +253,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
         if not response:
             return CmdResult.fail(msg=f"No response from device: {cmd}")
         value = response.decode(encoding, errors="replace").strip()
-    set_user_var(name, value)
+    set_user_var(ctx, name, value)
     ctx.io.output_markup(_var_line_markup(name, value))
     return CmdResult.ok(value=value)
 
@@ -265,7 +265,7 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Unused.
     """
-    count = clear_vars()
+    count = clear_vars(ctx)
     ctx.io.output(f"Cleared {count} variable(s).", "green")
     return CmdResult.ok(value=str(count))
 
@@ -275,11 +275,7 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
 
 def _var_state_line(ctx: PluginContext) -> str:
     """Green one-liner: current user + launch + context var counts."""
-    # ctx is unused -- vars live in termapy.variables' module-level storage,
-    # same across all PluginContexts within a session. Signature matches the
-    # dynamic long_help contract.
-    _ = ctx
-    user = len(user_vars())
+    user = len(user_vars(ctx))
     dt = len(datetime_var_names())
     ctxv = len(context_vars())
     launch = len(launch_vars())

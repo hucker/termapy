@@ -4851,9 +4851,6 @@ MODULE_STATE_OUTSIDE_NS = {
         "an open file and an observer a cleared dict cannot release; "
         "run.py's on_config_load stops the recording"
     ),
-    "builtins/commands/env.py": (
-        "the $(env.X) transform has no ctx yet; on_config_load takes a new snapshot"
-    ),
     "builtins/commands/run.py": (
         "guards a replay in progress, and a replayed /cfg.load must not clear it"
     ),
@@ -4862,8 +4859,8 @@ MODULE_STATE_OUTSIDE_NS = {
     "profile/loader.py": "a cache of a fixed schema",
     "protocol/crc.py": "a cache of crcglot's registry",
     "variables.py": (
-        "expand_vars has no ctx yet; ReplEngine.reset_session clears the session's part, "
-        "the rest is the process's"
+        "launch and context variables are the process's, and SESSION_* is the running "
+        "script's, which outlasts a /cfg.load inside it"
     ),
 }
 _CONTAINER_MUTATORS = frozenset(

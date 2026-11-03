@@ -901,3 +901,16 @@ STATUS, an all-yes AVAILABLE, the sibling list, and where a config change lasts.
 now appear only when they are news. `--verbose` is the existing way to ask for more, so
 it prints them in every frontend, and in the TUI they are a hover away, on the
 command's name or the config key.
+
+A row no longer prints its level. Chuck: the column put the status "a bit too much in
+people's faces", and most commands are the tested, released system. A name not yet
+stable is italic with its level in the tooltip, and stable goes unmarked, which reverses
+his own 2026-10-29 choice of a column on every row. A row in a plain terminal shows no
+mark; there the page's STATUS, `/help.group`'s LEVEL column and the MCP catalog carry it
+in text.
+
+A tooltip has a shape, because the name's was a wall of same-weight lines. The
+definition leads in bold, the click line is last and dim, and blank lines part them.
+`Link.tip` takes pieces as well as a string, so the level and the flag names can carry
+the colors they have on the page; a piece's text is literal, so no markup reaches a
+parser. Chuck chose this over plain text knowing it widened a published type.

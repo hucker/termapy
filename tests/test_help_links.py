@@ -22,7 +22,7 @@ from rich.console import Console
 from rich.text import Text
 
 from termapy.builtins.commands.help import _landscape_row, _pad_markup
-from termapy.idioms import ANY_COMMAND_TIP
+from termapy.idioms import ANY_COMMAND_FLAGS
 from termapy.markup import markup_to_plain
 from termapy.plugins import (
     GROUP_TERMINAL,
@@ -70,11 +70,11 @@ def _links_of(eng, command: str) -> list[Link]:
 
 
 def test_a_row_draws_the_same_characters_in_the_same_styles():
-    """A command row's markup renders exactly so: cyan name, padding, the green level, plain help."""
+    """A command row's markup renders exactly so: cyan name, padding, plain help."""
     # Arrange
     plugin = PluginInfo(name="cfg.load", args="", help="Load a config.", handler=lambda c, a: None)
-    # The row as markup: its own padding formula, then the level column.
-    before = _pad_markup("  [cyan]/cfg.load[/]", 14 + 2) + "  [green]stable[/]     Load a config."
+    # The row as markup: its own padding formula, then the help.
+    before = _pad_markup("  [cyan]/cfg.load[/]", 14 + 2) + "  Load a config."
 
     # Act
     after = pieces_markup(_landscape_row("/", "cfg.load", plugin, 14))
@@ -87,10 +87,7 @@ def test_a_search_row_keeps_its_match_underlines():
     """In /help <term> candidates, only the matched part is underlined, name and help alike."""
     # Arrange
     plugin = PluginInfo(name="cfg.load", args="", help="Load a config.", handler=lambda c, a: None)
-    before = (
-        _pad_markup("  [cyan]/cfg.[u]load[/u][/]", 14 + 2)
-        + "  [green]stable[/]     [u]Load[/u] a config."
-    )
+    before = _pad_markup("  [cyan]/cfg.[u]load[/u][/]", 14 + 2) + "  [u]Load[/u] a config."
 
     # Act
     after = pieces_markup(_landscape_row("/", "cfg.load", plugin, 14, needles=["load"]))
@@ -276,8 +273,12 @@ def test_a_command_name_on_its_page_fills_the_input_line(tmp_path):
     assert actual == expected, (
         "Enter runs it, nothing runs on its own, and the file name can follow"
     )
-    tips = [link.tip for link in links if link is not None]
-    assert all(ANY_COMMAND_TIP in tip for tip in tips), "hovering says what any command also takes"
+    for link in links:
+        assert link is not None, "every one of them is a link"
+        assert isinstance(link.tip, tuple), "its tip is styled pieces"
+        tip = "".join(piece.text for piece in link.tip)
+        for flag in ANY_COMMAND_FLAGS:
+            assert flag in tip, "hovering says what any command also takes"
 
 
 def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):

@@ -59,15 +59,16 @@ class LinkLog(SelectableRichLog):
     """A selectable RichLog whose links explain themselves on hover.
 
     Args:
-        describe: Returns the tooltip line for a link id.  Omitted, the
-            pane shows no tooltips.
+        describe: Returns the tooltip for a link id: a ``Text``, never a
+            markup string, because a command can hold [brackets].  Omitted,
+            the pane shows no tooltips.
         **kwargs: Passed to ``RichLog``.
     """
 
-    def __init__(self, *, describe: Callable[[int], str] | None = None, **kwargs: Any) -> None:
+    def __init__(self, *, describe: Callable[[int], Text] | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._describe = describe
-        self._shown: str | None = None
+        self._shown: Text | None = None
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
         """Show what the link under the pointer does, or nothing off a link."""
@@ -78,5 +79,4 @@ class LinkLog(SelectableRichLog):
         if shown == self._shown:
             return  # unchanged: re-setting would restart the tooltip's delay
         self._shown = shown
-        # Text, never a markup string: a command can hold [brackets].
-        self.tooltip = Text(shown) if shown is not None else None
+        self.tooltip = shown

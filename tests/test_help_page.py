@@ -13,6 +13,8 @@ import pytest
 
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
+from termapy.plugins import MATURITY_COLORS
+from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE
 
 _SHARED = ("STATUS", "AVAILABLE", "SEE ALSO", "A change by")
 
@@ -130,22 +132,42 @@ class TestTheWholePage:
         assert "AVAILABLE" in page
 
 
+def _tip_text(link) -> str:
+    """A link's tip as the characters a tooltip shows, whichever form it was written in."""
+    return link.tip if isinstance(link.tip, str) else "".join(piece.text for piece in link.tip)
+
+
 class TestAHoverHoldsTheRest:
     def test_a_commands_name_says_where_it_stands(self, cli):
         """help-page-specific: the name's tooltip carries what left the page, so it is one hover away."""
         # Act
-        tip = _links(cli, "help term.hex")["/term.hex"].tip
+        tip = _tip_text(_links(cli, "help term.hex")["/term.hex"])
 
         # Assert
         assert "Status: stable" in tip
-        assert "TUI: yes" in tip
-        assert "MCP: yes" in tip
+        assert "Runs in: TUI CLI MCP" in tip
         assert "--json" in tip, "and what any command also takes"
-        assert "--verbose shows all of this" in tip, "and how to print it"
+        assert "--verbose" in tip, "and the flag that prints the whole page"
 
     def test_the_name_says_where_it_cannot_run(self, cli):
-        """The same line is true of a command with a limit."""
-        assert "MCP: no" in _links(cli, "help find")["/find"].tip
+        """A frontend that cannot run the command is not named, while the others still are."""
+        # Act
+        tip = _tip_text(_links(cli, "help find")["/find"])
+
+        # Assert
+        runs_in = tip.split("Runs in: ")[1].splitlines()[0]
+        assert "TUI" in runs_in, "where it runs"
+        assert "MCP" not in runs_in, "and not where it cannot"
+
+    def test_the_tip_colors_what_the_page_colors(self, cli):
+        """The name's tooltip draws the level and the flags in the colors the page gives them."""
+        # Act
+        tip = _links(cli, "help mem.info")["/mem.info"].tip
+
+        # Assert
+        styles = {piece.text: piece.style for piece in tip}
+        assert styles["preview"] == MATURITY_COLORS["preview"], "the level"
+        assert styles["--json"] == SYNOPSIS_OPTIONAL_STYLE, "a flag, as FLAGS draws it"
 
     def test_a_config_key_says_where_a_change_lasts(self, cli):
         """help-page-specific: the line that left CONFIG is on the key, with the key and the file named."""

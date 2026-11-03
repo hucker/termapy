@@ -3246,19 +3246,28 @@ class SerialTerminal(TerminalHost, App):
 
     _EXPIRED_LINK_MSG = "That link has expired - run its list again."
 
-    def _describe_link(self, link_id: int) -> str:
-        """What a click on link ``link_id`` does, for its tooltip (``LinkLog``).
+    def _describe_link(self, link_id: int) -> Text:
+        """What link ``link_id`` names and what a click on it does, for its tooltip (``LinkLog``).
 
-        The command as it will be typed, with the live prefix: the one a
-        click runs, or the one it puts in the input line for Enter.
+        The definition's first line in bold, what the link adds, then, dim,
+        the command as it will be typed, with the live prefix: the one a
+        click runs, or the one it puts in the input line for Enter.  With
+        /term.color off the colors go, as they do in the pane.
         """
         link = self._links.get(link_id)
         if link is None:
-            return self._EXPIRED_LINK_MSG
+            return Text(self._EXPIRED_LINK_MSG)
         command = f"{cmd_prefix(self.cfg)}{link.command}".rstrip()
         click = f"Click to run: {command}" if link.run else f"Click to fill the input: {command}"
-        parts = (self.repl.link_summary(link.command), link.tip, click)
-        return "\n".join(part for part in parts if part)
+        head, newline, rest = self.repl.link_summary(link.command).partition("\n")
+        tip = (Piece(link.tip),) if isinstance(link.tip, str) else link.tip
+        parts = (
+            Text.assemble((head, "bold"), newline + rest),
+            Text.assemble(*((piece.text, piece.style) for piece in tip)),
+            Text(click, style="dim"),
+        )
+        shown = Text("\n\n").join(part for part in parts if part)
+        return shown if self._color_on() else without_color(shown)
 
     def action_click_link(self, link_id: int) -> None:
         """Do what a clicked link says: run its command as typed, or put it in the input line."""

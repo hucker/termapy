@@ -170,15 +170,13 @@ class TestSurfaces:
         assert "STATUS" in out, "the section is there"
         assert f"preview - {MATURITY_MEANINGS['preview']}" in out, "the level and what it means"
 
-    def test_every_listed_row_shows_its_level(self, cli, capsys):
-        """Every row of a listing names its level after the command, stable included, so none reads as unknown."""
+    def test_the_group_table_names_each_level(self, cli, capsys):
+        """/help.group is a table of levels, so its LEVEL column names each one, stable included."""
         # Arrange
         capsys.readouterr()
         # Act
         cli.repl.dispatch_full("/help.group devices")
         group = capsys.readouterr().out
-        cli.repl.dispatch_full("/help sym")
-        page = capsys.readouterr().out
         # Assert
         levels = {
             row.split()[0]: row.split()[1] for row in group.splitlines() if row.startswith("  /")
@@ -186,8 +184,30 @@ class TestSurfaces:
         assert levels["/board"] == "prototype", "a prototype family"
         assert levels["/sym"] == "preview", "a preview family"
         assert levels["/profile"] == "stable", "and a stable one says so too"
-        sub_rows = [row.split()[1] for row in page.splitlines() if row.startswith("  /sym.")]
-        assert sub_rows and set(sub_rows) == {"preview"}, "subcommand rows show the inherited level"
+
+    def test_a_row_is_quiet_about_its_level(self, cli, capsys):
+        """maturity-declared-once: a row carries no level in its text: italic and a tooltip mark one not yet stable."""
+        # Arrange
+        pieces: list = []
+        cli.repl.ctx.io._write_segments = lambda line, color: pieces.extend(line)
+
+        # Act
+        cli.repl.dispatch("help sym")
+        cli.repl.dispatch("help term")
+
+        # Assert
+        named = {piece.text: piece for piece in pieces if piece.link is not None}
+        preview, stable = named["sym.info"], named["term.hex"]
+        assert "italic" in preview.style, "the inherited level marks the row"
+        level, meaning = preview.link.tip
+        assert level.text == "preview", "and names it"
+        assert level.style == MATURITY_COLORS["preview"], "in its color"
+        assert meaning.text == f" - {MATURITY_MEANINGS['preview']}", "and says what it means"
+        assert "italic" not in stable.style, "stable is the rule, so it goes unmarked"
+        assert stable.link.tip == "", "and says nothing"
+        words = " ".join(piece.text for piece in pieces if piece.link is None).split()
+        assert "preview" not in words, "no row prints the word"
+        assert "stable" not in words, "or the other"
 
     def test_the_catalog_carries_each_level(self, cli):
         """The MCP catalog gives the server's level, every level's meaning, and each non-stable command's level."""

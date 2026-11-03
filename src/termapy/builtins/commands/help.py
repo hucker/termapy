@@ -14,7 +14,6 @@ from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.help_dynamic import green, is_state_line
 from termapy.idioms import (
     ANY_COMMAND_FLAGS,
-    ANY_COMMAND_TIP,
     IDIOM_TOKENS,
     IDIOM_WORDS,
     IDIOMS,
@@ -44,7 +43,7 @@ from termapy.plugins import (
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_STYLE
 from termapy.plugins.params import render_parameters_block
-from termapy.plugins.views import Column, Link, Piece, RecordView, TableView
+from termapy.plugins.views import Column, Link, Piece, RecordView, TableView, pieces_markup
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -129,17 +128,35 @@ def _try_link(name: str) -> Link:
     return Link(name, run=False)
 
 
-def _name_tip(plugin) -> str:
+def _status_pieces(maturity: str) -> tuple[Piece, ...]:
+    """A level in its color and what it means (registry ``maturity-declared-once``)."""
+    return (
+        Piece(maturity, None, MATURITY_COLORS[maturity]),
+        Piece(f" - {MATURITY_MEANINGS[maturity]}"),
+    )
+
+
+def _name_tip(plugin) -> tuple[Piece, ...]:
     """What hovering a command's name on its page adds: what every page shares, one hover away."""
     maturity = getattr(plugin, "maturity", "stable")
-    where = "   ".join(
-        f"{env_name}: {'no' if plugin.needs.missing_from(env_caps) else 'yes'}"
+    where = " ".join(
+        env_name
         for env_name, env_caps in ENVIRONMENTS.items()
+        if not plugin.needs.missing_from(env_caps)
     )
-    return (
-        f"Status: {maturity}\nRuns in: {where}\n{ANY_COMMAND_TIP}\n"
-        "On a help page, --verbose shows all of this."
-    )
+    pieces = [
+        Piece("Status: "),
+        Piece(maturity, None, MATURITY_COLORS[maturity]),
+        Piece(f"   Runs in: {where}\n\nAny command also takes:"),
+    ]
+    for idiom in IDIOMS:
+        if idiom.flags:
+            pieces += [
+                Piece("\n"),
+                Piece(" ".join(idiom.flags), None, _OPT),
+                Piece(f" - {idiom.summary}"),
+            ]
+    return tuple(pieces)
 
 
 def _synopsis_with_idioms(args: str) -> list[Piece]:
@@ -388,36 +405,34 @@ def _siblings_for_see_also(name: str, plugins: dict) -> list[str]:
 # ── Row rendering (shared by landscape + candidates + /help.plugin) ──────────
 
 
-# Wide enough for the longest maturity level, so the level column aligns.
-_MATURITY_W = max(len(level) for level in MATURITY_COLORS)
-
-
 def _landscape_row(
     prefix: str, name: str, plugin, cmd_w: int, needles: list[str] | None = None
 ) -> list[Piece]:
-    """One row of the clean name + level + one-liner layout, as pieces.
+    """One row of the clean name + one-liner layout, as pieces.
 
     The command's name links to its help page (registry
     ``links-are-data``); where nothing can click, the pieces are the
-    markup this row always was.  Every row shows the command's maturity in
-    its color, in a column after the name, so no row reads as unknown
-    (registry ``maturity-declared-once``).  Pass ``needles`` only in
+    markup this row always was.  A name not yet stable is italic, with its
+    level in the tooltip: the exception a reader notices, not a column of
+    ``stable`` (registry ``maturity-declared-once``).  Pass ``needles`` only in
     search-result contexts; underlining is the "here's why this matched"
     affordance and does not belong on the no-args landscape or
     exact-match man page.
     """
     help_text = interpolate_help(plugin.help, prefix)
+    maturity = getattr(plugin, "maturity", "stable")
     link = _help_link(name)
-    pieces = [Piece("  "), Piece(prefix, link, _CMD)]
+    style = _CMD
+    if maturity != "stable":
+        link = replace(link, tip=_status_pieces(maturity))
+        style = f"{_CMD} italic"
+    pieces = [Piece("  "), Piece(prefix, link, style)]
     pieces += [
-        Piece(part, link, f"{_CMD} underline" if matched else _CMD)
+        Piece(part, link, f"{style} underline" if matched else style)
         for part, matched in match_parts(name, needles)
     ]
     pad = max(0, cmd_w + 2 - (2 + len(prefix) + len(name)))
     pieces.append(Piece(" " * pad + "  "))
-    maturity = getattr(plugin, "maturity", "stable")
-    pieces.append(Piece(maturity, None, MATURITY_COLORS[maturity]))
-    pieces.append(Piece(" " * (_MATURITY_W - len(maturity) + 2)))
     pieces += [
         Piece(part, None, "underline" if matched else "")
         for part, matched in match_parts(help_text, needles)
@@ -561,10 +576,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     if full or maturity != "stable":
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("STATUS"))
-        meaning = MATURITY_MEANINGS[maturity]
-        ctx.io.output_markup(
-            f"  [{MATURITY_COLORS[maturity]}]{escape_markup(maturity)}[/] - {escape_markup(meaning)}"
-        )
+        ctx.io.output_markup("  " + pieces_markup(_status_pieces(maturity)))
 
     # CURRENT STATE ───────────────────────────────────────────────────────────
     # Run for the answer, right here at the top: what the session holds now,

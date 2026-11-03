@@ -270,10 +270,11 @@ class TestTheLinks:
 
             # Assert
             assert link.run is False, "a click fills the input, as it always did"
+            tip = "".join(piece.text for piece in link.tip)
             for flag in ANY_COMMAND_FLAGS:
-                assert flag in link.tip, flag
-            assert IDIOMS_BY_NAME["json"].summary in link.tip, "the answer, not a pointer to one"
-            assert IDIOMS_BY_NAME["level"].summary in link.tip, "the answer, not a pointer to one"
+                assert flag in tip, flag
+            assert IDIOMS_BY_NAME["json"].summary in tip, "the answer, not a pointer to one"
+            assert IDIOMS_BY_NAME["level"].summary in tip, "the answer, not a pointer to one"
 
     def test_the_tooltip_and_the_click(self, tmp_path):
         """idioms-one-table: in the TUI a word's tooltip says what it means, and the click opens the page."""
@@ -300,7 +301,7 @@ class TestTheLinks:
                 link_id = next(
                     key for key, link in app._links.items() if link.command == "help cycle"
                 )
-                tooltip = app._describe_link(link_id)
+                tooltip = app._describe_link(link_id).plain
 
                 # Act
                 app.action_click_link(link_id)
@@ -309,7 +310,7 @@ class TestTheLinks:
 
         # Assert
         tooltip, screen = asyncio.run(scenario())
-        assert tooltip == f"{IDIOM_TOKENS['cycle'].summary}\nClick to run: /help cycle"
+        assert tooltip == f"{IDIOM_TOKENS['cycle'].summary}\n\nClick to run: /help cycle"
         assert "TAKEN BY" in screen, "the page lists what takes it"
 
 
@@ -445,7 +446,7 @@ class TestALinkExplainsItself:
                 link_id = next(
                     key for key, link in app._links.items() if link.command == "help output_level"
                 )
-                return app._describe_link(link_id)
+                return app._describe_link(link_id).plain
 
         # Act
         actual = asyncio.run(scenario())

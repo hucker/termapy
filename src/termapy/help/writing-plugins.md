@@ -554,7 +554,8 @@ a link looks up the definition of whatever it names, so you never write its text
 - **Other frontends.** The CLI prints the same text with no links, and `--json`
   and MCP get a table's records as data.
 - **`Link(command, tip="...")`** adds to the looked-up definition, for the rare
-  link with more to say.
+  link with more to say. A tuple of pieces styles parts of it:
+  `tip=(Piece("beta", style="yellow"), Piece(" - may change"))`.
 
 ## Setting commands: bare queries, never mutates
 

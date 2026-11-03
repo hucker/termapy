@@ -67,12 +67,13 @@ class Link:
             command that needs more, or one that changes something.
         tip: More for the tooltip, after the definition of whatever ``command``
             names (``ReplEngine.link_summary``) and before the line saying what
-            a click does.  Rarely needed: the definition is usually enough.
+            a click does: plain text, or pieces to style parts of it (a piece's
+            own link is ignored).  Rarely needed: the definition is usually enough.
     """
 
     command: str
     run: bool = True
-    tip: str = ""
+    tip: str | tuple[Piece, ...] = ""
 
 
 class Piece(NamedTuple):

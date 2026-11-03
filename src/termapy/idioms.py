@@ -132,11 +132,6 @@ text cannot carry it.""",
 # The flags any command takes, as the names they are typed with.
 ANY_COMMAND_FLAGS: tuple[str, ...] = tuple(flag for idiom in IDIOMS for flag in idiom.flags)
 
-#: What hovering a command's name on its page says: the answer, not a pointer to one.
-ANY_COMMAND_TIP: str = "Any command also takes:\n" + "\n".join(
-    f"{' '.join(idiom.flags)} - {idiom.summary}" for idiom in IDIOMS if idiom.flags
-)
-
 _BY_WORD: dict[str, Idiom] = {
     word: idiom for idiom in IDIOMS for word in (idiom.name, *idiom.aliases, *idiom.tokens)
 }
@@ -162,7 +157,6 @@ def idiom_for(word: str) -> Idiom | None:
 
 __all__ = [
     "ANY_COMMAND_FLAGS",
-    "ANY_COMMAND_TIP",
     "IDIOMS",
     "IDIOM_TOKENS",
     "IDIOM_WORDS",

@@ -1412,7 +1412,8 @@ class TestClickableOutput:
 
                 # Assert
                 assert isinstance(over, Text), "a Text: a command's [brackets] stay literal"
-                assert over.plain == "Click to run: /run hello.run", "the command, as typed"
+                assert over.plain.endswith("Click to run: /run hello.run"), "the command, as typed"
+                assert over.plain != "Click to run: /run hello.run", "and what /run is, above it"
                 assert shown, "Textual displays it once the mouse rests, not just holds it"
                 assert off is None, "plain text has no tooltip"
 
@@ -1434,9 +1435,11 @@ class TestClickableOutput:
                 fill = log.tooltip
 
                 # Assert
-                assert fill is not None and fill.plain == "Click to fill the input: /run", (
+                assert fill is not None, "the name has a tooltip"
+                assert fill.plain.endswith("Click to fill the input: /run"), (
                     "nothing runs: Enter does"
                 )
+                assert "--json" in fill.plain, "and it says what any command also takes"
                 assert app._describe_link(10**9) == app._EXPIRED_LINK_MSG, (
                     "an old link says so before the click, not after"
                 )

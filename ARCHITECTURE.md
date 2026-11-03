@@ -171,6 +171,7 @@ src/termapy/
 ├── help_dynamic.py         #              Helpers for building dynamic `long_help` callables
 ├── help_tooltip.py         #              The Help-button tooltip: version status + open-source attributions
 ├── history_nav.py          #              Command-history browsing cursor and file merge for the REPL input
+├── idioms.py               #              The global idioms: what reads the same on every command, one row each
 ├── info_views.py           #              Read-only info views for the TUI
 ├── install_info.py         #              Detect how termapy was installed, for upgrade-command hints
 ├── legacy.py               #              Legacy-command forwarding helper
@@ -961,6 +962,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_handles.py                     | Tests for the namespaced PluginContext handles                                                                                                     |
 | test_help_dynamic.py                | Tests for `help_dynamic` helpers                                                                                                                   |
 | test_help_groups.py                 | The grouped /help landscape: what a first session sees, and how a group is reached                                                                 |
+| test_help_idioms.py                 | The words commands share explain themselves (registry idioms-one-table)                                                                            |
 | test_help_images.py                 | Verify help content: image references exist and tagged config examples stay current                                                                |
 | test_help_links.py                  | links-are-data for /help: names link to pages, a page tries its command, and nothing else changes                                                  |
 | test_help_state.py                  | A command declares that its bare form reports state, and /help shows the answer (registry state-read-immutable)                                    |

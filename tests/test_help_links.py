@@ -15,12 +15,14 @@ that exists.  The clicking itself is
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 from rich.console import Console
 from rich.text import Text
 
 from termapy.builtins.commands.help import _landscape_row, _pad_markup
+from termapy.idioms import ANY_COMMAND_TIP
 from termapy.markup import markup_to_plain
 from termapy.plugins import (
     GROUP_TERMINAL,
@@ -268,9 +270,12 @@ def test_a_command_name_on_its_page_fills_the_input_line(tmp_path):
     run_synopsis = _line_with(run_lines, "/run {")
 
     # Assert
-    assert loaded[1].link == Link("cfg.loaded", run=False), "Enter runs it, nothing runs on its own"
-    assert run_name[1].link == Link("run", run=False), "fills, for the file name to follow"
-    assert run_synopsis[1].link == Link("run", run=False), "the synopsis line does the same"
+    expected = replace(Link("run", run=False), tip=ANY_COMMAND_TIP)
+    assert loaded[1].link == replace(expected, command="cfg.loaded"), (
+        "Enter runs it, nothing runs on its own"
+    )
+    assert run_name[1].link == expected, "fills, for the file name to follow"
+    assert run_synopsis[1].link == expected, "the synopsis line does the same"
 
 
 def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
@@ -287,7 +292,7 @@ def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
     assert actual_text == expected_text
     actual_links = {piece.text: piece.link for piece in line if piece.link is not None}
     expected_links = {
-        "/run": Link("run", run=False),
+        "/run": Link("run", run=False, tip=ANY_COMMAND_TIP),
         "Run picker": Link("run"),
         "/run.list": Link("run.list"),
     }

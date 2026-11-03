@@ -125,6 +125,54 @@ USED BY
   /term.output  the value a load starts from
 
   A change by /cfg output_level <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+demo> /help cycle
+NAME
+  cycle - Move a setting to its next value, wrapping at the end; made for a custom button.
+
+DESCRIPTION
+  /term.output cycle moves the output level to its next value, in the order the
+  synopsis lists them, and the last value wraps back to the first.
+
+  It is most useful on a custom button, where each click steps to the next value.
+  Give the button this command (/help custom_buttons has the rest):
+
+    "command": "/term.output cycle"
+
+  A value sets the setting outright, and with no argument it only shows it.
+
+TAKEN BY
+  /term.eol, /term.eol.rx, /term.json, /term.output
+
+SEE ALSO
+  /help.idioms
+demo> /help json
+NAME
+  json - Answer this one call as a JSON object, for a script or an agent.
+
+DESCRIPTION
+  Any command takes --json, and so does a line for the device. That one call
+  answers as one JSON object: cmd, success, error, value, data, output_lines.
+
+    /port.list --json
+    AT+INFO --json
+
+  /term.request on does the same for the whole session, and /term.json sets
+  how the JSON prints. The flag is taken off the line wherever it appears, so a
+  command's text cannot carry it. Typed as /help --json it means help as JSON,
+  which is why this page is /help json.
+
+SEE ALSO
+  /help.idioms
+demo> /help.idioms
+  idioms - 6 idioms
+  NAME     MEANING
+  -- --
+  boolean  A yes or no, in any of these words: on/off/true/false/yes/no/1/0/y/n/t/f.
+  toggle   Flip a yes or no setting to its other value; made for a custom button.
+  cycle    Move a setting to its next value, wrapping at the end; made for a custom button.
+  bare     A setting with no argument shows its value and changes nothing.
+  json     Answer this one call as a JSON object, for a script or an agent.
+  level    How much one call prints, from nothing to all its detail.
 demo> /cfg.auto custom_buttons_side Right
   custom_buttons_side = 'right'  (session)
 demo> /cfg custom_buttons_side
@@ -727,20 +775,21 @@ demo> /print === section: help ===
   === section: help ===
 demo> /help echo
 NAME
-  /echo - Toggle echo of device commands sent to the wire. Use /echo.silent to set without echoing.
+  echo - Show the lines you send to the device in the output (/term.echo).
 
-STATUS
-  stable - tested and part of the standard release
+VALUE
+  echo = true  (default false)
+  Valid: true, false
 
-SYNOPSIS
-  /echo {on|off}
+FILE
+  demo.cfg  "echo": true
+  The active config, JSON, in its own folder.  /cfg.edit opens it in the editor (Ctrl+F finds a key); /help.open config explains the file.
 
-REQUIRED CAPABILITIES
-  interactive - an interactive session (a human at a terminal; not MCP)
+USED BY
+  /port.connect  set for the session before opening
+  /term.echo     the value a load starts from
 
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: no
-  (MCP does not provide: interactive)
+  A change by /cfg echo <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
 demo> /help port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.

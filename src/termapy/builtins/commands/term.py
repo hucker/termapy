@@ -559,12 +559,6 @@ COMMAND = Command(
         " encoding and how answers are formatted."
     ),
     long_help=(
-        "This collapses what used to be\n"
-        "scattered top-level commands (/echo, /line_no, /show_line_endings)\n"
-        "under one namespace and adds runtime access to a handful of\n"
-        "config-key toggles that previously required {prefix}cfg, plus the\n"
-        "{prefix}term.output level dial.\n"
-        "\n"
         "Toggles accept ``on|off|true|false|1|0|yes|no``; {prefix}term.output\n"
         "takes a level name (silent/quiet/normal/verbose).  Empty args\n"
         "reports the current state.\n"

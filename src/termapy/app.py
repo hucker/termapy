@@ -3256,7 +3256,9 @@ class SerialTerminal(TerminalHost, App):
         if link is None:
             return self._EXPIRED_LINK_MSG
         command = f"{cmd_prefix(self.cfg)}{link.command}".rstrip()
-        return f"Click to run: {command}" if link.run else f"Click to fill the input: {command}"
+        click = f"Click to run: {command}" if link.run else f"Click to fill the input: {command}"
+        summary = link.tip or self.repl.link_summary(link.command)
+        return f"{summary}\n{click}" if summary else click
 
     def action_click_link(self, link_id: int) -> None:
         """Do what a clicked link says: run its command as typed, or put it in the input line."""

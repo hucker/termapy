@@ -20,7 +20,14 @@ from threading import Event
 from types import MappingProxyType
 
 from termapy import load_report
-from termapy.defaults import SESSION_FLAG_KEYS, cfg_value, cmd_prefix, quiet_start
+from termapy.defaults import (
+    CFG_HELP,
+    SESSION_FLAG_KEYS,
+    cfg_key_path,
+    cfg_value,
+    cmd_prefix,
+    quiet_start,
+)
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
 from termapy.folder_ops import list_entries
 from termapy.folders import (
@@ -38,6 +45,7 @@ from termapy.folders import (
     file_suggestion,
     prune_empty_folders,
 )
+from termapy.idioms import idiom_for
 from termapy.load_report import LoadReport, Record
 from termapy.markup import escape_markup, json_markup, markup_to_plain
 from termapy.matching import closest, did_you_mean
@@ -65,7 +73,7 @@ from termapy.plugins import (
     load_plugins_from_dir,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
-from termapy.plugins.command import has_required_arg
+from termapy.plugins.command import has_required_arg, interpolate_help
 from termapy.plugins.params import parse_params
 from termapy.plugins.views import error_pieces
 from termapy.scripting import (
@@ -1311,6 +1319,58 @@ class ReplEngine:
             parent = self._plugins.get(parent_name)
             if parent and name not in parent.children:
                 parent.children.append(name)
+
+    def help_summary(self, name: str) -> str:
+        """The line ``/help <name>`` opens with, in ``/help``'s lookup order, or ``""``.
+
+        Every definition already exists, written once: a command's ``help=``, a
+        device command's from its profile, a config key's ``CfgKey.help`` and
+        ``hint``, an idiom's ``summary``.  A hint that is a function is left out:
+        it may look at the ports, and this runs as the mouse moves.
+
+        Args:
+            name: What ``/help`` would be given (``output_level``, ``term.hex``).
+
+        Returns:
+            The definition with the prefix filled in; ``""`` when nothing has that name.
+        """
+        from termapy.profile import profile_command_view
+
+        plugin = self._plugins.get(name)
+        device = profile_command_view(self.ctx.ns("active_profile")).get(name)
+        path = cfg_key_path(name)
+        idiom = idiom_for(name)
+        if plugin is not None and not plugin.hidden:
+            text = plugin.help
+        elif device is not None:
+            text = device.help
+        elif path is not None:
+            text, hint = CFG_HELP[path.rpartition(".")[2]][:2]
+            if hint and not callable(hint):
+                text = f"{text}\nValid: {hint}"
+        elif idiom is not None:
+            text = idiom.summary
+        else:
+            text = plugin.help if plugin is not None else ""
+        return interpolate_help(text, self.prefix)
+
+    def link_summary(self, command: str) -> str:
+        """What a link is about, for its tooltip: what it opens, or what it runs (registry ``link-explains-itself``).
+
+        So a link explains itself with nothing declared where it is built: the
+        definition comes from whatever the link names.
+
+        Args:
+            command: The link's command, without the prefix (``help hex``, ``cfg.load demo``).
+
+        Returns:
+            The definition, or ``""`` when the link names nothing known.
+        """
+        words = command.split()
+        if len(words) > 1 and words[0] == "help":
+            return self.help_summary(words[1])
+        plugin = self.plugin_for(command)
+        return interpolate_help(plugin.help, self.prefix) if plugin is not None else ""
 
     def plugin_for(self, repl_cmd: str) -> PluginInfo | None:
         """The registered command a prefix-stripped line names, or None.

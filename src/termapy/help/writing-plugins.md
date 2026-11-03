@@ -481,6 +481,81 @@ COMMAND = Command(
 
 `shows=True` with a `safety` other than `safe` fails when the plugin loads.
 
+## Links: what a click does
+
+Most of this needs nothing from you:
+
+- Your `help=` line is the tooltip on every link to your command.
+- `{on|off|toggle}` or `{a|b|cycle}` in `args=` makes those words links to their
+  pages, and `/help toggle` lists your command.
+- A key in `cfg=` is a link on your help page, with the key's definition as its
+  tooltip.
+
+You declare a link in two places: on a table's column, and in a line you build
+from pieces.
+
+```python
+from termapy.plugins import CmdResult, Column, Command, Link, Piece, PluginContext, UsageError
+
+_SENSORS = {"temp": "TEMP?", "volt": "VOLT?"}
+_COLUMNS = (
+    Column(
+        "NAME", lambda record: record["name"], run=lambda record: f"sensors.read {record['name']}"
+    ),
+    Column("QUERY", lambda record: record["query"]),
+)
+
+
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
+    """List the sensors, each name a click away from being read."""
+    records = [{"name": name, "query": query} for name, query in _SENSORS.items()]
+    return CmdResult.table("sensors", "sensor", _COLUMNS, records, value="\n".join(_SENSORS))
+
+
+def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
+    """Read one sensor, and point at the list and the line ending."""
+    name = args.strip()
+    if name not in _SENSORS:
+        raise UsageError(f"Unknown sensor: {name}")
+    ctx.io.output_segments(
+        [
+            Piece(f"{name}: see "),
+            Piece(f"{ctx.prefix}sensors", Link("sensors")),
+            Piece(" or "),
+            Piece("eol", Link("help eol")),
+        ]
+    )
+    return CmdResult.ok(value=name)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="sensors",
+    help="Read the board's sensors.",
+    intro="Read the board's sensors, one at a time or from a list.",
+    bare_sub="list",
+    sub_commands={
+        "list": Command(help="List the sensors; click one to read it.", handler=_handler_list),
+        "read": Command(args="<name>", help="Read one sensor.", handler=_handler_read),
+    },
+)
+```
+
+Hovering `temp` in that table shows "Read one sensor." above what a click does:
+a link looks up the definition of whatever it names, so you never write its text.
+
+- **No prefix in a link.** `Link("sensors")`, and the frontend adds the prefix.
+  Use `ctx.prefix` only in the text you display.
+- **Run or fill.** `run=` and `Link(command)` run at a click, for something safe
+  like reading. `prefill=` and `Link(command, run=False)` put it in the input line
+  for Enter, for a command that changes something or needs more typed.
+- **Help pages.** `Link("help <name>")` opens the page of any command, config key
+  or idiom.
+- **Other frontends.** The CLI prints the same text with no links, and `--json`
+  and MCP get a table's records as data.
+- **`Link(command, tip="...")`** replaces the looked-up definition, for the rare
+  link that should say something else.
+
 ## Setting commands: bare queries, never mutates
 
 A command that reads/writes an on/off flag or a multi-value option follows
@@ -511,7 +586,11 @@ def _handler(ctx, args):
 
 Synopsis: `{on|off|toggle}` for a boolean; `{val1|val2|...|cycle}` for an enum
 (use `scripting.next_in_cycle` to advance). A TUI button that flips on click
-dispatches the explicit `toggle`/`cycle` verb, not the bare command.
+dispatches the explicit `toggle`/`cycle` verb, not the bare command. Your `help=`
+line is also the tooltip on every link to your command, with nothing more to
+write. `/help`
+reads those words from the synopsis: each is a link to its page, and the page
+lists your command, with nothing to declare.
 
 ## Dynamic help for runtime state
 

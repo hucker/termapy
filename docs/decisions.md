@@ -868,3 +868,28 @@ needed exceptions for serial settings and setup scripts. The picker used to clea
 user variables and freeze `$(SESSION_*)` where `/run` did neither, so one script
 behaved two ways depending on how it was launched. Now the picker clears nothing
 and every outermost script freezes the moment.
+
+## 2026-11-03 — The words commands share explain themselves
+
+Chuck had forgotten how `cycle` works: only the plugin author's page said, and
+`/help cycle` was an error. `--json` and `--quiet` work on every command, and no
+page said that either. Tooltips were the obvious fix, but they exist only in the
+TUI, so the CLI and an agent would have got nothing. Pages are the foundation and
+tooltips a surface on them: `idioms.IDIOMS` is one table, `/help cycle` and
+`/help.idioms` read it, and a synopsis word links to its page by being in the
+synopsis, with nothing for a command to declare.
+
+A page lists the commands that take its word, generated from the registry. Chuck
+thought `cycle` was on every enumeration; it is on four. Closing that gap is its
+own branch, and the page stays true either way.
+
+A hidden command now gives way to a config key or an idiom: `/help color` used to
+open the legacy alias's page rather than the key's, and `/help verbose` would have
+done the same to the idiom.
+
+A tooltip gives the answer rather than the address. Chuck, looking at a config
+key's link that said only "Click to run: /help output_level": "the tool tip saves
+the trip". Every definition was already written once (`help=`, `CfgKey.help`,
+`Idiom.summary`), so a link looks up whatever it names at hover, in `/help`'s lookup
+order (registry `link-explains-itself`). No link carries its own text, so none can
+disagree with the page it opens, and a plugin's command is covered by its `help=`.

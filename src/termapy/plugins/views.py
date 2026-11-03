@@ -65,10 +65,14 @@ class Link:
         run: True runs it as if typed, echoed and into history.  False
             puts it in the input line to finish and press Enter -- for a
             command that needs more, or one that changes something.
+        tip: The tooltip's text, above the line saying what a click does.  Rarely
+            needed: ``""`` shows the definition of whatever ``command`` names
+            (``ReplEngine.link_summary``), which is what a link usually wants.
     """
 
     command: str
     run: bool = True
+    tip: str = ""
 
 
 class Piece(NamedTuple):

@@ -161,21 +161,23 @@ class TestMcpGate:
         )
         assert result["value"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
 
-    def test_cap_delete_waits_for_confirm(self, host, tmp_path):
-        """/cap.delete * refused without confirm deletes nothing; with confirm it deletes the captures."""
+    def test_a_delete_is_refused_not_gated(self, host, tmp_path):
+        """/cap.delete is no one's to confirm under MCP, so it never asks and confirm=true unlocks nothing."""
         # Arrange
         capture = tmp_path / "cfg" / "cap" / "kept.txt"
         capture.write_text("data", encoding="utf-8")
 
-        # Act / Assert -- refused: the marker, and the file is still there
-        refused = _run(host, "/cap.delete *")
-        assert refused["value"]["needs_confirmation"] is True, "deleting captures asks first"
-        assert capture.exists(), "a refused delete deletes nothing"
-
-        # Act / Assert -- confirmed: the gate was the question, so the handler asks nothing more
+        # Act
+        asked = _run(host, "/cap.delete *")
         confirmed = _run(host, "/cap.delete *", confirm=True)
-        assert confirmed["success"] is True, confirmed["error"]
-        assert not capture.exists(), "the confirmed delete removed the capture"
+
+        # Assert
+        assert "interactive" in asked["error"], "the capability refusal, from dispatch"
+        assert not isinstance(asked["value"], dict), (
+            "a confirm request would invite a useless retry"
+        )
+        assert "interactive" in confirmed["error"], "and the same answer with confirm=true"
+        assert capture.exists(), "the capture is still there"
 
     def test_a_command_mcp_cannot_run_is_refused_not_gated(self, host):
         """/demo.force needs a human, so MCP answers why it cannot run, never asks for confirm."""

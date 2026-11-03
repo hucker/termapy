@@ -16,7 +16,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from termapy.folders import PLUGIN, VIZ
 from termapy.plugins.capabilities import CapabilitySet, MissingCapability
+
+# The folders termapy imports Python from, in the case a typed path may use.
+_CODE_FOLDERS = frozenset(name.casefold() for name in (PLUGIN, VIZ))
 
 
 @dataclass
@@ -140,4 +144,42 @@ class FilesystemHandle:
                 f"is confined to the config directory; set "
                 f"TERMAPY_MCP_FS_UNCONFINED=1 in the server's shell to allow "
                 f"host-wide paths."
+            )
+
+    def guard_code_folder(self, folder: Path) -> None:
+        """Refuse a write into a folder termapy imports code from, with no person present.
+
+        Python in ``plugin/`` or ``viz/`` runs at the next load, so an MCP
+        client writing there would step around every other gate.  Unlike the
+        sandbox above, no flag lifts this (registry ``mcp-no-code-writes``).
+
+        Args:
+            folder: The folder the file lands in.
+
+        Raises:
+            MissingCapability: The folder holds code and the host has no
+                interactive session.
+        """
+        if not self.capabilities.interactive and folder.name.casefold() in _CODE_FOLDERS:
+            raise MissingCapability(
+                f"Folder {folder.name!r} holds code termapy imports: "
+                "an MCP client cannot write there."
+            )
+
+    def guard_new_file(self, path: Path) -> None:
+        """Refuse a write that would replace a file, with no person present.
+
+        Writing over a file destroys it as a delete does, so what an MCP
+        client cannot delete it cannot overwrite (registry ``mcp-no-code-writes``).
+
+        Args:
+            path: The file about to be written.
+
+        Raises:
+            MissingCapability: The file exists and the host has no interactive
+                session.
+        """
+        if not self.capabilities.interactive and path.exists():
+            raise MissingCapability(
+                f"File exists: {path.name} (an MCP client never replaces a file; use a new name)"
             )

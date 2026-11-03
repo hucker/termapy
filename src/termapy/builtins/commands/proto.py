@@ -60,6 +60,8 @@ from termapy.scripting import (
 from termapy.symbols import parse_number
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.plugins import PluginContext
 
 
@@ -1080,6 +1082,7 @@ def _write_crc_codegen_files(
     lang: str,
     file_stem: str,
     folder: Path,
+    guard_new_file: Callable[[Path], None],
 ) -> list:
     """Write codegen output to disk; return the list of written ``Path``s.
 
@@ -1099,6 +1102,8 @@ def _write_crc_codegen_files(
             appended.
         folder: The folder the file(s) are written in, the config's
             ``firmware/`` unless ``file=`` names another.
+        guard_new_file: ``ctx.fs.guard_new_file``, asked about every file
+            before any is written, so a refusal leaves no half of a C pair.
 
     Returns:
         List of ``Path`` objects, one per file written.  Length 2 for
@@ -1107,20 +1112,16 @@ def _write_crc_codegen_files(
     from crcglot import LANGUAGES
 
     extensions = LANGUAGES[lang].extensions if lang in LANGUAGES else (".txt",)
-    written: list = []
+    contents = result if isinstance(result, tuple) else (result,)
+    paths = [folder / f"{file_stem}{ext}" for ext in extensions[: len(contents)]]
+    for path in paths:
+        guard_new_file(path)
     # ``str(content)`` casts -- ``result`` comes from a crcglot generator
     # Callable, so ty widens its elements to ``object``; runtime always
     # returns strings.
-    if isinstance(result, tuple):
-        for content, ext in zip(result, extensions):
-            path = folder / f"{file_stem}{ext}"
-            path.write_text(str(content), encoding="utf-8")
-            written.append(path)
-    else:
-        path = folder / f"{file_stem}{extensions[0]}"
-        path.write_text(str(result), encoding="utf-8")
-        written.append(path)
-    return written
+    for path, content in zip(paths, contents):
+        path.write_text(str(content), encoding="utf-8")
+    return paths
 
 
 _CRC_CODEGEN_KV_KEYS = {
@@ -1552,7 +1553,9 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         given = "" if stem.parent == Path(".") else str(stem.parent)
         folder = write_destination(ctx, given, FIRMWARE)
         try:
-            written = _write_crc_codegen_files(result, lang, stem.name, folder)
+            written = _write_crc_codegen_files(
+                result, lang, stem.name, folder, ctx.fs.guard_new_file
+            )
         except OSError as e:
             return CmdResult.fail(msg=f"Write error: {e}")
         ctx.io.output(f"Wrote {', '.join(str(p) for p in written)}", "green")

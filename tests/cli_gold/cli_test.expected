@@ -2066,4 +2066,18 @@ Connected: DEMO
     $(GOLD_LOAD_VAR) - not defined
   Environment snapshot - empty
   1
+  === section: rename and delete need a person ===
+NAME
+  /cap.rename - Rename a file in cap/ (extension kept; never overwrites).
+
+SYNOPSIS
+  /cap.rename <old> <new>
+
+PARAMETERS
+  <old>  current filename (extension optional) (required)
+  <new>  new name (the extension is kept) (required)
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: no
+  (MCP does not provide: interactive)
 Disconnected: DEMO

@@ -842,13 +842,13 @@ COMMAND = Command(
             help="Delete a config and its whole folder (asks first).",
             long_help=(
                 "Delete config <name> and everything in its folder: the .cfg, "
-                "run scripts, profile, logs and captures.  Asks first in the "
-                "TUI and CLI; MCP needs confirm=true.  The active config "
-                "cannot be deleted -- load another first.  A config that "
-                "another program holds open is refused with nothing removed.  "
-                "Its desktop launcher, if any, goes too."
+                "run scripts, profile, logs and captures.  Asks first.  The "
+                "active config cannot be deleted -- load another first.  A "
+                "config that another program holds open is refused with "
+                "nothing removed.  Its desktop launcher, if any, goes too."
             ),
             handler=_handler_delete,
+            needs=CapabilitySet.INTERACTIVE,
             safety="destructive",
         ),
         "rename": Command(
@@ -863,6 +863,7 @@ COMMAND = Command(
                 "{prefix}cfg.icon makes a new one."
             ),
             handler=_handler_rename,
+            needs=CapabilitySet.INTERACTIVE,
         ),
         "info": Command(
             args="",

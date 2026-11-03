@@ -763,14 +763,14 @@ class Transform:
     Attributes:
         name: Identifier for the transform (shown in /info listings).
         help: One-line description of what the transform does.
-        repl: Rewriter for REPL commands.  ``(str) -> str``.
-        serial: Rewriter for device commands.  ``(str) -> str``.
+        repl: Rewriter for REPL commands.  ``(ctx, str) -> str``.
+        serial: Rewriter for device commands.  ``(ctx, str) -> str``.
     """
 
     name: str
     help: str
-    repl: Callable | None = None  # (str) -> str, rewrites REPL commands
-    serial: Callable | None = None  # (str) -> str, rewrites device commands
+    repl: Callable | None = None  # (ctx, str) -> str, rewrites REPL commands
+    serial: Callable | None = None  # (ctx, str) -> str, rewrites device commands
 
 
 @dataclass

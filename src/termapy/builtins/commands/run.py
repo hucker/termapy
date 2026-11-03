@@ -277,6 +277,9 @@ def _handler_last(ctx: PluginContext, args: str) -> CmdResult:
 # replayed /cfg.load makes one part way through.
 _replaying = False
 
+# The namespace holding what a replay puts back when it ends.
+_REPLAY_NS = "replay"
+
 
 def _replay(ctx: PluginContext, lines: list[str]) -> CmdResult:
     """Run ``lines`` in order, echoed, until Escape or the first failure.
@@ -286,7 +289,10 @@ def _replay(ctx: PluginContext, lines: list[str]) -> CmdResult:
     cancellable operation: it clears a stale stop before it starts and
     consumes the one that ends it, as ``/repeat`` does at the prompt
     (registry ``plugin-never-clears-stop``).  Echo is forced on for the
-    replay and put back after, as ``/run --echo`` forces it for a run.
+    replay and put back after, as ``/run --echo`` forces it for a run.  The
+    value to put back waits in a namespace, so a replayed ``/cfg.load`` takes
+    it with everything else and the new config's start stands (registry
+    ``config-load-deterministic``).
     """
     global _replaying
     if _replaying:
@@ -295,7 +301,8 @@ def _replay(ctx: PluginContext, lines: list[str]) -> CmdResult:
     if stop is not None:
         stop.clear()
     flags = ctx.ns("flags")
-    echo_repl = flags.get("echo_repl", False)
+    saved = ctx.ns(_REPLAY_NS)
+    saved["echo_repl"] = flags.get("echo_repl", False)
     flags["echo_repl"] = True
     _replaying = True
     ran = 0
@@ -309,7 +316,8 @@ def _replay(ctx: PluginContext, lines: list[str]) -> CmdResult:
             ran += 1
     finally:
         _replaying = False
-        flags["echo_repl"] = echo_repl
+        if "echo_repl" in saved:
+            flags["echo_repl"] = saved.pop("echo_repl")
     if ran < len(lines):
         if stop is not None:
             stop.clear()

@@ -5,13 +5,17 @@ import os
 import pytest
 
 from termapy.builtins.commands.env import (
-    _ENV,
     _cli_transform,
+    _env,
     _handler_list,
     _handler_reload,
     _handler_set,
 )
 from termapy.plugins import PluginContext, UsageError
+
+# One session's context, which every test here shares; ``_ENV`` is its live snapshot.
+_CTX = PluginContext()
+_ENV = _env(_CTX)
 
 
 class TestEnvVarTransform:
@@ -21,7 +25,7 @@ class TestEnvVarTransform:
         _ENV["TEST_PORT"] = "COM7"
 
         # Act
-        actual = _cli_transform("connect $(env.TEST_PORT)")
+        actual = _cli_transform(_CTX, "connect $(env.TEST_PORT)")
 
         # Assert
         expected = "connect COM7"
@@ -34,7 +38,7 @@ class TestEnvVarTransform:
 
         # Act / Assert
         with pytest.raises(ValueError, match="NONEXISTENT_XYZ"):
-            _cli_transform("open $(env.NONEXISTENT_XYZ)")
+            _cli_transform(_CTX, "open $(env.NONEXISTENT_XYZ)")
 
     def test_fallback_when_not_set(self):
         """The value after | is used when the variable is missing from the snapshot."""
@@ -42,7 +46,7 @@ class TestEnvVarTransform:
         _ENV.pop("MISSING_VAR", None)
 
         # Act
-        actual = _cli_transform("connect $(env.MISSING_VAR|COM1)")
+        actual = _cli_transform(_CTX, "connect $(env.MISSING_VAR|COM1)")
 
         # Assert
         expected = "connect COM1"
@@ -54,7 +58,7 @@ class TestEnvVarTransform:
         _ENV["MY_PORT"] = "COM7"
 
         # Act
-        actual = _cli_transform("connect $(env.MY_PORT|COM1)")
+        actual = _cli_transform(_CTX, "connect $(env.MY_PORT|COM1)")
 
         # Assert
         expected = "connect COM7"
@@ -67,7 +71,7 @@ class TestEnvVarTransform:
 
         # Act -- underscores are literal in the input so the expected
         # string doesn't concatenate two words that spellcheckers flag.
-        actual = _cli_transform("prefix_$(env.EMPTY_FB|)_suffix")
+        actual = _cli_transform(_CTX, "prefix_$(env.EMPTY_FB|)_suffix")
 
         # Assert
         expected = "prefix__suffix"
@@ -80,7 +84,7 @@ class TestEnvVarTransform:
         _ENV["DEV_BAUD"] = "9600"
 
         # Act
-        actual = _cli_transform("AT+PORT=$(env.DEV_PORT),$(env.DEV_BAUD)")
+        actual = _cli_transform(_CTX, "AT+PORT=$(env.DEV_PORT),$(env.DEV_BAUD)")
 
         # Assert
         expected = "AT+PORT=COM3,9600"
@@ -89,7 +93,7 @@ class TestEnvVarTransform:
     def test_no_placeholders_passthrough(self):
         """Text with no placeholder passes through the transform unchanged."""
         # Act
-        actual = _cli_transform("ATZ")
+        actual = _cli_transform(_CTX, "ATZ")
 
         # Assert
         expected = "ATZ"
@@ -99,14 +103,14 @@ class TestEnvVarTransform:
         """Only the parenthesized $(env.X) form expands; $env.X stays literal text."""
         # Act - no parens, should NOT match
         _ENV["FOO"] = "bar"
-        actual = _cli_transform("$env.FOO")
+        actual = _cli_transform(_CTX, "$env.FOO")
 
         # Assert
         expected = "$env.FOO"
         assert actual == expected, "bare syntax not matched"
 
     def test_env_is_snapshot(self):
-        """Lookups read a startup snapshot, so later os.environ changes are not seen."""
+        """Lookups read the snapshot taken at first use, so later os.environ changes are not seen."""
         # Arrange - inject a key only into os.environ
         sentinel = "_TERMAPY_SNAPSHOT_TEST"
         os.environ[sentinel] = "live"
@@ -124,7 +128,25 @@ class TestEnvCommands:
         output = []
         from termapy.plugins import IOHandle
 
-        return PluginContext(io=IOHandle(_write=lambda t, c=None: output.append((t, c)))), output
+        return PluginContext(
+            io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
+            _namespaces=_CTX._namespaces,
+        ), output
+
+    def test_a_set_before_any_read_keeps_the_process_environment(self):
+        """The first /env.set in a session takes the snapshot first, so the process's variables stay."""
+        # Arrange
+        from termapy.plugins import IOHandle
+
+        ctx = PluginContext(io=IOHandle(_write=lambda t, c=None: None))
+
+        # Act
+        _handler_set(ctx, "FIRST_WRITE 1")
+
+        # Assert
+        actual = _env(ctx)
+        expected = {**os.environ, "FIRST_WRITE": "1"}
+        assert actual == expected, "the set landed on a full snapshot, not an empty one"
 
     def test_set_adds_to_snapshot(self):
         """/env.set stores into the snapshot, echoes a confirmation, and returns the value."""
@@ -182,7 +204,7 @@ class TestEnvCommands:
         _handler_set(ctx, "CUSTOM_PORT COM99")
 
         # Act
-        actual = _cli_transform("connect $(env.CUSTOM_PORT)")
+        actual = _cli_transform(_CTX, "connect $(env.CUSTOM_PORT)")
 
         # Assert
         expected = "connect COM99"
@@ -268,7 +290,10 @@ class TestMcpEnvGate:
         from termapy.plugins import IOHandle
 
         return (
-            PluginContext(io=IOHandle(_write=lambda t, c=None: output.append((t, c)))),
+            PluginContext(
+                io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
+                _namespaces=_CTX._namespaces,
+            ),
             output,
         )
 
@@ -281,7 +306,7 @@ class TestMcpEnvGate:
         _ENV["GATE_PORT"] = "COM5"
         ctx, _ = self._ctx()
         # Act / Assert -- transform expands, /env lists.
-        assert _cli_transform("open $(env.GATE_PORT)") == "open COM5", (
+        assert _cli_transform(_CTX, "open $(env.GATE_PORT)") == "open COM5", (
             "CLI/TUI path expands env normally"
         )
         assert _handler_list(ctx, "GATE_PORT").success, "/env works off-MCP"
@@ -296,7 +321,7 @@ class TestMcpEnvGate:
         _ENV["SECRET_TOKEN"] = "shhh"
         # Act / Assert -- single-var leak refused.
         with pytest.raises(ValueError, match="disabled under MCP"):
-            _cli_transform("/print $(env.SECRET_TOKEN)")
+            _cli_transform(_CTX, "/print $(env.SECRET_TOKEN)")
 
     def test_under_mcp_without_flag_passes_plain_text(self, monkeypatch):
         """The MCP gate trips only on placeholders; plain commands still flow through."""
@@ -306,7 +331,7 @@ class TestMcpEnvGate:
         monkeypatch.setattr(env_flags, "_under_mcp", True)
         monkeypatch.setattr(env_flags, "MCP_ENV_ENABLED", False)
         # Act / Assert -- no $(env.) => untouched, no raise.
-        assert _cli_transform("rev") == "rev", "plain commands are unaffected by the env gate"
+        assert _cli_transform(_CTX, "rev") == "rev", "plain commands are unaffected by the env gate"
 
     def test_under_mcp_without_flag_blocks_env_list(self, monkeypatch):
         """Under MCP the bare /env dump is refused, and the error names the opt-in flag."""
@@ -332,7 +357,7 @@ class TestMcpEnvGate:
         _ENV["OPTIN_PORT"] = "COM9"
         ctx, _ = self._ctx()
         # Act / Assert
-        assert _cli_transform("open $(env.OPTIN_PORT)") == "open COM9", (
+        assert _cli_transform(_CTX, "open $(env.OPTIN_PORT)") == "open COM9", (
             "opt-in restores $(env.NAME) expansion under MCP"
         )
         assert _handler_list(ctx, "OPTIN_PORT").success, "/env works with opt-in"

@@ -140,7 +140,7 @@ def _facts(host) -> dict[str, str]:
         for key, value in space.items():
             stamped = str(key).startswith("_start")
             facts[f"ns {space_name}.{key}"] = "(stamped)" if stamped else _summary(value)
-    for group, names in variables.snapshot().items():
+    for group, names in variables.snapshot(repl.ctx).items():
         if group == "datetime":
             facts["vars datetime"] = _summary(sorted(names))
             continue
@@ -329,17 +329,7 @@ def cli(configs):
 def _no_module_state_left_behind():
     """A test that ends mid-session leaves the built-ins as it found them."""
     yield
-    variables.clear_vars()
     variables.clear_start_time_vars()
-
-
-def _state_of(repl, command: str) -> dict:
-    """The module-level state a built-in command really reads: its handler's globals.
-
-    Not ``sys.modules[...]``: a built-in is registered under one of two names,
-    whichever imported it first.
-    """
-    return repl._plugins[command].handler.__globals__
 
 
 def _flags(host) -> dict:
@@ -359,20 +349,22 @@ class TestWhatALoadForgets:
         cli._switch_to_cfg_path(str(configs["b"]))
 
         # Assert
-        assert "LEFTOVER" not in variables.user_vars(), "the variable is undefined after the load"
+        assert "LEFTOVER" not in variables.user_vars(cli.repl.ctx), (
+            "the variable is undefined after the load"
+        )
 
     def test_env_set_goes(self, cli, configs):
         """config-load-deterministic: /env.set is undone, and a variable from the process stays."""
         # Arrange
         cli.repl.dispatch("env.set LEFTOVER 1")
-        env = _state_of(cli.repl, "env.set")["_ENV"]
-        assert env["LEFTOVER"] == "1", "precondition: the snapshot has it"
+        before = cli.repl.dispatch("env.list LEFTOVER").data
+        assert before == {"LEFTOVER": "1"}, "precondition: the snapshot has it"
 
         # Act
         cli._switch_to_cfg_path(str(configs["b"]))
 
         # Assert
-        env = _state_of(cli.repl, "env.set")["_ENV"]
+        env = cli.repl.dispatch("env.list").data
         assert "LEFTOVER" not in env, "what /env.set added is gone"
         assert env == dict(os.environ), "the snapshot is the process environment again"
 
@@ -612,7 +604,7 @@ class TestTheConnection:
                 await until(pilot, lambda: app.is_connected, seconds=0.5)
                 return {
                     "connected": app.is_connected,
-                    "variable": variables.user_vars().get("LEFTOVER"),
+                    "variable": variables.user_vars(app.repl.ctx).get("LEFTOVER"),
                     "find limit": app.repl.dispatch("find.max_count").value,
                     "counter": app.repl.ctx.ns("seq").get(1),
                 }
@@ -738,6 +730,57 @@ class TestTheScreen:
             assert echo_repl is True, f"{name}: its end restores the TUI default"
 
 
+class TestAReplayThatLoads:
+    """/run.last forces echo on and puts it back after, and a load in the replay must win."""
+
+    def test_the_tui_ends_where_a_fresh_start_would(self, configs):
+        """config-load-deterministic: a replayed /cfg.load ends with the TUI's echo, not the one the replay saved."""
+        # Arrange
+        app = _boot(configs, "a", auto_connect=False)
+
+        async def scenario() -> tuple[bool, str]:
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, f"/cfg.load {configs['b'].as_posix()}")
+                await until(pilot, lambda: app.config_path == str(configs["b"]))
+                await app.workers.wait_for_complete()
+                await _submit(pilot, f"/cfg.load {configs['a'].as_posix()}")
+                await until(pilot, lambda: app.config_path == str(configs["a"]))
+                await app.workers.wait_for_complete()
+                app.repl.dispatch("term.echo_repl off")
+                assert _flags(app)["echo_repl"] is False, "precondition: the user turned it off"
+
+                # Act -- the newest line typed on A is the load of B.
+                await _submit(pilot, "/run.last 1")
+                await until(pilot, lambda: app.config_path == str(configs["b"]))
+                await app.workers.wait_for_complete()
+                await pilot.pause()
+                return _flags(app)["echo_repl"], app.config_path
+
+        # Assert
+        echo_repl, path = asyncio.run(scenario())
+        assert path == str(configs["b"]), "the replay ran the load"
+        assert echo_repl is True, (
+            "the new config starts with the TUI's default, as a fresh start does"
+        )
+
+    def test_the_cli_ends_where_a_fresh_start_would(self, cli, configs):
+        """config-load-deterministic: the same in the CLI, whose load builds a new context under the replay."""
+        # Arrange
+        cli._dispatch_typed(f"/cfg.load {configs['b'].as_posix()}")
+        cli._dispatch_typed(f"/cfg.load {configs['a'].as_posix()}")
+        cli.repl.dispatch("term.echo_repl on")
+        assert _flags(cli)["echo_repl"] is True, "precondition: the user turned it on"
+
+        # Act
+        result = cli._dispatch_typed("/run.last 1")
+
+        # Assert
+        assert result.success, result.error
+        assert cli.config_path == str(configs["b"]), "the replay ran the load"
+        assert _flags(cli)["echo_repl"] is False, "the new config starts with the CLI's default"
+
+
 class TestAScriptStartsOneWay:
     """A script is not a load: every launch starts it the same way, and it resets nothing."""
 
@@ -789,7 +832,7 @@ class TestAScriptStartsOneWay:
         cli.repl.run_script(path)
 
         # Assert
-        assert variables.user_vars().get("LEFT") == "1", "what it set stays"
+        assert variables.user_vars(cli.repl.ctx).get("LEFT") == "1", "what it set stays"
 
     def test_a_script_gets_a_known_start_by_asking(self, cli, configs):
         """script-start-one-way: /cfg.load as a first line drops what the session held."""
@@ -805,7 +848,7 @@ class TestAScriptStartsOneWay:
         cli.repl.run_script(path)
 
         # Assert
-        actual = sorted(variables.user_vars())
+        actual = sorted(variables.user_vars(cli.repl.ctx))
         assert actual == ["AFTER"], "the load took what came before; the script's own line stands"
 
 

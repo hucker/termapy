@@ -726,15 +726,10 @@ class TestOutputBufferLevels:
 
     def test_markup_entries_carry_the_text_a_terminal_shows(self, host):
         """markup-escape: a markup entry is flattened for the agent: no Rich tags, no escapes, a bracketed value intact."""
-        from termapy.variables import unset_user_var
-
         # Arrange / Act -- /var.set echoes its row as markup even under MCP's wants_data
-        try:
-            result = asyncio.run(
-                host.run_command_async("/var.set MARKUP_TAG [ok] boot", "verbose", 5.0)
-            )
-        finally:
-            unset_user_var("MARKUP_TAG")  # user variables are process-global
+        result = asyncio.run(
+            host.run_command_async("/var.set MARKUP_TAG [ok] boot", "verbose", 5.0)
+        )
 
         # Assert
         actual = [entry["text"] for entry in result["output_lines"] if entry["level"] == "markup"]

@@ -746,7 +746,7 @@ class TestFireAppStart:
 
             def _on_app_prestart(self) -> None:
                 seen["front_end"] = variables.launch_var("FRONT_END") or ""
-                seen["cfg"] = variables.expand_vars("$(CFG)")
+                seen["cfg"] = variables.expand_vars(self.ctx, "$(CFG)")
 
         start_host = _NamedHost(host.cfg, host.config_path, host.engine, repl, host.capture)
         start_host.ctx = start_host._build_plugin_context(start_host._build_internal_handle())

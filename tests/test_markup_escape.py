@@ -27,7 +27,7 @@ from termapy.plugins import (
     resolve_long_help,
 )
 from termapy.repl import ReplEngine
-from termapy.variables import set_context_var, unset_user_var
+from termapy.variables import set_context_var
 
 # Each bites a different way: a lowercase tag, a TOML table header, a stray
 # close tag, a Windows path whose trailing backslash would escape the close
@@ -86,9 +86,8 @@ def session(tmp_path):
 
 @pytest.fixture
 def tag_var():
-    """A user-variable name, unset afterwards: user variables are process-global."""
-    yield "MARKUP_TAG"
-    unset_user_var("MARKUP_TAG")
+    """A user-variable name; each test's engine holds its own variables."""
+    return "MARKUP_TAG"
 
 
 @pytest.mark.parametrize("value", TRICKY)

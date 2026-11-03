@@ -33,7 +33,7 @@ Input transforms are declared with ``TRANSFORM``::
     TRANSFORM = Transform(
         name="vars",
         help="Expand $variables in serial commands.",
-        serial=lambda s: expand_vars(s),
+        serial=expand_vars,
     )
 
 A file may export both ``COMMAND`` and ``TRANSFORM``.

@@ -45,7 +45,7 @@ from termapy.dialogs._common import (
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
 from termapy.matching import closest
-from termapy.plugins import interpolate_help
+from termapy.plugins import PluginContext, interpolate_help
 from termapy.scripting import parse_bool
 
 
@@ -93,6 +93,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         *,
         is_new: bool = False,
         used_by: dict[str, list[tuple[str, str]]] | None = None,
+        ctx: PluginContext | None = None,
     ) -> None:
         """Edit ``cfg``, saved to ``config_path``.
 
@@ -108,12 +109,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
             used_by: Key path to the commands that declared it
                 (``plugins.cfg_users``), named on the key's help line;
                 the data comes in so the dialog needs no engine.
+            ctx: The session's context, whose user variables count as set
+                when a field names one.  Without it only the process's do.
         """
         super().__init__()
         self.cfg = cfg
         self.config_path = config_path
         self._is_new = is_new
         self._used_by = used_by or {}
+        self._ctx = ctx if ctx is not None else PluginContext()
         self._save_as_mode = False
         self._highlight_key = highlight_key
         # Read raw JSON from disk so $(env.NAME) templates are visible
@@ -229,7 +233,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     "environment[/]",
                 )
             if names:
-                unknown = [name for name in names if resolve_one(name) is None]
+                unknown = [name for name in names if resolve_one(self._ctx, name) is None]
                 if unknown:
                     refs = ", ".join(f"$({name})" for name in unknown)
                     return (

@@ -198,7 +198,7 @@ class TestReverseDeref:
         from termapy import variables as var
 
         engine = self._engine()
-        var._VARS.update({"p1": self.P1, "p2": self.P2, "p3": self.P3})
+        var.user_vars(engine.ctx).update({"p1": self.P1, "p2": self.P2, "p3": self.P3})
 
         # Act
         literal = engine.dispatch(f"proto.crc.reverse crc_bytes=2 {self.P1} {self.P2} {self.P3}")
@@ -217,7 +217,7 @@ class TestReverseDeref:
         from termapy import variables as var
 
         engine = self._engine()
-        var._VARS.update(
+        var.user_vars(engine.ctx).update(
             {
                 "s1": "01 02 03 AA 55",
                 "s2": "04 05 06 BB 66",

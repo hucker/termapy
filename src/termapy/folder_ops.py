@@ -227,11 +227,12 @@ def write_destination(ctx: PluginContext, given: str, default: str) -> Path:
     user's project root (decision 2026-10-26: a write never pollutes it).
     An absolute ``given``, or one climbing out with ``..``, is honored only
     where the host allows paths outside the config sandbox
-    (``ctx.fs.guard_external_path``), so an MCP client stays confined.  The
-    command declares ``config_loaded``.
+    (``ctx.fs.guard_external_path``), so an MCP client stays confined, and
+    a named code folder is refused to one outright
+    (``ctx.fs.guard_code_folder``).  The command declares ``config_loaded``.
 
     Args:
-        ctx: The plugin context, for the config and the sandbox guard.
+        ctx: The plugin context, for the config and the sandbox guards.
         given: The folder the user named, ``""`` for none.
         default: The ``folders.FOLDERS`` data folder used when none is named.
 
@@ -239,15 +240,17 @@ def write_destination(ctx: PluginContext, given: str, default: str) -> Path:
         The absolute folder; a named one may not exist yet.
 
     Raises:
-        MissingCapability: ``given`` leaves the config sandbox and the host
-            does not allow it.
+        MissingCapability: ``given`` leaves the config sandbox or names a code
+            folder, and the host does not allow it.
     """
     base = Path(ctx.config_path).parent
     if not given:
         return ensure_folder(base / default).resolve()
     ctx.fs.guard_external_path(given, "Folder")
     path = Path(given)
-    return (path if path.is_absolute() else base / path).resolve()
+    folder = (path if path.is_absolute() else base / path).resolve()
+    ctx.fs.guard_code_folder(folder)
+    return folder
 
 
 def file_table(
@@ -458,9 +461,10 @@ def _make_delete_handler(folder: str, pattern: str, ext: str, generated: bool):
     only in a folder of termapy's own output (``generated``); a folder of
     what someone wrote deletes one named file at a time.  Where there is
     someone to ask (the TUI and CLI) a pattern asks first, and so does a
-    file someone wrote; one generated file goes without a question.  MCP
-    has asked already, through its destructive gate.  Finding nothing to
-    delete fails, for a pattern as for a name.  The value is the count.
+    file someone wrote; one generated file goes without a question.  An MCP
+    client never reaches this (registry ``mcp-no-file-management``).  Finding
+    nothing to delete fails, for a pattern as for a name.  The value is the
+    count.
     """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -617,7 +621,7 @@ def build_folder_subcommands(
         "rename": Command(
             help=f"Rename a file in {folder}/ (extension kept; never overwrites).",
             handler=_make_rename_handler(folder, spec.ext),
-            needs=CapabilitySet.CONFIG_LOADED,
+            needs=CapabilitySet.MANAGE_FILES,
             files=folder,
             params=[
                 ParamSpec(
@@ -666,7 +670,7 @@ def build_folder_subcommands(
             else f"Delete a file from {folder}/, after a yes."
         ),
         handler=_make_delete_handler(folder, pattern, spec.ext, spec.generated),
-        needs=CapabilitySet.CONFIG_LOADED,
+        needs=CapabilitySet.MANAGE_FILES,
         files=folder,
         safety="destructive",
     )

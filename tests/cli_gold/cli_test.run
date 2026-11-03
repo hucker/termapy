@@ -511,3 +511,7 @@ MEM.R 0x1000 2 --json
 /var GOLD_LOAD_VAR
 /env.list GOLD_LOAD_ENV
 /print {seq7+}
+
+# -- A person's job: an MCP client cannot rename or delete a file ------------
+/print === section: rename and delete need a person ===
+/help cap.rename

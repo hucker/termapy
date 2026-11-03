@@ -105,15 +105,26 @@ def _parse_mode(sections: dict[str, str]) -> str | None:
     return None
 
 
-def _resolve_path(ctx: PluginContext, filename: str) -> Path:
+def _resolve_path(ctx: PluginContext, filename: str, file_mode: str) -> Path:
     """Resolve a capture filename to a contained path under ``cap/``.
 
     Routes through ``ctx.fs.resolve`` so an absolute path or ``..`` is
     refused under the MCP sandbox (raises ``MissingCapability``, which the
     dispatcher converts to a clean failure); the operator at a CLI/TUI
     (``filesystem_unconfined``) keeps host-wide capture paths as before.
+    An MCP client also never writes a code folder, and never replaces a
+    file, though it may append to one.
+
+    Args:
+        ctx: The plugin context, for the sandbox and its guards.
+        filename: The capture file as the user named it.
+        file_mode: The mode the capture opens it in; ``w`` replaces.
     """
-    return ctx.fs.resolve(filename, "cap")
+    path = ctx.fs.resolve(filename, "cap")
+    ctx.fs.guard_code_folder(path.parent)
+    if file_mode.startswith("w"):
+        ctx.fs.guard_new_file(path)
+    return path
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -141,7 +152,7 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(ctx, filename)
+    path = _resolve_path(ctx, filename, file_mode)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -177,7 +188,7 @@ def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(ctx, filename)
+    path = _resolve_path(ctx, filename, file_mode)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -307,7 +318,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(ctx, filename)
+    path = _resolve_path(ctx, filename, raw_file_mode)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -433,6 +444,8 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                     break
             else:
                 return CmdResult.fail(msg=f"Cannot find free filename near {p}")
+        ctx.fs.guard_code_folder(p.parent)
+        ctx.fs.guard_new_file(p)  # only --overwrite can still name a file that exists
         path = p
         ensure_folder(path.parent)
 

@@ -980,6 +980,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_markup_escape.py               | markup-escape: text reaches the terminal as typed, through every markup path                                                                       |
 | test_matching.py                    | `termapy.matching`: the one name-pattern reader every name filter shares                                                                           |
 | test_maturity.py                    | maturity-declared-once: each command says how settled it is, and every surface reads that one value                                                |
+| test_mcp_boundary.py                | What an MCP client can never do to the host: no shell, no rename or delete, no code written                                                        |
 | test_mcp_cfg_load.py                | Tests for /cfg.load via MCP frontend                                                                                                               |
 | test_mcp_entry.py                   | Tests for the --mcp / --mcp-verbose entry-point wiring                                                                                             |
 | test_mcp_lifecycle.py               | Tests for MCP lifecycle: profile-load rejection, on-connect fetch, banner watcher                                                                  |

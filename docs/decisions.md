@@ -914,3 +914,29 @@ definition leads in bold, the click line is last and dim, and blank lines part t
 `Link.tip` takes pieces as well as a string, so the level and the flag names can carry
 the colors they have on the page; a piece's text is literal, so no markup reaches a
 parser. Chuck chose this over plain text knowing it widened a published type.
+
+## 2026-11-03 — Under MCP termapy is conservative, and no flag widens it
+
+An MCP client never reaches a shell (registry `os-never-under-mcp`), never renames or
+deletes a file (`mcp-no-file-management`), and never writes into `plugin/` or `viz/` or
+over a file that exists (`mcp-no-code-writes`). Chuck: "/os should NOT be allowed under
+MCP, that is an escape to freedom", and "most things with rename and delete should be
+off limits". Agents lose nothing they cannot do without: captures pile up until a
+person removes them, and a new capture takes a new name.
+
+`confirm=true` stopped being the control for these. A client sets it itself, and the
+gate behind it reads only the outermost line, so `/repeat count=1 cmd=/plugin.delete x`
+deleted with no confirm at all. A capability is checked in dispatch, and a probe of
+every nesting form found it holds. It stays the control for `/mem.write` and a
+profile's destructive device commands, until that gate moves into dispatch (Tier 2a of
+the 2026-10-29 security review).
+
+No new capability, and no opt-in flag. `interactive` already means a person at a
+terminal, and already refused `/os` and `/log.delete`; a test fails if MCP ever gains
+it, so granting it for approval prompts would have to be decided rather than happen.
+Chuck on the flag: "I don't want to give mcp access through a flag."
+
+These are limits on termapy's own commands, and they are not containment. A client
+that can write files some other way needs only to learn the folder names, and Chuck
+was plain about that: "that isn't my problem". The MCP client's own permissions remain
+the real boundary, as `help/mcp-server.md` says.

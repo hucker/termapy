@@ -274,7 +274,9 @@ class CapabilitySet:
     #        the home of legacy aliases retained for human typing
     #        convenience (``/echo`` -> ``/term.echo``).
     # Where: TUI, CLI (whether running locally or over SSH).  Not MCP --
-    #        an LLM client has no interactive session.
+    #        an LLM client has no interactive session, and no flag ever grants
+    #        it one: /os and every rename and delete rest on this (registries
+    #        os-never-under-mcp, mcp-no-file-management).
     interactive: bool = _restricted("an interactive session (a human at a terminal; not MCP)")
 
     # What:  Host can launch external desktop apps the user must visually
@@ -417,6 +419,13 @@ class CapabilitySet:
     and .hex.  The gate answers "Not connected." first, then "Capture already
     active - use /cap.stop first."."""
 
+    MANAGE_FILES: ClassVar[CapabilitySet]
+    """Renames or deletes a file of the loaded config: a person's job.
+
+    ``config_loaded=True, interactive=True`` -- every folder's ``.rename`` and
+    ``.delete``.  MCP never holds it, so ``confirm=true`` cannot unlock one and
+    no nesting form reaches one (registry ``mcp-no-file-management``)."""
+
     def satisfied_by(self, provided: CapabilitySet) -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(not getattr(self, f.name) or getattr(provided, f.name) for f in fields(self))
@@ -456,6 +465,7 @@ CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
 CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interactive=True)
 CapabilitySet.CONFIG_GUI_APPS = CapabilitySet(config_loaded=True, gui_apps=True)
 CapabilitySet.CAPTURE_START = CapabilitySet(serial_connected=True, capture_idle=True)
+CapabilitySet.MANAGE_FILES = CapabilitySet(config_loaded=True, interactive=True)
 
 
 # ── Views of the fields ──────────────────────────────────────────────────────

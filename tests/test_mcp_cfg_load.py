@@ -370,28 +370,17 @@ def _run_mcp(host, line: str, *, confirm: bool = False) -> dict:
 
 
 class TestMcpCfgDelete:
-    """/cfg.delete under MCP: destructive, so it runs only with confirm=true."""
+    """/cfg.delete under MCP: refused outright, because deleting a config is a person's job."""
 
-    def test_cfg_delete_without_confirm_is_refused(self, host, two_cfgs):
-        """config-deleted-once: no confirm, nothing deleted, and the marker an agent asks the user on."""
+    @pytest.mark.parametrize("confirm", [False, True])
+    def test_cfg_delete_is_refused(self, host, two_cfgs, confirm):
+        """mcp-no-file-management: confirm=true or not, nothing is deleted and there is nothing to ask the user."""
         # Arrange
         _, cfg_b = two_cfgs
 
         # Act
-        result = _run_mcp(host, "/cfg.delete beta")
+        result = _run_mcp(host, "/cfg.delete beta", confirm=confirm)
 
         # Assert
-        assert result["value"]["needs_confirmation"] is True, "the destructive gate"
+        assert "interactive" in result["error"], result["error"]
         assert cfg_b.exists(), "beta is untouched"
-
-    def test_cfg_delete_with_confirm_removes_the_folder(self, host, two_cfgs):
-        """config-deleted-once: with confirm=true the whole beta folder goes."""
-        # Arrange
-        _, cfg_b = two_cfgs
-
-        # Act
-        result = _run_mcp(host, "/cfg.delete beta", confirm=True)
-
-        # Assert
-        assert result["success"] is True, result["error"]
-        assert not cfg_b.parent.exists(), "beta's folder, subfolders and all, is gone"

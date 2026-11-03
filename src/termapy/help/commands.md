@@ -39,6 +39,12 @@ without changing it.  Leaving an optional boolean out means its documented
 default.  Any other word is an error that names the accepted tokens, never
 a silent off: `Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)`.
 
+A setting with several values takes `cycle` the same way: it moves to the next
+value, in the order the synopsis lists them, and wraps at the end.  Any command
+takes `--json` for a JSON answer to that one call, and `--silent`, `--quiet`,
+`--normal` or `--verbose` for how much that call prints.  `/help.idioms` lists
+these words, and `/help cycle` opens a page on one, with the commands that take it.
+
 A command that opens a file of a known type takes the name with or without
 its extension: `/run hex_view` runs `run/hex_view.run`. The same holds for
 `/proto.run`, `/profile.load`, `/sym.load` and a folder's `.dump` and
@@ -139,6 +145,7 @@ sends to the device) waits in the input line for Enter.
 | `/firmware.show <name> {lang=<l>}` | Open a target's main source in the system viewer                     |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, prints the list)     |
 | `/help`                   | The landscape: terminal commands in full, other groups folded               |
+| `/help.idioms`            | List the words commands share: `--json`, `--quiet`, `toggle`, `cycle`, ...  |
 | `/help.group`             | List the groups, each with its commands                                     |
 | `/help.group <name>`      | Expand one group                                                            |
 | `/help.group *`           | Expand every group, or every group a pattern matches (`dev*`)               |

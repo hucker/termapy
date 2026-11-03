@@ -122,7 +122,7 @@ Termapy is in beta: everything not listed here is stable and ready for public te
 | Dev board starters | `/board` | prototype |
 | Device-side firmware | `/firmware` | prototype |
 
-**Preview** works but may change in any release; **prototype** is new and incomplete, and may change or be removed. `/help` shows each command's level in every listing and on its page, the MCP catalog carries it, and a prototype says so once a session when it first runs.
+**Preview** works but may change in any release; **prototype** is new and incomplete, and may change or be removed. `/help` states the level on the command's page and, in a listing, puts the name in italics with the level in its tooltip; the MCP catalog carries it, and a prototype says so once a session when it first runs.
 
 ## Security
 

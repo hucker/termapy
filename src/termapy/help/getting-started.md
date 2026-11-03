@@ -223,14 +223,17 @@ things, man-inspired:
 - `/help`                  -- the landscape: the terminal commands in full, every
   other group folded to one row you can click.  Nothing is disabled by
   folding; `/help.group <name>` expands one, `/help.group` lists them all.
-- `/help <cmd>`            -- exact match -> full man-page detail (NAME, STATUS,
-  CURRENT STATE, SYNOPSIS, DESCRIPTION, FLAGS, REQUIRED CAPABILITIES,
-  SUBCOMMANDS, SEE ALSO).  CURRENT STATE is what a status or setting command
-  answers right now, read fresh for the page, so `/help term.eol` shows the
-  line ending in use.  REQUIRED CAPABILITIES rows are live status: a requirement the session
-  can't meet right now (e.g. `serial_connected` with no port open) is
-  marked `(missing)`.  AVAILABLE shows where the command could ever run
-  (TUI / CLI / MCP), with the environment you are in marked `(current)`.
+- `/help <cmd>`            -- exact match -> what is about that command: NAME,
+  CURRENT STATE, SYNOPSIS, DESCRIPTION, FLAGS, CONFIG, SUBCOMMANDS.  CURRENT STATE
+  is what a status or setting command answers right now, read fresh for the page,
+  so `/help term.eol` shows the line ending in use.  STATUS appears when a command
+  is not yet stable, AVAILABLE when a frontend cannot run it, and REQUIRED
+  CAPABILITIES when the session can't meet a requirement right now (e.g.
+  `serial_connected` with no port open, marked `(missing)`).
+- `/help <cmd> --verbose`  -- the whole page: every section above plus SEE ALSO, with
+  the environment you are in marked `(current)`.  In the TUI, hovering the
+  command's name shows its status and where it runs, and hovering a word in the
+  synopsis or a config key shows what it means.
 - `/help <term>`           -- no exact match? You get a candidate list (substring
   match on name + short help). Pick one and rerun `/help` on its full name.
 - `/search <word>`         -- deep search across everything (name, help, args,

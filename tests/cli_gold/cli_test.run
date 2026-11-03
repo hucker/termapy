@@ -75,6 +75,13 @@ $(BAUD) <- /port.baud_rate
 /term.output
 /cfg.auto output_level loud
 /help output_level
+# The words commands share have pages of their own.
+/help cycle
+/help json
+/help.idioms
+# A page shows what is about the command; --verbose shows the rest.
+/help term.hex
+/help term.hex --verbose
 /cfg.auto custom_buttons_side Right
 /cfg custom_buttons_side
 /cfg.auto custom_buttons_side up

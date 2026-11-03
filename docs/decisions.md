@@ -868,3 +868,49 @@ needed exceptions for serial settings and setup scripts. The picker used to clea
 user variables and freeze `$(SESSION_*)` where `/run` did neither, so one script
 behaved two ways depending on how it was launched. Now the picker clears nothing
 and every outermost script freezes the moment.
+
+## 2026-11-03 — The words commands share explain themselves
+
+Chuck had forgotten how `cycle` works: only the plugin author's page said, and
+`/help cycle` was an error. `--json` and `--quiet` work on every command, and no
+page said that either. Tooltips were the obvious fix, but they exist only in the
+TUI, so the CLI and an agent would have got nothing. Pages are the foundation and
+tooltips a surface on them: `idioms.IDIOMS` is one table, `/help cycle` and
+`/help.idioms` read it, and a synopsis word links to its page by being in the
+synopsis, with nothing for a command to declare.
+
+A page lists the commands that take its word, generated from the registry. Chuck
+thought `cycle` was on every enumeration; it is on four. Closing that gap is its
+own branch, and the page stays true either way.
+
+A hidden command now gives way to a config key or an idiom: `/help color` used to
+open the legacy alias's page rather than the key's, and `/help verbose` would have
+done the same to the idiom.
+
+A tooltip gives the answer rather than the address. Chuck, looking at a config
+key's link that said only "Click to run: /help output_level": "the tool tip saves
+the trip". Every definition was already written once (`help=`, `CfgKey.help`,
+`Idiom.summary`), so a link looks up whatever it names at hover, in `/help`'s lookup
+order (registry `link-explains-itself`). No link carries its own text, so none can
+disagree with the page it opens, and a plugin's command is covered by its `help=`.
+
+A help page shows what is about this command (registry `help-page-specific`). Chuck:
+"I hate seeing a command that toggles a mode have a full page of help." `/help
+term.hex` was 32 lines, and 9 of them were the same on nearly every page: a `stable`
+STATUS, an all-yes AVAILABLE, the sibling list, and where a config change lasts. Those
+now appear only when they are news. `--verbose` is the existing way to ask for more, so
+it prints them in every frontend, and in the TUI they are a hover away, on the
+command's name or the config key.
+
+A row no longer prints its level. Chuck: the column put the status "a bit too much in
+people's faces", and most commands are the tested, released system. A name not yet
+stable is italic with its level in the tooltip, and stable goes unmarked, which reverses
+his own 2026-10-29 choice of a column on every row. A row in a plain terminal shows no
+mark; there the page's STATUS, `/help.group`'s LEVEL column and the MCP catalog carry it
+in text.
+
+A tooltip has a shape, because the name's was a wall of same-weight lines. The
+definition leads in bold, the click line is last and dim, and blank lines part them.
+`Link.tip` takes pieces as well as a string, so the level and the flag names can carry
+the colors they have on the page; a piece's text is literal, so no markup reaches a
+parser. Chuck chose this over plain text knowing it widened a published type.

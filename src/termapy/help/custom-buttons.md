@@ -48,6 +48,8 @@ Each button object has these fields:
   keeps working when the prefix is not `/`; the shipped Info button is `"{prefix}cfg.info"`
 - Use `\n` to chain multiple commands (e.g. `"ATZ\nAT+INFO"`)
 - Mixed serial and REPL commands work: `"ATZ\n/delay 500ms\nAT+INFO"`
+- A setting's `toggle` or `cycle` makes a one-click switch: `"/term.hex toggle"` flips
+  hex display, and `"/term.output cycle"` steps through the output levels
 
 ## Placement
 

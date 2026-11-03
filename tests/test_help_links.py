@@ -15,12 +15,14 @@ that exists.  The clicking itself is
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 from rich.console import Console
 from rich.text import Text
 
 from termapy.builtins.commands.help import _landscape_row, _pad_markup
+from termapy.idioms import ANY_COMMAND_FLAGS
 from termapy.markup import markup_to_plain
 from termapy.plugins import (
     GROUP_TERMINAL,
@@ -68,11 +70,11 @@ def _links_of(eng, command: str) -> list[Link]:
 
 
 def test_a_row_draws_the_same_characters_in_the_same_styles():
-    """A command row's markup renders exactly so: cyan name, padding, the green level, plain help."""
+    """A command row's markup renders exactly so: cyan name, padding, plain help."""
     # Arrange
     plugin = PluginInfo(name="cfg.load", args="", help="Load a config.", handler=lambda c, a: None)
-    # The row as markup: its own padding formula, then the level column.
-    before = _pad_markup("  [cyan]/cfg.load[/]", 14 + 2) + "  [green]stable[/]     Load a config."
+    # The row as markup: its own padding formula, then the help.
+    before = _pad_markup("  [cyan]/cfg.load[/]", 14 + 2) + "  Load a config."
 
     # Act
     after = pieces_markup(_landscape_row("/", "cfg.load", plugin, 14))
@@ -85,10 +87,7 @@ def test_a_search_row_keeps_its_match_underlines():
     """In /help <term> candidates, only the matched part is underlined, name and help alike."""
     # Arrange
     plugin = PluginInfo(name="cfg.load", args="", help="Load a config.", handler=lambda c, a: None)
-    before = (
-        _pad_markup("  [cyan]/cfg.[u]load[/u][/]", 14 + 2)
-        + "  [green]stable[/]     [u]Load[/u] a config."
-    )
+    before = _pad_markup("  [cyan]/cfg.[u]load[/u][/]", 14 + 2) + "  [u]Load[/u] a config."
 
     # Act
     after = pieces_markup(_landscape_row("/", "cfg.load", plugin, 14, needles=["load"]))
@@ -268,9 +267,18 @@ def test_a_command_name_on_its_page_fills_the_input_line(tmp_path):
     run_synopsis = _line_with(run_lines, "/run {")
 
     # Assert
-    assert loaded[1].link == Link("cfg.loaded", run=False), "Enter runs it, nothing runs on its own"
-    assert run_name[1].link == Link("run", run=False), "fills, for the file name to follow"
-    assert run_synopsis[1].link == Link("run", run=False), "the synopsis line does the same"
+    links = [line[1].link for line in (loaded, run_name, run_synopsis)]
+    actual = [(link.command, link.run) for link in links if link is not None]
+    expected = [("cfg.loaded", False), ("run", False), ("run", False)]
+    assert actual == expected, (
+        "Enter runs it, nothing runs on its own, and the file name can follow"
+    )
+    for link in links:
+        assert link is not None, "every one of them is a link"
+        assert isinstance(link.tip, tuple), "its tip is styled pieces"
+        tip = "".join(piece.text for piece in link.tip)
+        for flag in ANY_COMMAND_FLAGS:
+            assert flag in tip, "hovering says what any command also takes"
 
 
 def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
@@ -285,7 +293,9 @@ def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
     actual_text = "".join(piece.text for piece in line)
     expected_text = "  /run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list"
     assert actual_text == expected_text
-    actual_links = {piece.text: piece.link for piece in line if piece.link is not None}
+    actual_links = {
+        piece.text: replace(piece.link, tip="") for piece in line if piece.link is not None
+    }
     expected_links = {
         "/run": Link("run", run=False),
         "Run picker": Link("run"),
@@ -397,12 +407,12 @@ def test_help_plugin_links_each_command_to_its_page(tmp_path):
 
 
 def test_see_also_links_the_siblings_and_the_parent(tmp_path):
-    """A subcommand's SEE ALSO links each sibling and the parent."""
+    """A subcommand's SEE ALSO, on the --verbose page, links each sibling and the parent."""
     # Arrange
     eng = _engine(tmp_path)
 
     # Act
-    commands = [link.command for link in _links_of(eng, "help cfg.load")]
+    commands = [link.command for link in _links_of(eng, "help cfg.load --verbose")]
 
     # Assert
     assert "help cfg.list" in commands, "a sibling"

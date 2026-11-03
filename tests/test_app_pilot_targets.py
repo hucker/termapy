@@ -1412,7 +1412,8 @@ class TestClickableOutput:
 
                 # Assert
                 assert isinstance(over, Text), "a Text: a command's [brackets] stay literal"
-                assert over.plain == "Click to run: /run hello.run", "the command, as typed"
+                assert over.plain.endswith("Click to run: /run hello.run"), "the command, as typed"
+                assert over.plain != "Click to run: /run hello.run", "and what /run is, above it"
                 assert shown, "Textual displays it once the mouse rests, not just holds it"
                 assert off is None, "plain text has no tooltip"
 
@@ -1434,12 +1435,99 @@ class TestClickableOutput:
                 fill = log.tooltip
 
                 # Assert
-                assert fill is not None and fill.plain == "Click to fill the input: /run", (
+                assert fill is not None, "the name has a tooltip"
+                assert fill.plain.endswith("Click to fill the input: /run"), (
                     "nothing runs: Enter does"
                 )
-                assert app._describe_link(10**9) == app._EXPIRED_LINK_MSG, (
+                assert "--json" in fill.plain, "and it says what any command also takes"
+                assert app._describe_link(10**9).plain == app._EXPIRED_LINK_MSG, (
                     "an old link says so before the click, not after"
                 )
+
+        asyncio.run(scenario())
+
+    def test_a_tooltip_shows_its_parts_in_their_styles(self, app_factory):
+        """Rendered in the tooltip itself: the definition bold, the level and flags colored, the click line dim."""
+
+        def styled(tooltip, text: str):
+            """The style the tooltip draws the start of ``text`` in, from the cells on screen."""
+            for strip in tooltip.render_lines(tooltip.outer_size.region):
+                for segment in strip:
+                    if segment.text.lstrip().startswith(text):
+                        return segment.style
+            raise AssertionError(f"{text!r} is not in the tooltip")
+
+        async def scenario():
+            from textual.widgets import Tooltip
+
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60), tooltips=True) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/help run")
+                await until(pilot, lambda: any("Run picker" in line for line in _screen(app)))
+                tooltip = app.screen.get_child_by_type(Tooltip)
+
+                # Act
+                await _hover_text(pilot, app, "/run - ")
+                await until(pilot, lambda: tooltip.display, seconds=2)
+                await pilot.pause()
+
+                # Assert
+                assert styled(tooltip, "Run a script").bold, "the definition leads"
+                body = styled(tooltip, "Status:").color
+                # Textual draws dim as a blended color, not as the dim attribute.
+                assert styled(tooltip, "Click to fill").color != body, "the click line recedes"
+                assert styled(tooltip, "stable").color != body, "the level has its color"
+                assert styled(tooltip, "--json").color != body, "and so do the flags"
+
+        asyncio.run(scenario())
+
+    def test_a_tooltip_follows_term_color(self, app_factory):
+        """With /term.color off a tooltip loses its colors, as the pane does, and keeps its weights."""
+
+        async def scenario():
+            from rich.style import Style
+
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/help run")
+                await until(pilot, lambda: any("Run picker" in line for line in _screen(app)))
+                link_id = next(key for key, link in app._links.items() if link.command == "run")
+
+                # Act
+                colored = app._describe_link(link_id)
+                await _submit(pilot, "/term.color off")
+                await until(pilot, lambda: not app._color_on())
+                plain = app._describe_link(link_id)
+
+                # Assert
+                assert plain.plain == colored.plain, "the same words"
+                as_style = [Style.parse(str(span.style)) for span in colored.spans]
+                assert any(style.color for style in as_style), "color on: the level is colored"
+                as_style = [Style.parse(str(span.style)) for span in plain.spans]
+                assert not any(style.color for style in as_style), "color off: nothing is"
+                assert any(style.bold for style in as_style), "the bold stays"
+
+        asyncio.run(scenario())
+
+    def test_a_tips_text_stays_literal(self, app_factory):
+        """A tip reaches no markup parser, as a string or as pieces, so [brackets] read as written."""
+
+        async def scenario():
+            from termapy.plugins.views import Link, Piece
+
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60)):
+                # Act
+                as_string = app._describe_link(app._register_link(Link("x", tip="a [red]b[/]")))
+                as_pieces = app._describe_link(
+                    app._register_link(Link("x", tip=(Piece("a [red]b[/]", None, "yellow"),)))
+                )
+
+                # Assert
+                assert "a [red]b[/]" in as_string.plain, "a string, as written"
+                assert "a [red]b[/]" in as_pieces.plain, "pieces, as written"
 
         asyncio.run(scenario())
 

@@ -9,9 +9,17 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.defaults import CFG_HELP, cfg_key_path, cfg_value
+from termapy.defaults import CFG_HELP, cfg_key_path, cfg_key_paths, cfg_value
 from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.help_dynamic import green, is_state_line
+from termapy.idioms import (
+    ANY_COMMAND_FLAGS,
+    IDIOM_TOKENS,
+    IDIOM_WORDS,
+    IDIOMS,
+    Idiom,
+    idiom_for,
+)
 from termapy.markup import markup_to_plain, match_parts, underline_markup
 from termapy.matching import closest, did_you_mean, is_glob, matches
 from termapy.plugins import (
@@ -35,7 +43,7 @@ from termapy.plugins import (
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_STYLE
 from termapy.plugins.params import render_parameters_block
-from termapy.plugins.views import Column, Link, Piece, RecordView, TableView
+from termapy.plugins.views import Column, Link, Piece, RecordView, TableView, pieces_markup
 from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
@@ -46,6 +54,9 @@ if TYPE_CHECKING:
 # ── Constants ────────────────────────────────────────────────────────────────
 
 _LABEL_RE = re.compile(r"^(\s*)(\w+:)(.*)")
+
+# An idiom's word as one alternative of a synopsis group: toggle in {on|off|toggle}.
+_IDIOM_TOKEN_RE = re.compile(r"(?<=[{|])(" + "|".join(IDIOM_TOKENS) + r")(?=[|}])")
 
 # Colors for help output.  The synopsis colors are the declaration's own
 # (``plugins.command``), reused here for the flag and capability rows.
@@ -117,6 +128,65 @@ def _try_link(name: str) -> Link:
     return Link(name, run=False)
 
 
+def _status_pieces(maturity: str) -> tuple[Piece, ...]:
+    """A level in its color and what it means (registry ``maturity-declared-once``)."""
+    return (
+        Piece(maturity, None, MATURITY_COLORS[maturity]),
+        Piece(f" - {MATURITY_MEANINGS[maturity]}"),
+    )
+
+
+def _name_tip(plugin) -> tuple[Piece, ...]:
+    """What hovering a command's name on its page adds: what every page shares, one hover away."""
+    maturity = getattr(plugin, "maturity", "stable")
+    where = " ".join(
+        env_name
+        for env_name, env_caps in ENVIRONMENTS.items()
+        if not plugin.needs.missing_from(env_caps)
+    )
+    pieces = [
+        Piece("Status: "),
+        Piece(maturity, None, MATURITY_COLORS[maturity]),
+        Piece(f"   Runs in: {where}\n\nAny command also takes:"),
+    ]
+    for idiom in IDIOMS:
+        if idiom.flags:
+            pieces += [
+                Piece("\n"),
+                Piece(" ".join(idiom.flags), None, _OPT),
+                Piece(f" - {idiom.summary}"),
+            ]
+    return tuple(pieces)
+
+
+def _synopsis_with_idioms(args: str) -> list[Piece]:
+    """A synopsis as pieces, each idiom word in a group a link to its page (registry ``idioms-one-table``).
+
+    Read from the synopsis itself, so no command declares anything: a new
+    ``{on|off|toggle}`` has its links on the day it is written.
+    """
+    pieces: list[Piece] = []
+    for piece in synopsis_pieces(args):
+        for part in _IDIOM_TOKEN_RE.split(piece.text):
+            if part:
+                idiom = IDIOM_TOKENS.get(part)
+                link = _help_link(idiom.name) if idiom else piece.link
+                pieces.append(Piece(part, link, piece.style))
+    return pieces
+
+
+def _write_refs(ctx: PluginContext, title: str, names: Sequence[str]) -> None:
+    """A section of commands on one line, each a link to its help page."""
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_section_markup(title))
+    refs = [Piece("  ")]
+    for index, ref in enumerate(names):
+        if index:
+            refs.append(Piece(", "))
+        refs.append(Piece(ctx.prefix + ref, _help_link(ref), _CMD))
+    ctx.io.output_markup_segments(refs)
+
+
 # ── Config keys ──────────────────────────────────────────────────────────────
 #
 # A command declares the keys it depends on and how it uses each
@@ -149,25 +219,32 @@ def _cfg_json_fragment(path: str, value: object) -> str:
     return fragment
 
 
-def _cfg_scope_markup(prefix: str, key: str, file_name: str) -> str:
-    """The one line on where a change lasts: the session by command, the named file by the editor's Save."""
-    session_markup = escape_markup(f"{prefix}cfg {key} <value>")
-    editor_markup = escape_markup(f"{prefix}cfg.edit")
-    file_markup = escape_markup(file_name or "the config file")
+def _cfg_scope_text(prefix: str, key: str, file_name: str) -> str:
+    """The one line on where a change lasts: the session by command, the named file by the editor."""
     return (
-        f"  [{_SEP}]A change by {session_markup} lasts the session; "
-        f"the config editor ({editor_markup}) saves it to {file_markup}.[/]"
+        f"A change by {prefix}cfg {key} <value> lasts the session; "
+        f"the config editor ({prefix}cfg.edit) saves it to {file_name or 'the config file'}."
     )
+
+
+def _cfg_scope_markup(prefix: str, key: str, file_name: str) -> str:
+    """``_cfg_scope_text`` as a dim line of a page."""
+    return f"  [{_SEP}]{escape_markup(_cfg_scope_text(prefix, key, file_name))}[/]"
 
 
 def _cfg_rows(ctx: PluginContext, uses: Mapping[str, str]) -> list[list[Piece]]:
     """A row per declared key: ``path = value``, the path a link to the key's page, then how the command uses it."""
     pairs = [(path, f"{path} = {_cfg_text(cfg_value(ctx.cfg, path))}") for path in uses]
     width = max(len(pair) for _, pair in pairs)
+    file_name = _cfg_file_name(ctx)
     return [
         [
             Piece("  "),
-            Piece(path, _help_link(path), _OPT),
+            Piece(
+                path,
+                replace(_help_link(path), tip=_cfg_scope_text(ctx.prefix, path, file_name)),
+                _OPT,
+            ),
             Piece(pair[len(path) :].ljust(width - len(path))),
             Piece("  " + interpolate_help(uses[path], ctx.prefix)),
         ]
@@ -328,36 +405,34 @@ def _siblings_for_see_also(name: str, plugins: dict) -> list[str]:
 # ── Row rendering (shared by landscape + candidates + /help.plugin) ──────────
 
 
-# Wide enough for the longest maturity level, so the level column aligns.
-_MATURITY_W = max(len(level) for level in MATURITY_COLORS)
-
-
 def _landscape_row(
     prefix: str, name: str, plugin, cmd_w: int, needles: list[str] | None = None
 ) -> list[Piece]:
-    """One row of the clean name + level + one-liner layout, as pieces.
+    """One row of the clean name + one-liner layout, as pieces.
 
     The command's name links to its help page (registry
     ``links-are-data``); where nothing can click, the pieces are the
-    markup this row always was.  Every row shows the command's maturity in
-    its color, in a column after the name, so no row reads as unknown
-    (registry ``maturity-declared-once``).  Pass ``needles`` only in
+    markup this row always was.  A name not yet stable is italic, with its
+    level in the tooltip: the exception a reader notices, not a column of
+    ``stable`` (registry ``maturity-declared-once``).  Pass ``needles`` only in
     search-result contexts; underlining is the "here's why this matched"
     affordance and does not belong on the no-args landscape or
     exact-match man page.
     """
     help_text = interpolate_help(plugin.help, prefix)
+    maturity = getattr(plugin, "maturity", "stable")
     link = _help_link(name)
-    pieces = [Piece("  "), Piece(prefix, link, _CMD)]
+    style = _CMD
+    if maturity != "stable":
+        link = replace(link, tip=_status_pieces(maturity))
+        style = f"{_CMD} italic"
+    pieces = [Piece("  "), Piece(prefix, link, style)]
     pieces += [
-        Piece(part, link, f"{_CMD} underline" if matched else _CMD)
+        Piece(part, link, f"{style} underline" if matched else style)
         for part, matched in match_parts(name, needles)
     ]
     pad = max(0, cmd_w + 2 - (2 + len(prefix) + len(name)))
     pieces.append(Piece(" " * pad + "  "))
-    maturity = getattr(plugin, "maturity", "stable")
-    pieces.append(Piece(maturity, None, MATURITY_COLORS[maturity]))
-    pieces.append(Piece(" " * (_MATURITY_W - len(maturity) + 2)))
     pieces += [
         Piece(part, None, "underline" if matched else "")
         for part, matched in match_parts(help_text, needles)
@@ -482,9 +557,13 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     """
     prefix = ctx.prefix
     plugins = ctx.internal.plugins
+    # What every page shares waits behind --verbose or a hover, and what is
+    # left is about this command (registry help-page-specific).
+    full = dev_mode or ctx.output_level == "verbose"
+
     # The command's name, on each line that starts with it: a click
     # fills the input line with it (registry links-are-data).
-    command = Piece(prefix + name, _try_link(name), _CMD)
+    command = Piece(prefix + name, replace(_try_link(name), tip=_name_tip(plugin)), _CMD)
 
     # NAME ────────────────────────────────────────────────────────────────────
     ctx.io.output_markup(_section_markup("NAME"))
@@ -494,12 +573,10 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     # STATUS ──────────────────────────────────────────────────────────────────
     # How settled the command is, in its color (registry maturity-declared-once).
     maturity = getattr(plugin, "maturity", "stable")
-    ctx.io.output_markup("")
-    ctx.io.output_markup(_section_markup("STATUS"))
-    meaning = MATURITY_MEANINGS[maturity]
-    ctx.io.output_markup(
-        f"  [{MATURITY_COLORS[maturity]}]{escape_markup(maturity)}[/] - {escape_markup(meaning)}"
-    )
+    if full or maturity != "stable":
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_section_markup("STATUS"))
+        ctx.io.output_markup("  " + pieces_markup(_status_pieces(maturity)))
 
     # CURRENT STATE ───────────────────────────────────────────────────────────
     # Run for the answer, right here at the top: what the session holds now,
@@ -516,7 +593,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
         ctx.io.output_markup(_section_markup("SYNOPSIS"))
         if plugin.args:
             ctx.io.output_markup_segments(
-                [Piece("  "), command, Piece(" "), *synopsis_pieces(plugin.args)]
+                [Piece("  "), command, Piece(" "), *_synopsis_with_idioms(plugin.args)]
             )
         if bare:
             ctx.io.output_markup_segments([Piece("  "), command, Piece(" -- "), *bare])
@@ -570,7 +647,8 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
         ctx.io.output_markup(_section_markup("CONFIG"))
         for segments in _cfg_rows(ctx, plugin.cfg):
             ctx.io.output_markup_segments(segments)
-        ctx.io.output_markup(_cfg_scope_markup(prefix, "<key>", _cfg_file_name(ctx)))
+        if full:
+            ctx.io.output_markup(_cfg_scope_markup(prefix, "<key>", _cfg_file_name(ctx)))
 
     # REQUIRED CAPABILITIES ───────────────────────────────────────────────────
     # Named to round-trip with the code: the rows are CapabilitySet fields,
@@ -582,9 +660,13 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     # requirement the session can't meet right now renders yellow with a
     # "(missing)" marker.  The marker is text, not just color, so MCP and
     # no-color output carry the status too.
-    required = _required_capability_rows(plugin.needs)
+    effective = _effective_capabilities(ctx)
+    required = [
+        row
+        for row in _required_capability_rows(plugin.needs)
+        if full or not getattr(effective, row[0])
+    ]
     if required:
-        effective = _effective_capabilities(ctx)
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("REQUIRED CAPABILITIES"))
         for cap_name, hint in required:
@@ -610,8 +692,6 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     # status lives in the REQUIRED CAPABILITIES rows above.  The column
     # matching ctx.environment is marked "(current)" so the reader knows
     # which one they are in.
-    ctx.io.output_markup("")
-    ctx.io.output_markup(_section_markup("AVAILABLE"))
     cells: list[str] = []
     missing_by_env: dict[str, list[str]] = {}
     for env_name, env_caps in ENVIRONMENTS.items():
@@ -624,7 +704,10 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
         if env_name == ctx.environment:
             cell += f" [{_SEP}](current)[/]"
         cells.append(cell)
-    ctx.io.output_markup("  " + "   ".join(cells))
+    if full or missing_by_env:
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_section_markup("AVAILABLE"))
+        ctx.io.output_markup("  " + "   ".join(cells))
     if missing_by_env:
         # Group identical missing-capability sets so the explanation stays compact.
         # ``frozenset`` keys de-duplicate envs with the same gate.
@@ -659,15 +742,8 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
 
     # SEE ALSO ────────────────────────────────────────────────────────────────
     see = _siblings_for_see_also(name, plugins)
-    if see:
-        ctx.io.output_markup("")
-        ctx.io.output_markup(_section_markup("SEE ALSO"))
-        refs = [Piece("  ")]
-        for index, ref in enumerate(see):
-            if index:
-                refs.append(Piece(", "))
-            refs.append(Piece(prefix + ref, _help_link(ref), _CMD))
-        ctx.io.output_markup_segments(refs)
+    if see and full:
+        _write_refs(ctx, "SEE ALSO", see)
 
     # Source annotation for non-built-in plugins (preserved from old renderer).
     if plugin.source not in ("built-in", "app"):
@@ -817,6 +893,42 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
     ctx.io.output_markup(f"  [{_SRC}](source: target device)[/]")
 
 
+# ── Idiom pages ──
+
+
+def _commands_taking(plugins: Mapping, idiom: Idiom) -> list[str]:
+    """The visible commands whose synopsis offers one of ``idiom``'s words, from the registry.
+
+    Never a claim typed on the page: ``cycle`` is on some enumerated settings
+    and not others, and this list is what is true today.
+    """
+    return sorted(
+        name
+        for name, plugin in plugins.items()
+        if not plugin.hidden
+        and plugin.args
+        and any(token in idiom.tokens for token in _IDIOM_TOKEN_RE.findall(plugin.args))
+    )
+
+
+def _render_idiom_page(ctx: PluginContext, idiom: Idiom) -> None:
+    """``/help cycle``: what the idiom means and, for a synopsis word, the commands that take it."""
+    prefix = ctx.prefix
+    summary = interpolate_help(idiom.summary, prefix)
+    ctx.io.output_markup(_section_markup("NAME"))
+    ctx.io.output_markup_segments(
+        [Piece("  "), Piece(idiom.name, None, _CMD), Piece(f" - {summary}")]
+    )
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_section_markup("DESCRIPTION"))
+    for line in interpolate_help(idiom.page, prefix).strip().splitlines():
+        ctx.io.output_markup(f"  {escape_markup(line)}")
+    takers = _commands_taking(ctx.internal.plugins, idiom)
+    if takers:
+        _write_refs(ctx, "TAKEN BY", takers)
+    _write_refs(ctx, "SEE ALSO", ["help.idioms"])
+
+
 # ── Candidate list rendering ─────────────────────────────────────────────────
 
 
@@ -869,18 +981,21 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
       2. Target-device command -> render its brief one-line form.
       3. A config key          -> its page: meaning, value, the commands
                                   that use it (`value` = the key path).
-      4. Candidate list        -> name+help substring match, CmdResult.ok
+      4. A global idiom        -> its page (`value` = the idiom's name).
+      5. A hidden command      -> its page, last among exact names, so a legacy
+                                  alias never takes a word a page answers to.
+      6. Candidate list        -> name+help substring match, CmdResult.ok
                                   with `value` = newline-joined names.
-      5. Zero matches          -> fail with hint to try /search.
+      7. Zero matches          -> fail with hint to try /search.
 
     ``dev_mode`` routes exact matches to the developer docstring view
     instead of the normal DESCRIPTION.
     """
     plugins = ctx.internal.plugins
 
-    # 1. Exact match wins.
+    # 1. An exact match wins.
     plugin = plugins.get(name)
-    if plugin is not None:
+    if plugin is not None and (dev_mode or not plugin.hidden):
         _render_man_page(ctx, name, plugin, dev_mode=dev_mode)
         # Resolved name so scripts can confirm what /help matched.
         return CmdResult.ok(value=name)
@@ -900,18 +1015,30 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
         _render_cfg_key_page(ctx, path)
         return CmdResult.ok(value=path)
 
-    # 4. Forgiving candidate list (name + short help only -- args, long_help,
+    # 4. A global idiom, after the commands and keys so it can shadow neither.
+    idiom = idiom_for(name)
+    if idiom is not None:
+        _render_idiom_page(ctx, idiom)
+        return CmdResult.ok(value=idiom.name)
+
+    # 5. A hidden command: /help verbose is the idiom, and /help term.verbose
+    #    still answers.
+    if plugin is not None:
+        _render_man_page(ctx, name, plugin, dev_mode=dev_mode)
+        return CmdResult.ok(value=name)
+
+    # 6. Forgiving candidate list (name + short help only -- args, long_help,
     #    and flags live in /search's territory).
     candidates = _find_candidates(name, plugins, ctx.prefix)
     if candidates:
         _render_candidates(ctx, name, candidates)
         return CmdResult.ok(value="\n".join(candidates))
 
-    # 5. No hits anywhere -- hint at the deeper tool.
+    # 7. No hits anywhere -- hint at the deeper tool.
     p = ctx.prefix
     # Bare names: what /help takes, so a click fills in /help <name>.
-    shown = (command for command, plugin in plugins.items() if not plugin.hidden)
-    hint = did_you_mean(closest(name, shown))
+    shown = [command for command, plugin in plugins.items() if not plugin.hidden]
+    hint = did_you_mean(closest(name, [*shown, *cfg_key_paths(), *IDIOM_WORDS]))
     if hint:
         return CmdResult.fail(msg=f"No command matches '{name}'{hint}")
     return CmdResult.fail(
@@ -1059,8 +1186,16 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     ctx.io.output_markup("")
     prefix_markup = escape_markup(prefix)
     ctx.io.output_markup(
-        f"[{_SEP}]Use {prefix_markup}help <term> to find a command, "
-        f"{prefix_markup}search <word> for a deep search.[/]"
+        f"[{_SEP}]Use {prefix_markup}help <term> to find a command (--verbose for its whole "
+        f"page), {prefix_markup}search <word> for a deep search.[/]"
+    )
+    ctx.io.output_markup_segments(
+        [
+            Piece(f"{prefix}help.idioms", Link("help.idioms"), _CMD),
+            Piece(
+                " explains the words commands share: --json, --quiet, toggle, cycle.", None, _SEP
+            ),
+        ]
     )
     # The landscape view's natural scriptable summary is the total
     # command count -- scripts can compare it across cfgs to detect
@@ -1314,6 +1449,43 @@ def _members_table(ctx: PluginContext, groups: list[str], wanted: str) -> CmdRes
     return CmdResult.table(title, "command", columns, records, value=value)
 
 
+def _handler_idioms(ctx: PluginContext, args: str) -> CmdResult:
+    """``/help.idioms`` lists the words commands share, as a table, each row opening its page.
+
+    One row per ``idioms.IDIOMS`` (registry ``idioms-one-table``), so ``--json``
+    and MCP get the same records.
+    """
+    records = [
+        {
+            "name": idiom.name,
+            "summary": interpolate_help(idiom.summary, ctx.prefix),
+            "aliases": list(idiom.aliases),
+            "tokens": list(idiom.tokens),
+        }
+        for idiom in IDIOMS
+    ]
+    columns = (
+        Column(
+            "NAME",
+            lambda record: record["name"],
+            run=lambda record: f"help {record['name']}",
+        ),
+        Column("MEANING", lambda record: record["summary"]),
+    )
+    value = "\n".join(idiom.name for idiom in IDIOMS)
+    return CmdResult.table("idioms", "idiom", columns, records, value=value)
+
+
+# Built from the table, so /search finds an idiom by any word on its row.
+_IDIOMS_LONG_HELP = (
+    "The words that read the same on every command, so no command's own page\n"
+    "explains them.  {prefix}help <name> opens a page.\n\n"
+    + "\n".join(f"  {idiom.name} - {idiom.summary}" for idiom in IDIOMS)
+    + "\n\nAny command takes: "
+    + " ".join(ANY_COMMAND_FLAGS)
+)
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     group="terminal",
@@ -1333,6 +1505,8 @@ Three ways to find things:
   {prefix}help              landscape of all commands (name + one-liner).
   {prefix}help <term>       exact match -> detail; otherwise a candidate list
                      by substring match on name + short help.
+  {prefix}help <cmd> --verbose   the whole page: status, where it runs, related
+                     commands. Hovering the name in the TUI shows the same.
   {prefix}help --mcp        landscape filtered to MCP-visible commands only
                      (same set the LLM sees via {prefix}mcp.catalog).
   {prefix}search <word>     deep search across names, args, flags, long help.
@@ -1363,6 +1537,12 @@ reads as the name alone. Typing {prefix}help with zero matches points you at
             args="<cmd>",
             help="Print a command handler's Python docstring.",
             handler=_handler_dev,
+            shows=True,
+        ),
+        "idioms": Command(
+            help="List the words commands share: --json, --quiet, toggle, cycle and more.",
+            long_help=_IDIOMS_LONG_HELP,
+            handler=_handler_idioms,
             shows=True,
         ),
         "group": Command(

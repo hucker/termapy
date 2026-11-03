@@ -96,17 +96,18 @@ class TestTheDeclaration:
 
 class TestHelpPages:
     def test_a_command_page_has_a_config_section_with_the_live_value(self, cli, capsys):
-        """/help <cmd> lists each declared key with the config's value and the phrase, then where a change lasts."""
+        """/help <cmd> lists each declared key with the config's value and the phrase; --verbose adds where a change lasts."""
         # Act
         page = _page(cli, capsys, "/help grep")
+        full = _page(cli, capsys, "/help grep --verbose")
 
         # Assert
         assert "CONFIG" in page
         assert "max_grep_lines = 250  caps the matches shown" in page, (
             "the config's value, not the default"
         )
-        assert "A change by /cfg <key> <value> lasts the session" in page
-        assert "(/cfg.edit) saves it to c.cfg." in page, "the file is named"
+        assert "A change by /cfg <key> <value> lasts the session" in full
+        assert "(/cfg.edit) saves it to c.cfg." in full, "the file is named"
 
     def test_a_command_without_declarations_has_no_config_section(self, cli, capsys):
         """A command that declares no keys shows no CONFIG section."""

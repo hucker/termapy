@@ -304,13 +304,13 @@ class TestTheLinks:
 
                 # Act
                 app.action_click_link(link_id)
-                await until(pilot, lambda: "TAKEN BY" in app._get_screen_text())
+                await until(pilot, lambda: "/term.json" in app._get_screen_text())
                 return tooltip, app._get_screen_text()
 
         # Assert
         tooltip, screen = asyncio.run(scenario())
         assert tooltip == f"{IDIOM_TOKENS['cycle'].summary}\nClick to run: /help cycle"
-        assert "/term.json" in screen, "the page lists what takes it"
+        assert "TAKEN BY" in screen, "the page lists what takes it"
 
 
 class TestOnACustomButton:

@@ -270,12 +270,14 @@ def test_a_command_name_on_its_page_fills_the_input_line(tmp_path):
     run_synopsis = _line_with(run_lines, "/run {")
 
     # Assert
-    expected = replace(Link("run", run=False), tip=ANY_COMMAND_TIP)
-    assert loaded[1].link == replace(expected, command="cfg.loaded"), (
-        "Enter runs it, nothing runs on its own"
+    links = [line[1].link for line in (loaded, run_name, run_synopsis)]
+    actual = [(link.command, link.run) for link in links if link is not None]
+    expected = [("cfg.loaded", False), ("run", False), ("run", False)]
+    assert actual == expected, (
+        "Enter runs it, nothing runs on its own, and the file name can follow"
     )
-    assert run_name[1].link == expected, "fills, for the file name to follow"
-    assert run_synopsis[1].link == expected, "the synopsis line does the same"
+    tips = [link.tip for link in links if link is not None]
+    assert all(ANY_COMMAND_TIP in tip for tip in tips), "hovering says what any command also takes"
 
 
 def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
@@ -290,9 +292,11 @@ def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
     actual_text = "".join(piece.text for piece in line)
     expected_text = "  /run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list"
     assert actual_text == expected_text
-    actual_links = {piece.text: piece.link for piece in line if piece.link is not None}
+    actual_links = {
+        piece.text: replace(piece.link, tip="") for piece in line if piece.link is not None
+    }
     expected_links = {
-        "/run": Link("run", run=False, tip=ANY_COMMAND_TIP),
+        "/run": Link("run", run=False),
         "Run picker": Link("run"),
         "/run.list": Link("run.list"),
     }
@@ -402,12 +406,12 @@ def test_help_plugin_links_each_command_to_its_page(tmp_path):
 
 
 def test_see_also_links_the_siblings_and_the_parent(tmp_path):
-    """A subcommand's SEE ALSO links each sibling and the parent."""
+    """A subcommand's SEE ALSO, on the --verbose page, links each sibling and the parent."""
     # Arrange
     eng = _engine(tmp_path)
 
     # Act
-    commands = [link.command for link in _links_of(eng, "help cfg.load")]
+    commands = [link.command for link in _links_of(eng, "help cfg.load --verbose")]
 
     # Assert
     assert "help cfg.list" in commands, "a sibling"

@@ -46,8 +46,8 @@ def _page(cli: CLITerminal, capsys, line: str) -> str:
 def _state_lines(page: str) -> list[str]:
     """The lines of a page's CURRENT STATE section, up to the blank line that ends it."""
     lines = page.splitlines()
-    start = lines.index("CURRENT STATE") + 1
-    return lines[start : lines.index("", start)]
+    rest = lines[lines.index("CURRENT STATE") + 1 :]
+    return rest[: rest.index("")] if "" in rest else rest
 
 
 def _tag(cli: CLITerminal, handler) -> None:
@@ -110,8 +110,8 @@ class TestTheDeclaration:
 
 
 class TestThePage:
-    def test_the_section_follows_status_and_shows_a_setting_as_it_is_now(self, cli, capsys):
-        """/help term.eol shows cr after STATUS, and lf after /term.eol lf: the page reads the session, twice."""
+    def test_the_section_shows_a_setting_as_it_is_now(self, cli, capsys):
+        """/help term.eol shows cr, and lf after /term.eol lf: the page reads the session, twice."""
         # Act
         before = _page(cli, capsys, "/help term.eol")
         cli.repl.dispatch_full("/term.eol lf")
@@ -120,7 +120,9 @@ class TestThePage:
         # Assert
         assert _state_lines(before) == ["  cr"]
         assert _state_lines(after) == ["  lf"], "the page follows the session"
-        assert before.index("STATUS") < before.index("CURRENT STATE") < before.index("SYNOPSIS")
+        assert before.index("CURRENT STATE") < before.index("SYNOPSIS"), "beside what it is"
+        full = _page(cli, capsys, "/help term.eol --verbose")
+        assert full.index("STATUS") < full.index("CURRENT STATE"), "and after a status it shows"
 
     def test_a_command_without_the_tag_has_no_section(self, cli, capsys):
         """A command that does not declare state shows no CURRENT STATE and is never run for its page."""
@@ -226,7 +228,7 @@ class TestThePage:
         _tag(cli, broken)
 
         # Act
-        page = _page(cli, capsys, "/help thing")
+        page = _page(cli, capsys, "/help thing --verbose")
 
         # Assert
         assert _state_lines(page) == ["  Plugin error (thing): boom"]

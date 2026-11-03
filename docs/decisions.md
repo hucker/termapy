@@ -893,3 +893,11 @@ the trip". Every definition was already written once (`help=`, `CfgKey.help`,
 `Idiom.summary`), so a link looks up whatever it names at hover, in `/help`'s lookup
 order (registry `link-explains-itself`). No link carries its own text, so none can
 disagree with the page it opens, and a plugin's command is covered by its `help=`.
+
+A help page shows what is about this command (registry `help-page-specific`). Chuck:
+"I hate seeing a command that toggles a mode have a full page of help." `/help
+term.hex` was 32 lines, and 9 of them were the same on nearly every page: a `stable`
+STATUS, an all-yes AVAILABLE, the sibling list, and where a config change lasts. Those
+now appear only when they are news. `--verbose` is the existing way to ask for more, so
+it prints them in every frontend, and in the TUI they are a hover away, on the
+command's name or the config key.

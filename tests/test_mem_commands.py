@@ -1199,7 +1199,7 @@ class TestHelpSection:
         vocabulary and pinned by nothing, which is how it drifted.
         """
         # Act
-        result = cli.repl.dispatch("help mem.dump")
+        result = cli.repl.dispatch("help mem.dump --verbose")
 
         # Assert
         assert result.success, result.error
@@ -1246,7 +1246,7 @@ class TestHelpSection:
         is the REQUIRED CAPABILITIES rows' job.
         """
         # Act
-        result = cli.repl.dispatch("help mem.dump")
+        result = cli.repl.dispatch("help mem.dump --verbose")
         assert result.success, result.error
         out = capsys.readouterr().out
 
@@ -1259,7 +1259,7 @@ class TestHelpSection:
     def test_available_marks_the_current_environment(self, cli, capsys):
         """The column for ctx.environment carries a (current) marker."""
         # Act
-        result = cli.repl.dispatch("help mem.dump")
+        result = cli.repl.dispatch("help mem.dump --verbose")
         assert result.success, result.error
         out = capsys.readouterr().out
 

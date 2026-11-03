@@ -553,8 +553,8 @@ a link looks up the definition of whatever it names, so you never write its text
   or idiom.
 - **Other frontends.** The CLI prints the same text with no links, and `--json`
   and MCP get a table's records as data.
-- **`Link(command, tip="...")`** replaces the looked-up definition, for the rare
-  link that should say something else.
+- **`Link(command, tip="...")`** adds to the looked-up definition, for the rare
+  link with more to say.
 
 ## Setting commands: bare queries, never mutates
 
@@ -606,7 +606,7 @@ page, a list - declare it, and its help page shows the answer:
 ),
 ```
 
-`/help tool.encoding` then has a CURRENT STATE section right after STATUS.
+`/help tool.encoding` then has a CURRENT STATE section near the top of the page.
 `/help` runs the bare form silently and shows what it answers: a short value in
 full, a `CmdResult.record` or `CmdResult.table` as its rows, and past twenty
 rows the start and a link to the rest. A failure is shown too, since

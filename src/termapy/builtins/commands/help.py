@@ -129,6 +129,19 @@ def _try_link(name: str) -> Link:
     return Link(name, run=False)
 
 
+def _name_tip(plugin) -> str:
+    """What hovering a command's name on its page adds: what every page shares, one hover away."""
+    maturity = getattr(plugin, "maturity", "stable")
+    where = "   ".join(
+        f"{env_name}: {'no' if plugin.needs.missing_from(env_caps) else 'yes'}"
+        for env_name, env_caps in ENVIRONMENTS.items()
+    )
+    return (
+        f"Status: {maturity}\nRuns in: {where}\n{ANY_COMMAND_TIP}\n"
+        "On a help page, --verbose shows all of this."
+    )
+
+
 def _synopsis_with_idioms(args: str) -> list[Piece]:
     """A synopsis as pieces, each idiom word in a group a link to its page (registry ``idioms-one-table``).
 
@@ -189,25 +202,32 @@ def _cfg_json_fragment(path: str, value: object) -> str:
     return fragment
 
 
-def _cfg_scope_markup(prefix: str, key: str, file_name: str) -> str:
-    """The one line on where a change lasts: the session by command, the named file by the editor's Save."""
-    session_markup = escape_markup(f"{prefix}cfg {key} <value>")
-    editor_markup = escape_markup(f"{prefix}cfg.edit")
-    file_markup = escape_markup(file_name or "the config file")
+def _cfg_scope_text(prefix: str, key: str, file_name: str) -> str:
+    """The one line on where a change lasts: the session by command, the named file by the editor."""
     return (
-        f"  [{_SEP}]A change by {session_markup} lasts the session; "
-        f"the config editor ({editor_markup}) saves it to {file_markup}.[/]"
+        f"A change by {prefix}cfg {key} <value> lasts the session; "
+        f"the config editor ({prefix}cfg.edit) saves it to {file_name or 'the config file'}."
     )
+
+
+def _cfg_scope_markup(prefix: str, key: str, file_name: str) -> str:
+    """``_cfg_scope_text`` as a dim line of a page."""
+    return f"  [{_SEP}]{escape_markup(_cfg_scope_text(prefix, key, file_name))}[/]"
 
 
 def _cfg_rows(ctx: PluginContext, uses: Mapping[str, str]) -> list[list[Piece]]:
     """A row per declared key: ``path = value``, the path a link to the key's page, then how the command uses it."""
     pairs = [(path, f"{path} = {_cfg_text(cfg_value(ctx.cfg, path))}") for path in uses]
     width = max(len(pair) for _, pair in pairs)
+    file_name = _cfg_file_name(ctx)
     return [
         [
             Piece("  "),
-            Piece(path, _help_link(path), _OPT),
+            Piece(
+                path,
+                replace(_help_link(path), tip=_cfg_scope_text(ctx.prefix, path, file_name)),
+                _OPT,
+            ),
             Piece(pair[len(path) :].ljust(width - len(path))),
             Piece("  " + interpolate_help(uses[path], ctx.prefix)),
         ]
@@ -522,9 +542,13 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     """
     prefix = ctx.prefix
     plugins = ctx.internal.plugins
+    # What every page shares waits behind --verbose or a hover, and what is
+    # left is about this command (registry help-page-specific).
+    full = dev_mode or ctx.output_level == "verbose"
+
     # The command's name, on each line that starts with it: a click
     # fills the input line with it (registry links-are-data).
-    command = Piece(prefix + name, replace(_try_link(name), tip=ANY_COMMAND_TIP), _CMD)
+    command = Piece(prefix + name, replace(_try_link(name), tip=_name_tip(plugin)), _CMD)
 
     # NAME ────────────────────────────────────────────────────────────────────
     ctx.io.output_markup(_section_markup("NAME"))
@@ -534,12 +558,13 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     # STATUS ──────────────────────────────────────────────────────────────────
     # How settled the command is, in its color (registry maturity-declared-once).
     maturity = getattr(plugin, "maturity", "stable")
-    ctx.io.output_markup("")
-    ctx.io.output_markup(_section_markup("STATUS"))
-    meaning = MATURITY_MEANINGS[maturity]
-    ctx.io.output_markup(
-        f"  [{MATURITY_COLORS[maturity]}]{escape_markup(maturity)}[/] - {escape_markup(meaning)}"
-    )
+    if full or maturity != "stable":
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_section_markup("STATUS"))
+        meaning = MATURITY_MEANINGS[maturity]
+        ctx.io.output_markup(
+            f"  [{MATURITY_COLORS[maturity]}]{escape_markup(maturity)}[/] - {escape_markup(meaning)}"
+        )
 
     # CURRENT STATE ───────────────────────────────────────────────────────────
     # Run for the answer, right here at the top: what the session holds now,
@@ -610,7 +635,8 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
         ctx.io.output_markup(_section_markup("CONFIG"))
         for segments in _cfg_rows(ctx, plugin.cfg):
             ctx.io.output_markup_segments(segments)
-        ctx.io.output_markup(_cfg_scope_markup(prefix, "<key>", _cfg_file_name(ctx)))
+        if full:
+            ctx.io.output_markup(_cfg_scope_markup(prefix, "<key>", _cfg_file_name(ctx)))
 
     # REQUIRED CAPABILITIES ───────────────────────────────────────────────────
     # Named to round-trip with the code: the rows are CapabilitySet fields,
@@ -622,9 +648,13 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     # requirement the session can't meet right now renders yellow with a
     # "(missing)" marker.  The marker is text, not just color, so MCP and
     # no-color output carry the status too.
-    required = _required_capability_rows(plugin.needs)
+    effective = _effective_capabilities(ctx)
+    required = [
+        row
+        for row in _required_capability_rows(plugin.needs)
+        if full or not getattr(effective, row[0])
+    ]
     if required:
-        effective = _effective_capabilities(ctx)
         ctx.io.output_markup("")
         ctx.io.output_markup(_section_markup("REQUIRED CAPABILITIES"))
         for cap_name, hint in required:
@@ -650,8 +680,6 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
     # status lives in the REQUIRED CAPABILITIES rows above.  The column
     # matching ctx.environment is marked "(current)" so the reader knows
     # which one they are in.
-    ctx.io.output_markup("")
-    ctx.io.output_markup(_section_markup("AVAILABLE"))
     cells: list[str] = []
     missing_by_env: dict[str, list[str]] = {}
     for env_name, env_caps in ENVIRONMENTS.items():
@@ -664,7 +692,10 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
         if env_name == ctx.environment:
             cell += f" [{_SEP}](current)[/]"
         cells.append(cell)
-    ctx.io.output_markup("  " + "   ".join(cells))
+    if full or missing_by_env:
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_section_markup("AVAILABLE"))
+        ctx.io.output_markup("  " + "   ".join(cells))
     if missing_by_env:
         # Group identical missing-capability sets so the explanation stays compact.
         # ``frozenset`` keys de-duplicate envs with the same gate.
@@ -699,7 +730,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = Fal
 
     # SEE ALSO ────────────────────────────────────────────────────────────────
     see = _siblings_for_see_also(name, plugins)
-    if see:
+    if see and full:
         _write_refs(ctx, "SEE ALSO", see)
 
     # Source annotation for non-built-in plugins (preserved from old renderer).
@@ -1143,8 +1174,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     ctx.io.output_markup("")
     prefix_markup = escape_markup(prefix)
     ctx.io.output_markup(
-        f"[{_SEP}]Use {prefix_markup}help <term> to find a command, "
-        f"{prefix_markup}search <word> for a deep search.[/]"
+        f"[{_SEP}]Use {prefix_markup}help <term> to find a command (--verbose for its whole "
+        f"page), {prefix_markup}search <word> for a deep search.[/]"
     )
     ctx.io.output_markup_segments(
         [
@@ -1462,6 +1493,8 @@ Three ways to find things:
   {prefix}help              landscape of all commands (name + one-liner).
   {prefix}help <term>       exact match -> detail; otherwise a candidate list
                      by substring match on name + short help.
+  {prefix}help <cmd> --verbose   the whole page: status, where it runs, related
+                     commands. Hovering the name in the TUI shows the same.
   {prefix}help --mcp        landscape filtered to MCP-visible commands only
                      (same set the LLM sees via {prefix}mcp.catalog).
   {prefix}search <word>     deep search across names, args, flags, long help.

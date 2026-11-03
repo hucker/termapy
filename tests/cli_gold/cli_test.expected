@@ -173,6 +173,62 @@ demo> /help.idioms
   bare     A setting with no argument shows its value and changes nothing.
   json     Answer this one call as a JSON object, for a script or an agent.
   level    How much one call prints, from nothing to all its detail.
+demo> /help term.hex
+NAME
+  /term.hex - Toggle hex display of incoming bytes.
+
+CURRENT STATE
+  off
+
+SYNOPSIS
+  /term.hex {on|off|toggle}
+
+DESCRIPTION
+  Shows received bytes as hex rows: a row ends after each
+  0A, or at 16 bytes. Rows are built from the bytes as they
+  arrived, so CR, LF, backspace and bytes the encoding cannot
+  decode all show as themselves, and a clear-screen escape is
+  shown rather than obeyed.
+
+  Display only: the session log, /expect and text
+  captures still get the decoded lines, and sent text is not
+  shown in hex. /proto.hex sets the same flag.
+
+CONFIG
+  hex = false  the value a load starts from
+demo> /help term.hex --verbose
+NAME
+  /term.hex - Toggle hex display of incoming bytes.
+
+STATUS
+  stable - tested and part of the standard release
+
+CURRENT STATE
+  off
+
+SYNOPSIS
+  /term.hex {on|off|toggle}
+
+DESCRIPTION
+  Shows received bytes as hex rows: a row ends after each
+  0A, or at 16 bytes. Rows are built from the bytes as they
+  arrived, so CR, LF, backspace and bytes the encoding cannot
+  decode all show as themselves, and a clear-screen escape is
+  shown rather than obeyed.
+
+  Display only: the session log, /expect and text
+  captures still get the decoded lines, and sent text is not
+  shown in hex. /proto.hex sets the same flag.
+
+CONFIG
+  hex = false  the value a load starts from
+  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.usb_db, /term.verbose, /term
 demo> /cfg.auto custom_buttons_side Right
   custom_buttons_side = 'right'  (session)
 demo> /cfg custom_buttons_side
@@ -309,9 +365,6 @@ demo> /help /cfg.loaded
 NAME
   /cfg.loaded - Show what the config load loaded: plugins, symbols, devices.
 
-STATUS
-  stable - tested and part of the standard release
-
 CURRENT STATE
   Loaded - 5 files
   KIND     NAME                          LAYER  FILE                     COUNT  NOTE
@@ -324,12 +377,6 @@ CURRENT STATE
 
 DESCRIPTION
   The table every config load reports, at startup and on a switch: one row per plugin file, symbol table and device file the load read, from the global layer and the config's own, with what each registered.  A file that failed is a row with its error.  It goes to the session log, and to the screen too when quiet_start is off.  Under MCP the profile auto-loaded on connect is a row too.  Later imports and loads (/sym.import, /dev.import, /profile.load) answer for themselves and are not added.
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
-SEE ALSO
-  /cfg.auto, /cfg.delete, /cfg.dump, /cfg.edit, /cfg.explore, /cfg.file, /cfg.help, /cfg.icon, /cfg.info, /cfg.list, /cfg.load, /cfg.new, /cfg.rename, /cfg.show, /cfg
 demo> /print === section: config new ===
   === section: config new ===
 demo> /cfg.new gold_new loop:// 9600 E71
@@ -452,9 +499,6 @@ demo> /port.help
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
 
-STATUS
-  stable - tested and part of the standard release
-
 SYNOPSIS
   /port {name}
   /port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list
@@ -468,10 +512,6 @@ DESCRIPTION
 
 CONFIG
   serial.port = "DEMO"  set for the session, then reconnects
-  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /port.baud_rate       stable     Show or set baud rate.
@@ -794,9 +834,6 @@ demo> /help port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
 
-STATUS
-  stable - tested and part of the standard release
-
 SYNOPSIS
   /port {name}
   /port -- bare: opens the Port picker in the TUI; elsewhere runs /port.list
@@ -810,10 +847,6 @@ DESCRIPTION
 
 CONFIG
   serial.port = "DEMO"  set for the session, then reconnects
-  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /port.baud_rate       stable     Show or set baud rate.
@@ -839,9 +872,6 @@ SUBCOMMANDS
 demo> /help cfg
 NAME
   /cfg - Show or set config values.
-
-STATUS
-  stable - tested and part of the standard release
 
 SYNOPSIS
   /cfg {key {value}}
@@ -870,9 +900,6 @@ DESCRIPTION
   Use /cfg.dump to print every key/value pair as JSON.
   Use /cfg.auto to set values without confirmation (for scripts).
 
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
 SUBCOMMANDS
   /cfg.auto       stable     Set immediately (no confirmation).
   /cfg.delete     stable     Delete a config and its whole folder (asks first).
@@ -899,9 +926,6 @@ CONFIGS
 demo> /help var
 NAME
   /var - List user variables, or show one by name.
-
-STATUS
-  stable - tested and part of the standard release
 
 SYNOPSIS
   /var {name}
@@ -977,9 +1001,6 @@ DESCRIPTION
   it sets stays after it ends.
   Use /var.clear to reset manually.
 
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
 SUBCOMMANDS
   /var.capture    stable     Capture command output into a user variable.
   /var.clear      stable     Clear all user variables.
@@ -989,9 +1010,6 @@ demo> /help cap
 NAME
   /cap - Data capture tools.
 
-STATUS
-  stable - tested and part of the standard release
-
 SYNOPSIS
   /cap -- bare: runs /cap.explore
 
@@ -1000,9 +1018,6 @@ DESCRIPTION
   raw binary or as decoded values, and manage the captures kept there.
 
   0 files in cap/
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /cap.bin        stable     Capture raw binary bytes.
@@ -1022,9 +1037,6 @@ demo> /help ss
 NAME
   /ss - Screenshot tools: save SVG/text, manage folder.
 
-STATUS
-  stable - tested and part of the standard release
-
 SYNOPSIS
   /ss -- bare: runs /ss.explore
 
@@ -1033,9 +1045,6 @@ DESCRIPTION
   screenshots kept in this config's ss/ folder.
 
   0 screenshots in ss/
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /ss.delete     stable     Delete a file from ss/; a pattern (* for all) deletes its matches, after a yes.
@@ -1048,9 +1057,6 @@ SUBCOMMANDS
 demo> /help proto
 NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
-
-STATUS
-  stable - tested and part of the standard release
 
 SYNOPSIS
   /proto -- bare: opens the Proto picker in the TUI; elsewhere runs /proto.list
@@ -1087,9 +1093,6 @@ DESCRIPTION
   or flat format with send:/expect: directives. Scripts are found
   in the proto/ subfolder of your config directory.
 
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
 SUBCOMMANDS
   /proto.crc        stable     Browse and compute CRC algorithms.
   /proto.debug      stable     Interactive protocol debug screen.
@@ -1117,15 +1120,9 @@ demo> /help plugin
 NAME
   /plugin - Plugin-folder tools: list, explore, show, dump, edit.
 
-STATUS
-  stable - tested and part of the standard release
-
 DESCRIPTION
   Plugins are Python files that add your own commands to termapy. These
   commands manage the ones in this config's plugin/ folder.
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /plugin.delete     stable     Delete a file from plugin/, after a yes.
@@ -1179,9 +1176,6 @@ DESCRIPTION
     /sym.unload             - clear the loaded table (file untouched)
     /sym.search <pattern>   - search names
     /sym.info               - file, source, counts by section, range
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /sym.import    preview    Convert an ELF or a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same file).
@@ -1243,9 +1237,6 @@ DESCRIPTION
   Bare /mem is /mem.info: it probes the device (MEM.INFO) and shows
   the availability verdict, so it doubles as the check after connect.
 
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
 SUBCOMMANDS
   /mem.and      preview    AND a mask into one word (atomic via MEM.M when available).
   /mem.clear    preview    Clear mask bits in one word: word &= ~mask (atomic via MEM.M when available).
@@ -1261,9 +1252,6 @@ demo> /help run
 NAME
   /run - Run a script file, or list available scripts.
 
-STATUS
-  stable - tested and part of the standard release
-
 SYNOPSIS
   /run {filename}
   /run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list
@@ -1275,9 +1263,6 @@ DESCRIPTION
 
 FLAGS
   --echo - Echo each command line as it runs (a script is quiet by default).
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /run.delete     stable     Delete a file from run/, after a yes.
@@ -1310,9 +1295,6 @@ demo> /help grep
 NAME
   /grep - Search the scrollback for lines matching a pattern (case-insensitive regex).
 
-STATUS
-  stable - tested and part of the standard release
-
 SYNOPSIS
   /grep <pattern>
 
@@ -1337,10 +1319,6 @@ PARAMETERS
 
 CONFIG
   max_grep_lines = 100  caps the matches shown
-  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
-
-REQUIRED CAPABILITIES
-  interactive - an interactive session (a human at a terminal; not MCP)
 
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: no
@@ -1372,9 +1350,6 @@ demo> /help term.eol
 NAME
   /term.eol - Show or set the line ending sent with commands (cr/lf/crlf/none).
 
-STATUS
-  stable - tested and part of the standard release
-
 CURRENT STATE
   cr
 
@@ -1394,23 +1369,13 @@ DESCRIPTION
 
 CONFIG
   eol = "\r"  set for the session; bare shows it
-  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /term.eol.markers    stable     Toggle dim visible \r \n markers in received output.
   /term.eol.rx         stable     Show or set how received output is split into lines (auto/cr/lf/crlf).
-
-SEE ALSO
-  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.hex, /term.info, /term.json, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.usb_db, /term.verbose, /term
 demo> /help term.info
 NAME
   /term.info - Snapshot the state of every /term.* toggle.
-
-STATUS
-  stable - tested and part of the standard release
 
 CURRENT STATE
   echo           : on
@@ -1435,19 +1400,9 @@ CONFIG
   send_bare_enter = false  in the snapshot
   control_keys = true      in the snapshot
   encoding = "utf-8"       in the snapshot
-  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
-SEE ALSO
-  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.hex, /term.json, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.usb_db, /term.verbose, /term
 demo> /help port.baud_rate
 NAME
   /port.baud_rate - Show or set baud rate.
-
-STATUS
-  stable - tested and part of the standard release
 
 CURRENT STATE
   115200
@@ -1457,34 +1412,15 @@ SYNOPSIS
 
 CONFIG
   serial.baud_rate = 115200  set for the session; bare shows it
-  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
-SEE ALSO
-  /port.break, /port.byte_size, /port.cd, /port.chip, /port.close, /port.connect, /port.cts, /port.disconnect, /port.dsr, /port.dtr, /port.flow_control, /port.help, /port.info, /port.list, /port.mode, /port.open, /port.parity, /port.ri, /port.rts, /port.stop_bits, /port.usb, /port
 demo> /help port.dtr
 NAME
   /port.dtr - Show or set DTR line (hardware only).
-
-STATUS
-  stable - tested and part of the standard release
 
 CURRENT STATE
   1
 
 SYNOPSIS
   /port.dtr {on|off}
-
-REQUIRED CAPABILITIES
-  serial_connected - an open serial port
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
-SEE ALSO
-  /port.baud_rate, /port.break, /port.byte_size, /port.cd, /port.chip, /port.close, /port.connect, /port.cts, /port.disconnect, /port.dsr, /port.flow_control, /port.help, /port.info, /port.list, /port.mode, /port.open, /port.parity, /port.ri, /port.rts, /port.stop_bits, /port.usb, /port
 demo> /xfer
   Move files between the host and the device over the serial link, using
   XMODEM or YMODEM.
@@ -1501,9 +1437,6 @@ demo> /help profile.save
 NAME
   /profile.save - Write the active profile to a file (default: <cfg_dir>/<cfg_stem>.profile.json).
 
-STATUS
-  stable - tested and part of the standard release
-
 SYNOPSIS
   /profile.save {path}
 
@@ -1516,12 +1449,6 @@ DESCRIPTION
 
 REQUIRED CAPABILITIES
   profile_loaded - a loaded device profile (missing)
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
-SEE ALSO
-  /profile.info, /profile.load, /profile.unload, /profile.validate, /profile
 demo> /help sym.search
 NAME
   /sym.search - Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
@@ -1531,21 +1458,9 @@ STATUS
 
 SYNOPSIS
   /sym.search <pattern>
-
-REQUIRED CAPABILITIES
-  symbols_loaded - a loaded symbol table
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
-SEE ALSO
-  /sym.import, /sym.info, /sym.load, /sym.unload, /sym
 demo> /help cap.text
 NAME
   /cap.text - Capture serial text to a file for a timed duration.
-
-STATUS
-  stable - tested and part of the standard release
 
 SYNOPSIS
   /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=<command>}
@@ -1562,16 +1477,6 @@ PARAMETERS
   mode=new|append  file mode (default: new)
   echo=on|off      also print captured text to the terminal (default: off)
   cmd=<command>    command to send after capture starts (must be last, default: )
-
-REQUIRED CAPABILITIES
-  serial_connected - an open serial port
-  capture_idle - no capture already running
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
-SEE ALSO
-  /cap.bin, /cap.delete, /cap.dump, /cap.explore, /cap.hex, /cap.list, /cap.poll, /cap.rename, /cap.show, /cap.stop, /cap.struct, /cap.wire, /cap
 demo> /profile.save
   Error: No profile loaded.
 demo> /print === section: help.run ===
@@ -2141,20 +2046,11 @@ demo> /help cfg.load
 NAME
   /cfg.load - Load a different config in this session (hot-swap).
 
-STATUS
-  stable - tested and part of the standard release
-
 SYNOPSIS
   /cfg.load <name>
 
 DESCRIPTION
   Puts the session where a fresh start on that config would: what this session changed is gone, including settings, user variables, /env.set values, counters and the device profile.  A capture or a recording stops.  The port opens only if the config says auto_connect.  What you asked for at launch, such as --no-color or --quiet, still holds.
-
-AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
-
-SEE ALSO
-  /cfg.auto, /cfg.delete, /cfg.dump, /cfg.edit, /cfg.explore, /cfg.file, /cfg.help, /cfg.icon, /cfg.info, /cfg.list, /cfg.loaded, /cfg.new, /cfg.rename, /cfg.show, /cfg
 demo> /var.set GOLD_LOAD_VAR 1
   $(GOLD_LOAD_VAR) = 1
 demo> /env.set GOLD_LOAD_ENV 1

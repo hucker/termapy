@@ -123,7 +123,7 @@ A .quiet suffix on the name says the same thing.
   {{prefix}}port.list.quiet
 
 silent prints nothing, quiet only the result, normal adds the command's other
-output, and verbose adds its detail. {{prefix}}term.output sets the level for the
+output, and verbose adds its detail: on a help page, the whole page. {{prefix}}term.output sets the level for the
 session. The flag is taken off the line wherever it appears, so a command's
 text cannot carry it.""",
     ),

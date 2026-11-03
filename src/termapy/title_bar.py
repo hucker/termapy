@@ -302,6 +302,6 @@ def update_port(app, port: str) -> None:
     # copy; deepcopy chokes on a mappingproxy ("cannot pickle 'mappingproxy'").
     cfg = copy.deepcopy(dict(app.cfg))
     cfg["serial"]["port"] = port
-    app._switch_config(cfg, app.config_path)
+    app._switch_config(cfg, app.config_path, keep_connection=True, keep_session=True)
     if app.is_connected:
         app._status(f"Port changed to {port} (session)", "green")

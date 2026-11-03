@@ -708,17 +708,16 @@ class TestFindBar:
         # Arrange -- drive the real plugin so current_state() builds a
         # genuine snapshot to compare shapes against
         from termapy.builtins.commands import find
+        from termapy.plugins import PluginContext
 
-        find._active = find._Active(
+        ctx = PluginContext()
+        ctx.ns("find")["active"] = find._Active(
             pattern="beta",
             matches=[(2, "beta line")],
             current=0,
             scrollback_text="alpha line\nbeta line\ngamma line",
         )
-        try:
-            real = find.current_state()
-        finally:
-            find._active = None
+        real = find.current_state(ctx)
 
         # Assert -- same keys, so a contract change fails HERE rather than
         # silently diverging from what the UI actually receives

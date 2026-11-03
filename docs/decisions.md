@@ -810,3 +810,60 @@ and is used daily, but may change in any release". Both used to lean on
 "termapy's compatibility promise", in the words the 2026-10-29 entry chose, and
 no document ever defined one, so the phrase claimed something that did not exist.
 Chuck's definition: stable means tested and part of the standard release.
+
+## 2026-11-02 — A config load ends where a fresh start on that config would
+
+Chuck: "It is very important that the ENTIRE state of the app is controlled ...
+so the cfg always loads to a known state (if the user changes settings then
+that is on them)." Measured by starting on config B in one process and arriving
+at B from a used A in another, the config dict always matched and the session
+did not. The TUI kept eight things, the CLI two, and a wider probe that flipped
+every setting by its declaration found three more: `/env.set`, a running
+`/run.record` and an open find bar. The cause was two paths: the CLI and MCP
+rebuild the context on a load, the TUI reset a hand-kept subset, and neither
+knew about module-level state.
+
+There is now one reset, `TerminalHost._reset_session`, and a guard that compares
+each frontend with a fresh start. Chuck's answers settled the choices it needed:
+
+- **User variables reset.** So do `/env.set` values, `{seq}` counters, the device
+  profile and `/find.max_count`. A capture and a recording stop.
+- **The port follows `auto_connect`.** The TUI used to reconnect any port that was
+  connected, whatever the new config said.
+- **`color` and `output_level` are config keys** (v36), so a file can set every
+  session flag. `echo_repl` stays keyless: its right default is per-host.
+- **Startup flags hit after the load.** `--no-color` and `--quiet` outlast every
+  load, as do a host's rules (MCP's JSON stays uncolored, quiet and without echo).
+
+Two calls were made while building it, and either is one keyword to reverse. An
+editor Save counts as a load, so the session resets, but a connected port stays
+connected: a saved edit is not a request to drop the link. And a port change from
+the title bar or picker is not a load at all, since the config did not change; it
+used to run the whole switch, which would now have wiped the session.
+
+Session state goes in `ctx.ns()`, which this reset empties. The first build reset
+the `/find` globals from an `on_config_load` hook, the smaller change, and its guard
+accepted a hook or a namespace alike. Chuck asked why state `ns` exists for was not
+in it, and there was no reason. `/find` moved, and a hook no longer satisfies the
+guard: module state needs an entry in `MODULE_STATE_OUTSIDE_NS` saying why. The
+`/run.record` file and the replay guard stay outside on their merits, a cleared dict
+cannot close a file and a replayed `/cfg.load` must not clear its own guard. The
+`/env.set` values and the user variables stay only until transforms and `expand_vars`
+take a `ctx`.
+
+A key that starts a flag is marked `session_flag`, and `/cfg` moves the flag with
+the key. It used to change only the dict: `/cfg.auto echo false` answered `False`
+while `/term.echo` went on answering `on`.
+
+A script is not a load. `/run`, the Scripts button and the Run menu start one the
+same way and reset nothing (registry `script-start-one-way`): it sees the session
+it was launched into and leaves its changes behind. One that needs a known start
+says so with `/cfg.load` as its first line, and `termapy --run` gets one anyway,
+being a fresh process.
+
+Restoring state when a script ends was considered and rejected. It protects what
+runs after a script but not the script itself, which was the concern, and it
+needed exceptions for serial settings and setup scripts. The picker used to clear
+user variables and freeze `$(SESSION_*)` where `/run` did neither, so one script
+behaved two ways depending on how it was launched. Now the picker clears nothing
+and every outermost script freezes the moment.

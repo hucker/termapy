@@ -41,7 +41,7 @@ from termapy.defaults import cfg_value
 # on the FIRST colon only; group(2) is None when no format is given.
 _VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)(?::([^)]*))?\)")
 
-# Module-level variable storage - cleared on script start.
+# Module-level variable storage - cleared by a config load and /var.clear.
 _VARS: dict[str, str] = {}
 
 # Frozen datetime moments, keyed by concept.  LAUNCH is frozen when this
@@ -159,12 +159,16 @@ def launch_vars() -> dict[str, str]:
 def set_start_time_vars() -> None:
     """Freeze the SESSION_* datetime moment.
 
-    Called once when a top-level script starts (Scripts button / Run menu).
-    Frozen here and NOT refreshed by interactive ``/run`` calls, so
-    $(SESSION_DATE/TIME/DATETIME) reflect the original session start.  The
-    moment is stored raw; format is applied on read (default or ``:fmt``).
+    Called when an outermost script starts, however it was launched; a nested
+    ``/run`` does not refresh it.  The moment is stored raw; format is applied
+    on read (default or ``:fmt``).
     """
     _FROZEN_MOMENTS["SESSION"] = datetime.now()
+
+
+def clear_start_time_vars() -> None:
+    """Forget the SESSION_* moment: a fresh start has none until a script freezes it."""
+    _FROZEN_MOMENTS.pop("SESSION", None)
 
 
 def resolve_datetime_var(name: str, fmt: str | None) -> str | None:

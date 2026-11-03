@@ -179,6 +179,12 @@ def _stop(ctx: PluginContext) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
+def end_recording(ctx: PluginContext) -> None:
+    """Stop a recording if one is running: a config load's use of ``_stop``."""
+    if _active is not None:
+        _stop(ctx)
+
+
 # ── Handlers ─────────────────────────────────────────────────────────────────
 # A handler's docstring is its developer help: /help.dev <command> prints it
 # and developer /search indexes it, so keep it true (registry handler-docstring).

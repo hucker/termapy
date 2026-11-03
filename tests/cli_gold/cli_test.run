@@ -66,6 +66,15 @@ $(BAUD) <- /port.baud_rate
 /cfg echo
 /cfg.auto echo false
 /cfg echo
+/term.echo
+/cfg.auto echo true
+# A key that starts a session flag moves it, and the setter reports it.
+/cfg.auto output_level quiet
+/term.output
+/cfg.auto output_level normal
+/term.output
+/cfg.auto output_level loud
+/help output_level
 /cfg.auto custom_buttons_side Right
 /cfg custom_buttons_side
 /cfg.auto custom_buttons_side up
@@ -482,3 +491,16 @@ MEM.R 0x1000 2 --json
 /port.disconnect
 /port.connect TERMAPY-DEMO
 /port.info
+
+# -- A load starts clean: what this session changed is gone -----------------
+/print === section: a load starts clean ===
+/help cfg.load
+/var.set GOLD_LOAD_VAR 1
+/env.set GOLD_LOAD_ENV 1
+/print {seq7+}
+/term.output verbose
+/cfg.load demo
+/term.output
+/var GOLD_LOAD_VAR
+/env.list GOLD_LOAD_ENV
+/print {seq7+}

@@ -1348,9 +1348,7 @@ class SerialTerminal(TerminalHost, App):
         self.ctx = ctx
         # TUI: REPL echo on (input clears on Enter, so echo keeps a
         # scrollback record).  Device echo follows cfg echo.
-        self._init_flags(echo_repl=True)
-        if self._initial_output_level is not None:
-            ctx.ns("flags")["output_level"] = self._initial_output_level
+        self._init_flags(echo_repl=True, output_level=self._initial_output_level)
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks.
@@ -1882,8 +1880,28 @@ class SerialTerminal(TerminalHost, App):
         self._on_main(self._show_config_info, config_path)
         return CmdResult.ok(value=config_path)
 
-    def _switch_config(self, cfg: dict, path: str) -> None:
-        """Apply a new config: disconnect, update state, refresh UI, reconnect."""
+    def _switch_config(
+        self,
+        cfg: dict,
+        path: str,
+        *,
+        keep_connection: bool = False,
+        keep_session: bool = False,
+    ) -> None:
+        """Apply a config: disconnect, update state, refresh UI, connect if it says to.
+
+        Plain, this is a load, and a load ends with what a fresh start on the
+        config has (registry ``config-load-deterministic``).
+
+        Args:
+            cfg: The config to apply.
+            path: Its file.
+            keep_connection: A connected port reconnects whatever ``auto_connect``
+                says.  The editor's Save asks for this: a saved edit is not a
+                request to drop the link.
+            keep_session: Not a load at all, the same config with a new port:
+                nothing is reset and ``on_config_load`` does not fire.
+        """
         # Read before the swap: the log the session is leaving.
         previous_log = self.session_log_path()
         self._clear_output()
@@ -1910,10 +1928,10 @@ class SerialTerminal(TerminalHost, App):
                 self._status(f"  {step}", "yellow")
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
-        self.repl.ctx.ns("flags")["hex"] = cfg_value(cfg, "hex")
-        self.repl.ctx.ns("flags")["line_no"] = cfg_value(cfg, "line_no")
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
+        if not keep_session:
+            self._reset_session()
         self._leave_breadcrumb()
         self.history = self._load_history()
         self._history_nav.reset()
@@ -1935,9 +1953,12 @@ class SerialTerminal(TerminalHost, App):
         # The engine resolves the new config's plugins and symbols here;
         # the cfg may also have swapped the active profile out from under
         # us, so rebuild the suggester after the pass, not before it.
-        self.repl.fire_lifecycle("on_config_load")
+        if not keep_session:
+            self.repl.fire_lifecycle("on_config_load")
+            # The load may have ended a recording.
+            self._refresh_record_button()
         self._rebuild_suggester_commands()
-        if was_connected or cfg_value(cfg, "auto_connect"):
+        if (keep_connection and was_connected) or cfg_value(cfg, "auto_connect"):
             self._connect()
 
     def _switch_to_cli(self) -> CmdResult:

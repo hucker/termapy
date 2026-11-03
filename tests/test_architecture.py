@@ -2252,7 +2252,6 @@ NOT_IN_GOLD: dict[str, str] = {
     "cfg.icon.remove": "removes a desktop launcher on this machine",
     "cfg.info": _PATH,
     "cfg.list": _PATH,
-    "cfg.load": "reloads the config mid-run, resetting the state the later lines rely on",
     "cfg.show": _OPENS_APP,
     "cls": "clears the screen with an escape sequence that swallows the next line",
     "confirm": "waits for a human to answer",
@@ -4840,3 +4839,136 @@ def test_cfg_get_allowlist_has_no_stale_entries():
     # Assert
     stale = sorted(set(CFG_GET_ALLOWED) - used)
     assert stale == [], f"allowlisted but no longer a literal cfg.get site; drop them: {stale}"
+
+
+# ── config-load-deterministic: module-level state ─────────────────────────────
+
+# A module whose functions write module-level state, with why that state is not in
+# ``ctx.ns()``, which a load empties with no hook.  Only shrinks.
+MODULE_STATE_OUTSIDE_NS = {
+    "breadcrumbs.py": "the process's own breadcrumb file, which no config owns",
+    "builtins/commands/_run_record.py": (
+        "an open file and an observer a cleared dict cannot release; "
+        "run.py's on_config_load stops the recording"
+    ),
+    "builtins/commands/env.py": (
+        "the $(env.X) transform has no ctx yet; on_config_load takes a new snapshot"
+    ),
+    "builtins/commands/run.py": (
+        "guards a replay in progress, and a replayed /cfg.load must not clear it"
+    ),
+    "env_flags.py": "whether this process is the MCP server",
+    "legacy.py": "tables built at import from the built-in commands",
+    "profile/loader.py": "a cache of a fixed schema",
+    "protocol/crc.py": "a cache of crcglot's registry",
+    "variables.py": (
+        "expand_vars has no ctx yet; ReplEngine.reset_session clears the session's part, "
+        "the rest is the process's"
+    ),
+}
+_CONTAINER_MUTATORS = frozenset(
+    {
+        "add",
+        "append",
+        "clear",
+        "discard",
+        "extend",
+        "insert",
+        "pop",
+        "popitem",
+        "remove",
+        "setdefault",
+        "update",
+    }
+)
+
+
+def _module_state_writes(tree: ast.Module) -> set[str]:
+    """Module-level names some function writes: a ``global``, an item, or a container mutator."""
+    top_level: set[str] = set()
+    for statement in tree.body:
+        if isinstance(statement, ast.Assign):
+            top_level.update(t.id for t in statement.targets if isinstance(t, ast.Name))
+        elif isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+            top_level.add(statement.target.id)
+    written: set[str] = set()
+    for function in ast.walk(tree):
+        if not isinstance(function, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        local = {
+            node.id
+            for node in ast.walk(function)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+        } | {node.arg for node in ast.walk(function) if isinstance(node, ast.arg)}
+        for node in ast.walk(function):
+            base = None
+            if isinstance(node, ast.Global):
+                written.update(node.names)
+            elif isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store | ast.Del):
+                base = node.value
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                base = node.func.value if node.func.attr in _CONTAINER_MUTATORS else None
+            if isinstance(base, ast.Name) and base.id in top_level and base.id not in local:
+                written.add(base.id)
+    return written
+
+
+def _host_modules():
+    """``_source_modules`` less the device code, which runs on a board, not in a session."""
+    for rel, tree in _source_modules():
+        if "firmware/" not in rel:
+            yield rel, tree
+
+
+def test_module_state_is_in_ns_or_says_why():
+    """config-load-deterministic: state a function keeps goes in ctx.ns(), or the allowlist says why not.
+
+    The fresh-start comparison in ``test_config_load_state`` only sees state its
+    scenario happens to touch; this catches the next global when it is written.
+    The fix for a red result is ``ctx.ns()``, which the reset empties.  An
+    ``on_config_load`` is not enough: that is a second way to reset, written once
+    per plugin, and one forgotten line of it is the bug this guard exists for.
+    """
+    # Arrange / Act
+    violations = [
+        f"{rel}: {sorted(written)}"
+        for rel, tree in _host_modules()
+        if (written := _module_state_writes(tree)) and rel not in MODULE_STATE_OUTSIDE_NS
+    ]
+
+    # Assert
+    assert violations == [], "module state that belongs in ctx.ns(): " + ", ".join(violations)
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ("_x = 0\ndef f():\n    global _x\n    _x = 1", {"_x"}),
+        ("_x = {}\ndef f():\n    _x[1] = 2", {"_x"}),
+        ("_x = []\ndef f():\n    _x.append(1)", {"_x"}),
+        ("_x = {}\ndef f():\n    del _x[1]", {"_x"}),
+        ("_x = {}\ndef f():\n    return _x[1]", set()),
+        ("_x = {}\ndef f(_x):\n    _x[1] = 2", set()),
+        ("_x = {}\ndef f():\n    _x = {}\n    _x[1] = 2", set()),
+        ("_x = {}\n_x[1] = 2", set()),
+    ],
+)
+def test_module_state_finder_sees_what_a_function_writes(body, expected):
+    """config-load-deterministic: the walk finds each kind of write, and not a read, a local or an import-time table."""
+    # Act
+    actual = _module_state_writes(ast.parse(body))
+
+    # Assert
+    assert actual == expected
+
+
+def test_module_state_allowlist_has_no_stale_entries():
+    """config-load-deterministic: an entry names a module that still writes module-level state."""
+    # Arrange
+    needing = {rel for rel, tree in _host_modules() if _module_state_writes(tree)}
+
+    # Act
+    stale = sorted(set(MODULE_STATE_OUTSIDE_NS) - needing)
+
+    # Assert
+    assert stale == [], f"take these off MODULE_STATE_OUTSIDE_NS: {stale}"

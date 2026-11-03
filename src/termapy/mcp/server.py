@@ -516,8 +516,12 @@ class MCPHost(TerminalHost):
         # agent receives (/term.color on, or the autostart, re-enables it).
         # Default output_level "quiet" so Claude gets results, not
         # progress chatter.  Per-call override via run_command(output=...).
-        self._init_flags(echo_repl=False, device_echo_allowed=False, color=False)
-        self.ctx.ns("flags")["output_level"] = "quiet"
+        self._init_flags(
+            echo_repl=False,
+            device_echo_allowed=False,
+            color=False,
+            output_level="quiet",
+        )
 
     # Profile-load (file) + banner-watch + user on_connect_cmd fire
     # from _on_connected (the TerminalHost override below).  We

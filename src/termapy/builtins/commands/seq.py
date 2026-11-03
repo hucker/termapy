@@ -59,6 +59,11 @@ def on_script_start(ctx: PluginContext) -> None:
     seq["_start_perf"] = time.monotonic()
 
 
+def on_config_load(ctx: PluginContext) -> None:
+    """A load starts the clock again, as a fresh start does; the reset already took the counters."""
+    on_app_prestart(ctx)
+
+
 # ── Handlers ─────────────────────────────────────────────────────────────────
 # A handler's docstring is its developer help: /help.dev <command> prints it
 # and developer /search indexes it, so keep it true (registry handler-docstring).

@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 35
+CURRENT_CONFIG_VERSION = 36
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -777,6 +777,16 @@ def _migrate_v34_to_v35(cfg: dict) -> dict:
 
 
 MIGRATIONS[34] = _migrate_v34_to_v35
+
+
+def _migrate_v35_to_v36(cfg: dict) -> dict:
+    """Add ``color`` (on) and ``output_level`` (normal): a config now starts every session flag."""
+    cfg.setdefault("color", True)
+    cfg.setdefault("output_level", "normal")
+    return cfg
+
+
+MIGRATIONS[35] = _migrate_v35_to_v36
 
 
 def migrate_config(cfg: dict) -> dict:

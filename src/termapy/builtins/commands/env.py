@@ -110,8 +110,8 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
 
     Updates only the in-memory snapshot - does not modify the OS
     environment.  The value is available immediately for $(env.NAME)
-    expansion and persists until the app is restarted or /env.reload
-    is called.
+    expansion and persists until the next config load, /env.reload or
+    the app restarting.
 
     Args:
         ctx: Plugin context for output.
@@ -147,6 +147,12 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=str(len(_ENV)))
 
 
+def on_config_load(ctx: PluginContext) -> None:
+    """A load starts from the process environment: what ``/env.set`` added goes."""
+    _ENV.clear()
+    _ENV.update(os.environ)
+
+
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
 _ENV_PROSE = """\
@@ -160,7 +166,7 @@ Syntax:
 Commands:
   {prefix}env.list              - list all captured variables
   {prefix}env.list path         - the names containing path (USER* globs)
-  {prefix}env.set PORT COM7     - set a session-scoped variable
+  {prefix}env.set PORT COM7     - set a variable until the next config load
   {prefix}env.reload            - re-snapshot from OS environment"""
 
 
@@ -197,7 +203,7 @@ COMMAND = Command(
         ),
         "set": Command(
             args="<name> <value>",
-            help="Set a session-scoped variable (in-memory only).",
+            help="Set a variable until the next config load (in-memory only).",
             long_help=_env_state_line,
             handler=_handler_set,
         ),

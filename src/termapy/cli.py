@@ -272,9 +272,11 @@ class CLITerminal(TerminalHost):
         # typed line, so app-echo would duplicate it (scripts opt in with
         # /term.echo_repl).  Device echo follows cfg echo.  Color off
         # when --no-color so device ANSI is stripped from piped output.
-        self._init_flags(echo_repl=False, color=not self.no_color)
-        if self.output_level is not None:
-            self.ctx.ns("flags")["output_level"] = self.output_level
+        self._init_flags(
+            echo_repl=False,
+            color=False if self.no_color else None,
+            output_level=self.output_level,
+        )
 
     def _register_hooks(self) -> None:
         """Register the CLI's own commands."""

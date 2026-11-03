@@ -25,10 +25,12 @@ class _FakeApp:
         self.config_path = "proj/proj.cfg"
         self.is_connected = False
         self.switched: tuple | None = None
+        self.switch_options: dict[str, bool] = {}
         self.statuses: list[tuple] = []
 
-    def _switch_config(self, cfg, path) -> None:
+    def _switch_config(self, cfg, path, *, keep_connection=False, keep_session=False) -> None:
         self.switched = (cfg, path)
+        self.switch_options = {"keep_connection": keep_connection, "keep_session": keep_session}
 
     def _status(self, msg: str, color: str | None = None) -> None:
         self.statuses.append((msg, color))
@@ -37,7 +39,7 @@ class _FakeApp:
 def test_update_port_handles_readonly_cfg():
     """Switching ports works on the read-only mappingproxy cfg ReplEngine exposes."""
     # Arrange -- a read-only proxied cfg, as after loading a config file
-    original = {"serial": {"port": "COM4", "baud_rate": 115200}, "title": "Mag3"}
+    original = {"serial": {"port": "COM4", "baud_rate": 115200}, "title": "Proj"}
     app = _FakeApp(original)
 
     # Act -- switch COM4 -> COM3 (raised TypeError on the mappingproxy before the fix)
@@ -50,10 +52,24 @@ def test_update_port_handles_readonly_cfg():
     assert path == "proj/proj.cfg", "config_path preserved"
 
 
+def test_update_port_is_not_a_config_load():
+    """config-load-deterministic: a port change keeps the session and the link; the config did not change."""
+    # Arrange
+    app = _FakeApp({"serial": {"port": "COM4"}, "title": "Proj"})
+
+    # Act
+    update_port(app, "COM3")
+
+    # Assert
+    actual = app.switch_options
+    expected = {"keep_connection": True, "keep_session": True}
+    assert actual == expected, "the switch was told it is not a load"
+
+
 def test_update_port_does_not_mutate_the_source_cfg():
     """The switched cfg is a deep copy; editing it never reaches the loaded config."""
     # Arrange
-    original = {"serial": {"port": "COM4"}, "title": "Mag3"}
+    original = {"serial": {"port": "COM4"}, "title": "Proj"}
     app = _FakeApp(original)
 
     # Act

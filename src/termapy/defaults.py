@@ -42,6 +42,9 @@ VALID_FLOW_CONTROLS = {"none", "rtscts", "xonxoff", "manual"}
 # How termapy prints JSON (request mode, --json): one line, indented, or
 # indented and highlighted.  The order is /term.json's cycle order.
 JSON_STYLES = ("compact", "indent", "color")
+# How loud commands are, quietest first.  The order is /term.output's cycle order.
+OUTPUT_LEVELS = ("silent", "quiet", "normal", "verbose")
+DEFAULT_OUTPUT_LEVEL = "normal"
 # Where the custom buttons sit: in the bottom bar, or a column down the
 # left or right edge of the output pane (room for many more).
 CUSTOM_BUTTON_SIDES = ("bottom", "left", "right")
@@ -212,6 +215,9 @@ class CfgKey:
         preview: Shows a typed value in the config editor (a color, a format).
         managed: termapy writes it, never the user: the editor heads its
             help line with a red DO NOT EDIT and ``/cfg`` refuses it.
+        session_flag: The key starts the session flag of the same name
+            (``ctx.ns("flags")``): every load seeds the flag from it, and
+            ``/cfg`` sets both, so the key is what its setter reports.
     """
 
     path: str
@@ -223,6 +229,7 @@ class CfgKey:
     hint: str | Callable[[], str] = ""
     preview: Callable[[str], str] | None = None
     managed: bool = False
+    session_flag: bool = False
 
 
 # Every key, and the layout of every config file: termapy writes a config in
@@ -469,6 +476,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "bool",
         help="Show the lines you send to the device in the output ({prefix}term.echo).",
         hint="true, false",
+        session_flag=True,
     ),
     CfgKey(
         "echo_fmt",
@@ -492,6 +500,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "bool",
         help="Show line numbers in serial output (toggle: {prefix}term.line_no).",
         hint="true, false",
+        session_flag=True,
     ),
     CfgKey(
         "hex",
@@ -499,6 +508,24 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "bool",
         help="Show received bytes as hex instead of text (toggle: {prefix}term.hex).",
         hint="true, false",
+        session_flag=True,
+    ),
+    CfgKey(
+        "color",
+        True,
+        "bool",
+        help="Color in the output, termapy's and the device's ({prefix}term.color).",
+        hint="true, false",
+        session_flag=True,
+    ),
+    CfgKey(
+        "output_level",
+        DEFAULT_OUTPUT_LEVEL,
+        "enum",
+        choices=OUTPUT_LEVELS,
+        help="How loud commands are ({prefix}term.output).",
+        hint="silent, quiet, normal, verbose",
+        session_flag=True,
     ),
     CfgKey(
         "max_lines",
@@ -814,6 +841,8 @@ CFG_CHOICES: dict[str, Collection[object]] = {
 }
 # Keys termapy writes itself, never the user.
 MANAGED_CFG_KEYS = frozenset(_leaf(record) for record in CFG_KEYS if record.managed)
+# Keys that start a session flag of the same name.
+SESSION_FLAG_KEYS = frozenset(_leaf(record) for record in CFG_KEYS if record.session_flag)
 
 _RECORD_BY_PATH = {record.path: record for record in CFG_KEYS}
 _BUTTON_FIELD_BY_NAME = {record.path: record for record in CUSTOM_BUTTON_FIELDS}

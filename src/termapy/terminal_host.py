@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, Any, ClassVar, Final
 
 from termapy import load_report
 from termapy.config import load_config, open_with_system
@@ -599,9 +599,16 @@ class TerminalHost:
         self,
         echo_repl: bool = True,
         device_echo_allowed: bool = True,
-        color: bool = True,
+        color: bool | None = None,
+        output_level: str | None = None,
     ) -> None:
-        """Initialize the ``flags`` namespace with shared engine defaults.
+        """Initialize the ``flags`` namespace from the config, and the host's own rules over it.
+
+        Runs at startup and again at every load (``_reset_session``), with
+        the arguments it was first given: what the user asked for at launch
+        (``--no-color``, ``--quiet``) and what a host requires (MCP's JSON
+        stays uncolored) outlast any config, and everything else is the
+        config's.
 
         There are two independent local echoes, gated by two flags:
 
@@ -633,16 +640,26 @@ class TerminalHost:
                 at all.  True (TUI/CLI) seeds ``flags["echo"]`` from
                 ``cfg["echo"]``; False (MCP, headless) forces it off
                 regardless of cfg.
+            color: Color whatever the config says; ``None`` takes ``cfg["color"]``.
+            output_level: Level whatever the config says; ``None`` takes
+                ``cfg["output_level"]``.
         """
-        from termapy.plugins import DEFAULT_OUTPUT_LEVEL
-
+        self._flag_seeds: dict[str, Any] = {
+            "echo_repl": echo_repl,
+            "device_echo_allowed": device_echo_allowed,
+            "color": color,
+            "output_level": output_level,
+        }
         flags = self.ctx.ns("flags")
         flags.setdefault(
             "echo",
             cfg_value(self.cfg, "echo") if device_echo_allowed else False,
         )
         flags.setdefault("echo_repl", echo_repl)
-        flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
+        flags.setdefault(
+            "output_level",
+            cfg_value(self.cfg, "output_level") if output_level is None else output_level,
+        )
         flags.setdefault("hex", cfg_value(self.cfg, "hex"))
         # Line numbers: the same pattern.  Only the TUI renders them, but
         # the flag is what /term.line_no sets and /term.info reports.
@@ -650,7 +667,25 @@ class TerminalHost:
         # Render device ANSI color (SGR).  Session flag toggled by
         # /term.color; the single source of truth for device color across
         # the TUI (strip before render when off) and CLI (strip in on_lines).
-        flags.setdefault("color", color)
+        flags.setdefault("color", cfg_value(self.cfg, "color") if color is None else color)
+
+    def _reset_session(self) -> None:
+        """Back to what a fresh start on the loaded config has.
+
+        A load's one reset, in every frontend (registry
+        ``config-load-deterministic``): whatever the session did goes, then
+        the flags are seeded from the config just loaded, so what came before
+        cannot change how this config behaves.  A plugin's session state is
+        in ``ctx.ns()``, so this covers it; ``on_config_load`` fires after this
+        for what a cleared dict cannot do.
+        """
+        self._clear_device_state()
+        self.repl.reset_session()
+        self._init_flags(**self._flag_seeds)
+        if self.repl.in_script:
+            # A script calling /cfg.load: its lines stay without echo, and its end
+            # restores the new config's value rather than the old one's.
+            self.repl.hold_script_echo()
 
     # -- Serial I/O -----------------------------------------------------------
 
@@ -786,19 +821,11 @@ class TerminalHost:
         Subclasses may override to add UI updates (title, hw buttons).
 
         cfg_update keys arrive flat (e.g. ``"baud_rate"``) because the
-        port_control producers don't need to know the cfg shape.  Route
-        each key to ``cfg["serial"]`` if it currently lives there;
-        otherwise set it at the top level.  Keeps producers oblivious
-        to schema changes like the v22 serial nesting.
+        port_control producers don't need to know the cfg shape;
+        ``ReplEngine.store_cfg`` routes each one.
         """
-        if effects.get("cfg_update"):
-            cfg = self.repl._cfg_data
-            serial = cfg.get("serial", {})
-            for key, val in effects["cfg_update"].items():
-                if key in serial:
-                    serial[key] = val
-                else:
-                    cfg[key] = val
+        for key, val in effects.get("cfg_update", {}).items():
+            self.repl.store_cfg(key, val)
 
     # -- Port switching ---------------------------------------------------------
 
@@ -867,6 +894,8 @@ class TerminalHost:
         except (OSError, ValueError) as e:
             return CmdResult.fail(msg=f"Cannot load config: {e}")
 
+        if self.capture.active:
+            self._stop_capture()
         if self.engine.is_connected:
             self.repl.fire_lifecycle("on_disconnect")
             self.engine.disconnect()
@@ -881,6 +910,7 @@ class TerminalHost:
         self.cfg = self.repl._cfg_data
         self._leave_breadcrumb()
         self._setup_context()
+        self._reset_session()
         self.repl.fire_lifecycle("on_config_load")
         # auto_connect lives in the newly-loaded cfg -- if the user's
         # saved config wants the port opened on start, honor it here.

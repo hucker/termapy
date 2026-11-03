@@ -438,7 +438,7 @@ Run `/run setup_modbus.run` then `/run test_registers.run`. The variables persis
 | `/var.set NAME val` | Set a variable (explicit command form) |
 | `/var.clear`        | Clear all variables                    |
 
-**Scope:** Variables persist for the interactive session. They are automatically cleared when a script is launched from the Run picker, but *not* when `/run` is typed interactively or called within a script. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
+**Scope:** Variables persist until a config loads, which starts clean. A script is not a load: it sees them however it was launched, and what it sets stays after it ends. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
 
 **Naming:** Variable names are case-sensitive (`$(PORT)` and `$(port)` are different variables). Names must start with a letter or underscore and contain only letters, digits, and underscores.
 
@@ -555,7 +555,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 35,
+    "config_version": 36,
     "title": "",
     "border_color": "",
     "serial": {
@@ -589,6 +589,8 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "timestamps": false,
     "line_no": false,
     "hex": false,
+    "color": true,
+    "output_level": "normal",
     "max_lines": 10000,
     "max_grep_lines": 100,
     "protocol": "text",

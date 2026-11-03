@@ -65,7 +65,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 35,
+    "config_version": 36,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {
@@ -99,6 +99,8 @@ Here is an example config for a device called `iot_device`:
     "timestamps": false,
     "line_no": false,
     "hex": false,
+    "color": true,
+    "output_level": "normal",
     "max_lines": 10000,
     "max_grep_lines": 100,
     "protocol": "text",
@@ -194,6 +196,8 @@ reported as a type warning.
 | `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |
 | `line_no`                     | `false`                       | Show line numbers in serial output |
 | `hex`                         | `false`                       | Display received bytes as hex instead of text |
+| `color`                       | `true`                        | Color in the output, termapy's own and the device's ANSI |
+| `output_level`                | `normal`                      | How loud commands are: `silent`, `quiet`, `normal` or `verbose` |
 | `max_lines`                   | `10000`                       | Scrollback buffer size |
 | `max_grep_lines`              | `100`                         | Maximum lines shown by `/grep` |
 | `protocol`                    | `text`                        | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line) |
@@ -232,6 +236,27 @@ reported as a type warning.
 switch). `auto_reconnect` retries the connection when the port drops or
 a manual connect attempt fails -- it does not control startup behavior.
 While reconnecting, the title bar turns amber and shows a spinner.
+
+## What a load resets
+
+Loading a config puts the session where a fresh start on that config would, so
+the configs you used before cannot change how this one behaves.
+
+- **Back to the config:** `echo`, `hex`, `line_no`, `color`, `output_level` and
+  every other key take the file's value, and `/term.echo_repl` its default.
+- **Gone:** user variables, `/env.set` values, `{seq}` counters and the device
+  profile. The `{starttime}` clock starts again and the find bar closes.
+- **Stopped:** a capture and a recording.
+- **The port:** it opens only if the config says `auto_connect`.
+
+Saving in the config editor counts as a load, except that a connected port
+stays connected. Changing the port from the title bar or the port picker is
+not a load: nothing resets.
+
+Some inputs live outside the config, so they are the same whichever config came
+first: the global `termapy_cfg/plugin/`, `lib/` and `dev/` folders, `$(env.NAME)`
+values from the environment, `TERMAPY_*` switches, and what you asked for at
+launch, such as `--no-color` or `--quiet`.
 
 ## On-connect commands
 

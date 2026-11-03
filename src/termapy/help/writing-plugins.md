@@ -68,7 +68,10 @@ scans the `plugin/` folders for `.py` files: the global folder first,
 then the config's own, later overriding earlier by name. A switch
 drops the previous config's plugins, transforms, hooks and converters
 before the new ones load. A folder plugin can never take the name of one
-of the app's own commands; it is skipped with a warning instead.
+of the app's own commands; it is skipped with a warning instead. A load
+also empties every `ctx.ns()` namespace, so a plugin's session state
+goes there and needs nothing more. `on_config_load` is for what a cleared
+dict cannot do, such as closing a file or telling a widget.
 Each file is imported and checked for a `COMMAND` object at module level.
 If found, that command is registered in the REPL, and users can invoke it
 by typing its name with the command prefix (e.g. `/hello`).

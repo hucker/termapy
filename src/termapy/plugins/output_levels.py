@@ -14,13 +14,20 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from termapy.defaults import DEFAULT_OUTPUT_LEVEL, OUTPUT_LEVELS
 from termapy.markup import escape_markup
 
-#: Canonical level names, ordered from quietest to loudest.
-OUTPUT_LEVELS: tuple[str, ...] = ("silent", "quiet", "normal", "verbose")
-
-#: Default level when nothing has been set explicitly.
-DEFAULT_OUTPUT_LEVEL = "normal"
+__all__ = [
+    "DEFAULT_OUTPUT_LEVEL",
+    "LEVEL_FLAGS",
+    "OUTPUT_LEVELS",
+    "OUTPUT_LEVEL_RANK",
+    "OUTPUT_MIN_RANK",
+    "RESULT_MIN_RANK",
+    "STATUS_MIN_RANK",
+    "format_kv_lines",
+    "parse_output_level",
+]
 
 #: Per-level rank.  Higher rank = louder.
 OUTPUT_LEVEL_RANK: dict[str, int] = {name: rank for rank, name in enumerate(OUTPUT_LEVELS)}

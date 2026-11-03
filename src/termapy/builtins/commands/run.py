@@ -48,6 +48,7 @@ from termapy import run_legacy
 from termapy.builtins.commands._run_record import (
     _LONG_HELP as _RECORD_LONG_HELP,
     _handler as _handler_record,
+    end_recording,
 )
 from termapy.folder_ops import (
     build_folder_subcommands,
@@ -272,8 +273,8 @@ def _handler_last(ctx: PluginContext, args: str) -> CmdResult:
 
 
 # Whether a replay is running, so a replay never starts another.  Module
-# state, as the recorder's is: a context namespace is rebuilt by a config
-# switch, which a replayed /cfg.load makes part way through.
+# state rather than ctx.ns(): a config load empties the namespaces, and a
+# replayed /cfg.load makes one part way through.
 _replaying = False
 
 
@@ -314,6 +315,11 @@ def _replay(ctx: PluginContext, lines: list[str]) -> CmdResult:
             stop.clear()
         ctx.io.result(f"Replay stopped after {ran} of {len(lines)} commands.")
     return CmdResult.ok(value=str(ran))
+
+
+def on_config_load(ctx: PluginContext) -> None:
+    """A recording writes into the config it started in, so a load ends it."""
+    end_recording(ctx)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

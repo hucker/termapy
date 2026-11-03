@@ -86,7 +86,8 @@ def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
     """Query, set or toggle color in the output, termapy's own and the device's ANSI: a session flag."""
     # Session flag the frontends read at each write: the TUI's pane and the
     # CLI's console go plain when it is off, and both strip the device's
-    # SGR escapes before rendering.  Default off under --no-color.
+    # SGR escapes before rendering.  Starts from the config's ``color``;
+    # --no-color and MCP start it off.
     return _bool_setting(ctx, args, "color")
 
 
@@ -588,7 +589,7 @@ COMMAND = Command(
                 "See also: {prefix}term.echo_repl."
             ),
             handler=_handler_echo,
-            cfg={"echo": "seeds the session flag at startup"},
+            cfg={"echo": "the value a load starts from"},
             state=True,
         ),
         "echo_repl": Command(
@@ -624,6 +625,7 @@ COMMAND = Command(
                 "Works in both the TUI and CLI.  Legacy alias: {prefix}color."
             ),
             handler=_handler_color,
+            cfg={"color": "the value a load starts from"},
             state=True,
         ),
         "send": Command(
@@ -690,7 +692,7 @@ COMMAND = Command(
             args="{on|off|toggle}",
             help="Toggle line numbers in serial output (TUI only).",
             handler=_handler_line_no,
-            cfg={"line_no": "seeds the session flag at startup"},
+            cfg={"line_no": "the value a load starts from"},
             needs=CapabilitySet.TUI_MODE,
             state=True,
         ),
@@ -773,6 +775,7 @@ COMMAND = Command(
                 "(e.g. ``{prefix}port.list.quiet`` or ``{prefix}cap show foo --silent``)."
             ),
             handler=_handler_output,
+            cfg={"output_level": "the value a load starts from"},
             state=True,
         ),
         "verbose": Command(
@@ -804,7 +807,7 @@ COMMAND = Command(
                 "shown in hex. {prefix}proto.hex sets the same flag."
             ),
             handler=_handler_hex,
-            cfg={"hex": "seeds the session flag at startup"},
+            cfg={"hex": "the value a load starts from"},
             state=True,
         ),
         "request": Command(

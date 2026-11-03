@@ -314,6 +314,15 @@ class PluginContext:
             self._namespaces[name] = {}
         return self._namespaces[name]
 
+    def reset_namespaces(self) -> None:
+        """Empty every namespace: what a config load starts from.
+
+        In place, because a plugin may keep the dict ``ns`` handed it, and
+        that reference has to stay the session's namespace after the load.
+        """
+        for namespace in self._namespaces.values():
+            namespace.clear()
+
     def flag(self, name: str) -> bool:
         """Return True if the given flag was passed on the invoking command.
 

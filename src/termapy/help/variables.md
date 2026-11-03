@@ -107,8 +107,8 @@ value and cannot become a flag, a keyword, or a counter bump.
 
 **Dynamic** variables update each time they are expanded.
 **Launch** variables are frozen when the app starts.
-**Session** variables are set once when a script launches from the
-Scripts button or Run menu.
+**Session** variables are set when an outermost script starts, however
+it was launched.
 
 ### Custom time formats
 
@@ -257,8 +257,9 @@ send the text with no line ending either:
 
 ## Scope
 
-User variables persist for the session. They are cleared automatically
-when a script launches from the Scripts button or Run menu, but NOT
-when `/run` is typed interactively. Use `/var.clear` to reset manually.
+User variables persist until a config loads, which starts clean. A script
+is not a load: it sees them however it was launched, and what it sets stays
+after it ends. For a known start, make `/cfg.load` its first line. Use
+`/var.clear` to reset manually.
 
 ---

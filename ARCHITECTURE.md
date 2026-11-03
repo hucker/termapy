@@ -469,6 +469,10 @@ Some things must be running before the session starts, and depend on nothing the
 
 ### One config-load pass
 
+A load first calls `TerminalHost._reset_session`, which forgets the session and
+seeds the flags from the new config (registry `config-load-deterministic`), then
+fires this pass. A start has nothing to forget and goes straight to the pass.
+
 ```text
 fire_lifecycle("on_app_start" | "on_config_load")
   → prune empty data folders       folders.prune_empty_folders
@@ -911,6 +915,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_cli_zero_config.py             | End-to-end tests for zero-config CLI mode                                                                                                          |
 | test_commands_doc_sync.py           | Freshness guard: every command listed in help/commands.md must exist                                                                               |
 | test_config_create.py               | Tests for creating a config: `config.new_config`, `config.create_config` and `--new`                                                               |
+| test_config_load_state.py           | A config load ends with what a fresh start on that config has, whatever ran before                                                                 |
 | test_config_reference_sync.py       | Guard the config field-reference table against drift                                                                                               |
 | test_config_rename.py               | Tests for `config.rename_config`, `config.delete_config` and `config.validate_file_stem`                                                           |
 | test_crc_builtins.py                | Tests for built-in CRC checksum modules (sum8, sum16)                                                                                              |

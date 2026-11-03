@@ -816,7 +816,9 @@ class LifecycleHook:
                             guaranteed on crash.
     - ``on_connect``      - fires after the serial port is successfully opened.
     - ``on_disconnect``   - fires before the serial port is closed (user-initiated).
-    - ``on_config_load``  - fires after switching to a new config via ``/cfg.load``.
+    - ``on_config_load``  - fires after switching to a new config via ``/cfg.load``,
+      with the namespaces already emptied; a plugin does here what a cleared dict
+      cannot, such as closing a file or telling a widget.
     - ``on_script_start`` - fires when a script begins executing.
     - ``on_script_stop``  - fires after a script finishes, including on
                             ``/stop`` or exception.  Mirrors ``on_script_start``.

@@ -95,6 +95,36 @@ demo> /cfg.auto echo false
   echo = False  (session)
 demo> /cfg echo
   False
+demo> /term.echo
+  off
+demo> /cfg.auto echo true
+  echo = True  (session)
+demo> /cfg.auto output_level quiet
+  output_level = 'quiet'  (session)
+demo> /term.output
+  quiet
+demo> /cfg.auto output_level normal
+  output_level = 'normal'  (session)
+demo> /term.output
+  normal
+demo> /cfg.auto output_level loud
+  Error: Invalid output_level: loud (use normal/quiet/silent/verbose)
+demo> /help output_level
+NAME
+  output_level - How loud commands are (/term.output).
+
+VALUE
+  output_level = "normal"
+  Valid: silent, quiet, normal, verbose
+
+FILE
+  demo.cfg  "output_level": "normal"
+  The active config, JSON, in its own folder.  /cfg.edit opens it in the editor (Ctrl+F finds a key); /help.open config explains the file.
+
+USED BY
+  /term.output  the value a load starts from
+
+  A change by /cfg output_level <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
 demo> /cfg.auto custom_buttons_side Right
   custom_buttons_side = 'right'  (session)
 demo> /cfg custom_buttons_side
@@ -115,7 +145,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 35,
+      "config_version": 36,
       "title": "Demo Device",
       "border_color": "",
       "serial": {
@@ -144,11 +174,13 @@ demo> /cfg.dump
       "multiline_paste": true,
       "multiline_paste_delay_ms": 10,
       "control_keys": true,
-      "echo": false,
+      "echo": true,
       "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
       "timestamps": false,
       "line_no": false,
       "hex": false,
+      "color": true,
+      "output_level": "normal",
       "max_lines": 10000,
       "max_grep_lines": 100,
       "protocol": "text",
@@ -829,7 +861,7 @@ DESCRIPTION
   Named values you set or capture from a command or a device reply, then
   use in any command as $(NAME).
 
-  Currently defined: 0 user, 6 datetime, 15 context, 1 launch
+  Currently defined: 0 user, 9 datetime, 15 context, 1 launch
 
   User-defined variables use $(NAME) syntax (case-sensitive).
 
@@ -891,9 +923,9 @@ DESCRIPTION
     \$(PORT)           - literal $(PORT) (not expanded)
     /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
 
-  Scope: variables persist for the session. They are cleared
-  automatically when a script is launched from the Scripts button
-  or the Run menu, but NOT when /run is typed interactively.
+  Scope: variables persist until a config loads, which starts clean.
+  A script is not a load: it sees them however it was launched, and what
+  it sets stays after it ends.
   Use /var.clear to reset manually.
 
 AVAILABLE
@@ -2054,4 +2086,39 @@ demo> /port.info
   DSR: 1
   RI : 0
   CD : 1
+demo> /print === section: a load starts clean ===
+  === section: a load starts clean ===
+demo> /help cfg.load
+NAME
+  /cfg.load - Load a different config in this session (hot-swap).
+
+STATUS
+  stable - tested and part of the standard release
+
+SYNOPSIS
+  /cfg.load <name>
+
+DESCRIPTION
+  Puts the session where a fresh start on that config would: what this session changed is gone, including settings, user variables, /env.set values, counters and the device profile.  A capture or a recording stops.  The port opens only if the config says auto_connect.  What you asked for at launch, such as --no-color or --quiet, still holds.
+
+AVAILABLE
+  TUI: yes   CLI: yes (current)   MCP: yes
+
+SEE ALSO
+  /cfg.auto, /cfg.delete, /cfg.dump, /cfg.edit, /cfg.explore, /cfg.file, /cfg.help, /cfg.icon, /cfg.info, /cfg.list, /cfg.loaded, /cfg.new, /cfg.rename, /cfg.show, /cfg
+demo> /var.set GOLD_LOAD_VAR 1
+  $(GOLD_LOAD_VAR) = 1
+demo> /env.set GOLD_LOAD_ENV 1
+    GOLD_LOAD_ENV=1
+demo> /print {seq7+}
+  1
+demo> /term.output verbose
+  verbose
+demo> /cfg.load demo
+Connected: DEMO
+  Loaded config: demo
+  normal
+    $(GOLD_LOAD_VAR) - not defined
+  Environment snapshot - empty
+  1
 Disconnected: DEMO

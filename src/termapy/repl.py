@@ -20,7 +20,7 @@ from threading import Event
 from types import MappingProxyType
 
 from termapy import load_report
-from termapy.defaults import cfg_value, cmd_prefix, quiet_start
+from termapy.defaults import SESSION_FLAG_KEYS, cfg_value, cmd_prefix, quiet_start
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
 from termapy.folder_ops import list_entries
 from termapy.folders import (
@@ -2140,17 +2140,30 @@ class ReplEngine:
 
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
 
+    def reset_session(self) -> None:
+        """Forget what this session did: a config load's first step.
+
+        The namespaces and the user variables go, and the once-a-session
+        prototype notes start over (registry ``config-load-deterministic``).
+        A running script keeps the SESSION_* moment it froze, since the rest
+        of its lines may still read it.
+        """
+        from termapy.variables import clear_start_time_vars, clear_vars
+
+        self.ctx.reset_namespaces()
+        clear_vars()
+        self._prototypes_noted.clear()
+        if not self.in_script:
+            clear_start_time_vars()
+
     def replace_cfg(self, cfg: dict, path: str) -> None:
         """Replace config wholesale (called by app on load/edit)."""
         self._cfg_data.clear()
         self._cfg_data.update(cfg)
         self.config_path = path
 
-    def _apply_cfg(self, key: str, new_val) -> None:
-        """Apply a config change for this session (not saved to disk).
-
-        The config editor is the only path that persists changes to disk.
-        This keeps $(env.NAME) templates in the JSON file intact.
+    def store_cfg(self, key: str, new_val) -> None:
+        """Put a session value in the config, and in the session flag it starts.
 
         ``key`` may be a top-level cfg key or a pyserial key that lives
         under cfg["serial"] (post-v22).  Route to wherever it currently
@@ -2161,6 +2174,16 @@ class ReplEngine:
             serial[key] = new_val
         else:
             self._cfg_data[key] = new_val
+        if key in SESSION_FLAG_KEYS:
+            self.ctx.ns("flags")[key] = new_val
+
+    def _apply_cfg(self, key: str, new_val) -> None:
+        """Apply a config change for this session (not saved to disk).
+
+        The config editor is the only path that persists changes to disk.
+        This keeps $(env.NAME) templates in the JSON file intact.
+        """
+        self.store_cfg(key, new_val)
         self.write(f"{key} = {new_val!r}  (session)", "green")
         if self._after_cfg:
             self._after_cfg(key, new_val)
@@ -2281,6 +2304,11 @@ class ReplEngine:
         self._script_depth += 1
         self._script_stack.append(path.name)
         if outermost:
+            # Here and nowhere else, so every launch starts a script the same
+            # way (registry ``script-start-one-way``).
+            from termapy.variables import set_start_time_vars
+
+            set_start_time_vars()
             # on_script_start fires for the outermost script only.  The seq
             # plugin clears counters and refreshes {starttime} from its hook.
             self.fire_lifecycle("on_script_start")
@@ -2296,9 +2324,7 @@ class ReplEngine:
             # /term.echo_repl on; the user's interactive value is saved
             # here and restored when the outermost script ends.  Device
             # echo (self.echo) is untouched, so device commands still echo.
-            flags = self.ctx.ns("flags")
-            self._echo_repl_before_script = flags.get("echo_repl", False)
-            flags["echo_repl"] = False
+            self.hold_script_echo()
         self.ctx.io.status(f"Running script: {filename}")
         # Caller pairs this with the resolved Path; auto-resolve gives
         # absolute string at the value site.
@@ -2582,6 +2608,12 @@ class ReplEngine:
     def echo_repl(self) -> bool:
         """Live REPL/slash-command echo (/cfg, /help, ...)."""
         return self.ctx.ns("flags").get("echo_repl", False)
+
+    def hold_script_echo(self) -> None:
+        """Turn REPL echo off for the run, keeping the current value for when it ends."""
+        flags = self.ctx.ns("flags")
+        self._echo_repl_before_script = flags.get("echo_repl", False)
+        flags["echo_repl"] = False
 
     @property
     def in_script(self) -> bool:

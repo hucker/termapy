@@ -790,6 +790,14 @@ COMMAND = Command(
         "load": Command(
             args="<name>",
             help="Load a different config in this session (hot-swap).",
+            long_help=(
+                "Puts the session where a fresh start on that config would: what "
+                "this session changed is gone, including settings, user variables, "
+                "{prefix}env.set values, counters and the device profile.  A capture or a "
+                "recording stops.  The port opens only if the config says "
+                "auto_connect.  What you asked for at launch, such as --no-color or "
+                "--quiet, still holds."
+            ),
             handler=_handler_load,
         ),
         "loaded": Command(

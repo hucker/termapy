@@ -72,7 +72,7 @@ def on_config_result(app, result: tuple | None) -> None:
     config_warnings = expand_warnings + validate_config(new_cfg)
     if config_warnings:
         new_cfg["_config_warnings"] = config_warnings
-    app._switch_config(new_cfg, new_path)
+    app._switch_config(new_cfg, new_path, keep_connection=True)
     if config_warnings:
         detail = "\n".join(config_warnings)
         app.notify(detail, severity="warning", timeout=15)
@@ -202,10 +202,6 @@ def on_script_picked(app, result: tuple | None) -> None:
     if action == "rename":
         prompt_rename(app, result[1], "run")
     elif action == "run":
-        from termapy.variables import clear_vars, set_start_time_vars
-
-        clear_vars()
-        set_start_time_vars()
         path, _ = app.repl.start_script(result[1])
         if path:
             app._run_script(path)

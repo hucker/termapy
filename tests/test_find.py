@@ -2,7 +2,7 @@
 
 Covers:
 
-- /find <pattern> populates module state, indexes to first match.
+- /find <pattern> populates the search state, indexes to first match.
 - /find with no args closes any active search.
 - /find xyz (no matches) sets total=0 / index=-1.
 - /find.next / /find.prev wrap around at boundaries.
@@ -72,15 +72,12 @@ def env(tmp_path, monkeypatch):
     payloads: list = []
     eng.ctx.internal.update_find_bar = payloads.append
 
-    # Reset module-level state before the test.
-    _find._active = None
-    _find._max_count = _find._DEFAULT_MAX_COUNT
+    return eng, payloads, scrollback_lines
 
-    yield eng, payloads, scrollback_lines
 
-    # And after, so the next test starts clean.
-    _find._active = None
-    _find._max_count = _find._DEFAULT_MAX_COUNT
+def _search(eng):
+    """The open search, as the namespace holds it, or None."""
+    return eng.ctx.ns("find").get("active")
 
 
 class TestFindHandler:
@@ -94,10 +91,10 @@ class TestFindHandler:
 
         # Assert
         assert result.success, f"find succeeded: {result.error!r}"
-        assert _find._active is not None, "module state populated"
-        assert _find._active.pattern == "AT", "pattern stored"
-        assert len(_find._active.matches) == 3, "three AT-matching lines"
-        assert _find._active.current == 0, "seeks to first match"
+        assert _search(eng) is not None, "search state populated"
+        assert _search(eng).pattern == "AT", "pattern stored"
+        assert len(_search(eng).matches) == 3, "three AT-matching lines"
+        assert _search(eng).current == 0, "seeks to first match"
         # The UI was told the new state.
         assert len(payloads) == 1, "update_find_bar called once"
         assert payloads[0]["total"] == 3, "payload reports 3 matches"
@@ -115,7 +112,7 @@ class TestFindHandler:
 
         # Assert
         assert result.success, "bare /find succeeds"
-        assert _find._active is None, "state cleared"
+        assert _search(eng) is None, "state cleared"
         assert payloads == [None], "UI told to hide (state=None)"
 
     def test_find_no_matches_reports_zero_total(self, env):
@@ -127,8 +124,8 @@ class TestFindHandler:
         # Assert -- handler still succeeds (a zero-result search is
         # a valid outcome, not an error), but the FindBar shows 0/0.
         assert result.success, "zero-match search is still a success"
-        assert _find._active is not None, "state still populated"
-        assert _find._active.matches == [], "empty match list"
+        assert _search(eng) is not None, "state still populated"
+        assert _search(eng).matches == [], "empty match list"
         assert payloads[-1]["total"] == 0, "payload total=0"
         assert payloads[-1]["index"] == -1, "payload index=-1 sentinel"
 
@@ -139,8 +136,8 @@ class TestFindHandler:
         eng.dispatch("find error")
 
         # Assert
-        assert _find._active is not None, "state populated"
-        assert len(_find._active.matches) == 2, "two ERROR lines matched case-insensitively"
+        assert _search(eng) is not None, "state populated"
+        assert len(_search(eng).matches) == 2, "two ERROR lines matched case-insensitively"
 
 
 class TestNextPrev:
@@ -153,15 +150,15 @@ class TestNextPrev:
 
         # Act -- next, next, next (should wrap back to 0).
         eng.dispatch("find.next")
-        active = _find._active
+        active = _search(eng)
         assert active is not None and active.current == 1, "after one next: index 1"
         eng.dispatch("find.next")
-        active = _find._active
+        active = _search(eng)
         assert active is not None and active.current == 2, "after two next: index 2"
         eng.dispatch("find.next")
 
         # Assert -- third next wraps to 0.
-        active = _find._active
+        active = _search(eng)
         assert active is not None and active.current == 0, "wraps to 0 at end"
         # All three steps pushed payloads.
         assert len(payloads) == 3, "three update_find_bar calls"
@@ -176,7 +173,7 @@ class TestNextPrev:
         eng.dispatch("find.prev")
 
         # Assert
-        active = _find._active
+        active = _search(eng)
         assert active is not None and active.current == 2, "wraps from 0 to last index"
 
     def test_next_without_active_search_fails(self, env):
@@ -215,7 +212,7 @@ class TestClear:
 
         # Assert
         assert result.success, "clear succeeds"
-        assert _find._active is None, "state gone"
+        assert _search(eng) is None, "state gone"
         assert payloads == [None], "UI told to hide"
 
     def test_clear_on_idle_is_silent_success(self, env):
@@ -226,7 +223,7 @@ class TestClear:
 
         # Assert -- silent success; UI is still told to hide (idempotent).
         assert result.success, "clear is idempotent"
-        assert _find._active is None, "still cleared"
+        assert _search(eng) is None, "still cleared"
         assert payloads == [None], "UI told to hide (idempotent)"
 
 
@@ -242,7 +239,7 @@ class TestUiCallback:
 
         # Assert
         assert result.success, "no-UI host still runs /find logic"
-        assert _find._active is not None, "state still populated"
+        assert _search(eng) is not None, "state still populated"
 
     def test_payload_carries_line_no_and_snippet(self, env):
         """The UI payload gives the 1-based line number and text of the current match."""
@@ -345,7 +342,7 @@ class TestMaxCount:
             "message names the actual count and the current cap"
         )
         assert "find.max_count" in result.error, "message suggests the override command"
-        assert _find._active is None, "no state populated on refuse"
+        assert _search(eng) is None, "no state populated on refuse"
 
     def test_max_count_override_raises_cap(self, env, monkeypatch):
         """Raising the cap with /find.max_count lets a 150-match search through."""
@@ -360,9 +357,9 @@ class TestMaxCount:
 
         # Assert
         assert raise_result.success, "raising the cap succeeds"
-        assert _find._max_count == 200, "module state updated"
+        assert eng.ctx.ns("find")["max_count"] == 200, "the cap moved"
         assert result.success, "find now under the new cap"
-        assert _find._active is not None and len(_find._active.matches) == 150
+        assert _search(eng) is not None and len(_search(eng).matches) == 150
 
     def test_max_count_bare_shows_current(self, env):
         """Bare /find.max_count queries the cap and changes nothing."""
@@ -412,7 +409,7 @@ class TestStateShape:
         # Assert -- payload carries the full match list AND the
         # captured scrollback so the UI can construct the
         # highlighted snapshot in one pass.
-        state = _find.current_state()
+        state = _find.current_state(eng.ctx)
         assert state is not None, "active state returned"
         assert "matches" in state, "includes the match list"
         assert len(state["matches"]) == 3, "all three AT matches present"
@@ -424,8 +421,10 @@ class TestStateShape:
     def test_idle_state_returns_none(self, env):
         """With no search open, current_state() is None, which tells the UI to hide."""
         # Arrange -- no /find ran.
+        eng, _, _ = env
+
         # Act
-        state = _find.current_state()
+        state = _find.current_state(eng.ctx)
 
         # Assert
         assert state is None, "idle -> None (signals UI to hide)"

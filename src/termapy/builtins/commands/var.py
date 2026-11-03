@@ -347,9 +347,9 @@ Escaping (when your data contains literal $):
   \\$(PORT)           - literal $(PORT) (not expanded)
   {prefix}raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
 
-Scope: variables persist for the session. They are cleared
-automatically when a script is launched from the Scripts button
-or the Run menu, but NOT when {prefix}run is typed interactively.
+Scope: variables persist until a config loads, which starts clean.
+A script is not a load: it sees them however it was launched, and what
+it sets stays after it ends.
 Use {prefix}var.clear to reset manually."""
 
 

@@ -860,7 +860,7 @@ class TerminalHost:
         (the TUI) override this to surface a frontend-appropriate
         message.
         """
-        path = resolve_config(name)
+        path = self._resolve_config_name(name)
         if path is None:
             from termapy.config import config_names
             from termapy.matching import closest, did_you_mean
@@ -876,6 +876,10 @@ class TerminalHost:
         if result.success:
             self.status(f"Loaded config: {Path(path).stem}", "green")
         return result
+
+    def _resolve_config_name(self, name: str) -> str | None:
+        """The file ``/cfg.load`` takes ``name`` to mean, or None; a host may narrow it."""
+        return resolve_config(name)
 
     def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
         """Disconnect, replace the in-memory cfg, and reconnect.

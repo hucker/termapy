@@ -940,3 +940,45 @@ These are limits on termapy's own commands, and they are not containment. A clie
 that can write files some other way needs only to learn the folder names, and Chuck
 was plain about that: "that isn't my problem". The MCP client's own permissions remain
 the real boundary, as `help/mcp-server.md` says.
+
+## 2026-11-03 — An MCP server finds its project's config, and may switch within it
+
+Amends 2026-05-03, "One MCP server per config with a profile". Its reasons stand for a
+device: one process owns one port, and two devices at once are two servers. But
+`/cfg.load` has worked under MCP since 2026-05-10, a week after that entry, while the help
+still said "No hot-swap". So `termapy --mcp` with no config worked by luck: the working
+folder happened to be the workspace, which Claude Code's docs do not promise, and an agent
+ran `/cfg.load m3_bin`.
+
+Chuck's rules (registry `mcp-finds-its-config`): from `CLAUDE_PROJECT_DIR`, the project
+root Claude Code sets for a server so it need not depend on its working folder, or else
+that folder, use the first of `./termapy_cfg`, `./src/termapy_cfg`, `./source/termapy_cfg`.
+Start on a config named at launch, else the only config, else the only `mcp_*`; with
+several `mcp_*`, the first whose port opens. "It should continue on", so a second server
+moves to `mcp_cfg2` when `mcp_cfg1` is busy. Otherwise start with none and tell the agent
+what it can load: "you have a path to be explicit and you have a fall through."
+
+"The highest priority is the command line, everything else is hierarchical convenience."
+So a config named at launch is the only choice: if it does not exist the server exits with
+an error, as `--cfg-dir` naming a missing folder does, instead of an agent carrying on
+with another device's config. A config named by its path brings its folder. And an agent
+cannot move a server off a config the command line named: `termapy-left` would otherwise
+drive the right board under a name that no longer says so. Only a config the rules chose,
+or none, can be left, which keeps the no-lockout case. That is also Chuck's daily setup:
+`termapy-a` and `termapy-b` are two identical entries naming no config, "so I can debug
+two ports at the same time", and the agent loads a device into each.
+
+Unless the launch named a config, an agent may load any in that folder by bare name,
+because "those are related to your project". Pinning every server to its first config was
+considered and dropped: with several devices, "you don't want to be locked out". A `.mcp`
+manifest was rejected
+because a project's `.mcp.json` already names a config, and an `mcp-enable` config key
+because, with loading open, it would only pick a default. A "never for agents" key is the
+one use that would earn it; not until a device needs it. There is no fallback to the OS
+config folder: a user-scope server enabled in an unrelated project must not see the
+user's other configs.
+
+The chain needed `exclusive=True` on the open (registry `port-open-exclusive`). Without it
+only Windows refuses a second open, and on Linux or macOS a second server would share the
+first device and split its bytes. The chain loads each config before trying its port
+rather than trial-opening first, because an open and close can reset a board through DTR.

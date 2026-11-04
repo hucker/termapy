@@ -982,6 +982,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_maturity.py                    | maturity-declared-once: each command says how settled it is, and every surface reads that one value                                                |
 | test_mcp_boundary.py                | What an MCP client can never do to the host: no shell, no rename or delete, no code written                                                        |
 | test_mcp_cfg_load.py                | Tests for /cfg.load via MCP frontend                                                                                                               |
+| test_mcp_config_discovery.py        | How an MCP server finds its project's config folder and its config at launch                                                                       |
 | test_mcp_entry.py                   | Tests for the --mcp / --mcp-verbose entry-point wiring                                                                                             |
 | test_mcp_lifecycle.py               | Tests for MCP lifecycle: profile-load rejection, on-connect fetch, banner watcher                                                                  |
 | test_mcp_plugin.py                  | Tests for the /mcp.* REPL plugin                                                                                                                   |

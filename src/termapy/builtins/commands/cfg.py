@@ -17,6 +17,7 @@ from termapy.builtins.commands._cfg_icon import (
     retire_launcher,
 )
 from termapy.config import (
+    CONFIG_GLOB,
     ConfigExistsError,
     cfg_choice,
     cfg_data_dir,
@@ -30,6 +31,7 @@ from termapy.config import (
     delete_config,
     delete_config_question,
     global_plugins_dir,
+    is_config_file,
     new_config_from_args,
     open_with_system,
     rename_config,
@@ -204,7 +206,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         args: Unused.
     """
     root = cfg_dir()
-    paths = list_entries(root, "*/*.cfg")
+    paths = [path for path in list_entries(root, CONFIG_GLOB) if is_config_file(path)]
     records = [
         {
             **file_record(path),

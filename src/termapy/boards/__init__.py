@@ -38,7 +38,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.config import config_summary, create_config, new_config
+from termapy.config import config_files, config_summary, create_config, new_config
 from termapy.firmware import copy_files
 from termapy.folders import FIRMWARE, PROFILE_SUFFIX, ensure_folder
 from termapy.port_control import PortSource, list_port_records
@@ -269,7 +269,7 @@ def configs_for_serial(cfg_root: Path, serial: str) -> list[Path]:
     needle = serial.lower()
     return [
         path
-        for path in sorted(cfg_root.glob("*/*.cfg"))
+        for path in config_files(cfg_root)
         if needle in (part.strip().lower() for part in config_summary(path)["port"].split("|"))
     ]
 

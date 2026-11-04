@@ -4,25 +4,105 @@
 
 Termapy can run as an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server, letting an LLM client like Claude drive your serial device through a typed JSON tool surface.
 
-Bare form -- auto-discovers a single `.cfg` under `./termapy_cfg/` (or the OS config dir):
+With one config in your project's `termapy_cfg/`, the server needs no arguments:
 
 ```sh
 termapy --mcp
 ```
 
-Explicit form -- point at a specific cfg file (recommended for MCP client configs, where cwd is non-deterministic):
+Or name the config, which also keeps the server on it:
 
 ```sh
-termapy --mcp termapy_cfg/mydevice/mydevice.cfg
+termapy --mcp mydevice
 ```
 
-Either way, the server starts a stdio loop bound to one device.  No interactive UI; it speaks MCP frames on stdin/stdout and exposes one tool, `run_command`, for the client to call.
-
-## Architecture: one server per device
-
-Each cfg is its own server process.  Two devices on the bench means two `termapy --mcp` processes -- different ports, different profiles, never conflict.  No hot-swap; if you want a different device, point a different MCP client entry at a different cfg.
+Either way, the server starts a stdio loop that drives one device at a time.  No interactive UI; it speaks MCP frames on stdin/stdout and exposes one tool, `run_command`, for the client to call.
 
 Requires the `[mcp]` install extra (or `[all]`).  See [Installation](installation.md).
+
+## Which setup do you have?
+
+One config is the simple case.  The rest of this section only matters once a project has more.
+
+| Your project | What to do | What happens |
+| --- | --- | --- |
+| One config | Nothing | The server starts on it |
+| Several configs, one you usually want | Name it `mcp_<anything>` | The server starts on it, and an agent can still load the others |
+| Several configs, no usual one | Nothing | The server starts with none, and the agent is told what it can load |
+| A server that must only ever be one device | `--mcp mydevice` | The server starts on it and stays there |
+| Two devices at once | Two servers | See [Two devices at once](#two-devices-at-once) |
+
+Starting with no config is not an error.  The agent is told on connecting which config it has or why it has none, and what it can load, and a `No config loaded.` reply lists the choices too.
+
+## How it finds its config
+
+The command line comes first, and everything else is convenience for when you don't say.
+
+**The folder,** first match wins:
+
+1. `--cfg-dir <folder>`
+2. `TERMAPY_CFG_DIR`
+3. The folder of a config named by its path (`--mcp C:/work/termapy_cfg/mydevice/mydevice.cfg`)
+4. The first of these that exists, in the project's folder: `./termapy_cfg`, `./src/termapy_cfg`, `./source/termapy_cfg`
+
+A `--cfg-dir` or `TERMAPY_CFG_DIR` that does not exist stops the server with an error.  With none of the rest found the project has no configs: the server does not fall back to the OS config folder, so one enabled for an unrelated project sees nothing of your others.
+
+**The config it starts on,** first match wins:
+
+| Found | Starts on |
+| --- | --- |
+| A config named at launch (`--mcp left`) | That one, and it stays there.  If it does not exist the server exits with an error, and tries nothing else.  If its port fails it is not connected, and tries nothing else |
+| Exactly one config | That one |
+| Exactly one named `mcp_*` | That one |
+| Several named `mcp_*` | The first in name order whose port opens; with none open, the first, not connected |
+| Several, none named `mcp_*` | None |
+| No configs | None |
+
+A config is `<name>/<name>.cfg`.  Another `.cfg` in that folder does not count.
+
+**While running,** an agent can load any config in the folder by its bare name, `/cfg.load mydevice`, unless the launch named a config.  A path or any other file is refused.  Those configs belong to the project, but loading one runs its plugins and on-connect commands and opens its port, so an agent can pick the wrong device.  When that matters, name the config at launch.
+
+## When the server runs, and what it is called
+
+- **The name is yours.**  It is the name you gave `claude mcp add` or the key in `.mcp.json`, and the agent's tool is built from it: `mcp__termapy-a__run_command`.  It selects nothing: `termapy-a` is not tied to any device unless its arguments name a config, and two entries with the same command are two servers that follow the same rules.
+- **It starts with the session.**  Claude Code starts its own copy of each enabled server when a session starts, before any tool is used, and stops it when the session ends.
+- **A server holds its port while it runs,** even with the agent idle, and nothing else can open that port on any OS.  So the TUI gets "port busy" on that device, and a second chat in the same project starts a second server that cannot open it either.  Disable the server in `/mcp` to get the port back.
+- **The project is where the session started:** the workspace folder in VS Code, or the folder you ran `claude` in.  From `src/`, the project is `src/`, so `./termapy_cfg` means `src/termapy_cfg`.  Claude Code passes this as `CLAUDE_PROJECT_DIR`; with another client it is the working folder that client gave the server.  A client with no project, like Claude Desktop, should name a config by its full path.
+- **Enable and Disable in `/mcp`** are remembered per project.  Enabling also starts the server in the session you are in, with no restart, and later sessions start it by themselves.  On Windows, VS Code and a terminal `claude` can count as different projects, because they spell the drive letter differently (`c:` and `C:`), so enabling in one may not carry to the other.  A server that exits, as it does on a missing named config, is marked failed; **Reconnect** in `/mcp` starts it again.
+
+## Two devices at once
+
+A server drives one device at a time, so two at once take two servers.
+
+**Two free servers,** for debugging two ports when which two keeps changing.  Register two entries that name no config:
+
+```sh
+claude mcp add --scope user termapy-a -- termapy --mcp
+claude mcp add --scope user termapy-b -- termapy --mcp
+```
+
+In a project with several configs and no `mcp_*`, each starts with no config and holds no port, so your TUI keeps its devices until an agent needs one.  Then tell the agent which goes where ("`demo` on termapy-a, `pico` on termapy-b"), and each loads its own with `/cfg.load`.  If one is told to load a config whose port the other holds, the load succeeds, the reply says `Cannot open ...`, and `/port.connect` works once the other lets go.  In a project with one config or one `mcp_*`, both start on it: the first gets the port, and the second is not connected until it loads another.
+
+**Named servers,** when each server always means one device.  Name its config in a project `.mcp.json`, one entry per device, with no absolute paths:
+
+```json
+{
+    "mcpServers": {
+        "termapy-left": { "command": "termapy", "args": ["--mcp", "left"] },
+        "termapy-right": { "command": "termapy", "args": ["--mcp", "right"] }
+    }
+}
+```
+
+Each server stays on its config, so `termapy-left` always means the left device.
+
+**The chain,** a shortcut with no agent or entry to set up: name the configs `mcp_left` and `mcp_right` and give both servers a bare `--mcp`.  The first takes `mcp_left`, and the second finds that port busy and moves on to `mcp_right`.  Be careful with it, because a port opening does not mean it is the device you wanted:
+
+- Which server gets which device follows start order, so it can change between restarts.
+- If `mcp_left`'s device is unplugged, a server lands on `mcp_right`'s.
+- A second chat in the project starts more servers, which take whatever is free.
+
+Each config the chain tries is loaded before its port is, plugins included.  When an agent must know which server is which device, name the configs at launch.
 
 ---
 
@@ -140,7 +220,7 @@ The MCP server runs with no interactive session, so termapy's capability gate bl
 - **Code folders can't be written.**  `plugin/` and `viz/` hold Python that runs at the next load, so nothing an agent runs can write there, whichever command names the folder, and no flag changes that.
 - **A write never replaces a file.**  Writing over a file destroys it as a delete does, so `/cap.text`, `/cap.bin`, `/cap.struct`, `/cap.hex`, `/cap.poll --overwrite`, `/proto.crc.<lang> file=` and `/profile.save` refuse a name that exists; use a new one.  A capture may still append (`mode=append`).  Files termapy generates for itself are the exception: `/sym.import` and `/dev.import` replace their own.
 - **File viewers / editors / explorers** (`/show <path>`, `/edit`, `/cfg.explore`, the folder `.show`/`.explore` verbs) are unreachable -- they need a local desktop.
-- **File access is meant to stay inside the config directory, and mostly does.**  Captures (`/cap.text|bin|struct|hex`, `/cap.poll file=`), reads (`termapy://capture/<name>`, the `.dump` commands), `/profile.load|save`, `/cfg.load`, `/log.dump` and generated CRC source (`/proto.crc.<lang> file=`) refuse an absolute path or `../`, and a path-valued cfg key (`log_file`) can't be pointed outside it via `/cfg.auto`.  Known gaps remain while the server is a preview: some commands resolve a relative name from the folder termapy was started in, some Windows path forms (`\x`, `D:x`) pass the check, a few file readers (`/profile.validate`, `/proto.run <path>`) are not checked, and `/cfg.load` accepts any existing file.  Load configs and profiles by *name*, and don't rely on the confinement to contain an agent.  To allow host-wide paths, set `TERMAPY_MCP_FS_UNCONFINED=1` in the server's shell.
+- **File access is meant to stay inside the config directory, and mostly does.**  Captures (`/cap.text|bin|struct|hex`, `/cap.poll file=`), reads (`termapy://capture/<name>`, the `.dump` commands), `/profile.load|save`, `/cfg.load`, `/log.dump` and generated CRC source (`/proto.crc.<lang> file=`) refuse an absolute path or `../`, and a path-valued cfg key (`log_file`) can't be pointed outside it via `/cfg.auto`.  Known gaps remain while the server is a preview: some commands resolve a relative name from the folder termapy was started in, some Windows path forms (`\x`, `D:x`) pass the check, and a few file readers (`/profile.validate`, `/proto.run <path>`) are not checked.  Load profiles by *name*, and don't rely on the confinement to contain an agent.  To allow host-wide paths, set `TERMAPY_MCP_FS_UNCONFINED=1` in the server's shell.
 - **Network ports are refused at `/port.connect`.**  pyserial "URL ports" (`/port.connect socket://host:port`, `rfc2217://...`) would open an outbound TCP connection to an arbitrary host; that command refuses them unless you set `TERMAPY_MCP_NET_EGRESS=1`.  Other routes to a URL port -- `/port <url>`, `/cfg port <url>`, a config whose port is a URL -- are not checked yet, so treat this as partial.  Physical device ports are unaffected.
 - **Environment commands are off under MCP by default.**  `/env` (which would dump every variable) and the `$(env.NAME)` expansion in a command are refused unless you opt in with `TERMAPY_MCP_ENV_ENABLED=1` in the server's shell -- env vars routinely hold secrets, and an MCP peer is remote/automated.  A config's own `$(env.NAME)` values still expand when it loads.
 - **Destructive device commands** -- those a profile marks `safety: destructive`, and `/mem.write` -- refuse to run without an explicit `confirm=true`, which a well-behaved client elicits from the user.  The check covers the command you send; a destructive command run inside another (`/repeat`, `/run`, a capture's `cmd=`) is not checked yet.  The catalog carries the `safety` tier of every command that declares one.
@@ -157,8 +237,10 @@ The MCP client is the program the user talks to (Claude Code, Claude Desktop, VS
 ### Claude Code
 
 ```sh
-claude mcp add --scope user termapy-mydevice -- termapy --mcp C:/path/to/termapy_cfg/mydevice/mydevice.cfg
+claude mcp add --scope user termapy -- termapy --mcp
 ```
+
+With no config named, it finds the one in whichever project you enable it for in `/mcp` ([How it finds its config](#how-it-finds-its-config)).  Enabling records a per-project on or off; the project's folder comes from Claude Code.  To tie an entry to one device, name its config: `-- termapy --mcp mydevice`.
 
 Use `--scope user` (or `--scope project` for a team-shared `.mcp.json`).  The default `local` scope registers the server for the current directory only and it silently stops loading after some restarts -- if the tool vanishes, re-add with an explicit scope.
 

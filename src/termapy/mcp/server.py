@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -38,7 +39,15 @@ from typing import TYPE_CHECKING, Any
 
 from termapy import load_report
 from termapy.capture import CaptureEngine, format_capture_result
-from termapy.config import mcp_dir, mcp_log_path, on_connect_commands, open_serial
+from termapy.config import (
+    cfg_dir,
+    config_files,
+    config_names,
+    mcp_dir,
+    mcp_log_path,
+    on_connect_commands,
+    open_serial,
+)
 from termapy.defaults import cfg_value
 from termapy.folder_ops import file_record
 from termapy.folders import PROFILE_SUFFIX
@@ -52,7 +61,7 @@ from termapy.plugins import (
     CmdResult,
     PluginContext,
 )
-from termapy.plugins.capabilities import attainable
+from termapy.plugins.capabilities import STATE_MESSAGES, attainable
 from termapy.plugins.command import interpolate_help
 from termapy.repl import ReplEngine
 from termapy.scripting import format_duration, strip_ansi
@@ -70,6 +79,10 @@ _INSTALL_HINT = (
     "An environment pinned to mcp 1.x lands here too: 1.x has no\n"
     "mcp.server.MCPServer, so reinstall the extra to upgrade."
 )
+
+# Claude Code sets this to the project root in a server's environment, so a
+# server need not depend on its working folder.
+PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
 # ── Per-call output buffer (contextvars; safe under asyncio) ────────────────
@@ -105,6 +118,11 @@ class MCPHost(TerminalHost):
     # Lazily attached by ``_command_executor``: ONE dispatch worker for the
     # life of the host.  See that function for why it is not per-call.
     _cmd_executor: ThreadPoolExecutor | None = None
+    # What the launch decided and the agent should hear, set by run_mcp_stdio.
+    start_note: str = ""
+    # The launch named this config: the command line outranks an agent, so the
+    # server stays on it (registry mcp-finds-its-config).
+    config_fixed: bool = False
 
     def __init__(
         self,
@@ -208,6 +226,39 @@ class MCPHost(TerminalHost):
         """Start the session in its log: the MCP log needs no opening, only its marker."""
         self._session_started = True
         self._log_line(SESSION_START)
+
+    def _load_config(self, name: str) -> CmdResult:
+        """``/cfg.load``, except that a server named a config at launch stays on it.
+
+        Otherwise an agent could move ``termapy-left`` onto the right board,
+        under a name that no longer says what it drives.  Reloading the same
+        config moves nothing, so it is still allowed.
+        """
+        active = Path(self.config_path).stem
+        if self.config_fixed and name.removesuffix(".cfg").casefold() != active.casefold():
+            return CmdResult.fail(msg=f"This server stays on {active}, the config named at launch.")
+        return super()._load_config(name)
+
+    def _resolve_config_name(self, name: str) -> str | None:
+        """Any config in the project's folder, by bare name: an agent names a config, never a path.
+
+        The working folder is the project's, so a path or a stray file in it
+        (``plain.json``, ``elsewhere/x.cfg``) must not read as a config.  The
+        name is looked up among the real configs, so ``LEFT`` means ``left``
+        on every OS and the session holds the name as it is on disk.
+        """
+        wanted = name.removesuffix(".cfg").casefold()
+        for path in config_files(cfg_dir()):
+            if path.stem.casefold() == wanted:
+                return str(path)
+        return None
+
+    def available_configs_text(self) -> str:
+        """The configs an agent may load, as a sentence; ``""`` when it may load none."""
+        names = config_names()
+        if not names or self.config_fixed:
+            return ""
+        return f"Configs in this project: {', '.join(names)}. Load one with {self.prefix}cfg.load <name>."
 
     def _follow_session_log(self, previous: Path | None) -> None:
         """A ``/cfg.load`` moved the session to another config's log: end the old, start the new.
@@ -596,15 +647,8 @@ class MCPHost(TerminalHost):
         if not candidate.exists():
             self._log_line(f"! auto-load profile: not found: {candidate}")
             return
-        self._log_line(f"$ {self.prefix}profile.load {candidate}  (auto-load on connect)")
-        try:
-            result = self.repl.dispatch(f"profile.load {candidate}")
-        except Exception as exc:  # noqa: BLE001 -- boundary
-            self._log_line(f"! auto-load profile failed: {exc}")
-            return
-        if not result.success:
-            self._log_line(f"! auto-load profile: {result.error}")
-            return
+        # The config's own profile goes by its name in the config's folder:
+        # the command takes that, and refuses an absolute path as an escape.
         layer = ""
         file = str(candidate)
         if self.config_path:
@@ -613,6 +657,15 @@ class MCPHost(TerminalHost):
             folder = cfg_path.parent.resolve()
             if candidate.resolve().is_relative_to(folder):
                 file = candidate.resolve().relative_to(folder).as_posix()
+        self._log_line(f"$ {self.prefix}profile.load {file}  (auto-load on connect)")
+        try:
+            result = self.repl.dispatch(f"profile.load {file}")
+        except Exception as exc:  # noqa: BLE001 -- boundary
+            self._log_line(f"! auto-load profile failed: {exc}")
+            return
+        if not result.success:
+            self._log_line(f"! auto-load profile: {result.error}")
+            return
         record = load_report.profile_record(
             ctx.ns("active_profile"), file=file, path=str(candidate.resolve()), layer=layer
         )
@@ -847,6 +900,12 @@ class MCPHost(TerminalHost):
             # legacy empty-string default -- never stringify dicts.
             value: Any = result.value if result.value not in (None, "") else ""
 
+            # "No config loaded." is where an agent with no config first learns
+            # it has one to choose, so the reply says what the choices are.
+            error = result.error or ""
+            if error == STATE_MESSAGES["config_loaded"]:
+                error = f"{error} {self.available_configs_text()}".rstrip()
+
             # Deliver async events exactly once.  Lines that arrived between
             # MCP calls (or were drained by _dispatch_via_profile pre-send)
             # accumulated on self._async_events.  Snapshot + clear here so
@@ -867,7 +926,7 @@ class MCPHost(TerminalHost):
             return {
                 "cmd": command,
                 "success": bool(result.success),
-                "error": result.error or "",
+                "error": error,
                 "value": value,
                 "data": result.data,
                 "elapsed_s": float(result.elapsed_s or 0.0),
@@ -878,6 +937,16 @@ class MCPHost(TerminalHost):
 
 
 # ── MCP server wiring (lazy, only when --mcp runs) ──────────────────────────
+
+
+def _start_instructions(host: MCPHost) -> str:
+    """What an agent is told on connecting: the config it has, what launch decided, the choices."""
+    name = Path(host.config_path).stem if host.config_path else ""
+    state = f"Active config: {name}." if name else "No config is loaded."
+    if host.config_fixed:
+        state = f"Active config: {name}, named at launch, so this server stays on it."
+    parts = (state, host.start_note, host.available_configs_text())
+    return " ".join(part for part in parts if part)
 
 
 def _build_server(host: MCPHost) -> Any:
@@ -895,7 +964,7 @@ def _build_server(host: MCPHost) -> Any:
     """
     from mcp.server import MCPServer
 
-    server: Any = MCPServer("termapy")
+    server: Any = MCPServer("termapy", instructions=_start_instructions(host))
 
     # ── run_command tool ────────────────────────────────────────────────────
     @server.tool()
@@ -1387,6 +1456,108 @@ def _dispatch_via_profile(
 # ── Entry point ────────────────────────────────────────────────────────────
 
 
+def _enter_project_folder() -> Path:
+    """Stand in the project's folder, so nothing depends on where the client started us.
+
+    Claude Code names the project in ``CLAUDE_PROJECT_DIR``, and its docs
+    leave the working folder unstated.  Another client sets no such variable
+    and the working folder it gave stands.
+
+    Returns:
+        The project's folder, now the working folder.
+    """
+    project = os.environ.get(PROJECT_DIR_ENV)
+    if project and Path(project).is_dir():
+        os.chdir(project)
+    return Path.cwd()
+
+
+def _use_project_cfg_root(project: Path, named: str | None) -> None:
+    """Point ``cfg_dir()`` at the config folder, unless the user named one.
+
+    The command line comes first and the rest is convenience: ``--cfg-dir``,
+    then ``TERMAPY_CFG_DIR``, then the folder of a config named by its path,
+    so its siblings are the ones an agent may load, and only then the search.
+    With no folder in the project it names where one would be, because the
+    fallback ``cfg_dir()`` otherwise takes is the OS folder, whose configs
+    and global plugins are not this project's.
+
+    Args:
+        project: The project's folder.
+        named: The config the launch named, if any.
+    """
+    import termapy.config as config_module
+    from termapy.config_resolve import find_mcp_root
+
+    if config_module.CFG_DIR is not None or os.environ.get("TERMAPY_CFG_DIR"):
+        return
+    path = Path(named).resolve() if named else None
+    if path is not None and path.is_file() and config_module.is_config_file(path):
+        config_module.CFG_DIR = str(path.parent.parent)
+        return
+    root = find_mcp_root(project)
+    config_module.CFG_DIR = str((root or project / config_module._LOCAL_DIR_NAME).resolve())
+    config_module.CFG_DIR_MAY_BE_ABSENT = root is None
+
+
+def _choose_start_configs(named: str | None) -> tuple[list[str], str]:
+    """The configs to try at launch, in order, and what to tell the agent if there are none.
+
+    Args:
+        named: The config the launch named, or None to choose by the rules
+            of ``config_resolve.choose_mcp_configs``.
+
+    Returns:
+        ``(paths, note)``.  More than one path is a chain to walk.
+
+    Raises:
+        SystemExit: The named config does not exist.  A name given at launch
+            is the first choice and the only one, so a typo is reported
+            instead of landing on another device's config, as ``--cfg-dir``
+            naming a missing folder is.
+    """
+    from termapy.config_resolve import choose_mcp_configs, resolve_config
+    from termapy.matching import closest, did_you_mean
+
+    if named:
+        resolved = resolve_config(named)
+        if resolved is None:
+            hint = did_you_mean(closest(named, config_names()))
+            raise SystemExit(f"termapy --mcp: No config matching {named!r} in {cfg_dir()}{hint}")
+        return [resolved], ""
+    paths, reason = choose_mcp_configs(cfg_dir())
+    return [str(path) for path in paths], reason
+
+
+def _start_on_first_open(host: MCPHost, paths: list[str]) -> str:
+    """Walk the configs and stay on the first whose port opens.
+
+    So ``mcp_cfg1`` and ``mcp_cfg2`` serve two servers: the second finds the
+    first's port busy and moves on.  Each config is loaded before its port
+    is tried, rather than trial-opening them all first, because an open and
+    close can reset a board through DTR.  With none open it stays on the
+    first, not connected, so ``/port.connect`` works when the device returns.
+
+    Args:
+        host: A host with no config yet.
+        paths: The configs to try, in order.
+
+    Returns:
+        What to tell the agent: what was skipped and why; ``""`` for the first.
+    """
+    skipped: list[str] = []
+    for path in paths:
+        loaded = host._switch_to_cfg_path(path)
+        if not loaded.success:
+            skipped.append(f"{Path(path).stem}: {loaded.error}")
+        elif host.engine.is_connected or host._connect(report=False):
+            return f"Skipped {'; '.join(skipped)}." if skipped else ""
+        else:
+            skipped.append(f"{Path(path).stem}: {host._open_error()}")
+    host._switch_to_cfg_path(paths[0])
+    return f"No port opened: {'; '.join(skipped)}."
+
+
 def run_mcp_stdio(args: argparse.Namespace) -> None:
     """Run the MCP stdio server.  Called by ``termapy --mcp``.
 
@@ -1420,24 +1591,16 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     # Lazy-import config helpers so termapy.mcp.server stays cheap.
     from termapy.config import load_config
-    from termapy.config_resolve import find_config, resolve_config
 
-    cfg_arg = getattr(args, "config", None)
-    cfg_path = ""
-    if cfg_arg:
-        resolved = resolve_config(cfg_arg)
-        if resolved:
-            cfg_path = resolved
-    else:
-        # No positional config: try to auto-detect a single .cfg in cwd.
-        auto, _ = find_config()
-        if auto:
-            cfg_path = auto
+    named = getattr(args, "config", None)
+    _use_project_cfg_root(_enter_project_folder(), named)
+    paths, start_note = _choose_start_configs(named)
 
-    if cfg_path:
+    if len(paths) == 1:
+        cfg_path = paths[0]
         cfg = load_config(cfg_path)
     else:
-        # Zero-config fallback: in-memory defaults.
+        # No config yet, or a chain to walk: in-memory defaults until one loads.
         from termapy.defaults import default_cfg
 
         cfg = default_cfg()
@@ -1445,6 +1608,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     verbose = bool(getattr(args, "mcp_verbose", False))
     host = MCPHost(cfg, cfg_path, verbose=verbose)
+    host.config_fixed = bool(named)
 
     if verbose:
         print(
@@ -1460,11 +1624,16 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     # Auto-connect if a port is configured.  Failure to open a port
     # doesn't abort the server -- Claude can /port.connect later.
-    if cfg["serial"]["port"]:
+    if len(paths) > 1:
+        start_note = _start_on_first_open(host, paths)
+    elif cfg["serial"]["port"]:
         try:
             host._connect()
         except (OSError, Exception) as exc:  # noqa: BLE001 -- boundary
             host._log_line(f"! Auto-connect failed: {exc}")
+    host.start_note = start_note
+    if start_note:
+        print(f"termapy --mcp: {start_note}", file=sys.stderr)
 
     server = _build_server(host)
 

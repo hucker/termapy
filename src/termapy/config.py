@@ -55,7 +55,14 @@ from termapy.scripting import parse_bool
 
 CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
 
+# Set beside CFG_DIR by an MCP server whose project has no config folder: CFG_DIR
+# then names where one would be, so nothing falls back to the OS config directory.
+CFG_DIR_MAY_BE_ABSENT: bool = False
+
 _LOCAL_DIR_NAME = "termapy_cfg"
+
+# Where a config sits under a config root: termapy_cfg/<name>/<name>.cfg.
+CONFIG_GLOB = "*/*.cfg"
 
 # Read timeout for every opened serial port.  Deliberately small so the
 # reader loop's blocking ``read()`` returns promptly and can notice the
@@ -125,7 +132,7 @@ def cfg_dir() -> Path:
                 f"termapy: config directory looks like a file: {CFG_DIR} "
                 f"(has extension '{d.suffix}'). Use --cfg-dir for directories."
             )
-        if not d.exists():
+        if not d.exists() and not CFG_DIR_MAY_BE_ABSENT:
             raise SystemExit(f"termapy: config directory does not exist: {d.resolve()}")
         return d
 
@@ -254,6 +261,22 @@ def prepare_cfg_folder(config_path: str) -> Path:
 def cfg_path_for_name(name: str) -> Path:
     """Return the config file path for a given name: termapy_cfg/<name>/<name>.cfg."""
     return cfg_dir() / name / f"{name}.cfg"
+
+
+def is_config_file(path: Path) -> bool:
+    """Whether a ``CONFIG_GLOB`` match is a config: ``<name>/<name>.cfg``, file and folder alike.
+
+    A folder can hold another ``.cfg``: ``demo/.target_menu.cfg`` made one
+    config count as two, so a lone config never loaded by itself (registry
+    ``config-files-one-reader``).  Case is ignored, as the file systems
+    that hold most configs ignore it.
+    """
+    return path.stem.casefold() == path.parent.name.casefold()
+
+
+def config_files(root: Path) -> list[Path]:
+    """The configs under ``root``, sorted by name; a missing folder has none."""
+    return sorted(path for path in root.glob(CONFIG_GLOB) if is_config_file(path))
 
 
 def validate_file_stem(name: str) -> str | None:
@@ -1574,6 +1597,10 @@ def open_serial(cfg: dict) -> Any:
         rtscts=(fc == "rtscts"),
         xonxoff=(fc == "xonxoff"),
         timeout=SERIAL_READ_TIMEOUT_S,
+        # One process owns one port (registry port-open-exclusive).  Windows
+        # refuses a second open by itself; on POSIX this is pyserial's flock,
+        # without which a second termapy opens the port and splits its bytes.
+        exclusive=True,
     )
     request_rx_buffer(port)
     return port
@@ -1643,8 +1670,7 @@ def not_found_message(subject: str, raw: str, config_path: str) -> str:
 
 def config_names() -> list[str]:
     """The names of the configs under ``cfg_dir()``, each ``<name>/<name>.cfg``: what a config name may be."""
-    root = cfg_dir()
-    return [cfg_file.stem for cfg_file in root.glob("*/*.cfg")] if root.is_dir() else []
+    return [path.stem for path in config_files(cfg_dir())]
 
 
 def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:

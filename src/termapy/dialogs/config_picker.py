@@ -18,9 +18,11 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList, Static
 
 from termapy.config import (
+    CONFIG_GLOB,
     cfg_dir,
     config_summary,
     file_manager_name,
+    is_config_file,
     open_with_system,
 )
 from termapy.dialogs._common import (
@@ -165,7 +167,9 @@ class ConfigPicker(ModalScreen[tuple | None]):
 
     def compose(self) -> ComposeResult:
         d = cfg_dir()
-        json_files = list_entries(d, "*/*.cfg")  # newest first
+        json_files = [  # newest first
+            path for path in list_entries(d, CONFIG_GLOB) if is_config_file(path)
+        ]
         details, detail_header = _config_details(json_files)
         with Vertical(id="picker-dialog") as dialog:
             with Horizontal(id="picker-header"):

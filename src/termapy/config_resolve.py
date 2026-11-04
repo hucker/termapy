@@ -14,6 +14,8 @@ Public API:
   directory into a concrete ``.cfg`` path via a 5-rule chain.
 - ``infer_config_from_run_file(path)`` -- walk up from a ``.run`` (or
   ``.pro``) script path to find the enclosing config.
+- ``find_mcp_root(project)`` and ``choose_mcp_configs(root)`` -- how an MCP
+  server finds its project's config folder and its config at launch.
 
 All three are Textual-free and import ``cfg_dir`` lazily so importing
 this module doesn't force the rest of ``termapy.config`` to load.
@@ -24,6 +26,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from termapy.folders import FOLDER_EXTS, PROTO, default_file_name, new_file_name
+from termapy.matching import matches
+
+# Where an MCP server looks for a project's config folder, in order.
+MCP_CFG_PARENTS = (".", "src", "source")
+
+# The name that makes a config the one an MCP server starts on.
+MCP_CONFIG_PATTERN = "mcp_*"
 
 
 def find_config() -> tuple[str | None, bool]:
@@ -37,14 +46,65 @@ def find_config() -> tuple[str | None, bool]:
 
     A read: it writes nothing (``--check`` relies on that).
     """
-    from termapy.config import cfg_dir
+    from termapy.config import cfg_dir, config_files
 
-    cfg_files = sorted(cfg_dir().glob("*/*.cfg"))
+    cfg_files = config_files(cfg_dir())
     if len(cfg_files) == 1:
         return str(cfg_files[0]), False
     if len(cfg_files) > 1:
         return None, True
     return None, False
+
+
+def find_mcp_root(project: Path) -> Path | None:
+    """The config folder an MCP server uses for ``project``: the first of ``MCP_CFG_PARENTS``.
+
+    The first folder that exists wins, whatever it holds.  There is no
+    fallback to the OS config directory: a server enabled for an unrelated
+    project must not pick up the user's other configs.  A read: it writes
+    nothing.
+
+    Args:
+        project: The project's folder.
+
+    Returns:
+        The config folder, or None when the project has none.
+    """
+    from termapy.config import _LOCAL_DIR_NAME
+
+    for parent in MCP_CFG_PARENTS:
+        candidate = project / parent / _LOCAL_DIR_NAME
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def choose_mcp_configs(root: Path) -> tuple[list[Path], str]:
+    """The configs an MCP server tries at launch, in order, and why when there are none.
+
+    The only config, else every ``mcp_*`` config: one is the choice, and
+    several are a chain the server walks until a port opens.  Otherwise an
+    agent picks, because a guess would open some device's port.  A read: it
+    writes nothing.
+
+    Args:
+        root: The config folder.
+
+    Returns:
+        ``(paths, reason)``: paths to try in name order, and for an empty
+        list the reason, one sentence naming no command.
+    """
+    from termapy.config import config_files
+
+    files = config_files(root)
+    if not files:
+        return [], f"No configs in {root}."
+    if len(files) == 1:
+        return files, ""
+    named = [path for path in files if matches(path.stem, MCP_CONFIG_PATTERN)]
+    if named:
+        return named, ""
+    return [], f"{len(files)} configs and none named {MCP_CONFIG_PATTERN}, so none was chosen."
 
 
 def resolve_config(name: str) -> str | None:

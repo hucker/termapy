@@ -37,7 +37,8 @@ from typing import NoReturn
 import pytest
 
 from termapy.capture import CaptureEngine
-from termapy.config import SERIAL_READ_TIMEOUT_S, SERIAL_RX_BUFFER_BYTES
+from termapy.config import SERIAL_READ_TIMEOUT_S, SERIAL_RX_BUFFER_BYTES, open_serial
+from termapy.defaults import DEFAULT_CFG
 from termapy.port_control import resolve_port
 from termapy.serial_engine import READER_JOIN_TIMEOUT_S, SerialEngine
 
@@ -356,6 +357,28 @@ class TestReaderTeardown:
         )
         assert engine.port_obj is new_port, "the new handle must still be installed"
         assert getattr(new_port, "is_open", False) is True, "new port stays open"
+
+
+class TestOneProcessOnePort:
+    """hw_loopback: a real port is held by one opener, whichever OS enforces it."""
+
+    def test_a_held_adapter_refuses_a_second_open(self, loopback_device):
+        """port-open-exclusive: a second open of a held port fails, and the port opens again once released, twice over."""
+        import serial
+
+        # Arrange
+        cfg = {"serial": {**DEFAULT_CFG["serial"], "port": loopback_device}}
+
+        for _ in range(2):
+            # Act
+            first = open_serial(cfg)
+
+            # Assert
+            try:
+                with pytest.raises(serial.SerialException):
+                    open_serial(cfg)
+            finally:
+                first.close()
 
 
 class TestAdapterIdentity:

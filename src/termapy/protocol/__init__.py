@@ -107,6 +107,7 @@ from termapy.protocol.runner import (
     build_results,
     build_test_result,
     expand_result_template,
+    result_path,
     run_proto_tests,
     write_results,
 )
@@ -156,6 +157,7 @@ __all__ = [
     "build_results",
     "build_test_result",
     "expand_result_template",
+    "result_path",
     "run_proto_tests",
     "write_results",
     # viz

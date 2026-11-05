@@ -62,6 +62,32 @@ def _run_line(cli: CLITerminal, tmp_path: Path, line: str) -> None:
     cli.repl.dispatch_full(f"/run {script}")
 
 
+def test_hexdump_lands_in_cap(cli, tmp_path):
+    """writes-in-cfg-folder: a relative name goes under the config's cap/, never the working folder, and the reply names it."""
+    # Act
+    result = cli.repl.dispatch_full("/traffic.hexdump wire.txt 50ms")
+
+    # Assert
+    assert result.success is True, result.error
+    expected = tmp_path / "rig" / "cap" / "wire.txt"
+    assert expected.exists(), "the file is in cap/"
+    assert result.value["path"] == str(expected.resolve()), "the reply names the full path"
+
+
+def test_hexdump_twice_replaces_for_a_person(cli, tmp_path):
+    """A person's second dump to one name starts it over, as it always has; only an MCP client is refused that."""
+    # Arrange
+    outside = tmp_path / "outside.txt"
+    outside.write_text("before\n", encoding="utf-8")
+
+    # Act
+    result = cli.repl.dispatch_full(f"/traffic.hexdump {outside} 50ms")
+
+    # Assert
+    assert result.success is True, result.error
+    assert outside.read_text(encoding="utf-8") == "", "an absolute path still works for a person"
+
+
 def test_snoop_matches_a_quoted_text_pattern(cli, tmp_path, capsys):
     """A quoted-text pattern is matched in the RX stream and reported as uppercase hex."""
     # Arrange -- the device answers AT with OK a moment after snoop starts watching

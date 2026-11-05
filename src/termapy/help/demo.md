@@ -135,7 +135,7 @@ the byte stream without disrupting normal operation -- it demonstrates the
 | Subcommand | Args | What it does |
 | ---------- | ---- | ------------ |
 | `/traffic.count` | `<cmd>` | Run a command and report TX/RX bytes during it |
-| `/traffic.hexdump` | `<file> [duration]` | Tee timestamped hex of all I/O to a file (default 5s) |
+| `/traffic.hexdump` | `<file> [duration]` | Tee timestamped hex of all I/O to a file in `cap/` (default 5s) |
 | `/traffic.rate` | `[duration]` | Bytes/sec rate over a window (default 5s) |
 | `/traffic.snoop` | `<bytes> {timeout=<dur>}` | Block until a byte pattern (hex or "text") appears in RX |
 

@@ -318,7 +318,7 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
             raise UsageError("No config loaded; can't derive a default path")
         path = default
     ctx.fs.guard_code_folder(path.resolve().parent)
-    ctx.fs.guard_new_file(path)
+    ctx.fs.guard_replace(path)
 
     # Strip internal __source_* fields before writing.  They're
     # runtime hints, not part of the profile contract.

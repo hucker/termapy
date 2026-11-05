@@ -289,7 +289,7 @@ class TestFindsItsConfig:
         # Act / Assert
         try:
             told = _instructions(client)
-            assert told.startswith("Active config: left, named at launch"), told
+            assert told.startswith("Active config: left."), told
             listed = _run_command(client, "/cfg.list")
             names = [record["name"] for record in listed["data"]]
             assert sorted(names) == ["left", "right"], "its siblings, not the search's"
@@ -371,10 +371,12 @@ class TestFindsItsConfig:
         # Act / Assert
         try:
             told = _instructions(client)
-            assert told.startswith("Active config: left, named at launch"), told
-            assert "Skipped" not in told, "a named config stays put, its port failing or not"
-            assert "mcp_a" not in told, "and it offers no other"
+            assert told.startswith("Active config: left."), told
+            assert "Skipped" not in told, (
+                "a named config is where it starts, its port failing or not"
+            )
+            assert "mcp_a" in told, "and the agent is told what else it can load"
             moved = _run_command(client, "/cfg.load mcp_a")
-            assert moved["error"] == "This server stays on left, the config named at launch."
+            assert moved["success"] is True, moved["error"]
         finally:
             client.close()

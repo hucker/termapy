@@ -1007,3 +1007,21 @@ files and send to a comport." So a `spy://` log is the one user-named exception 
 never replaces a file" (registry `mcp-no-code-writes`). For the same reason there is no check
 on device names: `file=COM4` is a relative path like any other. On the Windows 11 bench it
 makes an ordinary file; other versions were not tried.
+
+## 2026-11-04 — An agent may load any config in the project, however the server started
+
+Amends 2026-11-03, "An MCP server finds its project's config", which refused to move a
+server off a config the command line named. Chuck: "It is better functionality to have the
+file loadable by the agent. Take out whatever mechanism we have in place to lock out changes
+under mcp." An agent may want the config a user just edited, or a different one, and the lock
+never held the device anyway: `/port` could move a named server to another port. So
+`config_fixed` is gone, and naming a config at launch picks where a server starts.
+
+The command line still comes first at launch: a named config that does not exist stops the
+server rather than letting it start on another. `termapy-left` now means the left device only
+until an agent loads another config or moves its port, and the help says so. No port lock was
+added either, for the same reason.
+
+What did not move: `/cfg.load` takes a bare name from the project's folder and nothing else,
+because a path or a stray file would be rewritten as a config and its folder's plugins run.
+Renaming and deleting a config still need a person.

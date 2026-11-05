@@ -119,9 +119,6 @@ class MCPHost(TerminalHost):
     _cmd_executor: ThreadPoolExecutor | None = None
     # What the launch decided and the agent should hear, set by run_mcp_stdio.
     start_note: str = ""
-    # The launch named this config: the command line outranks an agent, so the
-    # server stays on it (registry mcp-finds-its-config).
-    config_fixed: bool = False
 
     def __init__(
         self,
@@ -226,18 +223,6 @@ class MCPHost(TerminalHost):
         self._session_started = True
         self._log_line(SESSION_START)
 
-    def _load_config(self, name: str) -> CmdResult:
-        """``/cfg.load``, except that a server named a config at launch stays on it.
-
-        Otherwise an agent could move ``termapy-left`` onto the right board,
-        under a name that no longer says what it drives.  Reloading the same
-        config moves nothing, so it is still allowed.
-        """
-        active = Path(self.config_path).stem
-        if self.config_fixed and name.removesuffix(".cfg").casefold() != active.casefold():
-            return CmdResult.fail(msg=f"This server stays on {active}, the config named at launch.")
-        return super()._load_config(name)
-
     def _resolve_config_name(self, name: str) -> str | None:
         """Any config in the project's folder, by bare name: an agent names a config, never a path.
 
@@ -255,7 +240,7 @@ class MCPHost(TerminalHost):
     def available_configs_text(self) -> str:
         """The configs an agent may load, as a sentence; ``""`` when it may load none."""
         names = config_names()
-        if not names or self.config_fixed:
+        if not names:
             return ""
         return f"Configs in this project: {', '.join(names)}. Load one with {self.prefix}cfg.load <name>."
 
@@ -942,8 +927,6 @@ def _start_instructions(host: MCPHost) -> str:
     """What an agent is told on connecting: the config it has, what launch decided, the choices."""
     name = Path(host.config_path).stem if host.config_path else ""
     state = f"Active config: {name}." if name else "No config is loaded."
-    if host.config_fixed:
-        state = f"Active config: {name}, named at launch, so this server stays on it."
     parts = (state, host.start_note, host.available_configs_text())
     return " ".join(part for part in parts if part)
 
@@ -1607,7 +1590,6 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     verbose = bool(getattr(args, "mcp_verbose", False))
     host = MCPHost(cfg, cfg_path, verbose=verbose)
-    host.config_fixed = bool(named)
 
     if verbose:
         print(

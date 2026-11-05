@@ -10,7 +10,7 @@ With one config in your project's `termapy_cfg/`, the server needs no arguments:
 termapy --mcp
 ```
 
-Or name the config, which also keeps the server on it:
+Or name the config it starts on:
 
 ```sh
 termapy --mcp mydevice
@@ -29,7 +29,7 @@ One config is the simple case.  The rest of this section only matters once a pro
 | One config | Nothing | The server starts on it |
 | Several configs, one you usually want | Name it `mcp_<anything>` | The server starts on it, and an agent can still load the others |
 | Several configs, no usual one | Nothing | The server starts with none, and the agent is told what it can load |
-| A server that must only ever be one device | `--mcp mydevice` | The server starts on it and stays there |
+| A server that starts on a config of your choice | `--mcp mydevice` | The server starts on it, and an agent can still load the others |
 | Two devices at once | Two servers | See [Two devices at once](#two-devices-at-once) |
 
 Starting with no config is not an error.  The agent is told on connecting which config it has or why it has none, and what it can load, and a `No config loaded.` reply lists the choices too.
@@ -51,7 +51,7 @@ A `--cfg-dir` or `TERMAPY_CFG_DIR` that does not exist stops the server with an 
 
 | Found | Starts on |
 | --- | --- |
-| A config named at launch (`--mcp left`) | That one, and it stays there.  If it does not exist the server exits with an error, and tries nothing else.  If its port fails it is not connected, and tries nothing else |
+| A config named at launch (`--mcp left`) | That one.  If it does not exist the server exits with an error, and tries nothing else.  If its port fails it is not connected, and tries nothing else |
 | Exactly one config | That one |
 | Exactly one named `mcp_*` | That one |
 | Several named `mcp_*` | The first in name order whose port opens; with none open, the first, not connected |
@@ -60,11 +60,11 @@ A `--cfg-dir` or `TERMAPY_CFG_DIR` that does not exist stops the server with an 
 
 A config is `<name>/<name>.cfg`.  Another `.cfg` in that folder does not count.
 
-**While running,** an agent can load any config in the folder by its bare name, `/cfg.load mydevice`, unless the launch named a config.  A path or any other file is refused.  Those configs belong to the project, but loading one runs its plugins and on-connect commands and opens its port, so an agent can pick the wrong device.  When that matters, name the config at launch.
+**While running,** an agent can load any config in the folder by its bare name, `/cfg.load mydevice`, however the server started, including to reload one you just edited.  A path or any other file is refused.  Those configs belong to the project, but loading one runs its plugins and on-connect commands and opens its port, and `/port` can move a session to another port, so an agent can pick the wrong device.  When that matters, tell it which to use.
 
 ## When the server runs, and what it is called
 
-- **The name is yours.**  It is the name you gave `claude mcp add` or the key in `.mcp.json`, and the agent's tool is built from it: `mcp__termapy-a__run_command`.  It selects nothing: `termapy-a` is not tied to any device unless its arguments name a config, and two entries with the same command are two servers that follow the same rules.
+- **The name is yours.**  It is the name you gave `claude mcp add` or the key in `.mcp.json`, and the agent's tool is built from it: `mcp__termapy-a__run_command`.  It selects nothing: `termapy-a` starts on a config only if its arguments name one or the rules above choose it, and two entries with the same command are two servers that follow the same rules.
 - **It starts with the session.**  Claude Code starts its own copy of each enabled server when a session starts, before any tool is used, and stops it when the session ends.
 - **A server holds its port while it runs,** even with the agent idle, and nothing else can open that port on any OS.  So the TUI gets "port busy" on that device, and a second chat in the same project starts a second server that cannot open it either.  Disable the server in `/mcp` to get the port back.
 - **The project is where the session started:** the workspace folder in VS Code, or the folder you ran `claude` in.  From `src/`, the project is `src/`, so `./termapy_cfg` means `src/termapy_cfg`.  Claude Code passes this as `CLAUDE_PROJECT_DIR`; with another client it is the working folder that client gave the server.  A client with no project, like Claude Desktop, should name a config by its full path.
@@ -83,7 +83,7 @@ claude mcp add --scope user termapy-b -- termapy --mcp
 
 In a project with several configs and no `mcp_*`, each starts with no config and holds no port, so your TUI keeps its devices until an agent needs one.  Then tell the agent which goes where ("`demo` on termapy-a, `pico` on termapy-b"), and each loads its own with `/cfg.load`.  If one is told to load a config whose port the other holds, the load succeeds, the reply says `Cannot open ...`, and `/port.connect` works once the other lets go.  In a project with one config or one `mcp_*`, both start on it: the first gets the port, and the second is not connected until it loads another.
 
-**Named servers,** when each server always means one device.  Name its config in a project `.mcp.json`, one entry per device, with no absolute paths:
+**Named servers,** when each server normally means one device.  Name its config in a project `.mcp.json`, one entry per device, with no absolute paths:
 
 ```json
 {
@@ -94,7 +94,7 @@ In a project with several configs and no `mcp_*`, each starts with no config and
 }
 ```
 
-Each server stays on its config, so `termapy-left` always means the left device.
+Each server starts on its config, so `termapy-left` means the left device until an agent loads another config or moves its port.
 
 **The chain,** a shortcut with no agent or entry to set up: name the configs `mcp_left` and `mcp_right` and give both servers a bare `--mcp`.  The first takes `mcp_left`, and the second finds that port busy and moves on to `mcp_right`.  Be careful with it, because a port opening does not mean it is the device you wanted:
 

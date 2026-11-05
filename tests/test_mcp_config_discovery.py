@@ -460,62 +460,66 @@ class TestItsOwnProfileLoads:
             host._disconnect()
 
 
-class TestANamedConfigStays:
+class TestAnAgentCanLoadAnyConfig:
     @pytest.fixture
-    def fixed(self, root, tmp_path):
-        """A host on a config named at launch, with a sibling it must not move to."""
+    def started(self, root, tmp_path):
+        """A host on one config, with a sibling an agent may load."""
         active = _make_config(root, "left", port="")
         _make_config(root, "right", port="")
         made = MCPHost(json.loads(active.read_text(encoding="utf-8")), str(active), verbose=False)
         made.repl.global_root = tmp_path
-        made.config_fixed = True
         made._fire_app_start()
         return made
 
-    def test_an_agent_cannot_move_it(self, fixed):
-        """mcp-finds-its-config: the command line outranks an agent, so termapy-left stays on the left board."""
+    def test_an_agent_can_load_another(self, started):
+        """mcp-finds-its-config: an agent moves to a sibling config and back, however the server started."""
         # Act
-        result = _call(fixed, "/cfg.load right")
+        there = _call(started, "/cfg.load right")
+        there_stem = _stem(started)
+        back = _call(started, "/cfg.load left")
 
         # Assert
-        assert result["error"] == "This server stays on left, the config named at launch."
-        assert _stem(fixed) == "left"
+        assert there["success"] is True, there["error"]
+        assert there_stem == "right"
+        assert back["success"] is True, back["error"]
+        assert _stem(started) == "left"
 
     @pytest.mark.parametrize("name", ["left", "LEFT", "left.cfg"])
-    def test_reloading_it_is_still_a_load(self, fixed, name):
-        """Loading the config it already has moves nothing, so a fresh start on it stays available, twice."""
+    def test_reloading_it_is_still_a_load(self, started, name):
+        """Loading the config it already has is a fresh start on it, twice, in any spelling of its name."""
         # Act
-        first = _call(fixed, f"/cfg.load {name}")
-        second = _call(fixed, f"/cfg.load {name}")
+        first = _call(started, f"/cfg.load {name}")
+        second = _call(started, f"/cfg.load {name}")
 
         # Assert
         assert first["success"] is True, first["error"]
         assert second["success"] is True, second["error"]
-        assert _stem(fixed) == "left"
+        assert _stem(started) == "left"
 
-    def test_it_offers_no_other(self, fixed):
-        """What an agent hears says it stays, and does not list configs it cannot load."""
-        # Act
-        actual = _start_instructions(fixed)
-
-        # Assert
-        assert actual == "Active config: left, named at launch, so this server stays on it."
-
-    def test_a_chosen_config_is_not_fixed(self, root, tmp_path):
-        """Only the command line fixes it: a config the rules chose can still be left, so no one is locked out."""
+    def test_a_reload_picks_up_an_edit(self, started):
+        """mcp-finds-its-config: a config edited on disk is what an agent gets by loading it again."""
         # Arrange
-        active = _make_config(root, "mcp_left", port="")
-        _make_config(root, "right", port="")
-        host = MCPHost(json.loads(active.read_text(encoding="utf-8")), str(active), verbose=False)
-        host.repl.global_root = tmp_path
-        host._fire_app_start()
+        path = Path(started.config_path)
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+        cfg["title"] = "edited"
+        path.write_text(json.dumps(cfg), encoding="utf-8")
 
         # Act
-        result = _call(host, "/cfg.load right")
+        result = _call(started, "/cfg.load left")
 
         # Assert
         assert result["success"] is True, result["error"]
-        assert _stem(host) == "right"
+        assert started.cfg["title"] == "edited", "the file on disk, not the one it started with"
+
+    def test_it_offers_the_others(self, started):
+        """What an agent hears lists every config it can load, the one it is on included."""
+        # Act
+        actual = _start_instructions(started)
+
+        # Assert
+        assert actual.startswith("Active config: left. "), actual
+        assert "right" in actual, "the sibling is on offer"
+        assert "/cfg.load <name>" in actual, "and it says how"
 
 
 class TestTheAgentIsTold:

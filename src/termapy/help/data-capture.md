@@ -32,6 +32,8 @@ Captures raw binary bytes straight to a file.
 /cap.bin raw.bin bytes=256 cmd=read_all
 ```
 
+This records what the device sends for one capture. To log every byte in both directions for a whole session, see [Logging the raw traffic](ports.md#logging-the-raw-traffic).
+
 ## Structured capture (format spec to CSV)
 
 ```text

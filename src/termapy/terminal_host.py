@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Final
 
 from termapy import load_report
-from termapy.config import load_config, open_with_system
+from termapy.config import cap_folder_of, load_config, open_serial, open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.defaults import cfg_value, quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
@@ -880,6 +880,10 @@ class TerminalHost:
     def _resolve_config_name(self, name: str) -> str | None:
         """The file ``/cfg.load`` takes ``name`` to mean, or None; a host may narrow it."""
         return resolve_config(name)
+
+    def _open_serial(self, cfg: dict) -> Any:
+        """The engine's ``open_fn``: ``open_serial``, with the active config's ``cap/`` for a ``spy://`` log."""
+        return open_serial(cfg, cap_folder=cap_folder_of(self.config_path))
 
     def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
         """Disconnect, replace the in-memory cfg, and reconnect.

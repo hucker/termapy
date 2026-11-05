@@ -1,9 +1,12 @@
 """Tests for app.py config utilities, custom buttons, and script editor."""
 
+import contextlib
 import copy
 import json
+import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -25,6 +28,7 @@ from termapy.config import (
     ordered_cfg,
     prepare_cfg_folder,
     reveal_command,
+    spy_log_url,
     validate_config,
 )
 from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, SCRIPT_TEMPLATE
@@ -1352,6 +1356,115 @@ class TestOpenSerialUrl:
 
         # Assert
         assert data == b"test\r", "loopback returns written bytes"
+
+
+class TestSpyLogUrl:
+    """spy-log-in-cap: pyserial's ``file=`` takes only a path relative to the config's ``cap/``."""
+
+    def test_a_relative_file_lands_in_cap(self, tmp_path):
+        """A bare name and a subfolder both land under cap/, which is created for them."""
+        # Arrange
+        cap = tmp_path / "cap"
+
+        for name, expected in (
+            ("traffic.txt", cap / "traffic.txt"),
+            ("wire/traffic.txt", cap / "wire" / "traffic.txt"),
+        ):
+            # Act
+            actual = spy_log_url(f"spy://COM3?file={name}", cap)
+
+            # Assert
+            assert actual.startswith("spy://COM3?"), "the port stays as written"
+            query = parse_qs(urlsplit(actual).query)
+            assert query["file"] == [str(expected.resolve())], "pyserial is handed the path in cap/"
+            assert expected.parent.is_dir(), "the folder is there for pyserial to write in"
+
+    @pytest.mark.parametrize(
+        "name",
+        ["../x.txt", "sub/../../x.txt", "wire/../x.txt", "%2E%2E%2Fx.txt", "", ".", "wire/.."],
+    )
+    def test_a_name_outside_cap_is_refused(self, tmp_path, name):
+        """Any "..", encoded or not, even one that ends back in cap/, and a name that is cap/ itself write nothing."""
+        # Arrange
+        cap = tmp_path / "cap"
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid spy file"):
+            spy_log_url(f"spy://COM3?file={name}", cap)
+        assert not cap.exists(), "a refused log creates no folder"
+
+    def test_an_absolute_path_is_refused_even_inside_cap(self, tmp_path):
+        """Only a relative path is taken, so a full path fails wherever it points."""
+        # Arrange
+        cap = tmp_path / "cap"
+
+        for path in (tmp_path / "x.txt", cap / "x.txt"):
+            # Act / Assert
+            with pytest.raises(ValueError, match="Invalid spy file"):
+                spy_log_url(f"spy://COM3?file={path}", cap)
+
+    @pytest.mark.skipif(os.name != "nt", reason="these are plain file names on POSIX")
+    @pytest.mark.parametrize("name", ["\\x.txt", "/x.txt", "Z:x.txt"])
+    def test_the_windows_forms_that_are_not_absolute_are_refused(self, tmp_path, name):
+        """\\x and D:x pass an is_absolute check and still leave the folder, so the real path is what counts."""
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid spy file"):
+            spy_log_url(f"spy://COM3?file={name}", tmp_path / "cap")
+
+    def test_every_file_option_is_held_to_it(self, tmp_path):
+        """A second file= cannot carry a path past the first."""
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid spy file"):
+            spy_log_url("spy://COM3?file=ok.txt&file=../x.txt", tmp_path / "cap")
+
+    def test_no_config_refuses_a_log_file(self):
+        """With no config there is no cap/, and the working folder is never the fallback."""
+        # Act / Assert
+        with pytest.raises(ValueError, match="needs a config"):
+            spy_log_url("spy://COM3?file=traffic.txt", None)
+
+    @pytest.mark.parametrize(
+        "port", ["COM3", "/dev/ttyUSB0", "rfc2217://host:1234", "socket://host:1234", "spy://COM3"]
+    )
+    def test_any_other_port_passes_untouched(self, port):
+        """Only a spy:// port with a file= is rewritten, so no other port needs a config."""
+        # Act
+        actual = spy_log_url(port, None)
+
+        # Assert
+        assert actual == port
+
+    def test_a_posix_device_and_other_options_survive(self, tmp_path):
+        """The device path keeps its three slashes and pyserial's other options still arrive."""
+        # Act
+        actual = spy_log_url("spy:///dev/ttyUSB0?file=x.txt&color", tmp_path / "cap")
+
+        # Assert
+        assert actual.startswith("spy:///dev/ttyUSB0?"), "pyserial still finds the device"
+        assert "color" in parse_qs(urlsplit(actual).query, True), "the option is kept"
+
+    def test_open_serial_writes_the_log_in_cap(self, tmp_path):
+        """The rule is on the open: pyserial writes in cap/ even when the port then fails to open."""
+        # Arrange
+        import serial
+
+        cap = tmp_path / "cap"
+        cfg = _cfg_with(port="spy://NO-SUCH-PORT?file=traffic.txt")
+
+        # Act / Assert
+        with pytest.raises(serial.SerialException):
+            open_serial(cfg, cap_folder=cap)
+        assert (cap / "traffic.txt").exists(), "the log landed in cap/"
+
+    def test_open_serial_without_a_folder_refuses_a_log(self, tmp_path):
+        """A caller that passes no folder is refused, so nothing is written to the working folder."""
+        # Arrange
+        cfg = _cfg_with(port="spy://NO-SUCH-PORT?file=traffic.txt")
+
+        # Act / Assert
+        with contextlib.chdir(tmp_path), pytest.raises(ValueError, match="needs a config"):
+            open_serial(cfg)
+        assert not (tmp_path / "traffic.txt").exists(), "the working folder stays clean"
 
 
 class TestOpenSerialRxBuffer:

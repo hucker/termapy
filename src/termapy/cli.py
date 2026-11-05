@@ -26,7 +26,6 @@ from termapy.config import (
     cfg_history_path,
     load_config,
     on_connect_commands,
-    open_serial,
 )
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
 from termapy.defaults import cfg_value, cmd_prefix
@@ -154,7 +153,7 @@ class CLITerminal(TerminalHost):
         self._engine = SerialEngine(
             cfg=cfg,
             capture=self.capture,
-            open_fn=open_serial,
+            open_fn=self._open_serial,
             log=self._log,
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status)

@@ -49,7 +49,6 @@ from termapy.config import (
     cfg_history_path,
     load_config,
     on_connect_commands,
-    open_serial,
     open_with_system,
     rename_config,
     session_log_file,
@@ -638,7 +637,7 @@ class SerialTerminal(TerminalHost, App):
         self._engine = SerialEngine(
             cfg=cfg,
             capture=self._capture,
-            open_fn=open_serial,
+            open_fn=self._open_serial,
             log=self._log_line,
         )
         self._cap_timer: Timer | None = None

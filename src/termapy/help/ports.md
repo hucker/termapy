@@ -410,7 +410,7 @@ Termapy supports every port format pyserial accepts, including:
 - `socket://host:port` -- raw TCP
 - `rfc2217://host:port` -- network serial over RFC 2217 (ser2net, etc.)
 - `hwgrep://regex` -- find by device description
-- `spy://...` -- packet capture wrapper
+- `spy://port?file=name` -- log every byte in both directions (see [Logging the raw traffic](#logging-the-raw-traffic))
 
 Just put the URL in the `port` config field. See [pyserial's URL handler
 docs](https://pyserial.readthedocs.io/en/latest/url_handlers.html) for
@@ -433,3 +433,40 @@ It differs from `--demo`: the demo simulates a device that *responds*
 (request in, reply out), whereas the loopback is a raw round-trip (bytes in,
 same bytes out). Use the loopback to test the I/O plumbing, the demo to test
 device conversations.
+
+### Logging the raw traffic
+
+The session log (`/log`) covers everyday use, but it shows decoded text. When you need the exact bytes in both directions, `spy://` is pyserial's own traffic logger. Wrap the port name in the config:
+
+```json
+"port": "spy://COM3?file=traffic.txt"
+```
+
+Or turn it on from the REPL, and end it by naming the port again:
+
+```text
+/port spy://COM3?file=traffic.txt
+/port COM3
+```
+
+Each of those reopens the port, which resets a board that restarts on DTR.
+
+The log goes in the config's `cap/` folder, here `cap/traffic.txt`, so `/cap.list` shows it and `/cap.dump` prints it. `file=` takes only a path relative to that folder, such as `traffic.txt` or `wire/traffic.txt`. A full path or a `..` is refused, and the port does not open.
+
+The file holds one row per read or write: seconds since the port opened, direction, offset, hex, text.
+
+```text
+000000.323 TX   0000  41 54 2B 56 45 52 0D                              AT+VER.
+000000.340 RX   0000  41                                                A
+000000.340 RX   0000  54 2B 56 45 52 0D                                 T+VER.
+```
+
+A reply can span rows, as this one does; that is how the reads fell, not how the device sent it. Rows labeled `CTS`, `DSR`, `RI`, `CD`, `Q-RX` and `Q-TX` are control-line state and pyserial's own calls, not traffic.
+
+The logging itself is pyserial's, and it behaves as pyserial does:
+
+- **Every connect starts the file over,** even one that fails, so a reconnect erases the earlier log.
+- **Keep the file name plain.** A `+` becomes a space, and `&` and `#` mean something in a URL.
+- **Name the port itself.** A USB serial number is not looked up inside the URL, and `DEMO` cannot be wrapped: both answer `Port not found`.
+- **Always give `file=`.** Without it the log goes to stderr, into your terminal.
+- **Leave out pyserial's `raw` option.** With it, every send fails with `write() argument must be str, not bytes`.

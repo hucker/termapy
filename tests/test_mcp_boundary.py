@@ -297,6 +297,22 @@ class TestNoCodeWritten:
         assert "holds code" in result["error"], result["error"]
         assert {path.name for path in _folder(host).rglob("*")} == before, "and nothing was written"
 
+    @pytest.mark.parametrize("route", ["/port {}", "/cfg.auto port {}"])
+    def test_a_spy_log_cannot_leave_cap(self, host, route):
+        """spy-log-in-cap: a spy:// port can reach neither a code folder nor anywhere else, by any route."""
+        # Arrange
+        victim = _folder(host) / "plugin" / "keep.py"
+
+        for name in ("../plugin/keep.py", str(victim)):
+            url = f"spy://NO-SUCH-PORT?file={name}"
+
+            # Act
+            _call(host, route.format(url))
+            _call(host, "/port.connect")
+
+            # Assert
+            assert victim.read_text(encoding="utf-8") == _MINE, f"{name} left the file alone"
+
     def test_a_saved_profile_cannot_land_in_a_code_folder(self, host):
         """mcp-no-code-writes: /profile.save measures from the working folder, so the guard reads the real path."""
         # Arrange

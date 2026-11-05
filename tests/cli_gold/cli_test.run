@@ -515,3 +515,8 @@ MEM.R 0x1000 2 --json
 # -- A person's job: an MCP client cannot rename or delete a file ------------
 /print === section: rename and delete need a person ===
 /help cap.rename
+
+# -- A spy:// log takes only a path relative to cap/ -------------------------
+/print === section: spy log stays in cap ===
+/port spy://NO-SUCH-PORT?file=../traffic.txt
+/port DEMO

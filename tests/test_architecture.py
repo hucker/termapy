@@ -2277,7 +2277,6 @@ NOT_IN_GOLD: dict[str, str] = {
     "os": "runs a shell command, gated by TERMAPY_OS_CMD_ENABLED, a machine setting",
     "ping": _TIMED,
     "ping.quiet": _TIMED,
-    "port": "bare /port runs /port.list, which needs real serial hardware",
     "port.chip": _HARDWARE,
     "port.chip.description": _HARDWARE,
     "port.chip.list": _HARDWARE,

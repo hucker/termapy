@@ -2080,4 +2080,9 @@ PARAMETERS
 AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: no
   (MCP does not provide: interactive)
+  === section: spy log stays in cap ===
+Disconnected: DEMO
+  Cannot open spy://NO-SUCH-PORT?file=../traffic.txt: Invalid spy file: ../traffic.txt (use a path relative to cap/)
+Connected: DEMO
+  Port changed to DEMO (session)
 Disconnected: DEMO

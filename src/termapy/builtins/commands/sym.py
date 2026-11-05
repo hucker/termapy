@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Final
 
 from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import SYMBOLS, read_source
-from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name, file_suggestion
+from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name, file_suggestion, is_inside
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import (
     BoundaryException,
@@ -81,9 +81,8 @@ def _display_path(ctx: PluginContext, path: Path | None) -> str:
     if ctx.config_path:
         try:
             cfg_folder = Path(ctx.config_path).resolve().parent
-            resolved = path.resolve()
-            if resolved.is_relative_to(cfg_folder):
-                return resolved.relative_to(cfg_folder).as_posix()
+            if is_inside(path, cfg_folder):
+                return path.resolve().relative_to(cfg_folder).as_posix()
         except OSError:
             pass
     return str(path)

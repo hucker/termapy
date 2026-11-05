@@ -57,7 +57,8 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 _JSON_FIELD_TIP = (
-    "Where results are written when the JSON option is on: a file name in proto/test/. "
+    "Where results are written when the JSON option is on: a name inside proto/test/, "
+    "subfolders allowed. "
     "{name} is the config, {proto_name} the script, and {datetime}, {date} and {time} "
     "the time of the run."
 )

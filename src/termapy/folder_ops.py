@@ -55,6 +55,7 @@ from termapy.folders import (
     default_file_name,
     ensure_folder,
     file_suggestion,
+    inside,
 )
 from termapy.help_dynamic import compose, folder_line
 from termapy.matching import is_glob, matches
@@ -371,15 +372,11 @@ def _named_file(ctx: PluginContext, folder: str, ext: str, name: str) -> Path | 
     # ``data_dir / name`` with an absolute name (or ``../``) would
     # otherwise escape to any path on disk -- an arbitrary-file read or
     # delete for an MCP client (/cap.dump C:\\Users\\me\\.secrets).
-    # Resolve and verify the target stays inside the folder, the same
-    # guard the MCP capture resource uses.  /show is the command for
-    # reading files outside the config dir, and it is capability-gated.
-    path = (data_dir / name).resolve()
-    try:
-        inside = path.is_relative_to(data_dir.resolve())
-    except OSError:
-        inside = False
-    if not inside:
+    # folders.inside keeps the target in the folder, as it does for the MCP
+    # capture resource.  /show is the command for reading files outside
+    # the config dir, and it is capability-gated.
+    path = inside(data_dir, name)
+    if path is None:
         return CmdResult.fail(msg=f"Path escapes {folder}/: {name}")
     # After the containment check: the added suffix keeps the path in
     # the same folder.

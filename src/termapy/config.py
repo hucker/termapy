@@ -46,6 +46,8 @@ from termapy.folders import (
     default_file_name,
     ensure_folder,
     file_suggestion,
+    inside,
+    is_inside,
 )
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
@@ -170,7 +172,7 @@ def _is_bundled_path(p: Path) -> bool:
         import importlib.resources
 
         pkg_root = Path(str(importlib.resources.files("termapy"))).resolve()
-        return p.resolve().is_relative_to(pkg_root)
+        return is_inside(p, pkg_root)
     except (ImportError, OSError, TypeError, ValueError):
         return False
 
@@ -1552,12 +1554,11 @@ def _spy_log_path(name: str, cap_folder: Path | None) -> Path:
     if cap_folder is None:
         raise ValueError("A spy:// log file needs a config, for its cap/ folder")
     given = Path(name)
-    root = cap_folder.resolve()
-    path = (cap_folder / name).resolve()
+    path = inside(cap_folder, name)
     # A full path and any ".." are refused as typed, even one that ends up back
     # in cap/.  Resolving catches what the text alone cannot: a symlink, and the
     # Windows forms (\x, D:x) that are not absolute but leave the folder.
-    if given.is_absolute() or ".." in given.parts or path == root or not path.is_relative_to(root):
+    if given.is_absolute() or ".." in given.parts or path is None or path == cap_folder.resolve():
         raise ValueError(f"Invalid spy file: {name} (use a path relative to cap/)")
     return path
 

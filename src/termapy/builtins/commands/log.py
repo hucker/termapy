@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from termapy.config import open_with_system
 from termapy.defaults import cfg_value
 from termapy.folder_ops import dump_text_slice, file_table
+from termapy.folders import is_inside
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
@@ -51,12 +52,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     # refuse a log path outside the config directory.  Reading the cfg's
     # own in-sandbox log stays fine.
     if not ctx.capabilities.filesystem_unconfined and ctx.config_path:
-        sandbox = Path(ctx.config_path).parent.resolve()
-        try:
-            inside = p.resolve().is_relative_to(sandbox)
-        except OSError:
-            inside = False
-        if not inside:
+        if not is_inside(p, Path(ctx.config_path).parent):
             return CmdResult.fail(
                 msg=(
                     "Log file is outside the config sandbox; refusing to read "

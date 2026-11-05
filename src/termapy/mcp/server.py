@@ -49,7 +49,7 @@ from termapy.config import (
 )
 from termapy.defaults import cfg_value
 from termapy.folder_ops import file_record
-from termapy.folders import PROFILE_SUFFIX
+from termapy.folders import PROFILE_SUFFIX, inside, is_inside
 from termapy.markup import markup_to_plain
 from termapy.mcp.catalog import (
     catalog_json,
@@ -309,9 +309,8 @@ class MCPHost(TerminalHost):
             raise FileNotFoundError(
                 f"No captures available: load a cfg first ({self.prefix}cfg.load <name>)."
             )
-        cap_dir = active.resolve()
-        target = (cap_dir / filename).resolve()
-        if not target.is_relative_to(cap_dir):
+        target = inside(active, filename)
+        if target is None:
             raise ValueError(f"Path traversal blocked: {filename!r}")
         if not target.exists():
             raise FileNotFoundError(f"Capture not found: {filename!r}")
@@ -639,7 +638,7 @@ class MCPHost(TerminalHost):
             cfg_path = Path(self.config_path)
             layer = cfg_path.stem
             folder = cfg_path.parent.resolve()
-            if candidate.resolve().is_relative_to(folder):
+            if is_inside(candidate, folder):
                 file = candidate.resolve().relative_to(folder).as_posix()
         self._log_line(f"$ {self.prefix}profile.load {file}  (auto-load on connect)")
         try:

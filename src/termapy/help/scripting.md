@@ -12,6 +12,11 @@ docstring summary, and has six actions:
 - **Delete:** delete the highlighted script, after a yes: it runs `/run.delete <name>`
 - **Cancel:** close the picker
 
+Rename and Delete leave the picker open: the list refreshes in place, the
+highlight on the renamed script or on the next one after a delete, so
+several scripts can be tidied in one visit.  The Proto picker works the
+same way.
+
 ![Script picker](img/doc_21_script_picker.svg)
 
 The script editor provides syntax highlighting (bash-style) for comments

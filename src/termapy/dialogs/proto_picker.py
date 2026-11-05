@@ -21,6 +21,7 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    FileAction,
     FileOptionList,
     PathLink,
     _highlighted_file,
@@ -88,6 +89,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
         gui_apps: bool = True,
         web: bool = False,
         opener: Callable[[str], None] = reveal_in_file_manager,
+        file_action: FileAction | None = None,
     ) -> None:
         """Build the picker for the ``.pro`` scripts in ``proto_dir``.
 
@@ -101,6 +103,8 @@ class ProtoPicker(ModalScreen[tuple | None]):
                 open on the server, so the path is shown but inert.
             opener: What a click on the path calls; injected so a test can
                 prove the click reaches it without a file manager appearing.
+            file_action: Renames or deletes a script while the picker stays
+                open (``FileAction``); ``None`` disables Rename and Delete.
         """
         super().__init__()
         self.proto_dir = proto_dir
@@ -108,6 +112,8 @@ class ProtoPicker(ModalScreen[tuple | None]):
         self.gui_apps = gui_apps
         self._live_link = gui_apps and not web
         self._opener = opener
+        self._file_action = file_action
+        self._can_change = not read_only and file_action is not None
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
@@ -160,7 +166,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
                 rename_btn = Button(
                     "Rename",
                     id="proto-rename",
-                    disabled=not has_protos or self.read_only,
+                    disabled=not has_protos or not self._can_change,
                 )
                 rename_btn.styles.background = "darkcyan"
                 yield rename_btn
@@ -168,7 +174,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
                     "Delete",
                     id="proto-delete",
                     variant="warning",
-                    disabled=not has_protos or self.read_only,
+                    disabled=not has_protos or not self._can_change,
                 )
                 yield Button("Cancel", id="proto-cancel", variant="error")
 
@@ -189,15 +195,37 @@ class ProtoPicker(ModalScreen[tuple | None]):
 
     @on(Button.Pressed, "#proto-delete")
     def delete_proto(self) -> None:
-        path = self._selected_path()
-        if path:
-            self.dismiss(("delete", path))
+        """Delete the highlighted script, staying open for the next one."""
+        self._act("delete")
 
     @on(Button.Pressed, "#proto-rename")
     def rename_proto(self) -> None:
+        """Rename the highlighted script, staying open."""
+        self._act("rename")
+
+    def _act(self, verb: str) -> None:
+        """Hand the highlighted script to ``file_action``; it calls back to refresh the list."""
         path = self._selected_path()
-        if path:
-            self.dismiss(("rename", path))
+        if path and self._file_action is not None:
+            self._file_action(verb, path, self._refresh)
+
+    def _refresh(self, select: str | None) -> None:
+        """Re-list the folder after a rename or delete, keeping the place in the list."""
+        ol = self.query_one("#proto-list", FileOptionList)
+        protos = list_entries(self.proto_dir, FOLDER_PATTERNS[PROTO])
+        ol.refill(protos, select)
+        has_protos = bool(protos)
+        for name, live in (
+            ("run", True),
+            ("debug", True),
+            ("edit", not self.read_only),
+            ("rename", self._can_change),
+            ("delete", self._can_change),
+        ):
+            self.query_one(f"#proto-{name}", Button).disabled = not has_protos or not live
+        self.query_one("#proto-path", PathLink).set_path(
+            _option_path(_highlighted_file(ol), self.proto_dir)
+        )
 
     @on(Button.Pressed, "#proto-new")
     def new_proto(self) -> None:

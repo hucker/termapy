@@ -19,6 +19,7 @@ lookups -- keep working unchanged.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -156,7 +157,9 @@ def on_quick_setup(app, result: tuple | None) -> None:
     _write_and_activate(overwrite=False)
 
 
-def prompt_rename(app, path_str: str, command: str) -> None:
+def prompt_rename(
+    app, path_str: str, command: str, then: Callable[[str | None], None] | None = None
+) -> None:
     """Ask for a new name, then dispatch ``/<command>.rename <old> <new>``.
 
     The rename itself is the command's job (``/run.rename``,
@@ -169,6 +172,9 @@ def prompt_rename(app, path_str: str, command: str) -> None:
         app: The SerialTerminal instance.
         path_str: The file to rename.
         command: The owning top-level command (``"run"`` / ``"proto"``).
+        then: Called on the main thread once the command has finished, with
+            the renamed file's path (the extension is kept); not called when
+            the prompt is cancelled or the name is refused.
     """
     old = Path(path_str)
 
@@ -180,7 +186,11 @@ def prompt_rename(app, path_str: str, command: str) -> None:
             app._status(reason, "red")
             return
         prefix = cmd_prefix(app.cfg)
-        app._dispatch_on_thread(f"{prefix}{command}.rename {old.name} {new_name}")
+        renamed = str(old.with_name(new_name + old.suffix))
+        app._dispatch_on_thread(
+            f"{prefix}{command}.rename {old.name} {new_name}",
+            then=(lambda: then(renamed)) if then is not None else None,
+        )
 
     app.push_screen(
         FilenameDialog(title=f"Rename {old.name} to:", value=old.stem),
@@ -188,26 +198,49 @@ def prompt_rename(app, path_str: str, command: str) -> None:
     )
 
 
+def file_action(
+    app, command: str, verb: str, path_str: str, done: Callable[[str | None], None]
+) -> None:
+    """Rename or delete a picker's file with its own command, the picker staying open.
+
+    The button is the command, as everywhere (``/run.rename``,
+    ``/proto.delete``, which asks first); ``done`` runs once it has
+    finished, so the picker re-lists its folder in place.  The Run and
+    Proto pickers call this as their ``FileAction``.
+
+    Args:
+        app: The SerialTerminal instance.
+        command: The owning top-level command (``"run"`` / ``"proto"``).
+        verb: ``"rename"`` or ``"delete"``.
+        path_str: The highlighted file.
+        done: The picker's refresh, given the file to highlight.
+    """
+    if verb == "rename":
+        prompt_rename(app, path_str, command, then=done)
+    elif verb == "delete":
+        app._dispatch_on_thread(
+            f"{cmd_prefix(app.cfg)}{command}.delete {Path(path_str).name}",
+            then=lambda: done(None),
+        )
+
+
 def on_script_picked(app, result: tuple | None) -> None:
     """Apply the script-picker result.
 
     Dispatches to one of: run the script (clears vars, calls
-    ``app._run_script``), new (opens ScriptEditor), edit (opens
-    ScriptEditor on the selected file), rename (name prompt, then
-    ``/run.rename``), or delete (``/run.delete``, which asks first).
+    ``app._run_script``), new (opens ScriptEditor), or edit (opens
+    ScriptEditor on the selected file).  Rename and Delete do not
+    dismiss the picker: they go through ``file_action``.
 
     Args:
         app: The SerialTerminal instance.
         result: ``(action, ...path)`` where ``action`` is one of
-            ``"run"``, ``"new"``, ``"edit"``, ``"rename"``, ``"delete"``.
-            ``None`` if the user canceled.
+            ``"run"``, ``"new"``, ``"edit"``.  ``None`` if the user canceled.
     """
     if result is None:
         return
     action = result[0]
-    if action == "rename":
-        prompt_rename(app, result[1], "run")
-    elif action == "run":
+    if action == "run":
         path, _ = app.repl.start_script(result[1])
         if path:
             app._run_script(path)
@@ -221,14 +254,13 @@ def on_script_picked(app, result: tuple | None) -> None:
             ScriptEditor(app.repl.scripts_dir, result[1]),
             callback=app._on_script_saved,
         )
-    elif action == "delete":
-        # The button is the command, as the config picker's is /cfg.delete:
-        # /run.delete asks, deletes, and refreshes the Scripts button.
-        app._dispatch_on_thread(f"{cmd_prefix(app.cfg)}run.delete {Path(result[1]).name}")
 
 
 def on_proto_picked(app, result: tuple | None) -> None:
-    """Handle result from the ProtoPicker dialog.
+    """Handle result from the ProtoPicker dialog: run, debug, new or edit.
+
+    Rename and Delete do not dismiss the picker: they go through
+    ``file_action``.
 
     Args:
         result: Tuple action from picker, or None if canceled.
@@ -236,9 +268,7 @@ def on_proto_picked(app, result: tuple | None) -> None:
     if result is None:
         return
     action = result[0]
-    if action == "rename":
-        prompt_rename(app, result[1], "proto")
-    elif action == "run":
+    if action == "run":
         filename = Path(result[1]).name
         prefix = cmd_prefix(app.cfg)
         app._dispatch_on_thread(f"{prefix}proto.run {filename}")
@@ -256,9 +286,6 @@ def on_proto_picked(app, result: tuple | None) -> None:
             ProtoEditor(app.repl.proto_dir, result[1]),
             callback=app._on_proto_saved,
         )
-    elif action == "delete":
-        # The button is the command: /proto.delete asks, deletes, refreshes.
-        app._dispatch_on_thread(f"{cmd_prefix(app.cfg)}proto.delete {Path(result[1]).name}")
 
 
 def open_picker(app, name: str) -> CmdResult:

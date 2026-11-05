@@ -177,6 +177,12 @@ def test_rows_past_the_end_are_left_alone():
     _run(scenario)
 
 
+def _row(selection_list: StrongSelectionList, row: int) -> tuple[int, int]:
+    """Where row ``row`` is, from the widget's corner: below its border, as a person points at it."""
+    top = selection_list.content_region.y - selection_list.region.y
+    return 6, top + row
+
+
 class TestOptionTooltips:
     """A tooltip per row: Textual has no place for one, so the widget carries it."""
 
@@ -190,11 +196,11 @@ class TestOptionTooltips:
                 selection_list.set_option_tooltips({0: "the first", 2: "the third"})
 
                 # Act / Assert -- each row answers with its own text
-                await pilot.hover(StrongSelectionList, offset=(6, 0))
+                await pilot.hover(StrongSelectionList, offset=_row(selection_list, 0))
                 await pilot.pause()
                 assert selection_list.tooltip == "the first", "row 0 shows its own tip"
 
-                await pilot.hover(StrongSelectionList, offset=(6, 2))
+                await pilot.hover(StrongSelectionList, offset=_row(selection_list, 2))
                 await pilot.pause()
                 assert selection_list.tooltip == "the third", (
                     "and moving to row 2 shows that row's, not the one before it -- "
@@ -213,10 +219,10 @@ class TestOptionTooltips:
                 selection_list.set_option_tooltips({0: "the first"})
 
                 # Act
-                await pilot.hover(StrongSelectionList, offset=(6, 0))
+                await pilot.hover(StrongSelectionList, offset=_row(selection_list, 0))
                 await pilot.pause()
                 had = selection_list.tooltip
-                await pilot.hover(StrongSelectionList, offset=(6, 1))
+                await pilot.hover(StrongSelectionList, offset=_row(selection_list, 1))
                 await pilot.pause()
 
                 # Assert
@@ -224,6 +230,26 @@ class TestOptionTooltips:
                 assert selection_list.tooltip is None, (
                     "row 1 has none, so no tooltip shows -- a stale one would name the wrong row"
                 )
+
+        _run(scenario)
+
+    def test_the_border_shows_no_tip(self):
+        """The border line above row 0 is not a row, so pointing at it shows nothing, not row 0's tip."""
+
+        async def scenario():
+            async with _Host().run_test(size=(40, 10)) as pilot:
+                # Arrange
+                selection_list = pilot.app.query_one(StrongSelectionList)
+                selection_list.set_option_tooltips({0: "the first", 1: "the second"})
+                top = selection_list.content_region.y - selection_list.region.y
+                assert top > 0, "the default list has a border, which is what this pins"
+
+                # Act
+                await pilot.hover(StrongSelectionList, offset=(6, top - 1))
+                await pilot.pause()
+
+                # Assert
+                assert selection_list.tooltip is None, "the border names no row"
 
         _run(scenario)
 

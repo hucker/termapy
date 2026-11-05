@@ -78,6 +78,34 @@ class TestResultsDocument:
         assert document["tests"][0]["name"] == "AT basic"
         assert document["source"].startswith("json_file"), "the script text rides along"
 
+    @pytest.mark.parametrize("name", ["../up.json", "sub/x.json", "..\\up.json", "C:x.json"])
+    def test_json_file_names_a_file_never_a_folder(self, cli, tmp_path, capsys, name):
+        """proto-results-name-only: for a person too, a script cannot choose the folder, and nothing is sent first."""
+        # Arrange
+        script = _pro(tmp_path, "at.pro", f"json_file = {json.dumps(name)}\n" + _AT_OK)
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(f"/proto.run {script}")
+
+        # Assert
+        assert "Invalid results file name" in result.error, result.error
+        assert "[PROTO]" not in capsys.readouterr().out, "no test ran"
+        assert not (tmp_path / "test").exists(), "nothing was written"
+
+    def test_a_person_may_run_a_fixed_name_twice(self, cli, tmp_path):
+        """A person's re-run replaces the last results: only an MCP client is refused that."""
+        # Arrange
+        script = _pro(tmp_path, "at.pro", 'json_file = "out.json"\n' + _AT_OK)
+
+        # Act
+        first = cli.repl.dispatch_full(f"/proto.run {script}")
+        second = cli.repl.dispatch_full(f"/proto.run {script}")
+
+        # Assert
+        assert first.success is True, first.error
+        assert second.success is True, second.error
+
     def test_no_json_file_writes_nothing(self, cli, tmp_path):
         """Without json_file a plain /proto.run leaves no file behind."""
         script = _pro(tmp_path, "at.pro", _AT_OK)

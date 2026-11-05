@@ -57,11 +57,15 @@ class StrongSelectionList(SelectionList[SelectionType], Generic[SelectionType]):
         # ``_mouse_hovering_over``: that is read out of the style under
         # the cursor, which on the first move into a row still carries
         # the row before it, so the tooltip trailed the mouse by one.
-        _, scroll_y = self.scroll_offset
-        index = event.y + scroll_y
+        # Measured from the content area, not the widget's edge: a border
+        # puts row 0 one line down, and event.y counted the border as a row.
+        offset = event.get_content_offset(self)
         tip = None
-        if 0 <= index < self.option_count:
-            tip = tips.get(self.get_option_at_index(index).value)
+        if offset is not None:
+            _, scroll_y = self.scroll_offset
+            index = offset.y + scroll_y
+            if 0 <= index < self.option_count:
+                tip = tips.get(self.get_option_at_index(index).value)
         if tip != self.tooltip:
             self.tooltip = tip
 

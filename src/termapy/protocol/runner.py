@@ -217,26 +217,48 @@ def build_results(
     }
 
 
-def write_results(
-    results: dict,
-    output_dir: Path,
-    template: str,
-    proto_name: str,
-    config_name: str,
-) -> Path:
-    """Write a results document under ``output_dir`` and return its path.
+def result_path(output_dir: Path, template: str, proto_name: str, config_name: str = "") -> Path:
+    """Where a results document goes: ``template``, expanded, names a file in ``output_dir``.
 
-    The file is named by expanding ``template``
-    (:func:`expand_result_template`); the folder is created at the write.
+    Only a name, never a folder (registry ``proto-results-name-only``): a
+    template often comes from a ``.pro`` someone else wrote, and running that
+    script must not choose where on the disk a file lands.
+
+    Args:
+        output_dir: The folder the document goes in.
+        template: The file name template (:func:`expand_result_template`).
+        proto_name: The ``.pro`` file's stem.
+        config_name: The config's name.
+
+    Returns:
+        The file's path; nothing is created.
+
+    Raises:
+        ValueError: The template names a placeholder that does not exist, or
+            does not expand to a plain file name.
+    """
+    try:
+        name = expand_result_template(template, proto_name, config_name)
+    except (KeyError, IndexError, ValueError, AttributeError):
+        # str.format's own errors: {oops}, {0}, a lone brace, {name.x}.
+        raise ValueError(
+            f"Invalid results file name: {template} "
+            "(placeholders: {name} {proto_name} {datetime} {date} {time})"
+        ) from None
+    if name in ("", ".", "..") or any(char in name for char in "/\\:"):
+        raise ValueError(f"Invalid results file name: {name} (a name only, no folder)")
+    return output_dir / name
+
+
+def write_results(results: dict, out_path: Path) -> None:
+    """Write a results document to :func:`result_path`'s answer, creating its folder.
 
     Raises:
         OSError: The file cannot be written.
     """
-    ensure_folder(output_dir)
-    out_path = output_dir / expand_result_template(template, proto_name, config_name)
+    ensure_folder(out_path.parent)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
-    return out_path
 
 
 def run_script_tests(ser, script: ProtoScript, cfg: dict) -> tuple[list[dict], int, int]:
@@ -317,7 +339,8 @@ def run_proto_tests(
         JSON-serializable results dict.
 
     Raises:
-        ValueError: If the .pro file is not TOML format with [[test]] sections.
+        ValueError: If the .pro file is not TOML format with [[test]] sections,
+            or its results template is not a plain file name.
         serial.SerialException: If the serial port cannot be opened.
     """
     # Parse script
@@ -330,12 +353,15 @@ def run_proto_tests(
         )
     script = result[1]
 
-    # Open serial port
-    ser = open_serial(cfg, cap_folder=cap_folder_of(cfg.get("_config_path", "")))
-
-    # Resolve output directory
+    # Where the results go, refused before the port opens: a script-level
+    # json_file overrides the config template.
     if output_dir is None:
         output_dir = pro_path.parent / "test"
+    config_name = Path(cfg.get("_config_path", "")).stem or ""
+    out_path = result_path(output_dir, script.json_file or template, pro_path.stem, config_name)
+
+    # Open serial port
+    ser = open_serial(cfg, cap_folder=cap_folder_of(cfg.get("_config_path", "")))
 
     t_start = time.monotonic()
 
@@ -353,7 +379,6 @@ def run_proto_tests(
             pass
 
     total_elapsed = (time.monotonic() - t_start) * 1000
-    config_name = Path(cfg.get("_config_path", "")).stem or ""
     results = build_results(
         script,
         pro_path,
@@ -366,7 +391,6 @@ def run_proto_tests(
         total_elapsed,
     )
 
-    # Write JSON file - script-level json_file overrides config template
-    write_results(results, output_dir, script.json_file or template, pro_path.stem, config_name)
+    write_results(results, out_path)
 
     return results

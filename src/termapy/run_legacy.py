@@ -78,16 +78,20 @@ def _scan_line(line: str, prefix: str) -> tuple[str, list[tuple[str, str]]]:
 
 
 def _resolve_script(ctx: PluginContext, name: str) -> Path | None:
-    """Resolve a script filename the same way /run does.
+    """Resolve a script filename.
 
-    Checks ``<scripts_dir>/<name>`` first; falls back to cwd.  Either may
-    leave off ``.run``.
+    Checks ``run/<name>`` first, then the working folder; either may leave
+    off ``.run``.  A host confined to the config's folder has only ``run/``,
+    and ``ctx.fs.resolve`` refuses a name that leaves it.
     """
     raw = name.strip()
     if not raw:
         return None
-    for folder in (Path(ctx.fs.scripts_dir), Path.cwd()):
-        candidate = default_file_name(folder / raw, FOLDER_EXTS[RUN])
+    paths = [ctx.fs.resolve(raw, "scripts")]
+    if ctx.capabilities.filesystem_unconfined:
+        paths.append(Path.cwd() / raw)
+    for path in paths:
+        candidate = default_file_name(path, FOLDER_EXTS[RUN])
         if candidate.is_file():
             return candidate
     return None
@@ -130,6 +134,8 @@ def _scan_one_file(ctx: PluginContext, path: Path, prefix: str, fix_mode: bool) 
         return 0
 
     if fix_mode:
+        ctx.fs.guard_code_folder(path.parent)
+        ctx.fs.guard_replace(path)
         try:
             path.write_text("".join(rewritten_lines), encoding="utf-8")
         except OSError as e:

@@ -112,8 +112,8 @@ def _resolve_path(ctx: PluginContext, filename: str, file_mode: str) -> Path:
     refused under the MCP sandbox (raises ``MissingCapability``, which the
     dispatcher converts to a clean failure); the operator at a CLI/TUI
     (``filesystem_unconfined``) keeps host-wide capture paths as before.
-    An MCP client also never writes a code folder, and never replaces a
-    file, though it may append to one.
+    An MCP client also never writes a code folder, and replaces a file
+    only inside the config's folder.
 
     Args:
         ctx: The plugin context, for the sandbox and its guards.
@@ -123,7 +123,7 @@ def _resolve_path(ctx: PluginContext, filename: str, file_mode: str) -> Path:
     path = ctx.fs.resolve(filename, "cap")
     ctx.fs.guard_code_folder(path.parent)
     if file_mode.startswith("w"):
-        ctx.fs.guard_new_file(path)
+        ctx.fs.guard_replace(path)
     return path
 
 
@@ -445,7 +445,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             else:
                 return CmdResult.fail(msg=f"Cannot find free filename near {p}")
         ctx.fs.guard_code_folder(p.parent)
-        ctx.fs.guard_new_file(p)  # only --overwrite can still name a file that exists
+        ctx.fs.guard_replace(p)  # only --overwrite can still name a file that exists
         path = p
         ensure_folder(path.parent)
 

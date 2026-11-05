@@ -46,6 +46,7 @@ from termapy.protocol import (
     parse_data_segments,
     parse_hex,
     parse_toml_script,
+    result_path,
     script_name,
     strip_ansi,
     write_results,
@@ -709,18 +710,16 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
         script = result[1]
         if not script.tests:
             return CmdResult.fail(msg="Script has no tests.")
-        results = _run_toml_script(ctx, path, script, text)
+        out_path = None
         if script.json_file:
-            # Beside the script, in test/ -- where ``termapy --proto`` puts it.
-            config_name = Path(ctx.config_path).stem if ctx.config_path else ""
             try:
-                out_path = write_results(
-                    results,
-                    path.parent / "test",
-                    script.json_file,
-                    path.stem,
-                    config_name,
-                )
+                out_path = _results_path(ctx, path, script.json_file)
+            except ValueError as e:
+                return CmdResult.fail(msg=str(e))
+        results = _run_toml_script(ctx, path, script, text)
+        if out_path is not None:
+            try:
+                write_results(results, out_path)
             except OSError as e:
                 return CmdResult.fail(msg=f"Write error: {e}")
             if not ctx.wants_data:
@@ -744,6 +743,35 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=_failed_tests_msg(failed, total), value=str(path.resolve()))
     # Return the script path so scripts can confirm what was run.
     return CmdResult.ok(value=path)
+
+
+def _results_path(ctx: PluginContext, script_path: Path, template: str) -> Path:
+    """Where ``/proto.run`` writes a script's ``json_file``, asked before anything is sent.
+
+    In ``test/`` beside the script, where ``termapy --proto`` puts it.  A host
+    confined to the config's folder keeps them in its ``proto/test/`` wherever
+    the script came from, and an MCP client neither lands in a code folder nor
+    replaces a file outside that folder (registry ``mcp-no-code-writes``).
+
+    Args:
+        ctx: Plugin context, for the config's folders and the guards.
+        script_path: The ``.pro`` file being run.
+        template: Its ``json_file`` value.
+
+    Returns:
+        The path to write.
+
+    Raises:
+        ValueError: The template is not a plain file name.
+        MissingCapability: An MCP client may not write there.
+    """
+    confined = not ctx.capabilities.filesystem_unconfined
+    folder = Path(ctx.fs.proto_dir) if confined else script_path.parent
+    config_name = Path(ctx.config_path).stem if ctx.config_path else ""
+    out_path = result_path(folder / "test", template, script_path.stem, config_name)
+    ctx.fs.guard_code_folder(out_path.parent)
+    ctx.fs.guard_replace(out_path)
+    return out_path
 
 
 def _failed_tests_msg(failed: int, total: int) -> str:
@@ -1082,7 +1110,7 @@ def _write_crc_codegen_files(
     lang: str,
     file_stem: str,
     folder: Path,
-    guard_new_file: Callable[[Path], None],
+    guard_replace: Callable[[Path], None],
 ) -> list:
     """Write codegen output to disk; return the list of written ``Path``s.
 
@@ -1102,7 +1130,7 @@ def _write_crc_codegen_files(
             appended.
         folder: The folder the file(s) are written in, the config's
             ``firmware/`` unless ``file=`` names another.
-        guard_new_file: ``ctx.fs.guard_new_file``, asked about every file
+        guard_replace: ``ctx.fs.guard_replace``, asked about every file
             before any is written, so a refusal leaves no half of a C pair.
 
     Returns:
@@ -1115,7 +1143,7 @@ def _write_crc_codegen_files(
     contents = result if isinstance(result, tuple) else (result,)
     paths = [folder / f"{file_stem}{ext}" for ext in extensions[: len(contents)]]
     for path in paths:
-        guard_new_file(path)
+        guard_replace(path)
     # ``str(content)`` casts -- ``result`` comes from a crcglot generator
     # Callable, so ty widens its elements to ``object``; runtime always
     # returns strings.
@@ -1554,7 +1582,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         folder = write_destination(ctx, given, FIRMWARE)
         try:
             written = _write_crc_codegen_files(
-                result, lang, stem.name, folder, ctx.fs.guard_new_file
+                result, lang, stem.name, folder, ctx.fs.guard_replace
             )
         except OSError as e:
             return CmdResult.fail(msg=f"Write error: {e}")
@@ -2146,7 +2174,7 @@ def _render_detect_result(
         # it as an answer rather than the generic "no match" so the user
         # has a concrete next step.  Identification only -- crcglot does
         # not generate code for these.  ``trailer_hint`` is None when
-        # the asc= helper synthesises a DetectResult directly.
+        # the asc= helper synthesizes a DetectResult directly.
         trailer_hint = getattr(result, "trailer_hint", None)
         if trailer_hint is not None and trailer_hint.matched:
             top = trailer_hint.candidates[0]

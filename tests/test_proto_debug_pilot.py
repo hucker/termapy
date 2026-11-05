@@ -15,12 +15,12 @@ import json
 from pathlib import Path
 
 import pytest
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Input, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import ProtoPicker
 from termapy.proto_debug import OPTIONS, ProtoDebugScreen
-from termapy.widgets import StrongSelectionList
+from termapy.widgets import SelectableRichLog, StrongSelectionList
 
 _ONE_AT_TEST = """\
 name = "One test"
@@ -103,6 +103,146 @@ async def _disabled_after(pilot, button: Button, seconds: float) -> bool:
             return True
         await pilot.pause(0.1)
     return button.disabled
+
+
+class TestJsonFieldCheck:
+    @pytest.mark.parametrize("bad", ["../up.json", "sub/x.json", "{oops}.json"])
+    def test_a_bad_name_shows_as_it_is_typed(self, tmp_path, bad):
+        """proto-results-name-only: the field turns red and the status says why, and a fixed name clears both, twice."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test(size=(140, 40)) as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                field = screen.query_one("#input-json-file", Input)
+                status = screen.query_one("#proto-debug-status", Static)
+
+                # Act -- bad, fixed, bad, fixed: the warning must come and go each time
+                seen = []
+                for value in (bad, "ok.json", bad, "ok.json"):
+                    field.value = value
+                    await pilot.pause()
+                    said = "Invalid results file name" in str(status.render())
+                    seen.append((field.has_class("-invalid"), said))
+
+                # Assert
+                expected = [(True, True), (False, False), (True, True), (False, False)]
+                assert seen == expected, "(field red, status says why) after each edit"
+
+        _run(scenario)
+
+    def test_a_script_with_a_bad_name_opens_red(self, tmp_path):
+        """A .pro whose json_file holds a folder shows it the moment the screen opens, before any Run."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, 'json_file = "../up.json"\n' + _ONE_AT_TEST)
+            async with app.run_test(size=(140, 40)) as pilot:
+                # Act
+                screen = await _open_debug_screen(pilot, script)
+                await pilot.pause()
+
+                # Assert
+                field = screen.query_one("#input-json-file", Input)
+                assert field.value == "../up.json", "the script's own name is in the field"
+                assert field.has_class("-invalid"), "and it shows as refused at once"
+
+        _run(scenario)
+
+
+class TestResultsCopy:
+    def test_the_results_select_and_copy(self, tmp_path):
+        """The results pane selects like the main output pane, and Ctrl+C puts that text on the clipboard."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test(size=(140, 40)) as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                stop = screen.query_one("#btn-dbg-stop", Button)
+                await pilot.click("#btn-dbg-send")
+                await _status_after(pilot, screen, "PASS", 5.0)
+                await _disabled_after(pilot, stop, 5.0)
+                detail = screen.query_one("#proto-debug-detail", SelectableRichLog)
+
+                # Act
+                detail.text_select_all()
+                await pilot.pause()
+                selected = screen.get_selected_text()
+                await pilot.press("ctrl+c")
+                await pilot.pause()
+
+                # Assert
+                assert selected is not None and "PASS" in selected, f"the run's text: {selected!r}"
+                assert app.clipboard == selected, "Ctrl+C copies it inside the dialog too"
+
+        _run(scenario)
+
+
+class TestOptionTips:
+    def test_each_option_shows_its_own_tip(self, tmp_path):
+        """Hovering an Options row shows that row's help: the list is bordered, so row 0 starts below the border."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test(size=(140, 40)) as pilot:
+                # Arrange -- wide enough that the Options box is on screen, as in a real terminal
+                screen = await _open_debug_screen(pilot, script)
+                options = screen.query_one("#sel-opts", StrongSelectionList)
+                top = options.content_region.y - options.region.y
+                left = options.content_region.x - options.region.x
+
+                # Act -- the pointer on each row in turn, as a person moves down the list
+                shown = []
+                for row in range(len(OPTIONS)):
+                    await pilot.hover("#sel-opts", offset=(left + 2, top + row))
+                    await pilot.pause()
+                    shown.append(options.tooltip)
+
+                # Assert
+                expected = [tip for _, _, tip in OPTIONS]
+                assert shown == expected, "each row's own tip, none from the row above"
+
+        _run(scenario)
+
+
+class TestJsonField:
+    @pytest.mark.parametrize(
+        ("template", "lands", "says"),
+        [
+            ("out.json", True, "JSON: "),
+            ("../up.json", False, "Failed to write JSON results: Invalid results file name"),
+            ("{oops}.json", False, "Failed to write JSON results: Invalid results file name"),
+        ],
+    )
+    def test_the_field_takes_a_name_never_a_folder(self, tmp_path, template, lands, says):
+        """proto-results-name-only: a name lands in proto/test/, a folder writes nothing, and the screen says which."""
+
+        async def scenario():
+            app, script = _make_app(tmp_path, _ONE_AT_TEST)
+            async with app.run_test() as pilot:
+                # Arrange
+                screen = await _open_debug_screen(pilot, script)
+                stop = screen.query_one("#btn-dbg-stop", Button)
+                screen.query_one("#sel-opts", StrongSelectionList).select("json")
+                screen.query_one("#input-json-file", Input).value = template
+                await pilot.pause()
+
+                # Act
+                await pilot.click("#btn-dbg-send")
+                text = await _status_after(pilot, screen, "PASS", 5.0)
+                await _disabled_after(pilot, stop, 5.0)
+
+                # Assert
+                assert "1/1 PASS" in text, f"the run ran, got {text!r}"
+                written = {path.name for path in tmp_path.rglob("*.json")}
+                assert "up.json" not in written, "a folder in the field goes nowhere"
+                assert ("out.json" in written) is lands, f"wrote {sorted(written)}"
+                detail = screen.query_one("#proto-debug-detail", RichLog)
+                shown = [strip.text.strip() for strip in detail.lines]
+                assert any(says in line for line in shown), f"the pane says what happened: {shown}"
+
+        _run(scenario)
 
 
 class TestRunButton:

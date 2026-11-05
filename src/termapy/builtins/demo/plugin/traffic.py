@@ -26,9 +26,9 @@ from __future__ import annotations
 
 import threading
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folders import ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.protocol import parse_data
 from termapy.scripting import parse_duration, parse_keywords
@@ -91,13 +91,19 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
     parts = args.split()
     if not parts:
         raise UsageError()
-    out_path = Path(parts[0])
+    # What any plugin writing a user-named file calls: a relative name lands in
+    # cap/, and an MCP client stays in the config's folder, away from its code
+    # folders, and replaces a file only inside it.
+    out_path = ctx.fs.resolve(parts[0], "cap")
+    ctx.fs.guard_code_folder(out_path.parent)
+    ctx.fs.guard_replace(out_path)
     try:
         duration_s = parse_duration(parts[1]) if len(parts) > 1 else 5.0
     except ValueError as e:
         return CmdResult.fail(msg=f"Invalid duration: {e}")
 
     t0 = time.monotonic()
+    ensure_folder(out_path.parent)
     with out_path.open("w", encoding="utf-8") as f:
 
         def tee(direction: str):

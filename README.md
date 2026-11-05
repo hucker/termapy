@@ -136,7 +136,7 @@ Termapy runs with your privileges and does whatever you — or a connected MCP c
 
 Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
 
-No flag opens the rest to an MCP client: a shell (`/os`), renaming or deleting files, and writing into `plugin/` or `viz/` or over a file that exists. The one exception is a `spy://` traffic log, which starts its file in `cap/` over at every connect. These limit termapy's own commands; a client that can write files some other way is outside them.
+No flag opens the rest to an MCP client: a shell (`/os`), renaming or deleting files, writing into `plugin/` or `viz/`, and replacing a file outside the config's folder. These limit termapy's own commands; a client that can write files some other way is outside them.
 
 <details>
 <summary><strong>The basics</strong> - keyboard shortcuts, title bar, REPL commands</summary>

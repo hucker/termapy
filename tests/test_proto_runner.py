@@ -349,6 +349,22 @@ expect = '"WRONG\\r\\n"'
         assert results["summary"]["passed"] == 1, "passed"
         assert results["summary"]["failed"] == 0, "no failures"
 
+    @pytest.mark.parametrize(
+        "template", ["../up.json", "sub/x.json", "..\\up.json", "..", "{oops}.json", "{"]
+    )
+    def test_a_template_with_a_folder_is_refused_before_the_port_opens(
+        self, demo_cfg: dict, at_pro: Path, tmp_path: Path, template: str
+    ) -> None:
+        """proto-results-name-only: --proto refuses a config's template or a script's json_file with no port opened."""
+        # Arrange -- a port that cannot open, so a late check would raise something else
+        demo_cfg["serial"]["port"] = "NO-SUCH-PORT"
+        out_dir = tmp_path / "out"
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid results file name"):
+            run_proto_tests(at_pro, demo_cfg, output_dir=out_dir, template=template)
+        assert not out_dir.exists(), "nothing was written"
+
     def test_json_file_written(self, demo_cfg: dict, at_pro: Path, tmp_path: Path) -> None:
         """Each run writes one JSON file holding meta, summary, tests, and the source."""
         # Act

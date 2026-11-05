@@ -66,9 +66,11 @@ Header (defaults for every test):
 - `json_file`: after `/proto.run`, write the results document to this
   file in `test/` beside the script. A filename template: `{name}` (the
   config), `{proto_name}` (the script's stem), `{datetime}`, `{date}`,
-  `{time}`. The debug screen and `termapy --proto` write one whether or
-  not the key is set; there it overrides the `proto_results_template`
-  config value
+  `{time}`. It names a file, so a folder in it (`../x.json`) is refused.
+  The debug screen and `termapy --proto` write one whether or not the key
+  is set; there it overrides the `proto_results_template` config value,
+  which names a file the same way. Under MCP the results go in the
+  config's `proto/test/` wherever the script came from
 
 Per `[[test]]`:
 
@@ -139,10 +141,13 @@ The options:
 
 **Run settings**, under the lists: `Repeat` runs the whole set that many
 times, `Delay (ms)` waits between tests, and `JSON file` names the
-results file. In that name `{name}` stands for the script's own name, so
-the default `{name}_results.json` writes `modbus_inline_results.json`
-for `modbus_inline.pro`. A relative name lands in the config's folder.
-The file is only written when the JSON option is on.
+results file in the config's `proto/test/`. In that name `{name}` stands
+for the config and `{proto_name}` for the script, so the default
+`{name}_results.json` writes `demo_results.json` under the demo config.
+The name is checked as you type: one holding a folder or an unknown
+placeholder turns the field red, and the status line says why. The file
+is only written when the JSON option is on. The results pane can be
+selected with the mouse and copied with Ctrl+C.
 
 The buttons: **Setup** and **Teardown** run the script's own setup and
 teardown blocks on their own (disabled when the script has none), **Run**

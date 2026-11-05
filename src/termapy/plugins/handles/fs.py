@@ -116,7 +116,7 @@ class FilesystemHandle:
         if inside or self.capabilities.filesystem_unconfined:
             return target
         raise MissingCapability(
-            f"Path {name!r} escapes the {folder}/ sandbox. The MCP host is "
+            f"Path {name!r} escapes the {base.name or folder}/ sandbox. The MCP host is "
             f"confined to the config directory; set TERMAPY_MCP_FS_UNCONFINED=1 "
             f"in the server's shell to allow host-wide paths."
         )
@@ -153,33 +153,60 @@ class FilesystemHandle:
         client writing there would step around every other gate.  Unlike the
         sandbox above, no flag lifts this (registry ``mcp-no-code-writes``).
 
+        Below the config root every part of the path counts, because
+        ``plugin/sub/`` is still in ``plugin/``.  Above the root a folder named
+        ``plugin`` is only where a project happens to live, so a path outside
+        the root is judged by its last part.
+
         Args:
             folder: The folder the file lands in.
 
         Raises:
-            MissingCapability: The folder holds code and the host has no
-                interactive session.
+            MissingCapability: The folder is or sits in one that holds code, and
+                the host has no interactive session.
         """
-        if not self.capabilities.interactive and folder.name.casefold() in _CODE_FOLDERS:
-            raise MissingCapability(
-                f"Folder {folder.name!r} holds code termapy imports: "
-                "an MCP client cannot write there."
-            )
+        if self.capabilities.interactive:
+            return
+        resolved = folder.resolve()
+        config_folder = self._config_folder()
+        cfg_root = config_folder.parent if config_folder else None
+        parts = (
+            resolved.relative_to(cfg_root).parts
+            if cfg_root and resolved.is_relative_to(cfg_root)
+            else (resolved.name,)
+        )
+        for part in parts:
+            # Windows makes plugin. and plugin::$INDEX_ALLOCATION the folder plugin/.
+            if part.split(":")[0].rstrip(". ").casefold() in _CODE_FOLDERS:
+                raise MissingCapability(
+                    f"Folder {part!r} holds code termapy imports: an MCP client cannot write there."
+                )
 
-    def guard_new_file(self, path: Path) -> None:
-        """Refuse a write that would replace a file, with no person present.
+    def guard_replace(self, path: Path) -> None:
+        """Refuse replacing a file outside the config's folder, with no person present.
 
-        Writing over a file destroys it as a delete does, so what an MCP
-        client cannot delete it cannot overwrite (registry ``mcp-no-code-writes``).
+        Inside its folder an MCP client may write over a file, as a person can;
+        outside it the file is not the config's to change, and no flag lifts
+        this (registry ``mcp-no-code-writes``, decision 2026-11-05).  A code
+        folder inside it is ``guard_code_folder``'s answer.
 
         Args:
             path: The file about to be written.
 
         Raises:
-            MissingCapability: The file exists and the host has no interactive
-                session.
+            MissingCapability: The file exists outside the config's folder, or
+                no config is loaded, and the host has no interactive session.
         """
-        if not self.capabilities.interactive and path.exists():
+        if self.capabilities.interactive or not path.exists():
+            return
+        config_folder = self._config_folder()
+        if config_folder is None or not path.resolve().is_relative_to(config_folder):
             raise MissingCapability(
-                f"File exists: {path.name} (an MCP client never replaces a file; use a new name)"
+                f"File exists: {path.name} "
+                "(an MCP client never replaces a file outside the config's folder)"
             )
+
+    def _config_folder(self) -> Path | None:
+        """The active config's folder, or ``None`` with no config, when the data folders are ``.``."""
+        cap_dir = Path(self.cap_dir)
+        return None if cap_dir == Path(".") else cap_dir.resolve().parent

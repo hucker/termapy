@@ -1025,3 +1025,21 @@ added either, for the same reason.
 What did not move: `/cfg.load` takes a bare name from the project's folder and nothing else,
 because a path or a stray file would be rewritten as a config and its folder's plugins run.
 Renaming and deleting a config still need a person.
+
+## 2026-11-05 — Under MCP a write may replace a file inside the config's folder
+
+Reverses the "over a file that exists" half of the 2026-11-03 entry, and with it the 2026-11-04
+entry's treatment of a `spy://` log as an exception. Chuck: "mcp should be able to write json,
+cfg, run etc to its own folders. My concern is writing outside of folders", then "Yes mcp can
+change files". The refusal was the assistant's extension of 2026-11-03, whose quotes cover `/os`,
+rename and delete; "overwriting destroys a file as a delete does" was its reasoning, not his. It
+stopped work an agent needs: re-running a script with a fixed `json_file`, updating its saved
+profile, `/run.legacy --fix`.
+
+`ctx.fs.guard_replace` now refuses only a file outside the active config's folder, or any file
+with no config loaded, and no flag lifts it (registry `mcp-no-code-writes`). The cost is accepted:
+an agent can wipe a capture by reusing its name, though it still cannot delete one.
+
+What did not move: `/os`, rename and delete, and writing into `plugin/` or `viz/`, whose Python
+runs at the next load. `/cfg.new` over an existing config still needs a person's yes, and
+`/firmware.copy`, `/board.firmware` and `/run.record` never overwrite for anyone.
